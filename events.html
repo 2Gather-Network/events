@@ -846,12 +846,9 @@ async function loadCategories() {
     var data = await res.json();
     if (data.categories && data.categories.length) {
       CATEGORIES = data.categories;
-      ROOMS = data.categories.filter(function(c) { return c.room; }).map(function(c) {
-        return { name: c.room, emoji: c.emoji, url: c.roomUrl || "" };
-      });
-      // Deduplicate ROOMS by name
-      var seen = {};
-      ROOMS = ROOMS.filter(function(r) { if (seen[r.name]) return false; seen[r.name] = true; return true; });
+    }
+    if (data.rooms && data.rooms.length) {
+      ROOMS = data.rooms;
     }
   } catch(e) { console.warn("Failed to load categories from sheet:", e); }
 }
@@ -1388,31 +1385,15 @@ function setHostingOption(opt) {
 function renderRoomChips() {
   var labelEl = document.getElementById("room-preview-label");
   var roomOptions = document.getElementById("room-options");
-  // Collect suggested rooms from selected categories, plus all available rooms
-  var suggested = {};
-  Array.from(selectedCats).forEach(function(lbl) {
-    var cat = CATEGORIES.find(function(c) { return c.label === lbl; });
-    if (cat && cat.room) suggested[cat.room] = true;
-  });
-  var suggestedNames = Object.keys(suggested);
-  // Show all rooms that have URLs, with suggested ones first
-  var allRooms = ROOMS.filter(function(r) { return r.name; });
-  var orderedRooms = allRooms.filter(function(r) { return suggested[r.name]; })
-    .concat(allRooms.filter(function(r) { return !suggested[r.name]; }));
-  if (orderedRooms.length === 0) { document.getElementById("db-room-section").style.display = "none"; return; }
-  // Auto-select if only one suggested room and no manual selection yet
-  if (!selectedRoom && suggestedNames.length === 1) selectedRoom = suggestedNames[0];
-  if (selectedRoom && !orderedRooms.some(function(r) { return r.name === selectedRoom; })) selectedRoom = null;
-  labelEl.textContent = "Virtual room for this event:";
+  if (ROOMS.length === 0) { document.getElementById("db-room-section").style.display = "none"; return; }
+  if (selectedRoom && !ROOMS.some(function(r) { return r.name === selectedRoom; })) selectedRoom = null;
+  labelEl.textContent = "Which virtual room is best for this event?";
   roomOptions.innerHTML = "";
-  orderedRooms.forEach(function(roomObj) {
+  ROOMS.forEach(function(roomObj) {
     var chip = document.createElement("button");
     chip.type = "button";
-    var isSuggested = suggested[roomObj.name];
-    var chipLabel = (roomObj.emoji || "🏠") + " " + roomObj.name;
     chip.className = "room-chip" + (selectedRoom === roomObj.name ? " selected" : "");
-    if (isSuggested && selectedRoom !== roomObj.name) chip.style.border = "2px solid var(--primary)";
-    chip.textContent = chipLabel;
+    chip.textContent = "🏠 " + roomObj.name;
     chip.onclick = function() { selectedRoom = roomObj.name; roomOptions.querySelectorAll(".room-chip").forEach(function(c) { c.classList.remove("selected"); }); chip.classList.add("selected"); checkAndWarnConflict(); };
     roomOptions.appendChild(chip);
   });
