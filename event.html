@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Version: V4.93 | Date: 2026-07-02 | LAST CHANGE: W5 - dynamic categories from reference-data sheet via GAS getCategories; remove hardcoded CATEGORIES/ROOMS arrays; parent category names replace child IDs -->
+  <!-- Version: V4.93a | Date: 2026-07-02 | LAST CHANGE: add loadCategories retry (3 attempts) - transient Google redirect 404s were blanking categories -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -316,18 +316,21 @@ function resolveCategory(val) {
 }
 
 async function loadCategories() {
-  try {
-    var res = await fetch(GS_URL + "?action=getCategories&t=" + Date.now());
-    var data = await res.json();
-    if (data.categories && data.categories.length) {
-      CATEGORIES = data.categories;
+  for (var attempt = 0; attempt < 3; attempt++) {
+    try {
+      var res = await fetch(GS_URL + "?action=getCategories&t=" + Date.now() + "_" + attempt);
+      var text = await res.text();
+      var data = JSON.parse(text);
+      if (data.categories && data.categories.length) { CATEGORIES = data.categories; }
+      if (data.rooms && data.rooms.length) {
+        data.rooms.forEach(function(r) { if (r.name) { ROOMS[r.name] = r.url || ""; } });
+      }
+      return;
+    } catch(e) {
+      if (attempt === 2) { console.warn("Failed to load categories from sheet after 3 attempts:", e); return; }
+      await new Promise(function(r) { setTimeout(r, 800); });
     }
-    if (data.rooms && data.rooms.length) {
-      data.rooms.forEach(function(r) {
-        if (r.name) { ROOMS[r.name] = r.url || ""; }
-      });
-    }
-  } catch(e) { console.warn("Failed to load categories from sheet:", e); }
+  }
 }
 
 let RECURRING_EVENTS = [];
@@ -1242,6 +1245,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V4.93 | Date: 2026-07-02 | LAST CHANGE: W5 - dynamic categories from reference-data sheet via GAS getCategories; remove hardcoded CATEGORIES/ROOMS arrays; parent category names replace child IDs -->
+<!-- Version: V4.93a | Date: 2026-07-02 | LAST CHANGE: add loadCategories retry (3 attempts) - transient Google redirect 404s were blanking categories -->
 </body>
 </html>
