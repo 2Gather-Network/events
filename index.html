@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  index.html Version 3.06
-  v3.06 - unify category labels/emojis to Parent Categories; dedupe merged pills; remove learning pill; sign-in link → 2gather.network
+  index.html Version 3.07
+  v3.07 - biweekly recurring support (badge, getNextOccurrences with week alignment); remove resources pill
 -->
 <html lang="en">
 <head>
@@ -399,7 +399,7 @@ function renderPills() {
   c.appendChild(makeFilterBtn("All categories", activeFilter === "all", () => setFilter("all")));
   const seen = new Set();
   CATEGORIES.forEach(cat => {
-if (cat.id === "learning" || cat.id === "resources") return;
+    if (cat.id === "learning" || cat.id === "resources") return;
     if (seen.has(cat.label)) return;
     seen.add(cat.label);
     const ids = CATEGORIES.filter(x => x.label === cat.label).map(x => x.id).join(",");
@@ -535,7 +535,7 @@ function renderEvents() {
     const cityState = (ev.format === "inperson" || ev.format === "both") ? parseCityState(ev.location) : "";
     const locationLine = (cityState || formatBadge) ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;"><span style="font-size:12px;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${cityState ? "📍 "+esc(cityState) : ""}</span>${formatBadge}</div>` : "";
     const recurringBadge = ev.recurring
-      ? `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;background:#E8F2F9;color:var(--primary);padding:3px 9px;border-radius:20px;white-space:nowrap;">🔁 ${ev.recurFreq === "monthly" ? "Monthly" : "Weekly"}</span>`
+      ? `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;background:#E8F2F9;color:var(--primary);padding:3px 9px;border-radius:20px;white-space:nowrap;">🔁 ${ev.recurFreq === "monthly" ? "Monthly" : ev.recurFreq === "biweekly" ? "Biweekly" : "Weekly"}</span>`
       : "";
     const descHtml = ev.description ? escNl(ev.description) : "";
     const card = document.createElement("div");
@@ -669,6 +669,9 @@ function addToCalendar(id) {
   if (ev.recurFreq === "weekly") {
     const day = ["SU","MO","TU","WE","TH","FR","SA"][new Date(ev.date+"T12:00").getDay()];
     params.append("recur", "RRULE:FREQ=WEEKLY;BYDAY="+day);
+  } else if (ev.recurFreq === "biweekly") {
+    const day = ["SU","MO","TU","WE","TH","FR","SA"][new Date(ev.date+"T12:00").getDay()];
+    params.append("recur", "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY="+day);
   } else if (ev.recurFreq === "monthly") {
     params.append("recur", "RRULE:FREQ=MONTHLY");
   } else if (ev.recurring && rrule) {
@@ -788,6 +791,7 @@ function useMyLocation() {
 }
 
 function getNextOccurrences(template, count) {
+  const step = template.recurFreq === "biweekly" ? 14 : 7;
   const results = [];
   const now = new Date();
   const d   = new Date();
@@ -796,14 +800,20 @@ function getNextOccurrences(template, count) {
   if (daysUntil === 0) {
     const [endH,endM] = (template.endtime||template.time).split(":").map(Number);
     const endToday = new Date(); endToday.setHours(endH,endM,0,0);
-    if (now > endToday) daysUntil = 7;
+    if (now > endToday) daysUntil = step;
   }
   d.setDate(d.getDate() + daysUntil);
+  if (step === 14 && template.date) {
+    const anchor = new Date(template.date + "T00:00:00");
+    const diffDays = Math.round((d - anchor) / 86400000);
+    const weekOffset = ((diffDays % 14) + 14) % 14;
+    if (weekOffset !== 0) d.setDate(d.getDate() + (14 - weekOffset));
+  }
   for (let i = 0; i < count; i++) {
     const dateStr = d.toISOString().split("T")[0];
     const slug    = template.title.toLowerCase().replace(/\s+/g,"-");
     results.push({ ...template, id:`recurring-${slug}-${dateStr}`, date:dateStr, passcode:"", going:0, recurring:true });
-    d.setDate(d.getDate() + 7);
+    d.setDate(d.getDate() + step);
   }
   return results;
 }
