@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <!--
   Community Events
-  Events.html Version 11.97
-  v11.97 - swap JSONP event load to plain fetch() (fixes Brave/extension blocking)
-  v11.96 - guard setMode against removed chip elements
+  Events.html Version 11.98
+  v11.98 - unify category labels/emojis to Parent Categories; dedupe merged pills (faith+care, professional+wealth); remove learning pill; support comma-separated filter IDs
 -->
 <html lang="en">
 <head>
@@ -819,19 +818,19 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
 
 <script>
 const CATEGORIES = [
-  { id:"arts",         label:"Arts/culture",             emoji:"🎭", room:"Co-Create room",     extraRooms:["Coworking room"] },
-  { id:"movement",     label:"Physical health/wellness",          emoji:"🏓", room:"Wellness room",       extraRooms:["Coworking room"] },
+  { id:"arts",         label:"Arts & Culture",             emoji:"🎭", room:"Co-Create room",     extraRooms:["Coworking room"] },
+  { id:"movement",     label:"Physical Wellbeing",          emoji:"❤️", room:"Wellness room",       extraRooms:["Coworking room"] },
   { id:"learning",     label:"Learning/discovery",       emoji:"🌱", room:"Co-Create room",     extraRooms:["Ikigai room","Coworking room"] },
-  { id:"nature",       label:"Nature/outdoors",          emoji:"🌲", room:"Coworking room" },
-  { id:"professional", label:"Work/skills",          emoji:"💼", room:"Conference room",     extraRooms:["Coworking room"] },
-  { id:"creative",     label:"Creative making",          emoji:"🎨", room:"Co-Create room",     extraRooms:["Coworking room"] },
-  { id:"faith",        label:"Inner life",               emoji:"💙", room:"Wellness room",       extraRooms:["Coworking room"] },
+  { id:"nature",       label:"Nature & Outdoors",          emoji:"🌲", room:"Coworking room" },
+  { id:"professional", label:"Business & Finance",          emoji:"💼", room:"Conference room",     extraRooms:["Coworking room"] },
+  { id:"creative",     label:"Self-Expression & Beauty",  emoji:"✨", room:"Co-Create room",     extraRooms:["Coworking room"] },
+  { id:"faith",        label:"Mental Wellbeing",          emoji:"💛", room:"Wellness room",       extraRooms:["Coworking room"] },
   { id:"resources",    label:"Resource sharing",         emoji:"🔧", room:"The Commons",         extraRooms:["Coworking room"] },
-  { id:"care",         label:"Mental health/wellness", emoji:"💛", room:"Wellness room",       extraRooms:["Coworking room"] },
-  { id:"social",       label:"Social gathering",         emoji:"🎉", room:"The Commons",         extraRooms:["Coworking room"] },
-  { id:"family",       label:"Family/caregiving/home",    emoji:"🏡", room:"Community Care room", extraRooms:["Coworking room"] },
-  { id:"food",         label:"Food/drink",               emoji:"🥘", room:"The Commons",         extraRooms:["Coworking room"] },
-  { id:"wealth",       label:"Wealth/abundance",      emoji:"🌳", room:"Abundance room",      extraRooms:["Coworking room"] },
+  { id:"care",         label:"Mental Wellbeing", emoji:"💛", room:"Wellness room",       extraRooms:["Coworking room"] },
+  { id:"social",       label:"Events & Gatherings",         emoji:"🎉", room:"The Commons",         extraRooms:["Coworking room"] },
+  { id:"family",       label:"Family Wellbeing",          emoji:"💙", room:"Community Care room", extraRooms:["Coworking room"] },
+  { id:"food",         label:"Food & Drink",               emoji:"🥘", room:"The Commons",         extraRooms:["Coworking room"] },
+  { id:"wealth",       label:"Business & Finance",    emoji:"💼", room:"Abundance room",      extraRooms:["Coworking room"] },
 ];
 
 const ROOMS = [
@@ -1007,7 +1006,7 @@ async function parseEventText() {
   "categories": array of 1-3 category IDs that best fit the event, chosen from: arts, movement, learning, nature, professional, creative, faith, resources, care, social, family, food, wealth
 }
 
-Category guide: arts=arts/culture/performance, movement=physical activity/fitness/sports, learning=education/workshops/discovery, nature=outdoors/environment, professional=work/business/skills, creative=making/crafts/design, faith=spirituality/inner life/mindfulness, resources=sharing/tools/mutual aid, care=mental health/wellness/emotional support, social=gathering/community/networking, family=family/parenting/caregiving, food=food/drink/cooking, wealth=money/abundance/financial
+Category guide: arts=arts/culture/performance, movement=physical wellbeing/fitness/sports/yoga/exercise, learning=education/workshops/discovery, nature=nature/outdoors/environment, professional=business/finance/work/skills, creative=self-expression/beauty/making/crafts/design, faith=mental wellbeing/inner life/mindfulness/spirituality, resources=sharing/tools/mutual aid, care=mental wellbeing/wellness/emotional support, social=events/gatherings/community/networking, family=family wellbeing/parenting/caregiving, food=food/drink/cooking, wealth=business/finance/money/abundance
 
 Text to parse:
 ${text}
@@ -1424,7 +1423,16 @@ function renderPills() {
   const c = document.getElementById("cat-pills");
   c.innerHTML = "";
   c.appendChild(makeFilterBtn("All categories", activeFilter === "all", () => setFilter("all")));
-  CATEGORIES.forEach(cat => c.appendChild(makeFilterBtn(`${cat.emoji} ${cat.label}`, activeFilter === cat.id, () => setFilter(cat.id))));
+  const seen = new Set();
+  CATEGORIES.forEach(cat => {
+    if (cat.id === "learning") return;
+    if (seen.has(cat.label)) return;
+    seen.add(cat.label);
+    const ids = CATEGORIES.filter(x => x.label === cat.label).map(x => x.id).join(",");
+    const activeIds = activeFilter.split(",");
+    const isActive = ids.split(",").some(id => activeIds.includes(id));
+    c.appendChild(makeFilterBtn(`${cat.emoji} ${cat.label}`, isActive, () => setFilter(ids)));
+  });
 }
 function makeFilterBtn(text, isActive, onClick) {
   const b = document.createElement("button");
@@ -1509,7 +1517,8 @@ function renderEvents() {
       const partial = CATEGORIES.find(cat => cat.label.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(cat.id.toLowerCase()));
       return partial ? partial.id : c;
     });
-    const matchCat  = activeFilter === "all" || cats.includes(activeFilter);
+    const filterIds = activeFilter.split(",");
+    const matchCat  = activeFilter === "all" || filterIds.some(fid => cats.includes(fid));
     const matchQ    = !q || e.title.toLowerCase().includes(q) || (e.description||"").toLowerCase().includes(q) || (e.location||"").toLowerCase().includes(q) || (e.host||"").toLowerCase().includes(q);
     const evEndMs   = e.endtime ? new Date(e.date + "T" + e.endtime).getTime() : new Date(e.date + "T" + (e.time||"00:00")).getTime() + 60*60*1000;
     const evStartMs = new Date(e.date + "T" + (e.time||"00:00")).getTime();
