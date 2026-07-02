@@ -1,8 +1,5 @@
 <!DOCTYPE html>
-<!--
-  index.html Version 3.07
-  v3.07 - biweekly recurring support (badge, getNextOccurrences with week alignment); remove resources pill
--->
+<!-- Version: V3.08 | Date: 2026-07-02 | LAST CHANGE: W5 - dynamic categories from reference-data sheet via GAS getCategories; remove hardcoded CATEGORIES/ROOMS arrays; parent category names replace child IDs -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -215,32 +212,42 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const CATEGORIES = [
-  { id:"arts",         label:"Arts & Culture",             emoji:"🎭", room:"Co-Create room",     extraRooms:["Coworking room"] },
-  { id:"movement",     label:"Physical Wellbeing",          emoji:"❤️", room:"Wellness room",       extraRooms:["Coworking room"] },
-  { id:"learning",     label:"Learning/discovery",       emoji:"🌱", room:"Co-create room",     extraRooms:["Ikigai room","Coworking room"] },
-  { id:"nature",       label:"Nature & Outdoors",          emoji:"🌲", room:"Coworking room" },
-  { id:"professional", label:"Business & Finance",          emoji:"💼", room:"Conference room",     extraRooms:["Coworking room"] },
-  { id:"creative",     label:"Self-Expression & Beauty",  emoji:"✨", room:"Co-Create room",     extraRooms:["Coworking room"] },
-  { id:"faith",        label:"Mental Wellbeing",          emoji:"💛", room:"Wellness room",       extraRooms:["Coworking room"] },
-  { id:"resources",    label:"Resource sharing",         emoji:"🔧", room:"The Commons",         extraRooms:["Coworking room"] },
-  { id:"care",         label:"Mental Wellbeing", emoji:"💛", room:"Wellness room",     extraRooms:["Coworking room"] },
-  { id:"social",       label:"Events & Gatherings",         emoji:"🎉", room:"The Commons",         extraRooms:["Coworking room"] },
-  { id:"family",       label:"Family Wellbeing",          emoji:"💙", room:"Community Care room", extraRooms:["Coworking room"] },
-  { id:"food",         label:"Food & Drink",               emoji:"🥘", room:"The Commons",         extraRooms:["Coworking room"] },
-  { id:"wealth",       label:"Business & Finance",    emoji:"💼", room:"Abundance room",      extraRooms:["Coworking room"] },
-];
+var CATEGORIES = [];
+var ROOMS = [];
 
-const ROOMS = [
-  { name:"The Commons",         emoji:"🌳", url:"https://events.2gather.network/events/yvrgej/zkxbzq" },
-  { name:"Ikigai room",         emoji:"🧭", url:"https://events.2gather.network/events/eojvkq/qwmpgq" },
-  { name:"Wellness room",       emoji:"💛", url:"https://events.2gather.network/events/336936/504368" },
-  { name:"Community Care room", emoji:"💜", url:"https://events.2gather.network/events/yvrgej/gypxbp" },
-  { name:"Co-Create room",      emoji:"🎨", url:"https://events.2gather.network/events/yvrgej/rwbplq" },
-  { name:"Coworking room",      emoji:"💻", url:"https://events.2gather.network/events/yvrgej/gpbqox" },
-  { name:"Abundance room",      emoji:"🌻", url:"", comingSoon: true },
-  { name:"Conference room",     emoji:"🎤", url:"https://events.2gather.network/events/335887/502618" },
-];
+var OLD_ID_TO_PARENT = {
+  "arts":"Arts & Culture","movement":"Physical Wellbeing","nature":"Nature & Outdoors",
+  "professional":"Business & Finance","creative":"Self-Expression & Beauty",
+  "faith":"Mental Wellbeing","care":"Mental Wellbeing","social":"Events & Gatherings",
+  "family":"Family Wellbeing","food":"Food & Drink","wealth":"Business & Finance",
+  "learning":"","resources":""
+};
+
+function resolveCategory(val) {
+  val = String(val || "").trim();
+  if (!val) return null;
+  var cat = CATEGORIES.find(function(c) { return c.label === val; });
+  if (cat) return cat;
+  var parent = OLD_ID_TO_PARENT[val.toLowerCase()];
+  if (parent) return CATEGORIES.find(function(c) { return c.label === parent; }) || null;
+  var lower = val.toLowerCase();
+  return CATEGORIES.find(function(c) { return c.label.toLowerCase().includes(lower) || lower.includes(c.label.toLowerCase()); }) || null;
+}
+
+async function loadCategories() {
+  try {
+    var res = await fetch(GS_URL + "?action=getCategories&t=" + Date.now());
+    var data = await res.json();
+    if (data.categories && data.categories.length) {
+      CATEGORIES = data.categories;
+      ROOMS = data.categories.filter(function(c) { return c.room; }).map(function(c) {
+        return { name: c.room, emoji: c.emoji, url: c.roomUrl || "" };
+      });
+      var seen = {};
+      ROOMS = ROOMS.filter(function(r) { if (seen[r.name]) return false; seen[r.name] = true; return true; });
+    }
+  } catch(e) { console.warn("Failed to load categories from sheet:", e); }
+}
 
 let RECURRING_EVENTS = [];
 
@@ -315,6 +322,7 @@ async function loadEvents() {
     showLoading(true);
     events = [];
     renderEvents();
+    await loadCategories();
   // Deep link: open event from URL param
   const urlParams = new URLSearchParams(window.location.search);
   const evParam = urlParams.get("event");
@@ -394,18 +402,12 @@ function showLoading(on) {
 }
 
 function renderPills() {
-  const c = document.getElementById("cat-pills");
+  var c = document.getElementById("cat-pills");
   c.innerHTML = "";
-  c.appendChild(makeFilterBtn("All categories", activeFilter === "all", () => setFilter("all")));
-  const seen = new Set();
-  CATEGORIES.forEach(cat => {
-    if (cat.id === "learning" || cat.id === "resources") return;
-    if (seen.has(cat.label)) return;
-    seen.add(cat.label);
-    const ids = CATEGORIES.filter(x => x.label === cat.label).map(x => x.id).join(",");
-    const activeIds = activeFilter.split(",");
-    const isActive = ids.split(",").some(id => activeIds.includes(id));
-    c.appendChild(makeFilterBtn(`${cat.emoji} ${cat.label}`, isActive, () => setFilter(ids)));
+  c.appendChild(makeFilterBtn("All categories", activeFilter === "all", function() { setFilter("all"); }));
+  CATEGORIES.forEach(function(cat) {
+    var isActive = activeFilter === cat.label;
+    c.appendChild(makeFilterBtn(cat.emoji + " " + cat.label, isActive, function() { setFilter(cat.label); }));
   });
 }
 function makeFilterBtn(text, isActive, onClick) {
@@ -453,14 +455,8 @@ function renderEvents() {
     return !e.isPrivate;
   }).filter(e => {
     let cats = Array.isArray(e.categories) ? e.categories : [e.category].filter(Boolean);
-    cats = cats.map(c => {
-      const byId = CATEGORIES.find(cat => cat.id === c); if (byId) return c;
-      const byLabel = CATEGORIES.find(cat => cat.label.toLowerCase() === c.toLowerCase()); if (byLabel) return byLabel.id;
-      const partial = CATEGORIES.find(cat => cat.label.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(cat.id.toLowerCase()));
-      return partial ? partial.id : c;
-    });
-    const filterIds = activeFilter.split(",");
-    const matchCat  = activeFilter === "all" || filterIds.some(fid => cats.includes(fid));
+    cats = cats.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; });
+    const matchCat  = activeFilter === "all" || cats.includes(activeFilter);
     const matchQ    = !q || e.title.toLowerCase().includes(q) || (e.description||"").toLowerCase().includes(q) || (e.location||"").toLowerCase().includes(q) || (e.host||"").toLowerCase().includes(q);
     const evEndMs   = e.endtime ? new Date(e.date + "T" + e.endtime).getTime() : new Date(e.date + "T" + (e.time||"00:00")).getTime() + 60*60*1000;
     const evStartMs = new Date(e.date + "T" + (e.time||"00:00")).getTime();
@@ -514,15 +510,11 @@ function renderEvents() {
 
   list.forEach(ev => {
     let cats = Array.isArray(ev.categories) ? ev.categories : [ev.category].filter(Boolean);
-    cats = cats.map(c => {
-      const byId = CATEGORIES.find(cat => cat.id === c); if (byId) return c;
-      const byLabel = CATEGORIES.find(cat => cat.label.toLowerCase() === c.toLowerCase()); if (byLabel) return byLabel.id;
-      const partial = CATEGORIES.find(cat => cat.label.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(cat.id.toLowerCase()));
-      return partial ? partial.id : c;
-    });
-    const catObjs = cats.map(id => CATEGORIES.find(c => c.id === id)).filter(Boolean);
-    const catTagsVisible = catObjs.slice(0,5).map(c => `<span class="event-cat-tag">${c.emoji} ${c.label}</span>`).join("");
-    const catTagsMore = catObjs.length > 5 ? `<span class="event-cat-tag" style="cursor:pointer;background:#f3f4f6;color:var(--muted);" onclick="expandCatsIndex('${ev.id}')">+${catObjs.length-5} more</span>` : "";
+    const catObjs = cats.map(function(c) { return resolveCategory(c); }).filter(Boolean);
+    const seenLabels = {};
+    const dedupedCatObjs = catObjs.filter(function(c) { if (seenLabels[c.label]) return false; seenLabels[c.label] = true; return true; });
+    const catTagsVisible = dedupedCatObjs.slice(0,5).map(c => `<span class="event-cat-tag">${c.emoji} ${c.label}</span>`).join("");
+    const catTagsMore = dedupedCatObjs.length > 5 ? `<span class="event-cat-tag" style="cursor:pointer;background:#f3f4f6;color:var(--muted);" onclick="expandCatsIndex('${ev.id}')">+${dedupedCatObjs.length-5} more</span>` : "";
     const catTags = catTagsVisible + catTagsMore;
     const roomObj = ROOMS.find(r => r.name === ev.room);
     const formatBadge = ev.format === "virtual"
@@ -874,9 +866,11 @@ function expandCatsIndex(evId) {
   const ev = allEv.find(e => e.id === evId);
   if (!ev) return;
   let cats = Array.isArray(ev.categories) ? ev.categories : [];
-  const catObjs = cats.map(id => CATEGORIES.find(c => c.id === id)).filter(Boolean);
+  const catObjs = cats.map(function(c) { return resolveCategory(c); }).filter(Boolean);
+  const seenLabels = {};
+  const deduped = catObjs.filter(function(c) { if (seenLabels[c.label]) return false; seenLabels[c.label] = true; return true; });
   const container = document.querySelector('[data-event-id="' + evId + '"] .event-cats');
-  if (container) container.innerHTML = catObjs.map(function(c) { return '<span class="event-cat-tag">' + c.emoji + ' ' + c.label + '</span>'; }).join("");
+  if (container) container.innerHTML = deduped.map(function(c) { return '<span class="event-cat-tag">' + c.emoji + ' ' + c.label + '</span>'; }).join("");
 }
 
 function showSignupPrompt() {
@@ -914,6 +908,6 @@ loadEvents();
   </div>
 </div>
 
-<!-- index.html v3.04 -->
+<!-- Version: V3.08 | Date: 2026-07-02 | LAST CHANGE: W5 - dynamic categories from reference-data sheet via GAS getCategories; remove hardcoded CATEGORIES/ROOMS arrays; parent category names replace child IDs -->
 </body>
 </html>
