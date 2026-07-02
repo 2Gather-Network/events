@@ -1,9 +1,5 @@
 <!DOCTYPE html>
-<!--
-  Community Events
-  Events.html Version 11.99
-  v11.99 - biweekly recurring support (form button, badge, getNextOccurrences with week alignment); remove resources pill
--->
+<!-- Version: V12.00 | Date: 2026-07-02 | LAST CHANGE: W5 - dynamic categories from reference-data sheet via GAS getCategories; remove hardcoded CATEGORIES/ROOMS arrays; parent category names replace child IDs; room auto-suggest from sheet -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -818,32 +814,47 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
 </div>
 
 <script>
-const CATEGORIES = [
-  { id:"arts",         label:"Arts & Culture",             emoji:"🎭", room:"Co-Create room",     extraRooms:["Coworking room"] },
-  { id:"movement",     label:"Physical Wellbeing",          emoji:"❤️", room:"Wellness room",       extraRooms:["Coworking room"] },
-  { id:"learning",     label:"Learning/discovery",       emoji:"🌱", room:"Co-Create room",     extraRooms:["Ikigai room","Coworking room"] },
-  { id:"nature",       label:"Nature & Outdoors",          emoji:"🌲", room:"Coworking room" },
-  { id:"professional", label:"Business & Finance",          emoji:"💼", room:"Conference room",     extraRooms:["Coworking room"] },
-  { id:"creative",     label:"Self-Expression & Beauty",  emoji:"✨", room:"Co-Create room",     extraRooms:["Coworking room"] },
-  { id:"faith",        label:"Mental Wellbeing",          emoji:"💛", room:"Wellness room",       extraRooms:["Coworking room"] },
-  { id:"resources",    label:"Resource sharing",         emoji:"🔧", room:"The Commons",         extraRooms:["Coworking room"] },
-  { id:"care",         label:"Mental Wellbeing", emoji:"💛", room:"Wellness room",       extraRooms:["Coworking room"] },
-  { id:"social",       label:"Events & Gatherings",         emoji:"🎉", room:"The Commons",         extraRooms:["Coworking room"] },
-  { id:"family",       label:"Family Wellbeing",          emoji:"💙", room:"Community Care room", extraRooms:["Coworking room"] },
-  { id:"food",         label:"Food & Drink",               emoji:"🥘", room:"The Commons",         extraRooms:["Coworking room"] },
-  { id:"wealth",       label:"Business & Finance",    emoji:"💼", room:"Abundance room",      extraRooms:["Coworking room"] },
-];
+var CATEGORIES = [];
+var ROOMS = [];
 
-const ROOMS = [
-  { name:"The Commons",         emoji:"🌳", url:"https://events.2gather.network/events/yvrgej/zkxbzq" },
-  { name:"Ikigai room",         emoji:"🧭", url:"https://events.2gather.network/events/eojvkq/qwmpgq" },
-  { name:"Wellness room",       emoji:"💛", url:"https://events.2gather.network/events/336936/504368" },
-  { name:"Community Care room", emoji:"💜", url:"https://events.2gather.network/events/yvrgej/gypxbp" },
-  { name:"Co-Create room",      emoji:"🎨", url:"https://events.2gather.network/events/yvrgej/rwbplq" },
-  { name:"Coworking room",      emoji:"💻", url:"https://events.2gather.network/events/yvrgej/gpbqox" },
-  { name:"Abundance room",      emoji:"🌻", url:"", comingSoon: true },
-  { name:"Conference room",     emoji:"🎤", url:"https://events.2gather.network/events/335887/502618" },
-];
+// Fallback map: old child IDs → parent category names (for any un-migrated event rows)
+var OLD_ID_TO_PARENT = {
+  "arts":"Arts & Culture","movement":"Physical Wellbeing","nature":"Nature & Outdoors",
+  "professional":"Business & Finance","creative":"Self-Expression & Beauty",
+  "faith":"Mental Wellbeing","care":"Mental Wellbeing","social":"Events & Gatherings",
+  "family":"Family Wellbeing","food":"Food & Drink","wealth":"Business & Finance",
+  "learning":"","resources":""
+};
+
+function resolveCategory(val) {
+  val = String(val || "").trim();
+  if (!val) return null;
+  // Direct match by label
+  var cat = CATEGORIES.find(function(c) { return c.label === val; });
+  if (cat) return cat;
+  // Old child ID fallback
+  var parent = OLD_ID_TO_PARENT[val.toLowerCase()];
+  if (parent) return CATEGORIES.find(function(c) { return c.label === parent; }) || null;
+  // Partial match
+  var lower = val.toLowerCase();
+  return CATEGORIES.find(function(c) { return c.label.toLowerCase().includes(lower) || lower.includes(c.label.toLowerCase()); }) || null;
+}
+
+async function loadCategories() {
+  try {
+    var res = await fetch(GS_URL + "?action=getCategories&t=" + Date.now());
+    var data = await res.json();
+    if (data.categories && data.categories.length) {
+      CATEGORIES = data.categories;
+      ROOMS = data.categories.filter(function(c) { return c.room; }).map(function(c) {
+        return { name: c.room, emoji: c.emoji, url: c.roomUrl || "" };
+      });
+      // Deduplicate ROOMS by name
+      var seen = {};
+      ROOMS = ROOMS.filter(function(r) { if (seen[r.name]) return false; seen[r.name] = true; return true; });
+    }
+  } catch(e) { console.warn("Failed to load categories from sheet:", e); }
+}
 
 let RECURRING_EVENTS = [];
 
@@ -1004,10 +1015,10 @@ async function parseEventText() {
   "paymentlink": "any registration/payment URL",
   "contactEmail": "contact email if mentioned",
   "contactPhone": "contact phone if mentioned",
-  "categories": array of 1-3 category IDs that best fit the event, chosen from: arts, movement, learning, nature, professional, creative, faith, resources, care, social, family, food, wealth
+  "categories": array of 1-3 category names that best fit the event, chosen from: ${CATEGORIES.map(function(c) { return c.label; }).join(", ")}
 }
 
-Category guide: arts=arts/culture/performance, movement=physical wellbeing/fitness/sports/yoga/exercise, learning=education/workshops/discovery, nature=nature/outdoors/environment, professional=business/finance/work/skills, creative=self-expression/beauty/making/crafts/design, faith=mental wellbeing/inner life/mindfulness/spirituality, resources=sharing/tools/mutual aid, care=mental wellbeing/wellness/emotional support, social=events/gatherings/community/networking, family=family wellbeing/parenting/caregiving, food=food/drink/cooking, wealth=business/finance/money/abundance
+Category guide: ${CATEGORIES.map(function(c) { return c.label + "=" + c.label.toLowerCase(); }).join(", ")}
 
 Text to parse:
 ${text}
@@ -1076,11 +1087,9 @@ Return ONLY the JSON object, no explanation.`;
 
     // Auto-select categories
     if (parsed.categories && Array.isArray(parsed.categories)) {
-      const validIds = new Set(CATEGORIES.map(c => c.id));
-      parsed.categories.forEach(id => {
-        if (validIds.has(id)) {
-          selectedCats.add(id);
-        }
+      parsed.categories.forEach(function(val) {
+        var cat = resolveCategory(val);
+        if (cat) selectedCats.add(cat.label);
       });
       buildFormChips();
       updateRoomPreview();
@@ -1199,6 +1208,7 @@ async function loadEvents() {
     showLoading(true);
     events = [];
     renderEvents();
+    await loadCategories();
     const data = await fetchEvents();
     const allRows = (data.events || []).filter(r => r.id).map(sheetToEv);
     RECURRING_EVENTS = allRows.filter(e => e.id.startsWith("rec-") && e.recurFreq && e.dayOfWeek);
@@ -1334,19 +1344,19 @@ function fixModalForMobile() {
 function buildFormChips() {
   const container = document.getElementById("f-cat-chips");
   container.innerHTML = "";
-  CATEGORIES.forEach(cat => {
-    const chip = document.createElement("button");
+  CATEGORIES.forEach(function(cat) {
+    var chip = document.createElement("button");
     chip.type = "button";
-    chip.className = "form-cat-chip" + (selectedCats.has(cat.id) ? " selected" : "");
-    chip.textContent = `${cat.emoji} ${cat.label}`;
-    chip.onclick = () => toggleFormCat(cat.id, chip);
+    chip.className = "form-cat-chip" + (selectedCats.has(cat.label) ? " selected" : "");
+    chip.textContent = cat.emoji + " " + cat.label;
+    chip.onclick = function() { toggleFormCat(cat.label, chip); };
     container.appendChild(chip);
   });
 }
 
-function toggleFormCat(id, chip) {
-  if (selectedCats.has(id)) { selectedCats.delete(id); chip.classList.remove("selected"); }
-  else { selectedCats.add(id); chip.classList.add("selected"); }
+function toggleFormCat(label, chip) {
+  if (selectedCats.has(label)) { selectedCats.delete(label); chip.classList.remove("selected"); }
+  else { selectedCats.add(label); chip.classList.add("selected"); }
   updateRoomPreview();
 }
 
@@ -1376,30 +1386,34 @@ function setHostingOption(opt) {
 }
 
 function renderRoomChips() {
-  const label = document.getElementById("room-preview-label");
-  const roomOptions = document.getElementById("room-options");
-  const rooms = [...new Set(Array.from(selectedCats).flatMap(id => {
-    const cat = CATEGORIES.find(c => c.id === id);
-    if (!cat) return [];
-    return [cat.room, ...(cat.extraRooms || [])].filter(Boolean);
-  }))].filter(r => { const ro = ROOMS.find(ro => ro.name === r); return !ro?.hidden; });
-  if (rooms.length === 0) { document.getElementById("db-room-section").style.display = "none"; return; }
-  if (selectedRoom && !rooms.includes(selectedRoom)) selectedRoom = null;
-  if (rooms.length === 1) selectedRoom = rooms[0];
-  label.textContent = rooms.length === 1 ? "Virtual room for this event:" : "Which virtual room is best for this event?";
+  var labelEl = document.getElementById("room-preview-label");
+  var roomOptions = document.getElementById("room-options");
+  // Collect suggested rooms from selected categories, plus all available rooms
+  var suggested = {};
+  Array.from(selectedCats).forEach(function(lbl) {
+    var cat = CATEGORIES.find(function(c) { return c.label === lbl; });
+    if (cat && cat.room) suggested[cat.room] = true;
+  });
+  var suggestedNames = Object.keys(suggested);
+  // Show all rooms that have URLs, with suggested ones first
+  var allRooms = ROOMS.filter(function(r) { return r.name; });
+  var orderedRooms = allRooms.filter(function(r) { return suggested[r.name]; })
+    .concat(allRooms.filter(function(r) { return !suggested[r.name]; }));
+  if (orderedRooms.length === 0) { document.getElementById("db-room-section").style.display = "none"; return; }
+  // Auto-select if only one suggested room and no manual selection yet
+  if (!selectedRoom && suggestedNames.length === 1) selectedRoom = suggestedNames[0];
+  if (selectedRoom && !orderedRooms.some(function(r) { return r.name === selectedRoom; })) selectedRoom = null;
+  labelEl.textContent = "Virtual room for this event:";
   roomOptions.innerHTML = "";
-  rooms.forEach(room => {
-    const roomObj = ROOMS.find(r => r.name === room);
-    const chip = document.createElement("button");
+  orderedRooms.forEach(function(roomObj) {
+    var chip = document.createElement("button");
     chip.type = "button";
-    const label = (roomObj?.emoji || "🏠") + " " + room;
-    if (rooms.length === 1) {
-      chip.className = "room-chip selected"; chip.style.cursor = "default"; chip.textContent = label;
-    } else {
-      chip.className = "room-chip" + (selectedRoom === room ? " selected" : "");
-      chip.textContent = label;
-      chip.onclick = () => { selectedRoom = room; roomOptions.querySelectorAll(".room-chip").forEach(c => c.classList.remove("selected")); chip.classList.add("selected"); checkAndWarnConflict(); };
-    }
+    var isSuggested = suggested[roomObj.name];
+    var chipLabel = (roomObj.emoji || "🏠") + " " + roomObj.name;
+    chip.className = "room-chip" + (selectedRoom === roomObj.name ? " selected" : "");
+    if (isSuggested && selectedRoom !== roomObj.name) chip.style.border = "2px solid var(--primary)";
+    chip.textContent = chipLabel;
+    chip.onclick = function() { selectedRoom = roomObj.name; roomOptions.querySelectorAll(".room-chip").forEach(function(c) { c.classList.remove("selected"); }); chip.classList.add("selected"); checkAndWarnConflict(); };
     roomOptions.appendChild(chip);
   });
 }
@@ -1421,18 +1435,12 @@ function updateRoomPreview() {
 }
 
 function renderPills() {
-  const c = document.getElementById("cat-pills");
+  var c = document.getElementById("cat-pills");
   c.innerHTML = "";
-  c.appendChild(makeFilterBtn("All categories", activeFilter === "all", () => setFilter("all")));
-  const seen = new Set();
-  CATEGORIES.forEach(cat => {
-    if (cat.id === "learning" || cat.id === "resources") return;
-    if (seen.has(cat.label)) return;
-    seen.add(cat.label);
-    const ids = CATEGORIES.filter(x => x.label === cat.label).map(x => x.id).join(",");
-    const activeIds = activeFilter.split(",");
-    const isActive = ids.split(",").some(id => activeIds.includes(id));
-    c.appendChild(makeFilterBtn(`${cat.emoji} ${cat.label}`, isActive, () => setFilter(ids)));
+  c.appendChild(makeFilterBtn("All categories", activeFilter === "all", function() { setFilter("all"); }));
+  CATEGORIES.forEach(function(cat) {
+    var isActive = activeFilter === cat.label;
+    c.appendChild(makeFilterBtn(cat.emoji + " " + cat.label, isActive, function() { setFilter(cat.label); }));
   });
 }
 function makeFilterBtn(text, isActive, onClick) {
@@ -1489,9 +1497,11 @@ function expandCats(evId) {
   const ev = allEv.find(e => e.id === evId);
   if (!ev) return;
   let cats = Array.isArray(ev.categories) ? ev.categories : [];
-  const catObjs = cats.map(id => CATEGORIES.find(c => c.id === id)).filter(Boolean);
+  const catObjs = cats.map(function(c) { return resolveCategory(c); }).filter(Boolean);
+  const seenLabels = {};
+  const deduped = catObjs.filter(function(c) { if (seenLabels[c.label]) return false; seenLabels[c.label] = true; return true; });
   const container = document.querySelector('[data-event-id="' + evId + '"] .event-cats');
-  if (container) container.innerHTML = catObjs.map(function(c) { return '<span class="event-cat-tag">' + c.emoji + ' ' + c.label + '</span>'; }).join("");
+  if (container) container.innerHTML = deduped.map(function(c) { return '<span class="event-cat-tag">' + c.emoji + ' ' + c.label + '</span>'; }).join("");
 }
 
 function renderEvents() {
@@ -1512,14 +1522,8 @@ function renderEvents() {
     return !e.isPrivate;
   }).filter(e => {
     let cats = Array.isArray(e.categories) ? e.categories : [e.category].filter(Boolean);
-    cats = cats.map(c => {
-      const byId = CATEGORIES.find(cat => cat.id === c); if (byId) return c;
-      const byLabel = CATEGORIES.find(cat => cat.label.toLowerCase() === c.toLowerCase()); if (byLabel) return byLabel.id;
-      const partial = CATEGORIES.find(cat => cat.label.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(cat.id.toLowerCase()));
-      return partial ? partial.id : c;
-    });
-    const filterIds = activeFilter.split(",");
-    const matchCat  = activeFilter === "all" || filterIds.some(fid => cats.includes(fid));
+    cats = cats.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; });
+    const matchCat  = activeFilter === "all" || cats.includes(activeFilter);
     const matchQ    = !q || e.title.toLowerCase().includes(q) || (e.description||"").toLowerCase().includes(q) || (e.location||"").toLowerCase().includes(q) || (e.host||"").toLowerCase().includes(q);
     const evEndMs   = e.endtime ? new Date(e.date + "T" + e.endtime).getTime() : new Date(e.date + "T" + (e.time||"00:00")).getTime() + 60*60*1000;
     const evStartMs = new Date(e.date + "T" + (e.time||"00:00")).getTime();
@@ -1577,15 +1581,12 @@ function renderEvents() {
 
   list.forEach(ev => {
     let cats = Array.isArray(ev.categories) ? ev.categories : [ev.category].filter(Boolean);
-    cats = cats.map(c => {
-      const byId = CATEGORIES.find(cat => cat.id === c); if (byId) return c;
-      const byLabel = CATEGORIES.find(cat => cat.label.toLowerCase() === c.toLowerCase()); if (byLabel) return byLabel.id;
-      const partial = CATEGORIES.find(cat => cat.label.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(cat.id.toLowerCase()));
-      return partial ? partial.id : c;
-    });
-    const catObjs = cats.map(id => CATEGORIES.find(c => c.id === id)).filter(Boolean);
-    const catTagsVisible = catObjs.slice(0,5).map(c => `<span class="event-cat-tag">${c.emoji} ${c.label}</span>`).join("");
-    const catTagsMore = catObjs.length > 5 ? `<span class="event-cat-tag" style="cursor:pointer;background:#f3f4f6;color:var(--muted);" onclick="expandCats('${ev.id}')" id="cat-more-${ev.id}">+${catObjs.length - 5} more</span>` : "";
+    const catObjs = cats.map(function(c) { return resolveCategory(c); }).filter(Boolean);
+    // Deduplicate by label
+    const seenLabels = {};
+    const dedupedCatObjs = catObjs.filter(function(c) { if (seenLabels[c.label]) return false; seenLabels[c.label] = true; return true; });
+    const catTagsVisible = dedupedCatObjs.slice(0,5).map(c => `<span class="event-cat-tag">${c.emoji} ${c.label}</span>`).join("");
+    const catTagsMore = dedupedCatObjs.length > 5 ? `<span class="event-cat-tag" style="cursor:pointer;background:#f3f4f6;color:var(--muted);" onclick="expandCats('${ev.id}')" id="cat-more-${ev.id}">+${dedupedCatObjs.length - 5} more</span>` : "";
     const catTags = catTagsVisible + catTagsMore;
     const roomObj = ROOMS.find(r => r.name === ev.room);
     const formatBadge = ev.format === "virtual"
@@ -1969,7 +1970,8 @@ function loadEditForm(id) {
     }
   }
   editingId = id;
-  selectedCats = new Set(Array.isArray(ev.categories) ? ev.categories : [ev.category].filter(Boolean));
+  var rawCats = Array.isArray(ev.categories) ? ev.categories : [ev.category].filter(Boolean);
+  selectedCats = new Set(rawCats.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; }).filter(Boolean));
   selectedRoom = ev.room || null;
   if (ev.format) setFormat(ev.format); else selectedFormat = null;
   document.getElementById("post-modal").classList.add("open");
@@ -3127,7 +3129,8 @@ function cloneEvent() {
     document.getElementById("f-lng").value = ev.lng || "";
     if (ev.time) document.getElementById("f-time").value = ev.time;
     if (ev.endtime) document.getElementById("f-endtime").value = ev.endtime;
-    selectedCats = new Set(Array.isArray(ev.categories) ? ev.categories : [ev.category].filter(Boolean));
+    var rawCats2 = Array.isArray(ev.categories) ? ev.categories : [ev.category].filter(Boolean);
+    selectedCats = new Set(rawCats2.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; }).filter(Boolean));
     selectedRoom = ev.room || null; selectedFormat = ev.format || null;
     ["virtual","inperson","both"].forEach(f => document.getElementById("fmt-"+f).classList.toggle("selected", f === selectedFormat));
     document.getElementById("location-field").style.display = (selectedFormat==="inperson"||selectedFormat==="both") ? "block" : "none";
@@ -3316,7 +3319,7 @@ function openRoomSchedule() {
     const upcoming = allEventsForSchedule.filter(ev => ev.room === name && getEventMs(ev) >= now - 2*60*60*1000).sort((a,b) => getEventMs(a)-getEventMs(b)).slice(0,5);
     const section = document.createElement("div");
     section.id = "room-"+slug; section.style.cssText = "margin-bottom:28px;scroll-margin-top:20px;";
-    const visitBtn = comingSoon
+    const visitBtn = !url
       ? `<span style="font-size:11px;font-weight:700;color:var(--muted);background:var(--light);padding:4px 10px;border-radius:6px;border:1.5px solid var(--border);">Link coming soon</span>`
       : `<a href="${url}" target="_blank" rel="noopener" style="font-size:12px;font-weight:700;color:var(--primary);text-decoration:none;background:var(--primary-light);padding:5px 12px;border-radius:6px;white-space:nowrap;">Visit room →</a>`;
     section.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--primary);"><span style="font-size:15px;font-weight:800;color:var(--dark);">${emoji || "🏠"} ${name}</span>${visitBtn}</div>`;
@@ -3663,6 +3666,6 @@ safeOn("interests-modal", "click", e => { if (e.target.id === "interests-modal")
   </div>
 </div>
 
-<!-- Events.html v11.97 -->
+<!-- Version: V12.00 | Date: 2026-07-02 | LAST CHANGE: W5 - dynamic categories from reference-data sheet via GAS getCategories; remove hardcoded CATEGORIES/ROOMS arrays; parent category names replace child IDs; room auto-suggest from sheet -->
 </body>
 </html>
