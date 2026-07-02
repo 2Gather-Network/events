@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!--
   Community Events
-  Events.html Version 11.98
-  v11.98 - unify category labels/emojis to Parent Categories; dedupe merged pills (faith+care, professional+wealth); remove learning pill; support comma-separated filter IDs
+  Events.html Version 11.99
+  v11.99 - biweekly recurring support (form button, badge, getNextOccurrences with week alignment); remove resources pill
 -->
 <html lang="en">
 <head>
@@ -698,6 +698,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <div id="recurring-freq-wrap" style="display:none;margin-top:10px;">
         <div style="display:flex;gap:8px;">
           <button type="button" class="format-chip" id="freq-weekly" onclick="setRecurFreq('weekly')">🔁 Weekly</button>
+          <button type="button" class="format-chip" id="freq-biweekly" onclick="setRecurFreq('biweekly')">🔁 Biweekly</button>
           <button type="button" class="format-chip" id="freq-monthly" onclick="setRecurFreq('monthly')">📅 Monthly</button>
         </div>
       </div>
@@ -1425,7 +1426,7 @@ function renderPills() {
   c.appendChild(makeFilterBtn("All categories", activeFilter === "all", () => setFilter("all")));
   const seen = new Set();
   CATEGORIES.forEach(cat => {
-if (cat.id === "learning" || cat.id === "resources") return;
+    if (cat.id === "learning" || cat.id === "resources") return;
     if (seen.has(cat.label)) return;
     seen.add(cat.label);
     const ids = CATEGORIES.filter(x => x.label === cat.label).map(x => x.id).join(",");
@@ -1598,7 +1599,7 @@ function renderEvents() {
     const venueLine = ev.venue ? `<div style="font-size:11px;color:var(--primary);font-weight:600;margin-top:3px;cursor:pointer;" onclick="setVenueFilter('${esc(ev.venue)}')">${esc(ev.venue)}</div>` : "";
     const locationLine = (cityState || formatBadge || ev.venue) ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;"><span style="font-size:12px;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${cityState ? "📍 "+esc(cityState) : ""}${venueLine}</span>${formatBadge}</div>` : "";
     const recurringBadge = ev.recurring
-      ? `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;background:#E8F2F9;color:var(--primary);padding:3px 9px;border-radius:20px;white-space:nowrap;">🔁 ${ev.recurFreq === "monthly" ? "Monthly" : "Weekly"}</span>`
+      ? `<span style="display:inline-flex;align-items:center;font-size:11px;font-weight:700;background:#E8F2F9;color:var(--primary);padding:3px 9px;border-radius:20px;white-space:nowrap;">🔁 ${ev.recurFreq === "monthly" ? "Monthly" : ev.recurFreq === "biweekly" ? "Biweekly" : "Weekly"}</span>`
       : "";
     const descHtml = ev.description
       ? (ev.description.length > 200
@@ -1619,7 +1620,7 @@ function renderEvents() {
       ${ev.imageUrl ? `<div class="event-card-img" id="img-wrap-${ev.id}"><img src="${esc(ev.imageUrl)}" alt="" style="width:100%;height:130px;object-fit:cover;display:block;" onerror="this.parentElement.style.display='none'"></div>` : ""}
       <div class="event-card-body">
         <div style="margin-bottom:12px;">
-          ${ev.date ? `<div style="font-size:13px;color:var(--muted);">🗓️ ${fmtDate(ev.date, ev.time, ev.endtime)}${ev.recurFreq ? " (Weekly)" : ""}</div>` : ""}
+          ${ev.date ? `<div style="font-size:13px;color:var(--muted);">🗓️ ${fmtDate(ev.date, ev.time, ev.endtime)}${ev.recurFreq ? ` (${ev.recurFreq === "monthly" ? "Monthly" : ev.recurFreq === "biweekly" ? "Biweekly" : "Weekly"})` : ""}</div>` : ""}
         </div>
         ${catTags ? `<div class="event-cats" style="margin-bottom:12px;">${catTags}</div>` : ""}
         ${(() => { const _evEndMs = ev.endtime ? new Date(ev.date+"T"+ev.endtime).getTime() : new Date(ev.date+"T"+(ev.time||"00:00")).getTime()+3600000; const _noteRow = _evEndMs >= Date.now() ? events.find(e => e.id === "occ-note-"+ev.id) : null; return _noteRow ? `<div style="background:#FFF8E7;border-left:3px solid #F0B429;padding:8px 12px;border-radius:0 6px 6px 0;margin-bottom:10px;font-size:13px;color:#7B5800;line-height:1.5;">${esc(_noteRow.description||"")}</div>` : ""; })()} 
@@ -2174,12 +2175,12 @@ function toggleRecurring() {
   const checked = document.getElementById("f-recurring").checked;
   const wrap = document.getElementById("recurring-freq-wrap");
   if (wrap) wrap.style.display = checked ? "flex" : "none";
-  if (!checked) { recurFreq = null; ["weekly","monthly"].forEach(f => document.getElementById("freq-"+f)?.classList.remove("selected")); }
+  if (!checked) { recurFreq = null; ["weekly","biweekly","monthly"].forEach(f => document.getElementById("freq-"+f)?.classList.remove("selected")); }
 }
 
 function setRecurFreq(f) {
   recurFreq = f;
-  ["weekly","monthly"].forEach(k => document.getElementById("freq-"+k)?.classList.toggle("selected", k === f));
+  ["weekly","biweekly","monthly"].forEach(k => document.getElementById("freq-"+k)?.classList.toggle("selected", k === f));
 }
 
 function setInterestedEnabled(val) {
@@ -2595,6 +2596,9 @@ function addToCalendar(id) {
   if (ev.recurFreq === "weekly") {
     const day = ["SU","MO","TU","WE","TH","FR","SA"][new Date(ev.date+"T12:00").getDay()];
     params.append("recur", "RRULE:FREQ=WEEKLY;BYDAY="+day);
+  } else if (ev.recurFreq === "biweekly") {
+    const day = ["SU","MO","TU","WE","TH","FR","SA"][new Date(ev.date+"T12:00").getDay()];
+    params.append("recur", "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY="+day);
   } else if (ev.recurFreq === "monthly") {
     params.append("recur", "RRULE:FREQ=MONTHLY");
   } else if (ev.recurring && rrule) {
@@ -3222,6 +3226,7 @@ function checkAllFields() {
 const ROOM_BUFFER_MINS = 90;
 
 function getNextOccurrences(template, count) {
+  const step = template.recurFreq === "biweekly" ? 14 : 7;
   const results = [];
   const now = new Date();
   const d   = new Date();
@@ -3230,14 +3235,20 @@ function getNextOccurrences(template, count) {
   if (daysUntil === 0) {
     const [endH,endM] = (template.endtime||template.time).split(":").map(Number);
     const endToday = new Date(); endToday.setHours(endH,endM,0,0);
-    if (now > endToday) daysUntil = 7;
+    if (now > endToday) daysUntil = step;
   }
   d.setDate(d.getDate() + daysUntil);
+  if (step === 14 && template.date) {
+    const anchor = new Date(template.date + "T00:00:00");
+    const diffDays = Math.round((d - anchor) / 86400000);
+    const weekOffset = ((diffDays % 14) + 14) % 14;
+    if (weekOffset !== 0) d.setDate(d.getDate() + (14 - weekOffset));
+  }
   for (let i = 0; i < count; i++) {
     const dateStr = d.toISOString().split("T")[0];
     const slug    = template.title.toLowerCase().replace(/\s+/g,"-");
     results.push({ ...template, id:`recurring-${slug}-${dateStr}`, date:dateStr, passcode:"", going:0, recurring:true });
-    d.setDate(d.getDate() + 7);
+    d.setDate(d.getDate() + step);
   }
   return results;
 }
@@ -3499,7 +3510,7 @@ function renderForYou() {
       ${ev.imageUrl ? `<img src="${esc(ev.imageUrl)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'">` : `<div style="width:48px;height:48px;border-radius:8px;background:#EEF4F9;flex-shrink:0;"></div>`}
       <div style="min-width:0;">
         <div style="font-size:14px;font-weight:700;color:var(--dark);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(ev.title)}</div>
-        <div style="font-size:12px;color:var(--muted);">🗓️ ${fmtDate(ev.date, ev.time, ev.endtime)}${ev.recurFreq ? " (Weekly)" : ""}</div>
+        <div style="font-size:12px;color:var(--muted);">🗓️ ${fmtDate(ev.date, ev.time, ev.endtime)}${ev.recurFreq ? ` (${ev.recurFreq === "monthly" ? "Monthly" : ev.recurFreq === "biweekly" ? "Biweekly" : "Weekly"})` : ""}</div>
         ${matchTag}
       </div>
     </div>`;
