@@ -1,12 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!--
-  event.html Version 4.92
-  v4.92 - add CATEGORIES array for label/emoji display; remove venue link (fixes nested calendar in Glide)
-  v4.91 - swap event-load jsonp() script-tag calls to plain fetch() (fixes intermittent "Could not load event" failures)
-  v4.90 - fix cancelRsvp appearId; Shared by attribution via ?via= param; logs socializer click
-  -->
+  <!-- Version: V4.93 | Date: 2026-07-02 | LAST CHANGE: W5 - dynamic categories from reference-data sheet via GAS getCategories; remove hardcoded CATEGORIES/ROOMS arrays; parent category names replace child IDs -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -297,37 +292,41 @@
 <div class="toast" id="toast"></div>
 <script>
 
-const CATEGORIES = [
-  { id:"arts",         label:"Arts & Culture",            emoji:"🎭" },
-  { id:"movement",     label:"Physical Wellbeing",         emoji:"❤️" },
-  { id:"learning",     label:"Learning/discovery",        emoji:"🌱" },
-  { id:"nature",       label:"Nature & Outdoors",         emoji:"🌲" },
-  { id:"professional", label:"Business & Finance",         emoji:"💼" },
-  { id:"creative",     label:"Self-Expression & Beauty",  emoji:"✨" },
-  { id:"faith",        label:"Mental Wellbeing",           emoji:"💛" },
-  { id:"resources",    label:"Resource sharing",           emoji:"🔧" },
-  { id:"care",         label:"Mental Wellbeing",           emoji:"💛" },
-  { id:"social",       label:"Events & Gatherings",        emoji:"🎉" },
-  { id:"family",       label:"Family Wellbeing",           emoji:"💙" },
-  { id:"food",         label:"Food & Drink",               emoji:"🥘" },
-  { id:"wealth",       label:"Business & Finance",         emoji:"💼" }
-];
+var CATEGORIES = [];
+var ROOMS = {};
+var ROOM_EMOJI = {};
 
-const ROOMS = {
-  "The Commons":            "https://events.2gather.network/events/yvrgej/zkxbzq",
-  "Ikigai room":            "https://events.2gather.network/events/eojvkq/qwmpgq",
-  "Wellness room":          "https://events.2gather.network/events/336936/504368",
-  "Community Care room":    "https://events.2gather.network/events/yvrgej/gypxbp",
-  "Co-Create room":         "https://events.2gather.network/events/yvrgej/rwbplq",
-  "Coworking room":         "https://events.2gather.network/events/yvrgej/gpbqox",
-  "Conference room":        "https://events.2gather.network/events/335887/502618",
+var OLD_ID_TO_PARENT = {
+  "arts":"Arts & Culture","movement":"Physical Wellbeing","nature":"Nature & Outdoors",
+  "professional":"Business & Finance","creative":"Self-Expression & Beauty",
+  "faith":"Mental Wellbeing","care":"Mental Wellbeing","social":"Events & Gatherings",
+  "family":"Family Wellbeing","food":"Food & Drink","wealth":"Business & Finance",
+  "learning":"","resources":""
 };
 
-const ROOM_EMOJI = {
-  "The Commons": "🌳", "Ikigai room": "🧭", "Wellness room": "💛",
-  "Community Care room": "💜", "Co-Create room": "🎨", "Coworking room": "💻",
-  "Abundance room": "🌻", "Conference room": "🎤",
-};
+function resolveCategory(val) {
+  val = String(val || "").trim();
+  if (!val) return null;
+  var cat = CATEGORIES.find(function(c) { return c.label === val; });
+  if (cat) return cat;
+  var parent = OLD_ID_TO_PARENT[val.toLowerCase()];
+  if (parent) return CATEGORIES.find(function(c) { return c.label === parent; }) || null;
+  var lower = val.toLowerCase();
+  return CATEGORIES.find(function(c) { return c.label.toLowerCase().includes(lower) || lower.includes(c.label.toLowerCase()); }) || null;
+}
+
+async function loadCategories() {
+  try {
+    var res = await fetch(GS_URL + "?action=getCategories&t=" + Date.now());
+    var data = await res.json();
+    if (data.categories && data.categories.length) {
+      CATEGORIES = data.categories;
+      data.categories.forEach(function(c) {
+        if (c.room && c.roomUrl) { ROOMS[c.room] = c.roomUrl; ROOM_EMOJI[c.room] = c.emoji; }
+      });
+    }
+  } catch(e) { console.warn("Failed to load categories from sheet:", e); }
+}
 
 let RECURRING_EVENTS = [];
 
@@ -460,7 +459,7 @@ function render(ev) {
   const isPast = eventDay && eventDay < today;
 
   const expMap = {connected:"🌐 Connected",expressed:"🎨 Expressed",nourished:"🥘 Nourished from food/drink",energized:"🌀 Energized",playful:"🏓 Playful",rested:"💙 Rested"};
-  const catMap = {arts:"Arts/culture",movement:"Physical health/wellness",learning:"Learning/discovery",nature:"Nature/outdoors",professional:"Work/skills",creative:"Creative making",faith:"Inner life",resources:"Resource sharing",care:"Mental health/wellness",social:"Social gathering",family:"Family/caregiving/home",food:"Food/drink",wealth:"Wealth/abundance"};
+  const catMap = {}; // legacy map removed - resolveCategory handles all lookups
   const typeMap = {spread:"📣 Spread the word",time:"⏰ Time",connections:"🌐 Referrals/Connections",feedback:"💬 Feedback",food:"🥘 Food/drink",skills:"🛠️ Skills",stuff:"🎁 Stuff",space:"📍 Space",money:"💵 Money",care:"💛 Care",noask:"🤝 No ask",free:"🎁 Free",testimonial:"⭐ Testimonial",share:"🔗 Share"};
 
   const fmtBadge = ev.format==="virtual" ? `<span class="format-badge" style="font-size:12px;padding:3px 9px;background:#f3f4f6;border-radius:20px;white-space:nowrap;color:var(--dark);">💻 Virtual</span>`
@@ -569,7 +568,7 @@ function render(ev) {
       ${ev.occurrenceNote ? `<div style="background:#FFF8E7;border:1.5px solid #F0B429;border-radius:10px;padding:14px 16px;margin-bottom:16px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7B5800;margin-bottom:6px;">Note from the host - this event only</p><p style="font-size:14px;color:#374151;line-height:1.6;white-space:pre-wrap;">${esc(ev.occurrenceNote)}</p></div>` : ""}
       ${ev.description ? `<hr style="border:none;border-top:1px solid var(--border);margin:16px 0 14px;"><p class="description">${esc(ev.description).replace(/\[the calendar\]/g, '<a href="https://appear.network/dl/gather" rel="noopener" style="color:var(--primary);font-weight:600;">the calendar</a>').replace(/creating\.works/gi, '<a href="http://creating.works" rel="noopener" style="color:var(--primary);">creating.works</a>')}</p>` : ""}
       <hr style="border:none;border-top:1px solid var(--border);margin:18px 0 14px;">
-      ${(ev.categories && ev.categories.length) ? `<div><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">This event represents</p><div style="display:flex;flex-wrap:wrap;gap:6px;">${ev.categories.map(c=>{const cat=catMap&&catMap[c]?catMap[c]:c; const catObj=typeof CATEGORIES!=="undefined"?CATEGORIES.find(x=>x.id===c):null; return `<span style="font-size:12px;font-weight:600;padding:4px 10px;background:#EBF5FB;border:1px solid #AED6F1;border-radius:20px;color:#1B6896;">${catObj?catObj.emoji+' '+catObj.label:cat}</span>`;}).join("")}</div></div>` : ""}
+      ${(ev.categories && ev.categories.length) ? `<div><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">This event represents</p><div style="display:flex;flex-wrap:wrap;gap:6px;">${ev.categories.map(c=>{const catObj=resolveCategory(c); return catObj ? `<span style="font-size:12px;font-weight:600;padding:4px 10px;background:#EBF5FB;border:1px solid #AED6F1;border-radius:20px;color:#1B6896;">${catObj.emoji} ${catObj.label}</span>` : '';}).filter(Boolean).join("")}</div></div>` : ""}
       ${ev.experience ? `<div style="margin-top:20px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">Event experience</p><div style="display:flex;flex-wrap:wrap;gap:6px;">${ev.experience.split(",").filter(Boolean).map(t=>`<span style="font-size:12px;padding:3px 9px;background:#f3f4f6;border-radius:20px;white-space:nowrap;">${expMap[t]||t}</span>`).join("")}</div></div>` : ""}
       ${ev.host ? `<div style="margin-top:24px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">Event host</p><div style="font-size:14px;margin-bottom:4px;">${hostHtml}</div>${(ev.contactEmail&&sl.includes("contact")) ? `<div style="margin-bottom:4px;"><a href="mailto:${esc(ev.contactEmail)}" style="font-size:14px;color:var(--primary);">${esc(ev.contactEmail)}</a></div>` : ""}${(ev.contactPhone&&sl.includes("contact")) ? `<div style="font-size:14px;margin-bottom:4px;">${esc(ev.contactPhone)}</div>` : ""}</div>` : ""}
       ${ev.exchangeType ? `<div style="margin-top:24px;">${exchange}</div>` : ""}
@@ -1130,6 +1129,7 @@ function closeReadNotes() {
 }
 
 async function init() {
+  await loadCategories();
   const inIframe = window.self !== window.top;
   // hide back link when in iframe - the modal provides navigation
   if (inIframe) {
@@ -1240,6 +1240,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- event.html v4.91 -->
+<!-- Version: V4.93 | Date: 2026-07-02 | LAST CHANGE: W5 - dynamic categories from reference-data sheet via GAS getCategories; remove hardcoded CATEGORIES/ROOMS arrays; parent category names replace child IDs -->
 </body>
 </html>
