@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V3.08b | Date: 2026-07-02 | LAST CHANGE: add fetchEvents retry (3 attempts) to fix transient blank-page load failures -->
+<!-- Version: V3.08c | Date: 2026-07-02 | LAST CHANGE: add loadCategories retry (3 attempts) - transient Google redirect 404s were blanking categories -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -235,16 +235,19 @@ function resolveCategory(val) {
 }
 
 async function loadCategories() {
-  try {
-    var res = await fetch(GS_URL + "?action=getCategories&t=" + Date.now());
-    var data = await res.json();
-    if (data.categories && data.categories.length) {
-      CATEGORIES = data.categories;
+  for (var attempt = 0; attempt < 3; attempt++) {
+    try {
+      var res = await fetch(GS_URL + "?action=getCategories&t=" + Date.now() + "_" + attempt);
+      var text = await res.text();
+      var data = JSON.parse(text);
+      if (data.categories && data.categories.length) { CATEGORIES = data.categories; }
+      if (data.rooms && data.rooms.length) { ROOMS = data.rooms; }
+      return;
+    } catch(e) {
+      if (attempt === 2) { console.warn("Failed to load categories from sheet after 3 attempts:", e); return; }
+      await new Promise(function(r) { setTimeout(r, 800); });
     }
-    if (data.rooms && data.rooms.length) {
-      ROOMS = data.rooms;
-    }
-  } catch(e) { console.warn("Failed to load categories from sheet:", e); }
+  }
 }
 
 let RECURRING_EVENTS = [];
@@ -921,6 +924,6 @@ loadEvents();
   </div>
 </div>
 
-<!-- Version: V3.08b | Date: 2026-07-02 | LAST CHANGE: add fetchEvents retry (3 attempts) to fix transient blank-page load failures -->
+<!-- Version: V3.08c | Date: 2026-07-02 | LAST CHANGE: add loadCategories retry (3 attempts) - transient Google redirect 404s were blanking categories -->
 </body>
 </html>
