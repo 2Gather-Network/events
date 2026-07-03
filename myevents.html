@@ -1,9 +1,5 @@
 <!DOCTYPE html>
-<!--
-  myevents.html Version 1.30
-  v1.30 - revert GS_URL to original Wu value (Wv was wrong; Wu is correct for myevents script)
-  v1.29 - revert param order to original
--->
+<!-- Version: V1.32 | Date: 2026-07-02 | LAST CHANGE: top Hosting/Going tabs; show host in Others going; removed Edit event button -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -81,11 +77,6 @@
   </div>
 
   <div id="events-list"></div>
-
-  <!-- Find/Edit Event by PIN - logged in only -->
-  <div id="edit-event-section" style="display:none;margin-top:32px;padding-top:24px;border-top:1px solid var(--border);">
-    <button onclick="openFindByPin()" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline;padding:0;">🔑 Edit event</button>
-  </div>
 
   <!-- PIN Modal -->
   <div id="pin-find-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:none;align-items:center;justify-content:center;">
@@ -170,6 +161,14 @@ function addToCalendar(ev) {
   const params = new URLSearchParams({ text: ev.title, dates: start+"/"+end, details: desc, location: ev.location||ev.meetinglink||"" });
   window.open("https://calendar.google.com/calendar/r/eventedit?" + params.toString(), "_blank");
 }
+
+function switchMainTab(tab) {
+  document.getElementById("tab-hosting").style.display = tab === "hosting" ? "block" : "none";
+  document.getElementById("tab-going").style.display = tab === "going" ? "block" : "none";
+  document.getElementById("main-tab-hosting").className = "tab-btn" + (tab === "hosting" ? " active" : "");
+  document.getElementById("main-tab-going").className = "tab-btn" + (tab === "going" ? " active" : "");
+}
+window.switchMainTab = switchMainTab;
 
 function switchHostTab(tab) {
   document.getElementById("host-upcoming").style.display = tab === "upcoming" ? "block" : "none";
@@ -272,6 +271,21 @@ function renderEvents(registrations, events) {
     .filter(function(ev) { return ev.date && parseEvDate(ev.date) < now; })
     .sort(function(a,b) { return new Date(b.date) - new Date(a.date); });
 
+  // Top-level Hosting / Going tabs
+  const mainTabBar = document.createElement("div");
+  mainTabBar.className = "tab-bar";
+  mainTabBar.style.cssText = "margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:6px;";
+  const _hostCount = hostedUpcoming.length + Object.keys(hostedRecByTitle).length;
+  const _goingCount = active.length;
+  mainTabBar.innerHTML = `
+    <button class="tab-btn active" id="main-tab-hosting" onclick="switchMainTab('hosting')">Hosting (${_hostCount})</button>
+    <button class="tab-btn" id="main-tab-going" onclick="switchMainTab('going')">Going (${_goingCount})</button>`;
+  list.appendChild(mainTabBar);
+  const hostingWrap = document.createElement("div"); hostingWrap.id = "tab-hosting";
+  const goingWrap = document.createElement("div"); goingWrap.id = "tab-going"; goingWrap.style.display = "none";
+  list.appendChild(hostingWrap);
+  list.appendChild(goingWrap);
+
   if (hostedUpcoming.length > 0 || hostedPast.length > 0) {
     // Section title + Add event button
     const hostHeader = document.createElement("div");
@@ -280,7 +294,7 @@ function renderEvents(registrations, events) {
     hostHeader.innerHTML = `
       <div class="section-title" style="margin-bottom:0;">Hosting</div>
       <a href="https://gather.2gather.network/events.html?action=post${savedId ? '&memberCard=' + encodeURIComponent(savedId) : ''}" class="btn-white" style="border:1.5px solid #1B6896;color:#1B6896;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;">+ Post an event</a>`;
-    list.appendChild(hostHeader);
+    hostingWrap.appendChild(hostHeader);
 
     // Tab bar
     const tabBar = document.createElement("div");
@@ -289,7 +303,7 @@ function renderEvents(registrations, events) {
     tabBar.innerHTML = `
       <button class="tab-btn active" id="host-tab-upcoming" onclick="switchHostTab('upcoming')">Upcoming (${hostedUpcoming.length + recCount})</button>
       <button class="tab-btn" id="host-tab-past" onclick="switchHostTab('past')">Past (${hostedPast.length})</button>`;
-    list.appendChild(tabBar);
+    hostingWrap.appendChild(tabBar);
 
     // Upcoming container
     const upcomingContainer = document.createElement("div");
@@ -339,7 +353,7 @@ function renderEvents(registrations, events) {
       // Load attendees for first date
       if (dates.length > 0) loadAttendeesForHost("recurring-" + slug + "-" + dates[0], "who-rec-" + slug);
     });
-    list.appendChild(upcomingContainer);
+    hostingWrap.appendChild(upcomingContainer);
 
     // Past container
     const pastContainer = document.createElement("div");
@@ -357,8 +371,9 @@ function renderEvents(registrations, events) {
         <div class="event-meta">${formatDate(ev.date, safeTime(ev))}${ev.location ? " · " + ev.location : ""}</div>`;
       pastContainer.appendChild(card);
     });
-    list.appendChild(pastContainer);
+    hostingWrap.appendChild(pastContainer);
   }
+  if (_hostCount === 0 && hostedPast.length === 0 && _goingCount > 0) switchMainTab('going');
 
   // Going section
   if (active.length > 0) {
@@ -366,7 +381,7 @@ function renderEvents(registrations, events) {
     goingTitle.className = "section-title";
     goingTitle.style.marginTop = hosted.length > 0 ? "24px" : "0";
     goingTitle.textContent = `Going (${active.length})`;
-    list.appendChild(goingTitle);
+    goingWrap.appendChild(goingTitle);
 
     active.forEach(ev => {
       const card = document.createElement("div");
@@ -380,7 +395,7 @@ function renderEvents(registrations, events) {
         </div>
         <div id="who-${ev.id}" class="who-going"></div>
       `;
-      list.appendChild(card);
+      goingWrap.appendChild(card);
       loadAttendees(ev.id);
     });
   }
@@ -391,7 +406,7 @@ function renderEvents(registrations, events) {
     cancelTitle.className = "section-title";
     cancelTitle.style.marginTop = "24px";
     cancelTitle.textContent = `Cancelled RSVPs (${cancelled.length})`;
-    list.appendChild(cancelTitle);
+    goingWrap.appendChild(cancelTitle);
 
     cancelled.forEach(ev => {
       const card = document.createElement("div");
@@ -401,7 +416,7 @@ function renderEvents(registrations, events) {
         <a class="event-title" href="event.html?id=${encodeURIComponent(ev.id)}" style="text-decoration:line-through;">${ev.title || "Untitled"}</a>
         <div class="event-meta">${formatDate(ev.date, safeTime(ev))}</div>
       `;
-      list.appendChild(card);
+      goingWrap.appendChild(card);
     });
   }
 }
@@ -422,7 +437,8 @@ async function loadAttendeesForHost(eventId, containerId) {
     row.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;";
     data.attendees.forEach(a => {
       const link = document.createElement("a");
-      link.href = APPEAR_BASE + encodeURIComponent(a.appearId);
+      link.href = a.pageLink || (APPEAR_BASE + encodeURIComponent(a.appearId));
+      link.target = "_blank"; link.rel = "noopener";
       link.title = a.appearId;
       const img = document.createElement("img");
       img.src = a.profileUrl || a.photo || "";
@@ -450,9 +466,9 @@ async function loadAttendees(eventId) {
     label.textContent = "Others going";
     container.appendChild(label);
     data.attendees.forEach(a => {
-      if (a.appearId === _appearId) return; // skip self
       const link = document.createElement("a");
-      link.href = APPEAR_BASE + encodeURIComponent(a.appearId);
+      link.href = a.pageLink || (APPEAR_BASE + encodeURIComponent(a.appearId));
+      link.target = "_blank"; link.rel = "noopener";
       const img = document.createElement("img");
       img.src = a.profileUrl || a.photo || "";
       img.alt = a.appearId;
@@ -789,7 +805,7 @@ async function openRsvpsModal(eventId, title) {
       attendees.map(a => `
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
           <img src="${a.profileUrl||a.photo||''}" alt="${a.appearId}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid var(--border);flex-shrink:0;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(a.appearId)}&size=36&background=EEF4F9&color=1B6896'">
-          <a href="https://appear.network/dl/page/s/e13594/r/${encodeURIComponent(a.appearId)}" target="_blank" rel="noopener" style="color:var(--primary);font-size:14px;font-weight:600;text-decoration:none;">${a.appearId}</a>
+          <a href="${a.pageLink || (APPEAR_BASE + encodeURIComponent(a.appearId))}" target="_blank" rel="noopener" style="color:var(--primary);font-size:14px;font-weight:600;text-decoration:none;">${a.appearId}</a>
         </div>`).join("");
   } catch(e) {
     body.innerHTML = '<p style="color:#c0392b;font-size:14px;">Could not load registrations.</p>';
@@ -827,6 +843,6 @@ async function openSocializersModal(eventId, title) {
 }
 </script>
 
-<!-- myevents.html v1.30 -->
+<!-- Version: V1.32 | Date: 2026-07-02 | LAST CHANGE: top Hosting/Going tabs; show host in Others going; removed Edit event button -->
 </body>
 </html>
