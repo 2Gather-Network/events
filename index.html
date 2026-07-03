@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V3.08c | Date: 2026-07-02 | LAST CHANGE: add loadCategories retry (3 attempts) - transient Google redirect 404s were blanking categories -->
+<!-- Version: V3.09 | Date: 2026-07-02 | LAST CHANGE: add Venue dropdown filter (parity with events.html) + rename All categories to Show all categories -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -179,6 +179,11 @@
   <div id="filter-panel" style="display:none;background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;">
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
       <div style="flex:1;min-width:160px;position:relative;">
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:5px;">Venue</label>
+        <input class="filter-search input" id="venue-filter" type="text" placeholder="Search venues..." autocomplete="off" oninput="onVenueInput()" onfocus="onVenueInput()" onblur="setTimeout(()=>hideDropdown('venue-suggestions'),200)" style="padding:7px 12px;font-size:13px;width:100%;">
+        <div id="venue-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+      </div>
+      <div style="flex:1;min-width:160px;position:relative;">
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:5px;">Host</label>
         <input class="filter-search input" id="host-filter" type="text" placeholder="Search hosts..." autocomplete="off" oninput="onHostInput()" onfocus="onHostInput()" onblur="setTimeout(()=>hideDropdown('host-suggestions'),200)" style="padding:7px 12px;font-size:13px;width:100%;">
         <div id="host-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
@@ -291,6 +296,7 @@ function sheetToEv(row) {
     hostlink: row.hostlink||"", contactEmail: row.contactEmail||"", contactPhone: row.contactPhone||"",
     passcode: row.passcode||"", cooplink: row.cooplink||"", going: parseInt(row.going)||0,
     meetinglink: row.meetinglink||"", recurring: isRecurring, recurFreq: row.recurFreq||"", experience: row.experience||"", imageUrl: row.imageUrl||"",
+    venue: row.venue||"",
     cancelled: row.cancelled==="true"||row.cancelled===true||false,
   };
 }
@@ -358,6 +364,7 @@ async function loadEvents() {
 }
 
 let _hostList = [];
+let _venueList = [];
 let _activeFormat = "all";
 
 function setFormat(fmt) {
@@ -380,6 +387,7 @@ function setFormat(fmt) {
 
 function populateHostFilter() {
   _hostList = [...new Set(events.map(e => e.host).filter(Boolean))].sort();
+  _venueList = [...new Set(events.map(e => e.venue).filter(Boolean))].sort();
 }
 
 function showSuggestions(inputId, suggestionsId, list) {
@@ -410,6 +418,7 @@ function hideDropdown(id) {
 }
 
 function onHostInput() { showSuggestions("host-filter", "host-suggestions", _hostList); renderEvents(); }
+function onVenueInput() { showSuggestions("venue-filter", "venue-suggestions", _venueList); renderEvents(); }
 
 
 function showLoading(on) {
@@ -420,7 +429,7 @@ function showLoading(on) {
 function renderPills() {
   var c = document.getElementById("cat-pills");
   c.innerHTML = "";
-  c.appendChild(makeFilterBtn("All categories", activeFilter === "all", function() { setFilter("all"); }));
+  c.appendChild(makeFilterBtn("Show all categories", activeFilter === "all", function() { setFilter("all"); }));
   CATEGORIES.forEach(function(cat) {
     var isActive = activeFilter === cat.label;
     c.appendChild(makeFilterBtn(cat.emoji + " " + cat.label, isActive, function() { setFilter(cat.label); }));
@@ -444,6 +453,7 @@ function toggleFilterPanel() {
 function resetFilters() {
   document.getElementById("search-input").value = "";
   document.getElementById("host-filter").value = "";
+  const venueFilterEl = document.getElementById("venue-filter"); if (venueFilterEl) venueFilterEl.value = "";
   setFilter("all");
   setDateFilter("upcoming");
   setMode("all");
@@ -486,7 +496,8 @@ function renderEvents() {
     else if (activeDateFilter === "past-month") matchDate = evEndMs >= now - MS_MONTH && evEndMs < now;
     else if (activeDateFilter === "past-quarter") matchDate = evEndMs >= now - MS_QUARTER && evEndMs < now;
     const activeHost = document.getElementById("host-filter")?.value || "";
-    if (isPast && evEndMs < now - MS_QUARTER && !activeHost) matchDate = false;
+    const _activeVenue = document.getElementById("venue-filter")?.value || "";
+    if (isPast && evEndMs < now - MS_QUARTER && !activeHost && !_activeVenue) matchDate = false;
     const isVirtual  = e.format === "virtual" || e.format === "both" || !e.format;
     const isInPerson = e.format === "inperson" || e.format === "both" || !e.format;
     const matchMode  = q ? true : activeMode === "all" ? true : activeMode === "virtual" ? isVirtual : isInPerson;
@@ -500,11 +511,13 @@ function renderEvents() {
       }
     }
     const matchHost  = !activeHost || (e.host||"").toLowerCase().includes(activeHost.toLowerCase());
-    const effectiveMatchTab = activeHost ? true : matchTab;
+    const activeVenue = document.getElementById("venue-filter")?.value || "";
+    const matchVenue  = !activeVenue || (e.venue||"").toLowerCase().includes(activeVenue.toLowerCase());
+    const effectiveMatchTab = (activeHost || activeVenue) ? true : matchTab;
     const _fmt = typeof _activeFormat !== "undefined" ? _activeFormat : "all";
     const _fmtIsVirtual = !!(e.meetinglink || e.mode === "virtual" || (e.location||"").toLowerCase().includes("virtual") || (e.location||"").toLowerCase().includes("online") || (e.location||"").toLowerCase().includes("zoom"));
     const matchFormat = _fmt === "all" || (_fmt === "virtual" && _fmtIsVirtual) || (_fmt === "inperson" && !_fmtIsVirtual);
-    return matchCat && matchQ && effectiveMatchTab && matchMode && matchLocation && matchHost && matchDate && matchFormat;
+    return matchCat && matchQ && effectiveMatchTab && matchMode && matchLocation && matchHost && matchVenue && matchDate && matchFormat;
   });
 
   list.sort((a, b) => {
@@ -924,6 +937,6 @@ loadEvents();
   </div>
 </div>
 
-<!-- Version: V3.08c | Date: 2026-07-02 | LAST CHANGE: add loadCategories retry (3 attempts) - transient Google redirect 404s were blanking categories -->
+<!-- Version: V3.09 | Date: 2026-07-02 | LAST CHANGE: add Venue dropdown filter (parity with events.html) + rename All categories to Show all categories -->
 </body>
 </html>
