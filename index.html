@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V3.14 | Date: 2026-07-02 | LAST CHANGE: declare RECURRING_EVENTS (was read before assignment - ReferenceError halted script so events never loaded) -->
+<!-- Version: V3.15 | Date: 2026-07-03 | LAST CHANGE: fix venue/host suggestion click (quote-safe index registry); wrap localStorage in try/catch so Brave storage blocks do not blank the page -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -457,6 +457,7 @@ function populateHostFilter() {
   _venueList = [...new Set(events.map(e => e.venue).filter(Boolean))].sort();
 }
 
+var _suggestMatches = [];
 function showSuggestions(inputId, suggestionsId, list) {
   const input = document.getElementById(inputId);
   const box = document.getElementById(suggestionsId);
@@ -464,20 +465,23 @@ function showSuggestions(inputId, suggestionsId, list) {
   const val = input.value.trim().toLowerCase();
   const matches = val ? list.filter(item => item.toLowerCase().includes(val)) : list;
   if (matches.length === 0) { box.style.display = "none"; return; }
-  box.innerHTML = matches.map(m =>
-    `<div onclick="selectSuggestion('${inputId}','${suggestionsId}',${JSON.stringify(m)})"
-      style="padding:8px 12px;font-size:13px;cursor:pointer;color:var(--dark);"
-      onmouseover="this.style.background='#f0f4f8'" onmouseout="this.style.background=''">${m}</div>`
-  ).join("");
+  _suggestMatches = matches;
+  box.innerHTML = matches.map(function(m, i) {
+    return '<div onclick="selectSuggestion(\'' + inputId + '\',\'' + suggestionsId + '\',' + i + ')"'
+      + ' style="padding:8px 12px;font-size:13px;cursor:pointer;color:var(--dark);"'
+      + ' onmouseover="this.style.background=\'#f0f4f8\'" onmouseout="this.style.background=\'\'">' + m + '</div>';
+  }).join("");
   box.style.display = "block";
 }
 
-function selectSuggestion(inputId, suggestionsId, value) {
+function selectSuggestion(inputId, suggestionsId, index) {
+  const value = _suggestMatches[index];
   const input = document.getElementById(inputId);
-  if (input) input.value = value;
+  if (input && value !== undefined) input.value = value;
   hideDropdown(suggestionsId);
   renderEvents();
 }
+window.selectSuggestion = selectSuggestion;
 
 function hideDropdown(id) {
   const el = document.getElementById(id);
@@ -530,7 +534,7 @@ function resetFilters() {
   if (stateEl) stateEl.value = "Washington";
 }
 
-function setFilter(id) { activeFilter = id; localStorage.setItem("db-filter", id); renderPills(); renderEvents(); }
+function setFilter(id) { activeFilter = id; try { localStorage.setItem("db-filter", id); } catch(e) {} renderPills(); renderEvents(); }
 
 function renderEvents() {
   const evPageBase = window.location.href.replace(/\/[^/]*(\?.*)?$/, "/");
@@ -806,7 +810,7 @@ function setMode(mode) {
     const stateEl = document.getElementById("filter-state");
     if (stateEl && !stateEl.value) { stateEl.value = "Washington"; renderEvents(); }
   }
-  localStorage.setItem("db-mode", mode);
+  try { localStorage.setItem("db-mode", mode); } catch(e) {}
   renderEvents();
 }
 
@@ -959,8 +963,11 @@ if (new URLSearchParams(window.location.search).get("embed") === "1") {
   document.body.classList.add("embed-mode");
 }
 
-const savedFilter = localStorage.getItem("db-filter");
-const savedMode   = localStorage.getItem("db-mode");
+let savedFilter = null, savedMode = null;
+try {
+  savedFilter = localStorage.getItem("db-filter");
+  savedMode   = localStorage.getItem("db-mode");
+} catch(e) {}
 if (savedFilter) activeFilter = savedFilter;
 
 renderPills();
@@ -1015,6 +1022,6 @@ loadEvents();
   </div>
 </div>
 
-<!-- Version: V3.14 | Date: 2026-07-02 | LAST CHANGE: declare RECURRING_EVENTS (was read before assignment - ReferenceError halted script so events never loaded) -->
+<!-- Version: V3.15 | Date: 2026-07-03 | LAST CHANGE: fix venue/host suggestion click (quote-safe index registry); wrap localStorage in try/catch so Brave storage blocks do not blank the page -->
 </body>
 </html>
