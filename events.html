@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.07 | Date: 2026-07-02 | LAST CHANGE: toast when location detect fails; host page-link requires appear.network again -->
+<!-- Version: V12.08 | Date: 2026-07-03 | LAST CHANGE: harden GAS retries (6 attempts, detect non-200/404, 500ms backoff) for intermittent script.googleusercontent 404s -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -846,9 +846,10 @@ function resolveCategory(val) {
 }
 
 async function loadCategories() {
-  for (var attempt = 0; attempt < 3; attempt++) {
+  for (var attempt = 0; attempt < 6; attempt++) {
     try {
       var res = await fetch(GS_URL + "?action=getCategories&t=" + Date.now() + "_" + attempt);
+      if (!res.ok) throw new Error("HTTP " + res.status);
       var text = await res.text();
       var data = JSON.parse(text);
       if (data.categories && data.categories.length) { CATEGORIES = data.categories; }
@@ -856,8 +857,8 @@ async function loadCategories() {
       if (data.serving && data.serving.length) { SERVING = data.serving; }
       return;
     } catch(e) {
-      if (attempt === 2) { console.warn("Failed to load categories from sheet after 3 attempts:", e); return; }
-      await new Promise(function(r) { setTimeout(r, 800); });
+      if (attempt === 5) { console.warn("Failed to load categories from sheet after 6 attempts:", e); return; }
+      await new Promise(function(r) { setTimeout(r, 500); });
     }
   }
 }
@@ -1266,14 +1267,15 @@ function sheetToEv(row) {
 }
 
 async function fetchEvents() {
-  for (var attempt = 0; attempt < 3; attempt++) {
+  for (var attempt = 0; attempt < 6; attempt++) {
     try {
       const res = await fetch(GS_URL + "?t=" + Date.now() + "_" + attempt);
+      if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
       return JSON.parse(text);
     } catch(err) {
-      if (attempt === 2) throw err;
-      await new Promise(function(r) { setTimeout(r, 800); });
+      if (attempt === 5) throw err;
+      await new Promise(function(r) { setTimeout(r, 500); });
     }
   }
 }
@@ -3742,6 +3744,6 @@ safeOn("interests-modal", "click", e => { if (e.target.id === "interests-modal")
   </div>
 </div>
 
-<!-- Version: V12.07 | Date: 2026-07-02 | LAST CHANGE: toast when location detect fails; host page-link requires appear.network again -->
+<!-- Version: V12.08 | Date: 2026-07-03 | LAST CHANGE: harden GAS retries (6 attempts, detect non-200/404, 500ms backoff) for intermittent script.googleusercontent 404s -->
 </body>
 </html>
