@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Version: V4.93a | Date: 2026-07-02 | LAST CHANGE: add loadCategories retry (3 attempts) - transient Google redirect 404s were blanking categories -->
+  <!-- Version: V4.95 | Date: 2026-07-03 | LAST CHANGE: harden getCategories retries (6 attempts, detect non-200/404) for intermittent 404s -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -316,9 +316,10 @@ function resolveCategory(val) {
 }
 
 async function loadCategories() {
-  for (var attempt = 0; attempt < 3; attempt++) {
+  for (var attempt = 0; attempt < 6; attempt++) {
     try {
       var res = await fetch(GS_URL + "?action=getCategories&t=" + Date.now() + "_" + attempt);
+      if (!res.ok) throw new Error("HTTP " + res.status);
       var text = await res.text();
       var data = JSON.parse(text);
       if (data.categories && data.categories.length) { CATEGORIES = data.categories; }
@@ -327,8 +328,8 @@ async function loadCategories() {
       }
       return;
     } catch(e) {
-      if (attempt === 2) { console.warn("Failed to load categories from sheet after 3 attempts:", e); return; }
-      await new Promise(function(r) { setTimeout(r, 800); });
+      if (attempt === 5) { console.warn("Failed to load categories from sheet after 6 attempts:", e); return; }
+      await new Promise(function(r) { setTimeout(r, 500); });
     }
   }
 }
@@ -455,6 +456,7 @@ function toEv(r) {
     cancelled: r.cancelled==="true"||r.cancelled===true||false,
     categories: (r.categories||"").split(",").map(s=>s.trim()).filter(Boolean),
     venue: r.venue||"",
+    intakeRedirect: r.intakeRedirect||"",
   };
 }
 
@@ -532,6 +534,7 @@ function render(ev) {
         <div id="interest-confirmed" style="display:none;margin-top:12px;font-size:13px;color:var(--muted);padding:10px 14px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;">
           ✓ You're registered! Manage your registrations anytime under My events.
         </div>
+        <div id="intake-prompt" style="display:none;margin-top:16px;padding:16px;background:#EBF5FB;border:1px solid #AED6F1;border-radius:10px;"></div>
         <div id="rsvp-cancelled-msg" style="display:none;margin-top:12px;font-size:13px;color:#c0392b;padding:10px 14px;background:#FEE2E2;border-radius:8px;border:1px solid #FECACA;">
           You're no longer registered for this event.
         </div>
@@ -624,6 +627,8 @@ function render(ev) {
         if (notes) notes.style.display = "block";
         const hostNoteEl = document.getElementById("host-note-section");
         if (hostNoteEl) hostNoteEl.style.display = "block";
+        _rsvpAppearId = _rsvpAppearId || localStorage.getItem("appear-id") || new URLSearchParams(window.location.search).get("memberCard");
+        maybeShowIntakePrompt();
       }
     } catch(e) {}
   }
@@ -966,7 +971,27 @@ function finishRsvp() {
   try { localStorage.setItem("db-interested-" + _currentEv.id, "1"); } catch(e) {}
   loadWhoIsGoing();
   showToast("✓ You're registered!");
+  maybeShowIntakePrompt();
 }
+
+// For events flagged intakeRedirect in the sheet: invite the attendee to build their event profile.
+async function maybeShowIntakePrompt() {
+  if (!_currentEv || String(_currentEv.intakeRedirect || "").trim().toLowerCase() !== "true") return;
+  if (!_rsvpAppearId) return;
+  const box = document.getElementById("intake-prompt");
+  if (!box) return;
+  let label = "Create event profile";
+  try {
+    const res = await fetch(GS_URL + "?action=getIntake&appearId=" + encodeURIComponent(_rsvpAppearId));
+    const data = await res.json();
+    if (data && data.found) label = "Update event profile";
+  } catch(e) { /* default to Create */ }
+  const url = "https://creating.works/intake.html?id=" + encodeURIComponent(_rsvpAppearId) + "&eventId=" + encodeURIComponent(_currentEv.id);
+  box.innerHTML = '<p style="font-size:14px;color:#1a1a2e;margin:0 0 12px;font-weight:600;line-height:1.5;">You\'re in! All event attendees are given compatible connections for this event. Please complete your event profile next.</p>'
+    + '<a href="' + url + '" target="_blank" rel="noopener" style="display:inline-block;background:#154F74;color:#fff;font-weight:700;font-size:15px;padding:12px 20px;border-radius:10px;text-decoration:none;">' + label + '</a>';
+  box.style.display = "block";
+}
+window.maybeShowIntakePrompt = maybeShowIntakePrompt;
 
 async function loadWhoIsGoing() {
   if (!_currentEv) return;
@@ -1245,6 +1270,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V4.93a | Date: 2026-07-02 | LAST CHANGE: add loadCategories retry (3 attempts) - transient Google redirect 404s were blanking categories -->
+<!-- Version: V4.95 | Date: 2026-07-03 | LAST CHANGE: harden getCategories retries (6 attempts, detect non-200/404) for intermittent 404s -->
 </body>
 </html>
