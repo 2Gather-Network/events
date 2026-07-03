@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.03a | Date: 2026-07-02 | LAST CHANGE: Serving emoji from separate reference-data column (data stays symbol-free); cleaned fallback -->
+<!-- Version: V12.05 | Date: 2026-07-02 | LAST CHANGE: removed dead "interested" free-text entries display (column deleted from sheet) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -529,7 +529,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <input class="input" id="f-host" placeholder="Full name">
     </div>
 
-    <button type="button" onclick="toggleMoreOptions()" id="more-options-btn" style="background:none;border:1.5px solid var(--border);border-radius:8px;width:100%;padding:10px 16px;font-size:13px;font-weight:700;color:var(--primary);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:16px;">
+    <button type="button" onclick="toggleMoreOptions()" id="more-options-btn" style="background:#154F74;border:1.5px solid #154F74;border-radius:8px;width:100%;padding:10px 16px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:16px;">
       <span id="more-options-arrow">＋</span> <span id="more-options-label">Add optional details</span>
     </button>
 
@@ -553,7 +553,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
         <!-- #3 My Appear Network page -->
         <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
           <input type="checkbox" id="show-hostlink" onchange="toggleLinkFields()" style="width:16px;height:16px;accent-color:var(--primary);">
-          My Appear Network page
+          My page link
         </label>
         <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
           <input type="checkbox" id="show-cooplink" onchange="toggleLinkFields()" style="width:16px;height:16px;accent-color:var(--primary);">
@@ -568,9 +568,9 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
 
     <!-- #3 Updated label + validation error -->
     <div class="field" id="field-hostlink" style="display:none;">
-      <label class="field-label">Your Appear Network page link</label>
-      <input class="input" id="f-hostlink" type="url" placeholder="https://appear.network/dl/page/...">
-      <p id="hostlink-error" style="display:none;font-size:12px;color:#c0392b;margin-top:4px;">This works with pages from Appear Network. <a href="https://appear.network/dl/page/" target="_blank" rel="noopener" style="color:#c0392b;font-weight:700;">Copy your page link here.</a></p>
+      <label class="field-label">Your page link</label>
+      <input class="input" id="f-hostlink" type="url" placeholder="https://...">
+      <p id="hostlink-error" style="display:none;font-size:12px;color:#c0392b;margin-top:4px;">Please add a valid link starting with https://</p>
     </div>
 
     <div class="field" id="field-cooplink" style="display:none;">
@@ -914,7 +914,10 @@ function matchServingFilter(e) {
 
 // ── Serving options in the create-event form (sheet-driven, fallback to defaults) ──
 function servingFormOptions() {
-  if (SERVING.length) return SERVING.filter(function(s){ return s.key; });
+  if (SERVING.length) {
+    var withKeys = SERVING.filter(function(s){ return s.key; });
+    if (withKeys.length) return withKeys;
+  }
   // resilience fallback so event creation never breaks if the sheet fails to load
   return [
     {key:"community",label:"Community (all)",emoji:"🌐"},{key:"students",label:"Students",emoji:""},
@@ -2067,7 +2070,6 @@ function loadEditForm(id) {
   const list = document.getElementById("registrations-list");
   const count = document.getElementById("registrations-count");
   if (panel && list && !found.isRecurring) {
-    const entries = (ev.interested || "").split("|").map(s => s.trim()).filter(Boolean);
     // Also fetch Member Card RSVPs
     fetch(GS_URL + "?action=getAttendees&eventId=" + encodeURIComponent(ev.id))
       .then(r => r.json())
@@ -2078,16 +2080,12 @@ function loadEditForm(id) {
         if (attendees.length > 0) {
           html += attendees.map(a => `<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#1e3a8a;padding:6px 10px;background:rgba(255,255,255,0.7);border-radius:6px;">
             ${a.profileUrl ? `<img src="${esc(a.profileUrl)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;" onerror="this.style.display='none'">` : ""}
-            <a href="https://appear.network/dl/page/s/e13594/r/${encodeURIComponent(a.appearId)}" rel="noopener" style="color:#1d4ed8;text-decoration:none;">${esc(a.appearId)}</a>
+            <a href="${a.pageLink || ('https://appear.network/dl/page/s/e13594/r/' + encodeURIComponent(a.appearId))}" target="_blank" rel="noopener" style="color:#1d4ed8;text-decoration:none;">${esc(a.appearId)}</a>
           </div>`).join("");
-        }
-        // Show old free-text interested entries
-        if (entries.length > 0) {
-          html += entries.map(e => `<div style="font-size:13px;color:#1e3a8a;padding:6px 10px;background:rgba(255,255,255,0.7);border-radius:6px;">${esc(e)}</div>`).join("");
         }
         if (html) {
           list.innerHTML = html;
-          const total = attendees.length + entries.length;
+          const total = attendees.length;
           count.textContent = total + (total === 1 ? " person" : " people");
         } else {
           list.innerHTML = `<p style="font-size:13px;color:#1d4ed8;margin:0;">Your event is ready. No sign-ups yet - keep sharing.</p>`;
@@ -2180,18 +2178,6 @@ function loadEditForm(id) {
       if (sheetMatch.lifeStage) setLifeStages(sheetMatch.lifeStage);
       if (sheetMatch.interestedEnabled) setInterestedEnabled(sheetMatch.interestedEnabled);
       if (sheetMatch.sharedNotesEnabled !== undefined) setSharedNotesEnabled(sheetMatch.sharedNotesEnabled);
-      // Show interest registrations from stable rec- row only
-      const panel = document.getElementById("registrations-panel");
-      const list = document.getElementById("registrations-list");
-      const count = document.getElementById("registrations-count");
-      if (panel && list && sheetMatch.interested) {
-        const entries = sheetMatch.interested.split("|").map(s=>s.trim()).filter(Boolean);
-        if (entries.length > 0) {
-          list.innerHTML = entries.map(e => `<div style="font-size:13px;color:#1e3a8a;padding:6px 10px;background:rgba(255,255,255,0.7);border-radius:6px;">${esc(e)}</div>`).join("");
-          count.textContent = entries.length + (entries.length===1?" person":" people") + " (across all occurrences)";
-          panel.style.display = "block";
-        }
-      }
     } else {
       // No sheetMatch found - populate image fields directly from template data
       const imgElFb = document.getElementById("f-image-url"); if(imgElFb) imgElFb.value = ev.imageUrl || "";
@@ -2862,10 +2848,10 @@ async function submitEvent() {
   const passcode = document.getElementById("f-passcode") ? document.getElementById("f-passcode").value.trim() : "";
   const errEl    = document.getElementById("post-error");
 
-  // #3 Appear Network URL validation
-  if (document.getElementById("show-hostlink")?.checked && hostlink && !hostlink.includes("appear.network")) {
+  // Page link validation: accept any https link
+  if (document.getElementById("show-hostlink")?.checked && hostlink && !/^https?:\/\//i.test(hostlink)) {
     const hlErr = document.getElementById("hostlink-error"); if(hlErr) hlErr.style.display = "block";
-    errEl.textContent = "Your Appear Network page link must include appear.network."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return;
+    errEl.textContent = "Please add a valid link starting with https://"; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return;
   }
   const hlErr = document.getElementById("hostlink-error"); if(hlErr) hlErr.style.display = "none";
 
@@ -3084,7 +3070,7 @@ function setMode(mode) {
 function useMyLocationForForm() {
   const btn = document.getElementById("form-geo-btn");
   btn.textContent = "📍 Detecting..."; btn.disabled = true;
-  if (!navigator.geolocation) { btn.textContent = "📍 Not supported"; btn.disabled = false; return; }
+  if (!navigator.geolocation) { btn.textContent = "📍 Use my location"; btn.disabled = false; return; }
   navigator.geolocation.getCurrentPosition(
     pos => {
       fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&accept-language=en`)
@@ -3095,13 +3081,9 @@ function useMyLocationForForm() {
           document.getElementById("f-lat").value = pos.coords.latitude;
           document.getElementById("f-lng").value = pos.coords.longitude;
           btn.textContent = `📍 ${parts[0]||"Location set"}`; btn.disabled = false;
-        }).catch(() => { btn.textContent = "📍 Try again"; btn.disabled = false; alert("Location detected but couldn't look up your city. Please type it manually."); });
+        }).catch(() => { btn.textContent = "📍 Use my location"; btn.disabled = false; });
     },
-    err => {
-      btn.disabled = false;
-      if (err.code === 1) { btn.textContent = "📍 Permission denied"; alert("Location access was blocked. Please allow location in your browser settings, or type your address."); }
-      else { btn.textContent = "📍 Use my location"; alert("Could not detect your location. Please type it manually."); }
-    }, { timeout:10000 }
+    err => { btn.textContent = "📍 Use my location"; btn.disabled = false; }, { timeout:10000 }
   );
 }
 
@@ -3139,10 +3121,17 @@ function clearLocationFilter() {
   renderEvents();
 }
 
+function _geoFail(btn) {
+  if (!btn) return;
+  btn.disabled = false;
+  if (btn.id === "geo-btn") { var w = document.getElementById("geo-btn-wrap"); if (w) w.style.display = "none"; }
+  else { btn.textContent = "📍 Use my location"; }
+}
+
 function useMyLocation(btnId) {
   const btn = document.getElementById(btnId || "geo-btn");
   btn.textContent = "📍 Detecting..."; btn.disabled = true;
-  if (!navigator.geolocation) { btn.textContent = "📍 Not supported"; btn.disabled = false; return; }
+  if (!navigator.geolocation) { _geoFail(btn); return; }
   navigator.geolocation.getCurrentPosition(
     pos => {
       fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&accept-language=en`)
@@ -3168,13 +3157,9 @@ function useMyLocation(btnId) {
           try { localStorage.setItem("db-geo-used", "true"); } catch(e){}
           var _gw = document.getElementById("geo-btn-wrap"); if (_gw) _gw.style.display = "none";
           showToast("Change location under filters anytime");
-        }).catch(() => { btn.textContent = "📍 Try again"; btn.disabled = false; alert("Location detected but couldn't look up your city. Please select manually."); });
+        }).catch(() => { _geoFail(btn); });
     },
-    err => {
-      btn.disabled = false;
-      if (err.code === 1) { btn.textContent = "📍 Permission denied"; alert("Location access was blocked. Please allow location in your browser settings, or select manually."); }
-      else { btn.textContent = "📍 Use my location"; alert("Could not detect your location. Please select manually."); }
-    }, { timeout:10000 }
+    err => { _geoFail(btn); }, { timeout:10000 }
   );
 }
 
@@ -3756,6 +3741,6 @@ safeOn("interests-modal", "click", e => { if (e.target.id === "interests-modal")
   </div>
 </div>
 
-<!-- Version: V12.03a | Date: 2026-07-02 | LAST CHANGE: Serving emoji from separate reference-data column (data stays symbol-free); cleaned fallback -->
+<!-- Version: V12.05 | Date: 2026-07-02 | LAST CHANGE: removed dead "interested" free-text entries display (column deleted from sheet) -->
 </body>
 </html>
