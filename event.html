@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V4.95 | Date: 2026-07-03 | LAST CHANGE: harden getCategories retries (6 attempts, detect non-200/404) for intermittent 404s -->
+  <!-- Version: V4.96 | Date: 2026-07-04 | LAST CHANGE: bug 2 - RSVP state read from sheet (getRegistrations, latest row wins); removed localStorage RSVP flags -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -612,27 +612,77 @@ function render(ev) {
 
   _currentEv = ev;
 
-  // if already registered, show confirmed state
+  // RSVP state comes from the sheet, not the device - read registrations on load
   if (ev.interestedEnabled && ev.interestedEnabled !== "off") {
-    try {
-      if (localStorage.getItem("db-interested-" + ev.id) === "1") {
-        const btn = document.getElementById("interest-btn");
-        if (btn) { btn.textContent = "✓ Going"; btn.disabled = true; btn.style.opacity = "0.7"; }
-        const cancelArea = document.getElementById("cancel-rsvp-area");
-        if (cancelArea) cancelArea.style.display = "block";
-        loadWhoIsGoing();
-        const confirmed = document.getElementById("interest-confirmed");
-        if (confirmed) confirmed.style.display = "block";
-        const notes = document.getElementById("notes-section");
-        if (notes) notes.style.display = "block";
-        const hostNoteEl = document.getElementById("host-note-section");
-        if (hostNoteEl) hostNoteEl.style.display = "block";
-        _rsvpAppearId = _rsvpAppearId || localStorage.getItem("appear-id") || new URLSearchParams(window.location.search).get("memberCard");
-        maybeShowIntakePrompt();
-      }
-    } catch(e) {}
+    verifyRegistrationState();
   }
 }
+
+
+// ── Apply the registered (confirmed) UI - sheet is the source of truth, no localStorage ──
+function applyRegisteredUI() {
+  const btn = document.getElementById("interest-btn");
+  if (btn) { btn.textContent = "✓ Going"; btn.disabled = true; btn.style.opacity = "0.7"; }
+  const cancelArea = document.getElementById("cancel-rsvp-area");
+  if (cancelArea) cancelArea.style.display = "block";
+  const confirmed = document.getElementById("interest-confirmed");
+  if (confirmed) confirmed.style.display = "block";
+  const notes = document.getElementById("notes-section");
+  if (notes) notes.style.display = "block";
+  const hostNoteEl = document.getElementById("host-note-section");
+  if (hostNoteEl) hostNoteEl.style.display = "block";
+  loadWhoIsGoing();
+  maybeShowIntakePrompt();
+}
+window.applyRegisteredUI = applyRegisteredUI;
+
+// ── Reset to the not-registered UI ──
+function applyUnregisteredUI() {
+  const btn = document.getElementById("interest-btn");
+  if (btn) { btn.textContent = "+1 I'm going"; btn.disabled = false; btn.style.opacity = "1"; }
+  const cancelArea = document.getElementById("cancel-rsvp-area");
+  if (cancelArea) cancelArea.style.display = "none";
+  const confirmed = document.getElementById("interest-confirmed");
+  if (confirmed) confirmed.style.display = "none";
+}
+window.applyUnregisteredUI = applyUnregisteredUI;
+
+// ── Find the ISO timestamp value in a registration row, independent of header name ──
+function _regTimestamp(row) {
+  for (var k in row) {
+    var v = String(row[k] || "");
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) return v;
+  }
+  return "";
+}
+
+// ── Read RSVP state from the sheet. Latest row by timestamp wins, so this is correct
+//    even while duplicate rows exist (bug 1). ──
+async function verifyRegistrationState() {
+  if (!_currentEv) return;
+  const memberId = getMemberId();
+  if (!memberId) return;
+  try {
+    const res = await fetch(GS_URL + "?action=getRegistrations&appearId=" + encodeURIComponent(memberId));
+    const data = await res.json();
+    const rows = (data.registrations || []).filter(function(r) {
+      return String(r.eventId || "").trim() === String(_currentEv.id).trim();
+    });
+    if (rows.length === 0) return;
+    rows.sort(function(a, b) {
+      return _regTimestamp(b).localeCompare(_regTimestamp(a));
+    });
+    const latest = rows[0];
+    const isCancelled = String(latest.cancelled || "").trim().toLowerCase() === "true";
+    if (isCancelled) {
+      applyUnregisteredUI();
+    } else {
+      _rsvpAppearId = memberId;
+      applyRegisteredUI();
+    }
+  } catch(e) { /* best effort - leave default not-registered state */ }
+}
+window.verifyRegistrationState = verifyRegistrationState;
 
 
 let _currentEv = null; // store rendered event for calendar lookup
@@ -952,26 +1002,8 @@ async function confirmRsvp() {
 
 function finishRsvp() {
   closeRsvpModal();
-  if (_rsvpAppearId) {
-    try {
-      localStorage.setItem("appear-id", _rsvpAppearId);
-      localStorage.setItem("appear-confirmed", "true");
-    } catch(e) {}
-  }
-  const btn = document.getElementById("interest-btn");
-  if (btn) { btn.textContent = "✓ Going"; btn.disabled = true; btn.style.opacity = "0.7"; }
-  const cancelArea = document.getElementById("cancel-rsvp-area");
-  if (cancelArea) cancelArea.style.display = "block";
-  const confirmed = document.getElementById("interest-confirmed");
-  if (confirmed) confirmed.style.display = "block";
-  const notes = document.getElementById("notes-section");
-  if (notes) notes.style.display = "block";
-  const hostNoteSection = document.getElementById("host-note-section");
-  if (hostNoteSection) hostNoteSection.style.display = "block";
-  try { localStorage.setItem("db-interested-" + _currentEv.id, "1"); } catch(e) {}
-  loadWhoIsGoing();
+  applyRegisteredUI();
   showToast("✓ You're registered!");
-  maybeShowIntakePrompt();
 }
 
 // For events flagged intakeRedirect in the sheet: invite the attendee to build their event profile.
@@ -1017,13 +1049,7 @@ async function cancelRsvp() {
   try {
     await fetch(`${GS_URL}?action=cancelRsvp&appearId=${encodeURIComponent(appearId)}&eventId=${encodeURIComponent(_currentEv.id)}`);
   } catch(e) { /* best effort */ }
-  try { localStorage.removeItem("db-interested-" + _currentEv.id); } catch(e) {}
-  const btn = document.getElementById("interest-btn");
-  if (btn) { btn.textContent = "+1 I'm going"; btn.disabled = false; btn.style.opacity = "1"; }
-  const cancelArea = document.getElementById("cancel-rsvp-area");
-  if (cancelArea) cancelArea.style.display = "none";
-  const confirmed = document.getElementById("interest-confirmed");
-  if (confirmed) confirmed.style.display = "none";
+  applyUnregisteredUI();
   const cancelledMsg = document.getElementById("rsvp-cancelled-msg");
   if (cancelledMsg) cancelledMsg.style.display = "block";
   setTimeout(() => { if (cancelledMsg) cancelledMsg.style.display = "none"; }, 4000);
@@ -1270,6 +1296,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V4.95 | Date: 2026-07-03 | LAST CHANGE: harden getCategories retries (6 attempts, detect non-200/404) for intermittent 404s -->
+<!-- Version: V4.96 | Date: 2026-07-04 | LAST CHANGE: bug 2 - RSVP state read from sheet (getRegistrations, latest row wins); removed localStorage RSVP flags -->
 </body>
 </html>
