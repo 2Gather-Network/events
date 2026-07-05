@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V1.34 | Date: 2026-07-02 | LAST CHANGE: renamed Going tab to Im Attending; right-justified Upcoming/Past tabs -->
+<!-- Version: V1.35 | Date: 2026-07-04 | LAST CHANGE: loadAttendees clears container before draw; dedupe attending/cancelled lists by eventId (one card per event) -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -231,8 +231,19 @@ function renderEvents(registrations, events) {
   const hosted = hostedOnce
     .sort(function(a,b) { return new Date(a.date) - new Date(b.date); });
 
+  // Collapse duplicate rows so one event renders one card
+  function dedupeByEventId(list) {
+    var seen = {}, out = [];
+    list.forEach(function(item) {
+      if (!item || seen[item.id]) return;
+      seen[item.id] = true;
+      out.push(item);
+    });
+    return out;
+  }
+
   // RSVPd events - active, upcoming
-  const active = registrations
+  const active = dedupeByEventId(registrations
     .filter(r => r.cancelled !== "true")
     .map(r => {
       const ev = events.find(e => e.id === r.eventId);
@@ -240,17 +251,17 @@ function renderEvents(registrations, events) {
     })
     .filter(Boolean)
     .filter(ev => ev.date && parseEvDate(ev.date) >= now)
-    .sort((a,b) => new Date(a.date) - new Date(b.date));
+    .sort((a,b) => new Date(a.date) - new Date(b.date)));
 
   // Cancelled RSVPs
-  const cancelled = registrations
+  const cancelled = dedupeByEventId(registrations
     .filter(r => r.cancelled === "true")
     .map(r => {
       const ev = events.find(e => e.id === r.eventId);
       return ev ? { ...ev, _rsvp: r } : null;
     })
     .filter(Boolean)
-    .sort((a,b) => new Date(b.date) - new Date(a.date));
+    .sort((a,b) => new Date(b.date) - new Date(a.date)));
 
   document.getElementById("loading").style.display = "none";
 
@@ -462,6 +473,7 @@ async function loadAttendees(eventId) {
     if (!data.attendees || data.attendees.length === 0) return;
     const container = document.getElementById("who-" + eventId);
     if (!container) return;
+    container.innerHTML = "";
     const label = document.createElement("p");
     label.style.cssText = "font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;margin-top:12px;";
     label.textContent = "Others going";
@@ -844,6 +856,6 @@ async function openSocializersModal(eventId, title) {
 }
 </script>
 
-<!-- Version: V1.34 | Date: 2026-07-02 | LAST CHANGE: renamed Going tab to Im Attending; right-justified Upcoming/Past tabs -->
+<!-- Version: V1.35 | Date: 2026-07-04 | LAST CHANGE: loadAttendees clears container before draw; dedupe attending/cancelled lists by eventId (one card per event) -->
 </body>
 </html>
