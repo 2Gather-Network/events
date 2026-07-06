@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V4.97 | Date: 2026-07-04 | LAST CHANGE: toasts to top; intake message reworded + button same-tab; attendee links use pageLink from sheet -->
+  <!-- Version: V4.98 | Date: 2026-07-06 | LAST CHANGE: Added host potluck/signup list builder - hostMemberCard + signupPotluck mapped in toEv, host detection, wizard (text/type/category/time/cap), writes to savePotluckItem, shows live claim counts -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -295,6 +295,11 @@
 var CATEGORIES = [];
 var ROOMS = {};
 var ROOM_EMOJI = {};
+var _isHost = false;
+var _signupList = [];
+var _potluckClaims = [];
+var _potluckTypes = ['Skill','Experience','Thing'];
+var _pl = {step:'',item:'',potluckType:'',category:'',timed:'',timeNum:'',timeUnit:'',maxClaims:''};
 
 var OLD_ID_TO_PARENT = {
   "arts":"Arts & Culture","movement":"Physical Wellbeing","nature":"Nature & Outdoors",
@@ -326,12 +331,17 @@ async function loadCategories() {
       if (data.rooms && data.rooms.length) {
         data.rooms.forEach(function(r) { if (r.name) { ROOMS[r.name] = r.url || ""; } });
       }
-      return;
+      break;
     } catch(e) {
-      if (attempt === 5) { console.warn("Failed to load categories from sheet after 6 attempts:", e); return; }
+      if (attempt === 5) { console.warn("Failed to load categories from sheet after 6 attempts:", e); break; }
       await new Promise(function(r) { setTimeout(r, 500); });
     }
   }
+  try {
+    var pres = await fetch(GS_URL + "?action=getReferenceData");
+    var pdata = await pres.json();
+    if (pdata && pdata.potluckTypes && pdata.potluckTypes.length) { _potluckTypes = pdata.potluckTypes; }
+  } catch(e) {}
 }
 
 let RECURRING_EVENTS = [];
@@ -457,13 +467,155 @@ function toEv(r) {
     categories: (r.categories||"").split(",").map(s=>s.trim()).filter(Boolean),
     venue: r.venue||"",
     intakeRedirect: r.intakeRedirect||"",
+    hostMemberCard: r.hostMemberCard||"", signupPotluck: r.signupPotluck||"",
   };
+}
+
+// ── Potluck host builder ─────────────────────────────────────────────────────
+function buildPotluckHostListHTML(){
+  if(!_signupList.length) return '<div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Nothing on the list yet.</div>';
+  return _signupList.map(function(it,i){
+    var claimCount=_potluckClaims.filter(function(c){return c.item===it.item;}).length;
+    var capLabel=it.maxClaims?(' · '+claimCount+'/'+it.maxClaims+' claimed'):(claimCount?(' · '+claimCount+' claimed'):'');
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">'
+      +'<div><div style="font-size:14px;font-weight:600;">'+esc(it.item)+'</div>'
+      +'<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+esc(it.potluckType||'')+(it.category?' · '+esc(it.category):'')+(it.timeSpec?' · '+esc(it.timeSpec):'')+esc(capLabel)+'</div></div>'
+      +'<button onclick="removePotluckHostItem('+i+')" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px;">×</button>'
+      +'</div>';
+  }).join('');
+}
+function buildPotluckWizardHTML(){
+  if(_pl.step===''){
+    return '<div style="margin-top:12px;">'
+      +'<input type="text" id="pl-host-item-input" placeholder="Enter an offering for the list" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-bottom:8px;">'
+      +'<button class="btn btn-primary" onclick="plHostStartType()" style="width:100%;justify-content:center;">Add</button>'
+      +'</div>';
+  }
+  if(_pl.step==='type'){
+    return '<div style="margin-top:12px;">'
+      +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">This is a:</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;">'+_potluckTypes.map(function(t){return '<span onclick="plHostSetType(\''+esc(t)+'\')" style="cursor:pointer;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;background:'+(_pl.potluckType===t?'var(--primary)':'#f3f4f6')+';color:'+(_pl.potluckType===t?'#fff':'var(--dark)')+';">'+esc(t)+'</span>';}).join('')+'</div>'
+      +'</div>';
+  }
+  if(_pl.step==='category'){
+    var labels=CATEGORIES.map(function(c){return c.label;});
+    return '<div style="margin-top:12px;">'
+      +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+' <span style="font-weight:400;color:var(--muted);">· '+esc(_pl.potluckType)+'</span></div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Pick a category for context:</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;">'+labels.map(function(l){return '<span onclick="plHostSetCategory(\''+esc(l)+'\')" style="cursor:pointer;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;background:'+(_pl.category===l?'var(--primary)':'#EBF5FB')+';color:'+(_pl.category===l?'#fff':'#1B6896')+';border:1px solid #AED6F1;">'+esc(l)+'</span>';}).join('')+'</div>'
+      +'</div>';
+  }
+  if(_pl.step==='timed'){
+    var timedHtml='<div style="margin-top:12px;">'
+      +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Is this offering for a specific time? For example, 1 hour or for the duration of the event?</div>'
+      +'<div style="display:flex;gap:6px;margin-bottom:10px;">'
+      +'<span onclick="plHostSetTimed(\'yes\')" style="cursor:pointer;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;background:'+(_pl.timed==='yes'?'var(--primary)':'#f3f4f6')+';color:'+(_pl.timed==='yes'?'#fff':'var(--dark)')+';">Yes</span>'
+      +'<span onclick="plHostSetTimed(\'no\')" style="cursor:pointer;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;background:'+(_pl.timed==='no'?'var(--primary)':'#f3f4f6')+';color:'+(_pl.timed==='no'?'#fff':'var(--dark)')+';">No</span>'
+      +'</div>';
+    if(_pl.timed==='yes'){
+      timedHtml+='<div style="display:flex;gap:8px;margin-bottom:10px;">'
+        +'<input type="number" id="pl-host-time-num" min="1" placeholder="#" value="'+esc(_pl.timeNum)+'" style="width:70px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;" oninput="_pl.timeNum=this.value;">'
+        +'<select id="pl-host-time-unit" onchange="plHostSetUnit(this.value)" style="flex:1;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;">'
+        +'<option value="">Select…</option>'
+        +'<option value="minutes"'+(_pl.timeUnit==='minutes'?' selected':'')+'>minutes</option>'
+        +'<option value="hours"'+(_pl.timeUnit==='hours'?' selected':'')+'>hours</option>'
+        +'<option value="entire event"'+(_pl.timeUnit==='entire event'?' selected':'')+'>entire event</option>'
+        +'</select></div>';
+    }
+    timedHtml+='<button class="btn btn-primary" onclick="plHostStepAfterTimed()" style="width:100%;justify-content:center;">Next</button></div>';
+    return timedHtml;
+  }
+  if(_pl.step==='cap'){
+    return '<div style="margin-top:12px;">'
+      +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Limit how many can sign up? Leave blank for no limit.</div>'
+      +'<input type="number" id="pl-host-cap-input" min="1" placeholder="No limit" value="'+esc(_pl.maxClaims)+'" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-bottom:10px;" oninput="_pl.maxClaims=this.value;">'
+      +'<button class="btn btn-primary" onclick="plHostFinish()" style="width:100%;justify-content:center;">Add to sign up list</button>'
+      +'</div>';
+  }
+  return '';
+}
+function refreshPotluckHostSection(){
+  var listEl=document.getElementById('potluck-host-list');
+  var wizEl=document.getElementById('potluck-host-wizard');
+  if(listEl) listEl.innerHTML=buildPotluckHostListHTML();
+  if(wizEl) wizEl.innerHTML=buildPotluckWizardHTML();
+}
+window.plHostStartType=function(){
+  var inp=document.getElementById('pl-host-item-input');
+  if(!inp||!inp.value.trim()) return;
+  _pl.item=inp.value.trim();
+  _pl.step='type';
+  refreshPotluckHostSection();
+};
+window.plHostSetType=function(t){
+  _pl.potluckType=t;
+  _pl.step='category';
+  refreshPotluckHostSection();
+};
+window.plHostSetCategory=function(c){
+  _pl.category=c;
+  _pl.step='timed';
+  refreshPotluckHostSection();
+};
+window.plHostSetTimed=function(v){
+  _pl.timed=v;
+  if(v==='no'){_pl.timeNum='';_pl.timeUnit='';}
+  refreshPotluckHostSection();
+};
+window.plHostSetUnit=function(v){
+  _pl.timeUnit=v;
+  if(v==='entire event'){_pl.timeNum='';}
+};
+window.plHostStepAfterTimed=function(){
+  if(_pl.timed==='yes'){
+    if(_pl.timeUnit==='entire event'){ _pl.timeSpec='Entire event'; }
+    else if(_pl.timeNum&&_pl.timeUnit){ _pl.timeSpec=_pl.timeNum+' '+_pl.timeUnit; }
+    else { return; }
+  } else if(_pl.timed==='no'){
+    _pl.timeSpec='';
+  } else { return; }
+  _pl.step='cap';
+  refreshPotluckHostSection();
+};
+window.plHostFinish=function(){
+  var capInp=document.getElementById('pl-host-cap-input');
+  var cap=capInp&&capInp.value.trim()?parseInt(capInp.value.trim()):'';
+  _signupList.push({item:_pl.item,potluckType:_pl.potluckType,category:_pl.category,timeSpec:_pl.timeSpec||'',maxClaims:cap||''});
+  savePotluckHostList();
+  _pl={step:'',item:'',potluckType:'',category:'',timed:'',timeNum:'',timeUnit:'',maxClaims:''};
+  refreshPotluckHostSection();
+};
+window.removePotluckHostItem=function(i){
+  _signupList.splice(i,1);
+  savePotluckHostList();
+  refreshPotluckHostSection();
+};
+function savePotluckHostList(){
+  fetch(GS_URL+'?action=savePotluckItem&eventId='+encodeURIComponent(window._currentEventId||(_currentEv&&_currentEv.id)||'')+'&potluckJson='+encodeURIComponent(JSON.stringify(_signupList))).catch(function(){});
+}
+async function loadPotluckClaims(eventId){
+  try{
+    var res=await fetch(GS_URL+'?action=getPotluckList&eventId='+encodeURIComponent(eventId));
+    var d=await res.json();
+    _potluckClaims=(d&&d.claims)||[];
+    var listEl=document.getElementById('potluck-host-list');
+    if(listEl) listEl.innerHTML=buildPotluckHostListHTML();
+  }catch(e){}
 }
 
 function render(ev) {
   const today = new Date(); today.setHours(0,0,0,0);
   const eventDay = ev.date ? new Date(ev.date + "T00:00:00") : null;
   const isPast = eventDay && eventDay < today;
+
+  // Potluck host detection - same normalization pattern as myevents.html
+  const _myId = getMemberId() || "";
+  _isHost = !!(ev.hostMemberCard && _myId && String(ev.hostMemberCard).replace(/\./g,"").toLowerCase() === String(_myId).replace(/\./g,"").toLowerCase());
+  try { _signupList = ev.signupPotluck ? JSON.parse(ev.signupPotluck) : []; } catch(e) { _signupList = []; }
+  window._currentEventId = ev.id;
 
   const expMap = {connected:"🌐 Connected",expressed:"🎨 Expressed",nourished:"🥘 Nourished from food/drink",energized:"🌀 Energized",playful:"🏓 Playful",rested:"💙 Rested"};
   const catMap = {}; // legacy map removed - resolveCategory handles all lookups
@@ -505,6 +657,13 @@ function render(ev) {
     ev.cooplink ? `<div style="font-size:14px;margin-bottom:4px;">🔗 <a href="${esc(ev.cooplink)}" rel="noopener" target="_blank" style="color:var(--primary);text-decoration:none;">Associated group</a></div>` : "",
     (ev.paymentlink&&sl.includes("paymentlink")) ? `<div style="font-size:14px;margin-bottom:4px;"><a href="${esc(ev.paymentlink)}" rel="noopener">Register / Pay</a></div>` : "",
   ].filter(Boolean).join("");
+
+  const potluckHostSection = (_isHost && !ev.cancelled) ? `
+    <div id="potluck-host-section" style="margin-top:24px;padding:16px;background:#EBF5FB;border:1.5px solid #AED6F1;border-radius:10px;">
+      <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#1B6896;margin-bottom:10px;">🎁 Event contribution list (host)</p>
+      <div id="potluck-host-list">${buildPotluckHostListHTML()}</div>
+      <div id="potluck-host-wizard">${buildPotluckWizardHTML()}</div>
+    </div>` : "";
 
   const exchange = ev.exchangeType
     ? `<div style="margin-bottom:18px;">
@@ -581,6 +740,7 @@ function render(ev) {
       ${ev.host ? `<div style="margin-top:24px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">Event host</p><div style="font-size:14px;margin-bottom:4px;">${hostHtml}</div>${(ev.contactEmail&&sl.includes("contact")) ? `<div style="margin-bottom:4px;"><a href="mailto:${esc(ev.contactEmail)}" style="font-size:14px;color:var(--primary);">${esc(ev.contactEmail)}</a></div>` : ""}${(ev.contactPhone&&sl.includes("contact")) ? `<div style="font-size:14px;margin-bottom:4px;">${esc(ev.contactPhone)}</div>` : ""}</div>` : ""}
       ${ev.exchangeType ? `<div style="margin-top:24px;">${exchange}</div>` : ""}
       <div style="margin-top:20px;">${engagementSection}</div>
+      ${potluckHostSection}
       <hr class="divider">
       <div class="actions">
         ${ev.date && !ev.cancelled ? `<button class="btn btn-outline" onclick="addToCalendarById('${ev.id}')" style="gap:6px;">📅 Add to calendar</button>` : ""}
@@ -611,6 +771,7 @@ function render(ev) {
   _setMeta("x-image", ev.imageUrl||"");
 
   _currentEv = ev;
+  if (_isHost && !ev.cancelled) { loadPotluckClaims(ev.id); }
 
   // RSVP state comes from the sheet, not the device - read registrations on load
   if (ev.interestedEnabled && ev.interestedEnabled !== "off") {
