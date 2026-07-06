@@ -1,0 +1,293 @@
+<!-- Version: V1.00 | Date: 2026-07-06 | LAST CHANGE: Initial build - 4-quadrant community view with chip style, search, matches button -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Community — Creating Works</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-height:100vh;}
+.top-bar{background:#fff;border-bottom:1px solid #e8eaf0;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;}
+.search-wrap{flex:1;display:flex;align-items:center;background:#f5f6f8;border:1.5px solid #e0e2ea;border-radius:24px;padding:0 14px;height:40px;gap:8px;}
+.search-wrap input{border:none;background:transparent;font-size:14px;font-family:'DM Sans',sans-serif;flex:1;outline:none;color:#1a1a2e;}
+.search-wrap input::placeholder{color:#9ea3b8;}
+.search-icon{color:#9ea3b8;font-size:16px;}
+.btn-matches{background:#2d5282;color:#fff;border:none;border-radius:24px;padding:0 18px;height:40px;font-size:14px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;transition:background 0.15s;}
+.btn-matches:hover{background:#1e3a5f;}
+.btn-matches.active{background:#1a7f4b;color:#fff;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px;max-height:calc(100vh - 68px);overflow-y:auto;}
+.quadrant{background:#fff;border-radius:14px;border:1px solid #e8eaf0;overflow:hidden;display:flex;flex-direction:column;}
+.q-header{padding:10px 14px 8px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f0f1f5;background:#fff;cursor:pointer;user-select:none;}
+.q-title{font-size:12px;font-weight:700;letter-spacing:0.06em;color:#6b7280;text-transform:uppercase;}
+.q-count{font-size:11px;color:#9ea3b8;font-weight:600;}
+.q-toggle{font-size:12px;color:#9ea3b8;transition:transform 0.2s;}
+.q-toggle.open{transform:rotate(180deg);}
+.q-body{padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px;overflow-y:auto;max-height:calc(50vh - 80px);transition:max-height 0.25s ease;}
+.q-body.collapsed{max-height:54px;overflow:hidden;}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:5px 5px 5px 12px;border-radius:40px;background:#2d5282;cursor:pointer;transition:opacity 0.15s;flex-shrink:0;}
+.chip:hover{opacity:0.88;}
+.chip-label{font-size:12px;font-weight:700;color:#fff;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;}
+.chip-photo{width:26px;height:26px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,255,255,0.35);flex-shrink:0;background:#4a6fa5;}
+.chip-photo-fallback{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.22);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0;}
+.chip.dim{opacity:0.22;pointer-events:none;}
+.chip.match{background:#1a7f4b;}
+.empty{font-size:12px;color:#c0c4d6;padding:4px 2px;font-style:italic;}
+.loading{font-size:12px;color:#c0c4d6;padding:4px 2px;}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search-input" placeholder="Search skills, interests, values..." oninput="filterAll(this.value)">
+  </div>
+  <button class="btn-matches" id="matches-btn" onclick="toggleMatches()">My matches</button>
+</div>
+
+<div class="grid">
+  <div class="quadrant">
+    <div class="q-header" onclick="toggleSection('skills')">
+      <div>
+        <div class="q-title">Skills &amp; languages</div>
+        <div class="q-count" id="skills-count">loading...</div>
+      </div>
+      <span class="q-toggle open" id="skills-arrow">▾</span>
+    </div>
+    <div class="q-body" id="skills-body"><span class="loading">Loading...</span></div>
+  </div>
+
+  <div class="quadrant">
+    <div class="q-header" onclick="toggleSection('interests')">
+      <div>
+        <div class="q-title">Interests &amp; expression</div>
+        <div class="q-count" id="interests-count">loading...</div>
+      </div>
+      <span class="q-toggle open" id="interests-arrow">▾</span>
+    </div>
+    <div class="q-body" id="interests-body"><span class="loading">Loading...</span></div>
+  </div>
+
+  <div class="quadrant">
+    <div class="q-header" onclick="toggleSection('values')">
+      <div>
+        <div class="q-title">Values &amp; domains</div>
+        <div class="q-count" id="values-count">loading...</div>
+      </div>
+      <span class="q-toggle open" id="values-arrow">▾</span>
+    </div>
+    <div class="q-body" id="values-body"><span class="loading">Loading...</span></div>
+  </div>
+
+  <div class="quadrant">
+    <div class="q-header" onclick="toggleSection('needs')">
+      <div>
+        <div class="q-title">What people need</div>
+        <div class="q-count" id="needs-count">loading...</div>
+      </div>
+      <span class="q-toggle open" id="needs-arrow">▾</span>
+    </div>
+    <div class="q-body" id="needs-body"><span class="loading">Loading...</span></div>
+  </div>
+</div>
+
+<script>
+var GS_URL='https://script.google.com/macros/s/AKfycbzEavMnG4tMeWemoT5FLu9f_zjlKVIJsZLueG4nhw9akK0_nZqpbkZiXrAlWu1Fyhq9/exec';
+var INTAKE_URL='https://creating.works/intake.html?show=';
+
+// Get event ID and viewer ID from URL params
+var params=new URLSearchParams(window.location.search);
+var _eventId=params.get('eventId')||params.get('event')||'';
+var _myId=params.get('id')||params.get('appearId')||'';
+var _matchMode=false;
+var _searchQ='';
+
+// Data store: array of {appearId, photo, name, skills[], interests[], expression, values[], domains[], needs[]}
+var _members=[];
+var _myData=null;
+
+// Collapsed state per section
+var _collapsed={skills:false,interests:false,values:false,needs:false};
+
+function toggleSection(key){
+  _collapsed[key]=!_collapsed[key];
+  var body=document.getElementById(key+'-body');
+  var arrow=document.getElementById(key+'-arrow');
+  if(body) body.classList.toggle('collapsed',_collapsed[key]);
+  if(arrow) arrow.classList.toggle('open',!_collapsed[key]);
+}
+
+function toggleMatches(){
+  _matchMode=!_matchMode;
+  var btn=document.getElementById('matches-btn');
+  if(btn) btn.classList.toggle('active',_matchMode);
+  renderAll();
+}
+
+function filterAll(q){
+  _searchQ=(q||'').toLowerCase().trim();
+  renderAll();
+}
+
+// Parse pipe-separated tag string into array of item names
+function parseTags(str){
+  if(!str) return [];
+  return str.split('|').filter(Boolean).map(function(s){
+    var p=s.split(':');return p[0]||'';
+  }).filter(Boolean);
+}
+
+function parseNeeds(str){
+  if(!str) return [];
+  return str.split('|').filter(Boolean).map(function(s){
+    var p=s.split(':');
+    var local=p[1]==='local';
+    var ntype=local?p[2]||'skill':p[1]||'skill';
+    var catParts=(local?p.slice(3):p.slice(2)).join(':').split(' / ');
+    return {item:p[0],ntype:ntype,category:catParts[0]||''};
+  }).filter(function(n){return n.item;});
+}
+
+// Load all ikigai rows for this event
+async function loadMembers(){
+  // First load event attendees to get list of appearIds
+  try{
+    // Load all ikigai data - in production this would filter by eventId
+    var res=await fetch(GS_URL+'?action=getIntake&appearId='+encodeURIComponent(_myId||'w.hss'));
+    var d=await res.json();
+    if(d.found&&d.data){
+      processRow(d.data,_myId||'w.hss');
+    }
+  }catch(e){}
+
+  // For now load a sample set using known test IDs to demonstrate the UI
+  // In production this would use getAttendees action then load each member's ikigai
+  var sampleIds=['w.hss'];
+  if(_myId&&sampleIds.indexOf(_myId)<0) sampleIds.unshift(_myId);
+
+  for(var i=0;i<sampleIds.length;i++){
+    await loadMember(sampleIds[i]);
+  }
+  renderAll();
+}
+
+async function loadMember(appearId){
+  try{
+    var res=await fetch(GS_URL+'?action=getIntake&appearId='+encodeURIComponent(appearId));
+    var d=await res.json();
+    if(!d.found||!d.data) return;
+    processRow(d.data, appearId);
+  }catch(e){}
+}
+
+function processRow(data, appearId){
+  // Avoid dupes
+  if(_members.some(function(m){return m.appearId===appearId;})) return;
+  var member={
+    appearId:appearId,
+    photo:data.photo||data.Image||'',
+    name:data.name||data.Name||appearId,
+    skills:parseTags(data.skills),
+    interests:parseTags(data.interests),
+    expression:[data.expression].filter(Boolean),
+    values:parseTags(data.values),
+    domains:parseTags(data.domains),
+    needs:parseNeeds(data.needs)
+  };
+  _members.push(member);
+  if(appearId===(_myId||'w.hss')) _myData=member;
+}
+
+function matchesMe(item, field){
+  if(!_myData) return false;
+  var myItems=_myData[field]||[];
+  return myItems.some(function(m){
+    return (m.item||m).toLowerCase()===(item||'').toLowerCase();
+  });
+}
+
+function matchesMeNeeds(item){
+  if(!_myData) return false;
+  // Check if I offer what they need or they offer what I need
+  var mySkills=_myData.skills||[];
+  return mySkills.some(function(s){
+    return (s||'').toLowerCase()===(item||'').toLowerCase();
+  });
+}
+
+// Build all chips for a field across all members
+// Returns array of {item, members:[{appearId, photo}]}
+function aggregateField(field, needsMode){
+  var map={};
+  _members.forEach(function(m){
+    var items=needsMode?(m.needs||[]):(m[field]||[]);
+    items.forEach(function(it){
+      var label=it.item||it;
+      if(!label) return;
+      if(!map[label]) map[label]={item:label,members:[]};
+      map[label].members.push({appearId:m.appearId,photo:m.photo});
+    });
+  });
+  return Object.values(map).sort(function(a,b){return b.members.length-a.members.length;});
+}
+
+function chipHTML(label, members, isMatch){
+  var photo=members[0]&&members[0].photo;
+  var dim=_matchMode&&!isMatch;
+  var cls='chip'+(dim?' dim':'')+(isMatch?' match':'');
+  var appearId=members[0]&&members[0].appearId;
+  var url=INTAKE_URL+encodeURIComponent(appearId||'');
+  var photoEl=photo
+    ?'<img class="chip-photo" src="'+escHTML(photo)+'" alt="" onerror="this.style.display=\'none\'">'
+    :'<div class="chip-photo-fallback">'+escHTML((label||'?').charAt(0).toUpperCase())+'</div>';
+  return '<a href="'+url+'" style="text-decoration:none;" onclick="openProfile(event,\''+escHTML(appearId||'')+'\')"><div class="'+cls+'" title="'+escHTML(label)+(members.length>1?' + '+(members.length-1)+' more':'')+'">'
+    +'<span class="chip-label">'+escHTML(label)+'</span>'
+    +photoEl
+    +'</div></a>';
+}
+
+window.openProfile=function(e,appearId){
+  e.preventDefault();
+  window.open(INTAKE_URL+encodeURIComponent(appearId),'_blank');
+};
+
+function escHTML(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function renderSection(bodyId, countId, items, field, needsMode){
+  var body=document.getElementById(bodyId);
+  var countEl=document.getElementById(countId);
+  if(!body) return;
+  var filtered=items.filter(function(it){
+    if(!_searchQ) return true;
+    return (it.item||'').toLowerCase().indexOf(_searchQ)>-1;
+  });
+  if(countEl) countEl.textContent=filtered.length+' item'+(filtered.length===1?'':'s');
+  if(!filtered.length){
+    body.innerHTML='<span class="empty">Nothing here yet.</span>';
+    return;
+  }
+  body.innerHTML=filtered.map(function(it){
+    var isMatch=_matchMode&&matchesMe(it.item,field);
+    return chipHTML(it.item,it.members,isMatch);
+  }).join('');
+}
+
+function renderAll(){
+  var skills=aggregateField('skills');
+  var interests=aggregateField('interests').concat(aggregateField('expression'));
+  var values=aggregateField('values').concat(aggregateField('domains'));
+  var needs=aggregateField('needs',true);
+  renderSection('skills-body','skills-count',skills,'skills');
+  renderSection('interests-body','interests-count',interests,'interests');
+  renderSection('values-body','values-count',values,'values');
+  renderSection('needs-body','needs-count',needs,'needs',true);
+}
+
+// Boot
+loadMembers();
+</script>
+</body>
+</html>
+<!-- Version: V1.00 | Date: 2026-07-06 | LAST CHANGE: Initial build - 4-quadrant community view with chip style, search, matches button -->
