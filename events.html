@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.09a | Date: 2026-07-03 | LAST CHANGE: serving filter passes all events when all options selected (default) - was hiding every event once serving data loaded -->
+<!-- Version: V12.10 | Date: 2026-07-06 | LAST CHANGE: Fixed mislabeled People who expressed interest to People registered (RSVPs) - panel already showed real RSVP data. Added Event contribution list builder (text+Add, no categorization) to the edit-event modal. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -441,10 +441,17 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
 
     <div id="registrations-panel" style="display:none;margin-bottom:20px;padding:14px 16px;background:#EFF6FF;border-radius:10px;border:1px solid #BFDBFE;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <p style="font-size:13px;font-weight:700;color:#1d4ed8;margin:0;">✋ People who expressed interest</p>
+        <p style="font-size:13px;font-weight:700;color:#1d4ed8;margin:0;">✋ People registered (RSVPs)</p>
         <span id="registrations-count" style="font-size:12px;color:#1d4ed8;font-weight:600;"></span>
       </div>
       <div id="registrations-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <div id="potluck-edit-panel" style="display:none;margin-bottom:20px;padding:14px 16px;background:#EBF5FB;border-radius:10px;border:1px solid #AED6F1;">
+      <p style="font-size:13px;font-weight:700;color:#1B6896;margin:0 0 10px;">🎁 Event contribution list</p>
+      <div id="potluck-edit-list" style="margin-bottom:10px;"></div>
+      <input type="text" id="potluck-edit-input" placeholder="Enter an offering for the list" style="width:100%;padding:9px 10px;border:1.5px solid var(--border,#d1d5db);border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;margin-bottom:8px;">
+      <button type="button" onclick="potluckEditAdd()" style="width:100%;background:#1B6896;color:#fff;border:none;padding:9px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Add</button>
     </div>
 
     <div class="field">
@@ -1896,6 +1903,8 @@ function openModal(skipDraft = false) {
   document.getElementById("post-modal").classList.add("open");
   fixModalForMobile();
   document.getElementById("post-error").style.display = "none";
+  const potluckPanelReset = document.getElementById("potluck-edit-panel"); if(potluckPanelReset) potluckPanelReset.style.display = "none";
+  _potluckEditList = [];
   document.getElementById("room-preview").style.display = "none";
   document.getElementById("conflict-warning").style.display = "none";
   document.getElementById("submit-btn").disabled = false;
@@ -2048,6 +2057,56 @@ function findEvById(id) {
   return null;
 }
 
+var _potluckEditList = [];
+function loadPotluckEditPanel(id) {
+  var panel = document.getElementById("potluck-edit-panel");
+  if (!panel) return;
+  panel.style.display = "block";
+  _potluckEditList = [];
+  renderPotluckEditList();
+  fetch(GS_URL + "?action=getPotluckList&eventId=" + encodeURIComponent(id))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      try { _potluckEditList = d && d.signupPotluck ? JSON.parse(d.signupPotluck) : []; } catch(e) { _potluckEditList = []; }
+      renderPotluckEditList();
+    })
+    .catch(function() {});
+}
+function renderPotluckEditList() {
+  var listEl = document.getElementById("potluck-edit-list");
+  if (!listEl) return;
+  if (!_potluckEditList.length) {
+    listEl.innerHTML = '<div style="font-size:12px;color:#6b7280;">Nothing on the list yet.</div>';
+    return;
+  }
+  listEl.innerHTML = _potluckEditList.map(function(it, i) {
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #D6E8F5;">'
+      + '<span style="font-size:13px;">' + esc(it.item) + '</span>'
+      + '<button type="button" onclick="potluckEditRemove(' + i + ')" style="background:none;border:none;color:#9ca3af;font-size:16px;cursor:pointer;padding:0 4px;">×</button>'
+      + '</div>';
+  }).join("");
+}
+function potluckEditSave() {
+  if (!editingId) return;
+  fetch(GS_URL + "?action=savePotluckItem&eventId=" + encodeURIComponent(editingId) + "&potluckJson=" + encodeURIComponent(JSON.stringify(_potluckEditList))).catch(function() {});
+}
+function potluckEditAdd() {
+  var inp = document.getElementById("potluck-edit-input");
+  if (!inp || !inp.value.trim()) return;
+  var item = inp.value.trim();
+  if (!_potluckEditList.some(function(it) { return it.item === item; })) {
+    _potluckEditList.push({ item: item, potluckType: "", category: "", timeSpec: "", maxClaims: "" });
+    potluckEditSave();
+  }
+  inp.value = "";
+  renderPotluckEditList();
+}
+function potluckEditRemove(i) {
+  _potluckEditList.splice(i, 1);
+  potluckEditSave();
+  renderPotluckEditList();
+}
+
 function loadEditForm(id) {
   const found = findEvById(id);
   if (!found) return;
@@ -2063,6 +2122,7 @@ function loadEditForm(id) {
     }
   }
   editingId = id;
+  loadPotluckEditPanel(id);
   var rawCats = Array.isArray(ev.categories) ? ev.categories : [ev.category].filter(Boolean);
   selectedCats = new Set(rawCats.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; }).filter(Boolean));
   selectedRoom = ev.room || null;
@@ -3747,6 +3807,6 @@ safeOn("interests-modal", "click", e => { if (e.target.id === "interests-modal")
   </div>
 </div>
 
-<!-- Version: V12.09 | Date: 2026-07-03 | LAST CHANGE: serving filter passes all events when all options selected (default) - was hiding every event once serving data loaded -->
+<!-- Version: V12.10 | Date: 2026-07-06 | LAST CHANGE: Fixed mislabeled People who expressed interest to People registered (RSVPs) - panel already showed real RSVP data. Added Event contribution list builder (text+Add, no categorization) to the edit-event modal. -->
 </body>
 </html>
