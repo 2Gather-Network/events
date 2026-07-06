@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.00 | Date: 2026-07-06 | LAST CHANGE: Moved full engagement block (Going pill, confirmation, Update event profile, Cancel RSVP) above the fold under title; potluck section now gated by access code (event passcode or master), independent of cached device identity; added live search to host offering field -->
+  <!-- Version: V5.01 | Date: 2026-07-06 | LAST CHANGE: Potluck section now gated solely by the existing edit-PIN session flag (reuses pencil icon unlock) - removed separate access-code modal and the isHost identity bypass entirely -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -281,21 +281,6 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="potluck-pin-modal">
-  <div class="modal">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div class="modal-title" style="margin-bottom:0;">🎁 Manage contribution list</div>
-      <button onclick="closePotluckPin()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;padding:4px;">×</button>
-    </div>
-    <p style="font-size:14px;color:var(--muted);margin-bottom:16px;">Enter the event's access code to manage the sign up list.</p>
-    <input class="modal-input" id="potluck-pin-input" type="tel" maxlength="4" placeholder="••••" style="letter-spacing:0.3em;text-align:center;font-size:20px;margin-bottom:8px;" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
-    <p class="error-msg" id="potluck-pin-error" style="margin-bottom:12px;">Incorrect code. Please try again.</p>
-    <div class="modal-actions">
-      <button class="btn btn-primary" style="flex:1;" onclick="submitPotluckPin()">Unlock</button>
-      <button class="btn btn-outline" onclick="closePotluckPin()">Cancel</button>
-    </div>
-  </div>
-</div>
 
 <div class="modal-overlay" id="read-notes-modal">
   <div class="modal">
@@ -696,20 +681,14 @@ function render(ev) {
   ].filter(Boolean).join("");
 
   const urlIdForPotluck = new URLSearchParams(window.location.search).get("id") || ev.id;
-  let _potluckVerified = false;
-  try { _potluckVerified = !!sessionStorage.getItem("ev-potluck-verified-" + urlIdForPotluck); } catch(e) {}
-  const potluckUnlocked = (_isHost || _potluckVerified) && !ev.cancelled;
-  const potluckSection = !ev.cancelled ? (
-    potluckUnlocked ? `
+  let _editVerified = false;
+  try { _editVerified = !!sessionStorage.getItem("ev-edit-verified-" + urlIdForPotluck); } catch(e) {}
+  const potluckSection = (_editVerified && !ev.cancelled) ? `
     <div id="potluck-host-section" style="margin-top:12px;padding:16px;background:#EBF5FB;border:1.5px solid #AED6F1;border-radius:10px;">
       <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#1B6896;margin-bottom:10px;">🎁 Event contribution list (host)</p>
       <div id="potluck-host-list">${buildPotluckHostListHTML()}</div>
       <div id="potluck-host-wizard">${buildPotluckWizardHTML()}</div>
-    </div>` : `
-    <div style="margin-top:12px;">
-      <button onclick="openPotluckPin()" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;padding:0;">🔒 Host? Manage the contribution list</button>
-    </div>`
-  ) : "";
+    </div>` : "";
 
   const exchange = ev.exchangeType
     ? `<div style="margin-bottom:18px;">
@@ -825,7 +804,7 @@ function render(ev) {
   _setMeta("x-image", ev.imageUrl||"");
 
   _currentEv = ev;
-  if (potluckUnlocked) { loadPotluckClaims(ev.id); }
+  if (_editVerified && !ev.cancelled) { loadPotluckClaims(ev.id); }
 
   // RSVP state comes from the sheet, not the device - read registrations on load
   if (ev.interestedEnabled && ev.interestedEnabled !== "off") {
@@ -1389,38 +1368,6 @@ function submitEditPin() {
     window.location.href = base + "events.html?edit=" + encodeURIComponent(urlId) + "&pin=" + encodeURIComponent(pin);
   }
 }
-
-function openPotluckPin() {
-  if (!_currentEv) return;
-  document.getElementById("potluck-pin-input").value = "";
-  document.getElementById("potluck-pin-error").style.display = "none";
-  document.getElementById("potluck-pin-modal").classList.add("open");
-  setTimeout(() => document.getElementById("potluck-pin-input").focus(), 100);
-}
-window.openPotluckPin = openPotluckPin;
-
-function closePotluckPin() {
-  document.getElementById("potluck-pin-modal").classList.remove("open");
-}
-window.closePotluckPin = closePotluckPin;
-
-function submitPotluckPin() {
-  const pin = document.getElementById("potluck-pin-input").value.trim();
-  const ev = _currentEv;
-  if (!ev) return;
-  const errEl = document.getElementById("potluck-pin-error");
-  if (pin !== String(ev.passcode) && pin !== MASTER_PASSCODE) {
-    errEl.style.display = "block";
-    document.getElementById("potluck-pin-input").value = "";
-    document.getElementById("potluck-pin-input").focus();
-    return;
-  }
-  const urlId = new URLSearchParams(window.location.search).get("id") || ev.id;
-  try { sessionStorage.setItem("ev-potluck-verified-" + urlId, pin); } catch(e) {}
-  closePotluckPin();
-  render(ev);
-}
-window.submitPotluckPin = submitPotluckPin;
 
 function openReadNotes() {
   if (!_currentEv || !_currentEv.sharedNotes) return;
