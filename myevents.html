@@ -1,861 +1,1508 @@
-<!DOCTYPE html>
-<!-- Version: V1.36 | Date: 2026-07-04 | LAST CHANGE: coerce cancelled to string in attending/cancelled filters so boolean TRUE from sheet is excluded correctly -->
+<!DOCTYPE html> 
 <html lang="en">
 <head>
+  <!-- Version: V5.02 | Date: 2026-07-06 | LAST CHANGE: manage=1 URL param auto-opens the edit-PIN modal on load, so Manage links from myevents.html can skip straight to PIN entry -->
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Events</title>
-  <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/2Gather-Network/events/main/images/2gather_logo.png">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event</title>
+  <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/2Gather-Network/events/main/images/2gather_logo.png">
+  <meta name="description" id="meta-description" content="">
+  <meta property="og:title" id="og-title" content="">
+  <meta property="og:description" id="og-description" content="">
+  <meta property="og:image" id="og-image" content="">
+  <meta property="og:type" content="event">
+  <meta property="og:url" id="og-url" content="">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" id="x-title" content="">
+  <meta name="twitter:description" id="x-description" content="">
+  <meta name="twitter:image" id="x-image" content="">
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --primary: #1B6896;
+      --primary: #1b6896;
       --dark: #1a1a2e;
       --muted: #6b7280;
       --border: #e5e7eb;
-      --bg: #f9fafb;
+      --bg: #f5f6fa;
+      --card-bg: #ffffff;
+      --radius: 14px;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Nunito Sans', sans-serif; background: var(--bg); color: var(--dark); min-height: 100vh; }
-    .header { background: #1B6896; padding: 14px 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; }
-    header img { height: 28px; width: auto; display: block; }
-
-    .btn-white { background: rgba(255,255,255,0.95); color: #154F74; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; white-space: nowrap; }
-    .btn-white:hover { background: white; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px 16px; }
-    .save-btn { margin-left: auto; background: none; border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 700; color: var(--dark); cursor: pointer; white-space: nowrap; }
-    .section-title { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 12px; }
-    .event-card { background: #fff; border-radius: 12px; border: 1px solid var(--border); padding: 16px; margin-bottom: 12px; }
-    .event-title { font-size: 16px; font-weight: 800; color: var(--dark); margin-bottom: 4px; text-decoration: none; display: block; }
-    .event-title:hover { color: var(--primary); }
-    .event-meta { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
-    .event-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; text-decoration: none; border: none; font-family: inherit; }
-    .btn-outline { background: #fff; border: 1.5px solid var(--border); color: var(--dark); }
-    .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
-    .btn-danger { background: #fff; border: 1.5px solid #fca5a5; color: #dc2626; }
-    .who-going { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-    .who-going a img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); display: block; }
-    .empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 15px; }
-    .loading { text-align: center; padding: 40px 20px; color: var(--muted); }
-    .spinner { width: 28px; height: 28px; border: 3px solid #e5e7eb; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+    body {
+      font-family: 'Nunito Sans','Segoe UI',sans-serif;
+      background: var(--bg);
+      color: var(--dark);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px 16px 64px;
+    }
+    @supports (-webkit-touch-callout: none) {
+      body { padding-bottom: 160px; }
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      width: 100%;
+      max-width: 560px;
+      overflow: hidden;
+    }
+    .cover-img { width: 100%; height: 220px; object-fit: cover; display: block; }
+    .card-body { padding: 24px 24px 28px; touch-action: pan-y; }
+    .top-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .format-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 12px; font-weight: 600; padding: 4px 10px;
+      border-radius: 20px; letter-spacing: 0.03em; white-space: nowrap;
+    }
+    .badge-virtual  { background: #EFF6FF; color: #1d4ed8; }
+    .badge-inperson { background: #F0FDF4; color: #166534; }
+    .badge-hybrid   { background: #FFF7ED; color: #9a3412; }
+    .badge-recurring { background: #E8F2F9; color: var(--primary); }
+    h1 { font-size: 22px; font-weight: 700; line-height: 1.3; margin-bottom: 18px; }
+    .meta { display: flex; flex-direction: column; gap: 9px; margin-bottom: 18px; }
+    .meta-item { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.5; }
+    .meta-item span { flex-shrink: 0; }
+    .meta-item a { color: var(--primary); text-decoration: none; font-weight: 600; }
+    .contributions {
+      font-size: 13px; color: var(--muted);
+      margin-bottom: 18px; padding: 10px 14px;
+      background: #f9fafb; border-radius: 8px; border: 1px solid var(--border);
+    }
+    .detail-img { width: 100%; border-radius: 10px; margin-bottom: 16px; display: block; max-height: 300px; object-fit: cover; }
+    .description { font-size: 15px; color: #374151; line-height: 1.7; margin-bottom: 24px; white-space: pre-wrap; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; pointer-events:none; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 600;
+      cursor: pointer; border: 1.5px solid transparent; text-decoration: none; transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .btn-outline { background: transparent; border-color: var(--border); color: var(--dark); }
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; color: var(--muted); text-decoration: none; padding: 0 0 12px 0;
+    }
+    .back-link:hover { color: var(--primary); }
+    .past-banner {
+      background: #f0f0f0; color: #666; font-size: 11px; font-weight: 700;
+      letter-spacing: 0.07em; padding: 5px 18px; border-bottom: 1px solid var(--border);
+    }
+    .loading, .error { text-align: center; padding: 60px 24px; color: var(--muted); font-size: 15px; }
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:100; align-items:center; justify-content:center; padding:20px; }
+    .modal-overlay.open { display:flex; }
+    .modal { background:#fff; border-radius:16px; padding:28px; max-width:400px; width:100%; max-height:92vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.2); }
+    .modal-title { font-size:18px; font-weight:700; margin-bottom:18px; color:var(--dark); }
+    .modal-field { margin-bottom:14px; }
+    .modal-label { display:block; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:6px; }
+    .modal-input { width:100%; border:1.5px solid var(--border); border-radius:8px; padding:10px 14px; font-size:15px; font-family:inherit; color:var(--dark); outline:none; }
+    .modal-input:focus { border-color:var(--primary); }
+    .modal-actions { display:flex; gap:10px; margin-top:6px; }
+    .error-msg { color:#c0392b; font-size:13px; margin-bottom:10px; display:none; }
+    .toast { position:fixed; top:24px; left:50%; transform:translateX(-50%) translateY(-80px); background:var(--dark); color:white; padding:12px 24px; border-radius:10px; font-weight:700; font-size:14px; transition:transform .3s; z-index:200; white-space:nowrap; }
+    .toast.show { transform:translateX(-50%) translateY(0); }
+    @media(max-width:768px) {
+      .modal-overlay { align-items:flex-end; justify-content:stretch; padding:0; }
+      .modal { border-radius:20px 20px 0 0; max-width:100%; max-height:90vh; padding:8px 20px 32px; }
+      .modal::before { content:""; display:block; width:40px; height:4px; background:var(--border); border-radius:2px; margin:8px auto 20px; }
+      .btn-share-desktop { display:none; }
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .tab-bar { display: flex; gap: 4px; margin-bottom: 12px; }
-    .tab-btn { background: none; border: none; padding: 7px 14px; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; border-radius: 8px; font-family: inherit; }
-    .tab-btn.active { background: var(--primary); color: #fff; }
-    .toast { position: fixed; top: 24px; left: 50%; transform: translateX(-50%); background: #1a1a2e; color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: 700; z-index: 999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
-    .toast.show { opacity: 1; }
+    a { color: var(--primary); }
+    a:visited { color: var(--primary); }
   </style>
 </head>
 <body>
-
-<div class="header">
-  <img src="https://raw.githubusercontent.com/2Gather-Network/events/main/images/2gather_logo.png" alt="2Gather" style="height:28px;width:auto;flex-shrink:0;">
-  <span style="color:rgba(255,255,255,0.85);font-size:13px;font-weight:700;flex:1;">My Events</span>
-  <button id="header-card-badge" onclick="copyMemberCard()" class="btn-white" style="display:none;">💳 &nbsp;<span id="header-card-number"></span></button>
+<div style="width:100%;max-width:560px;">
 </div>
-
-<div class="container">
-
-
-  <div id="loading" class="loading">
-    <div class="spinner"></div>
-    Loading your events...
-  </div>
-
-  <div id="not-found" style="display:none;" class="empty">
-    <p style="font-size:32px;margin-bottom:12px;">💳</p>
-    <p style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:8px;">No Member Card found</p>
-    <p style="margin-bottom:16px;">Register for an event with your Member Card, and your events will show up here.</p>
-    <a href="https://appear.network" style="display:inline-block;margin-bottom:10px;padding:10px 20px;background:var(--primary);color:#fff;border-radius:8px;font-weight:700;text-decoration:none;">Get a Member Card</a><br>
-
-  </div>
-
-  <div id="empty" style="display:none;" class="empty">
-    <p style="font-size:32px;margin-bottom:12px;">📅</p>
-    <p>No upcoming events registered yet.</p>
-  </div>
-
-  <div id="events-list"></div>
-
-  <!-- PIN Modal -->
-  <div id="pin-find-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:none;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:14px;padding:24px;max-width:320px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);">
-      <div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:8px;">Find your event</div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">Enter the 4-digit PIN you set when posting your event.</p>
-      <input id="pin-find-input" type="number" maxlength="4" placeholder="4-digit PIN"
-        style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:16px;font-family:inherit;color:var(--dark);outline:none;margin-bottom:8px;letter-spacing:4px;text-align:center;">
-      <p id="pin-find-error" style="display:none;font-size:12px;color:#dc2626;margin-bottom:8px;"></p>
-      <div style="display:flex;gap:8px;">
-        <button onclick="submitFindPin()" class="btn-white" style="flex:1;background:#1B6896;color:#fff;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Find event</button>
-        <button onclick="closeFindPin()" class="btn-white" style="border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:14px;cursor:pointer;font-family:inherit;">Cancel</button>
-      </div>
+<div class="card" id="card">
+  <div class="loading"><div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#1b6896;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px;"></div>Loading event...</div>
+</div>
+<div class="modal-overlay" id="interest-modal">
+  <div class="modal">
+    <div class="modal-title">I'm interested</div>
+    <div class="modal-field">
+      <label class="modal-label" id="int-name-label">Name</label>
+      <input class="modal-input" id="int-name" type="text" placeholder="Your name" autocomplete="name">
+    </div>
+    <div class="modal-field">
+      <label class="modal-label" id="int-email-label">Email</label>
+      <input class="modal-input" id="int-email" type="email" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <p class="error-msg" id="int-error"></p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" style="flex:1;" onclick="submitInterest()">Submit</button>
+      <button class="btn btn-outline" onclick="closeInterestModal()">Cancel</button>
     </div>
   </div>
+</div>
+<!-- RSVP Modal -->
+<div class="modal-overlay" id="rsvp-modal">
+  <div class="modal">
+    <!-- Step 1: Choose method -->
+    <div id="rsvp-step-1">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div class="modal-title" style="margin-bottom:0;">Register for this event</div>
+        <button onclick="closeRsvpModal()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;padding:4px;">×</button>
+      </div>
+      <div id="rsvp-card-hint" style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#166534;">
+        💳 Your Member Card: <strong id="rsvp-card-hint-id"></strong>
+      </div>
+      <button class="btn btn-primary" onclick="showStep('appear')" style="width:100%;justify-content:center;margin-bottom:10px;font-size:15px;padding:14px;">Register with my Member Card</button>
+      <div id="rsvp-no-card-hint" style="text-align:center;margin-top:12px;">
+        <span style="font-size:13px;color:var(--muted);">Don't have one? </span><a href="https://appear.network/dl/page" style="font-size:13px;color:var(--primary);font-weight:700;text-decoration:underline;">Get your member card</a>
+      </div>
+    </div>
+    <!-- Step 1a: Appear options -->
+    <div id="rsvp-step-appear" style="display:none;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <button onclick="showStep(1)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0;">←</button>
+        <div class="modal-title" style="margin-bottom:0;">Find your Member Card</div>
+      </div>
+      <button class="btn btn-primary" onclick="startQrScan()" style="width:100%;justify-content:center;margin-bottom:10px;font-size:15px;padding:14px;">📷 Scan my Member Card QR</button>
+      <button class="btn btn-outline" onclick="showManualEntry()" style="width:100%;justify-content:center;margin-bottom:10px;">⌨️ Enter my Member Card number</button>
+      <div style="text-align:center;">
+        <button onclick="toggleAppearHelp()" style="background:none;border:none;color:#374151;font-size:14px;cursor:pointer;text-decoration:underline;font-weight:600;">How do I find my Member Card number?</button>
+        <div id="appear-help" style="display:none;margin-top:8px;padding:12px 14px;background:#f9fafb;border-radius:8px;border:1px solid var(--border);font-size:14px;color:#374151;text-align:left;line-height:1.7;">
+          Sign in to <a href="http://appear.network" style="color:var(--primary);font-weight:700;">appear.network</a> and find your Member Card number under <a href="http://appear.network/dl/page" style="color:var(--primary);font-weight:700;">My page</a>.
+        </div>
+      </div>
+    </div>
 
-  <!-- My Interests Section -->
+    <!-- Step 1b: QR scanner -->
+    <div id="rsvp-step-qr" style="display:none;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <button onclick="showStep(1)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0;">←</button>
+        <div class="modal-title" style="margin-bottom:0;">Scan your QR code</div>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Point your camera at your Appear profile QR code.</p>
+      <div style="position:relative;width:100%;border-radius:12px;overflow:hidden;background:#000;margin-bottom:12px;">
+        <video id="rsvp-video" style="width:100%;display:block;" playsinline autoplay muted></video>
+        <canvas id="rsvp-canvas" style="display:none;"></canvas>
+        <div style="position:absolute;inset:0;border:3px solid var(--primary);border-radius:12px;pointer-events:none;opacity:0.6;"></div>
+      </div>
+      <p id="rsvp-scan-status" style="font-size:13px;color:var(--muted);text-align:center;margin-bottom:12px;">Scanning...</p>
+      <button class="btn btn-outline" onclick="cancelQrScan()" style="width:100%;justify-content:center;">Cancel</button>
+    </div>
+    <!-- Step 1c: Manual entry -->
+    <div id="rsvp-step-manual" style="display:none;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <button onclick="showStep(1)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0;">←</button>
+        <div class="modal-title" style="margin-bottom:0;">Enter your Member Card number</div>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Your Member Card number from your Appear Network profile (e.g. w.hss or 0VfHB).</p>
+      <input class="modal-input" id="rsvp-manual-input" type="text" placeholder="Your Member Card number" autocomplete="off" style="margin-bottom:8px;">
+      <p class="error-msg" id="rsvp-manual-error"></p>
+      <div class="modal-actions" style="margin-top:8px;">
+        <button class="btn btn-primary" style="flex:1;" onclick="submitManualId()">Look me up</button>
+        <button class="btn btn-outline" onclick="closeRsvpModal()">Cancel</button>
+      </div>
+    </div>
+    <!-- Step 2: Photo confirmation -->
+    <div id="rsvp-step-confirm" style="display:none;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <button onclick="(localStorage.getItem('appear-id')||new URLSearchParams(window.location.search).get('memberCard')) ? closeRsvpModal() : showStep(1)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0;">←</button>
+        <div class="modal-title" style="margin-bottom:0;">Is this you?</div>
+      </div>
+      <div style="margin-bottom:12px;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+          <input type="checkbox" id="rsvp-public-toggle" checked style="width:16px;height:16px;cursor:pointer;">
+          <label for="rsvp-public-toggle" style="font-size:13px;color:var(--dark);cursor:pointer;font-weight:600;">Show me as going (uncheck to stay private)</label>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-left:26px;">Staying private removes you from in-room matching.</p>
+      </div>
+      <div class="modal-actions" style="margin-bottom:16px;">
+        <button class="btn btn-primary" style="flex:1;" onclick="confirmRsvp()">✓ Yes, that's me</button>
+        <button class="btn btn-outline" onclick="showStep(1)">Not me</button>
+      </div>
+      <div style="text-align:center;">
+        <img id="rsvp-confirm-photo" src="" alt="" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--border);margin-bottom:8px;">
+        <p id="rsvp-confirm-id" style="font-size:13px;color:var(--muted);"></p>
+      </div>
+    </div>
+    <!-- Step 2b: ID not found -->
+    <div id="rsvp-step-notfound" style="display:none;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <button onclick="showStep(1)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0;">←</button>
+        <div class="modal-title" style="margin-bottom:0;">ID not found</div>
+      </div>
+      <p style="font-size:14px;color:var(--muted);margin-bottom:20px;">We couldn't find that Member Card number. Please check your number or get your Member Card on Appear Network.</p>
+      <div class="modal-actions">
+        <a href="https://appear.network" class="btn btn-primary" style="flex:1;justify-content:center;">Get Member Card on Appear</a>
+        <button class="btn btn-outline" onclick="showStep(1)">Try again</button>
+      </div>
+    </div>
+    <!-- Step 3: Loading -->
+    <div id="rsvp-step-loading" style="display:none;text-align:center;padding:20px 0;">
+      <div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px;"></div>
+      <p id="rsvp-loading-msg" style="font-size:14px;color:var(--muted);">Looking up your profile...</p>
+    </div>
+  </div>
+</div>
+<!-- QR Code Modal -->
+<div class="modal-overlay" id="qr-modal" style="z-index:250;">
+  <div class="modal" style="max-width:320px;text-align:center;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:700;color:var(--dark);">Event QR Code</div>
+      <button onclick="closeQrModal()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;padding:4px;">×</button>
+    </div>
+    <div id="qr-loading" style="padding:20px 0;color:var(--muted);font-size:13px;">
+      <div style="width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 10px;"></div>
+      Generating QR code...
+    </div>
+    <canvas id="qr-canvas" style="display:none;border-radius:10px;max-width:100%;"></canvas>
+    <p id="qr-event-title" style="font-size:13px;font-weight:700;color:var(--dark);margin:12px 0 4px;"></p>
+    <p id="qr-short-url" style="font-size:12px;color:var(--muted);margin-bottom:16px;word-break:break-all;"></p>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="downloadQr()">⬇ Download PNG</button>
+      <button class="btn btn-outline" onclick="closeQrModal()">Close</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="edit-pin-modal">
+  <div class="modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="modal-title" style="margin-bottom:0;">✏️ Edit this event</div>
+      <button onclick="closeEditPin()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;padding:4px;">×</button>
+    </div>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:16px;">Enter the 4-digit PIN you set when posting this event.</p>
+    <input class="modal-input" id="edit-pin-input" type="tel" maxlength="4" placeholder="••••" style="letter-spacing:0.3em;text-align:center;font-size:20px;margin-bottom:8px;" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
+    <p class="error-msg" id="edit-pin-error" style="margin-bottom:12px;">Incorrect PIN. Please try again.</p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" style="flex:1;" onclick="submitEditPin()">Unlock</button>
+      <button class="btn btn-outline" onclick="closeEditPin()">Cancel</button>
+    </div>
+  </div>
 </div>
 
+
+<div class="modal-overlay" id="read-notes-modal">
+  <div class="modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="modal-title" style="margin-bottom:0;">📝 Shared notes</div>
+      <button onclick="closeReadNotes()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;padding:4px;">×</button>
+    </div>
+    <div id="read-notes-content" style="font-size:14px;color:var(--dark);line-height:1.7;white-space:pre-wrap;max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
-
 <script>
-const GS_URL = "https://script.google.com/macros/s/AKfycbzEavMnG4tMeWemoT5FLu9f_zjlKVIJsZLueG4nhw9akK0_nZqpbkZiXrAlWu1Fyhq9/exec";
-const APPEAR_BASE = "https://appear.network/dl/page/s/e13594/r/";
-let _appearId = null;
-let _allEvents = [];
 
-function showToast(msg) {
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 2500);
+var CATEGORIES = [];
+var ROOMS = {};
+var ROOM_EMOJI = {};
+var _isHost = false;
+var _signupList = [];
+var _potluckClaims = [];
+var _potluckTypes = ['Skill','Experience','Thing'];
+var _hostSkillsPool = [];
+var _pl = {step:'',item:'',potluckType:'',category:'',timed:'',timeNum:'',timeUnit:'',maxClaims:''};
+
+var OLD_ID_TO_PARENT = {
+  "arts":"Arts & Culture","movement":"Physical Wellbeing","nature":"Nature & Outdoors",
+  "professional":"Business & Finance","creative":"Self-Expression & Beauty",
+  "faith":"Mental Wellbeing","care":"Mental Wellbeing","social":"Events & Gatherings",
+  "family":"Family Wellbeing","food":"Food & Drink","wealth":"Business & Finance",
+  "learning":"","resources":""
+};
+
+function resolveCategory(val) {
+  val = String(val || "").trim();
+  if (!val) return null;
+  var cat = CATEGORIES.find(function(c) { return c.label === val; });
+  if (cat) return cat;
+  var parent = OLD_ID_TO_PARENT[val.toLowerCase()];
+  if (parent) return CATEGORIES.find(function(c) { return c.label === parent; }) || null;
+  var lower = val.toLowerCase();
+  return CATEGORIES.find(function(c) { return c.label.toLowerCase().includes(lower) || lower.includes(c.label.toLowerCase()); }) || null;
 }
 
-function copyMemberCard() {
-  if (!_appearId) return;
-  navigator.clipboard.writeText(_appearId).then(function() {
-    showToast("Member card code copied!");
-  }).catch(function() {
-    showToast("Your code: " + _appearId);
+async function loadCategories() {
+  for (var attempt = 0; attempt < 6; attempt++) {
+    try {
+      var res = await fetch(GS_URL + "?action=getCategories&t=" + Date.now() + "_" + attempt);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      var text = await res.text();
+      var data = JSON.parse(text);
+      if (data.categories && data.categories.length) { CATEGORIES = data.categories; }
+      if (data.rooms && data.rooms.length) {
+        data.rooms.forEach(function(r) { if (r.name) { ROOMS[r.name] = r.url || ""; } });
+      }
+      break;
+    } catch(e) {
+      if (attempt === 5) { console.warn("Failed to load categories from sheet after 6 attempts:", e); break; }
+      await new Promise(function(r) { setTimeout(r, 500); });
+    }
+  }
+  try {
+    var pres = await fetch(GS_URL + "?action=getReferenceData");
+    var pdata = await pres.json();
+    if (pdata && pdata.potluckTypes && pdata.potluckTypes.length) { _potluckTypes = pdata.potluckTypes; }
+    if (pdata && pdata.skills && pdata.skills.length) { _hostSkillsPool = pdata.skills; }
+  } catch(e) {}
+}
+
+let RECURRING_EVENTS = [];
+
+function getNextDate(dayOfWeek) {
+  const now = new Date();
+  const d = new Date(now);
+  d.setHours(0,0,0,0);
+  const diff = (dayOfWeek - d.getDay() + 7) % 7 || 7;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0,10);
+}
+
+function parseSheetTime(val) {
+  if (!val) return "";
+  const s = String(val);
+  if (/^\d{2}:\d{2}$/.test(s)) return s;
+  if (s.includes("T")) { const t = s.split("T")[1]; return t.substring(0, 5); }
+  return s;
+}
+
+function recurToEv(r) {
+  return {
+    id: r.id, title: r.title||"",
+    date: getNextDate(r.dayOfWeek),
+    time: r.time||"", endtime: r.endtime||"",
+    format: r.format||"", location: r.location||"",
+    room: r.room||"", description: r.description||"",
+    host: r.host||"", hostlink: r.hostlink||"",
+    contactEmail: r.contactEmail||"", contactPhone: r.contactPhone||"",
+    cooplink: r.cooplink||"", paymentlink: r.paymentlink||"",
+    meetinglink: ROOMS[r.room] || "", showLinks: r.showLinks||"",
+    otherExchange: r.otherExchange||"", exchangeType: r.exchangeType||"",
+    recurFreq: r.recurFreq||"weekly", experience: r.experience||"",
+    imageUrl: r.imageUrl||"", detailImageUrl: r.detailImageUrl||"", lifeStage: r.lifeStage||"", keywords: r.keywords||"", venue: r.venue||"",
+    interestedEnabled: r.interestedEnabled||"off", interested: r.interested||"",
+    sharedNotesEnabled: r.sharedNotesEnabled||false, sharedNotes: r.sharedNotes||"",
+    host_note: r.host_note||"",
+    cancelled: r.cancelled||false,
+  };
+}
+
+const GS_URL = "https://script.google.com/macros/s/AKfycbzEavMnG4tMeWemoT5FLu9f_zjlKVIJsZLueG4nhw9akK0_nZqpbkZiXrAlWu1Fyhq9/exec";
+
+function getMemberId() {
+  const urlParam = new URLSearchParams(window.location.search).get("memberCard");
+  if (urlParam) return urlParam;
+  try { return localStorage.getItem("appear-id"); } catch(e) { return null; }
+}
+
+function esc(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+async function fetchEvents() {
+  const res = await fetch(GS_URL + "?t=" + Date.now());
+  return res.json();
+}
+
+function jsonp(params) {
+  return new Promise((resolve, reject) => {
+    const cb = "cb_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+    let done = false;
+    const finish = (fn) => { if (done) return; done = true; delete window[cb]; try { el.remove(); } catch(e){} fn(); };
+    const t = setTimeout(() => finish(() => reject(new Error("timeout"))), 20000);
+    window[cb] = (d) => { clearTimeout(t); finish(() => resolve(d)); };
+    const qs = Object.entries(params).map(([k,v]) => encodeURIComponent(k)+"="+encodeURIComponent(v)).join("&");
+    const el = document.createElement("script");
+    el.src = GS_URL + "?" + qs + "&callback=" + cb;
+    el.onerror = () => finish(() => reject(new Error("error")));
+    document.head.appendChild(el);
   });
 }
 
-function parseEvDate(dateVal) {
-  if (!dateVal) return null;
-  // Handle both "2026-05-24" and "2026-05-24T00:00:00.000Z"
-  const str = String(dateVal).slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return null;
-  return new Date(str + "T23:59:00");
+function parseDate(v) {
+  if (!v) return "";
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (s.includes("T")) return s.split("T")[0];
+  const m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return m[3]+"-"+m[1].padStart(2,"0")+"-"+m[2].padStart(2,"0");
+  return s;
 }
 
-function safeTime(ev) {
-  // Apps Script returns raw sheet columns - startTime is the column name
-  const t = ev.startTime || ev.time || "";
-  if (!t || String(t).trim() === "" || String(t).trim() === "00:00") return "";
-  return String(t).trim();
+function parseTime(v) {
+  if (!v) return "";
+  const m = String(v).trim().match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!m) return "";
+  let h = parseInt(m[1]); const mn = m[2], ap = (m[3]||"").toUpperCase();
+  if (ap==="PM" && h<12) h+=12;
+  if (ap==="AM" && h===12) h=0;
+  return String(h).padStart(2,"0")+":"+mn;
 }
 
-function formatDate(dateStr, time) {
-  if (!dateStr) return "";
-  const d = new Date(String(dateStr).slice(0,10) + "T12:00");
-  const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  let s = dayNames[d.getDay()] + ", " + monthNames[d.getMonth()] + " " + d.getDate();
-  if (time && String(time).trim() !== "00:00" && String(time).trim() !== "0:00" && String(time).trim() !== "") {
-    const parts = String(time).split(":").map(Number);
-    const h = parts[0], m = parts[1] || 0;
-    if (h > 0 || m > 0) {
-      const ampm = h >= 12 ? "PM" : "AM";
-      s += " · " + (h % 12 || 12) + ":" + String(m).padStart(2,"0") + " " + ampm;
-    }
+function fmtDate(date, time, endtime) {
+  if (!date) return "";
+  const d = new Date(date+"T"+(time||"00:00"));
+  let s = d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+  if (time) {
+    s += " · " + new Date(date+"T"+time).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+    if (endtime) s += " - " + new Date(date+"T"+endtime).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+    try { const tzAbbr = new Date(date+"T"+time).toLocaleTimeString("en-US",{timeZoneName:"short"}).split(" ").pop(); s += " " + tzAbbr; } catch(e){}
   }
   return s;
 }
 
+function toEv(r) {
+  return {
+    id: String(r.id||""), title: r.title||"",
+    date: parseDate(r.date), time: parseTime(r.startTime), endtime: parseTime(r.endTime),
+    format: r.format||"", location: r.location||"", room: r.room||"",
+    description: r.description||"", host: r.host||"", hostlink: r.hostlink||"",
+    contactEmail: r.contactEmail||"", contactPhone: r.contactPhone||"",
+    cooplink: r.cooplink||"", paymentlink: r.paymentlink||"", meetinglink: r.meetinglink||"",
+    showLinks: r.showLinks||"", otherExchange: r.otherExchange||"",
+    exchangeType: r.exchangeType||"", recurFreq: r.recurFreq||"",
+    experience: r.experience||"", imageUrl: r.imageUrl||"", detailImageUrl: r.detailImageUrl||"", lifeStage: r.lifeStage||"", keywords: r.keywords||"", venue: r.venue||"",
+    interestedEnabled: r.interestedEnabled||"off", interested: r.interested||"",
+    sharedNotesEnabled: r.sharedNotesEnabled==="true"||r.sharedNotesEnabled===true||false, sharedNotes: r.sharedNotes||"",
+    passcode: r.passcode||"",
+    host_note: r.host_note||"",
+    cancelled: r.cancelled==="true"||r.cancelled===true||false,
+    categories: (r.categories||"").split(",").map(s=>s.trim()).filter(Boolean),
+    venue: r.venue||"",
+    intakeRedirect: r.intakeRedirect||"",
+    hostMemberCard: r.hostMemberCard||"", signupPotluck: r.signupPotluck||"",
+  };
+}
+
+// ── Potluck host builder ─────────────────────────────────────────────────────
+function buildPotluckHostListHTML(){
+  if(!_signupList.length) return '<div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Nothing on the list yet.</div>';
+  return _signupList.map(function(it,i){
+    var claimCount=_potluckClaims.filter(function(c){return c.item===it.item;}).length;
+    var capLabel=it.maxClaims?(' · '+claimCount+'/'+it.maxClaims+' claimed'):(claimCount?(' · '+claimCount+' claimed'):'');
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">'
+      +'<div><div style="font-size:14px;font-weight:600;">'+esc(it.item)+'</div>'
+      +'<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+esc(it.potluckType||'')+(it.category?' · '+esc(it.category):'')+(it.timeSpec?' · '+esc(it.timeSpec):'')+esc(capLabel)+'</div></div>'
+      +'<button onclick="removePotluckHostItem('+i+')" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px;">×</button>'
+      +'</div>';
+  }).join('');
+}
+function buildPotluckWizardHTML(){
+  if(_pl.step===''){
+    return '<div style="margin-top:12px;">'
+      +'<input type="text" id="pl-host-item-input" placeholder="Enter an offering for the list" oninput="plHostFilterOfferings(this.value)" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-bottom:4px;">'
+      +'<div id="pl-host-search-results"></div>'
+      +'<button class="btn btn-primary" onclick="plHostStartType()" style="width:100%;justify-content:center;margin-top:8px;">Add</button>'
+      +'</div>';
+  }
+  if(_pl.step==='type'){
+    return '<div style="margin-top:12px;">'
+      +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">This is a:</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;">'+_potluckTypes.map(function(t){return '<span onclick="plHostSetType(\''+esc(t)+'\')" style="cursor:pointer;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;background:'+(_pl.potluckType===t?'var(--primary)':'#f3f4f6')+';color:'+(_pl.potluckType===t?'#fff':'var(--dark)')+';">'+esc(t)+'</span>';}).join('')+'</div>'
+      +'</div>';
+  }
+  if(_pl.step==='category'){
+    var labels=CATEGORIES.map(function(c){return c.label;});
+    return '<div style="margin-top:12px;">'
+      +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+' <span style="font-weight:400;color:var(--muted);">· '+esc(_pl.potluckType)+'</span></div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Pick a category for context:</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;">'+labels.map(function(l){return '<span onclick="plHostSetCategory(\''+esc(l)+'\')" style="cursor:pointer;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;background:'+(_pl.category===l?'var(--primary)':'#EBF5FB')+';color:'+(_pl.category===l?'#fff':'#1B6896')+';border:1px solid #AED6F1;">'+esc(l)+'</span>';}).join('')+'</div>'
+      +'</div>';
+  }
+  if(_pl.step==='timed'){
+    var timedHtml='<div style="margin-top:12px;">'
+      +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Is this offering for a specific time? For example, 1 hour or for the duration of the event?</div>'
+      +'<div style="display:flex;gap:6px;margin-bottom:10px;">'
+      +'<span onclick="plHostSetTimed(\'yes\')" style="cursor:pointer;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;background:'+(_pl.timed==='yes'?'var(--primary)':'#f3f4f6')+';color:'+(_pl.timed==='yes'?'#fff':'var(--dark)')+';">Yes</span>'
+      +'<span onclick="plHostSetTimed(\'no\')" style="cursor:pointer;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;background:'+(_pl.timed==='no'?'var(--primary)':'#f3f4f6')+';color:'+(_pl.timed==='no'?'#fff':'var(--dark)')+';">No</span>'
+      +'</div>';
+    if(_pl.timed==='yes'){
+      timedHtml+='<div style="display:flex;gap:8px;margin-bottom:10px;">'
+        +'<input type="number" id="pl-host-time-num" min="1" placeholder="#" value="'+esc(_pl.timeNum)+'" style="width:70px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;" oninput="_pl.timeNum=this.value;">'
+        +'<select id="pl-host-time-unit" onchange="plHostSetUnit(this.value)" style="flex:1;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;">'
+        +'<option value="">Select…</option>'
+        +'<option value="minutes"'+(_pl.timeUnit==='minutes'?' selected':'')+'>minutes</option>'
+        +'<option value="hours"'+(_pl.timeUnit==='hours'?' selected':'')+'>hours</option>'
+        +'<option value="entire event"'+(_pl.timeUnit==='entire event'?' selected':'')+'>entire event</option>'
+        +'</select></div>';
+    }
+    timedHtml+='<button class="btn btn-primary" onclick="plHostStepAfterTimed()" style="width:100%;justify-content:center;">Next</button></div>';
+    return timedHtml;
+  }
+  if(_pl.step==='cap'){
+    return '<div style="margin-top:12px;">'
+      +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Limit how many can sign up? Leave blank for no limit.</div>'
+      +'<input type="number" id="pl-host-cap-input" min="1" placeholder="No limit" value="'+esc(_pl.maxClaims)+'" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-bottom:10px;" oninput="_pl.maxClaims=this.value;">'
+      +'<button class="btn btn-primary" onclick="plHostFinish()" style="width:100%;justify-content:center;">Add to sign up list</button>'
+      +'</div>';
+  }
+  return '';
+}
+function refreshPotluckHostSection(){
+  var listEl=document.getElementById('potluck-host-list');
+  var wizEl=document.getElementById('potluck-host-wizard');
+  if(listEl) listEl.innerHTML=buildPotluckHostListHTML();
+  if(wizEl) wizEl.innerHTML=buildPotluckWizardHTML();
+}
+window.plHostFilterOfferings=function(q){
+  var container=document.getElementById('pl-host-search-results');
+  if(!container) return;
+  if(!q||!q.trim()){ container.innerHTML=''; return; }
+  var ql=q.toLowerCase();
+  var res=_hostSkillsPool.filter(function(r){return (r.item||'').toLowerCase().indexOf(ql)>-1;}).slice(0,15);
+  if(!res.length){ container.innerHTML=''; return; }
+  container.innerHTML='<div style="border:1.5px solid var(--border);border-radius:8px;margin-top:4px;overflow:hidden;">'
+    +res.map(function(r){
+      return '<div onclick="plHostPickOffering(\''+esc(r.item)+'\')" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);">'+esc(r.item)+(r.category?'<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+esc(r.category)+'</div>':'')+'</div>';
+    }).join('')+'</div>';
+};
+window.plHostPickOffering=function(item){
+  _pl.item=item;
+  _pl.step='type';
+  refreshPotluckHostSection();
+};
+window.plHostStartType=function(){
+  var inp=document.getElementById('pl-host-item-input');
+  if(!inp||!inp.value.trim()) return;
+  _pl.item=inp.value.trim();
+  _pl.step='type';
+  refreshPotluckHostSection();
+};
+window.plHostSetType=function(t){
+  _pl.potluckType=t;
+  _pl.step='category';
+  refreshPotluckHostSection();
+};
+window.plHostSetCategory=function(c){
+  _pl.category=c;
+  _pl.step='timed';
+  refreshPotluckHostSection();
+};
+window.plHostSetTimed=function(v){
+  _pl.timed=v;
+  if(v==='no'){_pl.timeNum='';_pl.timeUnit='';}
+  refreshPotluckHostSection();
+};
+window.plHostSetUnit=function(v){
+  _pl.timeUnit=v;
+  if(v==='entire event'){_pl.timeNum='';}
+};
+window.plHostStepAfterTimed=function(){
+  if(_pl.timed==='yes'){
+    if(_pl.timeUnit==='entire event'){ _pl.timeSpec='Entire event'; }
+    else if(_pl.timeNum&&_pl.timeUnit){ _pl.timeSpec=_pl.timeNum+' '+_pl.timeUnit; }
+    else { return; }
+  } else if(_pl.timed==='no'){
+    _pl.timeSpec='';
+  } else { return; }
+  _pl.step='cap';
+  refreshPotluckHostSection();
+};
+window.plHostFinish=function(){
+  var capInp=document.getElementById('pl-host-cap-input');
+  var cap=capInp&&capInp.value.trim()?parseInt(capInp.value.trim()):'';
+  _signupList.push({item:_pl.item,potluckType:_pl.potluckType,category:_pl.category,timeSpec:_pl.timeSpec||'',maxClaims:cap||''});
+  savePotluckHostList();
+  _pl={step:'',item:'',potluckType:'',category:'',timed:'',timeNum:'',timeUnit:'',maxClaims:''};
+  refreshPotluckHostSection();
+};
+window.removePotluckHostItem=function(i){
+  _signupList.splice(i,1);
+  savePotluckHostList();
+  refreshPotluckHostSection();
+};
+function savePotluckHostList(){
+  fetch(GS_URL+'?action=savePotluckItem&eventId='+encodeURIComponent(window._currentEventId||(_currentEv&&_currentEv.id)||'')+'&potluckJson='+encodeURIComponent(JSON.stringify(_signupList))).catch(function(){});
+}
+async function loadPotluckClaims(eventId){
+  try{
+    var res=await fetch(GS_URL+'?action=getPotluckList&eventId='+encodeURIComponent(eventId));
+    var d=await res.json();
+    _potluckClaims=(d&&d.claims)||[];
+    var listEl=document.getElementById('potluck-host-list');
+    if(listEl) listEl.innerHTML=buildPotluckHostListHTML();
+  }catch(e){}
+}
+
+function render(ev) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const eventDay = ev.date ? new Date(ev.date + "T00:00:00") : null;
+  const isPast = eventDay && eventDay < today;
+
+  // Potluck host detection - same normalization pattern as myevents.html
+  const _myId = getMemberId() || "";
+  _isHost = !!(ev.hostMemberCard && _myId && String(ev.hostMemberCard).replace(/\./g,"").toLowerCase() === String(_myId).replace(/\./g,"").toLowerCase());
+  try { _signupList = ev.signupPotluck ? JSON.parse(ev.signupPotluck) : []; } catch(e) { _signupList = []; }
+  window._currentEventId = ev.id;
+
+  const expMap = {connected:"🌐 Connected",expressed:"🎨 Expressed",nourished:"🥘 Nourished from food/drink",energized:"🌀 Energized",playful:"🏓 Playful",rested:"💙 Rested"};
+  const catMap = {}; // legacy map removed - resolveCategory handles all lookups
+  const typeMap = {spread:"📣 Spread the word",time:"⏰ Time",connections:"🌐 Referrals/Connections",feedback:"💬 Feedback",food:"🥘 Food/drink",skills:"🛠️ Skills",stuff:"🎁 Stuff",space:"📍 Space",money:"💵 Money",care:"💛 Care",noask:"🤝 No ask",free:"🎁 Free",testimonial:"⭐ Testimonial",share:"🔗 Share"};
+
+  const fmtBadge = ev.format==="virtual" ? `<span class="format-badge" style="font-size:12px;padding:3px 9px;background:#f3f4f6;border-radius:20px;white-space:nowrap;color:var(--dark);">💻 Virtual</span>`
+    : ev.format==="inperson" ? `<span class="format-badge" style="font-size:12px;padding:3px 9px;background:#f3f4f6;border-radius:20px;white-space:nowrap;color:var(--dark);">📍 In-person</span>`
+    : ev.format==="both" ? `<span class="format-badge" style="font-size:12px;padding:3px 9px;background:#f3f4f6;border-radius:20px;white-space:nowrap;color:var(--dark);">🔀 Hybrid</span>` : "";
+
+  const recurBadge = ev.recurFreq ? `<span class="format-badge" style="font-size:12px;padding:3px 9px;background:#f3f4f6;border-radius:20px;white-space:nowrap;color:var(--dark);">🔁 ${ev.recurFreq==="monthly"?"Monthly":"Weekly"}</span>` : "";
+
+  const roomUrl = ROOMS[ev.room] || "https://events.2gather.network/events/yvrgej/zkxbzq";
+  const roomEmoji = ROOM_EMOJI[ev.room] || "🏠";
+  const isToday = eventDay && eventDay.toDateString() === today.toDateString();
+  const gatherUrl = esc(ev.meetinglink || roomUrl);
+  const gatherTimeStr = ev.time ? new Date("1970-01-01T"+ev.time).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}) : "";
+  const joinBtn = (ev.format === "virtual" || ev.format === "both") && isToday && !ev.cancelled
+    ? `<a href="${gatherUrl}" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:var(--primary);color:#fff;padding:8px 18px;border-radius:20px;font-weight:700;font-size:13px;text-decoration:none;white-space:nowrap;flex-shrink:0;">🏠 Let's gather here today${gatherTimeStr ? " at " + gatherTimeStr : ""}</a>`
+    : "";
+  const meetingRoomLine = (ev.format === "virtual" || ev.format === "both") && ev.room && !isToday
+    ? `<div style="font-size:14px;margin-bottom:4px;">Meeting room: <a href="${esc(roomUrl)}" rel="noopener" style="color:var(--primary);">${esc(ev.room)}</a></div>`
+    : "";
+
+  const locLink = ev.location
+    ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}" rel="noopener" target="_blank">${esc(ev.location)}</a>`
+    : "In-person";
+
+  const hostHtml = ev.hostlink ? `<a href="${esc(ev.hostlink)}" rel="noopener" target="_blank" style="color:var(--primary);">${esc(ev.host)}</a>` : esc(ev.host);
+  const firstName = (ev.host||"").trim().split(/\s+/)[0]||"Host";
+
+  const sl = ev.showLinks||"";
+  const lines = [
+    (fmtBadge||recurBadge) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;">${fmtBadge}${recurBadge}</div>` : "",
+    ev.date ? `<div style="font-size:14px;font-weight:600;color:var(--dark);margin-bottom:6px;">${esc(fmtDate(ev.date,ev.time,ev.endtime))}</div>` : "",
+    meetingRoomLine,
+    ev.venue ? `<div style="font-size:14px;color:var(--dark);margin-bottom:4px;"><strong>Venue:</strong> ${esc(ev.venue)}</div>` : "",
+    (ev.format==="inperson"||ev.format==="both") ? `<div style="font-size:14px;margin-bottom:4px;">📍 ${locLink}</div>` : "",
+    (!ev.format&&ev.location) ? `<div style="font-size:14px;margin-bottom:4px;">📍 ${locLink}</div>` : "",
+    ev.cooplink ? `<div style="font-size:14px;margin-bottom:4px;">🔗 <a href="${esc(ev.cooplink)}" rel="noopener" target="_blank" style="color:var(--primary);text-decoration:none;">Associated group</a></div>` : "",
+    (ev.paymentlink&&sl.includes("paymentlink")) ? `<div style="font-size:14px;margin-bottom:4px;"><a href="${esc(ev.paymentlink)}" rel="noopener">Register / Pay</a></div>` : "",
+  ].filter(Boolean).join("");
+
+  const urlIdForPotluck = new URLSearchParams(window.location.search).get("id") || ev.id;
+  let _editVerified = false;
+  try { _editVerified = !!sessionStorage.getItem("ev-edit-verified-" + urlIdForPotluck); } catch(e) {}
+  const potluckSection = (_editVerified && !ev.cancelled) ? `
+    <div id="potluck-host-section" style="margin-top:12px;padding:16px;background:#EBF5FB;border:1.5px solid #AED6F1;border-radius:10px;">
+      <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#1B6896;margin-bottom:10px;">🎁 Event contribution list (host)</p>
+      <div id="potluck-host-list">${buildPotluckHostListHTML()}</div>
+      <div id="potluck-host-wizard">${buildPotluckWizardHTML()}</div>
+    </div>` : "";
+
+  const exchange = ev.exchangeType
+    ? `<div style="margin-bottom:18px;">
+        <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:0 0 8px;">What ${esc(firstName)} invites</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">${ev.exchangeType.split(",").filter(Boolean).map(t=>`<span style="font-size:13px;font-weight:600;padding:5px 12px;border-radius:20px;background:#f9fafb;border:1px solid var(--border);color:var(--dark);">${typeMap[t]||(t==="other"?"✏️ "+(ev.otherExchange||"Other"):t)}</span>`).join("")}</div>
+       </div>` : "";
+
+  const hasInterest = ev.interestedEnabled && ev.interestedEnabled !== "off";
+  const hasNotes = ev.sharedNotesEnabled;
+  const contactDisplay = (ev.contactEmail && sl.includes("contact")) ? ev.contactEmail
+    : (ev.contactPhone && sl.includes("contact")) ? ev.contactPhone : "";
+  const contactLink = contactDisplay
+    ? `<a href="${contactDisplay.includes("@") ? "mailto:" : "tel:"}${esc(contactDisplay)}" style="color:var(--primary);font-weight:600;">${esc(contactDisplay)}</a>`
+    : "the host directly";
+
+  const _isLoggedIn = !!(getMemberId && getMemberId());
+  const interestHeaderHTML = (hasInterest && !ev.cancelled) ? (
+    _isLoggedIn
+      ? `<button onclick="openRsvpModal()" id="interest-btn" style="background:var(--primary);color:#fff;border:none;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">+1 I'm going</button>`
+      : `<a href="https://appear.network" style="background:#f9fafb;border:1.5px solid var(--border);color:var(--muted);font-weight:600;font-size:12px;padding:6px 14px;border-radius:20px;white-space:nowrap;text-decoration:none;">👋 Sign in to RSVP</a>`
+  ) : "";
+
+  const engagementSection = (hasInterest || hasNotes) && !ev.cancelled ? `
+    <div id="engagement-section" style="margin:0 0 18px;">
+      ${hasInterest ? `
+        <div id="interest-area">
+          <div id="cancel-rsvp-area" style="display:none;margin-top:12px;">
+            <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:4px;">Cancel RSVP</p>
+            <button onclick="cancelRsvp()" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline;padding:0;">Cancel my registration</button>
+          </div>
+        </div>
+        <div id="interest-confirmed" style="display:none;margin-top:12px;font-size:13px;color:var(--muted);padding:10px 14px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;">
+          ✓ You're registered! Manage your registrations anytime under My events.
+        </div>
+        <div id="intake-prompt" style="display:none;margin-top:16px;padding:16px;background:#EBF5FB;border:1px solid #AED6F1;border-radius:10px;"></div>
+        <div id="rsvp-cancelled-msg" style="display:none;margin-top:12px;font-size:13px;color:#c0392b;padding:10px 14px;background:#FEE2E2;border-radius:8px;border:1px solid #FECACA;">
+          You're no longer registered for this event.
+        </div>
+        <div id="who-is-going" style="display:none;margin-top:16px;">
+          <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">Others going</p>
+          <div id="who-is-going-list" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+        </div>
+      ` : ""}
+      ${ev.host_note ? `
+        <div id="host-note-section" style="display:none;margin-top:16px;padding:14px 16px;background:#E8F2F9;border-radius:10px;border:1.5px solid #1B6896;">
+          <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#1B6896;margin-bottom:8px;">Note from the host</p>
+          <p style="font-size:14px;color:#374151;line-height:1.6;white-space:pre-wrap;">${esc(ev.host_note)}</p>
+        </div>
+      ` : ""}
+      ${hasNotes ? `
+        <div id="notes-section" style="display:none;margin-top:16px;">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:8px;">📋 This is a shared notes board - anything you add is seen by the host and all participants.</p>
+          <textarea id="shared-notes-area" style="width:100%;min-height:110px;border:1.5px solid var(--border);border-radius:8px;padding:11px 14px;font-size:14px;font-family:inherit;resize:vertical;color:var(--dark);outline:none;">${esc(ev.sharedNotes||"")}</textarea>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+            <button class="btn btn-outline" onclick="saveSharedNotes()" id="save-notes-btn" style="font-size:13px;padding:8px 16px;">Save</button>
+            <span id="notes-saved-msg" style="display:none;font-size:13px;color:#4CAF7D;font-weight:700;">✓ Saved</span>
+          </div>
+        </div>
+      ` : ""}
+    </div>` : "";
+
+  document.getElementById("card").innerHTML = `
+    ${ev.imageUrl ? `<img class="cover-img" src="${esc(ev.imageUrl)}" alt="" onerror="this.style.display='none'">` : ""}
+    ${ev.cancelled ? `<div style="background:#FEE2E2;color:#c0392b;font-size:13px;font-weight:700;letter-spacing:0.07em;padding:10px 24px;border-bottom:1px solid #FECACA;text-align:center;">THIS EVENT HAS BEEN CANCELLED</div>` : ""}
+    ${isPast ? `<div class="past-banner">PAST EVENT</div>` : ""}
+    ${ev.isPrivate ? `<div style="background:#FFF8E7;border-bottom:1px solid #F0B429;padding:8px 24px;font-size:12px;font-weight:700;color:#7B5800;letter-spacing:0.05em;">🔒 PRIVATE EVENT - Share this link only with your guests</div>` : ""}
+    <div class="card-body">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+        <h1 style="margin:0;flex:1;min-width:0;">${esc(ev.title)}</h1>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
+          ${joinBtn}
+          ${interestHeaderHTML}
+        </div>
+      </div>
+      <div style="margin-bottom:8px;">${engagementSection}</div>
+      ${potluckSection}
+      <div class="meta">${lines}</div>
+      ${ev.detailImageUrl ? `<img class="detail-img" src="${esc(ev.detailImageUrl)}" alt="" onerror="this.style.display='none'">` : ""}
+      ${ev.occurrenceNote ? `<div style="background:#FFF8E7;border:1.5px solid #F0B429;border-radius:10px;padding:14px 16px;margin-bottom:16px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7B5800;margin-bottom:6px;">Note from the host - this event only</p><p style="font-size:14px;color:#374151;line-height:1.6;white-space:pre-wrap;">${esc(ev.occurrenceNote)}</p></div>` : ""}
+      ${ev.description ? `<hr style="border:none;border-top:1px solid var(--border);margin:16px 0 14px;"><p class="description">${esc(ev.description).replace(/\[the calendar\]/g, '<a href="https://appear.network/dl/gather" rel="noopener" style="color:var(--primary);font-weight:600;">the calendar</a>').replace(/creating\.works/gi, '<a href="http://creating.works" rel="noopener" style="color:var(--primary);">creating.works</a>')}</p>` : ""}
+      <hr style="border:none;border-top:1px solid var(--border);margin:18px 0 14px;">
+      ${(ev.categories && ev.categories.length) ? `<div><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">This event represents</p><div style="display:flex;flex-wrap:wrap;gap:6px;">${ev.categories.map(c=>{const catObj=resolveCategory(c); return catObj ? `<span style="font-size:12px;font-weight:600;padding:4px 10px;background:#EBF5FB;border:1px solid #AED6F1;border-radius:20px;color:#1B6896;">${catObj.emoji} ${catObj.label}</span>` : '';}).filter(Boolean).join("")}</div></div>` : ""}
+      ${ev.experience ? `<div style="margin-top:20px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">Event experience</p><div style="display:flex;flex-wrap:wrap;gap:6px;">${ev.experience.split(",").filter(Boolean).map(t=>`<span style="font-size:12px;padding:3px 9px;background:#f3f4f6;border-radius:20px;white-space:nowrap;">${expMap[t]||t}</span>`).join("")}</div></div>` : ""}
+      ${ev.host ? `<div style="margin-top:24px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">Event host</p><div style="font-size:14px;margin-bottom:4px;">${hostHtml}</div>${(ev.contactEmail&&sl.includes("contact")) ? `<div style="margin-bottom:4px;"><a href="mailto:${esc(ev.contactEmail)}" style="font-size:14px;color:var(--primary);">${esc(ev.contactEmail)}</a></div>` : ""}${(ev.contactPhone&&sl.includes("contact")) ? `<div style="font-size:14px;margin-bottom:4px;">${esc(ev.contactPhone)}</div>` : ""}</div>` : ""}
+      ${ev.exchangeType ? `<div style="margin-top:24px;">${exchange}</div>` : ""}
+      <hr class="divider">
+      <div class="actions">
+        ${ev.date && !ev.cancelled ? `<button class="btn btn-outline" onclick="addToCalendarById('${ev.id}')" style="gap:6px;">📅 Add to calendar</button>` : ""}
+        <button class="btn btn-outline" onclick="copyLink()" id="copy-btn">🔗 Copy link</button>
+        ${!ev.cancelled ? `<button class="btn btn-outline" onclick="share()" ontouchstart="share()" style="touch-action:manipulation;-webkit-tap-highlight-color:transparent;padding:10px 14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>` : ""}
+        <button class="btn btn-outline" onclick="openQrModal()" title="Get QR code" style="padding:10px 14px;">⊞ QR</button>
+        ${!ev.cancelled ? `<button class="btn btn-outline" onclick="openEditPin()" title="Edit this event" style="padding:10px 14px;">✏️</button>` : ""}
+      </div>
+      <div style="text-align:right;margin-top:24px;padding-top:12px;border-top:1px solid var(--border);">
+        ${window._sharedByCard ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Shared by <a href="https://appear.network/dl/page/s/e13594/r/${encodeURIComponent(window._sharedByCard)}" rel="noopener" target="_blank" style="color:var(--primary);text-decoration:none;font-weight:600;">${window._sharedByCard}</a></div>` : ""}
+        <span style="font-size:11px;color:#9ca3af;">Brought to you by <a href="https://creating.works" rel="noopener" style="color:var(--primary);text-decoration:none;">Creating Works</a></span>
+      </div>
+
+    </div>
+    <div style="padding:14px 24px 148px;background:#f9fafb;border-top:1px solid var(--border);text-align:center;font-size:13px;color:var(--muted);">
+    </div>`;
+
+  document.title = ev.title || "Event";
+  const _metaDesc = (ev.description||"").slice(0,160).replace(/\n/g," ");
+  const _setMeta = (id, val) => { const el = document.getElementById(id); if(el) el.setAttribute("content", val||""); };
+  _setMeta("meta-description", _metaDesc);
+  _setMeta("og-title", ev.title||"");
+  _setMeta("og-description", _metaDesc);
+  _setMeta("og-image", ev.imageUrl||"");
+  _setMeta("og-url", window.location.href);
+  _setMeta("x-title", ev.title||"");
+  _setMeta("x-description", _metaDesc);
+  _setMeta("x-image", ev.imageUrl||"");
+
+  _currentEv = ev;
+  if (_editVerified && !ev.cancelled) { loadPotluckClaims(ev.id); }
+
+  // RSVP state comes from the sheet, not the device - read registrations on load
+  if (ev.interestedEnabled && ev.interestedEnabled !== "off") {
+    verifyRegistrationState();
+  }
+}
+
+
+// ── Apply the registered (confirmed) UI - sheet is the source of truth, no localStorage ──
+function applyRegisteredUI() {
+  const btn = document.getElementById("interest-btn");
+  if (btn) { btn.textContent = "✓ Going"; btn.disabled = true; btn.style.cursor = "default"; }
+  const cancelArea = document.getElementById("cancel-rsvp-area");
+  if (cancelArea) cancelArea.style.display = "block";
+  const confirmed = document.getElementById("interest-confirmed");
+  if (confirmed) confirmed.style.display = "block";
+  const notes = document.getElementById("notes-section");
+  if (notes) notes.style.display = "block";
+  const hostNoteEl = document.getElementById("host-note-section");
+  if (hostNoteEl) hostNoteEl.style.display = "block";
+  loadWhoIsGoing();
+  maybeShowIntakePrompt();
+}
+window.applyRegisteredUI = applyRegisteredUI;
+
+// ── Reset to the not-registered UI ──
+function applyUnregisteredUI() {
+  const btn = document.getElementById("interest-btn");
+  if (btn) { btn.textContent = "+1 I'm going"; btn.disabled = false; btn.style.cursor = "pointer"; }
+  const cancelArea = document.getElementById("cancel-rsvp-area");
+  if (cancelArea) cancelArea.style.display = "none";
+  const confirmed = document.getElementById("interest-confirmed");
+  if (confirmed) confirmed.style.display = "none";
+}
+window.applyUnregisteredUI = applyUnregisteredUI;
+
+// ── Find the ISO timestamp value in a registration row, independent of header name ──
+function _regTimestamp(row) {
+  for (var k in row) {
+    var v = String(row[k] || "");
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) return v;
+  }
+  return "";
+}
+
+// ── Read RSVP state from the sheet. Latest row by timestamp wins, so this is correct
+//    even while duplicate rows exist (bug 1). ──
+async function verifyRegistrationState() {
+  if (!_currentEv) return;
+  const memberId = getMemberId();
+  if (!memberId) return;
+  try {
+    const res = await fetch(GS_URL + "?action=getRegistrations&appearId=" + encodeURIComponent(memberId));
+    const data = await res.json();
+    const rows = (data.registrations || []).filter(function(r) {
+      return String(r.eventId || "").trim() === String(_currentEv.id).trim();
+    });
+    if (rows.length === 0) return;
+    rows.sort(function(a, b) {
+      return _regTimestamp(b).localeCompare(_regTimestamp(a));
+    });
+    const latest = rows[0];
+    const isCancelled = String(latest.cancelled || "").trim().toLowerCase() === "true";
+    if (isCancelled) {
+      applyUnregisteredUI();
+    } else {
+      _rsvpAppearId = memberId;
+      applyRegisteredUI();
+    }
+  } catch(e) { /* best effort - leave default not-registered state */ }
+}
+window.verifyRegistrationState = verifyRegistrationState;
+
+
+let _currentEv = null; // store rendered event for calendar lookup
+
+function addToCalendarById(id) {
+  if (_currentEv && _currentEv.id === id) addToCalendar(_currentEv);
+}
+
 function addToCalendar(ev) {
+  if (!ev.date) return;
   const pad = n => String(n).padStart(2,"0");
   const toGCal = (d,t) => { const dt = new Date(d+"T"+(t||"00:00")); return dt.getFullYear()+pad(dt.getMonth()+1)+pad(dt.getDate())+"T"+pad(dt.getHours())+pad(dt.getMinutes())+"00"; };
-  const start = toGCal(ev.date, ev.startTime);
-  const end = ev.endTime ? toGCal(ev.date, ev.endTime) : toGCal(ev.date, ev.startTime);
-  const desc = (ev.description || "").length > 400 ? (ev.description||"").slice(0,400)+"..." : (ev.description||"");
-  const params = new URLSearchParams({ text: ev.title, dates: start+"/"+end, details: desc, location: ev.location||ev.meetinglink||"" });
+  const start = toGCal(ev.date, ev.time);
+  const end   = ev.endtime ? toGCal(ev.date, ev.endtime) : toGCal(ev.date, ev.time);
+  const loc   = ev.location || ev.meetinglink || "";
+  const rawDesc = ev.description || "";
+  const desc = rawDesc.length > 400 ? rawDesc.slice(0, 400) + "..." : rawDesc;
+  const params = new URLSearchParams({
+    text: ev.title,
+    dates: start + "/" + end,
+    details: desc,
+    location: loc,
+  });
+  // Only add recurrence rule for template rows (rec-), not specific occurrences
+  const isOccurrence = ev.id && ev.id.startsWith("recurring-");
+  if (!isOccurrence) {
+    if (ev.recurFreq === "weekly") {
+      const day = ["SU","MO","TU","WE","TH","FR","SA"][new Date(ev.date+"T12:00").getDay()];
+      params.append("recur", "RRULE:FREQ=WEEKLY;BYDAY="+day);
+    } else if (ev.recurFreq === "monthly") {
+      params.append("recur", "RRULE:FREQ=MONTHLY");
+    }
+  }
   window.open("https://calendar.google.com/calendar/r/eventedit?" + params.toString(), "_blank");
 }
 
-function switchMainTab(tab) {
-  document.getElementById("tab-hosting").style.display = tab === "hosting" ? "block" : "none";
-  document.getElementById("tab-going").style.display = tab === "going" ? "block" : "none";
-  document.getElementById("main-tab-hosting").className = "tab-btn" + (tab === "hosting" ? " active" : "");
-  document.getElementById("main-tab-going").className = "tab-btn" + (tab === "going" ? " active" : "");
-}
-window.switchMainTab = switchMainTab;
+async function copyLink() {
+  const btn = document.getElementById("copy-btn");
+  const origText = btn ? btn.innerHTML : "";
+  if (btn) btn.innerHTML = "⏳ Getting link...";
 
-function switchHostTab(tab) {
-  document.getElementById("host-upcoming").style.display = tab === "upcoming" ? "block" : "none";
-  document.getElementById("host-past").style.display = tab === "past" ? "block" : "none";
-  document.getElementById("host-tab-upcoming").className = "tab-btn" + (tab === "upcoming" ? " active" : "");
-  document.getElementById("host-tab-past").className = "tab-btn" + (tab === "past" ? " active" : "");
-}
-
-async function cancelRsvp(eventId) {
-  if (!confirm("Cancel your RSVP for this event?")) return;
   try {
-    await fetch(`${GS_URL}?action=cancelRsvp&appearId=${encodeURIComponent(_appearId)}&eventId=${encodeURIComponent(eventId)}`);
-    try { localStorage.removeItem("db-interested-" + eventId); } catch(e) {}
-    showToast("RSVP cancelled.");
-    setTimeout(() => location.reload(), 1500);
-  } catch(e) { showToast("Error cancelling. Please try again."); }
+    const id = _currentEv && _currentEv.id;
+    if (!id) throw new Error("no id");
+    const res = await fetch(`${GS_URL}?action=getShortCode&id=${encodeURIComponent(id)}`);
+    const data = await res.json();
+    if (data.status !== "ok" || !data.code) throw new Error("no code");
+    const shortUrl = `https://go.2gather.network/${data.code}`;
+    await navigator.clipboard.writeText(shortUrl);
+    if (btn) { btn.innerHTML = "✓ Copied!"; setTimeout(() => btn.innerHTML = origText, 2000); }
+  } catch(e) {
+    if (btn) btn.innerHTML = origText;
+    const fallbackUrl = window.location.href;
+    navigator.clipboard?.writeText(fallbackUrl).then(() => showToast("🔗 Link copied!")).catch(() => prompt("Copy this link:", fallbackUrl));
+  }
 }
 
-function renderEvents(registrations, events) {
-  const now = new Date();
-  now.setHours(0,0,0,0);
+async function share() {
+  // Always use short URL for sharing
+  let url = window.location.href;
+  try {
+    const id = _currentEv && _currentEv.id;
+    if (id) {
+      const res = await fetch(`${GS_URL}?action=getShortCode&id=${encodeURIComponent(id)}`);
+      const data = await res.json();
+      if (data.status === "ok" && data.code) url = `https://go.2gather.network/${data.code}`;
+    }
+  } catch(e) { /* fall back to raw URL */ }
 
-  // Hosted events - upcoming (includes recurring occurrences)
-  const normalCard = _appearId.replace(/\./g,"").toLowerCase();
+  const showCopyUI = () => {
+    const existing = document.getElementById("share-url-box");
+    if (existing) { existing.remove(); return; }
+    const box = document.createElement("div");
+    box.id = "share-url-box";
+    box.style.cssText = "position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:0 4px 24px rgba(0,0,0,.18);z-index:9999;width:min(340px,92vw);";
+    box.innerHTML = `<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Copy this link to share:</p><div style="display:flex;gap:8px;"><input id="share-url-input" value="${url}" readonly style="flex:1;border:1.5px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--dark);min-width:0;"><button id="share-copy-btn" onclick="(()=>{const i=document.getElementById('share-url-input');i.select();navigator.clipboard?.writeText(i.value).catch(()=>{});document.getElementById('share-copy-btn').textContent='✓';setTimeout(()=>document.getElementById('share-url-box')?.remove(),1200);})()" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0;">Copy</button></div>`;
+    document.body.appendChild(box);
+    setTimeout(() => { const i = document.getElementById("share-url-input"); i?.select(); }, 60);
+    setTimeout(() => box.remove(), 8000);
+  };
 
-  // One-time hosted events
-  const hostedOnce = events
-    .filter(function(ev) {
-      return ev.hostMemberCard && ev.hostMemberCard.toString().replace(/\./g,"").toLowerCase() === normalCard;
-    })
-    .filter(function(ev) { return ev.date && parseEvDate(ev.date) >= now; });
+  const copyFallback = () => {
+    navigator.clipboard?.writeText(url)
+      .then(() => showToast("🔗 Link copied!"))
+      .catch(() => showCopyUI());
+  };
 
-  // Recurring hosted events - generate next 8 occurrences, grouped by event
-  const hostedRecByTitle = {};
-  events
-    .filter(function(ev) {
-      return ev.hostMemberCard && ev.hostMemberCard.toString().replace(/\./g,"").toLowerCase() === normalCard
-        && ev.recurFreq && ev.id && ev.id.startsWith("rec-");
-    })
-    .forEach(function(rec) {
-      const dayOfWeek = parseInt(rec.dayOfWeek) || 0;
-      const freq = rec.recurFreq;
-      const d = new Date();
-      d.setHours(0,0,0,0);
-      const dates = [];
-      for (let i = 0; i < 60 && dates.length < 8; i++) {
-        const check = new Date(d);
-        check.setDate(d.getDate() + i);
-        const match = freq === "weekly" ? check.getDay() === dayOfWeek :
-                      freq === "monthly" ? check.getDate() === (new Date(now).getDate()) : false;
-        if (match && check >= now) {
-          dates.push(check.toISOString().slice(0,10));
-        }
-      }
-      if (dates.length > 0) {
-        hostedRecByTitle[rec.title || rec.id] = { rec, dates };
-      }
-    });
-
-  const hosted = hostedOnce
-    .sort(function(a,b) { return new Date(a.date) - new Date(b.date); });
-
-  // Collapse duplicate rows so one event renders one card
-  function dedupeByEventId(list) {
-    var seen = {}, out = [];
-    list.forEach(function(item) {
-      if (!item || seen[item.id]) return;
-      seen[item.id] = true;
-      out.push(item);
-    });
-    return out;
+  if (navigator.share) {
+    navigator.share({ title: document.title, url })
+      .catch(err => { if (err.name !== "AbortError") copyFallback(); });
+  } else {
+    copyFallback();
   }
+}
 
-  // RSVPd events - active, upcoming
-  const active = dedupeByEventId(registrations
-    .filter(r => String(r.cancelled).toLowerCase() !== "true")
-    .map(r => {
-      const ev = events.find(e => e.id === r.eventId);
-      return ev ? { ...ev, _rsvp: r } : null;
-    })
-    .filter(Boolean)
-    .filter(ev => ev.date && parseEvDate(ev.date) >= now)
-    .sort((a,b) => new Date(a.date) - new Date(b.date)));
+function showError(msg) {
+  document.getElementById("card").innerHTML = `<div class="error">${esc(msg)}</div>`;
+}
 
-  // Cancelled RSVPs
-  const cancelled = dedupeByEventId(registrations
-    .filter(r => String(r.cancelled).toLowerCase() === "true")
-    .map(r => {
-      const ev = events.find(e => e.id === r.eventId);
-      return ev ? { ...ev, _rsvp: r } : null;
-    })
-    .filter(Boolean)
-    .sort((a,b) => new Date(b.date) - new Date(a.date)));
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  if (!t) return;
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2500);
+}
 
-  document.getElementById("loading").style.display = "none";
+// ── RSVP Modal ──────────────────────────────────────────────────
+const APPEAR_BASE = "https://appear.network/dl/page/s/e13594/r/";
+let _rsvpAppearId = null;
+let _qrStream = null;
+let _qrScanInterval = null;
 
-  if (hosted.length === 0 && active.length === 0) {
-    document.getElementById("empty").style.display = "block";
+function openRsvpModal() {
+  _rsvpAppearId = null;
+
+  // Check URL param first, then localStorage
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlMemberCard = urlParams.get("memberCard");
+  const savedId = urlMemberCard || localStorage.getItem("appear-id");
+  const confirmed = localStorage.getItem("appear-confirmed");
+
+  // If already confirmed on this device — 1 click register
+  if (savedId && confirmed === "true") {
+    _rsvpAppearId = savedId;
+    finishRsvp();
     return;
   }
 
-  const list = document.getElementById("events-list");
-  list.innerHTML = "";
+  // Otherwise open modal
+  document.getElementById("rsvp-modal").classList.add("open");
 
-  // Hosting section - split upcoming/past
-  const hostedUpcoming = hosted.filter(function(ev) { return parseEvDate(ev.date) >= now; });
-  const hostedPast = events
-    .filter(function(ev) {
-      return ev.hostMemberCard && ev.hostMemberCard.toString().replace(/\./g,"").toLowerCase() === normalCard;
-    })
-    .filter(function(ev) { return ev.date && parseEvDate(ev.date) < now; })
-    .sort(function(a,b) { return new Date(b.date) - new Date(a.date); });
-
-  // Top-level Hosting / Going tabs
-  const mainTabBar = document.createElement("div");
-  mainTabBar.className = "tab-bar";
-  mainTabBar.style.cssText = "margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:6px;";
-  const _hostCount = hostedUpcoming.length + Object.keys(hostedRecByTitle).length;
-  const _goingCount = active.length;
-  mainTabBar.innerHTML = `
-    <button class="tab-btn active" id="main-tab-hosting" onclick="switchMainTab('hosting')">Hosting (${_hostCount})</button>
-    <button class="tab-btn" id="main-tab-going" onclick="switchMainTab('going')">I'm Attending (${_goingCount})</button>`;
-  list.appendChild(mainTabBar);
-  const hostingWrap = document.createElement("div"); hostingWrap.id = "tab-hosting";
-  const goingWrap = document.createElement("div"); goingWrap.id = "tab-going"; goingWrap.style.display = "none";
-  list.appendChild(hostingWrap);
-  list.appendChild(goingWrap);
-
-  if (hostedUpcoming.length > 0 || hostedPast.length > 0) {
-    // Section title + Add event button
-    const hostHeader = document.createElement("div");
-    hostHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;";
-    const savedId = _appearId || "";
-    hostHeader.innerHTML = `
-      <div class="section-title" style="margin-bottom:0;">Hosting</div>
-      <a href="https://gather.2gather.network/events.html?action=post${savedId ? '&memberCard=' + encodeURIComponent(savedId) : ''}" class="btn-white" style="border:1.5px solid #1B6896;color:#1B6896;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;">+ Post an event</a>`;
-    hostingWrap.appendChild(hostHeader);
-
-    // Tab bar
-    const tabBar = document.createElement("div");
-    tabBar.className = "tab-bar";
-    tabBar.style.justifyContent = "flex-end";
-    const recCount = Object.keys(hostedRecByTitle).length;
-    tabBar.innerHTML = `
-      <button class="tab-btn active" id="host-tab-upcoming" onclick="switchHostTab('upcoming')">Upcoming (${hostedUpcoming.length + recCount})</button>
-      <button class="tab-btn" id="host-tab-past" onclick="switchHostTab('past')">Past (${hostedPast.length})</button>`;
-    hostingWrap.appendChild(tabBar);
-
-    // Upcoming container
-    const upcomingContainer = document.createElement("div");
-    upcomingContainer.id = "host-upcoming";
-    if (hostedUpcoming.length === 0) {
-      upcomingContainer.innerHTML = '<p style="font-size:13px;color:var(--muted);padding:12px 0;">No upcoming hosted events.</p>';
-    }
-    hostedUpcoming.forEach(function(ev) {
-      const card = document.createElement("div");
-      card.className = "event-card";
-      card.style.borderLeft = "3px solid var(--primary)";
-      card.innerHTML = `
-        <a class="event-title" href="event.html?id=${encodeURIComponent(ev.id)}">${ev.title || "Untitled"}</a>
-        <div class="event-meta">${formatDate(ev.date, safeTime(ev))}${ev.location ? " · " + ev.location : ""}</div>
-        <div id="who-${ev.id}" class="who-going"></div>
-        <div class="event-actions">
-          <button class="btn btn-outline" onclick='addToCalendar(${JSON.stringify({title:ev.title,date:ev.date,startTime:ev.startTime||ev.time,endTime:ev.endTime||ev.endtime,description:ev.description,location:ev.location,meetinglink:ev.meetinglink})})'>📅 Add to calendar</button>
-          <a href="event.html?id=${encodeURIComponent(ev.id)}" class="btn btn-outline">✏️ Manage</a>
-          <button class="btn btn-outline" onclick="openRsvpsModal('${ev.id}', '${(ev.title||'').replace(/'/g,"\\'")}')">👥 RSVPs</button>
-          <button class="btn btn-outline" onclick="openSocializersModal('${ev.id}', '${(ev.title||'').replace(/'/g,"\\'")}')">📣 Socializers</button>
-        </div>`;
-      upcomingContainer.appendChild(card);
-      loadAttendeesForHost(ev.id);
-    });
-
-    // Recurring events - one card per event with date dropdown
-    Object.values(hostedRecByTitle).forEach(function(group) {
-      const rec = group.rec;
-      const dates = group.dates;
-      const slug = rec.id.replace(/^rec-/,"");
-      const selectId = "rec-date-" + slug;
-      const card = document.createElement("div");
-      card.className = "event-card";
-      card.style.borderLeft = "3px solid #AED6F1";
-      card.innerHTML = `
-        <div class="event-title" style="margin-bottom:8px;">${rec.title || "Untitled"} <span style="font-size:11px;font-weight:700;background:#E8F2F9;color:var(--primary);padding:2px 8px;border-radius:20px;margin-left:4px;">🔁 Weekly</span></div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-          <select id="${selectId}" style="border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;font-family:inherit;color:var(--dark);cursor:pointer;" onchange="loadAttendeesForHost(this.value, 'who-rec-${slug}')">
-            ${dates.map(function(d) { return `<option value="recurring-${slug}-${d}">${formatDate(d, rec.startTime || "")}</option>`; }).join("")}
-          </select>
-        </div>
-        <div id="who-rec-${slug}" class="who-going"></div>
-        <div class="event-actions">
-          <button class="btn btn-outline" onclick="window.location.href='event.html?id='+document.getElementById('${selectId}').value">✏️ Manage</button>
-        </div>`;
-      upcomingContainer.appendChild(card);
-      // Load attendees for first date
-      if (dates.length > 0) loadAttendeesForHost("recurring-" + slug + "-" + dates[0], "who-rec-" + slug);
-    });
-    hostingWrap.appendChild(upcomingContainer);
-
-    // Past container
-    const pastContainer = document.createElement("div");
-    pastContainer.id = "host-past";
-    pastContainer.style.display = "none";
-    if (hostedPast.length === 0) {
-      pastContainer.innerHTML = '<p style="font-size:13px;color:var(--muted);padding:12px 0;">No past hosted events.</p>';
-    }
-    hostedPast.forEach(function(ev) {
-      const card = document.createElement("div");
-      card.className = "event-card";
-      card.style.opacity = "0.7";
-      card.innerHTML = `
-        <a class="event-title" href="event.html?id=${encodeURIComponent(ev.id)}">${ev.title || "Untitled"}</a>
-        <div class="event-meta">${formatDate(ev.date, safeTime(ev))}${ev.location ? " · " + ev.location : ""}</div>`;
-      pastContainer.appendChild(card);
-    });
-    hostingWrap.appendChild(pastContainer);
-  }
-  if (_hostCount === 0 && hostedPast.length === 0 && _goingCount > 0) switchMainTab('going');
-
-  // Going section
-  if (active.length > 0) {
-    const goingTitle = document.createElement("div");
-    goingTitle.className = "section-title";
-    goingTitle.style.marginTop = hosted.length > 0 ? "24px" : "0";
-    goingTitle.textContent = `I'm Attending (${active.length})`;
-    goingWrap.appendChild(goingTitle);
-
-    active.forEach(ev => {
-      const card = document.createElement("div");
-      card.className = "event-card";
-      card.innerHTML = `
-        <a class="event-title" href="event.html?id=${encodeURIComponent(ev.id)}">${ev.title || "Untitled"}</a>
-        <div class="event-meta">${formatDate(ev.date, safeTime(ev))}${ev.location ? " · " + ev.location : ""}</div>
-        <div class="event-actions">
-          <button class="btn btn-outline" onclick='addToCalendar(${JSON.stringify({title:ev.title,date:ev.date,startTime:ev.startTime||ev.time,endTime:ev.endTime||ev.endtime,description:ev.description,location:ev.location,meetinglink:ev.meetinglink})})'>📅 Add to calendar</button>
-          <button class="btn btn-danger" onclick="cancelRsvp('${ev.id}')">✕ Cancel RSVP</button>
-        </div>
-        <div id="who-${ev.id}" class="who-going"></div>
-      `;
-      goingWrap.appendChild(card);
-      loadAttendees(ev.id);
-    });
-  }
-
-  // Cancelled section
-  if (cancelled.length > 0) {
-    const cancelTitle = document.createElement("div");
-    cancelTitle.className = "section-title";
-    cancelTitle.style.marginTop = "24px";
-    cancelTitle.textContent = `Cancelled RSVPs (${cancelled.length})`;
-    goingWrap.appendChild(cancelTitle);
-
-    cancelled.forEach(ev => {
-      const card = document.createElement("div");
-      card.className = "event-card";
-      card.style.opacity = "0.5";
-      card.innerHTML = `
-        <a class="event-title" href="event.html?id=${encodeURIComponent(ev.id)}" style="text-decoration:line-through;">${ev.title || "Untitled"}</a>
-        <div class="event-meta">${formatDate(ev.date, safeTime(ev))}</div>
-      `;
-      goingWrap.appendChild(card);
-    });
+  if (savedId) {
+    // Show hint on step 1 before confirming
+    const hint = document.getElementById("rsvp-card-hint");
+    const hintId = document.getElementById("rsvp-card-hint-id");
+    if (hint && hintId) { hintId.textContent = savedId; hint.style.display = "block"; }
+    // Hide "don't have one" link
+    const noCard = document.getElementById("rsvp-no-card-hint");
+    if (noCard) noCard.style.display = "none";
+    lookupAndConfirm(savedId);
+  } else {
+    showStep(1);
   }
 }
 
-async function loadAttendeesForHost(eventId, containerId) {
-  const container = document.getElementById(containerId || "who-" + eventId);
-  if (!container) return;
-  try {
-    const res = await fetch(`${GS_URL}?action=getAttendees&eventId=${encodeURIComponent(eventId)}`);
-    const data = await res.json();
-    if (!data.attendees || data.attendees.length === 0) {
-      container.innerHTML = `<p style="font-size:12px;color:var(--muted);margin-top:8px;">No registrations yet.</p>`;
+function closeRsvpModal() {
+  document.getElementById("rsvp-modal").classList.remove("open");
+  cancelQrScan();
+}
+
+function showStep(n) {
+  ["rsvp-step-1","rsvp-step-appear","rsvp-step-qr","rsvp-step-manual","rsvp-step-confirm","rsvp-step-notfound","rsvp-step-loading"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+  if (n === 1) document.getElementById("rsvp-step-1").style.display = "block";
+  else if (n === "appear") document.getElementById("rsvp-step-appear").style.display = "block";
+  else if (n === "qr") document.getElementById("rsvp-step-qr").style.display = "block";
+  else if (n === "manual") document.getElementById("rsvp-step-manual").style.display = "block";
+  else if (n === "confirm") document.getElementById("rsvp-step-confirm").style.display = "block";
+  else if (n === "notfound") document.getElementById("rsvp-step-notfound").style.display = "block";
+  else if (n === "loading") document.getElementById("rsvp-step-loading").style.display = "block";
+}
+
+function toggleAppearHelp() {
+  const el = document.getElementById("appear-help");
+  if (el) el.style.display = el.style.display === "none" ? "block" : "none";
+}
+
+function showManualEntry() {
+  showStep("manual");
+  setTimeout(() => document.getElementById("rsvp-manual-input")?.focus(), 100);
+}
+
+// ── QR scanning ──
+async function startQrScan() {
+  showStep("qr");
+  document.getElementById("rsvp-scan-status").textContent = "Loading scanner...";
+
+  // Load jsQR first, wait for it to be ready before touching camera
+  if (!window.jsQR) {
+    const loaded = await new Promise((resolve) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      document.head.appendChild(s);
+    });
+    if (!loaded) {
+      document.getElementById("rsvp-scan-status").textContent = "Could not load scanner. Enter your ID manually.";
+      setTimeout(() => showManualEntry(), 1500);
       return;
     }
-    const count = data.attendees.length;
-    container.innerHTML = `<p style="font-size:12px;font-weight:700;color:var(--primary);margin:8px 0 6px;">${count} registered${count === 1 ? "" : ""}</p>`;
-    const row = document.createElement("div");
-    row.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;";
-    data.attendees.forEach(a => {
-      const link = document.createElement("a");
-      link.href = a.pageLink || (APPEAR_BASE + encodeURIComponent(a.appearId));
-      link.target = "_blank"; link.rel = "noopener";
-      link.title = a.appearId;
-      const img = document.createElement("img");
-      img.src = a.profileUrl || a.photo || "";
-      img.alt = a.appearId;
-      img.style.cssText = "width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid var(--border);display:block;";
-      img.onerror = () => { img.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(a.appearId) + "&size=36&background=EEF4F9&color=1B6896"; };
-      link.appendChild(img);
-      row.appendChild(link);
+  }
+
+  document.getElementById("rsvp-scan-status").textContent = "Starting camera...";
+  try {
+    _qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    const video = document.getElementById("rsvp-video");
+    video.srcObject = _qrStream;
+
+    // Wait for video to have actual frame data before scanning
+    await new Promise((resolve) => {
+      video.onloadeddata = resolve;
+      video.play();
+      // Fallback in case loadeddata never fires
+      setTimeout(resolve, 2000);
     });
-    container.appendChild(row);
+
+    document.getElementById("rsvp-scan-status").textContent = "Point at your Member Card QR code";
+    _qrScanInterval = setInterval(() => scanFrame(video), 250);
   } catch(e) {
-    container.innerHTML = "";
+    document.getElementById("rsvp-scan-status").textContent = "Camera not available. Please enter your ID manually.";
+    setTimeout(() => showManualEntry(), 1500);
   }
 }
 
-async function loadAttendees(eventId) {
+function scanFrame(video) {
+  if (!window.jsQR) return;
+  const canvas = document.getElementById("rsvp-canvas");
+  if (!canvas || video.videoWidth === 0) return;
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+  if (code) {
+    clearInterval(_qrScanInterval);
+    cancelQrScan();
+    const id = extractAppearId(code.data);
+    if (id) {
+      lookupAndConfirm(id);
+    } else {
+      document.getElementById("rsvp-scan-status").textContent = "QR not recognised. Try entering your ID manually.";
+      setTimeout(() => showManualEntry(), 1500);
+    }
+  }
+}
+
+function cancelQrScan() {
+  clearInterval(_qrScanInterval);
+  _qrScanInterval = null;
+  if (_qrStream) { _qrStream.getTracks().forEach(t => t.stop()); _qrStream = null; }
+  const video = document.getElementById("rsvp-video");
+  if (video) { video.srcObject = null; }
+}
+
+function normalizeAppearId(id) {
+  // Normalize: strip dots so w.hss matches whss in the sheet
+  return (id || "").replace(/\./g, "").toLowerCase();
+}
+
+function extractAppearId(url) {
+  // Handles full URL: https://appear.network/dl/.../r/APPEAR_ID
+  // or bare ID typed directly
+  const match = url.match(/\/r\/([A-Za-z0-9._-]+)/);
+  if (match) return match[1];
+  // bare short ID (no slashes, reasonable length)
+  if (/^[A-Za-z0-9._-]{3,20}$/.test(url.trim())) return url.trim();
+  return null;
+}
+
+// ── Manual ID submission ──
+function submitManualId() {
+  const raw = (document.getElementById("rsvp-manual-input")?.value || "").trim();
+  const errEl = document.getElementById("rsvp-manual-error");
+  const id = extractAppearId(raw);
+  if (!id) {
+    if (errEl) { errEl.textContent = "Please enter a valid Member Card number."; errEl.style.display = "block"; }
+    return;
+  }
+  if (errEl) errEl.style.display = "none";
+  lookupAndConfirm(id);
+}
+
+// ── Profile lookup ──
+async function lookupAndConfirm(appearId) {
+  showStep("loading");
+  document.getElementById("rsvp-loading-msg").textContent = "Looking up your profile...";
+  // Try original ID first, then normalized (dots stripped) as fallback
+  const ids = [appearId];
+  const normalized = normalizeAppearId(appearId);
+  if (normalized !== appearId.toLowerCase()) ids.push(normalized);
+
+  let found = false;
+  for (const id of ids) {
+    try {
+      const res = await fetch(`${GS_URL}?action=lookupProfile&appearId=${encodeURIComponent(id)}`);
+      const data = await res.json();
+      if (data.found && data.photo) {
+        _rsvpAppearId = appearId; // store original
+        document.getElementById("rsvp-confirm-photo").src = data.photo;
+        document.getElementById("rsvp-confirm-id").textContent = "Member Card: " + appearId;
+        showStep("confirm");
+        found = true;
+        break;
+      }
+    } catch(e) {}
+  }
+  if (!found) showStep("notfound");
+}
+
+// ── Confirm and save RSVP ──
+async function confirmRsvp() {
+  if (!_rsvpAppearId || !_currentEv) return;
+  showStep("loading");
+  document.getElementById("rsvp-loading-msg").textContent = "Registering you...";
+  const isPublic = document.getElementById("rsvp-public-toggle")?.checked !== false;
   try {
-    const res = await fetch(`${GS_URL}?action=getAttendees&eventId=${encodeURIComponent(eventId)}`);
+    await fetch(`${GS_URL}?action=rsvp&appearId=${encodeURIComponent(_rsvpAppearId)}&eventId=${encodeURIComponent(_currentEv.id)}&public=${isPublic}`);
+  } catch(e) { /* best effort */ }
+  finishRsvp();
+}
+
+
+
+function finishRsvp() {
+  closeRsvpModal();
+  applyRegisteredUI();
+  showToast("✓ You're registered!");
+}
+
+// For events flagged intakeRedirect in the sheet: invite the attendee to build their event profile.
+async function maybeShowIntakePrompt() {
+  if (!_currentEv || String(_currentEv.intakeRedirect || "").trim().toLowerCase() !== "true") return;
+  if (!_rsvpAppearId) return;
+  const box = document.getElementById("intake-prompt");
+  if (!box) return;
+  let label = "Create event profile";
+  try {
+    const res = await fetch(GS_URL + "?action=getIntake&appearId=" + encodeURIComponent(_rsvpAppearId));
+    const data = await res.json();
+    if (data && data.found) label = "Update event profile";
+  } catch(e) { /* default to Create */ }
+  const url = "https://creating.works/intake.html?id=" + encodeURIComponent(_rsvpAppearId) + "&eventId=" + encodeURIComponent(_currentEv.id);
+  box.innerHTML = '<p style="font-size:14px;color:#1a1a2e;margin:0 0 12px;font-weight:600;line-height:1.5;">To receive compatible connections for this event, please complete your event profile next.</p>'
+    + '<a href="' + url + '" style="display:inline-block;background:#154F74;color:#fff;font-weight:700;font-size:15px;padding:12px 20px;border-radius:10px;text-decoration:none;">' + label + '</a>';
+  box.style.display = "block";
+}
+window.maybeShowIntakePrompt = maybeShowIntakePrompt;
+
+async function loadWhoIsGoing() {
+  if (!_currentEv) return;
+  try {
+    const res = await fetch(`${GS_URL}?action=getAttendees&eventId=${encodeURIComponent(_currentEv.id)}`);
     const data = await res.json();
     if (!data.attendees || data.attendees.length === 0) return;
-    const container = document.getElementById("who-" + eventId);
-    if (!container) return;
-    container.innerHTML = "";
-    const label = document.createElement("p");
-    label.style.cssText = "font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;margin-top:12px;";
-    label.textContent = "Others going";
-    container.appendChild(label);
-    data.attendees.forEach(a => {
-      const link = document.createElement("a");
-      link.href = a.pageLink || (APPEAR_BASE + encodeURIComponent(a.appearId));
-      link.target = "_blank"; link.rel = "noopener";
-      const img = document.createElement("img");
-      img.src = a.profileUrl || a.photo || "";
-      img.alt = a.appearId;
-      img.title = a.appearId;
-      img.onerror = () => { img.src = "https://ui-avatars.com/api/?name=" + a.appearId + "&size=36"; };
-      link.appendChild(img);
-      container.appendChild(link);
-    });
+    const list = document.getElementById("who-is-going-list");
+    const section = document.getElementById("who-is-going");
+    if (!list || !section) return;
+    list.innerHTML = data.attendees.map(a => `
+      <a href="${a.pageLink || ('https://appear.network/dl/page/s/e13594/r/' + encodeURIComponent(a.appearId))}" title="${a.appearId}" style="display:block;width:44px;height:44px;border-radius:50%;overflow:hidden;border:2px solid var(--border);">
+        <img src="${a.photo}" alt="${a.appearId}" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='https://ui-avatars.com/api/?name=${a.appearId}&size=44'">
+      </a>`).join("");
+    section.style.display = "block";
   } catch(e) {}
+}
+
+async function cancelRsvp() {
+  if (!_currentEv) return;
+  if (!confirm("Cancel your RSVP for this event?")) return;
+  const appearId = _rsvpAppearId || getMemberId() || "";
+  try {
+    await fetch(`${GS_URL}?action=cancelRsvp&appearId=${encodeURIComponent(appearId)}&eventId=${encodeURIComponent(_currentEv.id)}`);
+  } catch(e) { /* best effort */ }
+  applyUnregisteredUI();
+  const cancelledMsg = document.getElementById("rsvp-cancelled-msg");
+  if (cancelledMsg) cancelledMsg.style.display = "block";
+  setTimeout(() => { if (cancelledMsg) cancelledMsg.style.display = "none"; }, 4000);
+}
+
+async function saveSharedNotes() {
+  const area = document.getElementById("shared-notes-area");
+  if (!area || !_currentEv) return;
+  const notes = area.value;
+  const btn = document.getElementById("save-notes-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
+  try {
+    await jsonp({ action:"sharedNotes", id:_currentEv.id, notes });
+    _currentEv.sharedNotes = notes;
+    const msg = document.getElementById("notes-saved-msg");
+    if (msg) { msg.style.display = "inline"; setTimeout(() => msg.style.display = "none", 2500); }
+  } catch(e) { console.warn("Notes save failed", e); showToast("Could not save. Try again."); }
+  if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+}
+
+const MASTER_PASSCODE = "6090";
+
+// ── QR Code ─────────────────────────────────────────────────────
+let _qrShortUrl = null;
+
+async function openQrModal() {
+  if (!_currentEv) return;
+  _qrShortUrl = null;
+  document.getElementById("qr-canvas").style.display = "none";
+  document.getElementById("qr-loading").style.display = "block";
+  document.getElementById("qr-event-title").textContent = _currentEv.title || "";
+  document.getElementById("qr-short-url").textContent = "";
+  document.getElementById("qr-modal").classList.add("open");
+
+  try {
+    const res = await fetch(`${GS_URL}?action=getShortCode&id=${encodeURIComponent(_currentEv.id)}`);
+    const data = await res.json();
+    if (data.status !== "ok" || !data.code) throw new Error("no code");
+    _qrShortUrl = `https://go.2gather.network/${data.code}`;
+  } catch(e) {
+    _qrShortUrl = window.location.href;
+  }
+
+  document.getElementById("qr-short-url").textContent = _qrShortUrl;
+  renderQr(_qrShortUrl);
+}
+
+function renderQr(url) {
+  if (!window.QRious) {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js";
+    s.onload = () => renderQr(url);
+    s.onerror = () => { document.getElementById("qr-loading").textContent = "Could not load QR library."; };
+    document.head.appendChild(s);
+    return;
+  }
+  const canvas = document.getElementById("qr-canvas");
+  new QRious({
+    element: canvas,
+    value: url,
+    size: 260,
+    foreground: "#1a1a2e",
+    background: "#ffffff",
+    level: "H",
+    padding: 16,
+  });
+  document.getElementById("qr-loading").style.display = "none";
+  canvas.style.display = "block";
+}
+
+function closeQrModal() {
+  document.getElementById("qr-modal").classList.remove("open");
+  _qrShortUrl = null;
+}
+
+function downloadQr() {
+  const canvas = document.getElementById("qr-canvas");
+  const title = (_currentEv?.title || "event").replace(/[^a-z0-9]/gi, "-").toLowerCase();
+  const link = document.createElement("a");
+  link.download = `qr-${title}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
+function openEditPin() {
+  if (!_currentEv) return;
+  document.getElementById("edit-pin-input").value = "";
+  document.getElementById("edit-pin-error").style.display = "none";
+  document.getElementById("edit-pin-modal").classList.add("open");
+  setTimeout(() => document.getElementById("edit-pin-input").focus(), 100);
+}
+
+function closeEditPin() {
+  document.getElementById("edit-pin-modal").classList.remove("open");
+}
+
+function submitEditPin() {
+  const pin = document.getElementById("edit-pin-input").value.trim();
+  const ev = _currentEv;
+  if (!ev) return;
+  const errEl = document.getElementById("edit-pin-error");
+  if (pin !== String(ev.passcode) && pin !== MASTER_PASSCODE) {
+    errEl.style.display = "block";
+    document.getElementById("edit-pin-input").value = "";
+    document.getElementById("edit-pin-input").focus();
+    return;
+  }
+  // v4.17: use URL occurrence ID, not ev.id (which may be a stale template ID like "kickoff-001")
+  const urlId = new URLSearchParams(window.location.search).get("id") || ev.id;
+  try { sessionStorage.setItem("ev-edit-verified-" + urlId, pin); } catch(e) {}
+  closeEditPin();
+  const base = "https://gather.2gather.network/";
+  if (window.self !== window.top) {
+    try {
+      // Try postMessage first (desktop), also navigate top window (mobile Glide)
+      window.parent.postMessage({ type: "openEdit", id: urlId, pin }, "*");
+      try { window.top.location.href = base + "events.html?edit=" + encodeURIComponent(urlId) + "&pin=" + encodeURIComponent(pin); } catch(e) {}
+    } catch(e) {
+      window.location.href = base + "events.html?edit=" + encodeURIComponent(urlId) + "&pin=" + encodeURIComponent(pin);
+    }
+  } else {
+    window.location.href = base + "events.html?edit=" + encodeURIComponent(urlId) + "&pin=" + encodeURIComponent(pin);
+  }
+}
+
+function openReadNotes() {
+  if (!_currentEv || !_currentEv.sharedNotes) return;
+  document.getElementById("read-notes-content").textContent = _currentEv.sharedNotes;
+  document.getElementById("read-notes-modal").classList.add("open");
+}
+function closeReadNotes() {
+  document.getElementById("read-notes-modal").classList.remove("open");
+}
+
+let _autoManageDone = false;
+function maybeAutoOpenManage() {
+  if (_autoManageDone) return;
+  _autoManageDone = true;
+  const wantsManage = new URLSearchParams(window.location.search).get("manage");
+  if (wantsManage === "1") {
+    setTimeout(() => { try { openEditPin(); } catch(e) {} }, 300);
+  }
 }
 
 async function init() {
-  // Get Member Card number from URL or localStorage
-  const params = new URLSearchParams(window.location.search);
-  _appearId = params.get("id") || (function(){ try { return localStorage.getItem("appear-id"); } catch(e) { return null; } })() || params.get("memberCard");
+  await loadCategories();
+  const inIframe = window.self !== window.top;
+  // hide back link when in iframe - the modal provides navigation
+  if (inIframe) {
+    const backBar = document.querySelector('body > div:first-child');
+    if (backBar) backBar.style.display = "none";
+  }
+  const id = new URLSearchParams(window.location.search).get("id");
+  if (!id) { render(PREVIEW_EVENT); return; }
 
-  if (!_appearId) {
-    document.getElementById("loading").style.display = "none";
-    document.getElementById("not-found").style.display = "block";
+  // If a template row ID (rec-) is passed, resolve to next occurrence in-place
+  if (id.startsWith("rec-")) {
+    try {
+      const sheetData = await fetchEvents();
+      const allRows = (sheetData.events || []).filter(r => r.id);
+      const tmpl = allRows.find(r => String(r.id) === id);
+      if (tmpl && tmpl.dayOfWeek) {
+        const slug = (tmpl.title || "").toLowerCase().replace(/\s+/g, "-");
+        const nextDate = getNextDate(parseInt(tmpl.dayOfWeek));
+        const occId = `recurring-${slug}-${nextDate}`;
+        const recEv = { ...toEv(tmpl), dayOfWeek: parseInt(tmpl.dayOfWeek) || 0, time: parseSheetTime(tmpl.startTime), endtime: parseSheetTime(tmpl.endTime), id: occId };
+        const ev = recurToEv(recEv);
+        ev.id = occId;
+        ev.date = nextDate;
+        const cancelRow = allRows.find(r => String(r.id) === "cancelled-" + occId);
+        if (cancelRow) ev.cancelled = true;
+        const noteRow = allRows.map(toEv).find(e => e.id === "occ-note-" + occId);
+        if (noteRow) {
+          const _today = new Date(); _today.setHours(0,0,0,0);
+          if (new Date(nextDate + "T00:00:00") >= _today) ev.occurrenceNote = noteRow.description;
+        }
+        render(ev);
+        maybeAutoOpenManage();
+        return;
+      }
+    } catch(e) {}
+    showError("Event not found.");
     return;
   }
-
-  // Update URL if came from localStorage
-  if (!params.get("id")) {
-    history.replaceState(null, "", "myevents.html?id=" + encodeURIComponent(_appearId));
-  }
-
-
-  // Show member card badge in header
-  const badge = document.getElementById("header-card-badge");
-  const badgeNum = document.getElementById("header-card-number");
-  if (badge && badgeNum) { badgeNum.textContent = _appearId; badge.style.display = "flex"; }
-
-  // Show logged-in only sections
-  const editSection = document.getElementById("edit-event-section");
-  if (editSection) editSection.style.display = "block";
-
-  // Load registrations + all events in parallel
-  try {
-    const [regRes, evRes] = await Promise.all([
-      fetch(`${GS_URL}?action=getRegistrations&appearId=${encodeURIComponent(_appearId)}`),
-      fetch(`${GS_URL}?t=${Date.now()}`)
-    ]);
-    const regData = await regRes.json();
-    const evData = await evRes.json();
-    const allEvents = (evData.events || []).filter(function(r) { return r.id; });
-    renderEvents(regData.registrations || [], allEvents);
-    initInterests(allEvents);
-    loadSocializedEvents(allEvents);
-  } catch(e) {
-    document.getElementById("loading").style.display = "none";
-    document.getElementById("empty").style.display = "block";
-  }
-}
-
-// ── Events I've socialized ───────────────────────────────────────
-async function loadSocializedEvents(allEvents) {
-  if (!_appearId) return;
-  try {
-    // We need to check socializers tab - fetch all events and look for this member's rows
-    // getSocializers is per-event; we use a workaround: fetch each hosted event is expensive
-    // Instead we scan via the sheet's socializers tab by fetching with appearId filter
-    const res = await fetch(`${GS_URL}?action=getSocializers&appearId=${encodeURIComponent(_appearId)}`);
-    const data = await res.json();
-    const rows = data.socializers || [];
-    if (rows.length === 0) return;
-
-    // Count clicks per eventId
-    const counts = {};
-    rows.forEach(r => { counts[r.eventId] = (counts[r.eventId] || 0) + 1; });
-
-    const list = document.getElementById("events-list");
-    if (!list) return;
-
-    const section = document.createElement("div");
-    section.style.marginTop = "24px";
-
-    const titleEl = document.createElement("div");
-    titleEl.className = "section-title";
-    titleEl.textContent = `Events I've shared (${Object.keys(counts).length})`;
-    section.appendChild(titleEl);
-
-    Object.entries(counts).sort((a,b) => b[1]-a[1]).forEach(([eventId, count]) => {
-      const ev = allEvents.find(e => e.id === eventId);
-      const card = document.createElement("div");
-      card.className = "event-card";
-      card.style.borderLeft = "3px solid #10B981";
-      card.innerHTML = `
-        <a class="event-title" href="event.html?id=${encodeURIComponent(eventId)}" style="color:var(--primary);">${ev ? (ev.title || "Untitled") : eventId}</a>
-        ${ev ? `<div class="event-meta">${formatDate(ev.date, ev.startTime || "")}</div>` : ""}
-        <div style="font-size:13px;color:#10B981;font-weight:600;margin-top:6px;">${count} click${count===1?"":"s"} from your share link</div>`;
-      section.appendChild(card);
-    });
-
-    list.appendChild(section);
-  } catch(e) {}
-}
-
-// ── My Interests ────────────────────────────────────────────────
-let _allEventsCache = [];
-let _userLat = null, _userLng = null;
-
-function loadInterests() {
-  try { return JSON.parse(localStorage.getItem("my-interests") || "[]"); } catch(e) { return []; }
-}
-function saveInterests(arr) {
-  try { localStorage.setItem("my-interests", JSON.stringify(arr)); } catch(e) {}
-}
-
-function renderInterestChips() {
-  const chips = document.getElementById("interest-chips");
-  if (!chips) return;
-  const interests = loadInterests();
-  chips.innerHTML = interests.map(function(kw) {
-    return `<span style="display:inline-flex;align-items:center;gap:6px;background:#EBF5FB;border:1px solid #AED6F1;border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;color:#1B6896;">
-      ${kw}
-      <button onclick="removeInterest('${kw.replace(/'/g,"\\'")}') " style="background:none;border:none;color:#1B6896;cursor:pointer;font-size:14px;line-height:1;padding:0;">×</button>
-    </span>`;
-  }).join("");
-}
-
-function removeInterest(kw) {
-  const arr = loadInterests().filter(function(k) { return k !== kw; });
-  saveInterests(arr);
-  renderInterestChips();
-  renderInterestResults();
-}
-
-function addInterestFromInput() {
-  const input = document.getElementById("interest-input");
-  if (!input) return;
-  const val = input.value.trim();
-  if (!val) return;
-  const arr = loadInterests();
-  if (!arr.includes(val)) { arr.push(val); saveInterests(arr); }
-  input.value = "";
-  document.getElementById("interest-autocomplete").style.display = "none";
-  renderInterestChips();
-  renderInterestResults();
-}
-
-function onInterestKeydown(e) {
-  if (e.key === "Enter") { e.preventDefault(); addInterestFromInput(); }
-  if (e.key === "Escape") { document.getElementById("interest-autocomplete").style.display = "none"; }
-}
-
-function onInterestInput(e) {
-  const val = e.target.value.trim().toLowerCase();
-  const ac = document.getElementById("interest-autocomplete");
-  if (!val || val.length < 2) { ac.style.display = "none"; return; }
-  // Build suggestions from all events
-  const suggestions = new Set();
-  _allEventsCache.forEach(function(ev) {
-    [ev.title, ev.keywords, ev.categories, ev.description].forEach(function(field) {
-      if (!field) return;
-      String(field).split(/[,\s]+/).forEach(function(word) {
-        const w = word.trim().toLowerCase();
-        if (w.length > 2 && w.includes(val)) suggestions.add(word.trim());
-      });
-    });
-  });
-  const filtered = Array.from(suggestions).slice(0, 8);
-  if (filtered.length === 0) { ac.style.display = "none"; return; }
-  ac.innerHTML = filtered.map(function(s) {
-    return `<div onclick="selectSuggestion('${s.replace(/'/g,"\\'")}') " style="padding:9px 14px;font-size:13px;cursor:pointer;color:var(--dark);border-bottom:1px solid var(--border);">${s}</div>`;
-  }).join("");
-  ac.style.display = "block";
-}
-
-function selectSuggestion(val) {
-  document.getElementById("interest-input").value = val;
-  document.getElementById("interest-autocomplete").style.display = "none";
-  addInterestFromInput();
-}
-
-function haversineKm(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2)*Math.sin(dLat/2) +
-    Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
-
-function renderInterestResults() {
-  const interests = loadInterests();
-  const list = document.getElementById("interests-list");
-  const emptyEl = document.getElementById("interests-empty");
-  const showAllWrap = document.getElementById("interests-show-all");
-  if (!list) return;
-
-  if (interests.length === 0) {
-    list.innerHTML = "";
-    if (emptyEl) emptyEl.style.display = "none";
-    if (showAllWrap) showAllWrap.style.display = "none";
-    return;
-  }
-
-  const showAll = document.getElementById("interests-all-toggle")?.checked;
-  const now = new Date(); now.setHours(0,0,0,0);
-  const twoWeeks = new Date(now); twoWeeks.setDate(twoWeeks.getDate() + 14);
-  const RADIUS_KM = 80;
-
-  const matched = _allEventsCache.filter(function(ev) {
-    const d = parseEvDate(ev.date);
-    if (!d) return false;
-    if (d < now) return false;
-    if (!showAll && d > twoWeeks) return false;
-
-    // Location filter - include virtual always
-    const isVirtual = (ev.format || "").toLowerCase().includes("virtual");
-    if (!isVirtual && _userLat && _userLng && ev.lat && ev.lng) {
-      const dist = haversineKm(_userLat, _userLng, parseFloat(ev.lat), parseFloat(ev.lng));
-      if (dist > RADIUS_KM) return false;
+  // Check recurring events (IDs are dynamic: recurring-{slug}-{YYYY-MM-DD})
+  if (id.startsWith("recurring-")) {
+    const dateStr = id.slice(-10);
+    const slug    = id.slice("recurring-".length, id.length - 11);
+    try {
+      const sheetData = await fetchEvents();
+      const allRows = (sheetData.events || []).filter(r => r.id);
+      // Build RECURRING_EVENTS from rec- rows in sheet
+      RECURRING_EVENTS = allRows
+        .filter(r => String(r.id).startsWith("rec-") && r.recurFreq && r.dayOfWeek)
+        .map(r => ({ ...toEv(r), dayOfWeek: parseInt(r.dayOfWeek) || 0, time: parseSheetTime(r.startTime), endtime: parseSheetTime(r.endTime) }));
+      const recurMatch = RECURRING_EVENTS.find(r =>
+        r.title.toLowerCase().replace(/\s+/g, "-") === slug
+      );
+      if (recurMatch) {
+        const ev = recurToEv(recurMatch);
+        ev.id = id;
+        ev.date = dateStr;
+        // Check if this specific occurrence was cancelled
+        const cancelRow = allRows.find(r => String(r.id) === "cancelled-" + id);
+        if (cancelRow) ev.cancelled = true;
+        const noteRow = allRows.map(toEv).find(e => e.id === "occ-note-" + id);
+        if (noteRow && dateStr) {
+          const _today = new Date(); _today.setHours(0,0,0,0);
+          if (new Date(dateStr + "T00:00:00") >= _today) ev.occurrenceNote = noteRow.description;
+        }
+        render(ev);
+        maybeAutoOpenManage();
+        return;
+      }
+    } catch(e) {
+      showError("Could not load event. Please try again.");
+      return;
     }
-
-    // Keyword match
-    const haystack = [ev.title, ev.keywords, ev.categories, ev.description, ev.host, ev.location]
-      .filter(Boolean).join(" ").toLowerCase();
-    return interests.some(function(kw) { return haystack.includes(kw.toLowerCase()); });
-  }).sort(function(a,b) { return new Date(a.date) - new Date(b.date); });
-
-  if (showAllWrap) showAllWrap.style.display = interests.length > 0 ? "block" : "none";
-
-  if (matched.length === 0) {
-    list.innerHTML = "";
-    if (emptyEl) emptyEl.style.display = "block";
-    return;
   }
-  if (emptyEl) emptyEl.style.display = "none";
 
-  list.innerHTML = matched.map(function(ev) {
-    return `<div class="event-card" style="margin-bottom:10px;">
-      <a class="event-title" href="event.html?id=${encodeURIComponent(ev.id)}">${ev.title || "Untitled"}</a>
-      <div class="event-meta">${formatDate(ev.date, safeTime(ev))}${ev.location ? " · " + ev.location : ""}${ev.format && ev.format.includes("virtual") ? " · 💻 Virtual" : ""}</div>
-    </div>`;
-  }).join("");
-}
-
-function initInterests(allEvents) {
-  _allEventsCache = allEvents;
-  renderInterestChips();
-  // Get location
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(function(pos) {
-      _userLat = pos.coords.latitude;
-      _userLng = pos.coords.longitude;
-      renderInterestResults();
-    }, function() {
-      renderInterestResults(); // fallback without location
-    }, { timeout: 5000 });
-  } else {
-    renderInterestResults();
+  try {
+    const data = await fetchEvents();
+    const ev = (data.events||[]).filter(r=>r.id).map(toEv).find(e=>e.id===id);
+    if (!ev) { showError("Event not found."); return; }
+    // Handle ?via= socializer attribution
+    const viaCard = new URLSearchParams(window.location.search).get("via");
+    if (viaCard && ev.id) {
+      window._sharedByCard = viaCard;
+      // Log the click to socializers tab
+      try {
+        fetch(`${GS_URL}?action=saveSocializer&appearId=${encodeURIComponent(viaCard)}&eventId=${encodeURIComponent(ev.id)}&refCode=&via=link`);
+      } catch(e) {}
+    }
+    render(ev);
+    maybeAutoOpenManage();
+  } catch(e) {
+    showError("Could not load event. Please try again.");
   }
 }
 
-// ── Find event by PIN ───────────────────────────────────────────
-function openFindByPin() {
-  const modal = document.getElementById("pin-find-modal");
-  if (modal) { modal.style.display = "flex"; document.getElementById("pin-find-input").value = ""; document.getElementById("pin-find-error").style.display = "none"; setTimeout(() => document.getElementById("pin-find-input").focus(), 100); }
-}
 
-function closeFindPin() {
-  const modal = document.getElementById("pin-find-modal");
-  if (modal) modal.style.display = "none";
-}
-
-async function submitFindPin() {
-  const pin = (document.getElementById("pin-find-input").value || "").trim();
-  const errEl = document.getElementById("pin-find-error");
-  if (!pin || pin.length < 4) { errEl.textContent = "Please enter your 4-digit PIN."; errEl.style.display = "block"; return; }
-  errEl.style.display = "none";
-  // Find event with this PIN in events list
-  const matched = _allEventsCache.filter(function(ev) { return String(ev.passcode || "").trim() === pin; });
-  if (matched.length === 0) { errEl.textContent = "No event found with that PIN."; errEl.style.display = "block"; return; }
-  // If one match go straight to edit, if multiple show list
-  if (matched.length === 1) {
-    closeFindPin();
-    window.location.href = "events.html?edit=" + encodeURIComponent(matched[0].id) + "&pin=" + encodeURIComponent(pin);
-  } else {
-    // Multiple events - show titles to pick
-    const pick = matched.map(function(ev) { return ev.title + " (" + (ev.date||"recurring") + ")"; }).join("\n");
-    errEl.textContent = "Multiple events found. Opening first match.";
-    errEl.style.display = "block";
-    setTimeout(function() {
-      closeFindPin();
-      window.location.href = "events.html?edit=" + encodeURIComponent(matched[0].id) + "&pin=" + encodeURIComponent(pin);
-    }, 1500);
-  }
-}
+const PREVIEW_EVENT = {
+  id: "preview", title: "Monday CoWorking",
+  date: new Date().toISOString().slice(0,10),
+  time: "09:00", endtime: "12:00",
+  format: "both", room: "The Commons", location: "23000 Lakeview Dr, Mountlake Terrace, WA 98043",
+  host: "Jessie Upp", hostlink: "https://appear.network/dl/page/s/e13594/r/w.hssQR.Q7CnpNDnVJ6DwQ",
+  contactEmail: "jessie@appear.network",
+  description: "Creators create. Start your week with other independents. Share what you're working on, what you offer, and what you need. Compatible people and opportunities show up from there. Stay for open coworking - or keep circulating what you brought into the room. Login virtually or join in person, right off the light rail.",
+  experience: "connected,expressed,energized", exchangeType: "spread,feedback", showLinks: "contact", recurFreq: "weekly",
+  imageUrl: "https://lh3.googleusercontent.com/d/1cNqWkDAo6RfZDetJ0bkAM9x0UWbHImNC",
+  detailImageUrl: "", categories: ["arts","learning","professional","creative","resources","care","social","wealth"], otherExchange: "",
+  contactPhone: "", cooplink: "", paymentlink: "", meetinglink: "",
+  lifeStage: "", keywords: "", isPrivate: false,
+  interestedEnabled: "off", interested: "", sharedNotesEnabled: false, sharedNotes: "",
+};
 
 init();
 </script>
-
-<!-- RSVPs Modal -->
-<div id="rsvps-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:flex-start;justify-content:center;padding-top:48px;">
-  <div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:92%;max-height:70vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <p style="font-size:16px;font-weight:700;color:#1a1a2e;margin:0;" id="rsvps-modal-title">RSVPs</p>
-      <button onclick="document.getElementById('rsvps-modal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:0;">×</button>
-    </div>
-    <div id="rsvps-modal-body" style="font-size:14px;color:var(--muted);">Loading...</div>
-  </div>
-</div>
-
-<!-- Socializers Modal -->
-<div id="socializers-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:flex-start;justify-content:center;padding-top:48px;">
-  <div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:92%;max-height:70vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <p style="font-size:16px;font-weight:700;color:#1a1a2e;margin:0;" id="socializers-modal-title">Socializers</p>
-      <button onclick="document.getElementById('socializers-modal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:0;">×</button>
-    </div>
-    <div id="socializers-modal-body" style="font-size:14px;color:var(--muted);">Loading...</div>
-  </div>
-</div>
-
-<script>
-async function openRsvpsModal(eventId, title) {
-  const modal = document.getElementById("rsvps-modal");
-  const body = document.getElementById("rsvps-modal-body");
-  const titleEl = document.getElementById("rsvps-modal-title");
-  titleEl.textContent = "RSVPs - " + (title || eventId);
-  body.innerHTML = "Loading...";
-  modal.style.display = "flex";
-  try {
-    const res = await fetch(`${GS_URL}?action=getAttendees&eventId=${encodeURIComponent(eventId)}`);
-    const data = await res.json();
-    const attendees = data.attendees || [];
-    if (attendees.length === 0) {
-      body.innerHTML = '<p style="color:var(--muted);font-size:14px;">No registrations yet.</p>';
-      return;
-    }
-    body.innerHTML = `<p style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:12px;">${attendees.length} registered</p>` +
-      attendees.map(a => `
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-          <img src="${a.profileUrl||a.photo||''}" alt="${a.appearId}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid var(--border);flex-shrink:0;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(a.appearId)}&size=36&background=EEF4F9&color=1B6896'">
-          <a href="${a.pageLink || (APPEAR_BASE + encodeURIComponent(a.appearId))}" target="_blank" rel="noopener" style="color:var(--primary);font-size:14px;font-weight:600;text-decoration:none;">${a.appearId}</a>
-        </div>`).join("");
-  } catch(e) {
-    body.innerHTML = '<p style="color:#c0392b;font-size:14px;">Could not load registrations.</p>';
-  }
-}
-
-async function openSocializersModal(eventId, title) {
-  const modal = document.getElementById("socializers-modal");
-  const body = document.getElementById("socializers-modal-body");
-  const titleEl = document.getElementById("socializers-modal-title");
-  titleEl.textContent = "Socializers - " + (title || eventId);
-  body.innerHTML = "Loading...";
-  modal.style.display = "flex";
-  try {
-    const res = await fetch(`${GS_URL}?action=getSocializers&eventId=${encodeURIComponent(eventId)}`);
-    const data = await res.json();
-    const rows = data.socializers || [];
-    if (rows.length === 0) {
-      body.innerHTML = '<p style="color:var(--muted);font-size:14px;">No one has shared this event yet.</p>';
-      return;
-    }
-    // Count clicks per member card
-    const counts = {};
-    rows.forEach(r => { counts[r.appearId] = (counts[r.appearId] || 0) + 1; });
-    const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
-    body.innerHTML = `<p style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:12px;">${sorted.length} socializer${sorted.length===1?'':'s'} · ${rows.length} click${rows.length===1?'':'s'} total</p>` +
-      sorted.map(([id, count]) => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
-          <a href="https://appear.network/dl/page/s/e13594/r/${encodeURIComponent(id)}" target="_blank" rel="noopener" style="color:var(--primary);font-size:14px;font-weight:600;text-decoration:none;">${id}</a>
-          <span style="font-size:13px;color:var(--muted);font-weight:600;">${count} click${count===1?'':'s'}</span>
-        </div>`).join("");
-  } catch(e) {
-    body.innerHTML = '<p style="color:#c0392b;font-size:14px;">Could not load socializers.</p>';
-  }
-}
-</script>
-
-<!-- Version: V1.36 | Date: 2026-07-04 | LAST CHANGE: coerce cancelled to string in attending/cancelled filters so boolean TRUE from sheet is excluded correctly -->
+<!-- Version: V4.97 | Date: 2026-07-04 | LAST CHANGE: toasts to top; intake message reworded + button same-tab; attendee links use pageLink from sheet -->
 </body>
 </html>
