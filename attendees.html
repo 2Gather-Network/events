@@ -1,4 +1,4 @@
-<!-- Version: V2.11 | Date: 2026-07-06 | LAST CHANGE: No self-matching - a chip only lights when a DIFFERENT attendee shares it (exact leaf item), and matched chips show the other person's photo not mine; dedup members per person -->
+<!-- Version: V2.20 | Date: 2026-07-06 | LAST CHANGE: One chip per person (no item aggregation); matches light both sides (green=shared exact item, orange=need↔offer) and never pair a user with themselves; exclude 1st-degree parent categories; Domains kept in Values quadrant -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,7 +44,6 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .chip-cat{font-size:10px;font-weight:600;color:rgba(255,255,255,0.65);white-space:normal;overflow-wrap:anywhere;margin-top:1px;}
 .chip-photo{width:30px;height:30px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,255,255,0.35);flex-shrink:0;background:#4a6fa5;}
 .chip-photo-fallback{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,0.22);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;}
-.chip-more{font-size:10px;font-weight:700;color:rgba(255,255,255,0.85);background:rgba(255,255,255,0.18);border-radius:10px;padding:1px 6px;flex-shrink:0;}
 .chip.dim{opacity:0.22;}
 .chip.match{background:#1a7f4b;}
 .chip.match-need{background:#C2410C;}
@@ -144,10 +143,13 @@ var _members=[];
 var _myData=null;
 var _photoMap={};                 // normId -> {photo, pageLink}
 var _catMap={};                   // item(lower) -> {category, associations}
+var _parentCats={};               // lower(parent category label) -> true : never shown as a chip
 var _collapsed={skills:false,interests:false,values:false,needs:false};
-var _agg={skills:[],interests:[],values:[],needs:[]};   // aggregated chips, randomized once
-var _myOffer={};                  // lower(item) -> true : my skills/interests/values (what I bring)
-var _myNeed={};                   // lower(item) -> true : my needs (what I seek)
+var _chips={skills:[],interests:[],values:[],needs:[]};   // one entry PER PERSON PER ITEM, randomized once
+var _myOffer={};                  // lower(item) -> true : my skills/interests/values
+var _myNeed={};                   // lower(item) -> true : my needs
+var _offerersByItem={};           // lower(item) -> {normId:true} everyone who has it as skill/interest/value
+var _needersByItem={};            // lower(item) -> {normId:true} everyone who needs it
 
 function normId(id){return String(id||'').split('.').join('').toLowerCase();}
 function escHTML(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -174,7 +176,7 @@ function parseNeeds(str){
   }).filter(function(n){return n.item;});
 }
 
-// ── Reference-data lookup for category + associations ──
+// ── Reference-data lookups ──
 function refFor(item){
   return _catMap[String(item||'').toLowerCase()]||{category:'',associations:''};
 }
@@ -188,6 +190,13 @@ async function loadRefData(){
         _catMap[String(r.item).toLowerCase()]={category:r.category||'',associations:r.associations||''};
       });
     });
+  }catch(e){}
+}
+async function loadCategories(){
+  try{
+    var res=await fetch(GS_URL+'?action=getCategories');
+    var d=await res.json();
+    (d.categories||[]).forEach(function(c){ if(c.label) _parentCats[String(c.label).toLowerCase()]=true; });
   }catch(e){}
 }
 
@@ -230,14 +239,13 @@ async function loadMembers(){
     _photoMap[normId(a.appearId)]={photo:a.photo||a.profileUrl||'',pageLink:a.pageLink||''};
   });
 
-  // Build the list of appearIds to load chips for (attendees + me, so matching works even if I'm private)
+  // Load chips for every attendee, plus me (so matching works even if I'm private)
   var ids=attendees.map(function(a){return a.appearId;});
   if(_myId && ids.map(normId).indexOf(normId(_myId))<0) ids.push(_myId);
 
-  // 2) Each person's ikigai chips (parallel)
   await Promise.all(ids.map(function(id){return loadMember(id);}));
-  computeMe();
-  buildAgg();
+  computeGlobals();
+  buildChips();
   renderAll();
 }
 
@@ -267,92 +275,94 @@ function processRow(data, appearId){
   if(normId(appearId)===normId(_myId)) _myData=member;
 }
 
-// ── My profile as lookup sets, used for matching ──
-function computeMe(){
-  _myOffer={}; _myNeed={};
-  if(!_myData) return;
-  ['skills','interests','values'].forEach(function(f){
-    (_myData[f]||[]).forEach(function(x){ if(x.item) _myOffer[x.item.toLowerCase()]=true; });
-  });
-  (_myData.needs||[]).forEach(function(n){ if(n.item) _myNeed[n.item.toLowerCase()]=true; });
+// ── Global lookups for matching ──
+function addTo(map, item, id){
+  var k=String(item||'').toLowerCase(); if(!k) return;
+  if(!map[k]) map[k]={};
+  map[k][normId(id)]=true;
 }
-
-// Everyone on a chip except me — a match must be supported by a DIFFERENT person (never me-to-me)
-function otherMembers(entry){
-  var mine=normId(_myId);
-  return entry.members.filter(function(m){return normId(m.appearId)!==mine;});
-}
-// Match type for an offering chip (skills / interests / values):
-//   orange = another attendee offers exactly what I need
-//   green  = the same item I also have, shared with at least one OTHER attendee
-function matchOffering(entry){
-  var it=entry.item.toLowerCase();
-  if(otherMembers(entry).length===0) return '';   // only I hold it → not a match
-  if(_myNeed[it]) return 'orange';
-  if(_myOffer[it]) return 'green';
-  return '';
-}
-// Match type for a need chip:
-//   orange = I offer exactly what another attendee needs
-//   green  = the same need I also have, shared with at least one OTHER attendee
-function matchNeed(entry){
-  var it=entry.item.toLowerCase();
-  if(otherMembers(entry).length===0) return '';   // only I need it → not a match
-  if(_myOffer[it]) return 'orange';
-  if(_myNeed[it]) return 'green';
-  return '';
-}
-
-// ── Aggregate a field across all members into item chips ──
-function aggregateField(field, needsMode){
-  var map={};
+function computeGlobals(){
+  _myOffer={}; _myNeed={}; _offerersByItem={}; _needersByItem={};
   _members.forEach(function(m){
-    var items=needsMode?(m.needs||[]):(m[field]||[]);
-    items.forEach(function(it){
-      var label=(it.item||'').trim();
-      if(!label) return;
-      var key=label.toLowerCase();
-      if(!map[key]) map[key]={item:label, category:it.category||'', members:[]};
-      if(needsMode && it.category && !map[key].category) map[key].category=it.category;
-      if(map[key].members.some(function(x){return normId(x.appearId)===normId(m.appearId);})) return; // one entry per person
-      map[key].members.push({appearId:m.appearId, photo:m.photo, pageLink:m.pageLink});
+    ['skills','interests','values'].forEach(function(f){
+      (m[f]||[]).forEach(function(x){ addTo(_offerersByItem, x.item, m.appearId); });
+    });
+    (m.needs||[]).forEach(function(n){ addTo(_needersByItem, n.item, m.appearId); });
+  });
+  if(_myData){
+    ['skills','interests','values'].forEach(function(f){
+      (_myData[f]||[]).forEach(function(x){ if(x.item) _myOffer[x.item.toLowerCase()]=true; });
+    });
+    (_myData.needs||[]).forEach(function(n){ if(n.item) _myNeed[n.item.toLowerCase()]=true; });
+  }
+}
+// true if anyone OTHER THAN me is in this {normId:true} set
+function someoneElse(map){
+  if(!map) return false;
+  var mine=normId(_myId);
+  for(var k in map){ if(k!==mine) return true; }
+  return false;
+}
+
+// ── One chip per person per item (parent categories excluded) ──
+function memberChips(field){
+  var out=[];
+  _members.forEach(function(m){
+    var seen={};
+    (m[field]||[]).forEach(function(it){
+      var label=(it.item||'').trim(); if(!label) return;
+      var low=label.toLowerCase();
+      if(_parentCats[low]) return;            // never show a 1st-degree parent category
+      if(seen[low]) return; seen[low]=true;   // one chip per person per item
+      out.push({item:label, category:it.category||'', member:{appearId:m.appearId, photo:m.photo, pageLink:m.pageLink}});
     });
   });
-  return Object.keys(map).map(function(k){return map[k];});
+  return shuffle(out);
+}
+function buildChips(){
+  _chips.skills   =memberChips('skills');
+  _chips.interests=memberChips('interests');
+  _chips.values   =memberChips('values');
+  _chips.needs    =memberChips('needs');
 }
 
-// Build once, randomized order held stable across renders
-function buildAgg(){
-  _agg.skills   =shuffle(aggregateField('skills'));
-  _agg.interests=shuffle(aggregateField('interests'));
-  _agg.values   =shuffle(aggregateField('values'));
-  _agg.needs    =shuffle(aggregateField('needs',true));
+// ── Match colour for a single person's chip (never pairs a user with themselves) ──
+// Offering chip (skills / interests / values):
+//   orange = another person needs what I offer, or I need what THIS person offers
+//   green  = the same item I also have, and at least one OTHER person has it too
+function matchOfferingChip(entry){
+  var x=entry.item.toLowerCase();
+  var mNorm=normId(entry.member.appearId), mine=normId(_myId);
+  if((mNorm!==mine && _myNeed[x]) || (mNorm===mine && someoneElse(_needersByItem[x]))) return 'orange';
+  if(_myOffer[x] && someoneElse(_offerersByItem[x])) return 'green';
+  return '';
+}
+// Need chip:
+//   orange = I offer what THIS person needs, or another person offers what I need
+//   green  = the same need I also have, and at least one OTHER person needs it too
+function matchNeedChip(entry){
+  var x=entry.item.toLowerCase();
+  var mNorm=normId(entry.member.appearId), mine=normId(_myId);
+  if((mNorm!==mine && _myOffer[x]) || (mNorm===mine && someoneElse(_offerersByItem[x]))) return 'orange';
+  if(_myNeed[x] && someoneElse(_needersByItem[x])) return 'green';
+  return '';
 }
 
 function chipHTML(entry, matchType, needsMode){
   var label=entry.item;
-  var members=entry.members;
-  // show a DIFFERENT attendee's face on the chip, not my own; fall back to me only if I'm the sole holder
-  var mine=normId(_myId);
-  var first=null;
-  for(var fi=0;fi<members.length;fi++){ if(normId(members[fi].appearId)!==mine){ first=members[fi]; break; } }
-  if(!first) first=members[0]||{};
-  var photo=first.photo;
+  var mem=entry.member||{};
+  var photo=mem.photo;
   var dim=_matchMode&&!matchType;
   var cls='chip'+(dim?' dim':'')+(matchType==='green'?' match':'')+(matchType==='orange'?' match-need':'');
-  // category label: from the needs string, else from reference-data
   var cat=needsMode?(entry.category||''):(refFor(label).category||'');
   var initial=escHTML((label||'?').charAt(0).toUpperCase());
   var photoEl=photo
     ?'<img class="chip-photo" src="'+escHTML(photo)+'" alt="" data-initial="'+initial+'" onerror="imgFallback(this)">'
     :'<div class="chip-photo-fallback">'+initial+'</div>';
-  var moreEl=members.length>1?'<span class="chip-more">+'+(members.length-1)+'</span>':'';
   var catEl=cat?'<span class="chip-cat">'+escHTML(cat)+'</span>':'';
-  var titleAttr=escHTML(label)+(members.length>1?' — '+members.length+' people':'');
-  return '<div class="'+cls+'" title="'+titleAttr+'" onclick="openProfile(\''+escHTML(first.appearId||'')+'\',\''+escHTML(first.pageLink||'')+'\')">'
+  return '<div class="'+cls+'" title="'+escHTML(label)+'" onclick="openProfile(\''+escHTML(mem.appearId||'')+'\',\''+escHTML(mem.pageLink||'')+'\')">'
     +photoEl
     +'<div class="chip-text"><span class="chip-label">'+escHTML(label)+'</span>'+catEl+'</div>'
-    +moreEl
     +'</div>';
 }
 
@@ -378,19 +388,19 @@ function renderSection(bodyId, countId, entries, needsMode){
     var cat=needsMode?(en.category||''):(refFor(en.item).category||'');
     return en.item.toLowerCase().indexOf(_searchQ)>-1 || cat.toLowerCase().indexOf(_searchQ)>-1;
   });
-  if(countEl) countEl.textContent=filtered.length+' item'+(filtered.length===1?'':'s');
+  if(countEl) countEl.textContent=filtered.length+' chip'+(filtered.length===1?'':'s');
   if(!filtered.length){ body.innerHTML='<span class="empty">Nothing here yet.</span>'; return; }
   body.innerHTML=filtered.map(function(en){
-    var mt=_matchMode?(needsMode?matchNeed(en):matchOffering(en)):'';
+    var mt=_matchMode?(needsMode?matchNeedChip(en):matchOfferingChip(en)):'';
     return chipHTML(en, mt, needsMode);
   }).join('');
 }
 
 function renderAll(){
-  renderSection('skills-body','skills-count',_agg.skills,false);
-  renderSection('interests-body','interests-count',_agg.interests,false);
-  renderSection('values-body','values-count',_agg.values,false);
-  renderSection('needs-body','needs-count',_agg.needs,true);
+  renderSection('skills-body','skills-count',_chips.skills,false);
+  renderSection('interests-body','interests-count',_chips.interests,false);
+  renderSection('values-body','values-count',_chips.values,false);
+  renderSection('needs-body','needs-count',_chips.needs,true);
 }
 
 function toggleSection(key){
@@ -412,11 +422,11 @@ function filterAll(q){ _searchQ=(q||'').toLowerCase().trim(); renderAll(); }
 
 // ── Boot ──
 (async function init(){
-  await loadRefData();
+  await Promise.all([loadRefData(), loadCategories()]);
   loadEvent();
   await loadMembers();
 })();
 </script>
 </body>
 </html>
-<!-- Version: V2.11 | Date: 2026-07-06 | LAST CHANGE: No self-matching - a chip only lights when a DIFFERENT attendee shares it (exact leaf item), and matched chips show the other person's photo not mine; dedup members per person -->
+<!-- Version: V2.20 | Date: 2026-07-06 | LAST CHANGE: One chip per person (no item aggregation); matches light both sides (green=shared exact item, orange=need↔offer) and never pair a user with themselves; exclude 1st-degree parent categories; Domains kept in Values quadrant -->
