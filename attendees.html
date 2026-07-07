@@ -1,4 +1,4 @@
-<!-- Version: V2.22 | Date: 2026-07-06 | LAST CHANGE: Faster load - fire event/reference/categories/attendees fetches in parallel and paint people before heavy reference-data resolves -->
+<!-- Version: V2.23 | Date: 2026-07-07 | LAST CHANGE: Orange need-matches now require a real provider (a Skill, or an interest with a Coach role) - Fans/Participants no longer satisfy a need. Green (shared) unchanged. -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -150,6 +150,8 @@ var _myOffer={};                  // lower(item) -> true : my skills/interests/v
 var _myNeed={};                   // lower(item) -> true : my needs
 var _offerersByItem={};           // lower(item) -> {normId:true} everyone who has it as skill/interest/value
 var _needersByItem={};            // lower(item) -> {normId:true} everyone who needs it
+var _providersByItem={};          // lower(item) -> {normId:true} people who can PROVIDE it (a Skill, or an interest with a Coach role)
+var _myProvide={};                // lower(item) -> true : what I can provide
 
 function normId(id){return String(id||'').split('.').join('').toLowerCase();}
 function escHTML(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -161,7 +163,8 @@ function parseTagStr(str){
   if(!str) return [];
   return String(str).split('|').filter(Boolean).map(function(s){
     var p=s.split(':');
-    return {item:(p[0]||'').trim(), category:(p.length>=3?p[1]:'').trim()};
+    // meta = everything after the item: roles for interests (Fan,Participant,Coach), level for skills
+    return {item:(p[0]||'').trim(), category:(p.length>=3?p[1]:'').trim(), meta:p.slice(1).join(':').trim()};
   }).filter(function(o){return o.item;});
 }
 // needs stored as "item[:local]:ntype:category"
@@ -281,18 +284,25 @@ function addTo(map, item, id){
   if(!map[k]) map[k]={};
   map[k][normId(id)]=true;
 }
+// A person can PROVIDE an item if it's one of their Skills, or an interest where they marked a Coach role.
+// Fans / Participants are NOT providers, so they never satisfy someone's need.
+function isCoach(x){ return /coach/i.test((x&&x.meta)||''); }
 function computeGlobals(){
-  _myOffer={}; _myNeed={}; _offerersByItem={}; _needersByItem={};
+  _myOffer={}; _myNeed={}; _offerersByItem={}; _needersByItem={}; _providersByItem={}; _myProvide={};
   _members.forEach(function(m){
     ['skills','interests','values'].forEach(function(f){
       (m[f]||[]).forEach(function(x){ addTo(_offerersByItem, x.item, m.appearId); });
     });
+    (m.skills||[]).forEach(function(x){ addTo(_providersByItem, x.item, m.appearId); });
+    (m.interests||[]).forEach(function(x){ if(isCoach(x)) addTo(_providersByItem, x.item, m.appearId); });
     (m.needs||[]).forEach(function(n){ addTo(_needersByItem, n.item, m.appearId); });
   });
   if(_myData){
     ['skills','interests','values'].forEach(function(f){
       (_myData[f]||[]).forEach(function(x){ if(x.item) _myOffer[x.item.toLowerCase()]=true; });
     });
+    (_myData.skills||[]).forEach(function(x){ if(x.item) _myProvide[x.item.toLowerCase()]=true; });
+    (_myData.interests||[]).forEach(function(x){ if(x.item && isCoach(x)) _myProvide[x.item.toLowerCase()]=true; });
     (_myData.needs||[]).forEach(function(n){ if(n.item) _myNeed[n.item.toLowerCase()]=true; });
   }
 }
@@ -333,7 +343,9 @@ function buildChips(){
 function matchOfferingChip(entry){
   var x=entry.item.toLowerCase();
   var mNorm=normId(entry.member.appearId), mine=normId(_myId);
-  if((mNorm!==mine && _myNeed[x]) || (mNorm===mine && someoneElse(_needersByItem[x]))) return 'orange';
+  // orange = provider ↔ need. THIS person must be able to provide x (skill/coach), not just be a fan.
+  if((mNorm!==mine && _myNeed[x] && _providersByItem[x] && _providersByItem[x][mNorm])
+     || (mNorm===mine && _myProvide[x] && someoneElse(_needersByItem[x]))) return 'orange';
   if(_myOffer[x] && someoneElse(_offerersByItem[x])) return 'green';
   return '';
 }
@@ -343,7 +355,8 @@ function matchOfferingChip(entry){
 function matchNeedChip(entry){
   var x=entry.item.toLowerCase();
   var mNorm=normId(entry.member.appearId), mine=normId(_myId);
-  if((mNorm!==mine && _myOffer[x]) || (mNorm===mine && someoneElse(_offerersByItem[x]))) return 'orange';
+  // orange = a provider ↔ need. I must be able to provide THEIR need, or a real provider can meet mine.
+  if((mNorm!==mine && _myProvide[x]) || (mNorm===mine && someoneElse(_providersByItem[x]))) return 'orange';
   if(_myNeed[x] && someoneElse(_needersByItem[x])) return 'green';
   return '';
 }
@@ -438,4 +451,4 @@ function filterAll(q){ _searchQ=(q||'').toLowerCase().trim(); renderAll(); }
 </script>
 </body>
 </html>
-<!-- Version: V2.22 | Date: 2026-07-06 | LAST CHANGE: Faster load - fire event/reference/categories/attendees fetches in parallel and paint people before heavy reference-data resolves -->
+<!-- Version: V2.23 | Date: 2026-07-07 | LAST CHANGE: Orange need-matches now require a real provider (a Skill, or an interest with a Coach role) - Fans/Participants no longer satisfy a need. Green (shared) unchanged. -->
