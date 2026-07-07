@@ -1,4 +1,4 @@
-<!-- Version: V2.21 | Date: 2026-07-06 | LAST CHANGE: Quadrant header + count fonts +2px; count now shows distinct people ("4 people") instead of item count -->
+<!-- Version: V2.22 | Date: 2026-07-06 | LAST CHANGE: Faster load - fire event/reference/categories/attendees fetches in parallel and paint people before heavy reference-data resolves -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -425,12 +425,17 @@ function toggleMatches(){
 function filterAll(q){ _searchQ=(q||'').toLowerCase().trim(); renderAll(); }
 
 // ── Boot ──
+// Fire all independent GAS calls in parallel. Paint chips as soon as people load
+// (getAttendees + getIntake), then re-render once the heavy reference-data +
+// categories arrive to add category tags and drop parent-category chips.
 (async function init(){
-  await Promise.all([loadRefData(), loadCategories()]);
-  loadEvent();
-  await loadMembers();
+  loadEvent();                                             // independent, fire-and-forget
+  var enrich=Promise.all([loadRefData(), loadCategories()]); // heavy — don't block first paint
+  await loadMembers();                                     // first paint
+  await enrich;
+  buildChips(); renderAll();                               // re-render with categories + exclusions
 })();
 </script>
 </body>
 </html>
-<!-- Version: V2.21 | Date: 2026-07-06 | LAST CHANGE: Quadrant header + count fonts +2px; count now shows distinct people ("4 people") instead of item count -->
+<!-- Version: V2.22 | Date: 2026-07-06 | LAST CHANGE: Faster load - fire event/reference/categories/attendees fetches in parallel and paint people before heavy reference-data resolves -->
