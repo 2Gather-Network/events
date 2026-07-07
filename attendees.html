@@ -1,4 +1,4 @@
-<!-- Version: V2.10 | Date: 2026-07-06 | LAST CHANGE: My matches now two-tone (orange = need↔offer complementary, green = same item shared with another attendee) across all 4 quadrants incl recreation; moved My matches button above search bar (right of title on desktop, below on mobile); randomized chip order per quadrant -->
+<!-- Version: V2.11 | Date: 2026-07-06 | LAST CHANGE: No self-matching - a chip only lights when a DIFFERENT attendee shares it (exact leaf item), and matched chips show the other person's photo not mine; dedup members per person -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -277,22 +277,29 @@ function computeMe(){
   (_myData.needs||[]).forEach(function(n){ if(n.item) _myNeed[n.item.toLowerCase()]=true; });
 }
 
+// Everyone on a chip except me — a match must be supported by a DIFFERENT person (never me-to-me)
+function otherMembers(entry){
+  var mine=normId(_myId);
+  return entry.members.filter(function(m){return normId(m.appearId)!==mine;});
+}
 // Match type for an offering chip (skills / interests / values):
-//   orange = they offer exactly what I need
-//   green  = same item I also have, shared with at least one other attendee
+//   orange = another attendee offers exactly what I need
+//   green  = the same item I also have, shared with at least one OTHER attendee
 function matchOffering(entry){
   var it=entry.item.toLowerCase();
+  if(otherMembers(entry).length===0) return '';   // only I hold it → not a match
   if(_myNeed[it]) return 'orange';
-  if(_myOffer[it] && entry.members.length>1) return 'green';
+  if(_myOffer[it]) return 'green';
   return '';
 }
 // Match type for a need chip:
-//   orange = I offer exactly what they need
-//   green  = the same need I also have, shared with at least one other attendee
+//   orange = I offer exactly what another attendee needs
+//   green  = the same need I also have, shared with at least one OTHER attendee
 function matchNeed(entry){
   var it=entry.item.toLowerCase();
+  if(otherMembers(entry).length===0) return '';   // only I need it → not a match
   if(_myOffer[it]) return 'orange';
-  if(_myNeed[it] && entry.members.length>1) return 'green';
+  if(_myNeed[it]) return 'green';
   return '';
 }
 
@@ -307,6 +314,7 @@ function aggregateField(field, needsMode){
       var key=label.toLowerCase();
       if(!map[key]) map[key]={item:label, category:it.category||'', members:[]};
       if(needsMode && it.category && !map[key].category) map[key].category=it.category;
+      if(map[key].members.some(function(x){return normId(x.appearId)===normId(m.appearId);})) return; // one entry per person
       map[key].members.push({appearId:m.appearId, photo:m.photo, pageLink:m.pageLink});
     });
   });
@@ -324,7 +332,11 @@ function buildAgg(){
 function chipHTML(entry, matchType, needsMode){
   var label=entry.item;
   var members=entry.members;
-  var first=members[0]||{};
+  // show a DIFFERENT attendee's face on the chip, not my own; fall back to me only if I'm the sole holder
+  var mine=normId(_myId);
+  var first=null;
+  for(var fi=0;fi<members.length;fi++){ if(normId(members[fi].appearId)!==mine){ first=members[fi]; break; } }
+  if(!first) first=members[0]||{};
   var photo=first.photo;
   var dim=_matchMode&&!matchType;
   var cls='chip'+(dim?' dim':'')+(matchType==='green'?' match':'')+(matchType==='orange'?' match-need':'');
@@ -407,4 +419,4 @@ function filterAll(q){ _searchQ=(q||'').toLowerCase().trim(); renderAll(); }
 </script>
 </body>
 </html>
-<!-- Version: V2.10 | Date: 2026-07-06 | LAST CHANGE: My matches now two-tone (orange = need↔offer complementary, green = same item shared with another attendee) across all 4 quadrants incl recreation; moved My matches button above search bar (right of title on desktop, below on mobile); randomized chip order per quadrant -->
+<!-- Version: V2.11 | Date: 2026-07-06 | LAST CHANGE: No self-matching - a chip only lights when a DIFFERENT attendee shares it (exact leaf item), and matched chips show the other person's photo not mine; dedup members per person -->
