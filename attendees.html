@@ -1,4 +1,4 @@
-<!-- Version: V1.00 | Date: 2026-07-06 | LAST CHANGE: Initial build - 4-quadrant community view with chip style, search, matches button -->
+<!-- Version: V2.00 | Date: 2026-07-06 | LAST CHANGE: Load all public attendees via getAttendees (photos) + getIntake per person; event name/date/location header; renamed quadrants (drop expression); category tags + wrapping chips; My matches = my needs vs others' offerings -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,7 +9,11 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-height:100vh;}
-.top-bar{background:#fff;border-bottom:1px solid #e8eaf0;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;}
+.event-header{background:#fff;border-bottom:1px solid #e8eaf0;padding:12px 20px 10px;position:sticky;top:0;z-index:110;}
+.event-title{font-size:17px;font-weight:700;color:#1a1a2e;line-height:1.2;}
+.event-meta{font-size:12.5px;color:#6b7280;font-weight:600;margin-top:3px;display:flex;flex-wrap:wrap;gap:4px 14px;}
+.top-bar{background:#fff;border-bottom:1px solid #e8eaf0;padding:10px 20px 12px;display:flex;align-items:center;gap:10px;position:sticky;z-index:100;}
+.event-header + .top-bar{border-top:1px solid #f0f1f5;}
 .search-wrap{flex:1;display:flex;align-items:center;background:#f5f6f8;border:1.5px solid #e0e2ea;border-radius:24px;padding:0 14px;height:40px;gap:8px;}
 .search-wrap input{border:none;background:transparent;font-size:14px;font-family:'DM Sans',sans-serif;flex:1;outline:none;color:#1a1a2e;}
 .search-wrap input::placeholder{color:#9ea3b8;}
@@ -17,27 +21,39 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .btn-matches{background:#2d5282;color:#fff;border:none;border-radius:24px;padding:0 18px;height:40px;font-size:14px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;transition:background 0.15s;}
 .btn-matches:hover{background:#1e3a5f;}
 .btn-matches.active{background:#1a7f4b;color:#fff;}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px;max-height:calc(100vh - 68px);overflow-y:auto;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px;}
 .quadrant{background:#fff;border-radius:14px;border:1px solid #e8eaf0;overflow:hidden;display:flex;flex-direction:column;}
 .q-header{padding:10px 14px 8px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f0f1f5;background:#fff;cursor:pointer;user-select:none;}
-.q-title{font-size:12px;font-weight:700;letter-spacing:0.06em;color:#6b7280;text-transform:uppercase;}
+.q-title{font-size:12px;font-weight:700;letter-spacing:0.04em;color:#374151;}
 .q-count{font-size:11px;color:#9ea3b8;font-weight:600;}
 .q-toggle{font-size:12px;color:#9ea3b8;transition:transform 0.2s;}
 .q-toggle.open{transform:rotate(180deg);}
-.q-body{padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px;overflow-y:auto;max-height:calc(50vh - 80px);transition:max-height 0.25s ease;}
-.q-body.collapsed{max-height:54px;overflow:hidden;}
-.chip{display:inline-flex;align-items:center;gap:8px;padding:5px 5px 5px 12px;border-radius:40px;background:#2d5282;cursor:pointer;transition:opacity 0.15s;flex-shrink:0;}
+.q-body{padding:10px 12px;display:flex;flex-wrap:wrap;gap:7px;overflow-y:auto;max-height:44vh;transition:max-height 0.25s ease;align-content:flex-start;}
+.q-body.collapsed{max-height:56px;overflow:hidden;}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:5px 12px 5px 5px;border-radius:16px;background:#2d5282;cursor:pointer;transition:opacity 0.15s;max-width:100%;}
 .chip:hover{opacity:0.88;}
-.chip-label{font-size:12px;font-weight:700;color:#fff;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;}
-.chip-photo{width:26px;height:26px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,255,255,0.35);flex-shrink:0;background:#4a6fa5;}
-.chip-photo-fallback{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.22);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0;}
-.chip.dim{opacity:0.22;pointer-events:none;}
+.chip-text{display:flex;flex-direction:column;min-width:0;line-height:1.15;}
+.chip-label{font-size:12.5px;font-weight:700;color:#fff;white-space:normal;overflow-wrap:anywhere;}
+.chip-cat{font-size:10px;font-weight:600;color:rgba(255,255,255,0.65);white-space:normal;overflow-wrap:anywhere;margin-top:1px;}
+.chip-photo{width:30px;height:30px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,255,255,0.35);flex-shrink:0;background:#4a6fa5;}
+.chip-photo-fallback{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,0.22);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;}
+.chip-more{font-size:10px;font-weight:700;color:rgba(255,255,255,0.85);background:rgba(255,255,255,0.18);border-radius:10px;padding:1px 6px;flex-shrink:0;}
+.chip.dim{opacity:0.22;}
 .chip.match{background:#1a7f4b;}
 .empty{font-size:12px;color:#c0c4d6;padding:4px 2px;font-style:italic;}
 .loading{font-size:12px;color:#c0c4d6;padding:4px 2px;}
+@media(max-width:640px){
+  .grid{grid-template-columns:1fr;}
+  .q-body{max-height:38vh;}
+}
 </style>
 </head>
 <body>
+
+<div class="event-header" id="event-header" style="display:none;">
+  <div class="event-title" id="event-title"></div>
+  <div class="event-meta" id="event-meta"></div>
+</div>
 
 <div class="top-bar">
   <div class="search-wrap">
@@ -51,45 +67,45 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
   <div class="quadrant">
     <div class="q-header" onclick="toggleSection('skills')">
       <div>
-        <div class="q-title">Skills &amp; languages</div>
-        <div class="q-count" id="skills-count">loading...</div>
+        <div class="q-title">Skills of our attendees</div>
+        <div class="q-count" id="skills-count">loading…</div>
       </div>
       <span class="q-toggle open" id="skills-arrow">▾</span>
     </div>
-    <div class="q-body" id="skills-body"><span class="loading">Loading...</span></div>
+    <div class="q-body" id="skills-body"><span class="loading">Loading…</span></div>
   </div>
 
   <div class="quadrant">
     <div class="q-header" onclick="toggleSection('interests')">
       <div>
-        <div class="q-title">Interests &amp; expression</div>
-        <div class="q-count" id="interests-count">loading...</div>
+        <div class="q-title">Recreational interests of our attendees</div>
+        <div class="q-count" id="interests-count">loading…</div>
       </div>
       <span class="q-toggle open" id="interests-arrow">▾</span>
     </div>
-    <div class="q-body" id="interests-body"><span class="loading">Loading...</span></div>
+    <div class="q-body" id="interests-body"><span class="loading">Loading…</span></div>
   </div>
 
   <div class="quadrant">
     <div class="q-header" onclick="toggleSection('values')">
       <div>
-        <div class="q-title">Values &amp; domains</div>
-        <div class="q-count" id="values-count">loading...</div>
+        <div class="q-title">Values of our attendees</div>
+        <div class="q-count" id="values-count">loading…</div>
       </div>
       <span class="q-toggle open" id="values-arrow">▾</span>
     </div>
-    <div class="q-body" id="values-body"><span class="loading">Loading...</span></div>
+    <div class="q-body" id="values-body"><span class="loading">Loading…</span></div>
   </div>
 
   <div class="quadrant">
     <div class="q-header" onclick="toggleSection('needs')">
       <div>
-        <div class="q-title">What people need</div>
-        <div class="q-count" id="needs-count">loading...</div>
+        <div class="q-title">What our attendees need</div>
+        <div class="q-count" id="needs-count">loading…</div>
       </div>
       <span class="q-toggle open" id="needs-arrow">▾</span>
     </div>
-    <div class="q-body" id="needs-body"><span class="loading">Loading...</span></div>
+    <div class="q-body" id="needs-body"><span class="loading">Loading…</span></div>
   </div>
 </div>
 
@@ -97,79 +113,107 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 var GS_URL='https://script.google.com/macros/s/AKfycbzEavMnG4tMeWemoT5FLu9f_zjlKVIJsZLueG4nhw9akK0_nZqpbkZiXrAlWu1Fyhq9/exec';
 var INTAKE_URL='https://creating.works/intake.html?show=';
 
-// Get event ID and viewer ID from URL params
+// Reached from intake's "See the group" link as attendees.html?id={EVENT}&memberCard={PERSON}
 var params=new URLSearchParams(window.location.search);
-var _eventId=params.get('eventId')||params.get('event')||'';
-var _myId=params.get('id')||params.get('appearId')||'';
+var _eventId=(params.get('id')||params.get('eventId')||params.get('event')||'').trim();
+var _myId=(params.get('memberCard')||params.get('appearId')||params.get('me')||'').trim();
 var _matchMode=false;
 var _searchQ='';
 
-// Data store: array of {appearId, photo, name, skills[], interests[], expression, values[], domains[], needs[]}
+// member: {appearId, photo, pageLink, name, skills[], interests[], values[], needs[]}
 var _members=[];
 var _myData=null;
-
-// Collapsed state per section
+var _photoMap={};                 // normId -> {photo, pageLink}
+var _catMap={};                   // item(lower) -> {category, associations}
 var _collapsed={skills:false,interests:false,values:false,needs:false};
 
-function toggleSection(key){
-  _collapsed[key]=!_collapsed[key];
-  var body=document.getElementById(key+'-body');
-  var arrow=document.getElementById(key+'-arrow');
-  if(body) body.classList.toggle('collapsed',_collapsed[key]);
-  if(arrow) arrow.classList.toggle('open',!_collapsed[key]);
-}
+function normId(id){return String(id||'').split('.').join('').toLowerCase();}
+function escHTML(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-function toggleMatches(){
-  _matchMode=!_matchMode;
-  var btn=document.getElementById('matches-btn');
-  if(btn) btn.classList.toggle('active',_matchMode);
-  renderAll();
-}
-
-function filterAll(q){
-  _searchQ=(q||'').toLowerCase().trim();
-  renderAll();
-}
-
-// Parse pipe-separated tag string into array of item names
-function parseTags(str){
+// ── Tag parsing (must match intake.html serialization) ──
+// stored per item as "item" or "item:level" (2 parts) or "item:category:level" (3 parts)
+function parseTagStr(str){
   if(!str) return [];
-  return str.split('|').filter(Boolean).map(function(s){
-    var p=s.split(':');return p[0]||'';
-  }).filter(Boolean);
+  return String(str).split('|').filter(Boolean).map(function(s){
+    var p=s.split(':');
+    return {item:(p[0]||'').trim(), category:(p.length>=3?p[1]:'').trim()};
+  }).filter(function(o){return o.item;});
 }
-
+// needs stored as "item[:local]:ntype:category"
 function parseNeeds(str){
   if(!str) return [];
-  return str.split('|').filter(Boolean).map(function(s){
+  return String(str).split('|').filter(Boolean).map(function(s){
     var p=s.split(':');
     var local=p[1]==='local';
-    var ntype=local?p[2]||'skill':p[1]||'skill';
+    var ntype=local?(p[2]||'skill'):(p[1]||'skill');
     var catParts=(local?p.slice(3):p.slice(2)).join(':').split(' / ');
-    return {item:p[0],ntype:ntype,category:catParts[0]||''};
+    return {item:(p[0]||'').trim(), ntype:ntype, category:(catParts[0]||'').trim()};
   }).filter(function(n){return n.item;});
 }
 
-// Load all ikigai rows for this event
-async function loadMembers(){
-  // First load event attendees to get list of appearIds
+// ── Reference-data lookup for category + associations ──
+function refFor(item){
+  return _catMap[String(item||'').toLowerCase()]||{category:'',associations:''};
+}
+async function loadRefData(){
   try{
-    // Load all ikigai data - in production this would filter by eventId
-    var res=await fetch(GS_URL+'?action=getIntake&appearId='+encodeURIComponent(_myId||'w.hss'));
+    var res=await fetch(GS_URL+'?action=getReferenceData');
     var d=await res.json();
-    if(d.found&&d.data){
-      processRow(d.data,_myId||'w.hss');
-    }
+    ['skills','recreation','values','domains'].forEach(function(k){
+      (d[k]||[]).forEach(function(r){
+        if(!r.item) return;
+        _catMap[String(r.item).toLowerCase()]={category:r.category||'',associations:r.associations||''};
+      });
+    });
   }catch(e){}
+}
 
-  // For now load a sample set using known test IDs to demonstrate the UI
-  // In production this would use getAttendees action then load each member's ikigai
-  var sampleIds=['w.hss'];
-  if(_myId&&sampleIds.indexOf(_myId)<0) sampleIds.unshift(_myId);
+// ── Event header ──
+function fmtDate(d){
+  if(!d) return '';
+  var dt=new Date(String(d));
+  if(!isNaN(dt.getTime())) return dt.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  return String(d);
+}
+async function loadEvent(){
+  if(!_eventId) return;
+  try{
+    var res=await fetch(GS_URL+'?action=getEventById&id='+encodeURIComponent(_eventId));
+    var d=await res.json();
+    if(!d.found||!d.event) return;
+    var ev=d.event;
+    var titleEl=document.getElementById('event-title');
+    var metaEl=document.getElementById('event-meta');
+    if(titleEl) titleEl.textContent=ev.title||'Event community';
+    var bits=[];
+    var when=[fmtDate(ev.date),String(ev.time||'').trim()].filter(Boolean).join(' · ');
+    var where=[String(ev.venue||'').trim(),String(ev.location||'').trim()].filter(Boolean).join(', ');
+    if(when)  bits.push('📅 '+escHTML(when));
+    if(where) bits.push('📍 '+escHTML(where));
+    if(metaEl) metaEl.innerHTML=bits.join('');
+    document.getElementById('event-header').style.display='block';
+  }catch(e){}
+}
 
-  for(var i=0;i<sampleIds.length;i++){
-    await loadMember(sampleIds[i]);
-  }
+// ── Members ──
+async function loadMembers(){
+  // 1) Who is here (public, non-cancelled) + their photos
+  var attendees=[];
+  try{
+    var res=await fetch(GS_URL+'?action=getAttendees&eventId='+encodeURIComponent(_eventId));
+    var d=await res.json();
+    attendees=d.attendees||[];
+  }catch(e){}
+  attendees.forEach(function(a){
+    _photoMap[normId(a.appearId)]={photo:a.photo||a.profileUrl||'',pageLink:a.pageLink||''};
+  });
+
+  // Build the list of appearIds to load chips for (attendees + me, so matching works even if I'm private)
+  var ids=attendees.map(function(a){return a.appearId;});
+  if(_myId && ids.map(normId).indexOf(normId(_myId))<0) ids.push(_myId);
+
+  // 2) Each person's ikigai chips (parallel)
+  await Promise.all(ids.map(function(id){return loadMember(id);}));
   renderAll();
 }
 
@@ -183,111 +227,161 @@ async function loadMember(appearId){
 }
 
 function processRow(data, appearId){
-  // Avoid dupes
-  if(_members.some(function(m){return m.appearId===appearId;})) return;
+  if(_members.some(function(m){return normId(m.appearId)===normId(appearId);})) return;
+  var pm=_photoMap[normId(appearId)]||{};
   var member={
     appearId:appearId,
-    photo:data.photo||data.Image||'',
-    name:data.name||data.Name||appearId,
-    skills:parseTags(data.skills),
-    interests:parseTags(data.interests),
-    expression:[data.expression].filter(Boolean),
-    values:parseTags(data.values),
-    domains:parseTags(data.domains),
+    photo:pm.photo||'',
+    pageLink:pm.pageLink||'',
+    name:data.name||appearId,
+    skills:parseTagStr(data.skills),
+    interests:parseTagStr(data.interests),
+    values:parseTagStr(data.values).concat(parseTagStr(data.domains)),
     needs:parseNeeds(data.needs)
   };
   _members.push(member);
-  if(appearId===(_myId||'w.hss')) _myData=member;
+  if(normId(appearId)===normId(_myId)) _myData=member;
 }
 
-function matchesMe(item, field){
-  if(!_myData) return false;
-  var myItems=_myData[field]||[];
-  return myItems.some(function(m){
-    return (m.item||m).toLowerCase()===(item||'').toLowerCase();
+// ── Matching: my needs vs others' offerings, and my skills vs others' needs ──
+function myNeedItems(){
+  return ((_myData&&_myData.needs)||[]).map(function(n){
+    return {item:(n.item||'').toLowerCase(), cat:(n.category||'').toLowerCase()};
+  }).filter(function(n){return n.item;});
+}
+function mySkillItems(){
+  var arr=[];
+  ['skills','interests','values'].forEach(function(f){
+    ((_myData&&_myData[f])||[]).forEach(function(x){ if(x.item) arr.push(x.item.toLowerCase()); });
+  });
+  return arr;
+}
+// an offering chip (skill/interest/value) matches if it fulfils one of my needs
+function chipMatchesMyNeeds(item){
+  var needs=myNeedItems(); if(!needs.length) return false;
+  var it=(item||'').toLowerCase();
+  var rf=refFor(item);
+  var cat=(rf.category||'').toLowerCase();
+  var assoc=(rf.associations||'').toLowerCase();
+  return needs.some(function(n){
+    if(n.item===it) return true;
+    if(assoc && assoc.indexOf(n.item)>-1) return true;
+    if(cat && (n.cat===cat || n.item===cat)) return true;
+    return false;
+  });
+}
+// a need chip matches if one of my skills can fulfil it
+function needMatchesMySkills(item, category){
+  var skills=mySkillItems(); if(!skills.length) return false;
+  var it=(item||'').toLowerCase();
+  var cat=(category||'').toLowerCase();
+  return skills.some(function(s){
+    if(s===it) return true;
+    if(cat && s===cat) return true;
+    return false;
   });
 }
 
-function matchesMeNeeds(item){
-  if(!_myData) return false;
-  // Check if I offer what they need or they offer what I need
-  var mySkills=_myData.skills||[];
-  return mySkills.some(function(s){
-    return (s||'').toLowerCase()===(item||'').toLowerCase();
-  });
-}
-
-// Build all chips for a field across all members
-// Returns array of {item, members:[{appearId, photo}]}
+// ── Aggregate a field across all members into item chips ──
 function aggregateField(field, needsMode){
   var map={};
   _members.forEach(function(m){
     var items=needsMode?(m.needs||[]):(m[field]||[]);
     items.forEach(function(it){
-      var label=it.item||it;
+      var label=(it.item||'').trim();
       if(!label) return;
-      if(!map[label]) map[label]={item:label,members:[]};
-      map[label].members.push({appearId:m.appearId,photo:m.photo});
+      var key=label.toLowerCase();
+      if(!map[key]) map[key]={item:label, category:it.category||'', members:[]};
+      if(needsMode && it.category && !map[key].category) map[key].category=it.category;
+      map[key].members.push({appearId:m.appearId, photo:m.photo, pageLink:m.pageLink});
     });
   });
-  return Object.values(map).sort(function(a,b){return b.members.length-a.members.length;});
+  return Object.keys(map).map(function(k){return map[k];})
+    .sort(function(a,b){return b.members.length-a.members.length;});
 }
 
-function chipHTML(label, members, isMatch){
-  var photo=members[0]&&members[0].photo;
+function chipHTML(entry, isMatch, needsMode){
+  var label=entry.item;
+  var members=entry.members;
+  var first=members[0]||{};
+  var photo=first.photo;
   var dim=_matchMode&&!isMatch;
   var cls='chip'+(dim?' dim':'')+(isMatch?' match':'');
-  var appearId=members[0]&&members[0].appearId;
-  var url=INTAKE_URL+encodeURIComponent(appearId||'');
+  // category label: from the needs string, else from reference-data
+  var cat=needsMode?(entry.category||''):(refFor(label).category||'');
+  var initial=escHTML((label||'?').charAt(0).toUpperCase());
   var photoEl=photo
-    ?'<img class="chip-photo" src="'+escHTML(photo)+'" alt="" onerror="this.style.display=\'none\'">'
-    :'<div class="chip-photo-fallback">'+escHTML((label||'?').charAt(0).toUpperCase())+'</div>';
-  return '<a href="'+url+'" style="text-decoration:none;" onclick="openProfile(event,\''+escHTML(appearId||'')+'\')"><div class="'+cls+'" title="'+escHTML(label)+(members.length>1?' + '+(members.length-1)+' more':'')+'">'
-    +'<span class="chip-label">'+escHTML(label)+'</span>'
+    ?'<img class="chip-photo" src="'+escHTML(photo)+'" alt="" data-initial="'+initial+'" onerror="imgFallback(this)">'
+    :'<div class="chip-photo-fallback">'+initial+'</div>';
+  var moreEl=members.length>1?'<span class="chip-more">+'+(members.length-1)+'</span>':'';
+  var catEl=cat?'<span class="chip-cat">'+escHTML(cat)+'</span>':'';
+  var titleAttr=escHTML(label)+(members.length>1?' — '+members.length+' people':'');
+  return '<div class="'+cls+'" title="'+titleAttr+'" onclick="openProfile(\''+escHTML(first.appearId||'')+'\',\''+escHTML(first.pageLink||'')+'\')">'
     +photoEl
-    +'</div></a>';
+    +'<div class="chip-text"><span class="chip-label">'+escHTML(label)+'</span>'+catEl+'</div>'
+    +moreEl
+    +'</div>';
 }
 
-window.openProfile=function(e,appearId){
-  e.preventDefault();
-  window.open(INTAKE_URL+encodeURIComponent(appearId),'_blank');
+window.imgFallback=function(img){
+  var initial=img.getAttribute('data-initial')||'?';
+  var div=document.createElement('div');
+  div.className='chip-photo-fallback';
+  div.textContent=initial;
+  img.parentNode.replaceChild(div,img);
 };
 
-function escHTML(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+window.openProfile=function(appearId,pageLink){
+  var url=pageLink||(INTAKE_URL+encodeURIComponent(appearId||''));
+  if(url) window.open(url,'_blank');
+};
 
-function renderSection(bodyId, countId, items, field, needsMode){
+function renderSection(bodyId, countId, entries, needsMode){
   var body=document.getElementById(bodyId);
   var countEl=document.getElementById(countId);
   if(!body) return;
-  var filtered=items.filter(function(it){
+  var filtered=entries.filter(function(en){
     if(!_searchQ) return true;
-    return (it.item||'').toLowerCase().indexOf(_searchQ)>-1;
+    var cat=needsMode?(en.category||''):(refFor(en.item).category||'');
+    return en.item.toLowerCase().indexOf(_searchQ)>-1 || cat.toLowerCase().indexOf(_searchQ)>-1;
   });
   if(countEl) countEl.textContent=filtered.length+' item'+(filtered.length===1?'':'s');
-  if(!filtered.length){
-    body.innerHTML='<span class="empty">Nothing here yet.</span>';
-    return;
-  }
-  body.innerHTML=filtered.map(function(it){
-    var isMatch=_matchMode&&matchesMe(it.item,field);
-    return chipHTML(it.item,it.members,isMatch);
+  if(!filtered.length){ body.innerHTML='<span class="empty">Nothing here yet.</span>'; return; }
+  body.innerHTML=filtered.map(function(en){
+    var isMatch=_matchMode&&(needsMode?needMatchesMySkills(en.item,en.category):chipMatchesMyNeeds(en.item));
+    return chipHTML(en, isMatch, needsMode);
   }).join('');
 }
 
 function renderAll(){
-  var skills=aggregateField('skills');
-  var interests=aggregateField('interests').concat(aggregateField('expression'));
-  var values=aggregateField('values').concat(aggregateField('domains'));
-  var needs=aggregateField('needs',true);
-  renderSection('skills-body','skills-count',skills,'skills');
-  renderSection('interests-body','interests-count',interests,'interests');
-  renderSection('values-body','values-count',values,'values');
-  renderSection('needs-body','needs-count',needs,'needs',true);
+  renderSection('skills-body','skills-count',aggregateField('skills'),false);
+  renderSection('interests-body','interests-count',aggregateField('interests'),false);
+  renderSection('values-body','values-count',aggregateField('values'),false);
+  renderSection('needs-body','needs-count',aggregateField('needs',true),true);
 }
 
-// Boot
-loadMembers();
+function toggleSection(key){
+  _collapsed[key]=!_collapsed[key];
+  var body=document.getElementById(key+'-body');
+  var arrow=document.getElementById(key+'-arrow');
+  if(body) body.classList.toggle('collapsed',_collapsed[key]);
+  if(arrow) arrow.classList.toggle('open',!_collapsed[key]);
+}
+function toggleMatches(){
+  _matchMode=!_matchMode;
+  var btn=document.getElementById('matches-btn');
+  if(btn){ btn.classList.toggle('active',_matchMode); btn.textContent=_matchMode?'Show all':'My matches'; }
+  renderAll();
+}
+function filterAll(q){ _searchQ=(q||'').toLowerCase().trim(); renderAll(); }
+
+// ── Boot ──
+(async function init(){
+  await loadRefData();
+  loadEvent();
+  await loadMembers();
+})();
 </script>
 </body>
 </html>
-<!-- Version: V1.00 | Date: 2026-07-06 | LAST CHANGE: Initial build - 4-quadrant community view with chip style, search, matches button -->
+<!-- Version: V2.00 | Date: 2026-07-06 | LAST CHANGE: Load all public attendees via getAttendees (photos) + getIntake per person; event name/date/location header; renamed quadrants (drop expression); category tags + wrapping chips; My matches = my needs vs others' offerings -->
