@@ -1,4 +1,4 @@
-<!-- Version: V1.00 | Date: 2026-07-07 | LAST CHANGE: Initial build - 1:1 in-person match. Show "my code" QR; scanning opens match.html?with={id}; focused pairwise view (green=shared, blue=provider↔need) reusing attendees match rules -->
+<!-- Version: V1.10 | Date: 2026-07-07 | LAST CHANGE: Robust loading (retry + sequential, fixes second person coming back empty); name from ikigai first-name; photo error fallback; avatars link to event profile -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -19,7 +19,7 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .code-fallback{font-size:12px;color:#6b7280;word-break:break-all;margin-top:10px;}
 .pair{display:flex;align-items:center;justify-content:center;gap:2px;margin-bottom:6px;}
 .avatar{width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid #fff;box-shadow:0 0 0 1.5px #e0e2ea;background:#4a6fa5;}
-.avatar.b{margin-left:-14px;}
+.avatar.b,.avatar-fb.b{margin-left:-14px;}
 .avatar-fb{width:64px;height:64px;border-radius:50%;background:#2d5282;color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;border:3px solid #fff;box-shadow:0 0 0 1.5px #e0e2ea;}
 .pair-title{text-align:center;font-size:17px;font-weight:700;color:#1a1a2e;margin-bottom:2px;}
 .pair-sub{text-align:center;font-size:12.5px;color:#6b7280;font-weight:600;margin-bottom:14px;}
@@ -85,17 +85,25 @@ function parseNeeds(str){
   }).filter(function(n){return n.item;});
 }
 
-// ── Load one person: chips (getIntake) + photo/name (lookupProfile) ──
+// GAS web apps can flake under concurrent load — retry once, tolerate failure
+async function fetchJson(url){
+  for(var i=0;i<2;i++){
+    try{ var r=await fetch(url); return await r.json(); }catch(e){}
+  }
+  return {};
+}
+// ── Load one person: chips (getIntake, also carries first name) + photo (lookupProfile) ──
 async function loadPerson(id){
-  var intakeP=fetch(GS_URL+'?action=getIntake&appearId='+encodeURIComponent(id)).then(function(r){return r.json();}).catch(function(){return {};});
-  var profP  =fetch(GS_URL+'?action=lookupProfile&appearId='+encodeURIComponent(id)).then(function(r){return r.json();}).catch(function(){return {};});
-  var res=await Promise.all([intakeP,profP]);
+  var res=await Promise.all([
+    fetchJson(GS_URL+'?action=getIntake&appearId='+encodeURIComponent(id)),
+    fetchJson(GS_URL+'?action=lookupProfile&appearId='+encodeURIComponent(id))
+  ]);
   var d=(res[0]&&res[0].data)||{};
   var prof=res[1]||{};
   return {
     appearId:id,
     photo:prof.photo||'',
-    name:(prof.name||'').trim(),
+    name:(d.first||d.initials||prof.name||'').trim(),   // name lives in the ikigai row, not Main
     skills:parseTagStr(d.skills),
     interests:parseTagStr(d.interests),
     values:parseTagStr(d.values).concat(parseTagStr(d.domains)),
@@ -114,10 +122,20 @@ function needSet(m){ var s={}; (m.needs||[]).forEach(function(n){ if(n.item) s[n
 
 function firstName(m){ return (m.name||m.appearId||'them').split(' ')[0]; }
 function avatarHTML(m,cls){
-  if(m.photo) return '<img class="avatar '+cls+'" src="'+escHTML(m.photo)+'" alt="">';
   var initial=escHTML((m.name||m.appearId||'?').charAt(0).toUpperCase());
-  return '<div class="avatar-fb '+cls+'">'+initial+'</div>';
+  var inner=m.photo
+    ? '<img class="avatar '+cls+'" src="'+escHTML(m.photo)+'" alt="" data-initial="'+initial+'" data-cls="'+cls+'" onerror="avFallback(this)">'
+    : '<div class="avatar-fb '+cls+'">'+initial+'</div>';
+  // link to the EVENT profile (ikigai), not the Appear Network page
+  var href='https://creating.works/intake.html?show='+encodeURIComponent(m.appearId||'');
+  return '<a href="'+href+'" target="_blank" rel="noopener" style="text-decoration:none;">'+inner+'</a>';
 }
+window.avFallback=function(img){
+  var div=document.createElement('div');
+  div.className='avatar-fb '+(img.getAttribute('data-cls')||'');
+  div.textContent=img.getAttribute('data-initial')||'?';
+  img.parentNode.replaceChild(div,img);
+};
 function tags(items,cls){
   return items.map(function(t){return '<span class="tag '+cls+'">'+escHTML(t)+'</span>';}).join('');
 }
@@ -177,11 +195,12 @@ function showMyCode(){
     var card=document.getElementById('match-card');
     card.innerHTML='<div class="loading">Finding your match…</div>';
     card.style.display='block';
-    var pair=await Promise.all([loadPerson(_me),loadPerson(_with)]);
-    renderMatch(pair[0],pair[1]);
+    var me=await loadPerson(_me);        // sequential = at most 2 concurrent GAS calls (more reliable)
+    var them=await loadPerson(_with);
+    renderMatch(me,them);
   }
 })();
 </script>
 </body>
 </html>
-<!-- Version: V1.00 | Date: 2026-07-07 | LAST CHANGE: Initial build - 1:1 in-person match. Show "my code" QR; scanning opens match.html?with={id}; focused pairwise view (green=shared, blue=provider↔need) reusing attendees match rules -->
+<!-- Version: V1.10 | Date: 2026-07-07 | LAST CHANGE: Robust loading (retry + sequential, fixes second person coming back empty); name from ikigai first-name; photo error fallback; avatars link to event profile -->
