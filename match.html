@@ -1,4 +1,4 @@
-<!-- Version: V1.11 | Date: 2026-07-07 | LAST CHANGE: Parallel load (with retry) for speed; copy: "Reviewing compatible matches", subtitle "Here's what's in common - in the commons" -->
+<!-- Version: V1.20 | Date: 2026-07-07 | LAST CHANGE: Single getPairMatch call for both people (GAS 404s under concurrency - confirmed via console PM); no more parallel getIntake+lookupProfile -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -92,22 +92,22 @@ async function fetchJson(url){
   }
   return {};
 }
-// ── Load one person: chips (getIntake, also carries first name) + photo (lookupProfile) ──
-async function loadPerson(id){
-  var res=await Promise.all([
-    fetchJson(GS_URL+'?action=getIntake&appearId='+encodeURIComponent(id)),
-    fetchJson(GS_URL+'?action=lookupProfile&appearId='+encodeURIComponent(id))
-  ]);
-  var d=(res[0]&&res[0].data)||{};
-  var prof=res[1]||{};
+// ── ONE combined call for BOTH people. This GAS backend 404s under concurrent
+//    requests (confirmed via console PM), so we never fire parallel calls. ──
+async function loadPair(){
+  var d=await fetchJson(GS_URL+'?action=getPairMatch&a='+encodeURIComponent(_me)+'&b='+encodeURIComponent(_with));
+  return [personFromPair(d.a,_me), personFromPair(d.b,_with)];
+}
+function personFromPair(p,id){
+  p=p||{};
   return {
     appearId:id,
-    photo:prof.photo||'',
-    name:(d.first||d.initials||prof.name||'').trim(),   // name lives in the ikigai row, not Main
-    skills:parseTagStr(d.skills),
-    interests:parseTagStr(d.interests),
-    values:parseTagStr(d.values).concat(parseTagStr(d.domains)),
-    needs:parseNeeds(d.needs)
+    photo:p.photo||'',
+    name:(p.first||p.initials||'').trim(),   // name lives in the ikigai row
+    skills:parseTagStr(p.skills),
+    interests:parseTagStr(p.interests),
+    values:parseTagStr(p.values).concat(parseTagStr(p.domains)),
+    needs:parseNeeds(p.needs)
   };
 }
 
@@ -195,11 +195,11 @@ function showMyCode(){
     var card=document.getElementById('match-card');
     card.innerHTML='<div class="loading">Reviewing compatible matches…</div>';
     card.style.display='block';
-    var res=await Promise.all([loadPerson(_me),loadPerson(_with)]);   // parallel + per-call retry
-    renderMatch(res[0],res[1]);
+    var pair=await loadPair();   // ONE request for both people (no concurrent GAS calls)
+    renderMatch(pair[0],pair[1]);
   }
 })();
 </script>
 </body>
 </html>
-<!-- Version: V1.11 | Date: 2026-07-07 | LAST CHANGE: Parallel load (with retry) for speed; copy: "Reviewing compatible matches", subtitle "Here's what's in common - in the commons" -->
+<!-- Version: V1.20 | Date: 2026-07-07 | LAST CHANGE: Single getPairMatch call for both people (GAS 404s under concurrency - confirmed via console PM); no more parallel getIntake+lookupProfile -->
