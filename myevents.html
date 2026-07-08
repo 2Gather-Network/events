@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.07 | Date: 2026-07-08 | LAST CHANGE: Host view in Manage my experience (when you host the event): add/edit items + everyone's sign-ups grouped by Skill/Experience/Thing with photo+name linking to event profile. (Prev V5.06: attendee sign-up flow w/ note+edit+toggle, optimistic. ASSUMPTIONS: claimPotluckItem stores/updates elaboration; needs a GAS removePotluckClaim action for un-signup to persist.) -->
+  <!-- Version: V5.08 | Date: 2026-07-08 | LAST CHANGE: Host view polish: bigger black section headers; "claimed"->"signed up"; edit-pencil + modal (name/type/slots) on each item; sign-ups split into SIGNED UP / OPEN; host search now offers "+ Add \"x\" as new" (tag Skill/Experience/Thing). (Prev V5.07 host view; V5.06 attendee flow. ASSUMPTIONS: claimPotluckItem stores/updates elaboration; needs GAS removePotluckClaim for un-signup to persist.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -480,12 +480,14 @@ function buildPotluckHostListHTML(){
   if(!_signupList.length) return '<div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Nothing on the list yet.</div>';
   return _signupList.map(function(it,i){
     var claimCount=_potluckClaims.filter(function(c){return c.item===it.item;}).length;
-    var capLabel=it.maxClaims?(' · '+claimCount+'/'+it.maxClaims+' claimed'):(claimCount?(' · '+claimCount+' claimed'):'');
+    var capLabel=it.maxClaims?(' · '+claimCount+'/'+it.maxClaims+' signed up'):(claimCount?(' · '+claimCount+' signed up'):'');
     return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">'
       +'<div><div style="font-size:14px;font-weight:600;">'+esc(it.item)+'</div>'
       +'<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+esc(it.potluckType||'')+(it.category?' · '+esc(it.category):'')+(it.timeSpec?' · '+esc(it.timeSpec):'')+esc(capLabel)+'</div></div>'
-      +'<button onclick="removePotluckHostItem('+i+')" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px;">×</button>'
-      +'</div>';
+      +'<div style="display:flex;align-items:center;gap:2px;flex-shrink:0;">'
+      +'<button onclick="editPotluckItem('+i+')" aria-label="Edit item" style="background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;padding:0 4px;">✏️</button>'
+      +'<button onclick="removePotluckHostItem('+i+')" aria-label="Remove item" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px;">×</button>'
+      +'</div></div>';
   }).join('');
 }
 function buildPotluckWizardHTML(){
@@ -554,11 +556,13 @@ window.plHostFilterOfferings=function(q){
   if(!q||!q.trim()){ container.innerHTML=''; return; }
   var ql=q.toLowerCase();
   var res=_hostSkillsPool.filter(function(r){return (r.item||'').toLowerCase().indexOf(ql)>-1;}).slice(0,15);
-  if(!res.length){ container.innerHTML=''; return; }
-  container.innerHTML='<div style="border:1.5px solid var(--border);border-radius:8px;margin-top:4px;overflow:hidden;">'
-    +res.map(function(r){
-      return '<div onclick="plHostPickOffering(\''+esc(r.item)+'\')" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);">'+esc(r.item)+(r.category?'<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+esc(r.category)+'</div>':'')+'</div>';
-    }).join('')+'</div>';
+  var qArg=q.trim().replace(/['"\\]/g,'');
+  var rows=res.map(function(r){
+      return '<div onclick="plHostPickOffering(\''+esc(r.item).replace(/'/g,"\\'")+'\')" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);">'+esc(r.item)+(r.category?'<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+esc(r.category)+'</div>':'')+'</div>';
+    }).join('');
+  // Always offer to add the typed text as a new item (then tag it Skill/Experience/Thing in the next step).
+  rows+='<div onclick="plHostPickOffering(\''+qArg+'\')" style="padding:8px 12px;font-size:13px;font-weight:700;color:var(--primary);cursor:pointer;">+ Add "'+esc(q.trim())+'" as new</div>';
+  container.innerHTML='<div style="border:1.5px solid var(--border);border-radius:8px;margin-top:4px;overflow:hidden;">'+rows+'</div>';
 };
 window.plHostPickOffering=function(item){
   _pl.item=item;
@@ -618,6 +622,40 @@ window.removePotluckHostItem=function(i){
 function savePotluckHostList(){
   fetch(GS_URL+'?action=savePotluckItem&eventId='+encodeURIComponent(window._currentEventId||(_currentEv&&_currentEv.id)||'')+'&potluckJson='+encodeURIComponent(JSON.stringify(_signupList))).catch(function(){});
 }
+// Edit an existing potluck item (name / type / slots) in a modal.
+window.editPotluckItem=function(i){
+  var it=_signupList[i]; if(!it) return;
+  var typeOpts=_potluckTypes.map(function(t){return '<option value="'+esc(t)+'"'+((it.potluckType===t)?' selected':'')+'>'+esc(t)+'</option>';}).join('');
+  var ov=document.createElement('div');
+  ov.id='pl-edit-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:400;padding:20px;';
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:380px;box-sizing:border-box;">'
+    +'<div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:12px;">Edit item</div>'
+    +'<label style="font-size:12px;color:var(--muted);">Item</label>'
+    +'<input id="pl-edit-item" value="'+esc(it.item)+'" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 12px;">'
+    +'<label style="font-size:12px;color:var(--muted);">Type</label>'
+    +'<select id="pl-edit-type" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 12px;">'+typeOpts+'</select>'
+    +'<label style="font-size:12px;color:var(--muted);">Slots (blank = 1, 0 = unlimited)</label>'
+    +'<input id="pl-edit-slots" type="number" min="0" value="'+esc(it.maxClaims)+'" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 16px;">'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;">'
+    +'<button onclick="closePlEdit()" style="background:none;border:1px solid var(--border);padding:8px 16px;border-radius:20px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>'
+    +'<button onclick="savePlEdit('+i+')" style="background:var(--primary);color:#fff;border:none;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Save</button>'
+    +'</div></div>';
+  ov.onclick=function(e){ if(e.target===ov) closePlEdit(); };
+  document.body.appendChild(ov);
+};
+window.closePlEdit=function(){ var o=document.getElementById('pl-edit-overlay'); if(o) o.remove(); };
+window.savePlEdit=function(i){
+  var it=_signupList[i]; if(!it) return;
+  var nm=document.getElementById('pl-edit-item'), tp=document.getElementById('pl-edit-type'), sl=document.getElementById('pl-edit-slots');
+  if(nm&&nm.value.trim()) it.item=nm.value.trim();
+  if(tp) it.potluckType=tp.value;
+  if(sl){ var v=sl.value.trim(); it.maxClaims = v===''?'':(parseInt(v,10)||0); }
+  savePotluckHostList();
+  closePlEdit();
+  refreshPotluckHostSection();
+  var hs=document.getElementById('exp-host-signups'); if(hs) hs.innerHTML=buildHostSignupsHTML(window._currentMyId);
+};
 async function loadPotluckClaims(eventId){
   try{
     var res=await fetch(GS_URL+'?action=getPotluckList&eventId='+encodeURIComponent(eventId));
@@ -1589,15 +1627,14 @@ async function renderEventExperience(memberId, eventId, data) {
   if (isHost) {
     // Host view: add/edit items + everyone's sign-ups grouped by category.
     html += '<div style="margin-top:22px;padding:16px;background:#FFF8E7;border:1.5px solid #F0B429;border-radius:10px;">'
-      + '<p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7B5800;margin:0 0 10px;">🎁 Host — manage contributions</p>'
+      + '<p style="font-size:18px;font-weight:700;color:var(--dark);margin:0 0 12px;">🎁 Host — manage contributions</p>'
       + '<div id="potluck-host-list">' + buildPotluckHostListHTML() + '</div>'
       + '<div id="potluck-host-wizard">' + buildPotluckWizardHTML() + '</div>'
-      + '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7B5800;margin:18px 0 4px;">Who\'s signed up</div>'
       + '<div id="exp-host-signups">' + buildHostSignupsHTML(memberId) + '</div>'
       + '</div>';
   } else if (_signupList.length) {
     html += '<div style="margin-top:22px;padding:16px;background:#EBF5FB;border:1.5px solid #AED6F1;border-radius:10px;">'
-      + '<p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#1B6896;margin:0 0 10px;">🎁 Event contribution list</p>'
+      + '<p style="font-size:18px;font-weight:700;color:var(--dark);margin:0 0 12px;">🎁 Event contribution list</p>'
       + '<div id="exp-contrib-list">' + buildExpContribHTML(memberId) + '</div></div>';
   }
   html += '</div>';
@@ -1607,25 +1644,22 @@ async function renderEventExperience(memberId, eventId, data) {
 // Host: all sign-ups grouped by category (Skill / Experience / Thing), each with photo + name linking to the event profile.
 function buildHostSignupsHTML(memberId){
   if(!_signupList.length) return '<div style="font-size:13px;color:var(--muted);">No items on the list yet.</div>';
-  var cats=['Skill','Experience','Thing'];
-  var groups={Skill:[],Experience:[],Thing:[]}; var other=[];
-  _signupList.forEach(function(it){
-    var t=(it.potluckType||'').trim().toLowerCase();
-    var key=cats.filter(function(c){return c.toLowerCase()===t;})[0];
-    if(key) groups[key].push(it); else other.push(it);
-  });
-  function itemBlock(it){
+  var signedUp=[], open=[];
+  _signupList.forEach(function(it,i){
     var claims=_potluckClaims.filter(function(c){return c.item===it.item;});
-    var cap=it.maxClaims>0?(' ('+claims.length+'/'+it.maxClaims+')'):(claims.length?(' ('+claims.length+')'):'');
-    var chips=claims.length?claims.map(_expClaimChip).join(''):'<div style="font-size:12px;color:var(--muted);margin-top:4px;">No sign-ups yet.</div>';
-    return '<div style="padding:8px 0;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:600;">'+esc(it.item)+cap+'</div>'+chips+'</div>';
-  }
-  var html='';
-  cats.forEach(function(c){
-    if(!groups[c].length) return;
-    html+='<div style="margin-top:12px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7B5800;margin-bottom:2px;">'+c+'</div>'+groups[c].map(itemBlock).join('')+'</div>';
+    (claims.length?signedUp:open).push({it:it,i:i,claims:claims});
   });
-  if(other.length) html+='<div style="margin-top:12px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:2px;">Other</div>'+other.map(itemBlock).join('')+'</div>';
+  function itemBlock(o){
+    var it=o.it, claims=o.claims;
+    var cap=it.maxClaims>0?(' ('+claims.length+'/'+it.maxClaims+')'):(claims.length?(' ('+claims.length+')'):'');
+    var typeLabel=it.potluckType?'<span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-left:6px;">'+esc(it.potluckType)+'</span>':'';
+    var chips=claims.length?claims.map(_expClaimChip).join(''):'<div style="font-size:12px;color:var(--muted);margin-top:4px;">No sign-ups yet.</div>';
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--border);"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;"><div style="font-size:13px;font-weight:600;">'+esc(it.item)+cap+typeLabel+'</div><button onclick="editPotluckItem('+o.i+')" aria-label="Edit item" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 4px;flex-shrink:0;">✏️</button></div>'+chips+'</div>';
+  }
+  var hdr='font-size:16px;font-weight:700;color:var(--dark);margin:16px 0 4px;';
+  var html='';
+  html+='<div style="'+hdr+'">SIGNED UP</div>'+(signedUp.length?signedUp.map(itemBlock).join(''):'<div style="font-size:13px;color:var(--muted);">Nobody yet.</div>');
+  html+='<div style="'+hdr+'">OPEN</div>'+(open.length?open.map(itemBlock).join(''):'<div style="font-size:13px;color:var(--muted);">Everything has sign-ups.</div>');
   return html;
 }
 function _expNorm(s){ return String(s||'').replace(/\./g,'').toLowerCase(); }
