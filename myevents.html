@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.08 | Date: 2026-07-08 | LAST CHANGE: Host view polish: bigger black section headers; "claimed"->"signed up"; edit-pencil + modal (name/type/slots) on each item; sign-ups split into SIGNED UP / OPEN; host search now offers "+ Add \"x\" as new" (tag Skill/Experience/Thing). (Prev V5.07 host view; V5.06 attendee flow. ASSUMPTIONS: claimPotluckItem stores/updates elaboration; needs GAS removePotluckClaim for un-signup to persist.) -->
+  <!-- Version: V5.09 | Date: 2026-07-08 | LAST CHANGE: My events list now has Attending / Hosting tabs (Hosting = events where hostMemberCard matches you), each split Upcoming/Past; tabs only appear when you host something. (Prev V5.08 host-view polish; V5.06 attendee flow. ASSUMPTIONS: claimPotluckItem stores/updates elaboration; needs GAS removePotluckClaim for un-signup.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1554,12 +1554,13 @@ async function renderMyEventsList(memberId, data) {
     }
   });
   const activeIds = Object.keys(byEvent).filter(function(eid) { return !byEvent[eid].cancelled; });
-  const mine = (data.events || []).filter(r => r.id).map(toEv).filter(function(e) { return activeIds.indexOf(String(e.id)) > -1; });
-  mine.sort(function(a, b) { return String(a.date || "").localeCompare(String(b.date || "")); });
+  const allEv = (data.events || []).filter(r => r.id).map(toEv);
+  const attending = allEv.filter(function(e) { return activeIds.indexOf(String(e.id)) > -1; });
+  const hosting = allEv.filter(function(e) { return e.hostMemberCard && _expNorm(e.hostMemberCard) === _expNorm(memberId); });
+  const byDate = function(a, b) { return String(a.date || "").localeCompare(String(b.date || "")); };
+  attending.sort(byDate); hosting.sort(byDate);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const isUpcoming = function(e) { return e.date && new Date(e.date + "T00:00:00") >= today; };
-  const upcoming = mine.filter(isUpcoming);
-  const past = mine.filter(function(e) { return !isUpcoming(e); });
 
   const card = document.getElementById("card");
   if (!card) return;
@@ -1574,16 +1575,34 @@ async function renderMyEventsList(memberId, data) {
       + '</a>';
   };
   const sectionLabel = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);';
+  function listHTML(evs, emptyMsg){
+    if(!evs.length) return '<div style="font-size:14px;color:var(--muted);margin:8px 0 16px;">'+emptyMsg+'</div><a href="https://gather.2gather.network" style="display:inline-block;background:var(--primary);color:#fff;font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;text-decoration:none;">Browse events</a>';
+    var up=evs.filter(isUpcoming), pa=evs.filter(function(e){return !isUpcoming(e);});
+    var h='';
+    if(up.length) h+='<div style="'+sectionLabel+'margin:0 0 10px;">Upcoming</div>'+up.map(row).join('');
+    if(pa.length) h+='<div style="'+sectionLabel+'margin:18px 0 10px;">Past</div>'+pa.map(row).join('');
+    return h;
+  }
+  function tabBtn(id,label,active){ return '<button onclick="myEvTab(\''+id+'\')" id="tab-'+id+'-btn" style="flex:1;background:'+(active?'var(--primary)':'#fff')+';color:'+(active?'#fff':'var(--dark)')+';border:1px solid '+(active?'var(--primary)':'var(--border)')+';padding:9px 12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">'+label+'</button>'; }
   let html = '<div class="card-body"><h1 style="margin:0 0 16px;">My events</h1>';
-  if (!mine.length) {
-    html += '<div style="font-size:14px;color:var(--muted);margin-bottom:16px;">You\'re not registered for any events yet.</div>'
-      + '<a href="https://gather.2gather.network" style="display:inline-block;background:var(--primary);color:#fff;font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;text-decoration:none;">Browse events</a>';
+  if (hosting.length) {
+    html += '<div style="display:flex;border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:16px;">'
+      + tabBtn('attending','Attending ('+attending.length+')',true)
+      + tabBtn('hosting','Hosting ('+hosting.length+')',false) + '</div>';
+    html += '<div id="tab-attending">' + listHTML(attending, "You\'re not registered for any events yet.") + '</div>';
+    html += '<div id="tab-hosting" style="display:none;">' + listHTML(hosting, "You\'re not hosting any events yet.") + '</div>';
   } else {
-    if (upcoming.length) html += '<div style="' + sectionLabel + 'margin:0 0 10px;">Upcoming</div>' + upcoming.map(row).join("");
-    if (past.length) html += '<div style="' + sectionLabel + 'margin:18px 0 10px;">Past</div>' + past.map(row).join("");
+    html += listHTML(attending, "You\'re not registered for any events yet.");
   }
   html += '</div>';
   card.innerHTML = html;
+  window.myEvTab = function(which){
+    ['attending','hosting'].forEach(function(id){
+      var pane=document.getElementById('tab-'+id); var btn=document.getElementById('tab-'+id+'-btn');
+      if(pane) pane.style.display=(id===which)?'block':'none';
+      if(btn){ var on=(id===which); btn.style.background=on?'var(--primary)':'#fff'; btn.style.color=on?'#fff':'var(--dark)'; btn.style.borderColor=on?'var(--primary)':'var(--border)'; }
+    });
+  };
 }
 
 // "Manage my experience" - the per-event Event experience panel (personal hub for one event).
