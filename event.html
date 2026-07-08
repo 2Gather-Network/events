@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.06 | Date: 2026-07-08 | LAST CHANGE: (A) "My events" in the registered-confirmation line is now a link to gather.2gather.network/myevents.html?id={memberId}. -->
+  <!-- Version: V5.07 | Date: 2026-07-08 | LAST CHANGE: (B) When the event profile is complete (Rule 1: has interests+skills+values), the "please complete your event profile" prompt+button is replaced by a single "View my event profile" button -> intake.html?show={memberId}. -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1178,14 +1178,28 @@ async function maybeShowIntakePrompt() {
   const box = document.getElementById("intake-prompt");
   if (!box) return;
   let label = "Create event profile";
+  let complete = false;
   try {
     const res = await fetch(GS_URL + "?action=getIntake&appearId=" + encodeURIComponent(_rsvpAppearId));
     const data = await res.json();
     if (data && data.found) label = "Update event profile";
-  } catch(e) { /* default to Create */ }
-  const url = "https://creating.works/intake.html?id=" + encodeURIComponent(_rsvpAppearId) + "&eventId=" + encodeURIComponent(_currentEv.id);
-  box.innerHTML = '<p style="font-size:14px;color:#1a1a2e;margin:0 0 12px;font-weight:600;line-height:1.5;">To receive compatible connections for this event, please complete your event profile next.</p>'
-    + '<a href="' + url + '" style="display:inline-block;background:#154F74;color:#fff;font-weight:700;font-size:15px;padding:12px 20px;border-radius:10px;text-decoration:none;">' + label + '</a>';
+    if (data && data.found && data.data) {
+      // "Complete" (Rule 1 / core): has interests AND skills AND values (needs is optional)
+      const has = (s) => String(s || "").split("|").filter(Boolean).length > 0;
+      const d = data.data;
+      complete = has(d.interests) && has(d.skills) && has(d.values);
+    }
+  } catch(e) { /* default to Create / incomplete */ }
+  const btnStyle = "display:inline-block;background:#154F74;color:#fff;font-weight:700;font-size:15px;padding:12px 20px;border-radius:10px;text-decoration:none;";
+  if (complete) {
+    // Complete profile: show ONLY a "View my event profile" button (no Edit button)
+    const viewUrl = "https://creating.works/intake.html?show=" + encodeURIComponent(_rsvpAppearId);
+    box.innerHTML = '<a href="' + viewUrl + '" style="' + btnStyle + '">View my event profile</a>';
+  } else {
+    const url = "https://creating.works/intake.html?id=" + encodeURIComponent(_rsvpAppearId) + "&eventId=" + encodeURIComponent(_currentEv.id);
+    box.innerHTML = '<p style="font-size:14px;color:#1a1a2e;margin:0 0 12px;font-weight:600;line-height:1.5;">To receive compatible connections for this event, please complete your event profile next.</p>'
+      + '<a href="' + url + '" style="' + btnStyle + '">' + label + '</a>';
+  }
   box.style.display = "block";
 }
 window.maybeShowIntakePrompt = maybeShowIntakePrompt;
