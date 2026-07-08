@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.12 | Date: 2026-07-08 | LAST CHANGE: "View my event profile" link now carries &eventId so the profile's "Visit hub" link works. (Prev V5.11: blue border, category-only-for-Skill, reworded limit Q, names via getInitials. ASSUMPTIONS: needs GAS getInitials + removePotluckClaim; claimPotluckItem updates elaboration.) -->
+  <!-- Version: V5.13 | Date: 2026-07-08 | LAST CHANGE: New host items now appear in SIGNED UP/OPEN immediately; timing defaults to 1 hour; names lookup (getInitials) runs for HOST only (attendee side pays no extra call); cancel message now offers a "Visit event" link to re-register. (Prev V5.12: eventId threaded to profile link. ASSUMPTIONS: needs GAS getInitials/"Info" sheet + removePotluckClaim.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -302,7 +302,7 @@ var _signupList = [];
 var _potluckClaims = [];
 var _potluckTypes = ['Skill','Experience','Thing'];
 var _hostSkillsPool = [];
-var _pl = {step:'',item:'',potluckType:'',category:'',timed:'',timeNum:'',timeUnit:'',maxClaims:''};
+var _pl = {step:'',item:'',potluckType:'',category:'',timed:'yes',timeNum:'1',timeUnit:'hours',maxClaims:''};
 
 var OLD_ID_TO_PARENT = {
   "arts":"Arts & Culture","movement":"Physical Wellbeing","nature":"Nature & Outdoors",
@@ -548,6 +548,8 @@ function refreshPotluckHostSection(){
   var wizEl=document.getElementById('potluck-host-wizard');
   if(listEl) listEl.innerHTML=buildPotluckHostListHTML();
   if(wizEl) wizEl.innerHTML=buildPotluckWizardHTML();
+  var sgEl=document.getElementById('exp-host-signups');
+  if(sgEl) sgEl.innerHTML=buildHostSignupsHTML(window._currentMyId);
 }
 window.plHostFilterOfferings=function(q){
   var container=document.getElementById('pl-host-search-results');
@@ -612,7 +614,7 @@ window.plHostFinish=function(){
   var cap=capInp&&capInp.value.trim()?parseInt(capInp.value.trim()):'';
   _signupList.push({item:_pl.item,potluckType:_pl.potluckType,category:_pl.category,timeSpec:_pl.timeSpec||'',maxClaims:cap||''});
   savePotluckHostList();
-  _pl={step:'',item:'',potluckType:'',category:'',timed:'',timeNum:'',timeUnit:'',maxClaims:''};
+  _pl={step:'',item:'',potluckType:'',category:'',timed:'yes',timeNum:'1',timeUnit:'hours',maxClaims:''};
   refreshPotluckHostSection();
 };
 window.removePotluckHostItem=function(i){
@@ -1660,7 +1662,9 @@ async function renderEventExperience(memberId, eventId, data) {
   }
   html += '</div>';
   card.innerHTML = html;
-  loadNames().then(function(){ expLoadClaims(memberId, eventId); });
+  // Names come from getInitials — an extra call, so only the HOST (who needs to see who signed up) pays it.
+  if (isHost) { loadNames().then(function(){ expLoadClaims(memberId, eventId); }); }
+  else { expLoadClaims(memberId, eventId); }
 }
 // Host: all sign-ups grouped by category (Skill / Experience / Thing), each with photo + name linking to the event profile.
 function buildHostSignupsHTML(memberId){
@@ -1783,7 +1787,10 @@ window.cancelFromExperience = async function(btn, memberId, eventId) {
   if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
   try { await fetch(GS_URL + "?action=cancelRsvp&appearId=" + encodeURIComponent(memberId) + "&eventId=" + encodeURIComponent(eventId)); } catch(e) {}
   var msg = document.getElementById("exp-cancel-msg");
-  if (msg) msg.style.display = "block";
+  if (msg) {
+    msg.innerHTML = 'You\'re no longer registered for this event. <a href="https://gather.2gather.network/event.html?id=' + encodeURIComponent(eventId) + '&memberCard=' + encodeURIComponent(memberId) + '" style="color:#1B6896;font-weight:700;text-decoration:underline;">Visit event</a> to register again.';
+    msg.style.display = "block";
+  }
 };
 
 const PREVIEW_EVENT = {
