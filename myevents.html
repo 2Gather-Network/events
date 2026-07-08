@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.05 | Date: 2026-07-08 | LAST CHANGE: Manage my experience panel now includes the Event contribution list (parses Item:Type:Slots, claim with slot enforcement) moved here from event.html; Edit-profile link no longer carries eventId (profile is global). (Prev V5.04: panel added; V5.03 member list.) -->
+  <!-- Version: V5.06 | Date: 2026-07-08 | LAST CHANGE: Contribution sign-up flow: "Sign me up!" opens a note field (what you'll bring + morning/afternoon), submit shows your photo/name/note + edit (pencil) + cancel (toggles back). Optimistic UI (instant). Signups show photo/name/note linking to the event profile. ASSUMPTIONS: claimPotluckItem stores/updates elaboration; needs a new GAS removePotluckClaim action for un-signup to persist. (Prev V5.05: contribution list in panel.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1593,31 +1593,85 @@ async function renderEventExperience(memberId, eventId, data) {
   card.innerHTML = html;
   if (_signupList.length) expLoadClaims(memberId, eventId);
 }
+function _expNorm(s){ return String(s||'').replace(/\./g,'').toLowerCase(); }
+function _expSafe(s){ return String(s||'').replace(/[^A-Za-z0-9._-]/g,''); }
+function _expMyClaim(memberId, item){
+  var mn=_expNorm(memberId);
+  return _potluckClaims.filter(function(c){ return c.item===item && _expNorm(c.appearId)===mn; })[0]||null;
+}
+function _expClaimChip(c){
+  var ph=c.photo?'<img src="'+esc(c.photo)+'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'">':'<div style="width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">'+esc((c.name||c.appearId||'?').charAt(0).toUpperCase())+'</div>';
+  var nm=esc(c.name||c.appearId||'Someone');
+  var note=c.elaboration?'<div style="font-size:12px;color:var(--muted);margin-top:1px;">'+esc(c.elaboration)+'</div>':'';
+  var link='https://creating.works/intake.html?show='+encodeURIComponent(c.appearId||'');
+  return '<a href="'+link+'" style="display:flex;align-items:flex-start;gap:8px;text-decoration:none;color:var(--dark);margin-top:8px;">'+ph+'<div><div style="font-size:13px;font-weight:600;">'+nm+'</div>'+note+'</div></a>';
+}
 function buildExpContribHTML(memberId){
   if(!_signupList.length) return '<div style="font-size:13px;color:var(--muted);">Nothing to bring yet.</div>';
-  var myNorm=String(memberId||'').replace(/\./g,'').toLowerCase();
-  return _signupList.map(function(it,i){
-    var claims=_potluckClaims.filter(function(c){return c.item===it.item;});
-    var mine=claims.some(function(c){return String(c.appearId||'').replace(/\./g,'').toLowerCase()===myNorm;});
-    var full = it.maxClaims>0 && claims.length>=it.maxClaims && !mine;
-    var claimHtml=claims.map(function(c){
-      var ph=c.photo?'<img src="'+esc(c.photo)+'" style="width:22px;height:22px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'">':'<div style="width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;">'+esc((c.name||c.appearId||'?').charAt(0).toUpperCase())+'</div>';
-      return '<div style="display:inline-flex;align-items:center;gap:4px;background:#fff;border-radius:20px;padding:2px 8px 2px 2px;margin-right:4px;margin-top:4px;">'+ph+'<span style="font-size:11px;color:var(--muted);">'+esc(c.name||c.appearId)+'</span></div>';
-    }).join('');
-    var action = mine ? '<span style="font-size:12px;color:#1a7f4b;font-weight:600;white-space:nowrap;">✓ You\'re in</span>'
-      : full ? '<span style="font-size:12px;color:var(--muted);white-space:nowrap;">Full</span>'
-      : '<button onclick="expClaim('+i+',\''+String(memberId).replace(/[^A-Za-z0-9._-]/g,'')+'\',\''+String(window._currentEventId||'').replace(/[^A-Za-z0-9._-]/g,'')+'\')" style="background:var(--primary);color:#fff;border:none;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">I\'ll bring this! 🎁</button>';
-    return '<div style="border-bottom:1px solid var(--border);padding:10px 0;"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;"><div style="font-size:14px;font-weight:600;">'+esc(it.item)+'</div>'+action+'</div>'+(claimHtml?'<div style="margin-top:6px;">'+claimHtml+'</div>':'')+'</div>';
-  }).join('');
+  return _signupList.map(function(it,i){ return expRowHTML(i, memberId); }).join('');
 }
-window.expClaim=function(i, memberId, eventId){
+function expRowHTML(i, memberId){
+  var it=_signupList[i];
+  var claims=_potluckClaims.filter(function(c){ return c.item===it.item; });
+  var mineClaim=_expMyClaim(memberId, it.item);
+  var mine=!!mineClaim;
+  var full = it.maxClaims>0 && claims.length>=it.maxClaims && !mine;
+  var typeLabel = it.potluckType?'<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:1px;">'+esc(it.potluckType)+'</div>':'';
+  var action;
+  if(mine){
+    action='<span style="font-size:12px;color:#1a7f4b;font-weight:600;white-space:nowrap;">✓ Signed up</span>'
+      +'<button onclick="expEdit('+i+')" aria-label="Edit what I\'m bringing" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 4px;">✏️</button>'
+      +'<button onclick="expRemove('+i+')" aria-label="Cancel my sign-up" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--muted);padding:0 2px;">✕</button>';
+  } else if(full){
+    action='<span style="font-size:12px;color:var(--muted);white-space:nowrap;">Full</span>';
+  } else {
+    action='<button onclick="expOpenForm('+i+')" style="background:var(--primary);color:#fff;border:none;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Sign me up!</button>';
+  }
+  var chips=claims.map(_expClaimChip).join('');
+  return '<div id="exp-row-'+i+'" style="border-bottom:1px solid var(--border);padding:12px 0;">'
+    +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
+    +'<div><div style="font-size:14px;font-weight:600;">'+esc(it.item)+'</div>'+typeLabel+'</div>'
+    +'<div style="display:flex;align-items:center;gap:2px;flex-shrink:0;">'+action+'</div></div>'
+    +(chips?'<div>'+chips+'</div>':'')
+    +'<div id="exp-form-'+i+'"></div>'
+    +'</div>';
+}
+function _expRerender(){ var el=document.getElementById('exp-contrib-list'); if(el) el.innerHTML=buildExpContribHTML(window._currentMyId); }
+window.expOpenForm=function(i, prefill){
+  var host=document.getElementById('exp-form-'+i); if(!host) return;
+  host.innerHTML='<div style="margin-top:8px;">'
+    +'<textarea id="exp-ta-'+i+'" placeholder="Please share more about what you\'ll bring, and if you prefer a morning or afternoon slot." style="width:100%;min-height:70px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;">'+esc(prefill||'')+'</textarea>'
+    +'<div style="margin-top:6px;display:flex;gap:8px;">'
+    +'<button onclick="expSubmit('+i+')" style="background:var(--primary);color:#fff;border:none;padding:7px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;">Submit</button>'
+    +'<button onclick="expCancelForm('+i+')" style="background:none;border:1px solid var(--border);padding:7px 14px;border-radius:20px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>'
+    +'</div></div>';
+  var ta=document.getElementById('exp-ta-'+i); if(ta) ta.focus();
+};
+window.expCancelForm=function(i){ var h=document.getElementById('exp-form-'+i); if(h) h.innerHTML=''; };
+window.expEdit=function(i){ var it=_signupList[i]; if(!it) return; var mc=_expMyClaim(window._currentMyId, it.item); expOpenForm(i, mc?mc.elaboration:''); };
+window.expSubmit=function(i){
   var it=_signupList[i]; if(!it) return;
-  fetch(GS_URL+'?action=claimPotluckItem&eventId='+encodeURIComponent(eventId)+'&item='+encodeURIComponent(it.item)+'&category=&potluckType='+encodeURIComponent(it.potluckType||'')+'&appearId='+encodeURIComponent(memberId)+'&elaboration=&timeSpec=&maxClaims='+encodeURIComponent(it.maxClaims||0))
-    .then(function(){ return expLoadClaims(memberId, eventId); });
+  var memberId=window._currentMyId, eventId=window._currentEventId;
+  var ta=document.getElementById('exp-ta-'+i); var note=ta?ta.value.trim():'';
+  var mc=_expMyClaim(memberId, it.item);
+  if(mc){ mc.elaboration=note; } else { _potluckClaims.push({item:it.item, appearId:memberId, name:'You', photo:'', elaboration:note, potluckType:it.potluckType||''}); }
+  _expRerender();
+  // GAS: claimPotluckItem stores elaboration. ASSUMPTION: re-claim updates the existing row (else edits dupe).
+  fetch(GS_URL+'?action=claimPotluckItem&eventId='+encodeURIComponent(eventId)+'&item='+encodeURIComponent(it.item)+'&category=&potluckType='+encodeURIComponent(it.potluckType||'')+'&appearId='+encodeURIComponent(memberId)+'&elaboration='+encodeURIComponent(note)+'&timeSpec=&maxClaims='+encodeURIComponent(it.maxClaims||0))
+    .then(function(){ return expLoadClaims(memberId, eventId); }).catch(function(){});
+};
+window.expRemove=function(i){
+  var it=_signupList[i]; if(!it) return;
+  var memberId=window._currentMyId, eventId=window._currentEventId;
+  var mn=_expNorm(memberId);
+  _potluckClaims=_potluckClaims.filter(function(c){ return !(c.item===it.item && _expNorm(c.appearId)===mn); });
+  _expRerender();
+  // GAS: NEEDS a removePotluckClaim action (eventId,item,appearId). Optimistic in UI until that exists.
+  fetch(GS_URL+'?action=removePotluckClaim&eventId='+encodeURIComponent(eventId)+'&item='+encodeURIComponent(it.item)+'&appearId='+encodeURIComponent(memberId)).catch(function(){});
 };
 async function expLoadClaims(memberId, eventId){
   try{ var res=await fetch(GS_URL+'?action=getPotluckList&eventId='+encodeURIComponent(eventId)); var d=await res.json(); _potluckClaims=(d&&d.claims)||[]; }catch(e){}
-  var el=document.getElementById('exp-contrib-list'); if(el) el.innerHTML=buildExpContribHTML(memberId);
+  _expRerender();
 }
 window.cancelFromExperience = async function(btn, memberId, eventId) {
   if (!confirm("Cancel your RSVP for this event?")) return;
