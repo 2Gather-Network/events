@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.02 | Date: 2026-07-06 | LAST CHANGE: manage=1 URL param auto-opens the edit-PIN modal on load, so Manage links from myevents.html can skip straight to PIN entry -->
+  <!-- Version: V5.03 | Date: 2026-07-08 | LAST CHANGE: myevents now works as a MEMBER events list: when ?id= matches no event it is treated as a member id -> getRegistrations -> renders that member's registered events (Upcoming/Past), each linking to event.html. Fixes the "Event not found" from the "My events" link. -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1467,7 +1467,8 @@ async function init() {
   try {
     const data = await fetchEvents();
     const ev = (data.events||[]).filter(r=>r.id).map(toEv).find(e=>e.id===id);
-    if (!ev) { showError("Event not found."); return; }
+    // No event matches this id -> treat it as a MEMBER id and show that member's events list.
+    if (!ev) { await renderMyEventsList(id, data); return; }
     // Handle ?via= socializer attribution
     const viaCard = new URLSearchParams(window.location.search).get("via");
     if (viaCard && ev.id) {
@@ -1484,6 +1485,58 @@ async function init() {
   }
 }
 
+
+// Render a member's list of registered events (myevents as "my events" list).
+// data = the already-fetched full events payload; memberId = the ?id= value that matched no event.
+async function renderMyEventsList(memberId, data) {
+  let regs = [];
+  try {
+    const r = await fetch(GS_URL + "?action=getRegistrations&appearId=" + encodeURIComponent(memberId));
+    const d = await r.json();
+    regs = d.registrations || [];
+  } catch(e) {}
+  // Latest registration row per event wins; keep events whose latest row is not cancelled.
+  const byEvent = {};
+  regs.forEach(function(rw) {
+    const eid = String(rw.eventId || "").trim();
+    if (!eid) return;
+    const ts = _regTimestamp(rw);
+    if (!byEvent[eid] || ts.localeCompare(byEvent[eid].ts) > 0) {
+      byEvent[eid] = { ts: ts, cancelled: String(rw.cancelled || "").trim().toLowerCase() === "true" };
+    }
+  });
+  const activeIds = Object.keys(byEvent).filter(function(eid) { return !byEvent[eid].cancelled; });
+  const mine = (data.events || []).filter(r => r.id).map(toEv).filter(function(e) { return activeIds.indexOf(String(e.id)) > -1; });
+  mine.sort(function(a, b) { return String(a.date || "").localeCompare(String(b.date || "")); });
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const isUpcoming = function(e) { return e.date && new Date(e.date + "T00:00:00") >= today; };
+  const upcoming = mine.filter(isUpcoming);
+  const past = mine.filter(function(e) { return !isUpcoming(e); });
+
+  const card = document.getElementById("card");
+  if (!card) return;
+  const row = function(e) {
+    const when = e.date ? fmtDate(e.date, e.time, e.endtime) : "";
+    const loc = e.venue || e.location || "";
+    const href = "event.html?id=" + encodeURIComponent(e.id) + "&memberCard=" + encodeURIComponent(memberId);
+    return '<a href="' + href + '" style="display:block;text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;">'
+      + '<div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:4px;">' + esc(e.title || "Event") + '</div>'
+      + (when ? '<div style="font-size:13px;color:var(--muted);">' + esc(when) + '</div>' : "")
+      + (loc ? '<div style="font-size:13px;color:var(--muted);">📍 ' + esc(loc) + '</div>' : "")
+      + '</a>';
+  };
+  const sectionLabel = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);';
+  let html = '<div class="card-body"><h1 style="margin:0 0 16px;">My events</h1>';
+  if (!mine.length) {
+    html += '<div style="font-size:14px;color:var(--muted);margin-bottom:16px;">You\'re not registered for any events yet.</div>'
+      + '<a href="https://gather.2gather.network" style="display:inline-block;background:var(--primary);color:#fff;font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;text-decoration:none;">Browse events</a>';
+  } else {
+    if (upcoming.length) html += '<div style="' + sectionLabel + 'margin:0 0 10px;">Upcoming</div>' + upcoming.map(row).join("");
+    if (past.length) html += '<div style="' + sectionLabel + 'margin:18px 0 10px;">Past</div>' + past.map(row).join("");
+  }
+  html += '</div>';
+  card.innerHTML = html;
+}
 
 const PREVIEW_EVENT = {
   id: "preview", title: "Monday CoWorking",
