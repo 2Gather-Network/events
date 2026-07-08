@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.10 | Date: 2026-07-08 | LAST CHANGE: (D1) registered "Going" pill -> "I'm going!" chip with photo, links to intake.html?show={id}; removed the "Show my 1:1 match code" button+caption. (F) merged standalone "In-person" badge into the address line as "In-person · {address}" (one pin). Tightened "Others going" avatar overlap (-10 -> -12px). Kept "Cancel my registration". -->
+  <!-- Version: V5.11 | Date: 2026-07-08 | LAST CHANGE: signupPotluck parser now accepts JSON OR a plain host-typed list (| preferred, comma fallback) so hand-entered contribution items render as claimable "I'll bring this!" rows instead of "Nothing on the list yet." Avatars nearly stacked (-12 -> -24px). (Prev V5.10: D1 "I'm going!" photo chip, F In-person merge, kept Cancel.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -587,7 +587,16 @@ function render(ev) {
   const _myId = getMemberId() || "";
   window._currentMyId = _myId;
   _isHost = !!(ev.hostMemberCard && _myId && String(ev.hostMemberCard).replace(/\./g,"").toLowerCase() === String(_myId).replace(/\./g,"").toLowerCase());
-  try { _signupList = ev.signupPotluck ? JSON.parse(ev.signupPotluck) : []; } catch(e) { _signupList = []; }
+  try {
+    _signupList = ev.signupPotluck ? JSON.parse(ev.signupPotluck) : [];
+    if (!Array.isArray(_signupList)) throw new Error("not-array");
+  } catch(e) {
+    // Not JSON - host typed a plain list into the sheet. Accept | (preferred) or , as the separator.
+    var _plRaw = String(ev.signupPotluck || "");
+    var _plSep = _plRaw.indexOf("|") > -1 ? "|" : ",";
+    _signupList = _plRaw.split(_plSep).map(function(s){ return s.trim(); }).filter(Boolean)
+      .map(function(s){ return { item: s, potluckType: "", category: "", timeSpec: "", maxClaims: "" }; });
+  }
   window._currentEventId = ev.id;
 
   const expMap = {connected:"🌐 Connected",expressed:"🎨 Expressed",nourished:"🥘 Nourished from food/drink",energized:"🌀 Energized",playful:"🏓 Playful",rested:"💙 Rested"};
@@ -1243,10 +1252,10 @@ async function loadWhoIsGoing() {
     const overflow = total - shown.length;
     // Overlapping avatar stack (not clickable on the event page); pull each avatar left over the previous.
     const avatars = shown.map((a, i) => `
-      <span style="display:block;width:36px;height:36px;border-radius:50%;overflow:hidden;border:2px solid #fff;box-shadow:0 0 0 1px var(--border);margin-left:${i === 0 ? 0 : -12}px;">
+      <span style="display:block;width:36px;height:36px;border-radius:50%;overflow:hidden;border:2px solid #fff;box-shadow:0 0 0 1px var(--border);margin-left:${i === 0 ? 0 : -24}px;">
         <img src="${a.photo}" alt="" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(a.appearId)}&size=36'">
       </span>`).join("");
-    const overflowBadge = overflow > 0 ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--border);background:#eef2f7;color:var(--muted);font-size:12px;font-weight:700;margin-left:-12px;">+${overflow}</span>` : "";
+    const overflowBadge = overflow > 0 ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--border);background:#eef2f7;color:var(--muted);font-size:12px;font-weight:700;margin-left:-24px;">+${overflow}</span>` : "";
     const count = `<span style="margin-left:10px;font-size:13px;color:var(--muted);">${total} going</span>`;
     list.innerHTML = avatars + overflowBadge + count;
     section.style.display = "block";
