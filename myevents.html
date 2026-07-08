@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.03 | Date: 2026-07-08 | LAST CHANGE: myevents now works as a MEMBER events list: when ?id= matches no event it is treated as a member id -> getRegistrations -> renders that member's registered events (Upcoming/Past), each linking to event.html. Fixes the "Event not found" from the "My events" link. -->
+  <!-- Version: V5.04 | Date: 2026-07-08 | LAST CHANGE: (Step 1 hub) added the "Manage my experience" / Event experience panel: ?id={member}&event={eventId} -> renderEventExperience with Share 1:1 QR / View profile / Edit profile / My other events / Cancel. (Prev V5.03: member events list.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1399,6 +1399,16 @@ async function init() {
   const id = new URLSearchParams(window.location.search).get("id");
   if (!id) { render(PREVIEW_EVENT); return; }
 
+  // "Manage my experience": ?id={member}&event={eventId} -> the per-event Event experience panel.
+  const _expEvent = new URLSearchParams(window.location.search).get("event");
+  if (_expEvent) {
+    try {
+      const data = await fetchEvents();
+      await renderEventExperience(id, _expEvent, data);
+    } catch(e) { showError("Could not load your experience. Please try again."); }
+    return;
+  }
+
   // If a template row ID (rec-) is passed, resolve to next occurrence in-place
   if (id.startsWith("rec-")) {
     try {
@@ -1537,6 +1547,39 @@ async function renderMyEventsList(memberId, data) {
   html += '</div>';
   card.innerHTML = html;
 }
+
+// "Manage my experience" - the per-event Event experience panel (personal hub for one event).
+async function renderEventExperience(memberId, eventId, data) {
+  const ev = (data.events || []).filter(r => r.id).map(toEv).find(e => e.id === eventId);
+  const card = document.getElementById("card");
+  if (!card) return;
+  const title = ev ? ev.title : "This event";
+  const when = ev && ev.date ? fmtDate(ev.date, ev.time, ev.endtime) : "";
+  const m = encodeURIComponent(memberId);
+  const eid = encodeURIComponent(eventId);
+  const linkStyle = "display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--dark);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;font-size:15px;font-weight:600;width:100%;box-sizing:border-box;background:none;text-align:left;font-family:inherit;cursor:pointer;";
+  let html = '<div class="card-body">';
+  html += '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:4px;">Manage my experience</div>';
+  html += '<h1 style="margin:0 0 4px;">' + esc(title) + '</h1>';
+  html += when ? '<div style="font-size:13px;color:var(--muted);margin-bottom:18px;">' + esc(when) + '</div>' : '<div style="margin-bottom:12px;"></div>';
+  html += '<a href="https://gather.2gather.network/match.html?me=' + m + '" style="' + linkStyle + '">🔳 Share my 1:1 match code</a>';
+  html += '<a href="https://creating.works/intake.html?show=' + m + '" style="' + linkStyle + '">👤 View my event profile</a>';
+  html += '<a href="https://creating.works/intake.html?id=' + m + '&eventId=' + eid + '" style="' + linkStyle + '">✏️ Edit my event profile</a>';
+  html += '<a href="https://gather.2gather.network/myevents.html?id=' + m + '" style="' + linkStyle + '">📅 My other events</a>';
+  var _mSafe = String(memberId).replace(/[^A-Za-z0-9._-]/g, "");
+  var _eSafe = String(eventId).replace(/[^A-Za-z0-9._-]/g, "");
+  html += '<button onclick="cancelFromExperience(this,\'' + _mSafe + '\',\'' + _eSafe + '\')" style="' + linkStyle + 'color:#c0392b;">✕ Cancel my registration</button>';
+  html += '<div id="exp-cancel-msg" style="display:none;font-size:13px;color:#c0392b;margin-top:8px;">You\'re no longer registered for this event.</div>';
+  html += '</div>';
+  card.innerHTML = html;
+}
+window.cancelFromExperience = async function(btn, memberId, eventId) {
+  if (!confirm("Cancel your RSVP for this event?")) return;
+  if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
+  try { await fetch(GS_URL + "?action=cancelRsvp&appearId=" + encodeURIComponent(memberId) + "&eventId=" + encodeURIComponent(eventId)); } catch(e) {}
+  var msg = document.getElementById("exp-cancel-msg");
+  if (msg) msg.style.display = "block";
+};
 
 const PREVIEW_EVENT = {
   id: "preview", title: "Monday CoWorking",
