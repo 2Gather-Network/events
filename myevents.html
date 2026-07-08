@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.04 | Date: 2026-07-08 | LAST CHANGE: (Step 1 hub) added the "Manage my experience" / Event experience panel: ?id={member}&event={eventId} -> renderEventExperience with Share 1:1 QR / View profile / Edit profile / My other events / Cancel. (Prev V5.03: member events list.) -->
+  <!-- Version: V5.05 | Date: 2026-07-08 | LAST CHANGE: Manage my experience panel now includes the Event contribution list (parses Item:Type:Slots, claim with slot enforcement) moved here from event.html; Edit-profile link no longer carries eventId (profile is global). (Prev V5.04: panel added; V5.03 member list.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1556,7 +1556,21 @@ async function renderEventExperience(memberId, eventId, data) {
   const title = ev ? ev.title : "This event";
   const when = ev && ev.date ? fmtDate(ev.date, ev.time, ev.endtime) : "";
   const m = encodeURIComponent(memberId);
-  const eid = encodeURIComponent(eventId);
+  // Parse this event's contribution list ("Item: Type: Slots | ..."), same rules as event.html.
+  window._currentMyId = memberId;
+  window._currentEventId = eventId;
+  try {
+    _signupList = ev && ev.signupPotluck ? JSON.parse(ev.signupPotluck) : [];
+    if (!Array.isArray(_signupList)) throw new Error("not-array");
+  } catch(e) {
+    var _raw = ev ? String(ev.signupPotluck || "") : "";
+    var _sep = _raw.indexOf("|") > -1 ? "|" : ",";
+    _signupList = _raw.split(_sep).map(function(s){ return s.trim(); }).filter(Boolean).map(function(s){
+      var _c = s.split(":");
+      var _slotsRaw = (_c[2] || "").trim();
+      return { item: (_c[0]||"").trim(), potluckType: (_c[1]||"").trim(), category: "", timeSpec: "", maxClaims: _slotsRaw === "" ? 1 : (parseInt(_slotsRaw,10) || 0) };
+    });
+  }
   const linkStyle = "display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--dark);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;font-size:15px;font-weight:600;width:100%;box-sizing:border-box;background:none;text-align:left;font-family:inherit;cursor:pointer;";
   let html = '<div class="card-body">';
   html += '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:4px;">Manage my experience</div>';
@@ -1564,14 +1578,46 @@ async function renderEventExperience(memberId, eventId, data) {
   html += when ? '<div style="font-size:13px;color:var(--muted);margin-bottom:18px;">' + esc(when) + '</div>' : '<div style="margin-bottom:12px;"></div>';
   html += '<a href="https://gather.2gather.network/match.html?me=' + m + '" style="' + linkStyle + '">🔳 Share my 1:1 match code</a>';
   html += '<a href="https://creating.works/intake.html?show=' + m + '" style="' + linkStyle + '">👤 View my event profile</a>';
-  html += '<a href="https://creating.works/intake.html?id=' + m + '&eventId=' + eid + '" style="' + linkStyle + '">✏️ Edit my event profile</a>';
+  html += '<a href="https://creating.works/intake.html?id=' + m + '" style="' + linkStyle + '">✏️ Edit my event profile</a>';
   html += '<a href="https://gather.2gather.network/myevents.html?id=' + m + '" style="' + linkStyle + '">📅 My other events</a>';
   var _mSafe = String(memberId).replace(/[^A-Za-z0-9._-]/g, "");
   var _eSafe = String(eventId).replace(/[^A-Za-z0-9._-]/g, "");
   html += '<button onclick="cancelFromExperience(this,\'' + _mSafe + '\',\'' + _eSafe + '\')" style="' + linkStyle + 'color:#c0392b;">✕ Cancel my registration</button>';
   html += '<div id="exp-cancel-msg" style="display:none;font-size:13px;color:#c0392b;margin-top:8px;">You\'re no longer registered for this event.</div>';
+  if (_signupList.length) {
+    html += '<div style="margin-top:22px;padding:16px;background:#EBF5FB;border:1.5px solid #AED6F1;border-radius:10px;">'
+      + '<p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#1B6896;margin:0 0 10px;">🎁 Event contribution list</p>'
+      + '<div id="exp-contrib-list">' + buildExpContribHTML(memberId) + '</div></div>';
+  }
   html += '</div>';
   card.innerHTML = html;
+  if (_signupList.length) expLoadClaims(memberId, eventId);
+}
+function buildExpContribHTML(memberId){
+  if(!_signupList.length) return '<div style="font-size:13px;color:var(--muted);">Nothing to bring yet.</div>';
+  var myNorm=String(memberId||'').replace(/\./g,'').toLowerCase();
+  return _signupList.map(function(it,i){
+    var claims=_potluckClaims.filter(function(c){return c.item===it.item;});
+    var mine=claims.some(function(c){return String(c.appearId||'').replace(/\./g,'').toLowerCase()===myNorm;});
+    var full = it.maxClaims>0 && claims.length>=it.maxClaims && !mine;
+    var claimHtml=claims.map(function(c){
+      var ph=c.photo?'<img src="'+esc(c.photo)+'" style="width:22px;height:22px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'">':'<div style="width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;">'+esc((c.name||c.appearId||'?').charAt(0).toUpperCase())+'</div>';
+      return '<div style="display:inline-flex;align-items:center;gap:4px;background:#fff;border-radius:20px;padding:2px 8px 2px 2px;margin-right:4px;margin-top:4px;">'+ph+'<span style="font-size:11px;color:var(--muted);">'+esc(c.name||c.appearId)+'</span></div>';
+    }).join('');
+    var action = mine ? '<span style="font-size:12px;color:#1a7f4b;font-weight:600;white-space:nowrap;">✓ You\'re in</span>'
+      : full ? '<span style="font-size:12px;color:var(--muted);white-space:nowrap;">Full</span>'
+      : '<button onclick="expClaim('+i+',\''+String(memberId).replace(/[^A-Za-z0-9._-]/g,'')+'\',\''+String(window._currentEventId||'').replace(/[^A-Za-z0-9._-]/g,'')+'\')" style="background:var(--primary);color:#fff;border:none;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">I\'ll bring this! 🎁</button>';
+    return '<div style="border-bottom:1px solid var(--border);padding:10px 0;"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;"><div style="font-size:14px;font-weight:600;">'+esc(it.item)+'</div>'+action+'</div>'+(claimHtml?'<div style="margin-top:6px;">'+claimHtml+'</div>':'')+'</div>';
+  }).join('');
+}
+window.expClaim=function(i, memberId, eventId){
+  var it=_signupList[i]; if(!it) return;
+  fetch(GS_URL+'?action=claimPotluckItem&eventId='+encodeURIComponent(eventId)+'&item='+encodeURIComponent(it.item)+'&category=&potluckType='+encodeURIComponent(it.potluckType||'')+'&appearId='+encodeURIComponent(memberId)+'&elaboration=&timeSpec=&maxClaims='+encodeURIComponent(it.maxClaims||0))
+    .then(function(){ return expLoadClaims(memberId, eventId); });
+};
+async function expLoadClaims(memberId, eventId){
+  try{ var res=await fetch(GS_URL+'?action=getPotluckList&eventId='+encodeURIComponent(eventId)); var d=await res.json(); _potluckClaims=(d&&d.claims)||[]; }catch(e){}
+  var el=document.getElementById('exp-contrib-list'); if(el) el.innerHTML=buildExpContribHTML(memberId);
 }
 window.cancelFromExperience = async function(btn, memberId, eventId) {
   if (!confirm("Cancel your RSVP for this event?")) return;
