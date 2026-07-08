@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.10 | Date: 2026-07-08 | LAST CHANGE: Removed yellow host-section background; add-item type step is now "{item}: Select the category:" (one line, no "This is a:") with clean pill chips; added "👥 Visit event hub" link (-> attendees.html?id={event}&memberCard={member}) to Manage my experience. (Prev V5.09 Attending/Hosting tabs. ASSUMPTIONS: claimPotluckItem updates elaboration; needs GAS removePotluckClaim.) -->
+  <!-- Version: V5.11 | Date: 2026-07-08 | LAST CHANGE: Host section now has a dark-blue rounded border (no fill); parent reference-category step shows only for Skill (Experience/Thing skip it); reworded sign-up-limit question; sign-up chips show names via getInitials (UserID->First from Initials/"info" sheet), fallback to id. (Prev V5.10: no yellow, one-line type step, Visit event hub link. ASSUMPTIONS: needs GAS getInitials + removePotluckClaim; claimPotluckItem updates elaboration.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -536,7 +536,7 @@ function buildPotluckWizardHTML(){
   if(_pl.step==='cap'){
     return '<div style="margin-top:12px;">'
       +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
-      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Limit how many can sign up? Leave blank for no limit.</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">How many people can sign up for this? Leave blank for no limit.</div>'
       +'<input type="number" id="pl-host-cap-input" min="1" placeholder="No limit" value="'+esc(_pl.maxClaims)+'" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-bottom:10px;" oninput="_pl.maxClaims=this.value;">'
       +'<button class="btn btn-primary" onclick="plHostFinish()" style="width:100%;justify-content:center;">Add to sign up list</button>'
       +'</div>';
@@ -577,7 +577,9 @@ window.plHostStartType=function(){
 };
 window.plHostSetType=function(t){
   _pl.potluckType=t;
-  _pl.step='category';
+  // Only Skills get a parent reference-category; Experience/Thing skip straight to timing.
+  _pl.step=(t==='Skill')?'category':'timed';
+  if(t!=='Skill') _pl.category='';
   refreshPotluckHostSection();
 };
 window.plHostSetCategory=function(c){
@@ -1645,7 +1647,7 @@ async function renderEventExperience(memberId, eventId, data) {
   _isHost = isHost;
   if (isHost) {
     // Host view: add/edit items + everyone's sign-ups grouped by category.
-    html += '<div style="margin-top:22px;">'
+    html += '<div style="margin-top:22px;padding:16px;border:1.5px solid #1B6896;border-radius:12px;">'
       + '<p style="font-size:18px;font-weight:700;color:var(--dark);margin:0 0 12px;">🎁 Host — manage contributions</p>'
       + '<div id="potluck-host-list">' + buildPotluckHostListHTML() + '</div>'
       + '<div id="potluck-host-wizard">' + buildPotluckWizardHTML() + '</div>'
@@ -1658,7 +1660,7 @@ async function renderEventExperience(memberId, eventId, data) {
   }
   html += '</div>';
   card.innerHTML = html;
-  expLoadClaims(memberId, eventId);
+  loadNames().then(function(){ expLoadClaims(memberId, eventId); });
 }
 // Host: all sign-ups grouped by category (Skill / Experience / Thing), each with photo + name linking to the event profile.
 function buildHostSignupsHTML(memberId){
@@ -1687,9 +1689,22 @@ function _expMyClaim(memberId, item){
   var mn=_expNorm(memberId);
   return _potluckClaims.filter(function(c){ return c.item===item && _expNorm(c.appearId)===mn; })[0]||null;
 }
+// Names come from the Initials/"info" sheet via GAS getInitials (UserID -> First). Falls back to claim name / id.
+var _nameMap = {};
+function _lookupName(appearId){ return _nameMap[_expNorm(appearId)] || ''; }
+async function loadNames(){
+  if(Object.keys(_nameMap).length) return;
+  try{
+    var res=await fetch(GS_URL+'?action=getInitials');
+    var d=await res.json();
+    var rows=(d&&(d.people||d.rows||d.initials||d.data))||[];
+    rows.forEach(function(r){ var id=r.UserID||r.userId||r.appearId||r.id; var nm=r.First||r.first||r.name||''; if(id) _nameMap[_expNorm(id)]=nm; });
+  }catch(e){}
+}
 function _expClaimChip(c){
-  var ph=c.photo?'<img src="'+esc(c.photo)+'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'">':'<div style="width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">'+esc((c.name||c.appearId||'?').charAt(0).toUpperCase())+'</div>';
-  var nm=esc(c.name||c.appearId||'Someone');
+  var nmRaw=_lookupName(c.appearId)||c.name||c.appearId||'Someone';
+  var ph=c.photo?'<img src="'+esc(c.photo)+'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'">':'<div style="width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">'+esc(String(nmRaw).charAt(0).toUpperCase())+'</div>';
+  var nm=esc(nmRaw);
   var note=c.elaboration?'<div style="font-size:12px;color:var(--muted);margin-top:1px;">'+esc(c.elaboration)+'</div>':'';
   var link='https://creating.works/intake.html?show='+encodeURIComponent(c.appearId||'');
   return '<a href="'+link+'" style="display:flex;align-items:flex-start;gap:8px;text-decoration:none;color:var(--dark);margin-top:8px;">'+ph+'<div><div style="font-size:13px;font-weight:600;">'+nm+'</div>'+note+'</div></a>';
