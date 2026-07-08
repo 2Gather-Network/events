@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.06 | Date: 2026-07-08 | LAST CHANGE: Contribution sign-up flow: "Sign me up!" opens a note field (what you'll bring + morning/afternoon), submit shows your photo/name/note + edit (pencil) + cancel (toggles back). Optimistic UI (instant). Signups show photo/name/note linking to the event profile. ASSUMPTIONS: claimPotluckItem stores/updates elaboration; needs a new GAS removePotluckClaim action for un-signup to persist. (Prev V5.05: contribution list in panel.) -->
+  <!-- Version: V5.07 | Date: 2026-07-08 | LAST CHANGE: Host view in Manage my experience (when you host the event): add/edit items + everyone's sign-ups grouped by Skill/Experience/Thing with photo+name linking to event profile. (Prev V5.06: attendee sign-up flow w/ note+edit+toggle, optimistic. ASSUMPTIONS: claimPotluckItem stores/updates elaboration; needs a GAS removePotluckClaim action for un-signup to persist.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1584,14 +1584,49 @@ async function renderEventExperience(memberId, eventId, data) {
   var _eSafe = String(eventId).replace(/[^A-Za-z0-9._-]/g, "");
   html += '<button onclick="cancelFromExperience(this,\'' + _mSafe + '\',\'' + _eSafe + '\')" style="' + linkStyle + 'color:#c0392b;">✕ Cancel my registration</button>';
   html += '<div id="exp-cancel-msg" style="display:none;font-size:13px;color:#c0392b;margin-top:8px;">You\'re no longer registered for this event.</div>';
-  if (_signupList.length) {
+  var isHost = !!(ev && ev.hostMemberCard && _expNorm(ev.hostMemberCard) === _expNorm(memberId));
+  _isHost = isHost;
+  if (isHost) {
+    // Host view: add/edit items + everyone's sign-ups grouped by category.
+    html += '<div style="margin-top:22px;padding:16px;background:#FFF8E7;border:1.5px solid #F0B429;border-radius:10px;">'
+      + '<p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7B5800;margin:0 0 10px;">🎁 Host — manage contributions</p>'
+      + '<div id="potluck-host-list">' + buildPotluckHostListHTML() + '</div>'
+      + '<div id="potluck-host-wizard">' + buildPotluckWizardHTML() + '</div>'
+      + '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7B5800;margin:18px 0 4px;">Who\'s signed up</div>'
+      + '<div id="exp-host-signups">' + buildHostSignupsHTML(memberId) + '</div>'
+      + '</div>';
+  } else if (_signupList.length) {
     html += '<div style="margin-top:22px;padding:16px;background:#EBF5FB;border:1.5px solid #AED6F1;border-radius:10px;">'
       + '<p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#1B6896;margin:0 0 10px;">🎁 Event contribution list</p>'
       + '<div id="exp-contrib-list">' + buildExpContribHTML(memberId) + '</div></div>';
   }
   html += '</div>';
   card.innerHTML = html;
-  if (_signupList.length) expLoadClaims(memberId, eventId);
+  expLoadClaims(memberId, eventId);
+}
+// Host: all sign-ups grouped by category (Skill / Experience / Thing), each with photo + name linking to the event profile.
+function buildHostSignupsHTML(memberId){
+  if(!_signupList.length) return '<div style="font-size:13px;color:var(--muted);">No items on the list yet.</div>';
+  var cats=['Skill','Experience','Thing'];
+  var groups={Skill:[],Experience:[],Thing:[]}; var other=[];
+  _signupList.forEach(function(it){
+    var t=(it.potluckType||'').trim().toLowerCase();
+    var key=cats.filter(function(c){return c.toLowerCase()===t;})[0];
+    if(key) groups[key].push(it); else other.push(it);
+  });
+  function itemBlock(it){
+    var claims=_potluckClaims.filter(function(c){return c.item===it.item;});
+    var cap=it.maxClaims>0?(' ('+claims.length+'/'+it.maxClaims+')'):(claims.length?(' ('+claims.length+')'):'');
+    var chips=claims.length?claims.map(_expClaimChip).join(''):'<div style="font-size:12px;color:var(--muted);margin-top:4px;">No sign-ups yet.</div>';
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:600;">'+esc(it.item)+cap+'</div>'+chips+'</div>';
+  }
+  var html='';
+  cats.forEach(function(c){
+    if(!groups[c].length) return;
+    html+='<div style="margin-top:12px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7B5800;margin-bottom:2px;">'+c+'</div>'+groups[c].map(itemBlock).join('')+'</div>';
+  });
+  if(other.length) html+='<div style="margin-top:12px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:2px;">Other</div>'+other.map(itemBlock).join('')+'</div>';
+  return html;
 }
 function _expNorm(s){ return String(s||'').replace(/\./g,'').toLowerCase(); }
 function _expSafe(s){ return String(s||'').replace(/[^A-Za-z0-9._-]/g,''); }
@@ -1672,6 +1707,8 @@ window.expRemove=function(i){
 async function expLoadClaims(memberId, eventId){
   try{ var res=await fetch(GS_URL+'?action=getPotluckList&eventId='+encodeURIComponent(eventId)); var d=await res.json(); _potluckClaims=(d&&d.claims)||[]; }catch(e){}
   _expRerender();
+  var hs=document.getElementById('exp-host-signups'); if(hs) hs.innerHTML=buildHostSignupsHTML(memberId);
+  var hl=document.getElementById('potluck-host-list'); if(hl && typeof buildPotluckHostListHTML==='function') hl.innerHTML=buildPotluckHostListHTML();
 }
 window.cancelFromExperience = async function(btn, memberId, eventId) {
   if (!confirm("Cancel your RSVP for this event?")) return;
