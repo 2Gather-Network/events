@@ -1,4 +1,4 @@
-<!-- Version: V2.27 | Date: 2026-07-08 | LAST CHANGE: "Who's bringing what" now fires early (was gated behind slow member loading, so it looked missing). Names show "Someone" until claim.name is populated backend-side. -->
+<!-- Version: V2.28 | Date: 2026-07-08 | LAST CHANGE: "Who's bringing what" grouped by Skills/Experiences/Things (via signupPotluck types) with blue border; chips show photo + item + category, no "Someone" text when name is blank; page title "Event Hub". -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -448,6 +448,7 @@ function filterAll(q){ _searchQ=(q||'').toLowerCase().trim(); renderAll(); }
 // (getAttendees + getIntake), then re-render once the heavy reference-data +
 // categories arrive to add category tags and drop parent-category chips.
 (async function init(){
+  document.title='Event Hub';                              // descriptive title for bookmarking
   loadEvent();                                             // independent, fire-and-forget
   loadContributions();                                     // who's bringing what — fire early, don't wait for the slow member loading
   var enrich=Promise.all([loadRefData(), loadCategories()]); // heavy — don't block first paint
@@ -458,23 +459,39 @@ function filterAll(q){ _searchQ=(q||'').toLowerCase().trim(); renderAll(); }
 // Hub "who's bringing what": group the event's sign-ups (getPotluckList) by item, each with photo + name -> event profile.
 async function loadContributions(){
   var el=document.getElementById('contrib-section'); if(!el) return;
-  var claims=[];
-  try{ var res=await fetch(GS_URL+'?action=getPotluckList&eventId='+encodeURIComponent(_eventId)); var d=await res.json(); claims=(d&&d.claims)||[]; }catch(e){}
+  var claims=[], typeMap={};
+  try{
+    var res=await fetch(GS_URL+'?action=getPotluckList&eventId='+encodeURIComponent(_eventId));
+    var d=await res.json();
+    claims=(d&&d.claims)||[];
+    var sp=[]; try{ sp=JSON.parse(d.signupPotluck||'[]'); }catch(e){ sp=[]; }
+    if(Array.isArray(sp)) sp.forEach(function(it){ if(it&&it.item) typeMap[it.item]=(it.potluckType||''); });
+  }catch(e){}
   if(!claims.length){ el.innerHTML=''; return; }
   var byItem={};
   claims.forEach(function(c){ var it=c.item||'(item)'; (byItem[it]=byItem[it]||[]).push(c); });
+  var cats=['Skill','Experience','Thing'];
+  var groups={Skill:[],Experience:[],Thing:[]}, other=[];
+  Object.keys(byItem).forEach(function(it){
+    var t=(typeMap[it]||'').trim().toLowerCase();
+    var key=cats.filter(function(c){return c.toLowerCase()===t;})[0];
+    (key?groups[key]:other).push(it);
+  });
   function chip(c){
-    var nm=escHTML(c.name||'Someone');
-    var ph=c.photo?'<img src="'+escHTML(c.photo)+'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'">':'<div style="width:24px;height:24px;border-radius:50%;background:#1B6896;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">'+escHTML(nm.charAt(0).toUpperCase())+'</div>';
+    var ph=c.photo?'<img src="'+escHTML(c.photo)+'" style="width:26px;height:26px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'">':'<div style="width:26px;height:26px;border-radius:50%;background:#1B6896;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">🌱</div>';
+    var nm=c.name?'<span style="font-size:12px;margin-left:6px;">'+escHTML(c.name)+'</span>':'';
     var link=INTAKE_URL+encodeURIComponent(c.appearId||'');
-    return '<a href="'+link+'" style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e5e7eb;border-radius:20px;padding:3px 12px 3px 3px;text-decoration:none;color:#1a1a2e;margin:0 6px 6px 0;">'+ph+'<span style="font-size:12px;">'+nm+'</span></a>';
+    return '<a href="'+link+'" title="View event profile" style="display:inline-flex;align-items:center;background:#fff;border:1px solid #e5e7eb;border-radius:20px;padding:2px 10px 2px 2px;text-decoration:none;color:#1a1a2e;margin:0 6px 6px 0;">'+ph+nm+'</a>';
   }
-  var rows=Object.keys(byItem).map(function(it){
-    return '<div style="padding:10px 0;border-bottom:1px solid #e5e7eb;"><div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:6px;">'+escHTML(it)+'</div>'+byItem[it].map(chip).join('')+'</div>';
-  }).join('');
-  el.innerHTML='<div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px 20px;"><div style="font-size:18px;font-weight:800;color:#1a1a2e;margin-bottom:10px;">🎁 Who\'s bringing what</div>'+rows+'</div>';
+  function itemBlock(it){
+    var cat=typeMap[it]?'<span style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-left:6px;">'+escHTML(typeMap[it])+'</span>':'';
+    return '<div style="padding:10px 0;border-bottom:1px solid #e5e7eb;"><div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:6px;">'+escHTML(it)+cat+'</div>'+byItem[it].map(chip).join('')+'</div>';
+  }
+  function grp(label, items){ return items.length?('<div style="font-size:16px;font-weight:800;color:#1a1a2e;margin:14px 0 4px;">'+label+'</div>'+items.map(itemBlock).join('')):''; }
+  var body=grp('Skills',groups.Skill)+grp('Experiences',groups.Experience)+grp('Things',groups.Thing)+grp('Other',other);
+  el.innerHTML='<div style="border:1.5px solid #1B6896;border-radius:14px;padding:16px 20px;background:#fff;"><div style="font-size:18px;font-weight:800;color:#1a1a2e;margin-bottom:6px;">🎁 Who\'s bringing what</div>'+body+'</div>';
 }
 </script>
 </body>
 </html>
-<!-- Version: V2.27 | Date: 2026-07-08 | LAST CHANGE: "Who's bringing what" now fires early (was gated behind slow member loading, so it looked missing). Names show "Someone" until claim.name is populated backend-side. -->
+<!-- Version: V2.28 | Date: 2026-07-08 | LAST CHANGE: "Who's bringing what" grouped by Skills/Experiences/Things (via signupPotluck types) with blue border; chips show photo + item + category, no "Someone" text when name is blank; page title "Event Hub". -->

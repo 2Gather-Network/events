@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.15 | Date: 2026-07-08 | LAST CHANGE: Attendee contribution list grouped into Skill/Experience/Thing headers, 5 per group with "Show 6-10" pagination; Help now COPIES the host email (with @ check; falls back to host profile for missing/invalid emails) instead of a dead mailto. (Prev V5.14: attendee-own-only, names not IDs, Help, placeholder.) -->
+  <!-- Version: V5.16 | Date: 2026-07-08 | LAST CHANGE: Plural headers (Skills/Experiences/Things); attendee contribution box is blue-border/no-fill; page titles set (Manage my experience / My events) for bookmarks; cancel now shows a "before you cancel" modal per committed item (can't bring / recommend / substitute + contact field). (Prev V5.15: grouping+pagination, Help copies email. ASSUMPTIONS: needs GAS removePotluckClaim + claimPotluckItem-updates for the modal to persist.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1567,6 +1567,7 @@ async function renderMyEventsList(memberId, data) {
 
   const card = document.getElementById("card");
   if (!card) return;
+  document.title = 'My events';
   const row = function(e) {
     const when = e.date ? fmtDate(e.date, e.time, e.endtime) : "";
     const loc = e.venue || e.location || "";
@@ -1627,6 +1628,7 @@ async function renderEventExperience(memberId, eventId, data) {
   const ev = (data.events || []).filter(r => r.id).map(toEv).find(e => e.id === eventId);
   const card = document.getElementById("card");
   if (!card) return;
+  document.title = 'Manage my experience';
   const title = ev ? ev.title : "This event";
   const when = ev && ev.date ? fmtDate(ev.date, ev.time, ev.endtime) : "";
   const m = encodeURIComponent(memberId);
@@ -1670,7 +1672,7 @@ async function renderEventExperience(memberId, eventId, data) {
       + '<div id="exp-host-signups">' + buildHostSignupsHTML(memberId) + '</div>'
       + '</div>';
   } else if (_signupList.length) {
-    html += '<div style="margin-top:22px;padding:16px;background:#EBF5FB;border:1.5px solid #AED6F1;border-radius:10px;">'
+    html += '<div style="margin-top:22px;padding:16px;border:1.5px solid #1B6896;border-radius:10px;">'
       + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;"><p style="font-size:18px;font-weight:700;color:var(--dark);margin:0;">🎁 Event contribution list</p>'+_helpLink(ev)+'</div>'
       + '<div id="exp-contrib-list">' + buildExpContribHTML(memberId) + '</div></div>';
   }
@@ -1749,7 +1751,7 @@ function buildExpContribHTML(memberId){
     }
     return h;
   }
-  return grp('Skill',groups.Skill)+grp('Experience',groups.Experience)+grp('Thing',groups.Thing)+grp('Other',other);
+  return grp('Skills',groups.Skill)+grp('Experiences',groups.Experience)+grp('Things',groups.Thing)+grp('Other',other);
 }
 window.expShowMore=function(label){ _expPage[label]=(_expPage[label]||5)+5; _expRerender(); };
 function expRowHTML(i, memberId){
@@ -1818,15 +1820,64 @@ async function expLoadClaims(memberId, eventId){
   var hs=document.getElementById('exp-host-signups'); if(hs) hs.innerHTML=buildHostSignupsHTML(memberId);
   var hl=document.getElementById('potluck-host-list'); if(hl && typeof buildPotluckHostListHTML==='function') hl.innerHTML=buildPotluckHostListHTML();
 }
-window.cancelFromExperience = async function(btn, memberId, eventId) {
+var _cancelCtx=null;
+window.cancelFromExperience = function(btn, memberId, eventId) {
+  // If they committed to bringing things, confirm what happens to each before canceling.
+  var mine=_potluckClaims.filter(function(c){ return _expNorm(c.appearId)===_expNorm(memberId); });
+  if(mine.length){ _openCancelModal(memberId, eventId, mine); return; }
   if (!confirm("Cancel your RSVP for this event?")) return;
-  if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
-  try { await fetch(GS_URL + "?action=cancelRsvp&appearId=" + encodeURIComponent(memberId) + "&eventId=" + encodeURIComponent(eventId)); } catch(e) {}
+  _doCancel(btn, memberId, eventId);
+};
+function _doCancel(btn, memberId, eventId){
+  if (btn && btn.style) { btn.disabled = true; btn.style.opacity = "0.5"; }
+  fetch(GS_URL + "?action=cancelRsvp&appearId=" + encodeURIComponent(memberId) + "&eventId=" + encodeURIComponent(eventId)).catch(function(){});
   var msg = document.getElementById("exp-cancel-msg");
   if (msg) {
     msg.innerHTML = 'You\'re no longer registered for this event. <a href="https://gather.2gather.network/event.html?id=' + encodeURIComponent(eventId) + '&memberCard=' + encodeURIComponent(memberId) + '" style="color:#1B6896;font-weight:700;text-decoration:underline;">Visit event</a> to register again.';
     msg.style.display = "block";
   }
+}
+function _openCancelModal(memberId, eventId, claims){
+  _cancelCtx={memberId:memberId, eventId:eventId, items:claims.map(function(c){return c.item;})};
+  var rows=_cancelCtx.items.map(function(item,i){
+    return '<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">'
+      +'<div style="font-size:14px;font-weight:700;margin-bottom:8px;">Please confirm you can\'t bring this: '+esc(item)+'</div>'
+      +'<label style="display:block;font-size:13px;margin-bottom:6px;"><input type="radio" name="cm-'+i+'" value="cant" checked> I no longer can bring this</label>'
+      +'<label style="display:block;font-size:13px;margin-bottom:6px;"><input type="radio" name="cm-'+i+'" value="recommend"> I no longer can bring this and I have a recommendation for someone else</label>'
+      +'<label style="display:block;font-size:13px;margin-bottom:8px;"><input type="radio" name="cm-'+i+'" value="substitute"> I will still supply this but someone else will be in my place</label>'
+      +'<textarea id="cm-note-'+i+'" placeholder="If you named someone, add who they are and their contact info here." style="width:100%;min-height:56px;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;font-family:inherit;box-sizing:border-box;"></textarea>'
+      +'</div>';
+  }).join('');
+  var ov=document.createElement('div');
+  ov.id='cm-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:500;padding:20px;overflow:auto;';
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:440px;box-sizing:border-box;max-height:90vh;overflow:auto;">'
+    +'<div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:14px;">Before you cancel</div>'
+    +rows
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">'
+    +'<button onclick="_closeCancelModal()" style="background:none;border:1px solid var(--border);padding:8px 16px;border-radius:20px;font-size:13px;cursor:pointer;font-family:inherit;">Keep my registration</button>'
+    +'<button onclick="_confirmCancelModal()" style="background:#c0392b;color:#fff;border:none;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Confirm &amp; cancel</button>'
+    +'</div></div>';
+  document.body.appendChild(ov);
+}
+window._closeCancelModal=function(){ var o=document.getElementById('cm-overlay'); if(o) o.remove(); };
+window._confirmCancelModal=function(){
+  var ctx=_cancelCtx; if(!ctx) return;
+  ctx.items.forEach(function(item,i){
+    var sel=document.querySelector('input[name="cm-'+i+'"]:checked');
+    var opt=sel?sel.value:'cant';
+    var note=(document.getElementById('cm-note-'+i)||{}).value||'';
+    if(opt==='substitute'){
+      // Keep the item covered; append who's taking my place. (Needs claimPotluckItem to UPDATE the row.)
+      fetch(GS_URL+'?action=claimPotluckItem&eventId='+encodeURIComponent(ctx.eventId)+'&item='+encodeURIComponent(item)+'&category=&potluckType=&appearId='+encodeURIComponent(ctx.memberId)+'&elaboration='+encodeURIComponent('In my place: '+note)+'&timeSpec=&maxClaims=0').catch(function(){});
+    } else {
+      // Can't bring it (with or without a recommendation) -> remove me from bringing it. (Needs GAS removePotluckClaim.)
+      fetch(GS_URL+'?action=removePotluckClaim&eventId='+encodeURIComponent(ctx.eventId)+'&item='+encodeURIComponent(item)+'&appearId='+encodeURIComponent(ctx.memberId)+(note?'&note='+encodeURIComponent(note):'')).catch(function(){});
+    }
+  });
+  _closeCancelModal();
+  _doCancel(null, ctx.memberId, ctx.eventId);
+  _cancelCtx=null;
 };
 
 const PREVIEW_EVENT = {
