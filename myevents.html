@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.17 | Date: 2026-07-08 | LAST CHANGE: Host potluck add flow no longer asks for a parent category (item -> type -> timing -> slots); a pool item's known category is carried silently, free-typed items get none. (Prev V5.16: plural headers, blue-border box, page titles, cancel-commitment modal.) -->
+  <!-- Version: V5.18 | Date: 2026-07-08 | LAST CHANGE: Host add flow branches by type: item -> type -> [Skill: Q&A/Experiential/Other | Thing: Physical goods/Consumables/Living things | Experience: none] -> details (prepopulates the attendee sign-up note) -> timing ("If applicable, share how long...") -> slots. Sub-type stored in category, host detail in elaboration; shown next to the type. (Prev V5.17: dropped parent-category step.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -302,7 +302,7 @@ var _signupList = [];
 var _potluckClaims = [];
 var _potluckTypes = ['Skill','Experience','Thing'];
 var _hostSkillsPool = [];
-var _pl = {step:'',item:'',potluckType:'',category:'',timed:'yes',timeNum:'1',timeUnit:'hours',maxClaims:''};
+var _pl = {step:'',item:'',potluckType:'',category:'',elaboration:'',timed:'yes',timeNum:'1',timeUnit:'hours',maxClaims:''};
 
 var OLD_ID_TO_PARENT = {
   "arts":"Arts & Culture","movement":"Physical Wellbeing","nature":"Nature & Outdoors",
@@ -500,22 +500,31 @@ function buildPotluckWizardHTML(){
   }
   if(_pl.step==='type'){
     return '<div style="margin-top:12px;">'
-      +'<div style="font-size:14px;font-weight:600;margin-bottom:8px;">'+esc(_pl.item)+': <span style="font-weight:400;color:var(--muted);">Select the category:</span></div>'
+      +'<div style="font-size:14px;font-weight:600;margin-bottom:8px;">'+esc(_pl.item)+': <span style="font-weight:400;color:var(--muted);">What is this?</span></div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:8px;">'+_potluckTypes.map(function(t){var sel=_pl.potluckType===t;return '<span onclick="plHostSetType(\''+esc(t)+'\')" style="cursor:pointer;font-size:14px;font-weight:600;padding:8px 16px;border-radius:20px;border:1.5px solid '+(sel?'var(--primary)':'var(--border)')+';background:'+(sel?'var(--primary)':'#fff')+';color:'+(sel?'#fff':'var(--dark)')+';">'+esc(t)+'</span>';}).join('')+'</div>'
       +'</div>';
   }
-  if(_pl.step==='category'){
-    var labels=CATEGORIES.map(function(c){return c.label;});
-    return '<div style="margin-top:12px;">'
-      +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+' <span style="font-weight:400;color:var(--muted);">· '+esc(_pl.potluckType)+'</span></div>'
-      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Pick a category for context:</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px;">'+labels.map(function(l){return '<span onclick="plHostSetCategory(\''+esc(l)+'\')" style="cursor:pointer;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;background:'+(_pl.category===l?'var(--primary)':'#EBF5FB')+';color:'+(_pl.category===l?'#fff':'#1B6896')+';border:1px solid #AED6F1;">'+esc(l)+'</span>';}).join('')+'</div>'
-      +'</div>';
+  if(_pl.step==='subtype'){
+    var _isSkill=_pl.potluckType==='Skill';
+    var _opts=_isSkill?['Q&A session','Experiential learning session']:['📦 Physical goods','🍵 Consumables','🪴 Living things'];
+    var _prompt=_isSkill?'What kind of skill offering?':'What kind of thing?';
+    var _chips=_opts.map(function(o){var sel=_pl.category===o;return '<span onclick="plHostSetSubtype(\''+esc(o).replace(/'/g,"\\'")+'\')" style="cursor:pointer;font-size:13px;font-weight:600;padding:8px 14px;border-radius:20px;border:1.5px solid '+(sel?'var(--primary)':'var(--border)')+';background:'+(sel?'var(--primary)':'#fff')+';color:'+(sel?'#fff':'var(--dark)')+';">'+esc(o)+'</span>';}).join('');
+    var _other=_isSkill?'<input type="text" id="pl-host-sub-other" placeholder="Other (describe)" value="'+((_opts.indexOf(_pl.category)<0)?esc(_pl.category):'')+'" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-top:8px;" oninput="_pl.category=this.value;">':'';
+    return '<div style="margin-top:12px;"><div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">'+_prompt+'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;">'+_chips+'</div>'+_other
+      +'<button class="btn btn-primary" onclick="plHostSubNext()" style="width:100%;justify-content:center;margin-top:10px;">Next</button></div>';
+  }
+  if(_pl.step==='elaborate'){
+    return '<div style="margin-top:12px;"><div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Add details (this prepopulates what people see when they sign up).</div>'
+      +'<textarea id="pl-host-elab" placeholder="e.g. what it involves, what to expect, anything helpful…" style="width:100%;min-height:72px;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;" oninput="_pl.elaboration=this.value;">'+esc(_pl.elaboration||'')+'</textarea>'
+      +'<button class="btn btn-primary" onclick="plHostElabNext()" style="width:100%;justify-content:center;margin-top:10px;">Next</button></div>';
   }
   if(_pl.step==='timed'){
     var timedHtml='<div style="margin-top:12px;">'
       +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
-      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Is this offering for a specific time? For example, 1 hour or for the duration of the event?</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">If applicable, share how long you\'ll be providing this.</div>'
       +'<div style="display:flex;gap:6px;margin-bottom:10px;">'
       +'<span onclick="plHostSetTimed(\'yes\')" style="cursor:pointer;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;background:'+(_pl.timed==='yes'?'var(--primary)':'#f3f4f6')+';color:'+(_pl.timed==='yes'?'#fff':'var(--dark)')+';">Yes</span>'
       +'<span onclick="plHostSetTimed(\'no\')" style="cursor:pointer;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;background:'+(_pl.timed==='no'?'var(--primary)':'#f3f4f6')+';color:'+(_pl.timed==='no'?'#fff':'var(--dark)')+';">No</span>'
@@ -584,10 +593,13 @@ window.plHostStartType=function(){
 };
 window.plHostSetType=function(t){
   _pl.potluckType=t;
-  // No parent-category prompt - go straight to timing. Category was carried silently (if a known pool item).
-  _pl.step='timed';
+  _pl.category=''; // reset - the subtype step sets it (Skill format / Thing kind)
+  _pl.step=(t==='Skill'||t==='Thing')?'subtype':'elaborate'; // Experience skips subtype
   refreshPotluckHostSection();
 };
+window.plHostSetSubtype=function(v){ _pl.category=v; refreshPotluckHostSection(); };
+window.plHostSubNext=function(){ _pl.step='elaborate'; refreshPotluckHostSection(); };
+window.plHostElabNext=function(){ _pl.step='timed'; refreshPotluckHostSection(); };
 window.plHostSetCategory=function(c){
   _pl.category=c;
   _pl.step='timed';
@@ -616,9 +628,9 @@ window.plHostStepAfterTimed=function(){
 window.plHostFinish=function(){
   var capInp=document.getElementById('pl-host-cap-input');
   var cap=capInp&&capInp.value.trim()?parseInt(capInp.value.trim()):'';
-  _signupList.push({item:_pl.item,potluckType:_pl.potluckType,category:_pl.category,timeSpec:_pl.timeSpec||'',maxClaims:cap||''});
+  _signupList.push({item:_pl.item,potluckType:_pl.potluckType,category:_pl.category,elaboration:_pl.elaboration||'',timeSpec:_pl.timeSpec||'',maxClaims:cap||''});
   savePotluckHostList();
-  _pl={step:'',item:'',potluckType:'',category:'',timed:'yes',timeNum:'1',timeUnit:'hours',maxClaims:''};
+  _pl={step:'',item:'',potluckType:'',category:'',elaboration:'',timed:'yes',timeNum:'1',timeUnit:'hours',maxClaims:''};
   refreshPotluckHostSection();
 };
 window.removePotluckHostItem=function(i){
@@ -1697,7 +1709,8 @@ function buildHostSignupsHTML(memberId){
   function itemBlock(o){
     var it=o.it, claims=o.claims;
     var cap=it.maxClaims>0?(' ('+claims.length+'/'+it.maxClaims+')'):(claims.length?(' ('+claims.length+')'):'');
-    var typeLabel=it.potluckType?'<span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-left:6px;">'+esc(it.potluckType)+'</span>':'';
+    var _tl=[it.potluckType,it.category].filter(Boolean).join(' · ');
+    var typeLabel=_tl?'<span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-left:6px;">'+esc(_tl)+'</span>':'';
     var chips=claims.length?claims.map(_expClaimChip).join(''):'<div style="font-size:12px;color:var(--muted);margin-top:4px;">No sign-ups yet.</div>';
     return '<div style="padding:8px 0;border-bottom:1px solid var(--border);"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;"><div style="font-size:13px;font-weight:600;">'+esc(it.item)+cap+typeLabel+'</div><button onclick="editPotluckItem('+o.i+')" aria-label="Edit item" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 4px;flex-shrink:0;">✏️</button></div>'+chips+'</div>';
   }
@@ -1788,8 +1801,10 @@ function expRowHTML(i, memberId){
 function _expRerender(){ var el=document.getElementById('exp-contrib-list'); if(el) el.innerHTML=buildExpContribHTML(window._currentMyId); }
 window.expOpenForm=function(i, prefill){
   var host=document.getElementById('exp-form-'+i); if(!host) return;
+  // New sign-up prefills with the host's item details; editing uses your own saved note.
+  var _val=(prefill!==undefined&&prefill!==null)?prefill:((_signupList[i]&&_signupList[i].elaboration)||'');
   host.innerHTML='<div style="margin-top:8px;">'
-    +'<textarea id="exp-ta-'+i+'" placeholder="Please share more about what you\'ll bring and if you prefer a morning or afternoon slot. If there is something or someone who can help make your offering ideal, please share this too and we\'ll add it to the list!" style="width:100%;min-height:88px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;">'+esc(prefill||'')+'</textarea>'
+    +'<textarea id="exp-ta-'+i+'" placeholder="Please share more about what you\'ll bring and if you prefer a morning or afternoon slot. If there is something or someone who can help make your offering ideal, please share this too and we\'ll add it to the list!" style="width:100%;min-height:88px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;">'+esc(_val)+'</textarea>'
     +'<div style="margin-top:6px;display:flex;gap:8px;">'
     +'<button onclick="expSubmit('+i+')" style="background:var(--primary);color:#fff;border:none;padding:7px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;">Submit</button>'
     +'<button onclick="expCancelForm('+i+')" style="background:none;border:1px solid var(--border);padding:7px 14px;border-radius:20px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>'
