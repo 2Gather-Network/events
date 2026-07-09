@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.18 | Date: 2026-07-08 | LAST CHANGE: Host add flow branches by type: item -> type -> [Skill: Q&A/Experiential/Other | Thing: Physical goods/Consumables/Living things | Experience: none] -> details (prepopulates the attendee sign-up note) -> timing ("If applicable, share how long...") -> slots. Sub-type stored in category, host detail in elaboration; shown next to the type. (Prev V5.17: dropped parent-category step.) -->
+  <!-- Version: V5.19 | Date: 2026-07-08 | LAST CHANGE: Wizard polish: "+ Add other" chip reveals the custom field; Back button on every step; timing has a Skip button; slots reworded ("If applicable...Skip if not applicable") with Skip + Done. Edit-item modal now edits item/type/sub-type/details/timing/slots + has Delete. Removed "No sign-ups yet." from the OPEN list. (Prev V5.18: branched add flow.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -491,6 +491,8 @@ function buildPotluckHostListHTML(){
   }).join('');
 }
 function buildPotluckWizardHTML(){
+  var _back='<button onclick="plHostBack()" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px 0 8px;font-family:inherit;">← Back</button>';
+  var _skipStyle='flex:1;background:none;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:14px;cursor:pointer;font-family:inherit;';
   if(_pl.step===''){
     return '<div style="margin-top:12px;">'
       +'<input type="text" id="pl-host-item-input" placeholder="Enter an offering for the list" oninput="plHostFilterOfferings(this.value)" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-bottom:4px;">'
@@ -499,7 +501,7 @@ function buildPotluckWizardHTML(){
       +'</div>';
   }
   if(_pl.step==='type'){
-    return '<div style="margin-top:12px;">'
+    return '<div style="margin-top:12px;">'+_back
       +'<div style="font-size:14px;font-weight:600;margin-bottom:8px;">'+esc(_pl.item)+': <span style="font-weight:400;color:var(--muted);">What is this?</span></div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:8px;">'+_potluckTypes.map(function(t){var sel=_pl.potluckType===t;return '<span onclick="plHostSetType(\''+esc(t)+'\')" style="cursor:pointer;font-size:14px;font-weight:600;padding:8px 16px;border-radius:20px;border:1.5px solid '+(sel?'var(--primary)':'var(--border)')+';background:'+(sel?'var(--primary)':'#fff')+';color:'+(sel?'#fff':'var(--dark)')+';">'+esc(t)+'</span>';}).join('')+'</div>'
       +'</div>';
@@ -508,46 +510,44 @@ function buildPotluckWizardHTML(){
     var _isSkill=_pl.potluckType==='Skill';
     var _opts=_isSkill?['Q&A session','Experiential learning session']:['📦 Physical goods','🍵 Consumables','🪴 Living things'];
     var _prompt=_isSkill?'What kind of skill offering?':'What kind of thing?';
-    var _chips=_opts.map(function(o){var sel=_pl.category===o;return '<span onclick="plHostSetSubtype(\''+esc(o).replace(/'/g,"\\'")+'\')" style="cursor:pointer;font-size:13px;font-weight:600;padding:8px 14px;border-radius:20px;border:1.5px solid '+(sel?'var(--primary)':'var(--border)')+';background:'+(sel?'var(--primary)':'#fff')+';color:'+(sel?'#fff':'var(--dark)')+';">'+esc(o)+'</span>';}).join('');
-    var _other=_isSkill?'<input type="text" id="pl-host-sub-other" placeholder="Other (describe)" value="'+((_opts.indexOf(_pl.category)<0)?esc(_pl.category):'')+'" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-top:8px;" oninput="_pl.category=this.value;">':'';
-    return '<div style="margin-top:12px;"><div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
+    var _cs=function(sel){return 'cursor:pointer;font-size:13px;font-weight:600;padding:8px 14px;border-radius:20px;border:1.5px solid '+(sel?'var(--primary)':'var(--border)')+';background:'+(sel?'var(--primary)':'#fff')+';color:'+(sel?'#fff':'var(--dark)')+';';};
+    var _chips=_opts.map(function(o){var sel=!_pl.subOther&&_pl.category===o;return '<span onclick="plHostSetSubtype(\''+esc(o).replace(/'/g,"\\'")+'\')" style="'+_cs(sel)+'">'+esc(o)+'</span>';}).join('');
+    var _otherChip=_isSkill?'<span onclick="plHostSubOther()" style="'+_cs(!!_pl.subOther)+'">+ Add other</span>':'';
+    var _otherField=(_isSkill&&_pl.subOther)?'<input type="text" id="pl-host-sub-other" placeholder="Describe the offering" value="'+esc(_pl.category||'')+'" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-top:10px;" oninput="_pl.category=this.value;">':'';
+    return '<div style="margin-top:12px;">'+_back+'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
       +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">'+_prompt+'</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:8px;">'+_chips+'</div>'+_other
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;">'+_chips+_otherChip+'</div>'+_otherField
       +'<button class="btn btn-primary" onclick="plHostSubNext()" style="width:100%;justify-content:center;margin-top:10px;">Next</button></div>';
   }
   if(_pl.step==='elaborate'){
-    return '<div style="margin-top:12px;"><div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
+    return '<div style="margin-top:12px;">'+_back+'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
       +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Add details (this prepopulates what people see when they sign up).</div>'
       +'<textarea id="pl-host-elab" placeholder="e.g. what it involves, what to expect, anything helpful…" style="width:100%;min-height:72px;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;" oninput="_pl.elaboration=this.value;">'+esc(_pl.elaboration||'')+'</textarea>'
       +'<button class="btn btn-primary" onclick="plHostElabNext()" style="width:100%;justify-content:center;margin-top:10px;">Next</button></div>';
   }
   if(_pl.step==='timed'){
-    var timedHtml='<div style="margin-top:12px;">'
+    return '<div style="margin-top:12px;">'+_back
       +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
       +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">If applicable, share how long you\'ll be providing this.</div>'
-      +'<div style="display:flex;gap:6px;margin-bottom:10px;">'
-      +'<span onclick="plHostSetTimed(\'yes\')" style="cursor:pointer;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;background:'+(_pl.timed==='yes'?'var(--primary)':'#f3f4f6')+';color:'+(_pl.timed==='yes'?'#fff':'var(--dark)')+';">Yes</span>'
-      +'<span onclick="plHostSetTimed(\'no\')" style="cursor:pointer;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;background:'+(_pl.timed==='no'?'var(--primary)':'#f3f4f6')+';color:'+(_pl.timed==='no'?'#fff':'var(--dark)')+';">No</span>'
-      +'</div>';
-    if(_pl.timed==='yes'){
-      timedHtml+='<div style="display:flex;gap:8px;margin-bottom:10px;">'
-        +'<input type="number" id="pl-host-time-num" min="1" placeholder="#" value="'+esc(_pl.timeNum)+'" style="width:70px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;" oninput="_pl.timeNum=this.value;">'
-        +'<select id="pl-host-time-unit" onchange="plHostSetUnit(this.value)" style="flex:1;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;">'
-        +'<option value="">Select…</option>'
-        +'<option value="minutes"'+(_pl.timeUnit==='minutes'?' selected':'')+'>minutes</option>'
-        +'<option value="hours"'+(_pl.timeUnit==='hours'?' selected':'')+'>hours</option>'
-        +'<option value="entire event"'+(_pl.timeUnit==='entire event'?' selected':'')+'>entire event</option>'
-        +'</select></div>';
-    }
-    timedHtml+='<button class="btn btn-primary" onclick="plHostStepAfterTimed()" style="width:100%;justify-content:center;">Next</button></div>';
-    return timedHtml;
+      +'<div style="display:flex;gap:8px;margin-bottom:10px;">'
+      +'<input type="number" id="pl-host-time-num" min="1" placeholder="#" value="'+esc(_pl.timeNum)+'" style="width:70px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;" oninput="_pl.timeNum=this.value;">'
+      +'<select id="pl-host-time-unit" onchange="plHostSetUnit(this.value)" style="flex:1;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;">'
+      +'<option value="">Select…</option>'
+      +'<option value="minutes"'+(_pl.timeUnit==='minutes'?' selected':'')+'>minutes</option>'
+      +'<option value="hours"'+(_pl.timeUnit==='hours'?' selected':'')+'>hours</option>'
+      +'<option value="entire event"'+(_pl.timeUnit==='entire event'?' selected':'')+'>entire event</option>'
+      +'</select></div>'
+      +'<div style="display:flex;gap:8px;">'
+      +'<button onclick="plHostSkipTimed()" style="'+_skipStyle+'">Skip</button>'
+      +'<button class="btn btn-primary" onclick="plHostTimedNext()" style="flex:1;justify-content:center;">Next</button></div></div>';
   }
   if(_pl.step==='cap'){
-    return '<div style="margin-top:12px;">'
-      +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
-      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">How many people can sign up for this? Leave blank for no limit.</div>'
+    return '<div style="margin-top:12px;">'+_back+'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">If applicable, how many people can sign up for this? Skip if not applicable.</div>'
       +'<input type="number" id="pl-host-cap-input" min="1" placeholder="No limit" value="'+esc(_pl.maxClaims)+'" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-bottom:10px;" oninput="_pl.maxClaims=this.value;">'
-      +'<button class="btn btn-primary" onclick="plHostFinish()" style="width:100%;justify-content:center;">Add to sign up list</button>'
+      +'<div style="display:flex;gap:8px;">'
+      +'<button onclick="plHostSkipCap()" style="'+_skipStyle+'">Skip</button>'
+      +'<button class="btn btn-primary" onclick="plHostFinish()" style="flex:1;justify-content:center;">Done</button></div>'
       +'</div>';
   }
   return '';
@@ -593,42 +593,40 @@ window.plHostStartType=function(){
 };
 window.plHostSetType=function(t){
   _pl.potluckType=t;
-  _pl.category=''; // reset - the subtype step sets it (Skill format / Thing kind)
+  _pl.category=''; _pl.subOther=false; // reset - the subtype step sets it (Skill format / Thing kind)
   _pl.step=(t==='Skill'||t==='Thing')?'subtype':'elaborate'; // Experience skips subtype
   refreshPotluckHostSection();
 };
-window.plHostSetSubtype=function(v){ _pl.category=v; refreshPotluckHostSection(); };
+window.plHostSetSubtype=function(v){ _pl.category=v; _pl.subOther=false; refreshPotluckHostSection(); };
+window.plHostSubOther=function(){ _pl.subOther=true; _pl.category=''; refreshPotluckHostSection(); };
 window.plHostSubNext=function(){ _pl.step='elaborate'; refreshPotluckHostSection(); };
 window.plHostElabNext=function(){ _pl.step='timed'; refreshPotluckHostSection(); };
-window.plHostSetCategory=function(c){
-  _pl.category=c;
-  _pl.step='timed';
-  refreshPotluckHostSection();
-};
-window.plHostSetTimed=function(v){
-  _pl.timed=v;
-  if(v==='no'){_pl.timeNum='';_pl.timeUnit='';}
-  refreshPotluckHostSection();
-};
 window.plHostSetUnit=function(v){
   _pl.timeUnit=v;
   if(v==='entire event'){_pl.timeNum='';}
 };
-window.plHostStepAfterTimed=function(){
-  if(_pl.timed==='yes'){
-    if(_pl.timeUnit==='entire event'){ _pl.timeSpec='Entire event'; }
-    else if(_pl.timeNum&&_pl.timeUnit){ _pl.timeSpec=_pl.timeNum+' '+_pl.timeUnit; }
-    else { return; }
-  } else if(_pl.timed==='no'){
-    _pl.timeSpec='';
-  } else { return; }
+window.plHostTimedNext=function(){
+  if(_pl.timeUnit==='entire event'){ _pl.timeSpec='Entire event'; }
+  else if(_pl.timeNum&&_pl.timeUnit){ _pl.timeSpec=_pl.timeNum+' '+_pl.timeUnit; }
+  else { _pl.timeSpec=''; }
   _pl.step='cap';
   refreshPotluckHostSection();
 };
+window.plHostSkipTimed=function(){ _pl.timeSpec=''; _pl.step='cap'; refreshPotluckHostSection(); };
+window.plHostBack=function(){
+  var s=_pl.step;
+  if(s==='type') _pl.step='';
+  else if(s==='subtype') _pl.step='type';
+  else if(s==='elaborate') _pl.step=(_pl.potluckType==='Skill'||_pl.potluckType==='Thing')?'subtype':'type';
+  else if(s==='timed') _pl.step='elaborate';
+  else if(s==='cap') _pl.step='timed';
+  refreshPotluckHostSection();
+};
+window.plHostSkipCap=function(){ _pl.maxClaims='0'; plHostFinish(); };
 window.plHostFinish=function(){
-  var capInp=document.getElementById('pl-host-cap-input');
-  var cap=capInp&&capInp.value.trim()?parseInt(capInp.value.trim()):'';
-  _signupList.push({item:_pl.item,potluckType:_pl.potluckType,category:_pl.category,elaboration:_pl.elaboration||'',timeSpec:_pl.timeSpec||'',maxClaims:cap||''});
+  var capRaw=String(_pl.maxClaims||'').trim();
+  var cap=capRaw===''?'':(parseInt(capRaw,10)||0);
+  _signupList.push({item:_pl.item,potluckType:_pl.potluckType,category:_pl.category,elaboration:_pl.elaboration||'',timeSpec:_pl.timeSpec||'',maxClaims:cap});
   savePotluckHostList();
   _pl={step:'',item:'',potluckType:'',category:'',elaboration:'',timed:'yes',timeNum:'1',timeUnit:'hours',maxClaims:''};
   refreshPotluckHostSection();
@@ -645,18 +643,22 @@ function savePotluckHostList(){
 window.editPotluckItem=function(i){
   var it=_signupList[i]; if(!it) return;
   var typeOpts=_potluckTypes.map(function(t){return '<option value="'+esc(t)+'"'+((it.potluckType===t)?' selected':'')+'>'+esc(t)+'</option>';}).join('');
+  var lbl='font-size:12px;color:var(--muted);';
+  var inp='width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 12px;';
   var ov=document.createElement('div');
   ov.id='pl-edit-overlay';
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:400;padding:20px;';
-  ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:380px;box-sizing:border-box;">'
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:400;padding:20px;overflow:auto;';
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:400px;box-sizing:border-box;max-height:90vh;overflow:auto;">'
     +'<div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:12px;">Edit item</div>'
-    +'<label style="font-size:12px;color:var(--muted);">Item</label>'
-    +'<input id="pl-edit-item" value="'+esc(it.item)+'" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 12px;">'
-    +'<label style="font-size:12px;color:var(--muted);">Type</label>'
-    +'<select id="pl-edit-type" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 12px;">'+typeOpts+'</select>'
-    +'<label style="font-size:12px;color:var(--muted);">Slots (blank = 1, 0 = unlimited)</label>'
-    +'<input id="pl-edit-slots" type="number" min="0" value="'+esc(it.maxClaims)+'" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 16px;">'
-    +'<div style="display:flex;gap:8px;justify-content:flex-end;">'
+    +'<label style="'+lbl+'">Item</label><input id="pl-edit-item" value="'+esc(it.item)+'" style="'+inp+'">'
+    +'<label style="'+lbl+'">Type</label><select id="pl-edit-type" style="'+inp+'">'+typeOpts+'</select>'
+    +'<label style="'+lbl+'">Sub-type / kind</label><input id="pl-edit-cat" value="'+esc(it.category||'')+'" placeholder="e.g. Q&A session, Physical goods" style="'+inp+'">'
+    +'<label style="'+lbl+'">Details (prepopulates the sign-up note)</label><textarea id="pl-edit-elab" style="'+inp+'min-height:60px;">'+esc(it.elaboration||'')+'</textarea>'
+    +'<label style="'+lbl+'">How long (if applicable)</label><input id="pl-edit-time" value="'+esc(it.timeSpec||'')+'" placeholder="e.g. 1 hours, Entire event" style="'+inp+'">'
+    +'<label style="'+lbl+'">Slots (blank = 1, 0 = unlimited)</label><input id="pl-edit-slots" type="number" min="0" value="'+esc(it.maxClaims)+'" style="'+inp+'margin-bottom:16px;">'
+    +'<div style="display:flex;gap:8px;align-items:center;">'
+    +'<button onclick="deletePlItem('+i+')" style="background:none;border:none;color:#c0392b;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;padding:8px 4px;">Delete</button>'
+    +'<div style="flex:1;"></div>'
     +'<button onclick="closePlEdit()" style="background:none;border:1px solid var(--border);padding:8px 16px;border-radius:20px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>'
     +'<button onclick="savePlEdit('+i+')" style="background:var(--primary);color:#fff;border:none;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Save</button>'
     +'</div></div>';
@@ -664,16 +666,27 @@ window.editPotluckItem=function(i){
   document.body.appendChild(ov);
 };
 window.closePlEdit=function(){ var o=document.getElementById('pl-edit-overlay'); if(o) o.remove(); };
+window.deletePlItem=function(i){
+  if(!confirm('Delete this item from the list?')) return;
+  _signupList.splice(i,1);
+  savePotluckHostList();
+  closePlEdit();
+  refreshPotluckHostSection();
+};
 window.savePlEdit=function(i){
   var it=_signupList[i]; if(!it) return;
-  var nm=document.getElementById('pl-edit-item'), tp=document.getElementById('pl-edit-type'), sl=document.getElementById('pl-edit-slots');
+  var nm=document.getElementById('pl-edit-item'), tp=document.getElementById('pl-edit-type'),
+      ct=document.getElementById('pl-edit-cat'), el=document.getElementById('pl-edit-elab'),
+      tm=document.getElementById('pl-edit-time'), sl=document.getElementById('pl-edit-slots');
   if(nm&&nm.value.trim()) it.item=nm.value.trim();
   if(tp) it.potluckType=tp.value;
+  if(ct) it.category=ct.value.trim();
+  if(el) it.elaboration=el.value;
+  if(tm) it.timeSpec=tm.value.trim();
   if(sl){ var v=sl.value.trim(); it.maxClaims = v===''?'':(parseInt(v,10)||0); }
   savePotluckHostList();
   closePlEdit();
   refreshPotluckHostSection();
-  var hs=document.getElementById('exp-host-signups'); if(hs) hs.innerHTML=buildHostSignupsHTML(window._currentMyId);
 };
 async function loadPotluckClaims(eventId){
   try{
@@ -1711,7 +1724,7 @@ function buildHostSignupsHTML(memberId){
     var cap=it.maxClaims>0?(' ('+claims.length+'/'+it.maxClaims+')'):(claims.length?(' ('+claims.length+')'):'');
     var _tl=[it.potluckType,it.category].filter(Boolean).join(' · ');
     var typeLabel=_tl?'<span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-left:6px;">'+esc(_tl)+'</span>':'';
-    var chips=claims.length?claims.map(_expClaimChip).join(''):'<div style="font-size:12px;color:var(--muted);margin-top:4px;">No sign-ups yet.</div>';
+    var chips=claims.length?claims.map(_expClaimChip).join(''):'';
     return '<div style="padding:8px 0;border-bottom:1px solid var(--border);"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;"><div style="font-size:13px;font-weight:600;">'+esc(it.item)+cap+typeLabel+'</div><button onclick="editPotluckItem('+o.i+')" aria-label="Edit item" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 4px;flex-shrink:0;">✏️</button></div>'+chips+'</div>';
   }
   var hdr='font-size:16px;font-weight:700;color:var(--dark);margin:16px 0 4px;';
