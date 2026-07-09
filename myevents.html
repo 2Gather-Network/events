@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.14 | Date: 2026-07-08 | LAST CHANGE: Attendee view shows only YOUR sign-up (not everyone's); names never show raw IDs ("You"/"Someone" fallback); "❓ Help" in the contribution box header (mailto hostEmail, else host profile); longer sign-up note placeholder. (Prev V5.13: new-item->OPEN, 1hr default, names host-only, cancel re-register link. ASSUMPTIONS: needs GAS getInitials/"Info" + removePotluckClaim.) -->
+  <!-- Version: V5.15 | Date: 2026-07-08 | LAST CHANGE: Attendee contribution list grouped into Skill/Experience/Thing headers, 5 per group with "Show 6-10" pagination; Help now COPIES the host email (with @ check; falls back to host profile for missing/invalid emails) instead of a dead mailto. (Prev V5.14: attendee-own-only, names not IDs, Help, placeholder.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1611,9 +1611,18 @@ async function renderMyEventsList(memberId, data) {
 // "Manage my experience" - the per-event Event experience panel (personal hub for one event).
 // Help affordance: email the host if there's an email, else link to their event profile.
 function _helpLink(ev){
-  var href = (ev && ev.hostEmail) ? ('mailto:'+ev.hostEmail) : ('https://creating.works/intake.html?show='+encodeURIComponent((ev&&ev.hostMemberCard)||''));
-  return '<a href="'+href+'" title="Ask the host for help" style="text-decoration:none;font-size:13px;color:#1B6896;font-weight:700;white-space:nowrap;flex-shrink:0;">❓ Help</a>';
+  var email = ev && ev.hostEmail ? String(ev.hostEmail).trim() : '';
+  if(email && email.indexOf('@')>-1){
+    return '<button onclick="helpClick(this,\''+email.replace(/['"\\]/g,'')+'\')" title="Copy the host\'s email" style="background:none;border:none;cursor:pointer;font-size:13px;color:#1B6896;font-weight:700;white-space:nowrap;flex-shrink:0;font-family:inherit;padding:0;">❓ Help</button>';
+  }
+  var prof='https://creating.works/intake.html?show='+encodeURIComponent((ev&&ev.hostMemberCard)||'');
+  return '<a href="'+prof+'" title="Ask the host" style="text-decoration:none;font-size:13px;color:#1B6896;font-weight:700;white-space:nowrap;flex-shrink:0;">❓ Help</a>';
 }
+window.helpClick=function(btn, email){
+  try{ navigator.clipboard.writeText(email); }catch(e){}
+  var o=btn.textContent; btn.textContent='✓ Copied '+email; btn.style.color='#1a7f4b';
+  setTimeout(function(){ btn.textContent=o; btn.style.color='#1B6896'; },3000);
+};
 async function renderEventExperience(memberId, eventId, data) {
   const ev = (data.events || []).filter(r => r.id).map(toEv).find(e => e.id === eventId);
   const card = document.getElementById("card");
@@ -1718,10 +1727,31 @@ function _expClaimChip(c){
   var link='https://creating.works/intake.html?show='+encodeURIComponent(c.appearId||'');
   return '<a href="'+link+'" style="display:flex;align-items:flex-start;gap:8px;text-decoration:none;color:var(--dark);margin-top:8px;">'+ph+'<div><div style="font-size:13px;font-weight:600;">'+nm+'</div>'+note+'</div></a>';
 }
+var _expPage={};
 function buildExpContribHTML(memberId){
   if(!_signupList.length) return '<div style="font-size:13px;color:var(--muted);">Nothing to bring yet.</div>';
-  return _signupList.map(function(it,i){ return expRowHTML(i, memberId); }).join('');
+  var cats=['Skill','Experience','Thing'];
+  var groups={Skill:[],Experience:[],Thing:[]}, other=[];
+  _signupList.forEach(function(it,i){
+    var t=(it.potluckType||'').trim().toLowerCase();
+    var key=cats.filter(function(c){return c.toLowerCase()===t;})[0];
+    (key?groups[key]:other).push(i);
+  });
+  function grp(label, idxs){
+    if(!idxs.length) return '';
+    var shown=_expPage[label]||5;
+    var vis=idxs.slice(0,shown);
+    var h='<div style="font-size:16px;font-weight:700;color:var(--dark);margin:16px 0 6px;">'+label+'</div>';
+    h+=vis.map(function(i){return expRowHTML(i, memberId);}).join('');
+    if(idxs.length>shown){
+      var next=Math.min(shown+5, idxs.length);
+      h+='<button onclick="expShowMore(\''+label+'\')" style="background:none;border:none;color:var(--primary);font-weight:700;font-size:13px;cursor:pointer;padding:8px 0;font-family:inherit;">Show '+(shown+1)+'–'+next+' ↓</button>';
+    }
+    return h;
+  }
+  return grp('Skill',groups.Skill)+grp('Experience',groups.Experience)+grp('Thing',groups.Thing)+grp('Other',other);
 }
+window.expShowMore=function(label){ _expPage[label]=(_expPage[label]||5)+5; _expRerender(); };
 function expRowHTML(i, memberId){
   var it=_signupList[i];
   var claims=_potluckClaims.filter(function(c){ return c.item===it.item; });
