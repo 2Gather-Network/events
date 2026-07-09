@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.13 | Date: 2026-07-08 | LAST CHANGE: New host items now appear in SIGNED UP/OPEN immediately; timing defaults to 1 hour; names lookup (getInitials) runs for HOST only (attendee side pays no extra call); cancel message now offers a "Visit event" link to re-register. (Prev V5.12: eventId threaded to profile link. ASSUMPTIONS: needs GAS getInitials/"Info" sheet + removePotluckClaim.) -->
+  <!-- Version: V5.14 | Date: 2026-07-08 | LAST CHANGE: Attendee view shows only YOUR sign-up (not everyone's); names never show raw IDs ("You"/"Someone" fallback); "❓ Help" in the contribution box header (mailto hostEmail, else host profile); longer sign-up note placeholder. (Prev V5.13: new-item->OPEN, 1hr default, names host-only, cancel re-register link. ASSUMPTIONS: needs GAS getInitials/"Info" + removePotluckClaim.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -471,7 +471,7 @@ function toEv(r) {
     categories: (r.categories||"").split(",").map(s=>s.trim()).filter(Boolean),
     venue: r.venue||"",
     intakeRedirect: r.intakeRedirect||"",
-    hostMemberCard: r.hostMemberCard||"", signupPotluck: r.signupPotluck||"",
+    hostMemberCard: r.hostMemberCard||"", signupPotluck: r.signupPotluck||"", hostEmail: r.hostEmail||"",
   };
 }
 
@@ -1609,6 +1609,11 @@ async function renderMyEventsList(memberId, data) {
 }
 
 // "Manage my experience" - the per-event Event experience panel (personal hub for one event).
+// Help affordance: email the host if there's an email, else link to their event profile.
+function _helpLink(ev){
+  var href = (ev && ev.hostEmail) ? ('mailto:'+ev.hostEmail) : ('https://creating.works/intake.html?show='+encodeURIComponent((ev&&ev.hostMemberCard)||''));
+  return '<a href="'+href+'" title="Ask the host for help" style="text-decoration:none;font-size:13px;color:#1B6896;font-weight:700;white-space:nowrap;flex-shrink:0;">❓ Help</a>';
+}
 async function renderEventExperience(memberId, eventId, data) {
   const ev = (data.events || []).filter(r => r.id).map(toEv).find(e => e.id === eventId);
   const card = document.getElementById("card");
@@ -1650,14 +1655,14 @@ async function renderEventExperience(memberId, eventId, data) {
   if (isHost) {
     // Host view: add/edit items + everyone's sign-ups grouped by category.
     html += '<div style="margin-top:22px;padding:16px;border:1.5px solid #1B6896;border-radius:12px;">'
-      + '<p style="font-size:18px;font-weight:700;color:var(--dark);margin:0 0 12px;">🎁 Host — manage contributions</p>'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;"><p style="font-size:18px;font-weight:700;color:var(--dark);margin:0;">🎁 Host — manage contributions</p>'+_helpLink(ev)+'</div>'
       + '<div id="potluck-host-list">' + buildPotluckHostListHTML() + '</div>'
       + '<div id="potluck-host-wizard">' + buildPotluckWizardHTML() + '</div>'
       + '<div id="exp-host-signups">' + buildHostSignupsHTML(memberId) + '</div>'
       + '</div>';
   } else if (_signupList.length) {
     html += '<div style="margin-top:22px;padding:16px;background:#EBF5FB;border:1.5px solid #AED6F1;border-radius:10px;">'
-      + '<p style="font-size:18px;font-weight:700;color:var(--dark);margin:0 0 12px;">🎁 Event contribution list</p>'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;"><p style="font-size:18px;font-weight:700;color:var(--dark);margin:0;">🎁 Event contribution list</p>'+_helpLink(ev)+'</div>'
       + '<div id="exp-contrib-list">' + buildExpContribHTML(memberId) + '</div></div>';
   }
   html += '</div>';
@@ -1706,7 +1711,7 @@ async function loadNames(){
   }catch(e){}
 }
 function _expClaimChip(c){
-  var nmRaw=_lookupName(c.appearId)||c.name||c.appearId||'Someone';
+  var nmRaw=(_expNorm(c.appearId)===_expNorm(window._currentMyId))?'You':(_lookupName(c.appearId)||c.name||'Someone');
   var ph=c.photo?'<img src="'+esc(c.photo)+'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'">':'<div style="width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">'+esc(String(nmRaw).charAt(0).toUpperCase())+'</div>';
   var nm=esc(nmRaw);
   var note=c.elaboration?'<div style="font-size:12px;color:var(--muted);margin-top:1px;">'+esc(c.elaboration)+'</div>':'';
@@ -1734,7 +1739,8 @@ function expRowHTML(i, memberId){
   } else {
     action='<button onclick="expOpenForm('+i+')" style="background:var(--primary);color:#fff;border:none;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Sign me up!</button>';
   }
-  var chips=claims.map(_expClaimChip).join('');
+  // Attendee view: show only MY own sign-up (with my note) — not everyone else's.
+  var chips=mineClaim?_expClaimChip(mineClaim):'';
   return '<div id="exp-row-'+i+'" style="border-bottom:1px solid var(--border);padding:12px 0;">'
     +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
     +'<div><div style="font-size:14px;font-weight:600;">'+esc(it.item)+'</div>'+typeLabel+'</div>'
@@ -1747,7 +1753,7 @@ function _expRerender(){ var el=document.getElementById('exp-contrib-list'); if(
 window.expOpenForm=function(i, prefill){
   var host=document.getElementById('exp-form-'+i); if(!host) return;
   host.innerHTML='<div style="margin-top:8px;">'
-    +'<textarea id="exp-ta-'+i+'" placeholder="Please share more about what you\'ll bring, and if you prefer a morning or afternoon slot." style="width:100%;min-height:70px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;">'+esc(prefill||'')+'</textarea>'
+    +'<textarea id="exp-ta-'+i+'" placeholder="Please share more about what you\'ll bring and if you prefer a morning or afternoon slot. If there is something or someone who can help make your offering ideal, please share this too and we\'ll add it to the list!" style="width:100%;min-height:88px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;">'+esc(prefill||'')+'</textarea>'
     +'<div style="margin-top:6px;display:flex;gap:8px;">'
     +'<button onclick="expSubmit('+i+')" style="background:var(--primary);color:#fff;border:none;padding:7px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;">Submit</button>'
     +'<button onclick="expCancelForm('+i+')" style="background:none;border:1px solid var(--border);padding:7px 14px;border-radius:20px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>'
