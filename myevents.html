@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.19 | Date: 2026-07-08 | LAST CHANGE: Wizard polish: "+ Add other" chip reveals the custom field; Back button on every step; timing has a Skip button; slots reworded ("If applicable...Skip if not applicable") with Skip + Done. Edit-item modal now edits item/type/sub-type/details/timing/slots + has Delete. Removed "No sign-ups yet." from the OPEN list. (Prev V5.18: branched add flow.) -->
+  <!-- Version: V5.20 | Date: 2026-07-08 | LAST CHANGE: Edit-item modal: Sub-type is now a type-aware dropdown (Skill: Q&A/Experiential/Other; Thing: goods/consumables/living; changes with Type), and "How long" is the number+unit dropdown (like the add flow). (Prev V5.19: wizard Skip/Back/Other, edit modal fields + Delete.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -640,22 +640,45 @@ function savePotluckHostList(){
   fetch(GS_URL+'?action=savePotluckItem&eventId='+encodeURIComponent(window._currentEventId||(_currentEv&&_currentEv.id)||'')+'&potluckJson='+encodeURIComponent(JSON.stringify(_signupList))).catch(function(){});
 }
 // Edit an existing potluck item (name / type / slots) in a modal.
+var _PL_INP='width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 12px;';
+function _plSubtypeSelectHTML(type, current){
+  var opts = type==='Skill'?['Q&A session','Experiential learning session']:(type==='Thing'?['📦 Physical goods','🍵 Consumables','🪴 Living things']:[]);
+  if(!opts.length) return '<div style="font-size:13px;color:var(--muted);margin:4px 0 12px;">— (not needed for Experiences)</div>';
+  var isOther = type==='Skill' && current && opts.indexOf(current)<0;
+  var sel='<select id="pl-edit-cat" onchange="plEditSubChange()" style="'+_PL_INP+'">';
+  opts.forEach(function(o){ sel+='<option value="'+esc(o)+'"'+((current===o)?' selected':'')+'>'+esc(o)+'</option>'; });
+  if(type==='Skill') sel+='<option value="__other__"'+(isOther?' selected':'')+'>Other…</option>';
+  sel+='</select>';
+  var other=(type==='Skill')?'<input id="pl-edit-cat-other" value="'+(isOther?esc(current):'')+'" placeholder="Describe the offering" style="'+_PL_INP+(isOther?'':'display:none;')+'">':'';
+  return sel+other;
+}
 window.editPotluckItem=function(i){
   var it=_signupList[i]; if(!it) return;
   var typeOpts=_potluckTypes.map(function(t){return '<option value="'+esc(t)+'"'+((it.potluckType===t)?' selected':'')+'>'+esc(t)+'</option>';}).join('');
   var lbl='font-size:12px;color:var(--muted);';
-  var inp='width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 12px;';
+  // parse timeSpec into number + unit for the dropdowns
+  var tNum='', tUnit='', ts=String(it.timeSpec||'').trim();
+  if(/^entire event$/i.test(ts)){ tUnit='entire event'; }
+  else { var mt=ts.match(/^(\d+)\s+(minutes|hours)$/i); if(mt){ tNum=mt[1]; tUnit=mt[2].toLowerCase(); } }
+  var timeSel='<div style="display:flex;gap:8px;margin:4px 0 12px;">'
+    +'<input id="pl-edit-time-num" type="number" min="1" placeholder="#" value="'+esc(tNum)+'" style="width:70px;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;">'
+    +'<select id="pl-edit-time-unit" style="flex:1;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;">'
+    +'<option value="">Not applicable</option>'
+    +'<option value="minutes"'+(tUnit==='minutes'?' selected':'')+'>minutes</option>'
+    +'<option value="hours"'+(tUnit==='hours'?' selected':'')+'>hours</option>'
+    +'<option value="entire event"'+(tUnit==='entire event'?' selected':'')+'>entire event</option>'
+    +'</select></div>';
   var ov=document.createElement('div');
   ov.id='pl-edit-overlay';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:400;padding:20px;overflow:auto;';
   ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:400px;box-sizing:border-box;max-height:90vh;overflow:auto;">'
     +'<div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:12px;">Edit item</div>'
-    +'<label style="'+lbl+'">Item</label><input id="pl-edit-item" value="'+esc(it.item)+'" style="'+inp+'">'
-    +'<label style="'+lbl+'">Type</label><select id="pl-edit-type" style="'+inp+'">'+typeOpts+'</select>'
-    +'<label style="'+lbl+'">Sub-type / kind</label><input id="pl-edit-cat" value="'+esc(it.category||'')+'" placeholder="e.g. Q&A session, Physical goods" style="'+inp+'">'
-    +'<label style="'+lbl+'">Details (prepopulates the sign-up note)</label><textarea id="pl-edit-elab" style="'+inp+'min-height:60px;">'+esc(it.elaboration||'')+'</textarea>'
-    +'<label style="'+lbl+'">How long (if applicable)</label><input id="pl-edit-time" value="'+esc(it.timeSpec||'')+'" placeholder="e.g. 1 hours, Entire event" style="'+inp+'">'
-    +'<label style="'+lbl+'">Slots (blank = 1, 0 = unlimited)</label><input id="pl-edit-slots" type="number" min="0" value="'+esc(it.maxClaims)+'" style="'+inp+'margin-bottom:16px;">'
+    +'<label style="'+lbl+'">Item</label><input id="pl-edit-item" value="'+esc(it.item)+'" style="'+_PL_INP+'">'
+    +'<label style="'+lbl+'">Type</label><select id="pl-edit-type" onchange="plEditTypeChange()" style="'+_PL_INP+'">'+typeOpts+'</select>'
+    +'<label style="'+lbl+'">Sub-type / kind</label><div id="pl-edit-sub-wrap">'+_plSubtypeSelectHTML(it.potluckType, it.category)+'</div>'
+    +'<label style="'+lbl+'">Details (prepopulates the sign-up note)</label><textarea id="pl-edit-elab" style="'+_PL_INP+'min-height:60px;">'+esc(it.elaboration||'')+'</textarea>'
+    +'<label style="'+lbl+'">How long (if applicable)</label>'+timeSel
+    +'<label style="'+lbl+'">Slots (blank = 1, 0 = unlimited)</label><input id="pl-edit-slots" type="number" min="0" value="'+esc(it.maxClaims)+'" style="'+_PL_INP+'margin-bottom:16px;">'
     +'<div style="display:flex;gap:8px;align-items:center;">'
     +'<button onclick="deletePlItem('+i+')" style="background:none;border:none;color:#c0392b;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;padding:8px 4px;">Delete</button>'
     +'<div style="flex:1;"></div>'
@@ -664,6 +687,14 @@ window.editPotluckItem=function(i){
     +'</div></div>';
   ov.onclick=function(e){ if(e.target===ov) closePlEdit(); };
   document.body.appendChild(ov);
+};
+window.plEditTypeChange=function(){
+  var tp=document.getElementById('pl-edit-type'), wrap=document.getElementById('pl-edit-sub-wrap');
+  if(tp&&wrap) wrap.innerHTML=_plSubtypeSelectHTML(tp.value,'');
+};
+window.plEditSubChange=function(){
+  var s=document.getElementById('pl-edit-cat'), o=document.getElementById('pl-edit-cat-other');
+  if(s&&o) o.style.display=(s.value==='__other__')?'block':'none';
 };
 window.closePlEdit=function(){ var o=document.getElementById('pl-edit-overlay'); if(o) o.remove(); };
 window.deletePlItem=function(i){
@@ -676,13 +707,15 @@ window.deletePlItem=function(i){
 window.savePlEdit=function(i){
   var it=_signupList[i]; if(!it) return;
   var nm=document.getElementById('pl-edit-item'), tp=document.getElementById('pl-edit-type'),
-      ct=document.getElementById('pl-edit-cat'), el=document.getElementById('pl-edit-elab'),
-      tm=document.getElementById('pl-edit-time'), sl=document.getElementById('pl-edit-slots');
+      sc=document.getElementById('pl-edit-cat'), so=document.getElementById('pl-edit-cat-other'),
+      el=document.getElementById('pl-edit-elab'), sl=document.getElementById('pl-edit-slots'),
+      tn=document.getElementById('pl-edit-time-num'), tu=document.getElementById('pl-edit-time-unit');
   if(nm&&nm.value.trim()) it.item=nm.value.trim();
   if(tp) it.potluckType=tp.value;
-  if(ct) it.category=ct.value.trim();
+  if(it.potluckType==='Experience'){ it.category=''; }
+  else if(sc){ it.category = (sc.value==='__other__') ? ((so&&so.value.trim())||'') : sc.value; }
   if(el) it.elaboration=el.value;
-  if(tm) it.timeSpec=tm.value.trim();
+  if(tu){ var u=tu.value; it.timeSpec = (u==='entire event')?'Entire event':((tn&&tn.value.trim()&&u)?(tn.value.trim()+' '+u):''); }
   if(sl){ var v=sl.value.trim(); it.maxClaims = v===''?'':(parseInt(v,10)||0); }
   savePotluckHostList();
   closePlEdit();
