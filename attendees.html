@@ -1,4 +1,4 @@
-<!-- Version: V2.25 | Date: 2026-07-07 | LAST CHANGE: Chip clicks now always open the event profile (intake ?show=), never the Appear Network page -->
+<!-- Version: V2.26 | Date: 2026-07-08 | LAST CHANGE: Added a "🎁 Who's bringing what" section (getPotluckList grouped by item, photo+name -> event profile) below the quadrants. -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -129,6 +129,8 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
     <div class="q-body" id="needs-body"><span class="loading">Loading…</span></div>
   </div>
 </div>
+
+<div id="contrib-section" style="max-width:1400px;margin:14px auto 0;padding:0 16px;"></div>
 
 <script>
 var GS_URL='https://script.google.com/macros/s/AKfycbzEavMnG4tMeWemoT5FLu9f_zjlKVIJsZLueG4nhw9akK0_nZqpbkZiXrAlWu1Fyhq9/exec';
@@ -449,10 +451,30 @@ function filterAll(q){ _searchQ=(q||'').toLowerCase().trim(); renderAll(); }
   loadEvent();                                             // independent, fire-and-forget
   var enrich=Promise.all([loadRefData(), loadCategories()]); // heavy — don't block first paint
   await loadMembers();                                     // first paint
+  loadContributions();                                     // who's bringing what (getPotluckList - one call, after members)
   await enrich;
   buildChips(); renderAll();                               // re-render with categories + exclusions
 })();
+// Hub "who's bringing what": group the event's sign-ups (getPotluckList) by item, each with photo + name -> event profile.
+async function loadContributions(){
+  var el=document.getElementById('contrib-section'); if(!el) return;
+  var claims=[];
+  try{ var res=await fetch(GS_URL+'?action=getPotluckList&eventId='+encodeURIComponent(_eventId)); var d=await res.json(); claims=(d&&d.claims)||[]; }catch(e){}
+  if(!claims.length){ el.innerHTML=''; return; }
+  var byItem={};
+  claims.forEach(function(c){ var it=c.item||'(item)'; (byItem[it]=byItem[it]||[]).push(c); });
+  function chip(c){
+    var nm=escHTML(c.name||'Someone');
+    var ph=c.photo?'<img src="'+escHTML(c.photo)+'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'">':'<div style="width:24px;height:24px;border-radius:50%;background:#1B6896;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">'+escHTML(nm.charAt(0).toUpperCase())+'</div>';
+    var link=INTAKE_URL+encodeURIComponent(c.appearId||'');
+    return '<a href="'+link+'" style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e5e7eb;border-radius:20px;padding:3px 12px 3px 3px;text-decoration:none;color:#1a1a2e;margin:0 6px 6px 0;">'+ph+'<span style="font-size:12px;">'+nm+'</span></a>';
+  }
+  var rows=Object.keys(byItem).map(function(it){
+    return '<div style="padding:10px 0;border-bottom:1px solid #e5e7eb;"><div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:6px;">'+escHTML(it)+'</div>'+byItem[it].map(chip).join('')+'</div>';
+  }).join('');
+  el.innerHTML='<div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px 20px;"><div style="font-size:18px;font-weight:800;color:#1a1a2e;margin-bottom:10px;">🎁 Who\'s bringing what</div>'+rows+'</div>';
+}
 </script>
 </body>
 </html>
-<!-- Version: V2.25 | Date: 2026-07-07 | LAST CHANGE: Chip clicks now always open the event profile (intake ?show=), never the Appear Network page -->
+<!-- Version: V2.26 | Date: 2026-07-08 | LAST CHANGE: Added a "🎁 Who's bringing what" section (getPotluckList grouped by item, photo+name -> event profile) below the quadrants. -->
