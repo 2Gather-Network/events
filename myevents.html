@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.25 | Date: 2026-07-13 | LAST CHANGE: Nav spacing tuned to match intake (18px above / 20px below the blue strip). (Prev V5.24: nav bar moved above the white card.) -->
+  <!-- Version: V5.26 | Date: 2026-07-13 | LAST CHANGE: Potluck wizard: slots question reworded + defaults to 1 (Skip=unlimited); edit label "Number of slots (0 = unlimited)"; Experience now asks "Is a thing involved?" -> Physical goods/Consumables/Living things (stored as sub-type, editable). (Prev V5.25: nav spacing.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -303,7 +303,7 @@ var _signupList = [];
 var _potluckClaims = [];
 var _potluckTypes = ['Skill','Experience','Thing'];
 var _hostSkillsPool = [];
-var _pl = {step:'',item:'',potluckType:'',category:'',elaboration:'',timed:'yes',timeNum:'1',timeUnit:'hours',maxClaims:''};
+var _pl = {step:'',item:'',potluckType:'',category:'',elaboration:'',timed:'yes',timeNum:'1',timeUnit:'hours',maxClaims:'1'};
 
 var OLD_ID_TO_PARENT = {
   "arts":"Arts & Culture","movement":"Physical Wellbeing","nature":"Nature & Outdoors",
@@ -510,7 +510,7 @@ function buildPotluckWizardHTML(){
   if(_pl.step==='subtype'){
     var _isSkill=_pl.potluckType==='Skill';
     var _opts=_isSkill?['Q&A session','Experiential learning session']:['📦 Physical goods','🍵 Consumables','🪴 Living things'];
-    var _prompt=_isSkill?'What kind of skill offering?':'What kind of thing?';
+    var _prompt=_isSkill?'What kind of skill offering?':(_pl.potluckType==='Experience'?'What kind of thing is involved?':'What kind of thing?');
     var _cs=function(sel){return 'cursor:pointer;font-size:13px;font-weight:600;padding:8px 14px;border-radius:20px;border:1.5px solid '+(sel?'var(--primary)':'var(--border)')+';background:'+(sel?'var(--primary)':'#fff')+';color:'+(sel?'#fff':'var(--dark)')+';';};
     var _chips=_opts.map(function(o){var sel=!_pl.subOther&&_pl.category===o;return '<span onclick="plHostSetSubtype(\''+esc(o).replace(/'/g,"\\'")+'\')" style="'+_cs(sel)+'">'+esc(o)+'</span>';}).join('');
     var _otherChip=_isSkill?'<span onclick="plHostSubOther()" style="'+_cs(!!_pl.subOther)+'">+ Add other</span>':'';
@@ -519,6 +519,15 @@ function buildPotluckWizardHTML(){
       +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">'+_prompt+'</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:8px;">'+_chips+_otherChip+'</div>'+_otherField
       +'<button class="btn btn-primary" onclick="plHostSubNext()" style="width:100%;justify-content:center;margin-top:10px;">Next</button></div>';
+  }
+  if(_pl.step==='thinginvolved'){
+    var _yn=function(sel){return 'cursor:pointer;font-size:14px;font-weight:600;padding:8px 18px;border-radius:20px;border:1.5px solid '+(sel?'var(--primary)':'var(--border)')+';background:'+(sel?'var(--primary)':'#fff')+';color:'+(sel?'#fff':'var(--dark)')+';';};
+    return '<div style="margin-top:12px;">'+_back+'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Is a thing involved in this experience?</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;">'
+      +'<span onclick="plHostThing(true)" style="'+_yn(false)+'">Yes</span>'
+      +'<span onclick="plHostThing(false)" style="'+_yn(false)+'">No</span>'
+      +'</div></div>';
   }
   if(_pl.step==='elaborate'){
     return '<div style="margin-top:12px;">'+_back+'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
@@ -544,8 +553,8 @@ function buildPotluckWizardHTML(){
   }
   if(_pl.step==='cap'){
     return '<div style="margin-top:12px;">'+_back+'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
-      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">If applicable, how many people can sign up for this? Skip if not applicable.</div>'
-      +'<input type="number" id="pl-host-cap-input" min="1" placeholder="No limit" value="'+esc(_pl.maxClaims)+'" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-bottom:10px;" oninput="_pl.maxClaims=this.value;">'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">If there is a limit of how many people can sign up to bring this to the event, share the limit below. Skip if not applicable.</div>'
+      +'<input type="number" id="pl-host-cap-input" min="1" placeholder="1" value="'+esc(_pl.maxClaims)+'" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-bottom:10px;" oninput="_pl.maxClaims=this.value;">'
       +'<div style="display:flex;gap:8px;">'
       +'<button onclick="plHostSkipCap()" style="'+_skipStyle+'">Skip</button>'
       +'<button class="btn btn-primary" onclick="plHostFinish()" style="flex:1;justify-content:center;">Done</button></div>'
@@ -577,6 +586,7 @@ window.plHostFilterOfferings=function(q){
 };
 window.plHostPickOffering=function(item){
   _pl.item=item;
+  _pl.maxClaims='1'; _pl.elaboration=''; _pl.timeSpec='';
   // Silently carry the known parent-category from the skills pool (no prompt); free-typed items get none.
   var _m=_hostSkillsPool.filter(function(r){return String(r.item||'')===item;})[0];
   _pl.category=(_m&&_m.category)||'';
@@ -587,6 +597,7 @@ window.plHostStartType=function(){
   var inp=document.getElementById('pl-host-item-input');
   if(!inp||!inp.value.trim()) return;
   _pl.item=inp.value.trim();
+  _pl.maxClaims='1'; _pl.elaboration=''; _pl.timeSpec='';
   var _m=_hostSkillsPool.filter(function(r){return String(r.item||'')===_pl.item;})[0];
   _pl.category=(_m&&_m.category)||'';
   _pl.step='type';
@@ -595,11 +606,12 @@ window.plHostStartType=function(){
 window.plHostSetType=function(t){
   _pl.potluckType=t;
   _pl.category=''; _pl.subOther=false; // reset - the subtype step sets it (Skill format / Thing kind)
-  _pl.step=(t==='Skill'||t==='Thing')?'subtype':'elaborate'; // Experience skips subtype
+  _pl.step=(t==='Skill'||t==='Thing')?'subtype':(t==='Experience'?'thinginvolved':'elaborate');
   refreshPotluckHostSection();
 };
 window.plHostSetSubtype=function(v){ _pl.category=v; _pl.subOther=false; refreshPotluckHostSection(); };
 window.plHostSubOther=function(){ _pl.subOther=true; _pl.category=''; refreshPotluckHostSection(); };
+window.plHostThing=function(yes){ if(yes){ _pl.category=''; _pl.subOther=false; _pl.step='subtype'; } else { _pl.category=''; _pl.step='elaborate'; } refreshPotluckHostSection(); };
 window.plHostSubNext=function(){ _pl.step='elaborate'; refreshPotluckHostSection(); };
 window.plHostElabNext=function(){ _pl.step='timed'; refreshPotluckHostSection(); };
 window.plHostSetUnit=function(v){
@@ -617,8 +629,9 @@ window.plHostSkipTimed=function(){ _pl.timeSpec=''; _pl.step='cap'; refreshPotlu
 window.plHostBack=function(){
   var s=_pl.step;
   if(s==='type') _pl.step='';
-  else if(s==='subtype') _pl.step='type';
-  else if(s==='elaborate') _pl.step=(_pl.potluckType==='Skill'||_pl.potluckType==='Thing')?'subtype':'type';
+  else if(s==='thinginvolved') _pl.step='type';
+  else if(s==='subtype') _pl.step=(_pl.potluckType==='Experience')?'thinginvolved':'type';
+  else if(s==='elaborate') _pl.step=(_pl.potluckType==='Skill'||_pl.potluckType==='Thing')?'subtype':(_pl.potluckType==='Experience'?(_pl.category?'subtype':'thinginvolved'):'type');
   else if(s==='timed') _pl.step='elaborate';
   else if(s==='cap') _pl.step='timed';
   refreshPotluckHostSection();
@@ -629,7 +642,7 @@ window.plHostFinish=function(){
   var cap=capRaw===''?'':(parseInt(capRaw,10)||0);
   _signupList.push({item:_pl.item,potluckType:_pl.potluckType,category:_pl.category,elaboration:_pl.elaboration||'',timeSpec:_pl.timeSpec||'',maxClaims:cap});
   savePotluckHostList();
-  _pl={step:'',item:'',potluckType:'',category:'',elaboration:'',timed:'yes',timeNum:'1',timeUnit:'hours',maxClaims:''};
+  _pl={step:'',item:'',potluckType:'',category:'',elaboration:'',timed:'yes',timeNum:'1',timeUnit:'hours',maxClaims:'1'};
   refreshPotluckHostSection();
 };
 window.removePotluckHostItem=function(i){
@@ -643,10 +656,12 @@ function savePotluckHostList(){
 // Edit an existing potluck item (name / type / slots) in a modal.
 var _PL_INP='width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 12px;';
 function _plSubtypeSelectHTML(type, current){
-  var opts = type==='Skill'?['Q&A session','Experiential learning session']:(type==='Thing'?['📦 Physical goods','🍵 Consumables','🪴 Living things']:[]);
-  if(!opts.length) return '<div style="font-size:13px;color:var(--muted);margin:4px 0 12px;">— (not needed for Experiences)</div>';
+  var _things=['📦 Physical goods','🍵 Consumables','🪴 Living things'];
+  var opts = type==='Skill'?['Q&A session','Experiential learning session']:((type==='Thing'||type==='Experience')?_things:[]);
+  if(!opts.length) return '<div style="font-size:13px;color:var(--muted);margin:4px 0 12px;">— (not needed)</div>';
   var isOther = type==='Skill' && current && opts.indexOf(current)<0;
   var sel='<select id="pl-edit-cat" onchange="plEditSubChange()" style="'+_PL_INP+'">';
+  if(type==='Experience') sel+='<option value=""'+(!current?' selected':'')+'>— no thing involved —</option>';
   opts.forEach(function(o){ sel+='<option value="'+esc(o)+'"'+((current===o)?' selected':'')+'>'+esc(o)+'</option>'; });
   if(type==='Skill') sel+='<option value="__other__"'+(isOther?' selected':'')+'>Other…</option>';
   sel+='</select>';
@@ -679,7 +694,7 @@ window.editPotluckItem=function(i){
     +'<label style="'+lbl+'">Sub-type / kind</label><div id="pl-edit-sub-wrap">'+_plSubtypeSelectHTML(it.potluckType, it.category)+'</div>'
     +'<label style="'+lbl+'">Details (prepopulates the sign-up note)</label><textarea id="pl-edit-elab" style="'+_PL_INP+'min-height:60px;">'+esc(it.elaboration||'')+'</textarea>'
     +'<label style="'+lbl+'">How long (if applicable)</label>'+timeSel
-    +'<label style="'+lbl+'">Slots (blank = 1, 0 = unlimited)</label><input id="pl-edit-slots" type="number" min="0" value="'+esc(it.maxClaims)+'" style="'+_PL_INP+'margin-bottom:16px;">'
+    +'<label style="'+lbl+'">Number of slots (0 = unlimited)</label><input id="pl-edit-slots" type="number" min="0" value="'+esc(it.maxClaims)+'" style="'+_PL_INP+'margin-bottom:16px;">'
     +'<div style="display:flex;gap:8px;align-items:center;">'
     +'<button onclick="deletePlItem('+i+')" style="background:none;border:none;color:#c0392b;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;padding:8px 4px;">Delete</button>'
     +'<div style="flex:1;"></div>'
@@ -713,8 +728,7 @@ window.savePlEdit=function(i){
       tn=document.getElementById('pl-edit-time-num'), tu=document.getElementById('pl-edit-time-unit');
   if(nm&&nm.value.trim()) it.item=nm.value.trim();
   if(tp) it.potluckType=tp.value;
-  if(it.potluckType==='Experience'){ it.category=''; }
-  else if(sc){ it.category = (sc.value==='__other__') ? ((so&&so.value.trim())||'') : sc.value; }
+  if(sc){ it.category = (sc.value==='__other__') ? ((so&&so.value.trim())||'') : sc.value; }
   if(el) it.elaboration=el.value;
   if(tu){ var u=tu.value; it.timeSpec = (u==='entire event')?'Entire event':((tn&&tn.value.trim()&&u)?(tn.value.trim()+' '+u):''); }
   if(sl){ var v=sl.value.trim(); it.maxClaims = v===''?'':(parseInt(v,10)||0); }
@@ -1981,6 +1995,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V5.25 | Date: 2026-07-13 | LAST CHANGE: Nav spacing tuned to match intake (18px above / 20px below the blue strip). (Prev V5.24: nav bar moved above the white card.) -->
+<!-- Version: V5.26 | Date: 2026-07-13 | LAST CHANGE: Potluck wizard: slots question reworded + defaults to 1 (Skip=unlimited); edit label "Number of slots (0 = unlimited)"; Experience now asks "Is a thing involved?" -> Physical goods/Consumables/Living things (stored as sub-type, editable). (Prev V5.25: nav spacing.) -->
 </body>
 </html>
