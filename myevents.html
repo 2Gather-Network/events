@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.30 | Date: 2026-07-13 | LAST CHANGE: Share-1:1 link now threads &event= so match.html can show a "← Manage" back link. (Prev V5.29: orphan claim removal + host-delete cleanup.) -->
+  <!-- Version: V5.31 | Date: 2026-07-14 | LAST CHANGE: Manage panel: "Show me as going in the event hub" public/private toggle (reads current state via getRegistrations, flips via the rsvp action's public field). (Prev V5.30: Share-1:1 threads &event=.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1753,6 +1753,7 @@ async function renderEventExperience(memberId, eventId, data) {
   html += '<a href="https://gather.2gather.network/attendees.html?id=' + encodeURIComponent(eventId) + '&memberCard=' + m + '" style="' + linkStyle + '">👥 Visit event hub</a>';
   var _mSafe = String(memberId).replace(/[^A-Za-z0-9._-]/g, "");
   var _eSafe = String(eventId).replace(/[^A-Za-z0-9._-]/g, "");
+  html += '<label style="' + linkStyle + 'justify-content:space-between;cursor:pointer;"><span>👁 Show me as going in the event hub</span><input type="checkbox" id="exp-public-toggle" onchange="expTogglePublic(this)" style="width:20px;height:20px;cursor:pointer;flex-shrink:0;"></label>';
   html += '<button onclick="cancelFromExperience(this,\'' + _mSafe + '\',\'' + _eSafe + '\')" style="' + linkStyle + 'color:#c0392b;">✕ Cancel my registration</button>';
   html += '<div id="exp-cancel-msg" style="display:none;font-size:13px;color:#c0392b;margin-top:8px;">You\'re no longer registered for this event.</div>';
   var isHost = !!(ev && ev.hostMemberCard && _expNorm(ev.hostMemberCard) === _expNorm(memberId));
@@ -1772,6 +1773,19 @@ async function renderEventExperience(memberId, eventId, data) {
   }
   html += '</div>';
   card.innerHTML = html;
+  // Reflect the current public/private state on the "Show me in the event hub" toggle.
+  (async function(){
+    try{
+      var _r=await fetch(GS_URL+'?action=getRegistrations&appearId='+encodeURIComponent(memberId));
+      var _d=await _r.json();
+      var _regs=(_d.registrations||[]).filter(function(x){return String(x.eventId||'').trim()===eventId;});
+      if(_regs.length){
+        var _latest=_regs[_regs.length-1];
+        var _tg=document.getElementById('exp-public-toggle');
+        if(_tg) _tg.checked=(String(_latest.public||'').trim().toLowerCase()==='true');
+      }
+    }catch(e){}
+  })();
   // Names come from getInitials — an extra call, so only the HOST (who needs to see who signed up) pays it.
   if (isHost) { loadNames().then(function(){ expLoadClaims(memberId, eventId); }); }
   else { expLoadClaims(memberId, eventId); }
@@ -1965,6 +1979,12 @@ async function expLoadClaims(memberId, eventId){
   var hl=document.getElementById('potluck-host-list'); if(hl && typeof buildPotluckHostListHTML==='function') hl.innerHTML=buildPotluckHostListHTML();
 }
 var _cancelCtx=null;
+window.expTogglePublic = function(cb){
+  var memberId=window._currentMyId, eventId=window._currentEventId;
+  if(!memberId||!eventId) return;
+  // rsvp action updates the existing registration's "public" field in place (no new row).
+  fetch(GS_URL+'?action=rsvp&appearId='+encodeURIComponent(memberId)+'&eventId='+encodeURIComponent(eventId)+'&public='+(cb.checked?'true':'false')).catch(function(){});
+};
 window.cancelFromExperience = function(btn, memberId, eventId) {
   // If they committed to bringing things, confirm what happens to each before canceling.
   var mine=_potluckClaims.filter(function(c){ return _expNorm(c.appearId)===_expNorm(memberId); });
@@ -2042,6 +2062,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V5.30 | Date: 2026-07-13 | LAST CHANGE: Share-1:1 link now threads &event= so match.html can show a "← Manage" back link. (Prev V5.29: orphan claim removal + host-delete cleanup.) -->
+<!-- Version: V5.31 | Date: 2026-07-14 | LAST CHANGE: Manage panel: "Show me as going in the event hub" public/private toggle (reads current state via getRegistrations, flips via the rsvp action's public field). (Prev V5.30: Share-1:1 threads &event=.) -->
 </body>
 </html>
