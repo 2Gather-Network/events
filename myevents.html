@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.28 | Date: 2026-07-13 | LAST CHANGE: Page background -> blue (#1F699E) to match intake/attendees. (Prev V5.27: Manage panel top nav.) -->
+  <!-- Version: V5.29 | Date: 2026-07-13 | LAST CHANGE: (A) Orphan claims (item no longer on host list) get their own X on the attendee manage list to remove; (B) host deleting an item also removes everyone's claims for it. Both reuse removePotluckClaim. (Prev V5.28: blue bg.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -646,8 +646,10 @@ window.plHostFinish=function(){
   refreshPotluckHostSection();
 };
 window.removePotluckHostItem=function(i){
+  var _rmItem=(_signupList[i]||{}).item;
   _signupList.splice(i,1);
   savePotluckHostList();
+  if(_rmItem) _expCleanClaimsForItem(_rmItem);
   refreshPotluckHostSection();
 };
 function savePotluckHostList(){
@@ -715,8 +717,10 @@ window.plEditSubChange=function(){
 window.closePlEdit=function(){ var o=document.getElementById('pl-edit-overlay'); if(o) o.remove(); };
 window.deletePlItem=function(i){
   if(!confirm('Delete this item from the list?')) return;
+  var _rmItem=(_signupList[i]||{}).item;
   _signupList.splice(i,1);
   savePotluckHostList();
+  if(_rmItem) _expCleanClaimsForItem(_rmItem);
   closePlEdit();
   refreshPotluckHostSection();
 };
@@ -1805,6 +1809,18 @@ function buildHostSignupsHTML(memberId){
 }
 function _expNorm(s){ return String(s||'').replace(/\./g,'').toLowerCase(); }
 function _expSafe(s){ return String(s||'').replace(/[^A-Za-z0-9._-]/g,''); }
+// When a host removes an item, also delete everyone's claims for it (reuses removePotluckClaim).
+function _expCleanClaimsForItem(item){
+  var eventId=window._currentEventId;
+  if(!eventId||!item) return;
+  var seen={};
+  _potluckClaims.forEach(function(c){
+    if(c.item===item && c.appearId && !seen[c.appearId]){ seen[c.appearId]=true;
+      fetch(GS_URL+'?action=removePotluckClaim&eventId='+encodeURIComponent(eventId)+'&item='+encodeURIComponent(item)+'&appearId='+encodeURIComponent(c.appearId)).catch(function(){});
+    }
+  });
+  _potluckClaims=_potluckClaims.filter(function(c){ return c.item!==item; });
+}
 function _expMyClaim(memberId, item){
   var mn=_expNorm(memberId);
   return _potluckClaims.filter(function(c){ return c.item===item && _expNorm(c.appearId)===mn; })[0]||null;
@@ -1831,7 +1847,11 @@ function _expClaimChip(c){
 }
 var _expPage={};
 function buildExpContribHTML(memberId){
-  if(!_signupList.length) return '<div style="font-size:13px;color:var(--muted);">Nothing to bring yet.</div>';
+  var _mn=_expNorm(memberId);
+  var _hostItems={}; _signupList.forEach(function(it){ _hostItems[it.item]=true; });
+  var _orphans=_potluckClaims.filter(function(c){ return _expNorm(c.appearId)===_mn && !_hostItems[c.item]; });
+  window._expOrphans=_orphans;
+  if(!_signupList.length && !_orphans.length) return '<div style="font-size:13px;color:var(--muted);">Nothing to bring yet.</div>';
   var cats=['Skill','Experience','Thing'];
   var groups={Skill:[],Experience:[],Thing:[]}, other=[];
   _signupList.forEach(function(it,i){
@@ -1851,8 +1871,30 @@ function buildExpContribHTML(memberId){
     }
     return h;
   }
-  return grp('Skills',groups.Skill)+grp('Experiences',groups.Experience)+grp('Things',groups.Thing)+grp('Other',other);
+  var _orphanHTML='';
+  if(_orphans.length){
+    _orphanHTML='<div style="font-size:16px;font-weight:700;color:var(--dark);margin:16px 0 4px;">No longer on the list</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-bottom:2px;">You signed up for these but the host removed them. Tap ✕ to remove your sign-up.</div>'
+      +_orphans.map(function(c,oi){ return expOrphanRowHTML(c,oi); }).join('');
+  }
+  return grp('Skills',groups.Skill)+grp('Experiences',groups.Experience)+grp('Things',groups.Thing)+grp('Other',other)+_orphanHTML;
 }
+function expOrphanRowHTML(c, oi){
+  var _tl=[c.potluckType,c.category].filter(Boolean).join(' · ');
+  var _typeLabel=_tl?'<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:1px;">'+esc(_tl)+'</div>':'';
+  return '<div style="border-bottom:1px solid var(--border);padding:12px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
+    +'<div><div style="font-size:14px;font-weight:600;">'+esc(c.item)+'</div>'+_typeLabel+'</div>'
+    +'<button onclick="expRemoveOrphan('+oi+')" aria-label="Remove my sign-up" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--muted);padding:0 2px;flex-shrink:0;">✕</button>'
+    +'</div>';
+}
+window.expRemoveOrphan=function(oi){
+  var c=(window._expOrphans||[])[oi]; if(!c) return;
+  var memberId=window._currentMyId, eventId=window._currentEventId;
+  var mn=_expNorm(memberId);
+  _potluckClaims=_potluckClaims.filter(function(x){ return !(x.item===c.item && _expNorm(x.appearId)===mn); });
+  _expRerender();
+  fetch(GS_URL+'?action=removePotluckClaim&eventId='+encodeURIComponent(eventId)+'&item='+encodeURIComponent(c.item)+'&appearId='+encodeURIComponent(memberId)).catch(function(){});
+};
 window.expShowMore=function(label){ _expPage[label]=(_expPage[label]||5)+5; _expRerender(); };
 function expRowHTML(i, memberId){
   var it=_signupList[i];
@@ -2000,6 +2042,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V5.28 | Date: 2026-07-13 | LAST CHANGE: Page background -> blue (#1F699E) to match intake/attendees. (Prev V5.27: Manage panel top nav.) -->
+<!-- Version: V5.29 | Date: 2026-07-13 | LAST CHANGE: (A) Orphan claims (item no longer on host list) get their own X on the attendee manage list to remove; (B) host deleting an item also removes everyone's claims for it. Both reuse removePotluckClaim. (Prev V5.28: blue bg.) -->
 </body>
 </html>
