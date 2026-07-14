@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.16 | Date: 2026-07-14 | LAST CHANGE: Event contribution list in the edit form now shows ONLY when editing a saved event with registration ON (was showing on every event, incl. recurring). Gated via setInterestedEnabled. (Prev V12.15: cards navigate to event.html.) -->
+<!-- Version: V12.17 | Date: 2026-07-14 | LAST CHANGE: Contribution list now gated by an explicit "Enable event contributions" checkbox (maps to intakeRedirect), independent of registration. Only writes intakeRedirect="true" when checked (never wipes). sheetToEv reads intakeRedirect; checkbox pre-fills on edit. (Prev V12.16: gated on registration.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -450,6 +450,10 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <div id="registrations-list" style="display:flex;flex-direction:column;gap:6px;"></div>
     </div>
 
+    <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-bottom:12px;">
+      <input type="checkbox" id="f-contributions" onchange="toggleContribEnabled(this)" style="width:16px;height:16px;accent-color:var(--primary);">
+      🎁 Enable event contributions (sign-up list)
+    </label>
     <div id="potluck-edit-panel" style="display:none;margin-bottom:20px;padding:14px 16px;background:#EBF5FB;border-radius:10px;border:1px solid #AED6F1;">
       <p style="font-size:13px;font-weight:700;color:#1B6896;margin:0 0 10px;">🎁 Event contribution list</p>
       <div id="potluck-edit-list" style="margin-bottom:10px;"></div>
@@ -1274,7 +1278,7 @@ function sheetToEv(row) {
     passcode: row.passcode || "", hostEmail: (row.hostEmail || "").trim(), cooplink: row.cooplink || "", going: parseInt(row.going) || 0,
     meetinglink: row.meetinglink || "", recurring: isRecurring,
     paymentlink: row.paymentlink || "", exchangeType: row.exchangeType || "", showLinks: row.showLinks || "", otherExchange: row.otherExchange || "", recurFreq: row.recurFreq || "", experience: row.experience || "", imageUrl: row.imageUrl || "", detailImageUrl: row.detailImageUrl || "", isPrivate: row.isPrivate === "true" || row.isPrivate === true || false, lifeStage: row.careerStage || row.lifeStage || "", keywords: row.keywords || "", venue: row.venue || "",
-    interestedEnabled: row.interestedEnabled || "off", interested: row.interested || "",
+    interestedEnabled: row.interestedEnabled || "off", interested: row.interested || "", intakeRedirect: row.intakeRedirect || "",
     sharedNotesEnabled: row.sharedNotesEnabled === "true" || row.sharedNotesEnabled === true || false, sharedNotes: row.sharedNotes || "",
     host_note: row.host_note || "",
     cancelled: row.cancelled === "true" || row.cancelled === true || false,
@@ -1910,6 +1914,7 @@ function openModal(skipDraft = false) {
   fixModalForMobile();
   document.getElementById("post-error").style.display = "none";
   const potluckPanelReset = document.getElementById("potluck-edit-panel"); if(potluckPanelReset) potluckPanelReset.style.display = "none";
+  const _contribReset = document.getElementById("f-contributions"); if(_contribReset) _contribReset.checked = false;
   _potluckEditList = [];
   document.getElementById("room-preview").style.display = "none";
   document.getElementById("conflict-warning").style.display = "none";
@@ -2129,6 +2134,8 @@ function loadEditForm(id) {
   }
   editingId = id;
   loadPotluckEditPanel(id);
+  var _cb = document.getElementById("f-contributions");
+  if (_cb) { _cb.checked = (String(ev.intakeRedirect||"").trim().toLowerCase() === "true"); toggleContribEnabled(_cb); }
   var rawCats = Array.isArray(ev.categories) ? ev.categories : [ev.category].filter(Boolean);
   selectedCats = new Set(rawCats.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; }).filter(Boolean));
   selectedRoom = ev.room || null;
@@ -2330,9 +2337,11 @@ function setRecurFreq(f) {
 function setInterestedEnabled(val) {
   interestedEnabled = val;
   ["off","optional","required"].forEach(k => document.getElementById("int-"+k)?.classList.toggle("selected", k === val));
-  // Event contribution list only shows when editing a saved event that has registration ON (not "off").
-  const _pp = document.getElementById("potluck-edit-panel");
-  if (_pp) _pp.style.display = (editingId && val !== "off") ? "block" : "none";
+}
+function toggleContribEnabled(cb){
+  // Contribution list shows only when the checkbox is on AND editing a saved event (potluck needs an id to save).
+  const pp = document.getElementById("potluck-edit-panel");
+  if (pp) pp.style.display = (cb.checked && editingId) ? "block" : "none";
 }
 
 function setSharedNotesEnabled(val) {
@@ -2971,6 +2980,8 @@ async function submitEvent() {
     cancelled: document.getElementById("f-cancelled")?.checked || false,
     venue: document.getElementById("f-venue")?.value.trim() || "",
   };
+  // Enable contributions -> intakeRedirect="true". Only set when checked (never write "false"), so it can't wipe an existing flag.
+  if (document.getElementById("f-contributions")?.checked) eventData.intakeRedirect = "true";
 
   if (editingId) {
     const isRec = editingId.startsWith("recurring-");
@@ -3799,6 +3810,6 @@ safeOn("interests-modal", "click", e => { if (e.target.id === "interests-modal")
   </div>
 </div>
 
-<!-- Version: V12.16 | Date: 2026-07-14 | LAST CHANGE: Event contribution list in the edit form now shows ONLY when editing a saved event with registration ON (was showing on every event, incl. recurring). Gated via setInterestedEnabled. (Prev V12.15: cards navigate to event.html.) -->
+<!-- Version: V12.17 | Date: 2026-07-14 | LAST CHANGE: Contribution list now gated by an explicit "Enable event contributions" checkbox (maps to intakeRedirect), independent of registration. Only writes intakeRedirect="true" when checked (never wipes). sheetToEv reads intakeRedirect; checkbox pre-fills on edit. (Prev V12.16: gated on registration.) -->
 </body>
 </html>
