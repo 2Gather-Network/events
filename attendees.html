@@ -1,4 +1,4 @@
-<!-- Version: V2.50 | Date: 2026-07-15 | LAST CHANGE: Hub loads via ONE batched getEventProfiles call (fixes concurrency lag/hang; falls back to legacy per-person path until GAS deployed). Public standalone hub (opened directly, not embedded) gets a blue "Register for this event" button -> Glide event page. (Prev V2.49: viewer's face top-right.) -->
+<!-- Version: V2.51 | Date: 2026-07-15 | LAST CHANGE: Registration status now = actually RSVP'd for THIS event (meRegistered from getEventProfiles), not just having an ID. Not-registered (anon OR signed-in-not-RSVP'd) -> "Register for this event"; registered-no-profile -> "Build my event profile". Register button no longer gated to standalone-only. (Prev V2.50: batched getEventProfiles load + register button.) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -171,6 +171,7 @@ var SECTION_META={
 // member: {appearId, photo, pageLink, name, skills[], interests[], values[], needs[]}
 var _members=[];
 var _myData=null;
+var _meRegistered=false;          // is the viewer actually RSVP'd for THIS event (not merely signed in)?
 var _photoMap={};                 // normId -> {photo, pageLink}
 var _catMap={};                   // item(lower) -> {category, associations}
 var _parentCats={};               // lower(parent category label) -> true : never shown as a chip
@@ -273,6 +274,7 @@ async function loadMembers(){
       d.attendees.forEach(function(p){ _photoMap[normId(p.appearId)]={photo:p.photo||'',pageLink:p.pageLink||''}; });
       d.attendees.forEach(function(p){ processRow(p, p.appearId); });
       if(d.me){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
+      _meRegistered = (typeof d.meRegistered==='boolean') ? d.meRegistered : !!_myId;   // fallback to old behaviour until GAS returns meRegistered
       computeGlobals(); buildChips(); renderAll();
       return;
     }
@@ -281,6 +283,7 @@ async function loadMembers(){
 }
 
 async function loadMembersLegacy(){
+  _meRegistered = !!_myId;   // legacy fallback (no meRegistered available)
   // 1) Who is here (public, non-cancelled) + their photos
   var attendees=[];
   try{
@@ -541,20 +544,16 @@ function renderMe(){
 }
 function renderProfileCta(){
   var el=document.getElementById('profile-cta'); if(!el) return;
-  // Signed in, no profile -> build it
-  if(_myId && !_myData){
+  // NOT registered for this event (anonymous, OR signed in but hasn't RSVP'd) -> register
+  if(!_meRegistered){
+    el.innerHTML='<div style="text-align:center;margin:14px 0 0;"><a href="https://2gather.network/dl/lakeballingerhubevent" target="_top" style="display:inline-flex;align-items:center;background:#2d5282;color:#fff;border-radius:24px;padding:12px 24px;font-size:16px;font-weight:700;text-decoration:none;">Register for this event</a></div>';
+    return;
+  }
+  // Registered, no profile yet -> build it
+  if(!_myData){
     var url='https://creating.works/intake.html?id='+encodeURIComponent(_myId)+(_eventId?'&eventId='+encodeURIComponent(_eventId):'')+'&intro=1';
     el.innerHTML='<div style="text-align:center;margin:14px 0 0;"><a href="'+url+'" style="display:inline-flex;align-items:center;gap:8px;background:#fff;color:#2d5282;border:1.5px solid #2d5282;border-radius:24px;padding:12px 22px;font-size:16px;font-weight:700;text-decoration:none;">🌱 Build my event profile</a></div>';
     return;
-  }
-  // Not signed in AND opened directly (not embedded in Glide) -> offer to register.
-  // Inside the Glide embed, Glide's own Sign In/Up in the top bar covers this, so we don't duplicate it.
-  if(!_myId){
-    var embedded=true; try{ embedded=(window.self!==window.top); }catch(e){ embedded=true; }
-    if(!embedded){
-      el.innerHTML='<div style="text-align:center;margin:14px 0 0;"><a href="https://2gather.network/dl/lakeballingerhubevent" target="_top" style="display:inline-flex;align-items:center;background:#2d5282;color:#fff;border-radius:24px;padding:12px 24px;font-size:16px;font-weight:700;text-decoration:none;">Register for this event</a></div>';
-      return;
-    }
   }
   el.innerHTML='';
 }
@@ -650,4 +649,4 @@ async function loadContributions(){
 </script>
 </body>
 </html>
-<!-- Version: V2.50 | Date: 2026-07-15 | LAST CHANGE: Hub loads via ONE batched getEventProfiles call (fixes concurrency lag/hang; falls back to legacy per-person path until GAS deployed). Public standalone hub (opened directly, not embedded) gets a blue "Register for this event" button -> Glide event page. (Prev V2.49: viewer's face top-right.) -->
+<!-- Version: V2.51 | Date: 2026-07-15 | LAST CHANGE: Registration status now = actually RSVP'd for THIS event (meRegistered from getEventProfiles), not just having an ID. Not-registered (anon OR signed-in-not-RSVP'd) -> "Register for this event"; registered-no-profile -> "Build my event profile". Register button no longer gated to standalone-only. (Prev V2.50: batched getEventProfiles load + register button.) -->
