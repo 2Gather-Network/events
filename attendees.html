@@ -1,4 +1,4 @@
-<!-- Version: V2.39 | Date: 2026-07-13 | LAST CHANGE: "Who's bringing what" + Sign up list button now show whenever the host has a contribution list (was hidden until someone signed up). (Prev V2.38: Help button size.) -->
+<!-- Version: V2.40 | Date: 2026-07-15 | LAST CHANGE: Hub: quadrants cap at 10 chips with "Show all" -> full in-page view (back-to-hub link, no modal); "?" help moved inline right of My matches, white background; "Create your event profile next" CTA when viewer has no event profile. (Prev V2.39: "Who's bringing what" + Sign up list show whenever host has a contribution list.) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -19,6 +19,9 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .btn-matches{background:#2d5282;color:#fff;border:none;border-radius:24px;padding:0 18px;height:38px;font-size:14px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;transition:background 0.15s;flex-shrink:0;}
 .btn-matches:hover{background:#1e3a5f;}
 .btn-matches.active{background:#1a7f4b;color:#fff;}
+.hub-btn-group{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.btn-help{background:#fff;color:#2d5282;border:1.5px solid #2d5282;border-radius:24px;height:38px;padding:0 14px;font-size:16px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;flex-shrink:0;line-height:34px;}
+.btn-help:hover{background:#eef3fa;}
 .match-legend{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;font-weight:600;color:#6b7280;}
 .match-legend .lg{display:inline-flex;align-items:center;gap:6px;}
 .match-legend .dot{width:12px;height:12px;border-radius:50%;display:inline-block;flex-shrink:0;}
@@ -36,7 +39,7 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .q-count{font-size:13px;color:#9ea3b8;font-weight:600;}
 .q-toggle{font-size:12px;color:#9ea3b8;transition:transform 0.2s;}
 .q-toggle.open{transform:rotate(180deg);}
-.q-body{padding:10px 12px;display:flex;flex-wrap:wrap;gap:7px;overflow-y:auto;max-height:44vh;transition:max-height 0.25s ease;align-content:flex-start;}
+.q-body{padding:10px 12px;display:flex;flex-wrap:wrap;gap:7px;transition:max-height 0.25s ease;align-content:flex-start;}
 .q-body.collapsed{max-height:56px;overflow:hidden;}
 .chip{display:inline-flex;align-items:center;gap:8px;padding:5px 12px 5px 5px;border-radius:16px;background:#fff;border:1.5px solid #d5d9e3;cursor:pointer;transition:opacity 0.15s;max-width:100%;}
 .chip:hover{opacity:0.88;}
@@ -53,11 +56,14 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .chip.match .chip-photo,.chip.match-need .chip-photo{border-color:rgba(255,255,255,0.35);}
 .empty{font-size:12px;color:#c0c4d6;padding:4px 2px;font-style:italic;}
 .loading{font-size:12px;color:#c0c4d6;padding:4px 2px;}
+.show-all-link{flex-basis:100%;margin-top:2px;font-size:12.5px;font-weight:700;color:#2d5282;cursor:pointer;text-decoration:none;}
+.show-all-link:hover{text-decoration:underline;}
+.back-hub{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#fff;background:rgba(255,255,255,0.16);border:1px solid rgba(255,255,255,0.45);border-radius:20px;padding:8px 16px;cursor:pointer;text-decoration:none;margin-bottom:14px;}
+.back-hub:hover{background:rgba(255,255,255,0.26);}
 @media(max-width:640px){
   .event-header-row{flex-direction:column;align-items:stretch;}
-  .btn-matches{align-self:flex-start;}
+  .hub-btn-group{align-self:flex-start;}
   .grid{grid-template-columns:1fr;}
-  .q-body{max-height:38vh;}
 }
 </style>
 </head>
@@ -71,8 +77,10 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
         <div class="event-title" id="event-title">Community</div>
         <div class="event-meta" id="event-meta"></div>
       </div>
-      <button class="btn-matches" id="matches-btn" onclick="toggleMatches()">My matches</button>
-      <button class="btn-matches" id="hub-help-btn" onclick="hubHelp()" style="display:none;padding:0 15px;" aria-label="Copy host email">?</button>
+      <div class="hub-btn-group">
+        <button class="btn-matches" id="matches-btn" onclick="toggleMatches()">My matches</button>
+        <button class="btn-help" id="hub-help-btn" onclick="hubHelp()" style="display:none;" aria-label="Copy host email">?</button>
+      </div>
     </div>
     <div class="match-legend" id="match-legend" style="display:none;">
       <span class="lg"><span class="dot dot-orange"></span>You can help / they can help</span>
@@ -86,6 +94,8 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
     </div>
   </div>
 </div>
+
+<div id="profile-cta"></div>
 
 <div class="grid">
   <div class="quadrant">
@@ -133,6 +143,8 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
   </div>
 </div>
 
+<div id="expanded-view" style="display:none;padding:14px;"></div>
+
 <div id="contrib-section" style="padding-bottom:20px;"></div>
 
 <script>
@@ -145,6 +157,13 @@ var _eventId=(params.get('id')||params.get('eventId')||params.get('event')||'').
 var _myId=(params.get('memberCard')||params.get('appearId')||params.get('me')||'').trim();
 var _matchMode=false;
 var _searchQ='';
+var _expanded=null;   // null, or a quadrant key currently showing its full-page (in-page) view
+var SECTION_META={
+  skills:{title:'Skills of our attendees',needsMode:false},
+  interests:{title:'Recreational interests of our attendees',needsMode:false},
+  values:{title:'Values of our attendees',needsMode:false},
+  needs:{title:'What our attendees need',needsMode:true}
+};
 
 // member: {appearId, photo, pageLink, name, skills[], interests[], values[], needs[]}
 var _members=[];
@@ -410,7 +429,7 @@ window.openProfile=function(appearId,pageLink){
   if(appearId) window.location.href=INTAKE_URL+encodeURIComponent(appearId);
 };
 
-function renderSection(bodyId, countId, entries, needsMode){
+function renderSection(bodyId, countId, entries, needsMode, key){
   var body=document.getElementById(bodyId);
   var countEl=document.getElementById(countId);
   if(!body) return;
@@ -425,17 +444,69 @@ function renderSection(bodyId, countId, entries, needsMode){
     countEl.textContent=n+' '+(n===1?'person':'people');
   }
   if(!filtered.length){ body.innerHTML='<span class="empty">Nothing here yet.</span>'; return; }
-  body.innerHTML=filtered.map(function(en){
+  var shown=filtered.slice(0,10);   // grid shows first 10; "Show all" opens the full in-page view
+  var html=shown.map(function(en){
     var mt=_matchMode?(needsMode?matchNeedChip(en):matchOfferingChip(en)):'';
     return chipHTML(en, mt, needsMode);
   }).join('');
+  if(filtered.length>10){
+    html+='<a class="show-all-link" onclick="expandSection(\''+key+'\')">Show all ('+filtered.length+') →</a>';
+  }
+  body.innerHTML=html;
 }
 
 function renderAll(){
-  renderSection('skills-body','skills-count',_chips.skills,false);
-  renderSection('interests-body','interests-count',_chips.interests,false);
-  renderSection('values-body','values-count',_chips.values,false);
-  renderSection('needs-body','needs-count',_chips.needs,true);
+  var grid=document.querySelector('.grid');
+  var contrib=document.getElementById('contrib-section');
+  var cta=document.getElementById('profile-cta');
+  var exp=document.getElementById('expanded-view');
+  if(_expanded){                                          // full-page single-quadrant view
+    if(grid) grid.style.display='none';
+    if(contrib) contrib.style.display='none';
+    if(cta) cta.style.display='none';
+    if(exp) exp.style.display='';
+    renderExpanded();
+    return;
+  }
+  if(grid) grid.style.display='';
+  if(contrib) contrib.style.display='';
+  if(cta) cta.style.display='';
+  if(exp) exp.style.display='none';
+  renderSection('skills-body','skills-count',_chips.skills,false,'skills');
+  renderSection('interests-body','interests-count',_chips.interests,false,'interests');
+  renderSection('values-body','values-count',_chips.values,false,'values');
+  renderSection('needs-body','needs-count',_chips.needs,true,'needs');
+}
+// Full-page in-page view of one quadrant (no modal). Search + match mode still apply.
+function renderExpanded(){
+  var exp=document.getElementById('expanded-view'); if(!exp) return;
+  var key=_expanded, meta=SECTION_META[key]||{title:'',needsMode:false};
+  var entries=_chips[key]||[];
+  var filtered=entries.filter(function(en){
+    if(!_searchQ) return true;
+    var cat=meta.needsMode?(en.category||''):(refFor(en.item).category||'');
+    return en.item.toLowerCase().indexOf(_searchQ)>-1 || cat.toLowerCase().indexOf(_searchQ)>-1;
+  });
+  var ppl={}; filtered.forEach(function(en){ ppl[normId(en.member.appearId)]=true; });
+  var n=Object.keys(ppl).length;
+  var chips=filtered.length
+    ? filtered.map(function(en){ var mt=_matchMode?(meta.needsMode?matchNeedChip(en):matchOfferingChip(en)):''; return chipHTML(en, mt, meta.needsMode); }).join('')
+    : '<span class="empty">Nothing here yet.</span>';
+  exp.innerHTML='<a class="back-hub" onclick="backToHub()">← Back to hub</a>'
+    +'<div class="quadrant"><div class="q-header" style="cursor:default;"><div>'
+    +'<div class="q-title">'+escHTML(meta.title)+'</div>'
+    +'<div class="q-count">'+n+' '+(n===1?'person':'people')+'</div></div></div>'
+    +'<div class="q-body">'+chips+'</div></div>';
+}
+window.expandSection=function(key){ _expanded=key; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+window.backToHub=function(){ _expanded=null; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+// "Create your event profile next" — shows only when the viewer has no event profile.
+// Uses _myData already loaded by loadMembers(), so it costs NO extra GAS call.
+function renderProfileCta(){
+  var el=document.getElementById('profile-cta'); if(!el) return;
+  if(!_myId || _myData){ el.innerHTML=''; return; }
+  var url='https://creating.works/intake.html?id='+encodeURIComponent(_myId)+(_eventId?'&eventId='+encodeURIComponent(_eventId):'');
+  el.innerHTML='<a href="'+url+'" style="display:flex;margin:14px 14px 0;background:#1a7f4b;color:#fff;border-radius:14px;padding:16px 18px;font-size:16px;font-weight:700;text-decoration:none;align-items:center;justify-content:space-between;gap:10px;">🌱 Create your event profile next<span style="font-size:18px;">→</span></a>';
 }
 
 function toggleSection(key){
@@ -475,6 +546,7 @@ function renderHubNav(){
   loadContributions();                                     // who's bringing what — fire early, don't wait for the slow member loading
   var enrich=Promise.all([loadRefData(), loadCategories()]); // heavy — don't block first paint
   await loadMembers();                                     // first paint
+  renderProfileCta();                                      // no extra GAS call — reads _myData from loadMembers
   await enrich;
   buildChips(); renderAll();                               // re-render with categories + exclusions
 })();
@@ -520,4 +592,4 @@ async function loadContributions(){
 </script>
 </body>
 </html>
-<!-- Version: V2.39 | Date: 2026-07-13 | LAST CHANGE: "Who's bringing what" + Sign up list button now show whenever the host has a contribution list (was hidden until someone signed up). (Prev V2.38: Help button size.) -->
+<!-- Version: V2.40 | Date: 2026-07-15 | LAST CHANGE: Hub: quadrants cap at 10 chips with "Show all" -> full in-page view (back-to-hub link, no modal); "?" help moved inline right of My matches, white background; "Create your event profile next" CTA when viewer has no event profile. (Prev V2.39: "Who's bringing what" + Sign up list show whenever host has a contribution list.) -->
