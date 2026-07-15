@@ -1,4 +1,4 @@
-<!-- Version: V2.49 | Date: 2026-07-15 | LAST CHANGE: Viewer's own face shown top-right next to the envelope (no extra GAS call - uses loaded photo, initial fallback); links to view my profile, or build it if none. (Prev V2.48: My matches + contributions gated on having a profile.) -->
+<!-- Version: V2.50 | Date: 2026-07-15 | LAST CHANGE: Hub loads via ONE batched getEventProfiles call (fixes concurrency lag/hang; falls back to legacy per-person path until GAS deployed). Public standalone hub (opened directly, not embedded) gets a blue "Register for this event" button -> Glide event page. (Prev V2.49: viewer's face top-right.) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -263,6 +263,24 @@ async function loadEvent(){
 
 // ── Members ──
 async function loadMembers(){
+  // Fast path: ONE batched call (getEventProfiles) instead of getAttendees + one getIntake per person
+  // (which 404s under concurrency). Falls back to the legacy per-person path if getEventProfiles
+  // isn't deployed yet (the GAS returns its events-list fallback, with no .attendees).
+  try{
+    var res=await fetch(GS_URL+'?action=getEventProfiles&eventId='+encodeURIComponent(_eventId)+(_myId?'&me='+encodeURIComponent(_myId):''));
+    var d=await res.json();
+    if(d && d.attendees){
+      d.attendees.forEach(function(p){ _photoMap[normId(p.appearId)]={photo:p.photo||'',pageLink:p.pageLink||''}; });
+      d.attendees.forEach(function(p){ processRow(p, p.appearId); });
+      if(d.me){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
+      computeGlobals(); buildChips(); renderAll();
+      return;
+    }
+  }catch(e){}
+  await loadMembersLegacy();
+}
+
+async function loadMembersLegacy(){
   // 1) Who is here (public, non-cancelled) + their photos
   var attendees=[];
   try{
@@ -523,9 +541,22 @@ function renderMe(){
 }
 function renderProfileCta(){
   var el=document.getElementById('profile-cta'); if(!el) return;
-  if(!_myId || _myData){ el.innerHTML=''; return; }
-  var url='https://creating.works/intake.html?id='+encodeURIComponent(_myId)+(_eventId?'&eventId='+encodeURIComponent(_eventId):'')+'&intro=1';
-  el.innerHTML='<div style="text-align:center;margin:14px 0 0;"><a href="'+url+'" style="display:inline-flex;align-items:center;gap:8px;background:#fff;color:#2d5282;border:1.5px solid #2d5282;border-radius:24px;padding:12px 22px;font-size:16px;font-weight:700;text-decoration:none;">🌱 Build my event profile</a></div>';
+  // Signed in, no profile -> build it
+  if(_myId && !_myData){
+    var url='https://creating.works/intake.html?id='+encodeURIComponent(_myId)+(_eventId?'&eventId='+encodeURIComponent(_eventId):'')+'&intro=1';
+    el.innerHTML='<div style="text-align:center;margin:14px 0 0;"><a href="'+url+'" style="display:inline-flex;align-items:center;gap:8px;background:#fff;color:#2d5282;border:1.5px solid #2d5282;border-radius:24px;padding:12px 22px;font-size:16px;font-weight:700;text-decoration:none;">🌱 Build my event profile</a></div>';
+    return;
+  }
+  // Not signed in AND opened directly (not embedded in Glide) -> offer to register.
+  // Inside the Glide embed, Glide's own Sign In/Up in the top bar covers this, so we don't duplicate it.
+  if(!_myId){
+    var embedded=true; try{ embedded=(window.self!==window.top); }catch(e){ embedded=true; }
+    if(!embedded){
+      el.innerHTML='<div style="text-align:center;margin:14px 0 0;"><a href="https://2gather.network/dl/lakeballingerhubevent" target="_top" style="display:inline-flex;align-items:center;background:#2d5282;color:#fff;border-radius:24px;padding:12px 24px;font-size:16px;font-weight:700;text-decoration:none;">Register for this event</a></div>';
+      return;
+    }
+  }
+  el.innerHTML='';
 }
 
 function toggleSection(key){
@@ -619,4 +650,4 @@ async function loadContributions(){
 </script>
 </body>
 </html>
-<!-- Version: V2.49 | Date: 2026-07-15 | LAST CHANGE: Viewer's own face shown top-right next to the envelope (no extra GAS call - uses loaded photo, initial fallback); links to view my profile, or build it if none. (Prev V2.48: My matches + contributions gated on having a profile.) -->
+<!-- Version: V2.50 | Date: 2026-07-15 | LAST CHANGE: Hub loads via ONE batched getEventProfiles call (fixes concurrency lag/hang; falls back to legacy per-person path until GAS deployed). Public standalone hub (opened directly, not embedded) gets a blue "Register for this event" button -> Glide event page. (Prev V2.49: viewer's face top-right.) -->
