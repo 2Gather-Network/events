@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.26 | Date: 2026-07-15 | LAST CHANGE: Redirect now skips when ?info=1, so the hub's "Learn more" link can show the real event page (event.html?id=m97sjwa3&info=1) instead of forwarding to Glide. (Prev V5.25: forward Lake Ballinger event to Glide.) -->
+  <!-- Version: V5.27 | Date: 2026-07-16 | LAST CHANGE: RSVP flow is now an inline in-page panel (no modal) - "+1 I'm going"/"Sign in to RSVP" hides the event card and shows the register flow in its place with a "Back to event" link; all wizard steps (QR/manual/confirm) and the rsvp write path unchanged. (Prev V5.26: redirect skips when ?info=1.) -->
   <meta charset="UTF-8">
   <script>
   /* Forward the Lake Ballinger event to its Glide page (m97sjwa3 only). Runs before render, so no flash. */
@@ -101,6 +101,10 @@
     .loading, .error { text-align: center; padding: 60px 24px; color: var(--muted); font-size: 15px; }
     .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:100; align-items:center; justify-content:center; padding:20px; }
     .modal-overlay.open { display:flex; }
+    /* RSVP: inline in-page panel, not an overlay (Glide-friendly, no modal) */
+    #rsvp-modal.modal-overlay { position:static; inset:auto; background:none; padding:0; z-index:auto; width:100%; max-width:560px; margin:0 auto; }
+    #rsvp-modal.modal-overlay.open { display:block; }
+    #rsvp-modal .modal { max-width:100%; max-height:none; box-shadow:0 1px 3px rgba(0,0,0,.06); }
     .modal { background:#fff; border-radius:16px; padding:28px; max-width:400px; width:100%; max-height:92vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.2); }
     .modal-title { font-size:18px; font-weight:700; margin-bottom:18px; color:var(--dark); }
     .modal-field { margin-bottom:14px; }
@@ -115,6 +119,9 @@
       .modal-overlay { align-items:flex-end; justify-content:stretch; padding:0; }
       .modal { border-radius:20px 20px 0 0; max-width:100%; max-height:90vh; padding:8px 20px 32px; }
       .modal::before { content:""; display:block; width:40px; height:4px; background:var(--border); border-radius:2px; margin:8px auto 20px; }
+      #rsvp-modal.modal-overlay { align-items:stretch; }
+      #rsvp-modal .modal { border-radius:16px; padding:24px 20px 28px; }
+      #rsvp-modal .modal::before { display:none; }
       .btn-share-desktop { display:none; }
     }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -154,7 +161,7 @@
     <div id="rsvp-step-1">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <div class="modal-title" style="margin-bottom:0;">Register for this event</div>
-        <button onclick="closeRsvpModal()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;padding:4px;">×</button>
+        <button onclick="closeRsvpModal()" style="background:none;border:none;font-size:13px;color:var(--muted);cursor:pointer;padding:4px;font-weight:600;white-space:nowrap;">← Back to event</button>
       </div>
       <div id="rsvp-card-hint" style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#166534;">
         💳 Your Member Card: <strong id="rsvp-card-hint-id"></strong>
@@ -1004,8 +1011,19 @@ let _qrScanInterval = null;
 
 // Fresh device / no saved Member Card — open the modal so an existing member can register
 // with their Member Card (scan QR or type the number). No frame-block, no dead-end at appear.network.
-function openRsvpRegister() {
+// Inline RSVP panel (no modal): swap the event card out for the flow, and back.
+function _showRsvpPanel() {
+  const c = document.getElementById("card"); if (c) c.style.display = "none";
   document.getElementById("rsvp-modal").classList.add("open");
+  window.scrollTo(0, 0);
+}
+function _hideRsvpPanel() {
+  const c = document.getElementById("card"); if (c) c.style.display = "";
+  document.getElementById("rsvp-modal").classList.remove("open");
+}
+
+function openRsvpRegister() {
+  _showRsvpPanel();
   const hint = document.getElementById("rsvp-card-hint"); if (hint) hint.style.display = "none";
   const noCard = document.getElementById("rsvp-no-card-hint"); if (noCard) noCard.style.display = "";
   showStep(1);
@@ -1025,9 +1043,9 @@ function openRsvpModal() {
     return;
   }
 
-  // Always open the modal and confirm identity - no silent auto-register.
+  // Always open the panel and confirm identity - no silent auto-register.
   // A cached device ID is only ever used as a pre-filled hint, never a bypass.
-  document.getElementById("rsvp-modal").classList.add("open");
+  _showRsvpPanel();
 
   // Show hint on step 1 before confirming
   const hint = document.getElementById("rsvp-card-hint");
@@ -1040,7 +1058,7 @@ function openRsvpModal() {
 }
 
 function closeRsvpModal() {
-  document.getElementById("rsvp-modal").classList.remove("open");
+  _hideRsvpPanel();
   cancelQrScan();
 }
 
