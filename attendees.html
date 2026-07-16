@@ -1,4 +1,4 @@
-<!-- Version: V2.60 | Date: 2026-07-16 | LAST CHANGE: parseNeeds now strips the ~detail suffix (intake's new owner-only "what exactly I'm seeking" free-text) so need chips stay clean. (Prev V2.59: Event profile pill passes &me=.) -->
+<!-- Version: V2.61 | Date: 2026-07-16 | LAST CHANGE: Need chips now carry the "what exactly I'm seeking" detail - a small (i) on chips that have one; tapping it (stopPropagation) reveals a "Seeking: ..." popover under the chip, while tapping the rest of the chip still opens the person's profile. Shown for every attendee. (Prev V2.60: parseNeeds stripped the detail.) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -54,7 +54,9 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .q-toggle.open{transform:rotate(180deg);}
 .q-body{padding:10px 12px;display:flex;flex-wrap:wrap;gap:7px;transition:max-height 0.25s ease;align-content:flex-start;}
 .q-body.collapsed{max-height:56px;overflow:hidden;}
-.chip{display:inline-flex;align-items:center;gap:8px;padding:5px 12px 5px 5px;border-radius:16px;background:#fff;border:1.5px solid #d5d9e3;cursor:pointer;transition:opacity 0.15s;max-width:100%;}
+.chip{position:relative;display:inline-flex;align-items:center;gap:8px;padding:5px 12px 5px 5px;border-radius:16px;background:#fff;border:1.5px solid #d5d9e3;cursor:pointer;transition:opacity 0.15s;max-width:100%;}
+.seek-info{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border:1px solid #2d5282;border-radius:50%;font-size:9px;font-weight:700;color:#2d5282;margin-left:2px;cursor:pointer;flex-shrink:0;}
+.seek-detail-pop{position:absolute;top:100%;left:0;margin-top:6px;z-index:50;background:#fff;border:1.5px solid #2d5282;border-radius:10px;padding:8px 12px;font-size:13px;color:#1f2a44;box-shadow:0 6px 20px rgba(0,0,0,.12);min-width:170px;max-width:260px;white-space:normal;text-align:left;line-height:1.4;}
 .chip:hover{opacity:0.88;}
 .chip-text{display:flex;flex-direction:column;min-width:0;line-height:1.15;}
 .chip-label{font-size:12.5px;font-weight:700;color:#1f2a44;white-space:normal;overflow-wrap:anywhere;}
@@ -65,6 +67,7 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .chip.match{background:#1a7f4b;border-color:#1a7f4b;}
 .chip.match-need{background:#2d5282;border-color:#2d5282;}
 .chip.match .chip-label,.chip.match-need .chip-label{color:#fff;}
+.chip.match .seek-info,.chip.match-need .seek-info{color:#fff;border-color:rgba(255,255,255,0.7);}
 .chip.match .chip-cat,.chip.match-need .chip-cat{color:rgba(255,255,255,0.72);}
 .chip.match .chip-photo,.chip.match-need .chip-photo{border-color:rgba(255,255,255,0.35);}
 .empty{font-size:12px;color:#c0c4d6;padding:4px 2px;font-style:italic;}
@@ -224,12 +227,12 @@ function parseTagStr(str){
 function parseNeeds(str){
   if(!str) return [];
   return String(str).split('|').filter(Boolean).map(function(s){
-    var tio=s.indexOf('~'); if(tio>-1) s=s.slice(0,tio);   // drop the ~detail suffix (intake owner-only field)
+    var detail=''; var tio=s.indexOf('~'); if(tio>-1){ try{detail=decodeURIComponent(s.slice(tio+1));}catch(e){detail=s.slice(tio+1);} s=s.slice(0,tio); }
     var p=s.split(':');
     var local=p[1]==='local';
     var ntype=local?(p[2]||'skill'):(p[1]||'skill');
     var catParts=(local?p.slice(3):p.slice(2)).join(':').split(' / ');
-    return {item:(p[0]||'').trim(), ntype:ntype, category:(catParts[0]||'').trim()};
+    return {item:(p[0]||'').trim(), ntype:ntype, category:(catParts[0]||'').trim(), detail:detail};
   }).filter(function(n){return n.item;});
 }
 
@@ -400,7 +403,7 @@ function memberChips(field){
       var low=label.toLowerCase();
       if(_parentCats[low]) return;            // never show a 1st-degree parent category
       if(seen[low]) return; seen[low]=true;   // one chip per person per item
-      out.push({item:label, category:it.category||'', member:{appearId:m.appearId, photo:m.photo, pageLink:m.pageLink}});
+      out.push({item:label, category:it.category||'', detail:it.detail||'', member:{appearId:m.appearId, photo:m.photo, pageLink:m.pageLink}});
     });
   });
   return shuffle(out);
@@ -437,6 +440,15 @@ function matchNeedChip(entry){
   return '';
 }
 
+// Need chips carry an optional "what exactly I'm seeking" detail; tap the (i) to reveal it under the chip.
+var _hubPopCtr=0;
+window.toggleHubSeek=function(id){
+  var el=document.getElementById(id); if(!el) return;
+  var willOpen=(el.style.display==='none'||!el.style.display);
+  var pops=document.querySelectorAll('.seek-detail-pop');
+  for(var k=0;k<pops.length;k++) pops[k].style.display='none';
+  el.style.display=willOpen?'block':'none';
+};
 function chipHTML(entry, matchType, needsMode){
   var label=entry.item;
   var mem=entry.member||{};
@@ -449,9 +461,15 @@ function chipHTML(entry, matchType, needsMode){
     ?'<img class="chip-photo" src="'+escHTML(photo)+'" alt="" data-initial="'+initial+'" onerror="imgFallback(this)">'
     :'<div class="chip-photo-fallback">'+initial+'</div>';
   var catEl=cat?'<span class="chip-cat">'+escHTML(cat)+'</span>':'';
+  var hasDetail=needsMode&&entry.detail;
+  var popId='hubpop-'+(_hubPopCtr++);
+  var infoEl=hasDetail?'<span class="seek-info" onclick="event.stopPropagation();toggleHubSeek(\''+popId+'\')" title="What they are seeking">i</span>':'';
+  var popEl=hasDetail?'<div id="'+popId+'" class="seek-detail-pop" style="display:none;">Seeking: '+escHTML(entry.detail)+'</div>':'';
   return '<div class="'+cls+'" title="'+escHTML(label)+'" onclick="openProfile(\''+escHTML(mem.appearId||'')+'\',\''+escHTML(mem.pageLink||'')+'\')">'
     +photoEl
     +'<div class="chip-text"><span class="chip-label">'+escHTML(label)+'</span>'+catEl+'</div>'
+    +infoEl
+    +popEl
     +'</div>';
 }
 
@@ -690,4 +708,4 @@ async function loadContributions(){
 </script>
 </body>
 </html>
-<!-- Version: V2.60 | Date: 2026-07-16 | LAST CHANGE: parseNeeds now strips the ~detail suffix (intake's new owner-only "what exactly I'm seeking" free-text) so need chips stay clean. (Prev V2.59: Event profile pill passes &me=.) -->
+<!-- Version: V2.61 | Date: 2026-07-16 | LAST CHANGE: Need chips now carry the "what exactly I'm seeking" detail - a small (i) on chips that have one; tapping it (stopPropagation) reveals a "Seeking: ..." popover under the chip, while tapping the rest of the chip still opens the person's profile. Shown for every attendee. (Prev V2.60: parseNeeds stripped the detail.) -->
