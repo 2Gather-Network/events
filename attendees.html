@@ -1,4 +1,4 @@
-<!-- Version: V2.57 | Date: 2026-07-16 | LAST CHANGE: Removed the "Learn more" button from the QR panel (it duplicated the CTA "Learn more" on the anonymous view); QR panel is back to just Close. "Learn more" still shows in the CTA for anonymous viewers and is hidden when a member ID is attached. (Prev V2.56: nested photo in Event profile pill, moved Learn more to QR.) -->
+<!-- Version: V2.58 | Date: 2026-07-16 | LAST CHANGE: Hub CTA is now a 4-state button + top toast. Not signed in -> "Register for this event" shows a toast "Sign up to register for this event" (use top-bar Sign Up; Glide sign-up isn't linkable). Signed in w/ ID but not registered -> "Register for this event" actually writes the RSVP then flips to "Create my profile". Registered no profile -> "Create my profile" (intake build). Registered w/ profile -> "Edit my event profile" (intake edit). No more loop to the Glide event page. (Prev V2.57: removed dup Learn more from QR.) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -33,6 +33,8 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .qr-reveal .qr-close{margin-top:2px;background:#f5f6f8;border:1px solid #e0e2ea;border-radius:20px;padding:7px 18px;font-size:13px;font-weight:600;color:#6b7280;cursor:pointer;font-family:'DM Sans',sans-serif;}
 .hub-me{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;overflow:hidden;background:#2d5282;color:#fff;font-size:15px;font-weight:700;text-decoration:none;flex-shrink:0;border:2px solid #fff;box-shadow:0 0 0 1.5px #cdd3e0;}
 .hub-me img{width:100%;height:100%;object-fit:cover;display:block;}
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-120px);background:#1a2433;color:#fff;padding:12px 22px;border-radius:12px;font-weight:700;font-size:14px;transition:transform .3s ease;z-index:2000;max-width:92vw;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.2);font-family:'DM Sans',sans-serif;}
+.toast.show{transform:translateX(-50%) translateY(0);}
 .match-legend{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;font-weight:600;color:#6b7280;}
 .match-legend .lg{display:inline-flex;align-items:center;gap:6px;}
 .match-legend .dot{width:12px;height:12px;border-radius:50%;display:inline-block;flex-shrink:0;}
@@ -79,6 +81,8 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 </style>
 </head>
 <body>
+
+<div class="toast" id="toast"></div>
 
 <div id="hub-qr-panel" class="qr-reveal" style="display:none;">
   <div class="qr-card">
@@ -548,18 +552,40 @@ function renderExpanded(){
 }
 window.expandSection=function(key){ _expanded=key; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
 window.backToHub=function(){ _expanded=null; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+function showToast(msg){
+  var t=document.getElementById('toast'); if(!t) return;
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(function(){t.classList.remove('show');},4000);
+}
+// Not signed in: the hub can't link to Glide's sign-up, so prompt them to use the top-bar Sign Up.
+window.hubRegisterPrompt=function(){ showToast('Sign up to register for this event'); };
+// Signed in with an ID but not registered: write the RSVP, then flip the CTA to "Create my profile".
+window.hubRegister=function(){
+  if(!_myId||!_eventId){ showToast('Sign up to register for this event'); return; }
+  showToast('Registering…');
+  var done=function(){ _meRegistered=true; renderProfileCta(); showToast("You're registered!"); };
+  fetch(GS_URL+'?action=rsvp&appearId='+encodeURIComponent(_myId)+'&eventId='+encodeURIComponent(_eventId)+'&public=true').then(done,done);
+};
 function renderProfileCta(){
   var el=document.getElementById('profile-cta'); if(!el) return;
   var BTN='display:inline-flex;align-items:center;gap:8px;background:#fff;color:#2d5282;border:1.5px solid #2d5282;border-radius:24px;padding:12px 22px;font-size:16px;font-weight:700;text-decoration:none;';
   // "Learn more" -> the real event page (info=1 bypasses the Glide forward).
   // Hidden once a member ID is attached (they arrived identified); still on the QR panel.
   var learnMore=(_eventId && !_myId)?'<a href="https://gather.2gather.network/event.html?id='+encodeURIComponent(_eventId)+'&info=1" target="_top" style="'+BTN+'">Learn more</a>':'';
+  var BTNB=BTN+'cursor:pointer;font-family:inherit;';       // button variant of the pill
   var primary='';
-  if(!_meRegistered){                                       // not RSVP'd (anon or signed-in-not-registered) -> register
-    primary='<a href="https://2gather.network/dl/lakeballingerhubevent" target="_top" style="'+BTN+'">Register for this event</a>';
-  } else if(!_myData){                                      // registered, no profile -> build it
+  if(!_meRegistered){
+    if(!_myId){                                             // not signed in -> prompt sign up (Glide sign-up isn't linkable)
+      primary='<button onclick="hubRegisterPrompt()" style="'+BTNB+'">Register for this event</button>';
+    } else {                                                // signed in with an ID, not registered -> actually register
+      primary='<button onclick="hubRegister()" style="'+BTNB+'">Register for this event</button>';
+    }
+  } else if(!_myData){                                      // registered, no profile -> create it
     var url='https://creating.works/intake.html?id='+encodeURIComponent(_myId)+(_eventId?'&eventId='+encodeURIComponent(_eventId):'')+'&intro=1';
-    primary='<a href="'+url+'" style="'+BTN+'">🌱 Build my event profile</a>';
+    primary='<a href="'+url+'" style="'+BTN+'">Create my profile</a>';
+  } else {                                                  // registered, has profile -> edit it
+    var eurl='https://creating.works/intake.html?id='+encodeURIComponent(_myId)+(_eventId?'&eventId='+encodeURIComponent(_eventId):'');
+    primary='<a href="'+eurl+'" style="'+BTN+'">Edit my event profile</a>';
   }
   el.innerHTML=(learnMore||primary)?'<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:14px 0 0;">'+learnMore+primary+'</div>':'';
 }
@@ -663,4 +689,4 @@ async function loadContributions(){
 </script>
 </body>
 </html>
-<!-- Version: V2.57 | Date: 2026-07-16 | LAST CHANGE: Removed the "Learn more" button from the QR panel (it duplicated the CTA "Learn more" on the anonymous view); QR panel is back to just Close. "Learn more" still shows in the CTA for anonymous viewers and is hidden when a member ID is attached. (Prev V2.56: nested photo in Event profile pill, moved Learn more to QR.) -->
+<!-- Version: V2.58 | Date: 2026-07-16 | LAST CHANGE: Hub CTA is now a 4-state button + top toast. Not signed in -> "Register for this event" shows a toast "Sign up to register for this event" (use top-bar Sign Up; Glide sign-up isn't linkable). Signed in w/ ID but not registered -> "Register for this event" actually writes the RSVP then flips to "Create my profile". Registered no profile -> "Create my profile" (intake build). Registered w/ profile -> "Edit my event profile" (intake edit). No more loop to the Glide event page. (Prev V2.57: removed dup Learn more from QR.) -->
