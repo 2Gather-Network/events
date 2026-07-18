@@ -1,4 +1,4 @@
-<!-- Version: V2.71 | Date: 2026-07-17 | LAST CHANGE: Languages now surface on the hub - a one-line accent under the skills chips ("N languages spoken here") so nothing gets squeezed, plus a full "Languages represented" block in the skills Show-all view. Legacy per-person path already carries languages; the batched getEventProfiles needs a GAS field added. (V2.70: Sign up list pill.) -->
+<!-- Version: V2.72 | Date: 2026-07-17 | LAST CHANGE: Skills "Show all" is now a drill-down - parent categories first (plain chips, no faces, uncategorised bucketed as "Other"), tap one to see the people inside it. Languages are clickable too and list everyone registered who speaks that language. Back steps one level at a time. Arrows removed from back buttons. (V2.71: language accent.) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -192,6 +192,8 @@ var _myId=(params.get('memberCard')||params.get('appearId')||params.get('me')||'
 var _matchMode=false;
 var _searchQ='';
 var _expanded=null;   // null, or a quadrant key currently showing its full-page (in-page) view
+var _expandedCat=null;    // within the skills view: which parent category is drilled into
+var _expandedLang=null;   // within the skills view: which language is drilled into
 var SECTION_META={
   skills:{title:'Skills of our attendees',needsMode:false},
   interests:{title:'Recreational interests of our attendees',needsMode:false},
@@ -582,7 +584,46 @@ function renderAll(){
   renderSection('values-body','values-count',_chips.values,false,'values');
   renderSection('needs-body','needs-count',_chips.needs,true,'needs');
 }
+// Skills entries grouped by their parent category. Anything without one collects under "Other".
+var OTHER_CAT='Other';
+function skillsByCategory(entries){
+  var groups={};
+  entries.forEach(function(en){
+    var cat=(refFor(en.item).category||'').trim()||OTHER_CAT;
+    if(!groups[cat]) groups[cat]=[];
+    groups[cat].push(en);
+  });
+  return groups;
+}
+function peopleCount(entries){
+  var ppl={}; entries.forEach(function(en){ ppl[normId(en.member.appearId)]=true; });
+  return Object.keys(ppl).length;
+}
+// Everyone registered who speaks a given language.
+function languageSpeakers(lang){
+  var l=String(lang||'').toLowerCase();
+  return _members.filter(function(m){
+    return (m.languages||[]).some(function(x){ return String(x).toLowerCase()===l; });
+  });
+}
+function personChipHTML(m){
+  var initial=escHTML((m.name||m.appearId||'?').charAt(0).toUpperCase());
+  var ph=m.photo
+    ?'<img class="chip-photo" src="'+escHTML(m.photo)+'" alt="" data-initial="'+initial+'" onerror="imgFallback(this)">'
+    :'<div class="chip-photo-fallback">'+initial+'</div>';
+  var inner=ph+'<span class="chip-text"><span class="chip-label">'+escHTML(m.name||m.appearId)+'</span></span>';
+  return _myId
+    ? '<div class="chip"><span class="chip-open" onclick="openProfile(\''+escHTML(m.appearId||'')+'\',\''+escHTML(m.pageLink||'')+'\')">'+inner+'</span></div>'
+    : '<div class="chip noclick"><span class="chip-open" style="cursor:default;">'+inner+'</span></div>';
+}
+function quadrantHTML(title, countLine, bodyHTML, extraStyle){
+  return '<div class="quadrant"'+(extraStyle?' style="'+extraStyle+'"':'')+'><div class="q-header" style="cursor:default;"><div>'
+    +'<div class="q-title">'+title+'</div>'
+    +'<div class="q-count">'+countLine+'</div></div></div>'
+    +'<div class="q-body">'+bodyHTML+'</div></div>';
+}
 // Full-page in-page view of one quadrant (no modal). Search + match mode still apply.
+// Skills drills down: parent categories -> the people inside one. Languages drill down the same way.
 function renderExpanded(){
   var exp=document.getElementById('expanded-view'); if(!exp) return;
   var key=_expanded, meta=SECTION_META[key]||{title:'',needsMode:false};
@@ -592,33 +633,71 @@ function renderExpanded(){
     var cat=meta.needsMode?(en.category||''):(refFor(en.item).category||'');
     return en.item.toLowerCase().indexOf(_searchQ)>-1 || cat.toLowerCase().indexOf(_searchQ)>-1;
   });
-  var ppl={}; filtered.forEach(function(en){ ppl[normId(en.member.appearId)]=true; });
-  var n=Object.keys(ppl).length;
-  var chips=filtered.length
-    ? filtered.map(function(en){ var mt=_matchMode?(meta.needsMode?matchNeedChip(en):matchOfferingChip(en)):''; return chipHTML(en, mt, meta.needsMode); }).join('')
-    : '<span class="empty">Nothing here yet.</span>';
-  // Skills "Show all" also lists every language represented, in full.
-  var langBlock='';
-  if(key==='skills'){
-    var langs=allLanguages();
-    if(langs.length){
-      langBlock='<div class="quadrant" style="margin-top:12px;"><div class="q-header" style="cursor:default;"><div>'
-        +'<div class="q-title">Languages represented</div>'
-        +'<div class="q-count">'+langs.length+' '+(langs.length===1?'language':'languages')+'</div></div></div>'
-        +'<div class="q-body">'+langs.map(function(l){
-            return '<span class="chip" style="cursor:default;padding:5px 12px;"><span class="chip-text"><span class="chip-label">'+escHTML(l)+'</span></span></span>';
-          }).join('')+'</div></div>';
-    }
+  var chipsFor=function(list){
+    return list.length
+      ? list.map(function(en){ var mt=_matchMode?(meta.needsMode?matchNeedChip(en):matchOfferingChip(en)):''; return chipHTML(en, mt, meta.needsMode); }).join('')
+      : '<span class="empty">Nothing here yet.</span>';
+  };
+
+  // Level 3: everyone who speaks one language.
+  if(_expandedLang){
+    var speakers=languageSpeakers(_expandedLang);
+    exp.innerHTML='<a class="back-hub" onclick="backToLangList()">Back</a>'
+      +quadrantHTML(escHTML(_expandedLang),
+          speakers.length+' '+(speakers.length===1?'person':'people'),
+          speakers.length?speakers.map(personChipHTML).join(''):'<span class="empty">Nobody yet.</span>');
+    return;
   }
-  exp.innerHTML='<a class="back-hub" onclick="backToHub()">← Back to hub</a>'
-    +'<div class="quadrant"><div class="q-header" style="cursor:default;"><div>'
-    +'<div class="q-title">'+escHTML(meta.title)+'</div>'
-    +'<div class="q-count">'+n+' '+(n===1?'person':'people')+'</div></div></div>'
-    +'<div class="q-body">'+chips+'</div></div>'
-    +langBlock;
+
+  // Level 2 (skills only): the people inside one parent category.
+  if(key==='skills'&&_expandedCat){
+    var inCat=skillsByCategory(filtered)[_expandedCat]||[];
+    exp.innerHTML='<a class="back-hub" onclick="backToCategories()">Back</a>'
+      +quadrantHTML(escHTML(_expandedCat),
+          peopleCount(inCat)+' '+(peopleCount(inCat)===1?'person':'people'),
+          chipsFor(inCat));
+    return;
+  }
+
+  // Level 1 for skills: parent categories only - plain chips, no faces or subtext.
+  if(key==='skills'){
+    var groups=skillsByCategory(filtered);
+    var names=Object.keys(groups).sort(function(a,b){
+      if(a===OTHER_CAT) return 1; if(b===OTHER_CAT) return -1; return a.localeCompare(b);
+    });
+    var catChips=names.length
+      ? names.map(function(c){
+          return '<span class="chip" onclick="expandCategory(\''+escHTML(c).replace(/'/g,"\\'")+'\')" style="padding:7px 14px;">'
+            +'<span class="chip-text"><span class="chip-label">'+escHTML(c)+'</span>'
+            +'<span class="chip-cat">'+peopleCount(groups[c])+' '+(peopleCount(groups[c])===1?'person':'people')+'</span></span></span>';
+        }).join('')
+      : '<span class="empty">Nothing here yet.</span>';
+    var langs=allLanguages();
+    var langBlock=langs.length
+      ? quadrantHTML('Languages represented', langs.length+' '+(langs.length===1?'language':'languages'),
+          langs.map(function(l){
+            return '<span class="chip" onclick="expandLanguage(\''+escHTML(l).replace(/'/g,"\\'")+'\')" style="padding:7px 14px;">'
+              +'<span class="chip-text"><span class="chip-label">'+escHTML(l)+'</span></span></span>';
+          }).join(''), 'margin-top:12px;')
+      : '';
+    exp.innerHTML='<a class="back-hub" onclick="backToHub()">Back to hub</a>'
+      +quadrantHTML(escHTML(meta.title), names.length+' '+(names.length===1?'category':'categories'), catChips)
+      +langBlock;
+    return;
+  }
+
+  // Every other quadrant keeps the flat people view.
+  exp.innerHTML='<a class="back-hub" onclick="backToHub()">Back to hub</a>'
+    +quadrantHTML(escHTML(meta.title),
+        peopleCount(filtered)+' '+(peopleCount(filtered)===1?'person':'people'),
+        chipsFor(filtered));
 }
-window.expandSection=function(key){ _expanded=key; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
-window.backToHub=function(){ _expanded=null; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+window.expandSection=function(key){ _expanded=key; _expandedCat=null; _expandedLang=null; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+window.expandCategory=function(cat){ _expandedCat=cat; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+window.expandLanguage=function(lang){ _expandedLang=lang; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+window.backToCategories=function(){ _expandedCat=null; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+window.backToLangList=function(){ _expandedLang=null; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+window.backToHub=function(){ _expanded=null; _expandedCat=null; _expandedLang=null; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
 function showToast(msg){
   var t=document.getElementById('toast'); if(!t) return;
   t.textContent=msg; t.classList.add('show');
