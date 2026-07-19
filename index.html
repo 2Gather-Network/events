@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V3.30 | Date: 2026-07-18 | LAST CHANGE: The interests box and the local-event banner no longer sit side by side - that row never wrapped, so at narrow widths both boxes crushed. They now stack with the event on top. The interests box still hides below 768px, as before. The "Add topics" sign-in prompt is an inline reveal inside the box instead of a fixed overlay, per the no-modals rule. The Lake Ballinger banner now only appears once location says Washington, read from the existing #filter-state select (set by "Use my location" or chosen under filters), so it costs no extra call. (V3.20: removed skin-toned wave emoji.) -->
+<!-- Version: V3.31 | Date: 2026-07-18 | LAST CHANGE: The Washington gate on the Lake Ballinger banner could never pass: it read the state filter, which is empty on every fresh load, and no code ever remembered a resolved location - so the banner stayed hidden for everyone. The state is now remembered in localStorage as soon as it is known, from the "Use my location" reverse geocode or from the person choosing one, and the gate falls back to that when the select has not been populated. Clearing the location filter forgets it again. Behaviour is unchanged when nothing is known: no location means no banner. (V3.30: stacked banner, inline prompt, Washington gate.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -215,7 +215,7 @@
         <select id="filter-country" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onCountryChange()">
           <option value="">All countries</option>
         </select>
-        <select id="filter-state" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="renderEvents()">
+        <select id="filter-state" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onStateChange()">
           <option value="">All states</option>
         </select>
         <button onclick="clearLocationFilter()" style="font-size:12px;color:var(--muted);background:none;border:none;cursor:pointer;padding:4px;">✕ Clear</button>
@@ -564,12 +564,29 @@ function toggleInterestsNote() {
 // says Washington. State is already resolved client-side into #filter-state - by the
 // "Use my location" reverse geocode, or by the person picking it under filters - so this
 // costs no extra call. No location set yet means no banner.
+// The state select is empty on every fresh load, and nothing remembered a resolved
+// location, so the Washington gate could never pass. Remember the state once it is known -
+// from the "Use my location" reverse geocode, or from the person choosing one - and fall
+// back to that when the select has not been populated yet.
+var LOC_STATE_KEY = "db-state";
+function knownState() {
+  var st = document.getElementById("filter-state");
+  var live = st ? String(st.value || "").trim() : "";
+  if (live) return live;
+  try { return String(localStorage.getItem(LOC_STATE_KEY) || "").trim(); } catch(e) { return ""; }
+}
+function rememberState(v) {
+  try { if (v) localStorage.setItem(LOC_STATE_KEY, v); else localStorage.removeItem(LOC_STATE_KEY); } catch(e) {}
+}
+function onStateChange() {
+  var st = document.getElementById("filter-state");
+  rememberState(st ? String(st.value || "").trim() : "");
+  renderEvents();
+}
 function updateLocalBanner() {
   var b = document.getElementById("local-event-banner");
   if (!b) return;
-  var st = document.getElementById("filter-state");
-  var inWA = !!(st && String(st.value || "").trim() === "Washington");
-  b.style.display = inWA ? "flex" : "none";
+  b.style.display = (knownState() === "Washington") ? "flex" : "none";
 }
 
 function renderEvents() {
@@ -872,6 +889,7 @@ function clearLocationFilter() {
   document.getElementById("filter-country").style.display = "none";
   document.getElementById("filter-state").innerHTML = '<option value="">All states</option>';
   document.getElementById("filter-state").style.display = "none";
+  rememberState("");
   renderEvents();
 }
 
@@ -904,7 +922,7 @@ function useMyLocation(btnId) {
           const countEl = document.getElementById("filter-country");
           if (country.includes("United States")||country.includes("USA")) {
             countEl.value = "United States"; onCountryChange();
-            if (state) { const match = US_STATES.find(s => s.toLowerCase()===state.toLowerCase()); if (match) document.getElementById("filter-state").value = match; }
+            if (state) { const match = US_STATES.find(s => s.toLowerCase()===state.toLowerCase()); if (match) { document.getElementById("filter-state").value = match; rememberState(match); } }
           } else if (country.includes("Canada")) countEl.value = "Canada";
           else if (country.includes("Mexico")) countEl.value = "Mexico";
           renderEvents();
@@ -1049,6 +1067,6 @@ loadEvents();
   </div>
 </div>
 
-<!-- Version: V3.30 | Date: 2026-07-18 | LAST CHANGE: The interests box and the local-event banner no longer sit side by side - that row never wrapped, so at narrow widths both boxes crushed. They now stack with the event on top. The interests box still hides below 768px, as before. The "Add topics" sign-in prompt is an inline reveal inside the box instead of a fixed overlay, per the no-modals rule. The Lake Ballinger banner now only appears once location says Washington, read from the existing #filter-state select (set by "Use my location" or chosen under filters), so it costs no extra call. (V3.20: removed skin-toned wave emoji.) -->
+<!-- Version: V3.31 | Date: 2026-07-18 | LAST CHANGE: The Washington gate on the Lake Ballinger banner could never pass: it read the state filter, which is empty on every fresh load, and no code ever remembered a resolved location - so the banner stayed hidden for everyone. The state is now remembered in localStorage as soon as it is known, from the "Use my location" reverse geocode or from the person choosing one, and the gate falls back to that when the select has not been populated. Clearing the location filter forgets it again. Behaviour is unchanged when nothing is known: no location means no banner. (V3.30: stacked banner, inline prompt, Washington gate.) -->
 </body>
 </html>
