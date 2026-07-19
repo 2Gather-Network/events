@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V3.20 | Date: 2026-07-17 | LAST CHANGE: Removed skin-toned wave emoji from the sign-in-to-RSVP prompt (replaced with a key icon). (Prev V3.19: local-event banner.) -->
+<!-- Version: V3.30 | Date: 2026-07-18 | LAST CHANGE: The interests box and the local-event banner no longer sit side by side - that row never wrapped, so at narrow widths both boxes crushed. They now stack with the event on top. The interests box still hides below 768px, as before. The "Add topics" sign-in prompt is an inline reveal inside the box instead of a fixed overlay, per the no-modals rule. The Lake Ballinger banner now only appears once location says Washington, read from the existing #filter-state select (set by "Use my location" or chosen under filters), so it costs no extra call. (V3.20: removed skin-toned wave emoji.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -124,17 +124,11 @@
 </div>
 
 <div class="page-body">
-  <div class="interest-banner-row" style="display:flex;gap:16px;margin-bottom:20px;align-items:stretch;">
-    <!-- My interests prompt for signed-out users -->
-    <div class="interest-box" style="flex:1;background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-      <div>
-        <p style="font-size:14px;font-weight:700;color:#1a1a2e;margin:0 0 4px;">🎯 Find events for you</p>
-        <p style="font-size:13px;color:#6b7280;margin:0;">Add topics to see matching upcoming events.</p>
-      </div>
-      <button onclick="document.getElementById('signin-interests-modal').style.display='flex'" style="background:#154F74;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">Add topics</button>
-    </div>
-    <!-- Local event banner -->
-    <a href="https://gather.2gather.network/event.html?id=m97sjwa3" style="flex:1;background:#1F699E;color:#fff;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:12px;text-decoration:none;">
+  <!-- Stacked, not side by side. Two half-width boxes crushed at narrow widths because this
+       row never wrapped. The event sits on top, the interests box follows. -->
+  <div class="interest-banner-row" style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+    <!-- Local event banner - only shown once location says Washington (see updateLocalBanner) -->
+    <a id="local-event-banner" href="https://gather.2gather.network/event.html?id=m97sjwa3" style="display:none;background:#1F699E;color:#fff;border-radius:12px;padding:16px 20px;align-items:center;gap:12px;text-decoration:none;">
       <div style="font-size:22px;flex-shrink:0;">📍</div>
       <div style="flex:1;min-width:0;">
         <div style="font-weight:700;font-size:14px;">Lake Ballinger Hub Event</div>
@@ -142,17 +136,24 @@
       </div>
       <div style="background:#fff;color:#1F699E;font-weight:700;font-size:13px;padding:8px 14px;border-radius:20px;white-space:nowrap;flex-shrink:0;">Learn more</div>
     </a>
-  </div>
-  <style>@media(max-width:768px){.interest-box{display:none;}}</style>
-
-  <!-- Sign-in interests modal -->
-  <div id="signin-interests-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:flex-start;justify-content:center;padding-top:48px;">
-    <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:340px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.18);position:relative;">
-      <p style="font-size:16px;font-weight:700;color:#1a1a2e;margin:0 0 10px;">Add your interests</p>
-      <p style="font-size:14px;color:#6b7280;margin:0 0 20px;">Sign in or sign up to add your interests and see matching events.</p>
-      <button onclick="document.getElementById('signin-interests-modal').style.display='none'" style="width:100%;background:#154F74;color:#fff;border:none;border-radius:8px;padding:12px;font-size:15px;font-weight:700;cursor:pointer;">Got it</button>
+    <!-- My interests prompt for signed-out users -->
+    <div class="interest-box" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div>
+          <p style="font-size:14px;font-weight:700;color:#1a1a2e;margin:0 0 4px;">🎯 Find events for you</p>
+          <p style="font-size:13px;color:#6b7280;margin:0;">Add topics to see matching upcoming events.</p>
+        </div>
+        <button onclick="toggleInterestsNote()" style="background:#154F74;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">Add topics</button>
+      </div>
+      <!-- Inline reveal rather than an overlay - modals render badly inside Glide -->
+      <div id="interests-note" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+        <p style="font-size:14px;font-weight:700;color:#1a1a2e;margin:0 0 6px;">Add your interests</p>
+        <p style="font-size:14px;color:#6b7280;margin:0 0 14px;">Sign in or sign up to add your interests and see matching events.</p>
+        <button onclick="toggleInterestsNote()" style="background:#154F74;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;">Got it</button>
+      </div>
     </div>
   </div>
+  <style>@media(max-width:768px){.interest-box{display:none;}}</style>
 
   <div id="geo-btn-wrap" style="display:none;margin-bottom:12px;">
     <button onclick="useMyLocation()" id="geo-btn" style="font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;border:1.5px solid var(--primary);background:var(--white);color:var(--primary);cursor:pointer;">📍 Use my location</button>
@@ -552,7 +553,27 @@ function resetFilters() {
 
 function setFilter(id) { activeFilter = id; try { localStorage.setItem("db-filter", id); } catch(e) {} renderPills(); renderEvents(); }
 
+// Inline reveal for the signed-out interests prompt. Replaces a fixed overlay - modals
+// render badly inside the Glide webview.
+function toggleInterestsNote() {
+  var n = document.getElementById("interests-note");
+  if (n) n.style.display = (n.style.display === "none" || !n.style.display) ? "block" : "none";
+}
+
+// The Lake Ballinger banner is local awareness, so it only shows to people whose location
+// says Washington. State is already resolved client-side into #filter-state - by the
+// "Use my location" reverse geocode, or by the person picking it under filters - so this
+// costs no extra call. No location set yet means no banner.
+function updateLocalBanner() {
+  var b = document.getElementById("local-event-banner");
+  if (!b) return;
+  var st = document.getElementById("filter-state");
+  var inWA = !!(st && String(st.value || "").trim() === "Washington");
+  b.style.display = inWA ? "flex" : "none";
+}
+
 function renderEvents() {
+  updateLocalBanner();   // re-evaluate whenever filters change, including the state select
   const evPageBase = window.location.href.replace(/\/[^/]*(\?.*)?$/, "/");
   const grid = document.getElementById("event-grid");
   const q    = document.getElementById("search-input").value.toLowerCase();
@@ -1028,6 +1049,6 @@ loadEvents();
   </div>
 </div>
 
-<!-- Version: V3.20 | Date: 2026-07-17 | LAST CHANGE: Removed skin-toned wave emoji from the sign-in-to-RSVP prompt (replaced with a key icon). (Prev V3.19: local-event banner.) -->
+<!-- Version: V3.30 | Date: 2026-07-18 | LAST CHANGE: The interests box and the local-event banner no longer sit side by side - that row never wrapped, so at narrow widths both boxes crushed. They now stack with the event on top. The interests box still hides below 768px, as before. The "Add topics" sign-in prompt is an inline reveal inside the box instead of a fixed overlay, per the no-modals rule. The Lake Ballinger banner now only appears once location says Washington, read from the existing #filter-state select (set by "Use my location" or chosen under filters), so it costs no extra call. (V3.20: removed skin-toned wave emoji.) -->
 </body>
 </html>
