@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.42 | Date: 2026-07-20 | LAST CHANGE: Made the contribution-list save safe. Every save writes the whole list, so it now refuses to write a list that never loaded (that is how [] overwrites real items), queues writes so a slow one cannot land after a newer one on a backend that runs 2.5s-52s, and on failure restores the last list the server accepted and says so, instead of swallowing the error and leaving a phantom item on screen. (V5.41: every item is an Experience.) -->
+  <!-- Version: V5.43 | Date: 2026-07-20 | LAST CHANGE: The edit-PIN handoff no longer postMessages the parent frame. Its listener in events.html went away with the event-view iframe (events V12.29), and the send carried the event's edit PIN to whatever the parent origin happened to be with "*". Navigating the top window to events.html?edit=&pin= is the path that was doing the work anyway - and a blocked navigation now falls back to this frame instead of being swallowed by a bare catch, which would have left a correct PIN doing nothing. (V5.42: contribution-list save made safe.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1447,16 +1447,16 @@ function submitEditPin() {
   try { sessionStorage.setItem("ev-edit-verified-" + urlId, pin); } catch(e) {}
   closeEditPin();
   const base = "https://gather.2gather.network/";
+  const editUrl = base + "events.html?edit=" + encodeURIComponent(urlId) + "&pin=" + encodeURIComponent(pin);
   if (window.self !== window.top) {
-    try {
-      // Try postMessage first (desktop), also navigate top window (mobile Glide)
-      window.parent.postMessage({ type: "openEdit", id: urlId, pin }, "*");
-      try { window.top.location.href = base + "events.html?edit=" + encodeURIComponent(urlId) + "&pin=" + encodeURIComponent(pin); } catch(e) {}
-    } catch(e) {
-      window.location.href = base + "events.html?edit=" + encodeURIComponent(urlId) + "&pin=" + encodeURIComponent(pin);
-    }
+    // V5.43: the postMessage partner went with the event-view iframe (events V12.29), so
+    // navigating the top window is the only path now. It used to sit in a bare catch that
+    // swallowed a blocked navigation - the outer catch only fired if postMessage threw - so
+    // a blocked top-nav left the person on a correct PIN with nothing happening.
+    try { window.top.location.href = editUrl; }
+    catch (e) { window.location.href = editUrl; }
   } else {
-    window.location.href = base + "events.html?edit=" + encodeURIComponent(urlId) + "&pin=" + encodeURIComponent(pin);
+    window.location.href = editUrl;
   }
 }
 
@@ -2035,6 +2035,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V5.42 | Date: 2026-07-20 | LAST CHANGE: Made the contribution-list save safe. Every save writes the whole list, so it now refuses to write a list that never loaded (that is how [] overwrites real items), queues writes so a slow one cannot land after a newer one on a backend that runs 2.5s-52s, and on failure restores the last list the server accepted and says so, instead of swallowing the error and leaving a phantom item on screen. (V5.41: every item is an Experience.) -->
+<!-- Version: V5.43 | Date: 2026-07-20 | LAST CHANGE: The edit-PIN handoff no longer postMessages the parent frame. Its listener in events.html went away with the event-view iframe (events V12.29), and the send carried the event's edit PIN to whatever the parent origin happened to be with "*". Navigating the top window to events.html?edit=&pin= is the path that was doing the work anyway - and a blocked navigation now falls back to this frame instead of being swallowed by a bare catch, which would have left a correct PIN doing nothing. (V5.42: contribution-list save made safe.) -->
 </body>
 </html>
