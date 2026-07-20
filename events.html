@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.28 | Date: 2026-07-19 | LAST CHANGE: The Lake Ballinger banner now links straight to the hub via window.top instead of to event.html. event.html force-forwards this event to its Glide page, so clicking the banner inside the Glide embed rendered Glide inside Glide; breaking out of the frame navigates the whole app to the hub instead. Also drops a redirect. (V12.27: banner carried memberCard to event.html - moot now.) -->
+<!-- Version: V12.29 | Date: 2026-07-19 | LAST CHANGE: One dark blue for the primary buttons. "Add topics" was #1b6896 while the category pills and the Filters markup were #154F74, and the Filters button was restyled to var(--primary) when open and WHITE when closed - so it read as three different buttons across a session. All now #154F74; the panel opening is the feedback. (V12.28: banner links to the hub via window.top.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -232,34 +232,32 @@
         <p style="font-size:14px;font-weight:700;color:var(--dark);margin-bottom:4px;">🎯 Find events for you</p>
         <p style="font-size:13px;color:var(--muted);">Add topics to see matching upcoming events.</p>
       </div>
-      <button onclick="openInterestsModal()" style="background:#1b6896;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;">Add topics</button>
+      <button onclick="toggleInterestsPanel()" style="background:#154F74;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;">Add topics</button>
     </div>
     <!-- State 2: has keywords -->
     <div id="for-you-active" style="display:none;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);white-space:nowrap;flex-shrink:0;">My interests</span>
         <div id="for-you-chips" style="display:flex;gap:6px;overflow-x:auto;flex:1;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px;"></div>
-        <button onclick="openInterestsModal()" style="background:none;border:none;color:var(--primary);font-size:13px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;white-space:nowrap;flex-shrink:0;">✏️ Edit</button>
+        <button onclick="toggleInterestsPanel()" style="background:none;border:none;color:var(--primary);font-size:13px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;white-space:nowrap;flex-shrink:0;">✏️ Edit</button>
       </div>
       <div id="for-you-results" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:8px;"></div>
     </div>
-  </div>
-  <!-- Interests modal -->
-  <div class="modal-overlay" id="interests-modal" style="z-index:150;">
-    <div class="modal" style="max-width:400px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div style="font-size:16px;font-weight:700;color:var(--dark);">Your topics</div>
-        <button onclick="closeInterestsModal()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">×</button>
-      </div>
+    <!-- Inline reveal rather than an overlay - modals render badly inside Glide.
+         It sits as a sibling of both states, not inside either, because renderForYou()
+         toggles those two blocks: nested, adding a first topic would flip empty -> active
+         and hide the panel out from under whoever was typing in it. -->
+    <div id="interests-panel" style="display:none;background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-top:12px;">
+      <div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:4px;">Your topics</div>
       <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Add topics to find matching upcoming events.</p>
       <div style="display:flex;gap:8px;margin-bottom:10px;position:relative;">
         <input id="interests-input" type="text" placeholder='Topic or "exact phrase"' autocomplete="off"
           style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:9px 14px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;"
           oninput="onInterestsInput(event)" onkeydown="onInterestsKeydown(event)">
-        <div id="interests-autocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:200;max-height:180px;overflow-y:auto;"></div>
+        <div id="interests-autocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:20;max-height:180px;overflow-y:auto;"></div>
       </div>
-      <div id="interests-chips-modal" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;min-height:32px;"></div>
-      <button onclick="closeInterestsModal()" style="width:100%;background:#1b6896;color:#fff;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Done</button>
+      <div id="interests-chips-panel" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;min-height:32px;"></div>
+      <button onclick="closeInterestsPanel()" style="width:100%;background:#1b6896;color:#fff;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Done</button>
     </div>
   </div>
 
@@ -1579,8 +1577,12 @@ function toggleFilterPanel() {
   const btn = document.getElementById("filter-panel-btn");
   const open = panel.style.display === "none" || panel.style.display === "";
   panel.style.display = open ? "block" : "none";
-  btn.style.background = open ? "var(--primary)" : "var(--white)";
-  btn.style.color = open ? "#fff" : "var(--dark)";
+  // V12.29: the Filters button stays #154F74 in every state, matching Add topics and the
+  // category pills. It used to be var(--primary) open and WHITE closed, which read as three
+  // different buttons across a session (the markup starts it at #154F74). The panel opening
+  // is the feedback.
+  btn.style.background = "#154F74";
+  btn.style.color = "#fff";
 }
 
 function setVenueFilter(venueName) {
@@ -1589,7 +1591,7 @@ function setVenueFilter(venueName) {
   if (venueInput) venueInput.value = venueName;
   if (panel) panel.style.display = "block";
   const btn = document.getElementById("filter-panel-btn");
-  if (btn) { btn.style.background = "var(--primary)"; btn.style.color = "#fff"; }
+  if (btn) { btn.style.background = "#154F74"; btn.style.color = "#fff"; }
   renderEvents();
 }
 
@@ -1606,7 +1608,7 @@ function resetFilters() {
   document.getElementById("host-filter").value = "";
   const venueFilterEl = document.getElementById("venue-filter"); if(venueFilterEl) venueFilterEl.value = "";
   const panel = document.getElementById("filter-panel"); if(panel) panel.style.display = "none";
-  const btn = document.getElementById("filter-panel-btn"); if(btn) { btn.style.background = "var(--white)"; btn.style.color = "var(--dark)"; }
+  const btn = document.getElementById("filter-panel-btn"); if(btn) { btn.style.background = "#154F74"; btn.style.color = "#fff"; }
   setFilterFormat("all");
   setFilter("all");
   setDateFilter("upcoming");
@@ -2666,22 +2668,6 @@ function openEventView(id) {
   window.location.href = base + "event.html?id=" + id + mcParam;   // navigate to the full event page (no modal)
 }
 
-function shareEventModal() {
-  const url = document.getElementById("event-view-share-url")?.value || "";
-  const title = document.getElementById("event-view-title")?.textContent || "";
-  const isGlide = /glide/i.test(navigator.userAgent) || window.self !== window.top;
-  if (!isGlide && navigator.share) {
-    navigator.share({ title, url }).catch(err => { if (err.name !== "AbortError") navigator.clipboard?.writeText(url).then(() => showToast("🔗 Link copied!")); });
-  } else {
-    navigator.clipboard?.writeText(url).then(() => showToast("🔗 Link copied!")).catch(() => prompt("Copy this link:", url));
-  }
-}
-
-function closeEventView() {
-  document.getElementById("event-view-modal").classList.remove("open");
-  setTimeout(() => { document.getElementById("event-view-frame").src = "about:blank"; }, 300);
-}
-
 function copyEventLink(id) {
   const base = window.location.href.replace(/\/[^/]*(\?.*)?$/, "/");
   const url = base + "event.html?id=" + id;
@@ -2859,7 +2845,6 @@ safeOn("f-time",        "change", checkAndWarnConflict);
 safeOn("f-endtime",     "change", checkAndWarnConflict);
 safeOn("p-code",        "keydown", e => { if (e.key === "Enter") verifyPasscode(); });
 safeOn("passcode-modal","click", e => { if (e.target.id === "passcode-modal") closePasscodeModal(); });
-safeOn("event-view-modal","click", e => { if (e.target.id === "event-view-modal") closeEventView(); });
 // track unsaved changes in post form
 document.querySelector(".modal-scroll-body")?.addEventListener("input", () => { formDirty = true; });
 document.querySelector(".modal-scroll-body")?.addEventListener("change", () => { formDirty = true; });
@@ -2879,11 +2864,6 @@ window.addEventListener("message", (e) => {
     const id = e.data.id;
     const pin = e.data.pin || sessionStorage.getItem("ev-edit-verified-" + id);
     if (!id) return;
-    // Force-close event view modal immediately (don't rely solely on class removal)
-    const evm = document.getElementById("event-view-modal");
-    if (evm) { evm.classList.remove("open"); evm.style.display = "none"; }
-    const evf = document.getElementById("event-view-frame");
-    if (evf) evf.src = "about:blank";
     setTimeout(() => {
       const found = findEvById(id);
       if (found) {
@@ -3690,7 +3670,7 @@ loadEvents().then(() => {
     const panel = document.getElementById("filter-panel");
     if (panel) panel.style.display = "block";
     const btn = document.getElementById("filter-panel-btn");
-    if (btn) { btn.style.background = "var(--primary)"; btn.style.color = "#fff"; }
+    if (btn) { btn.style.background = "#154F74"; btn.style.color = "#fff"; }
     renderEvents();
     window.history.replaceState({}, "", window.location.pathname);
   }
@@ -3792,7 +3772,7 @@ function renderForYou() {
   const resultsEl = document.getElementById("for-you-results");
   if (!resultsEl) return;
   if (matched.length === 0) {
-    resultsEl.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:8px 0;">🔍 No upcoming events match your topics. <a onclick="openInterestsModal()" style="color:var(--primary);font-weight:700;cursor:pointer;">Try broadening your keywords</a></div>`;
+    resultsEl.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:8px 0;">🔍 No upcoming events match your topics. <a onclick="toggleInterestsPanel()" style="color:var(--primary);font-weight:700;cursor:pointer;">Try broadening your keywords</a></div>`;
     return;
   }
   resultsEl.innerHTML = matched.map(ev => {
@@ -3814,40 +3794,47 @@ function renderForYou() {
         ${matchTag}
       </div>
     </div>`;
-  }).join("") + `<div style="grid-column:1 / -1;font-size:12px;color:var(--muted);padding:6px 0 2px;">Filtered by your topics · <a onclick="openInterestsModal()" style="color:var(--primary);font-weight:700;cursor:pointer;">Edit topics</a></div>`;
+  }).join("") + `<div style="grid-column:1 / -1;font-size:12px;color:var(--muted);padding:6px 0 2px;">Filtered by your topics · <a onclick="toggleInterestsPanel()" style="color:var(--primary);font-weight:700;cursor:pointer;">Edit topics</a></div>`;
 }
 
-function openInterestsModal() {
-  renderInterestsChipsModal();
-  document.getElementById("interests-modal").classList.add("open");
-  setTimeout(() => document.getElementById("interests-input")?.focus(), 100);
+// The topics editor reveals in place under the For You section. It used to be a fixed
+// overlay; modals render badly inside the Glide webview.
+function toggleInterestsPanel() {
+  const panel = document.getElementById("interests-panel");
+  if (!panel) return;
+  if (panel.style.display === "block") { closeInterestsPanel(); return; }
+  renderInterestsChips();
+  panel.style.display = "block";
+  document.getElementById("interests-input")?.focus();
 }
 
-function closeInterestsModal() {
-  document.getElementById("interests-modal").classList.remove("open");
-  document.getElementById("interests-autocomplete").style.display = "none";
+function closeInterestsPanel() {
+  const panel = document.getElementById("interests-panel");
+  if (panel) panel.style.display = "none";
+  const ac = document.getElementById("interests-autocomplete");
+  if (ac) ac.style.display = "none";
   renderForYou();
 }
 
-function renderInterestsChipsModal() {
+function renderInterestsChips() {
   const interests = loadInterests();
-  const el = document.getElementById("interests-chips-modal");
+  const el = document.getElementById("interests-chips-panel");
   if (!el) return;
   el.innerHTML = interests.map(kw =>
     `<span style="display:inline-flex;align-items:center;gap:6px;background:#EBF5FB;border:1px solid #AED6F1;border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;color:#1B6896;">
       ${esc(kw)}
-      <button onclick="removeInterestModal('${kw.replace(/'/g,"\\'")}') " style="background:none;border:none;color:#1B6896;cursor:pointer;font-size:14px;line-height:1;padding:0;">×</button>
+      <button onclick="removeInterest('${kw.replace(/'/g,"\\'")}') " style="background:none;border:none;color:#1B6896;cursor:pointer;font-size:14px;line-height:1;padding:0;">×</button>
     </span>`
   ).join("");
 }
 
-function removeInterestModal(kw) {
+function removeInterest(kw) {
   const arr = loadInterests().filter(k => k !== kw);
   saveInterests(arr);
-  renderInterestsChipsModal();
+  renderInterestsChips();
 }
 
-function addInterestFromModal() {
+function addInterest() {
   const input = document.getElementById("interests-input");
   if (!input) return;
   const vals = input.value.split(",").map(s => normalizeInterest(s)).filter(Boolean);
@@ -3858,11 +3845,11 @@ function addInterestFromModal() {
   saveInterests(arr);
   input.value = "";
   document.getElementById("interests-autocomplete").style.display = "none";
-  renderInterestsChipsModal();
+  renderInterestsChips();
 }
 
 function onInterestsKeydown(e) {
-  if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addInterestFromModal(); }
+  if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addInterest(); }
   if (e.key === "Escape") { document.getElementById("interests-autocomplete").style.display = "none"; }
 }
 
@@ -3891,10 +3878,8 @@ function onInterestsInput(e) {
 function selectInterestSuggestion(val) {
   document.getElementById("interests-input").value = val;
   document.getElementById("interests-autocomplete").style.display = "none";
-  addInterestFromModal();
+  addInterest();
 }
-
-safeOn("interests-modal", "click", e => { if (e.target.id === "interests-modal") closeInterestsModal(); });
 
 </script>
 
@@ -3947,22 +3932,6 @@ safeOn("interests-modal", "click", e => { if (e.target.id === "interests-modal")
   </div>
 </div>
 
-<!-- Event view modal (iframe) -->
-<div class="modal-overlay" id="event-view-modal" style="z-index:200;align-items:flex-end;padding:0;overscroll-behavior:none;">
-  <div id="event-view-inner" style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:900px;display:flex;flex-direction:column;overflow:hidden;-webkit-overflow-scrolling:touch;box-shadow:0 -4px 24px rgba(0,0,0,.2);max-height:90vh;">
-    <div style="flex-shrink:0;position:relative;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);">
-        <span id="event-view-title" style="font-size:14px;font-weight:700;color:var(--dark);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;margin-right:12px;"></span>
-        <div style="display:flex;gap:8px;flex-shrink:0;">
-          <input type="hidden" id="event-view-share-url" value="">
-          <button onclick="closeEventView()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;padding:4px;line-height:1;">×</button>
-        </div>
-      </div>
-    </div>
-    <iframe id="event-view-frame" style="flex:1;border:none;width:100%;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;" src="about:blank"></iframe>
-  </div>
-</div>
-
-<!-- Version: V12.28 | Date: 2026-07-19 | LAST CHANGE: The Lake Ballinger banner now links straight to the hub via window.top instead of to event.html. event.html force-forwards this event to its Glide page, so clicking the banner inside the Glide embed rendered Glide inside Glide; breaking out of the frame navigates the whole app to the hub instead. Also drops a redirect. (V12.27: banner carried memberCard to event.html - moot now.) -->
+<!-- Version: V12.29 | Date: 2026-07-19 | LAST CHANGE: One dark blue for the primary buttons. "Add topics" was #1b6896 while the category pills and the Filters markup were #154F74, and the Filters button was restyled to var(--primary) when open and WHITE when closed - so it read as three different buttons across a session. All now #154F74; the panel opening is the feedback. (V12.28: banner links to the hub via window.top.) -->
 </body>
 </html>
