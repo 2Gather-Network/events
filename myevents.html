@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.41 | Date: 2026-07-20 | LAST CHANGE: Removed the type step too - every item on the list is an Experience now. The wizard offered Skill / Experience / Thing, but the hub only renders Experiences and intake's sign-up list only reads them, so the other two made items that could be claimed and never shown. Adding is now: name, details, how long, slots. potluckType is still written as "Experience", so the hub filter, intake and claims are untouched. The Type dropdown is gone from the edit panel. (V5.40: sub-type step removed.) -->
+  <!-- Version: V5.42 | Date: 2026-07-20 | LAST CHANGE: Made the contribution-list save safe. Every save writes the whole list, so it now refuses to write a list that never loaded (that is how [] overwrites real items), queues writes so a slow one cannot land after a newer one on a backend that runs 2.5s-52s, and on failure restores the last list the server accepted and says so, instead of swallowing the error and leaving a phantom item on screen. (V5.41: every item is an Experience.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -300,6 +300,17 @@ var ROOMS = {};
 var ROOM_EMOJI = {};
 var _isHost = false;
 var _signupList = [];
+// V5.42: savePotluckHostList writes the WHOLE list every time, so a write built on a list
+// that never loaded, or one that lands out of order, silently destroys items. These two
+// track whether we have a real list and what the server last accepted, so a failed save can
+// be undone instead of leaving a phantom item on screen.
+var _signupListLoaded = false;
+var _plLastSaved = null;
+var _plSaveChain = Promise.resolve();
+function _plMarkLoaded(){
+  _signupListLoaded = true;
+  try { _plLastSaved = JSON.stringify(_signupList); } catch(e) { _plLastSaved = null; }
+}
 var _potluckClaims = [];
 // V5.41: kept because reference-data still supplies potluckTypes and the lanes may return;
 // nothing reads it now that every item is an Experience.
@@ -626,7 +637,29 @@ window.removePotluckHostItem=function(i){
   refreshPotluckHostSection();
 };
 function savePotluckHostList(){
-  fetch(GS_URL+'?action=savePotluckItem&eventId='+encodeURIComponent(window._currentEventId||(_currentEv&&_currentEv.id)||'')+'&potluckJson='+encodeURIComponent(JSON.stringify(_signupList))).catch(function(){});
+  // Never persist a list we never loaded - that is how [] ends up overwriting real items.
+  if(!_signupListLoaded){ showToast('The list has not loaded yet, so nothing was saved.'); return; }
+  var _eid = window._currentEventId||(_currentEv&&_currentEv.id)||'';
+  if(!_eid){ showToast('Could not save: no event id.'); return; }
+  var _attempt = JSON.stringify(_signupList);
+  var _restore = _plLastSaved;                 // the last list the server accepted
+  // Queue behind any save already in flight. This backend runs 2.5s-52s, so two quick
+  // clicks used to race and whichever landed last won, regardless of which was newer.
+  _plSaveChain = _plSaveChain.then(function(){
+    return fetch(GS_URL+'?action=savePotluckItem&eventId='+encodeURIComponent(_eid)+'&potluckJson='+encodeURIComponent(_attempt))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d || d.status!=='ok') throw new Error('rejected');
+        _plLastSaved = _attempt;
+      })
+      .catch(function(){
+        // Put the list back the way the server has it, so the screen stops claiming a
+        // change that did not happen.
+        if(_restore!=null){ try{ _signupList = JSON.parse(_restore); }catch(e){} }
+        showToast('Could not save. Your change was undone, please try again.');
+        try { refreshPotluckHostSection(); } catch(e) {}
+      });
+  });
 }
 // Edit an existing potluck item (name / type / slots) in a modal.
 var _PL_INP='width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 12px;';
@@ -705,6 +738,7 @@ function render(ev) {
   const _myId = getMemberId() || "";
   _isHost = !!(ev.hostMemberCard && _myId && String(ev.hostMemberCard).replace(/\./g,"").toLowerCase() === String(_myId).replace(/\./g,"").toLowerCase());
   try { _signupList = ev.signupPotluck ? JSON.parse(ev.signupPotluck) : []; } catch(e) { _signupList = []; }
+  _plMarkLoaded();
   window._currentEventId = ev.id;
 
   const expMap = {connected:"🌐 Connected",expressed:"🎨 Expressed",nourished:"🥘 Nourished from food/drink",energized:"🌀 Energized",playful:"🏓 Playful",rested:"💙 Rested"};
@@ -1675,6 +1709,7 @@ async function renderEventExperience(memberId, eventId, data) {
       return { item: (_c[0]||"").trim(), potluckType: (_c[1]||"").trim(), category: "", timeSpec: "", maxClaims: _slotsRaw === "" ? 1 : (parseInt(_slotsRaw,10) || 0) };
     });
   }
+  _plMarkLoaded();
   const linkStyle = "display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--dark);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;font-size:15px;font-weight:600;width:100%;box-sizing:border-box;background:none;text-align:left;font-family:inherit;cursor:pointer;";
   let html = '<div class="card-body">';
   var isHost = !!(ev && ev.hostMemberCard && _expNorm(ev.hostMemberCard) === _expNorm(memberId));
@@ -2000,6 +2035,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V5.41 | Date: 2026-07-20 | LAST CHANGE: Removed the type step too - every item on the list is an Experience now. The wizard offered Skill / Experience / Thing, but the hub only renders Experiences and intake's sign-up list only reads them, so the other two made items that could be claimed and never shown. Adding is now: name, details, how long, slots. potluckType is still written as "Experience", so the hub filter, intake and claims are untouched. The Type dropdown is gone from the edit panel. (V5.40: sub-type step removed.) -->
+<!-- Version: V5.42 | Date: 2026-07-20 | LAST CHANGE: Made the contribution-list save safe. Every save writes the whole list, so it now refuses to write a list that never loaded (that is how [] overwrites real items), queues writes so a slow one cannot land after a newer one on a backend that runs 2.5s-52s, and on failure restores the last list the server accepted and says so, instead of swallowing the error and leaving a phantom item on screen. (V5.41: every item is an Experience.) -->
 </body>
 </html>
