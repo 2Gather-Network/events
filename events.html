@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.32 | Date: 2026-07-20 | LAST CHANGE: Removed the "openEdit" message listener, which went dead with the event-view iframe in V12.29 - it only ever heard from event.html running inside that frame. Editing still arrives the way it actually worked all along: event.html and myevents.html navigate here with ?edit=&pin=, handled in loadEvents(). Paired with event V5.38 / myevents V5.43, which drop the matching postMessage sends and stop broadcasting the event PIN to the parent origin. (V12.31: matches refresh as each topic is added or removed.) -->
+<!-- Version: V12.33 | Date: 2026-07-20 | LAST CHANGE: The topic field is always visible, to the left of "Add topics", so adding a topic needs no click first. The field and its button sit as siblings of the empty and active states, never inside either - renderForYou() rebuilds those blocks, so a nested input would be destroyed mid-typing when a first topic flips empty -> active. The panel below is now only for removing topics, and its subtitle says so. (V12.32: retired the openEdit postMessage listener.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -232,7 +232,6 @@
         <p style="font-size:14px;font-weight:700;color:var(--dark);margin-bottom:4px;">🎯 Find events for you</p>
         <p style="font-size:13px;color:var(--muted);">Add topics to see matching upcoming events.</p>
       </div>
-      <button onclick="toggleInterestsPanel()" style="background:#154F74;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;">Add topics</button>
     </div>
     <!-- State 2: has keywords -->
     <div id="for-you-active" style="display:none;">
@@ -243,19 +242,23 @@
       </div>
       <div id="for-you-results" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:8px;"></div>
     </div>
-    <!-- Inline reveal rather than an overlay - modals render badly inside Glide.
-         It sits as a sibling of both states, not inside either, because renderForYou()
-         toggles those two blocks: nested, adding a first topic would flip empty -> active
-         and hide the panel out from under whoever was typing in it. -->
+    <!-- The topic field and its button are siblings of both states, never inside either.
+         renderForYou() rebuilds those two blocks, so an input nested in one would be
+         destroyed mid-typing the moment a first topic flipped empty -> active. Always
+         visible, so adding a topic costs no click first. -->
+    <div id="topic-add-row" style="display:flex;gap:8px;margin-top:12px;position:relative;">
+      <input id="interests-input" type="text" placeholder='Topic or "exact phrase"' autocomplete="off"
+        style="flex:1;min-width:0;border:1.5px solid var(--border);border-radius:8px;padding:9px 14px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;"
+        oninput="onInterestsInput(event)" onkeydown="onInterestsKeydown(event)">
+      <button onclick="addInterest()" style="flex-shrink:0;background:#154F74;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;">Add topics</button>
+      <div id="interests-autocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:20;max-height:180px;overflow-y:auto;margin-top:4px;"></div>
+    </div>
+    <!-- Inline reveal rather than an overlay - modals render badly inside Glide. Also a
+         sibling of both states, for the same reason as the row above. Adding happens in the
+         row above now, so this panel is only for removing topics. -->
     <div id="interests-panel" style="display:none;background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-top:12px;">
       <div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:4px;">Your topics</div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Add topics to find matching upcoming events.</p>
-      <div style="display:flex;gap:8px;margin-bottom:10px;position:relative;">
-        <input id="interests-input" type="text" placeholder='Topic or "exact phrase"' autocomplete="off"
-          style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:9px 14px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;"
-          oninput="onInterestsInput(event)" onkeydown="onInterestsKeydown(event)">
-        <div id="interests-autocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:20;max-height:180px;overflow-y:auto;"></div>
-      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Remove any you no longer want.</p>
       <div id="interests-chips-panel" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;min-height:32px;"></div>
       <button onclick="closeInterestsPanel()" style="width:100%;background:#154F74;color:#fff;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Done</button>
     </div>
@@ -3786,14 +3789,14 @@ function renderForYou() {
 }
 
 // The topics editor reveals in place under the For You section. It used to be a fixed
-// overlay; modals render badly inside the Glide webview.
+// overlay; modals render badly inside the Glide webview. Adding a topic no longer needs
+// this panel at all - the field above is always visible - so it is now only for removing.
 function toggleInterestsPanel() {
   const panel = document.getElementById("interests-panel");
   if (!panel) return;
   if (panel.style.display === "block") { closeInterestsPanel(); return; }
   renderInterestsChips();
   panel.style.display = "block";
-  document.getElementById("interests-input")?.focus();
 }
 
 function closeInterestsPanel() {
@@ -3835,7 +3838,8 @@ function addInterest() {
   input.value = "";
   document.getElementById("interests-autocomplete").style.display = "none";
   renderInterestsChips();
-  renderForYou();   // matches sit right below the open panel now, so keep them current
+  renderForYou();
+  input.focus();   // the field is always on screen now, so keep the cursor ready for the next topic
 }
 
 function onInterestsKeydown(e) {
@@ -3922,6 +3926,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.32 | Date: 2026-07-20 | LAST CHANGE: Removed the "openEdit" message listener, which went dead with the event-view iframe in V12.29 - it only ever heard from event.html running inside that frame. Editing still arrives the way it actually worked all along: event.html and myevents.html navigate here with ?edit=&pin=, handled in loadEvents(). Paired with event V5.38 / myevents V5.43, which drop the matching postMessage sends and stop broadcasting the event PIN to the parent origin. (V12.31: matches refresh as each topic is added or removed.) -->
+<!-- Version: V12.33 | Date: 2026-07-20 | LAST CHANGE: The topic field is always visible, to the left of "Add topics", so adding a topic needs no click first. The field and its button sit as siblings of the empty and active states, never inside either - renderForYou() rebuilds those blocks, so a nested input would be destroyed mid-typing when a first topic flips empty -> active. The panel below is now only for removing topics, and its subtitle says so. (V12.32: retired the openEdit postMessage listener.) -->
 </body>
 </html>
