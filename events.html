@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.24 | Date: 2026-07-18 | LAST CHANGE: Setting the state in code now persists it too. Assigning a select's .value does not fire its change handler, so the places that auto-fill Washington set the dropdown without ever remembering it - the banner gate then read "no location" on the next load. (V12.23: Use my location first, Format first.) -->
+<!-- Version: V12.25 | Date: 2026-07-19 | LAST CHANGE: "Use my location" hidden while we are inside Glide, and the state no longer defaults to Washington - defaulting made the local banner treat every in-person visitor as a local. The state is now only what the person chose, is restored on boot, and is forgotten when they change country. Banner retires after 2026-08-31. (V12.24: setting the state in code persists it too.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -317,14 +317,15 @@
           <option>Oceania</option>
           <option>Antarctica</option>
         </select>
-        <select id="filter-country" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onCountryChange()">
+        <select id="filter-country" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onCountryChangeUser()">
           <option value="">All countries</option>
         </select>
         <select id="filter-state" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onStateChange()">
           <option value="">All states</option>
         </select>
         <button onclick="clearLocationFilter()" style="font-size:12px;color:var(--muted);background:none;border:none;cursor:pointer;padding:4px;">✕ Clear</button>
-        <button onclick="useMyLocation('geo-btn-panel')" id="geo-btn-panel" style="font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;border:1.5px solid var(--primary);background:var(--white);color:var(--primary);cursor:pointer;margin-left:auto;">📍 Use my location</button>
+        <!-- V12.25: hidden while we are inside Glide (no allow="geolocation" on the embed). Remove the display:none to restore. -->
+        <button onclick="useMyLocation('geo-btn-panel')" id="geo-btn-panel" style="display:none;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;border:1.5px solid var(--primary);background:var(--white);color:var(--primary);cursor:pointer;margin-left:auto;">📍 Use my location</button>
       </div>
     </div>
     <div id="serving-section" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);position:relative;">
@@ -512,7 +513,8 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <label class="field-label">Full address</label>
       <div style="display:flex;gap:8px;align-items:center;">
         <input class="input" id="f-location" placeholder="City, State, Country" style="flex:1;" oninput="document.getElementById('f-lat').value='';document.getElementById('f-lng').value='';">
-        <button type="button" id="form-geo-btn" onclick="useMyLocationForForm()" style="white-space:nowrap;font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;border:1.5px solid var(--primary);background:var(--white);color:var(--primary);cursor:pointer;">📍 Use my location</button>
+        <!-- V12.25: hidden while we are inside Glide (no allow="geolocation" on the embed). Remove the display:none to restore. -->
+        <button type="button" id="form-geo-btn" onclick="useMyLocationForForm()" style="display:none;white-space:nowrap;font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;border:1.5px solid var(--primary);background:var(--white);color:var(--primary);cursor:pointer;">📍 Use my location</button>
       </div>
       <input type="hidden" id="f-lat">
       <input type="hidden" id="f-lng">
@@ -1450,8 +1452,9 @@ function setFilterFormat(fmt) {
   if (fmt === "inperson") {
     var regionEl = document.getElementById("filter-region");
     if (regionEl && !regionEl.value) { regionEl.value = "North America"; onRegionChange(); document.getElementById("filter-country").value = "United States"; onCountryChange(); }
-    var stateEl = document.getElementById("filter-state");
-    if (stateEl && !stateEl.value) { stateEl.value = "Washington"; rememberState("Washington"); }
+    // V12.25: no longer defaults the state to Washington. Defaulting made "in Washington"
+    // true for everyone who picked in-person, from anywhere, which the local banner then
+    // read as a real location. The state is now only ever set by the person choosing one.
   }
   renderEvents();
 }
@@ -1608,8 +1611,9 @@ function resetFilters() {
   setFilter("all");
   setDateFilter("upcoming");
   setMode("all");
+  // V12.25: reset clears the state rather than forcing Washington - see setFilterFormat.
   const stateEl = document.getElementById("filter-state");
-  if (stateEl) { stateEl.value = "Washington"; rememberState("Washington"); }
+  if (stateEl) { stateEl.value = ""; rememberState(""); }
 }
 
 function setFilter(id) { activeFilter = id; localStorage.setItem("db-filter", id); renderPills(); renderEvents(); }
@@ -1669,10 +1673,18 @@ function fillLocalBanner(){
     if(line) m.textContent=line;
   }
 }
+// The banner retires itself the day after the event rather than needing a deploy to remove.
+var LOCAL_BANNER_UNTIL = "2026-08-31";
+function localBannerExpired() {
+  var d = new Date();
+  var today = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  return today > LOCAL_BANNER_UNTIL;
+}
 function updateLocalBanner() {
   var b = document.getElementById("local-event-banner");
   if (!b) return;
   fillLocalBanner();
+  if (localBannerExpired()) { b.style.display = "none"; return; }
   if (_bannerBlockedByReg) { b.style.display = "none"; return; }
   b.style.display = (knownState() === "Washington") ? "flex" : "none";
 }
@@ -3192,8 +3204,7 @@ function setMode(mode) {
   if (mode === "inperson") {
     const regionEl = document.getElementById("filter-region");
     if (!regionEl.value) { regionEl.value = "North America"; onRegionChange(); document.getElementById("filter-country").value = "United States"; onCountryChange(); }
-    const stateEl = document.getElementById("filter-state");
-    if (stateEl && !stateEl.value) { stateEl.value = "Washington"; rememberState("Washington"); renderEvents(); }
+    // V12.25: no Washington default here either - see setFilterFormat.
   }
   localStorage.setItem("db-mode", mode);
   renderEvents();
@@ -3235,13 +3246,28 @@ function onRegionChange() {
   renderEvents();
 }
 
+// Rebuilding the options wipes the selection, so a state the person chose (or one restored
+// on boot) used to vanish the moment anything called this. Keep it when it is still valid.
 function onCountryChange() {
   const country = document.getElementById("filter-country").value;
   const stateEl = document.getElementById("filter-state");
+  const prev = String(stateEl.value || "");
   stateEl.innerHTML = '<option value="">All states</option>';
-  if (country === "United States") { US_STATES.forEach(s => stateEl.innerHTML += `<option>${s}</option>`); stateEl.style.display = "block"; }
+  if (country === "United States") {
+    US_STATES.forEach(s => stateEl.innerHTML += `<option>${s}</option>`);
+    stateEl.style.display = "block";
+    if (prev && US_STATES.indexOf(prev) !== -1) stateEl.value = prev;
+  }
   else stateEl.style.display = "none";
   renderEvents();
+}
+
+// Only a person actually picking a country should forget the remembered state - otherwise
+// someone who moves to Canada keeps "Washington" in storage and keeps getting the local
+// banner. The programmatic callers above must NOT clear it, hence the separate wrapper.
+function onCountryChangeUser() {
+  rememberState("");
+  onCountryChange();
 }
 
 function clearLocationFilter() {
@@ -3558,8 +3584,29 @@ if (savedFilter) activeFilter = savedFilter;
 
 renderPills();
 setMode(savedMode === 'virtual' ? 'all' : (savedMode || activeMode));
-// Show standalone "Use my location" button only on first visit (hides permanently once used)
-try { if (localStorage.getItem("db-geo-used") !== "true") { var _gw2 = document.getElementById("geo-btn-wrap"); if (_gw2) _gw2.style.display = "block"; } } catch(e){}
+// V12.25: "Use my location" is switched off while we are inside Glide - the embed iframe
+// carries no allow="geolocation", so the prompt never appears and it only ever fails. The
+// code below and useMyLocation() are left intact; restore this line to bring it back once
+// we are off Glide.
+// try { if (localStorage.getItem("db-geo-used") !== "true") { var _gw2 = document.getElementById("geo-btn-wrap"); if (_gw2) _gw2.style.display = "block"; } } catch(e){}
+
+// Restore the state the person last chose, so a saved location behaves like one: the grid
+// filters by it and the local banner can see it. The country must be set first or the state
+// options do not exist yet to select from.
+try {
+  var _savedState = String(localStorage.getItem(LOC_STATE_KEY) || "").trim();
+  if (_savedState) {
+    var _regionEl = document.getElementById("filter-region");
+    var _countryEl = document.getElementById("filter-country");
+    if (_regionEl && _countryEl) {
+      if (!_regionEl.value) { _regionEl.value = "North America"; onRegionChange(); }
+      _countryEl.value = "United States";
+      onCountryChange();
+      var _stEl = document.getElementById("filter-state");
+      if (_stEl && US_STATES.indexOf(_savedState) !== -1) { _stEl.value = _savedState; renderEvents(); }
+    }
+  }
+} catch(e){}
 // getMemberId - reads memberCard from URL param live each call, falls back to localStorage
 function getMemberId() {
   const urlParam = new URLSearchParams(window.location.search).get("memberCard");
@@ -3892,6 +3939,6 @@ safeOn("interests-modal", "click", e => { if (e.target.id === "interests-modal")
   </div>
 </div>
 
-<!-- Version: V12.24 | Date: 2026-07-18 | LAST CHANGE: Setting the state in code now persists it too. Assigning a select's .value does not fire its change handler, so the places that auto-fill Washington set the dropdown without ever remembering it - the banner gate then read "no location" on the next load. (V12.23: Use my location first, Format first.) -->
+<!-- Version: V12.25 | Date: 2026-07-19 | LAST CHANGE: "Use my location" hidden while we are inside Glide, and the state no longer defaults to Washington - defaulting made the local banner treat every in-person visitor as a local. The state is now only what the person chose, is restored on boot, and is forgotten when they change country. Banner retires after 2026-08-31. (V12.24: setting the state in code persists it too.) -->
 </body>
 </html>
