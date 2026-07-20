@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.33 | Date: 2026-07-17 | LAST CHANGE: Fixed "This event represents" category chips never showing - categories load in the background after first paint, but nothing repainted once they arrived. Now repaints once loaded. (Prev V5.32: removed Event hub pill.) -->
+  <!-- Version: V5.35 | Date: 2026-07-19 | LAST CHANGE: The member card wizard is gone and identity now comes only from the URL. getMemberId() no longer falls back to localStorage, which used to hand a bookmarked or shared link whoever last used that browser - their photo, registration, Cancel button and 1:1 code. QR scanning, manual card entry and "Is this you?" went with it: we know you and you register, or we do not and you sign in. openQrModal (this event's shareable QR) is untouched. (V5.34: "Not me" pointed to signing up.) -->
   <meta charset="UTF-8">
   <script>
   /* Forward the Lake Ballinger event to its Glide page (m97sjwa3 only). Runs before render, so no flash. */
@@ -160,105 +160,37 @@
 <!-- RSVP Modal -->
 <div class="modal-overlay" id="rsvp-modal">
   <div class="modal">
-    <!-- Step 1: Choose method -->
-    <div id="rsvp-step-1">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+    <!-- V5.35: the member card wizard is gone. Identity arrives in the URL from Glide, so
+         there is nothing to scan, type or confirm. Two outcomes only: we know you and you
+         register, or we do not and you sign in. -->
+    <!-- Step: register (we know who you are) -->
+    <div id="rsvp-step-register" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div class="modal-title" style="margin-bottom:0;">Register for this event</div>
-        <button onclick="closeRsvpModal()" style="background:none;border:none;font-size:13px;color:var(--muted);cursor:pointer;padding:4px;font-weight:600;white-space:nowrap;">← Back to event</button>
+        <button onclick="closeRsvpModal()" style="background:none;border:none;font-size:13px;color:var(--muted);cursor:pointer;padding:4px;font-weight:600;white-space:nowrap;">Back to event</button>
       </div>
-      <div id="rsvp-card-hint" style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#166534;">
-        💳 Your Member Card: <strong id="rsvp-card-hint-id"></strong>
+      <div id="rsvp-who" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+        <img id="rsvp-confirm-photo" src="" alt="" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--border);display:none;">
+        <p id="rsvp-confirm-id" style="font-size:14px;color:var(--dark);font-weight:600;"></p>
       </div>
-      <button class="btn btn-primary" onclick="showStep('appear')" style="width:100%;justify-content:center;margin-bottom:10px;font-size:15px;padding:14px;">Register with my Member Card</button>
-      <div id="rsvp-no-card-hint" style="text-align:center;margin-top:12px;">
-        <span style="font-size:13px;color:var(--muted);">Don't have one? </span><a href="https://appear.network/dl/page" target="_blank" rel="noopener" style="font-size:13px;color:var(--primary);font-weight:700;text-decoration:underline;">Get your member card</a>
-      </div>
-    </div>
-    <!-- Step 1a: Appear options -->
-    <div id="rsvp-step-appear" style="display:none;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-        <button onclick="showStep(1)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0;">←</button>
-        <div class="modal-title" style="margin-bottom:0;">Find your Member Card</div>
-      </div>
-      <button class="btn btn-primary" onclick="startQrScan()" style="width:100%;justify-content:center;margin-bottom:10px;font-size:15px;padding:14px;">📷 Scan my Member Card QR</button>
-      <button class="btn btn-outline" onclick="showManualEntry()" style="width:100%;justify-content:center;margin-bottom:10px;">⌨️ Enter my Member Card number</button>
-      <div style="text-align:center;">
-        <button onclick="toggleAppearHelp()" style="background:none;border:none;color:#374151;font-size:14px;cursor:pointer;text-decoration:underline;font-weight:600;">How do I find my Member Card number?</button>
-        <div id="appear-help" style="display:none;margin-top:8px;padding:12px 14px;background:#f9fafb;border-radius:8px;border:1px solid var(--border);font-size:14px;color:#374151;text-align:left;line-height:1.7;">
-          Sign in to <a href="https://appear.network" target="_blank" rel="noopener" style="color:var(--primary);font-weight:700;">appear.network</a> and find your Member Card number under <a href="https://appear.network/dl/page" target="_blank" rel="noopener" style="color:var(--primary);font-weight:700;">My page</a>.
-        </div>
-      </div>
-    </div>
-
-    <!-- Step 1b: QR scanner -->
-    <div id="rsvp-step-qr" style="display:none;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-        <button onclick="showStep(1)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0;">←</button>
-        <div class="modal-title" style="margin-bottom:0;">Scan your QR code</div>
-      </div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Point your camera at your Appear profile QR code.</p>
-      <div style="position:relative;width:100%;border-radius:12px;overflow:hidden;background:#000;margin-bottom:12px;">
-        <video id="rsvp-video" style="width:100%;display:block;" playsinline autoplay muted></video>
-        <canvas id="rsvp-canvas" style="display:none;"></canvas>
-        <div style="position:absolute;inset:0;border:3px solid var(--primary);border-radius:12px;pointer-events:none;opacity:0.6;"></div>
-      </div>
-      <p id="rsvp-scan-status" style="font-size:13px;color:var(--muted);text-align:center;margin-bottom:12px;">Scanning...</p>
-      <button class="btn btn-outline" onclick="cancelQrScan()" style="width:100%;justify-content:center;">Cancel</button>
-    </div>
-    <!-- Step 1c: Manual entry -->
-    <div id="rsvp-step-manual" style="display:none;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-        <button onclick="showStep(1)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0;">←</button>
-        <div class="modal-title" style="margin-bottom:0;">Enter your Member Card number</div>
-      </div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Your Member Card number from your Appear Network profile (e.g. w.hss or 0VfHB).</p>
-      <input class="modal-input" id="rsvp-manual-input" type="text" placeholder="Your Member Card number" autocomplete="off" style="margin-bottom:8px;">
-      <p class="error-msg" id="rsvp-manual-error"></p>
-      <div class="modal-actions" style="margin-top:8px;">
-        <button class="btn btn-primary" style="flex:1;" onclick="submitManualId()">Look me up</button>
-        <button class="btn btn-outline" onclick="closeRsvpModal()">Cancel</button>
-      </div>
-    </div>
-    <!-- Step 2: Photo confirmation -->
-    <div id="rsvp-step-confirm" style="display:none;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-        <button onclick="(localStorage.getItem('appear-id')||new URLSearchParams(window.location.search).get('memberCard')) ? closeRsvpModal() : showStep(1)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0;">←</button>
-        <div class="modal-title" style="margin-bottom:0;">Is this you?</div>
-      </div>
-      <div style="margin-bottom:12px;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid var(--border);">
+      <div style="margin-bottom:16px;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid var(--border);">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
           <input type="checkbox" id="rsvp-public-toggle" checked style="width:16px;height:16px;cursor:pointer;">
           <label for="rsvp-public-toggle" style="font-size:13px;color:var(--dark);cursor:pointer;font-weight:600;">Show me as going (uncheck to stay private)</label>
         </div>
         <p style="font-size:12px;color:var(--muted);margin-left:26px;">Staying private removes you from in-room matching.</p>
       </div>
-      <div class="modal-actions" style="margin-bottom:16px;">
-        <button class="btn btn-primary" style="flex:1;" onclick="confirmRsvp()">✓ Yes, that's me</button>
-        <button class="btn btn-outline" onclick="showStep('notyou')">Not me</button>
-      </div>
-      <div style="text-align:center;">
-        <img id="rsvp-confirm-photo" src="" alt="" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--border);margin-bottom:8px;">
-        <p id="rsvp-confirm-id" style="font-size:13px;color:var(--muted);"></p>
+      <div class="modal-actions">
+        <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="confirmRsvp()">Register me</button>
       </div>
     </div>
-    <!-- Step 2c: that wasn't you - the id came from the URL, so there is nothing to retype -->
-    <div id="rsvp-step-notyou" style="display:none;">
-      <div class="modal-title" style="margin-bottom:12px;">Please sign up to register for this event</div>
+    <!-- Step: we do not know who you are -->
+    <div id="rsvp-step-signin" style="display:none;">
+      <div class="modal-title" style="margin-bottom:12px;">Please sign in to register for this event</div>
       <p style="font-size:14px;color:var(--muted);margin-bottom:20px;">Signing in brings your own profile with you, so the event knows who you are.</p>
       <div class="modal-actions">
-        <button class="btn btn-outline" onclick="closeRsvpModal()" style="flex:1;justify-content:center;">Close</button>
-      </div>
-    </div>
-    <!-- Step 2b: ID not found -->
-    <div id="rsvp-step-notfound" style="display:none;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-        <button onclick="showStep(1)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0;">←</button>
-        <div class="modal-title" style="margin-bottom:0;">ID not found</div>
-      </div>
-      <p style="font-size:14px;color:var(--muted);margin-bottom:20px;">We couldn't find that Member Card number. Please check your number or get your Member Card on Appear Network.</p>
-      <div class="modal-actions">
-        <a href="https://appear.network" target="_blank" rel="noopener" class="btn btn-primary" style="flex:1;justify-content:center;">Get Member Card on Appear</a>
-        <button class="btn btn-outline" onclick="showStep(1)">Try again</button>
+        <a href="https://2gather.network/" class="btn btn-primary" style="flex:1;justify-content:center;">Sign in or sign up</a>
+        <button class="btn btn-outline" onclick="closeRsvpModal()">Close</button>
       </div>
     </div>
     <!-- Step 3: Loading -->
@@ -413,10 +345,12 @@ function recurToEv(r) {
 
 const GS_URL = "https://script.google.com/macros/s/AKfycbzEavMnG4tMeWemoT5FLu9f_zjlKVIJsZLueG4nhw9akK0_nZqpbkZiXrAlWu1Fyhq9/exec";
 
+// V5.35: the URL is the only thing that can tell us who is looking. The old localStorage
+// fallback returned whoever last used this browser, so a bookmarked or shared link showed
+// one person another person's registration, Cancel button and 1:1 code. No id in the URL
+// now means we do not know you - render public content and ask them to sign in.
 function getMemberId() {
-  const urlParam = new URLSearchParams(window.location.search).get("memberCard");
-  if (urlParam) return urlParam;
-  try { return localStorage.getItem("appear-id"); } catch(e) { return null; }
+  return new URLSearchParams(window.location.search).get("memberCard");
 }
 
 function esc(s) {
@@ -1019,13 +953,8 @@ function showSignInToast() {
 }
 
 // ── RSVP Modal ──────────────────────────────────────────────────
-const APPEAR_BASE = "https://appear.network/dl/page/s/e13594/r/";
+// APPEAR_BASE went with the wizard - nothing links members to appear.network from here now.
 let _rsvpAppearId = null;
-let _qrStream = null;
-let _qrScanInterval = null;
-
-// Fresh device / no saved Member Card — open the modal so an existing member can register
-// with their Member Card (scan QR or type the number). No frame-block, no dead-end at appear.network.
 // Inline RSVP panel (no modal): swap the event card out for the flow, and back.
 function _showRsvpPanel() {
   const c = document.getElementById("card"); if (c) c.style.display = "none";
@@ -1037,198 +966,71 @@ function _hideRsvpPanel() {
   document.getElementById("rsvp-modal").classList.remove("open");
 }
 
+// Reached from the "Sign in to RSVP" button, which only renders when we have no id.
 function openRsvpRegister() {
   _showRsvpPanel();
-  const hint = document.getElementById("rsvp-card-hint"); if (hint) hint.style.display = "none";
-  const noCard = document.getElementById("rsvp-no-card-hint"); if (noCard) noCard.style.display = "";
-  showStep(1);
+  showStep("signin");
 }
 
 function openRsvpModal() {
   _rsvpAppearId = null;
-
-  // Check URL param first, then localStorage
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlMemberCard = urlParams.get("memberCard");
-  const savedId = urlMemberCard || localStorage.getItem("appear-id");
-
-  // No identity at all - skip the modal, just prompt sign in/up
-  if (!savedId) {
-    showSignInToast();
-    return;
-  }
-
-  // Always open the panel and confirm identity - no silent auto-register.
-  // A cached device ID is only ever used as a pre-filled hint, never a bypass.
+  const memberId = getMemberId();
+  if (!memberId) { _showRsvpPanel(); showStep("signin"); return; }
   _showRsvpPanel();
-
-  // Show hint on step 1 before confirming
-  const hint = document.getElementById("rsvp-card-hint");
-  const hintId = document.getElementById("rsvp-card-hint-id");
-  if (hint && hintId) { hintId.textContent = savedId; hint.style.display = "block"; }
-  // Hide "don't have one" link
-  const noCard = document.getElementById("rsvp-no-card-hint");
-  if (noCard) noCard.style.display = "none";
-  lookupAndConfirm(savedId);
+  loadRegisterStep(memberId);
 }
 
 function closeRsvpModal() {
   _hideRsvpPanel();
-  cancelQrScan();
 }
 
 function showStep(n) {
-  ["rsvp-step-1","rsvp-step-appear","rsvp-step-qr","rsvp-step-manual","rsvp-step-confirm","rsvp-step-notyou","rsvp-step-notfound","rsvp-step-loading"].forEach(id => {
+  ["rsvp-step-register","rsvp-step-signin","rsvp-step-loading"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = "none";
   });
-  if (n === 1) document.getElementById("rsvp-step-1").style.display = "block";
-  else if (n === "appear") document.getElementById("rsvp-step-appear").style.display = "block";
-  else if (n === "qr") document.getElementById("rsvp-step-qr").style.display = "block";
-  else if (n === "manual") document.getElementById("rsvp-step-manual").style.display = "block";
-  else if (n === "confirm") document.getElementById("rsvp-step-confirm").style.display = "block";
-  else if (n === "notyou") document.getElementById("rsvp-step-notyou").style.display = "block";
-  else if (n === "notfound") document.getElementById("rsvp-step-notfound").style.display = "block";
-  else if (n === "loading") document.getElementById("rsvp-step-loading").style.display = "block";
+  const el = document.getElementById("rsvp-step-" + n);
+  if (el) el.style.display = "block";
 }
 
-function toggleAppearHelp() {
-  const el = document.getElementById("appear-help");
-  if (el) el.style.display = el.style.display === "none" ? "block" : "none";
-}
-
-function showManualEntry() {
-  showStep("manual");
-  setTimeout(() => document.getElementById("rsvp-manual-input")?.focus(), 100);
-}
-
-// ── QR scanning ──
-async function startQrScan() {
-  showStep("qr");
-  document.getElementById("rsvp-scan-status").textContent = "Loading scanner...";
-
-  // Load jsQR first, wait for it to be ready before touching camera
-  if (!window.jsQR) {
-    const loaded = await new Promise((resolve) => {
-      const s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
-      s.onload = () => resolve(true);
-      s.onerror = () => resolve(false);
-      document.head.appendChild(s);
-    });
-    if (!loaded) {
-      document.getElementById("rsvp-scan-status").textContent = "Could not load scanner. Enter your ID manually.";
-      setTimeout(() => showManualEntry(), 1500);
-      return;
-    }
-  }
-
-  document.getElementById("rsvp-scan-status").textContent = "Starting camera...";
-  try {
-    _qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    const video = document.getElementById("rsvp-video");
-    video.srcObject = _qrStream;
-
-    // Wait for video to have actual frame data before scanning
-    await new Promise((resolve) => {
-      video.onloadeddata = resolve;
-      video.play();
-      // Fallback in case loadeddata never fires
-      setTimeout(resolve, 2000);
-    });
-
-    document.getElementById("rsvp-scan-status").textContent = "Point at your Member Card QR code";
-    _qrScanInterval = setInterval(() => scanFrame(video), 250);
-  } catch(e) {
-    document.getElementById("rsvp-scan-status").textContent = "Camera not available. Please enter your ID manually.";
-    setTimeout(() => showManualEntry(), 1500);
-  }
-}
-
-function scanFrame(video) {
-  if (!window.jsQR) return;
-  const canvas = document.getElementById("rsvp-canvas");
-  if (!canvas || video.videoWidth === 0) return;
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
-  if (code) {
-    clearInterval(_qrScanInterval);
-    cancelQrScan();
-    const id = extractAppearId(code.data);
-    if (id) {
-      lookupAndConfirm(id);
-    } else {
-      document.getElementById("rsvp-scan-status").textContent = "QR not recognised. Try entering your ID manually.";
-      setTimeout(() => showManualEntry(), 1500);
-    }
-  }
-}
-
-function cancelQrScan() {
-  clearInterval(_qrScanInterval);
-  _qrScanInterval = null;
-  if (_qrStream) { _qrStream.getTracks().forEach(t => t.stop()); _qrStream = null; }
-  const video = document.getElementById("rsvp-video");
-  if (video) { video.srcObject = null; }
-}
+// V5.35: QR scanning, manual Member Card entry and extractAppearId() were removed with the
+// wizard. Nothing types or scans an id any more - it arrives in the URL from Glide.
+// NOTE: openQrModal() further up is a DIFFERENT feature (this event's shareable QR code)
+// and is untouched.
 
 function normalizeAppearId(id) {
   // Normalize: strip dots so w.hss matches whss in the sheet
   return (id || "").replace(/\./g, "").toLowerCase();
 }
 
-function extractAppearId(url) {
-  // Handles full URL: https://appear.network/dl/.../r/APPEAR_ID
-  // or bare ID typed directly
-  const match = url.match(/\/r\/([A-Za-z0-9._-]+)/);
-  if (match) return match[1];
-  // bare short ID (no slashes, reasonable length)
-  if (/^[A-Za-z0-9._-]{3,20}$/.test(url.trim())) return url.trim();
-  return null;
-}
-
-// ── Manual ID submission ──
-function submitManualId() {
-  const raw = (document.getElementById("rsvp-manual-input")?.value || "").trim();
-  const errEl = document.getElementById("rsvp-manual-error");
-  const id = extractAppearId(raw);
-  if (!id) {
-    if (errEl) { errEl.textContent = "Please enter a valid Member Card number."; errEl.style.display = "block"; }
-    return;
-  }
-  if (errEl) errEl.style.display = "none";
-  lookupAndConfirm(id);
-}
-
 // ── Profile lookup ──
-async function lookupAndConfirm(appearId) {
-  showStep("loading");
-  document.getElementById("rsvp-loading-msg").textContent = "Looking up your profile...";
-  // Try original ID first, then normalized (dots stripped) as fallback
+// V5.35: the id came from the URL, so it is authoritative - the lookup only decorates the
+// step with a face and a name. Show the step straight away and let the photo arrive when it
+// arrives; a slow or failed lookup must never block or dead-end someone who can register.
+function loadRegisterStep(appearId) {
+  _rsvpAppearId = appearId;
+  const nameEl = document.getElementById("rsvp-confirm-id");
+  const photoEl = document.getElementById("rsvp-confirm-photo");
+  if (nameEl) nameEl.textContent = "";
+  if (photoEl) { photoEl.src = ""; photoEl.style.display = "none"; }
+  showStep("register");
+
   const ids = [appearId];
   const normalized = normalizeAppearId(appearId);
   if (normalized !== appearId.toLowerCase()) ids.push(normalized);
-
-  let found = false;
-  for (const id of ids) {
-    try {
-      const res = await fetch(`${GS_URL}?action=lookupProfile&appearId=${encodeURIComponent(id)}`);
-      const data = await res.json();
-      if (data.found && data.photo) {
-        _rsvpAppearId = appearId; // store original
-        document.getElementById("rsvp-confirm-photo").src = data.photo;
-        document.getElementById("rsvp-confirm-id").textContent = "Member Card: " + appearId;
-        showStep("confirm");
-        found = true;
-        break;
-      }
-    } catch(e) {}
-  }
-  if (!found) showStep("notfound");
+  (async () => {
+    for (const id of ids) {
+      try {
+        const res = await fetch(`${GS_URL}?action=lookupProfile&appearId=${encodeURIComponent(id)}`);
+        const data = await res.json();
+        if (data.found) {
+          if (nameEl && data.name) nameEl.textContent = data.name;
+          if (photoEl && data.photo) { photoEl.src = data.photo; photoEl.style.display = "block"; }
+          return;
+        }
+      } catch(e) {}
+    }
+  })();
 }
 
 // ── Confirm and save RSVP ──
@@ -1584,6 +1386,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V5.34 | Date: 2026-07-18 | LAST CHANGE: "Not me" on the identity confirm step now says "Please sign up to register for this event" instead of returning to the Member Card entry screen. With Glide passing the id in the URL there is nothing for someone to retype, so sending them back there was a dead end. (V5.33: category chips repaint.) -->
+<!-- Version: V5.35 | Date: 2026-07-19 | LAST CHANGE: The member card wizard is gone and identity now comes only from the URL. getMemberId() no longer falls back to localStorage, which used to hand a bookmarked or shared link whoever last used that browser - their photo, registration, Cancel button and 1:1 code. QR scanning, manual card entry and "Is this you?" went with it: we know you and you register, or we do not and you sign in. openQrModal (this event's shareable QR) is untouched. (V5.34: "Not me" pointed to signing up.) -->
 </body>
 </html>

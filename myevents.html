@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.37 | Date: 2026-07-17 | LAST CHANGE: "Visit event host" profile link now carries eventId, so the destination profile page can show an "Email me" button for the host. (Prev V5.36: Help renamed to Visit event host.) -->
+  <!-- Version: V5.39 | Date: 2026-07-19 | LAST CHANGE: Identity now comes only from the URL. getMemberId() no longer falls back to localStorage, and the "appear-confirmed" path that silently registered whoever that browser last saw is removed - on a shared device it could register one person as another. (V5.38: host sees contributions as covered.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -208,7 +208,7 @@
     <!-- Step 2: Photo confirmation -->
     <div id="rsvp-step-confirm" style="display:none;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-        <button onclick="(localStorage.getItem('appear-id')||new URLSearchParams(window.location.search).get('memberCard')) ? closeRsvpModal() : showStep(1)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0;">←</button>
+        <button onclick="getMemberId() ? closeRsvpModal() : showStep(1)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0;">←</button>
         <div class="modal-title" style="margin-bottom:0;">Is this you?</div>
       </div>
       <div style="margin-bottom:12px;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid var(--border);">
@@ -391,10 +391,11 @@ function recurToEv(r) {
 
 const GS_URL = "https://script.google.com/macros/s/AKfycbzEavMnG4tMeWemoT5FLu9f_zjlKVIJsZLueG4nhw9akK0_nZqpbkZiXrAlWu1Fyhq9/exec";
 
+// V5.39: the URL is the only thing that can tell us who is looking. The old localStorage
+// fallback returned whoever last used this browser, so a shared or bookmarked link showed
+// one person another person's events, registrations and cancel controls.
 function getMemberId() {
-  const urlParam = new URLSearchParams(window.location.search).get("memberCard");
-  if (urlParam) return urlParam;
-  try { return localStorage.getItem("appear-id"); } catch(e) { return null; }
+  return new URLSearchParams(window.location.search).get("memberCard");
 }
 
 function esc(s) {
@@ -1118,28 +1119,17 @@ let _qrScanInterval = null;
 function openRsvpModal() {
   _rsvpAppearId = null;
 
-  // Check URL param first, then localStorage
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlMemberCard = urlParams.get("memberCard");
-  const savedId = urlMemberCard || localStorage.getItem("appear-id");
-  const confirmed = localStorage.getItem("appear-confirmed");
+  // V5.39: the id must come from the URL. The old code read it from localStorage and, if
+  // "appear-confirmed" was set, registered that person with no confirmation at all - so on a
+  // shared device one person could be silently registered as another. Both are gone.
+  const savedId = getMemberId();
 
-  // If already confirmed on this device — 1 click register
-  if (savedId && confirmed === "true") {
-    _rsvpAppearId = savedId;
-    finishRsvp();
-    return;
-  }
-
-  // Otherwise open modal
   document.getElementById("rsvp-modal").classList.add("open");
 
   if (savedId) {
-    // Show hint on step 1 before confirming
     const hint = document.getElementById("rsvp-card-hint");
     const hintId = document.getElementById("rsvp-card-hint-id");
     if (hint && hintId) { hintId.textContent = savedId; hint.style.display = "block"; }
-    // Hide "don't have one" link
     const noCard = document.getElementById("rsvp-no-card-hint");
     if (noCard) noCard.style.display = "none";
     lookupAndConfirm(savedId);
@@ -2069,6 +2059,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V5.38 | Date: 2026-07-18 | LAST CHANGE: The host list no longer asks for volunteers on items an attendee already offered - anything marked contributed reads "being brought" instead of a sign-up count (it was showing 0 signed up on things that were covered). Removed the people emoji from "Visit event hub", and dropped "Edit event profile" from the action links: the profile is one screen with per-section pencils now, so the separate edit destination no longer exists. (V5.37: Help renamed Visit event host.) -->
+<!-- Version: V5.39 | Date: 2026-07-19 | LAST CHANGE: Identity now comes only from the URL. getMemberId() no longer falls back to localStorage, and the "appear-confirmed" path that silently registered whoever that browser last saw is removed - on a shared device it could register one person as another. (V5.38: host sees contributions as covered.) -->
 </body>
 </html>
