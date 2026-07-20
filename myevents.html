@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.39 | Date: 2026-07-19 | LAST CHANGE: Identity now comes only from the URL. getMemberId() no longer falls back to localStorage, and the "appear-confirmed" path that silently registered whoever that browser last saw is removed - on a shared device it could register one person as another. (V5.38: host sees contributions as covered.) -->
+  <!-- Version: V5.40 | Date: 2026-07-20 | LAST CHANGE: Removed the sub-type step from the host contribution wizard and the edit panel. It asked every Experience "what kind of thing is involved?" and offered only the Things list, so "someone to run a games table" came out tagged "Physical goods" - true of the cards, useless as a description. The type and the time slot already say what an item is. Adding is now item, type, details, time, slots. Existing items keep their stored category; it is display-only and empty ones drop out of the label. Also dropped the arrow from the Back button. (V5.39: identity from the URL only.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -497,7 +497,7 @@ function buildPotluckHostListHTML(){
   }).join('');
 }
 function buildPotluckWizardHTML(){
-  var _back='<button onclick="plHostBack()" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px 0 8px;font-family:inherit;">← Back</button>';
+  var _back='<button onclick="plHostBack()" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px 0 8px;font-family:inherit;">Back</button>';
   var _skipStyle='flex:1;background:none;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:14px;cursor:pointer;font-family:inherit;';
   if(_pl.step===''){
     return '<div style="margin-top:12px;">'
@@ -511,28 +511,6 @@ function buildPotluckWizardHTML(){
       +'<div style="font-size:14px;font-weight:600;margin-bottom:8px;">'+esc(_pl.item)+': <span style="font-weight:400;color:var(--muted);">What is this?</span></div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:8px;">'+_potluckTypes.map(function(t){var sel=_pl.potluckType===t;return '<span onclick="plHostSetType(\''+esc(t)+'\')" style="cursor:pointer;font-size:14px;font-weight:600;padding:8px 16px;border-radius:20px;border:1.5px solid '+(sel?'var(--primary)':'var(--border)')+';background:'+(sel?'var(--primary)':'#fff')+';color:'+(sel?'#fff':'var(--dark)')+';">'+esc(t)+'</span>';}).join('')+'</div>'
       +'</div>';
-  }
-  if(_pl.step==='subtype'){
-    var _isSkill=_pl.potluckType==='Skill';
-    var _opts=_isSkill?['Q&A session','Experiential learning session']:['📦 Physical goods','🍵 Consumables','🪴 Living things'];
-    var _prompt=_isSkill?'What kind of skill offering?':(_pl.potluckType==='Experience'?'What kind of thing is involved?':'What kind of thing?');
-    var _cs=function(sel){return 'cursor:pointer;font-size:13px;font-weight:600;padding:8px 14px;border-radius:20px;border:1.5px solid '+(sel?'var(--primary)':'var(--border)')+';background:'+(sel?'var(--primary)':'#fff')+';color:'+(sel?'#fff':'var(--dark)')+';';};
-    var _chips=_opts.map(function(o){var sel=!_pl.subOther&&_pl.category===o;return '<span onclick="plHostSetSubtype(\''+esc(o).replace(/'/g,"\\'")+'\')" style="'+_cs(sel)+'">'+esc(o)+'</span>';}).join('');
-    var _otherChip=_isSkill?'<span onclick="plHostSubOther()" style="'+_cs(!!_pl.subOther)+'">+ Add other</span>':'';
-    var _otherField=(_isSkill&&_pl.subOther)?'<input type="text" id="pl-host-sub-other" placeholder="Describe the offering" value="'+esc(_pl.category||'')+'" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin-top:10px;" oninput="_pl.category=this.value;">':'';
-    return '<div style="margin-top:12px;">'+_back+'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
-      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">'+_prompt+'</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:8px;">'+_chips+_otherChip+'</div>'+_otherField
-      +'<button class="btn btn-primary" onclick="plHostSubNext()" style="width:100%;justify-content:center;margin-top:10px;">Next</button></div>';
-  }
-  if(_pl.step==='thinginvolved'){
-    var _yn=function(sel){return 'cursor:pointer;font-size:14px;font-weight:600;padding:8px 18px;border-radius:20px;border:1.5px solid '+(sel?'var(--primary)':'var(--border)')+';background:'+(sel?'var(--primary)':'#fff')+';color:'+(sel?'#fff':'var(--dark)')+';';};
-    return '<div style="margin-top:12px;">'+_back+'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
-      +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Is a thing involved in this experience?</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:8px;">'
-      +'<span onclick="plHostThing(true)" style="'+_yn(false)+'">Yes</span>'
-      +'<span onclick="plHostThing(false)" style="'+_yn(false)+'">No</span>'
-      +'</div></div>';
   }
   if(_pl.step==='elaborate'){
     return '<div style="margin-top:12px;">'+_back+'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
@@ -610,14 +588,15 @@ window.plHostStartType=function(){
 };
 window.plHostSetType=function(t){
   _pl.potluckType=t;
-  _pl.category=''; _pl.subOther=false; // reset - the subtype step sets it (Skill format / Thing kind)
-  _pl.step=(t==='Skill'||t==='Thing')?'subtype':(t==='Experience'?'thinginvolved':'elaborate');
+  // V5.40: the sub-type step is gone. It asked every Experience "what kind of thing is
+  // involved?" and offered only the Things list, so "someone to run a games table" came out
+  // tagged "Physical goods" - true of the cards, useless as a description of the offering.
+  // The type and the time slot already say what an item is. category stays on the object so
+  // items saved before this keep rendering; it is display-only and empty ones drop out.
+  _pl.category='';
+  _pl.step='elaborate';
   refreshPotluckHostSection();
 };
-window.plHostSetSubtype=function(v){ _pl.category=v; _pl.subOther=false; refreshPotluckHostSection(); };
-window.plHostSubOther=function(){ _pl.subOther=true; _pl.category=''; refreshPotluckHostSection(); };
-window.plHostThing=function(yes){ if(yes){ _pl.category=''; _pl.subOther=false; _pl.step='subtype'; } else { _pl.category=''; _pl.step='elaborate'; } refreshPotluckHostSection(); };
-window.plHostSubNext=function(){ _pl.step='elaborate'; refreshPotluckHostSection(); };
 window.plHostElabNext=function(){ _pl.step='timed'; refreshPotluckHostSection(); };
 window.plHostSetUnit=function(v){
   _pl.timeUnit=v;
@@ -634,9 +613,7 @@ window.plHostSkipTimed=function(){ _pl.timeSpec=''; _pl.step='cap'; refreshPotlu
 window.plHostBack=function(){
   var s=_pl.step;
   if(s==='type') _pl.step='';
-  else if(s==='thinginvolved') _pl.step='type';
-  else if(s==='subtype') _pl.step=(_pl.potluckType==='Experience')?'thinginvolved':'type';
-  else if(s==='elaborate') _pl.step=(_pl.potluckType==='Skill'||_pl.potluckType==='Thing')?'subtype':(_pl.potluckType==='Experience'?(_pl.category?'subtype':'thinginvolved'):'type');
+  else if(s==='elaborate') _pl.step='type';
   else if(s==='timed') _pl.step='elaborate';
   else if(s==='cap') _pl.step='timed';
   refreshPotluckHostSection();
@@ -662,19 +639,6 @@ function savePotluckHostList(){
 }
 // Edit an existing potluck item (name / type / slots) in a modal.
 var _PL_INP='width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 12px;';
-function _plSubtypeSelectHTML(type, current){
-  var _things=['📦 Physical goods','🍵 Consumables','🪴 Living things'];
-  var opts = type==='Skill'?['Q&A session','Experiential learning session']:((type==='Thing'||type==='Experience')?_things:[]);
-  if(!opts.length) return '<div style="font-size:13px;color:var(--muted);margin:4px 0 12px;">— (not needed)</div>';
-  var isOther = type==='Skill' && current && opts.indexOf(current)<0;
-  var sel='<select id="pl-edit-cat" onchange="plEditSubChange()" style="'+_PL_INP+'">';
-  if(type==='Experience') sel+='<option value=""'+(!current?' selected':'')+'>— no thing involved —</option>';
-  opts.forEach(function(o){ sel+='<option value="'+esc(o)+'"'+((current===o)?' selected':'')+'>'+esc(o)+'</option>'; });
-  if(type==='Skill') sel+='<option value="__other__"'+(isOther?' selected':'')+'>Other…</option>';
-  sel+='</select>';
-  var other=(type==='Skill')?'<input id="pl-edit-cat-other" value="'+(isOther?esc(current):'')+'" placeholder="Describe the offering" style="'+_PL_INP+(isOther?'':'display:none;')+'">':'';
-  return sel+other;
-}
 window.editPotluckItem=function(i){
   var it=_signupList[i]; if(!it) return;
   var typeOpts=_potluckTypes.map(function(t){return '<option value="'+esc(t)+'"'+((it.potluckType===t)?' selected':'')+'>'+esc(t)+'</option>';}).join('');
@@ -697,8 +661,7 @@ window.editPotluckItem=function(i){
   ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:400px;box-sizing:border-box;max-height:90vh;overflow:auto;">'
     +'<div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:12px;">Edit item</div>'
     +'<label style="'+lbl+'">Item</label><input id="pl-edit-item" value="'+esc(it.item)+'" style="'+_PL_INP+'">'
-    +'<label style="'+lbl+'">Type</label><select id="pl-edit-type" onchange="plEditTypeChange()" style="'+_PL_INP+'">'+typeOpts+'</select>'
-    +'<label style="'+lbl+'">Sub-type / kind</label><div id="pl-edit-sub-wrap">'+_plSubtypeSelectHTML(it.potluckType, it.category)+'</div>'
+    +'<label style="'+lbl+'">Type</label><select id="pl-edit-type" style="'+_PL_INP+'">'+typeOpts+'</select>'
     +'<label style="'+lbl+'">Details (prepopulates the sign-up note)</label><textarea id="pl-edit-elab" style="'+_PL_INP+'min-height:60px;">'+esc(it.elaboration||'')+'</textarea>'
     +'<label style="'+lbl+'">How long (if applicable)</label>'+timeSel
     +'<label style="'+lbl+'">Number of slots (0 = unlimited)</label><input id="pl-edit-slots" type="number" min="0" value="'+esc(it.maxClaims)+'" style="'+_PL_INP+'margin-bottom:16px;">'
@@ -710,14 +673,6 @@ window.editPotluckItem=function(i){
     +'</div></div>';
   ov.onclick=function(e){ if(e.target===ov) closePlEdit(); };
   document.body.appendChild(ov);
-};
-window.plEditTypeChange=function(){
-  var tp=document.getElementById('pl-edit-type'), wrap=document.getElementById('pl-edit-sub-wrap');
-  if(tp&&wrap) wrap.innerHTML=_plSubtypeSelectHTML(tp.value,'');
-};
-window.plEditSubChange=function(){
-  var s=document.getElementById('pl-edit-cat'), o=document.getElementById('pl-edit-cat-other');
-  if(s&&o) o.style.display=(s.value==='__other__')?'block':'none';
 };
 window.closePlEdit=function(){ var o=document.getElementById('pl-edit-overlay'); if(o) o.remove(); };
 window.deletePlItem=function(i){
@@ -732,12 +687,10 @@ window.deletePlItem=function(i){
 window.savePlEdit=function(i){
   var it=_signupList[i]; if(!it) return;
   var nm=document.getElementById('pl-edit-item'), tp=document.getElementById('pl-edit-type'),
-      sc=document.getElementById('pl-edit-cat'), so=document.getElementById('pl-edit-cat-other'),
       el=document.getElementById('pl-edit-elab'), sl=document.getElementById('pl-edit-slots'),
       tn=document.getElementById('pl-edit-time-num'), tu=document.getElementById('pl-edit-time-unit');
   if(nm&&nm.value.trim()) it.item=nm.value.trim();
   if(tp) it.potluckType=tp.value;
-  if(sc){ it.category = (sc.value==='__other__') ? ((so&&so.value.trim())||'') : sc.value; }
   if(el) it.elaboration=el.value;
   if(tu){ var u=tu.value; it.timeSpec = (u==='entire event')?'Entire event':((tn&&tn.value.trim()&&u)?(tn.value.trim()+' '+u):''); }
   if(sl){ var v=sl.value.trim(); it.maxClaims = v===''?'':(parseInt(v,10)||0); }
@@ -2059,6 +2012,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V5.39 | Date: 2026-07-19 | LAST CHANGE: Identity now comes only from the URL. getMemberId() no longer falls back to localStorage, and the "appear-confirmed" path that silently registered whoever that browser last saw is removed - on a shared device it could register one person as another. (V5.38: host sees contributions as covered.) -->
+<!-- Version: V5.40 | Date: 2026-07-20 | LAST CHANGE: Removed the sub-type step from the host contribution wizard and the edit panel. It asked every Experience "what kind of thing is involved?" and offered only the Things list, so "someone to run a games table" came out tagged "Physical goods" - true of the cards, useless as a description. The type and the time slot already say what an item is. Adding is now item, type, details, time, slots. Existing items keep their stored category; it is display-only and empty ones drop out of the label. Also dropped the arrow from the Back button. (V5.39: identity from the URL only.) -->
 </body>
 </html>
