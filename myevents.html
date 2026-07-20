@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.40 | Date: 2026-07-20 | LAST CHANGE: Removed the sub-type step from the host contribution wizard and the edit panel. It asked every Experience "what kind of thing is involved?" and offered only the Things list, so "someone to run a games table" came out tagged "Physical goods" - true of the cards, useless as a description. The type and the time slot already say what an item is. Adding is now item, type, details, time, slots. Existing items keep their stored category; it is display-only and empty ones drop out of the label. Also dropped the arrow from the Back button. (V5.39: identity from the URL only.) -->
+  <!-- Version: V5.41 | Date: 2026-07-20 | LAST CHANGE: Removed the type step too - every item on the list is an Experience now. The wizard offered Skill / Experience / Thing, but the hub only renders Experiences and intake's sign-up list only reads them, so the other two made items that could be claimed and never shown. Adding is now: name, details, how long, slots. potluckType is still written as "Experience", so the hub filter, intake and claims are untouched. The Type dropdown is gone from the edit panel. (V5.40: sub-type step removed.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -301,6 +301,8 @@ var ROOM_EMOJI = {};
 var _isHost = false;
 var _signupList = [];
 var _potluckClaims = [];
+// V5.41: kept because reference-data still supplies potluckTypes and the lanes may return;
+// nothing reads it now that every item is an Experience.
 var _potluckTypes = ['Skill','Experience','Thing'];
 var _hostSkillsPool = [];
 var _pl = {step:'',item:'',potluckType:'',category:'',elaboration:'',timed:'yes',timeNum:'1',timeUnit:'hours',maxClaims:'1'};
@@ -506,12 +508,6 @@ function buildPotluckWizardHTML(){
       +'<button class="btn btn-primary" onclick="plHostStartType()" style="width:100%;justify-content:center;margin-top:8px;">Add</button>'
       +'</div>';
   }
-  if(_pl.step==='type'){
-    return '<div style="margin-top:12px;">'+_back
-      +'<div style="font-size:14px;font-weight:600;margin-bottom:8px;">'+esc(_pl.item)+': <span style="font-weight:400;color:var(--muted);">What is this?</span></div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:8px;">'+_potluckTypes.map(function(t){var sel=_pl.potluckType===t;return '<span onclick="plHostSetType(\''+esc(t)+'\')" style="cursor:pointer;font-size:14px;font-weight:600;padding:8px 16px;border-radius:20px;border:1.5px solid '+(sel?'var(--primary)':'var(--border)')+';background:'+(sel?'var(--primary)':'#fff')+';color:'+(sel?'#fff':'var(--dark)')+';">'+esc(t)+'</span>';}).join('')+'</div>'
-      +'</div>';
-  }
   if(_pl.step==='elaborate'){
     return '<div style="margin-top:12px;">'+_back+'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">'+esc(_pl.item)+'</div>'
       +'<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Add details (this prepopulates what people see when they sign up).</div>'
@@ -570,10 +566,13 @@ window.plHostFilterOfferings=function(q){
 window.plHostPickOffering=function(item){
   _pl.item=item;
   _pl.maxClaims='1'; _pl.elaboration=''; _pl.timeSpec='';
-  // Silently carry the known parent-category from the skills pool (no prompt); free-typed items get none.
-  var _m=_hostSkillsPool.filter(function(r){return String(r.item||'')===item;})[0];
-  _pl.category=(_m&&_m.category)||'';
-  _pl.step='type';
+  // V5.41: everything on this list is an Experience. The type step used to offer Skill /
+  // Experience / Thing, but the hub only renders Experiences and intake's sign-up list only
+  // reads them, so the other two produced items that could be claimed and never shown.
+  // potluckType is still written, so the hub filter, intake and claims are all untouched.
+  _pl.potluckType='Experience';
+  _pl.category='';
+  _pl.step='elaborate';
   refreshPotluckHostSection();
 };
 window.plHostStartType=function(){
@@ -581,18 +580,11 @@ window.plHostStartType=function(){
   if(!inp||!inp.value.trim()) return;
   _pl.item=inp.value.trim();
   _pl.maxClaims='1'; _pl.elaboration=''; _pl.timeSpec='';
-  var _m=_hostSkillsPool.filter(function(r){return String(r.item||'')===_pl.item;})[0];
-  _pl.category=(_m&&_m.category)||'';
-  _pl.step='type';
-  refreshPotluckHostSection();
-};
-window.plHostSetType=function(t){
-  _pl.potluckType=t;
-  // V5.40: the sub-type step is gone. It asked every Experience "what kind of thing is
-  // involved?" and offered only the Things list, so "someone to run a games table" came out
-  // tagged "Physical goods" - true of the cards, useless as a description of the offering.
-  // The type and the time slot already say what an item is. category stays on the object so
-  // items saved before this keep rendering; it is display-only and empty ones drop out.
+  // V5.41: everything on this list is an Experience. The type step used to offer Skill /
+  // Experience / Thing, but the hub only renders Experiences and intake's sign-up list only
+  // reads them, so the other two produced items that could be claimed and never shown.
+  // potluckType is still written, so the hub filter, intake and claims are all untouched.
+  _pl.potluckType='Experience';
   _pl.category='';
   _pl.step='elaborate';
   refreshPotluckHostSection();
@@ -612,8 +604,7 @@ window.plHostTimedNext=function(){
 window.plHostSkipTimed=function(){ _pl.timeSpec=''; _pl.step='cap'; refreshPotluckHostSection(); };
 window.plHostBack=function(){
   var s=_pl.step;
-  if(s==='type') _pl.step='';
-  else if(s==='elaborate') _pl.step='type';
+  if(s==='elaborate') _pl.step='';
   else if(s==='timed') _pl.step='elaborate';
   else if(s==='cap') _pl.step='timed';
   refreshPotluckHostSection();
@@ -641,7 +632,6 @@ function savePotluckHostList(){
 var _PL_INP='width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;margin:4px 0 12px;';
 window.editPotluckItem=function(i){
   var it=_signupList[i]; if(!it) return;
-  var typeOpts=_potluckTypes.map(function(t){return '<option value="'+esc(t)+'"'+((it.potluckType===t)?' selected':'')+'>'+esc(t)+'</option>';}).join('');
   var lbl='font-size:12px;color:var(--muted);';
   // parse timeSpec into number + unit for the dropdowns
   var tNum='', tUnit='', ts=String(it.timeSpec||'').trim();
@@ -661,7 +651,6 @@ window.editPotluckItem=function(i){
   ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:400px;box-sizing:border-box;max-height:90vh;overflow:auto;">'
     +'<div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:12px;">Edit item</div>'
     +'<label style="'+lbl+'">Item</label><input id="pl-edit-item" value="'+esc(it.item)+'" style="'+_PL_INP+'">'
-    +'<label style="'+lbl+'">Type</label><select id="pl-edit-type" style="'+_PL_INP+'">'+typeOpts+'</select>'
     +'<label style="'+lbl+'">Details (prepopulates the sign-up note)</label><textarea id="pl-edit-elab" style="'+_PL_INP+'min-height:60px;">'+esc(it.elaboration||'')+'</textarea>'
     +'<label style="'+lbl+'">How long (if applicable)</label>'+timeSel
     +'<label style="'+lbl+'">Number of slots (0 = unlimited)</label><input id="pl-edit-slots" type="number" min="0" value="'+esc(it.maxClaims)+'" style="'+_PL_INP+'margin-bottom:16px;">'
@@ -686,11 +675,10 @@ window.deletePlItem=function(i){
 };
 window.savePlEdit=function(i){
   var it=_signupList[i]; if(!it) return;
-  var nm=document.getElementById('pl-edit-item'), tp=document.getElementById('pl-edit-type'),
+  var nm=document.getElementById('pl-edit-item'),
       el=document.getElementById('pl-edit-elab'), sl=document.getElementById('pl-edit-slots'),
       tn=document.getElementById('pl-edit-time-num'), tu=document.getElementById('pl-edit-time-unit');
   if(nm&&nm.value.trim()) it.item=nm.value.trim();
-  if(tp) it.potluckType=tp.value;
   if(el) it.elaboration=el.value;
   if(tu){ var u=tu.value; it.timeSpec = (u==='entire event')?'Entire event':((tn&&tn.value.trim()&&u)?(tn.value.trim()+' '+u):''); }
   if(sl){ var v=sl.value.trim(); it.maxClaims = v===''?'':(parseInt(v,10)||0); }
@@ -2012,6 +2000,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V5.40 | Date: 2026-07-20 | LAST CHANGE: Removed the sub-type step from the host contribution wizard and the edit panel. It asked every Experience "what kind of thing is involved?" and offered only the Things list, so "someone to run a games table" came out tagged "Physical goods" - true of the cards, useless as a description. The type and the time slot already say what an item is. Adding is now item, type, details, time, slots. Existing items keep their stored category; it is display-only and empty ones drop out of the label. Also dropped the arrow from the Back button. (V5.39: identity from the URL only.) -->
+<!-- Version: V5.41 | Date: 2026-07-20 | LAST CHANGE: Removed the type step too - every item on the list is an Experience now. The wizard offered Skill / Experience / Thing, but the hub only renders Experiences and intake's sign-up list only reads them, so the other two made items that could be claimed and never shown. Adding is now: name, details, how long, slots. potluckType is still written as "Experience", so the hub filter, intake and claims are untouched. The Type dropdown is gone from the edit panel. (V5.40: sub-type step removed.) -->
 </body>
 </html>
