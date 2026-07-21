@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.35 | Date: 2026-07-20 | LAST CHANGE: Merged the "Find events for you" card and the topic field into one box (O9). Title + subtitle (empty) or "My interests" + chips (active) sit on the left of a row; the topic input + Add button sit on the right and are never rebuilt, so typing survives the empty->active flip. Matched events fill the width below. The edit pencil is icon-only now (was "Edit") and sits to the LEFT of "My interests". Wraps on mobile so the input drops under the text. (V12.34: banner hides when the event is private.) -->
+<!-- Version: V12.36 | Date: 2026-07-20 | LAST CHANGE: Added "Pull more from my event profile" to the Find-events box. The boot call swapped from getInterests to getProfile - SAME single call - which also returns "What I enjoy" and whether an event profile exists, so the link needs no extra call to appear or to fill (data is already in memory). It shows only when you have an event profile with an interest not already in the box, merges those interests (levels stripped, deduped) into your topics, and hides when there is nothing left to pull. Topics still load from the topics column exactly as before. (V12.35: Find events and the topic field became one box.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -255,6 +255,11 @@
         <button onclick="addInterest()" style="flex-shrink:0;background:#154F74;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;">Add topics</button>
         <div id="interests-autocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:20;max-height:180px;overflow-y:auto;margin-top:4px;"></div>
       </div>
+    </div>
+    <!-- V12.36: pull the event profile's "What I enjoy" into the box. Shown only when the
+         person has a profile with something not already added (see updatePullProfileLink). -->
+    <div id="pull-profile-row" style="display:none;margin-top:10px;">
+      <button onclick="pullProfileInterests()" style="background:none;border:none;color:var(--primary);font-size:13px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;">Pull more from my event profile</button>
     </div>
     <!-- Matches, full width below the row. renderForYou toggles this with the active state. -->
     <div id="for-you-results" style="display:none;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);"></div>
@@ -3707,6 +3712,11 @@ function getMatchWords(interests) {
   return matchers;
 }
 
+// V12.36: filled at boot from the same getProfile call that loads topics - no extra call.
+// _myEnjoy holds the event profile's "What I enjoy" items (bare, level stripped); the
+// "pull more from my event profile" link merges them into the topic box on demand.
+var _myEnjoy = [];
+var _hasEventProfile = false;
 function loadInterests() {
   try { return JSON.parse(localStorage.getItem("my-interests") || "[]"); } catch(e) { return []; }
 }
@@ -3724,18 +3734,48 @@ async function initForYou() {
   const section = document.getElementById("for-you-section");
   if (section) section.style.display = "block";
   try {
-    const res = await fetch(GS_URL + "?action=getInterests&appearId=" + encodeURIComponent(memberId));
-    const data = await res.json();
-    if (data.interests && data.interests.trim()) {
-      const arr = data.interests.split(",").map(s => s.trim()).filter(Boolean);
+    // V12.36: getProfile instead of getInterests - one boot call, same as before, but it also
+    // carries "What I enjoy" and whether an event profile exists. Topics still come from the
+    // topics column (data.topics), the same comma list getInterests returned.
+    const res = await fetch(GS_URL + "?action=getProfile&appearId=" + encodeURIComponent(memberId));
+    const d = await res.json();
+    _hasEventProfile = !!(d && d.found);
+    const data = (d && d.data) || {};
+    if (data.topics && String(data.topics).trim()) {
+      const arr = String(data.topics).split(",").map(s => s.trim()).filter(Boolean);
       try { localStorage.setItem("my-interests", JSON.stringify(arr)); } catch(e) {}
     }
+    // "What I enjoy" is "Item:Level|Item:Level" - keep the bare item, original casing.
+    _myEnjoy = String(data.interests || "").split("|").map(s => s.split(":")[0].trim()).filter(Boolean);
   } catch(e) {}
   renderForYou();
 }
 
+// V12.36: the "pull more from my event profile" link shows only when the person HAS an event
+// profile and it holds a "What I enjoy" item not already in the box - so it never appears for
+// someone without a profile, and disappears once there is nothing left to pull.
+function updatePullProfileLink() {
+  var row = document.getElementById("pull-profile-row");
+  if (!row) return;
+  var have = loadInterests().map(function(s){ return String(s).toLowerCase(); });
+  var fresh = _myEnjoy.filter(function(v){ return v && have.indexOf(v.toLowerCase()) === -1; });
+  row.style.display = (_hasEventProfile && fresh.length) ? "block" : "none";
+}
+function pullProfileInterests() {
+  var arr = loadInterests();
+  var existing = arr.map(function(s){ return String(s).toLowerCase(); });
+  var added = 0;
+  _myEnjoy.forEach(function(v){ if (v && existing.indexOf(v.toLowerCase()) === -1) { arr.push(v); existing.push(v.toLowerCase()); added++; } });
+  if (!added) { updatePullProfileLink(); return; }
+  saveInterests(arr);
+  renderInterestsChips();
+  renderForYou();
+  if (typeof showToast === "function") showToast("Added " + added + " from your event profile");
+}
+
 function renderForYou() {
   const interests = loadInterests();
+  updatePullProfileLink();   // link state is independent of which render branch runs below
   const emptyEl = document.getElementById("for-you-empty");
   const activeEl = document.getElementById("for-you-active");
   if (!emptyEl || !activeEl) return;
@@ -3939,6 +3979,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.35 | Date: 2026-07-20 | LAST CHANGE: Merged the "Find events for you" card and the topic field into one box (O9). Title + subtitle (empty) or "My interests" + chips (active) sit on the left of a row; the topic input + Add button sit on the right and are never rebuilt, so typing survives the empty->active flip. Matched events fill the width below. The edit pencil is icon-only now (was "Edit") and sits to the LEFT of "My interests". Wraps on mobile so the input drops under the text. (V12.34: banner hides when the event is private.) -->
+<!-- Version: V12.36 | Date: 2026-07-20 | LAST CHANGE: Added "Pull more from my event profile" to the Find-events box. The boot call swapped from getInterests to getProfile - SAME single call - which also returns "What I enjoy" and whether an event profile exists, so the link needs no extra call to appear or to fill (data is already in memory). It shows only when you have an event profile with an interest not already in the box, merges those interests (levels stripped, deduped) into your topics, and hides when there is nothing left to pull. Topics still load from the topics column exactly as before. (V12.35: Find events and the topic field became one box.) -->
 </body>
 </html>
