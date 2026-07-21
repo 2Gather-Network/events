@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.36 | Date: 2026-07-20 | LAST CHANGE: Added "Pull more from my event profile" to the Find-events box. The boot call swapped from getInterests to getProfile - SAME single call - which also returns "What I enjoy" and whether an event profile exists, so the link needs no extra call to appear or to fill (data is already in memory). It shows only when you have an event profile with an interest not already in the box, merges those interests (levels stripped, deduped) into your topics, and hides when there is nothing left to pull. Topics still load from the topics column exactly as before. (V12.35: Find events and the topic field became one box.) -->
+<!-- Version: V12.37 | Date: 2026-07-20 | LAST CHANGE: The topic box is now keyed per member. It used one global "my-interests" localStorage key, so on a shared device the previous member's topics stayed in the box - loading C3AkO (no profile) after James showed James's topics. Each signed-in member now reads and writes their own slot, and boot always writes this member's topics (empty if none) so a no-topics member shows an empty box. Logged-out devices keep the plain key. (V12.36: pull "What I enjoy" from the event profile.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3717,11 +3717,19 @@ function getMatchWords(interests) {
 // "pull more from my event profile" link merges them into the topic box on demand.
 var _myEnjoy = [];
 var _hasEventProfile = false;
+// V12.37: the topic box is keyed per member. It used the single global "my-interests" key,
+// so on a shared device the previous member's topics stayed in the box - C3AkO, who has no
+// profile, was shown the topics a prior sign-in had left behind. Now each signed-in member
+// reads and writes their own slot; a logged-out device keeps the plain key.
+function _interestsKey() {
+  var m = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
+  return m ? ("my-interests-" + m) : "my-interests";
+}
 function loadInterests() {
-  try { return JSON.parse(localStorage.getItem("my-interests") || "[]"); } catch(e) { return []; }
+  try { return JSON.parse(localStorage.getItem(_interestsKey()) || "[]"); } catch(e) { return []; }
 }
 function saveInterests(arr) {
-  try { localStorage.setItem("my-interests", JSON.stringify(arr)); } catch(e) {}
+  try { localStorage.setItem(_interestsKey(), JSON.stringify(arr)); } catch(e) {}
   const memberId = getMemberId();
   if (memberId) {
     fetch(GS_URL + "?action=saveInterests&appearId=" + encodeURIComponent(memberId) + "&interests=" + encodeURIComponent(arr.join(","))).catch(()=>{});
@@ -3741,10 +3749,10 @@ async function initForYou() {
     const d = await res.json();
     _hasEventProfile = !!(d && d.found);
     const data = (d && d.data) || {};
-    if (data.topics && String(data.topics).trim()) {
-      const arr = String(data.topics).split(",").map(s => s.trim()).filter(Boolean);
-      try { localStorage.setItem("my-interests", JSON.stringify(arr)); } catch(e) {}
-    }
+    // Always reflect THIS member's topics (empty if none), into their own keyed slot, so a
+    // member with no topics shows an empty box rather than the previous member's.
+    const topicsArr = String(data.topics || "").split(",").map(s => s.trim()).filter(Boolean);
+    try { localStorage.setItem(_interestsKey(), JSON.stringify(topicsArr)); } catch(e) {}
     // "What I enjoy" is "Item:Level|Item:Level" - keep the bare item, original casing.
     _myEnjoy = String(data.interests || "").split("|").map(s => s.split(":")[0].trim()).filter(Boolean);
   } catch(e) {}
@@ -3979,6 +3987,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.36 | Date: 2026-07-20 | LAST CHANGE: Added "Pull more from my event profile" to the Find-events box. The boot call swapped from getInterests to getProfile - SAME single call - which also returns "What I enjoy" and whether an event profile exists, so the link needs no extra call to appear or to fill (data is already in memory). It shows only when you have an event profile with an interest not already in the box, merges those interests (levels stripped, deduped) into your topics, and hides when there is nothing left to pull. Topics still load from the topics column exactly as before. (V12.35: Find events and the topic field became one box.) -->
+<!-- Version: V12.37 | Date: 2026-07-20 | LAST CHANGE: The topic box is now keyed per member. It used one global "my-interests" localStorage key, so on a shared device the previous member's topics stayed in the box - loading C3AkO (no profile) after James showed James's topics. Each signed-in member now reads and writes their own slot, and boot always writes this member's topics (empty if none) so a no-topics member shows an empty box. Logged-out devices keep the plain key. (V12.36: pull "What I enjoy" from the event profile.) -->
 </body>
 </html>
