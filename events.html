@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.37 | Date: 2026-07-20 | LAST CHANGE: The topic box is now keyed per member. It used one global "my-interests" localStorage key, so on a shared device the previous member's topics stayed in the box - loading C3AkO (no profile) after James showed James's topics. Each signed-in member now reads and writes their own slot, and boot always writes this member's topics (empty if none) so a no-topics member shows an empty box. Logged-out devices keep the plain key. (V12.36: pull "What I enjoy" from the event profile.) -->
+<!-- Version: V12.38 | Date: 2026-07-20 | LAST CHANGE: The "Paste event details" modal can now fetch from a link (I3). A URL field + "Fetch from link" button calls the Worker, which pulls the page server-side (browsers cannot fetch cross-origin) and returns its text; the text drops into the paste box for review, then the existing "Parse and fill form" runs. Degrades to "Couldn't read that link, paste the text instead" when a JS-rendered page comes back empty. Worker change is backward-compatible - the messages proxy find-a-time uses is untouched. (V12.37: topic box keyed per member.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -426,6 +426,14 @@
   <div class="modal paste-modal">
     <div class="modal-title">Paste event details</div>
     <p style="font-size:14px;color:var(--muted);margin-bottom:16px;">Paste any text describing your event - an email, flyer, or notes. We'll extract the details and fill the form for you to review.</p>
+    <!-- V12.38: fetch from a link. The Worker pulls the page server-side (browsers cannot fetch
+         cross-origin) and returns its text, which drops into the box below for review before parsing. -->
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <input type="url" id="paste-url" placeholder="Or paste a link to the event page" autocomplete="off"
+        style="flex:1;min-width:0;border:1.5px solid var(--border);border-radius:8px;padding:9px 14px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;box-sizing:border-box;">
+      <button class="btn btn-outline" style="flex-shrink:0;white-space:nowrap;" id="fetch-url-btn" onclick="fetchEventFromUrl()">Fetch from link</button>
+    </div>
+    <div style="text-align:center;font-size:12px;color:var(--muted);margin-bottom:8px;">or paste the text yourself</div>
     <textarea class="paste-textarea" id="paste-text" placeholder="Example:
 
 Community Wealth Circle
@@ -1107,6 +1115,47 @@ function openPasteModal() {
 
 function closePasteModal() {
   document.getElementById("paste-modal").classList.remove("open");
+}
+
+// V12.38: fetch a link's text through the Worker (server-side, so no browser CORS block),
+// drop it into the paste box for review, then run the existing extraction. Degrades to
+// "paste the text instead" when the page is JS-rendered and comes back empty.
+async function fetchEventFromUrl() {
+  const urlEl = document.getElementById("paste-url");
+  const errEl = document.getElementById("parse-error");
+  const btn = document.getElementById("fetch-url-btn");
+  const url = (urlEl.value || "").trim();
+  if (!/^https?:\/\/.+/i.test(url)) {
+    errEl.textContent = "Please paste a full link starting with http.";
+    errEl.style.display = "block";
+    return;
+  }
+  errEl.style.display = "none";
+  btn.disabled = true;
+  const _label = btn.textContent;
+  btn.textContent = "Fetching...";
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    const text = (data && data.text || "").trim();
+    if (!text || (data && data.error)) {
+      errEl.textContent = "Couldn't read that link. Paste the event text instead.";
+      errEl.style.display = "block";
+      return;
+    }
+    document.getElementById("paste-text").value = text;   // visible for review before parsing
+    btn.disabled = false; btn.textContent = _label;
+    parseEventText();                                     // hand off to the existing extractor
+    return;
+  } catch (e) {
+    errEl.textContent = "Couldn't read that link. Paste the event text instead.";
+    errEl.style.display = "block";
+  }
+  btn.disabled = false; btn.textContent = _label;
 }
 
 async function parseEventText() {
@@ -3987,6 +4036,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.37 | Date: 2026-07-20 | LAST CHANGE: The topic box is now keyed per member. It used one global "my-interests" localStorage key, so on a shared device the previous member's topics stayed in the box - loading C3AkO (no profile) after James showed James's topics. Each signed-in member now reads and writes their own slot, and boot always writes this member's topics (empty if none) so a no-topics member shows an empty box. Logged-out devices keep the plain key. (V12.36: pull "What I enjoy" from the event profile.) -->
+<!-- Version: V12.38 | Date: 2026-07-20 | LAST CHANGE: The "Paste event details" modal can now fetch from a link (I3). A URL field + "Fetch from link" button calls the Worker, which pulls the page server-side (browsers cannot fetch cross-origin) and returns its text; the text drops into the paste box for review, then the existing "Parse and fill form" runs. Degrades to "Couldn't read that link, paste the text instead" when a JS-rendered page comes back empty. Worker change is backward-compatible - the messages proxy find-a-time uses is untouched. (V12.37: topic box keyed per member.) -->
 </body>
 </html>
