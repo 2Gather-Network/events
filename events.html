@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.34 | Date: 2026-07-20 | LAST CHANGE: The local banner now hides when the Lake Ballinger event is private (or absent from the feed), so postponing the event - which sets it private and takes it off the calendar - hides the banner too instead of advertising a postponed event with a stale date. Flip the event back to public and the banner returns, no code change. Registrations, potluck and the hub are untouched. (Prev V12.33.) -->
+<!-- Version: V12.35 | Date: 2026-07-20 | LAST CHANGE: Merged the "Find events for you" card and the topic field into one box (O9). Title + subtitle (empty) or "My interests" + chips (active) sit on the left of a row; the topic input + Add button sit on the right and are never rebuilt, so typing survives the empty->active flip. Matched events fill the width below. The edit pencil is icon-only now (was "Edit") and sits to the LEFT of "My interests". Wraps on mobile so the input drops under the text. (V12.34: banner hides when the event is private.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -225,38 +225,42 @@
   <div id="geo-btn-wrap" style="display:none;margin-bottom:12px;">
     <button onclick="useMyLocation()" id="geo-btn" style="font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;border:1.5px solid var(--primary);background:var(--white);color:var(--primary);cursor:pointer;">📍 Use my location</button>
   </div>
-  <div id="for-you-section" style="display:none;margin-bottom:24px;">
-    <!-- State 1: no keywords -->
-    <div id="for-you-empty" style="display:none;background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-      <div>
-        <p style="font-size:14px;font-weight:700;color:var(--dark);margin-bottom:4px;">🎯 Find events for you</p>
-        <p style="font-size:13px;color:var(--muted);">Add topics to see matching upcoming events.</p>
+  <!-- V12.35: one box. The title/subtitle (empty) or "My interests + chips" (active) share the
+       left of a row; the topic input + Add button sit on the right and are NEVER rebuilt, so
+       typing survives the empty->active flip. Matched events fill the width below. On mobile
+       the row wraps and the input drops under the text. -->
+  <div id="for-you-section" style="display:none;background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:24px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:180px;">
+        <!-- State 1: no topics -->
+        <div id="for-you-empty" style="display:none;">
+          <p style="font-size:14px;font-weight:700;color:var(--dark);margin:0 0 4px;">🎯 Find events for you</p>
+          <p style="font-size:13px;color:var(--muted);margin:0;">Add topics to see matching upcoming events.</p>
+        </div>
+        <!-- State 2: has topics - pencil (icon only) sits to the LEFT of "My interests" -->
+        <div id="for-you-active" style="display:none;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button onclick="toggleInterestsPanel()" aria-label="Edit your topics" style="background:none;border:none;color:var(--primary);font-size:15px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;">✏️</button>
+            <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);white-space:nowrap;flex-shrink:0;">My interests</span>
+            <div id="for-you-chips" style="display:flex;gap:6px;overflow-x:auto;flex:1;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- The topic field + button live in the right column, outside both state blocks that
+           renderForYou() rebuilds, so an in-progress typed value is never destroyed. -->
+      <div id="topic-add-row" style="display:flex;gap:8px;position:relative;flex-shrink:0;">
+        <input id="interests-input" type="text" placeholder='Topic or "exact phrase"' autocomplete="off"
+          style="width:220px;max-width:52vw;border:1.5px solid var(--border);border-radius:8px;padding:9px 14px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;box-sizing:border-box;"
+          oninput="onInterestsInput(event)" onkeydown="onInterestsKeydown(event)">
+        <button onclick="addInterest()" style="flex-shrink:0;background:#154F74;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;">Add topics</button>
+        <div id="interests-autocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:20;max-height:180px;overflow-y:auto;margin-top:4px;"></div>
       </div>
     </div>
-    <!-- State 2: has keywords -->
-    <div id="for-you-active" style="display:none;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-        <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);white-space:nowrap;flex-shrink:0;">My interests</span>
-        <div id="for-you-chips" style="display:flex;gap:6px;overflow-x:auto;flex:1;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px;"></div>
-        <button onclick="toggleInterestsPanel()" style="background:none;border:none;color:var(--primary);font-size:13px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;white-space:nowrap;flex-shrink:0;">✏️ Edit</button>
-      </div>
-      <div id="for-you-results" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:8px;"></div>
-    </div>
-    <!-- The topic field and its button are siblings of both states, never inside either.
-         renderForYou() rebuilds those two blocks, so an input nested in one would be
-         destroyed mid-typing the moment a first topic flipped empty -> active. Always
-         visible, so adding a topic costs no click first. -->
-    <div id="topic-add-row" style="display:flex;gap:8px;margin-top:12px;position:relative;">
-      <input id="interests-input" type="text" placeholder='Topic or "exact phrase"' autocomplete="off"
-        style="flex:1;min-width:0;border:1.5px solid var(--border);border-radius:8px;padding:9px 14px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;"
-        oninput="onInterestsInput(event)" onkeydown="onInterestsKeydown(event)">
-      <button onclick="addInterest()" style="flex-shrink:0;background:#154F74;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;">Add topics</button>
-      <div id="interests-autocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:20;max-height:180px;overflow-y:auto;margin-top:4px;"></div>
-    </div>
-    <!-- Inline reveal rather than an overlay - modals render badly inside Glide. Also a
-         sibling of both states, for the same reason as the row above. Adding happens in the
-         row above now, so this panel is only for removing topics. -->
-    <div id="interests-panel" style="display:none;background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-top:12px;">
+    <!-- Matches, full width below the row. renderForYou toggles this with the active state. -->
+    <div id="for-you-results" style="display:none;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);"></div>
+    <!-- Inline reveal rather than an overlay - modals render badly inside Glide. Adding happens
+         in the row above, so this panel is only for removing topics. -->
+    <div id="interests-panel" style="display:none;border-top:1px solid var(--border);padding-top:16px;margin-top:14px;">
       <div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:4px;">Your topics</div>
       <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Remove any you no longer want.</p>
       <div id="interests-chips-panel" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;min-height:32px;"></div>
@@ -3736,13 +3740,16 @@ function renderForYou() {
   const activeEl = document.getElementById("for-you-active");
   if (!emptyEl || !activeEl) return;
 
+  var _fyResults = document.getElementById("for-you-results");
   if (interests.length === 0) {
-    emptyEl.style.display = "flex";
+    emptyEl.style.display = "block";
     activeEl.style.display = "none";
+    if (_fyResults) _fyResults.style.display = "none";   // V12.35: results live outside the active block now
     return;
   }
   emptyEl.style.display = "none";
   activeEl.style.display = "block";
+  if (_fyResults) _fyResults.style.display = "grid";
 
   // Render chips
   const chipsEl = document.getElementById("for-you-chips");
@@ -3932,6 +3939,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.34 | Date: 2026-07-20 | LAST CHANGE: The local banner now hides when the Lake Ballinger event is private (or absent from the feed), so postponing the event - which sets it private and takes it off the calendar - hides the banner too instead of advertising a postponed event with a stale date. Flip the event back to public and the banner returns, no code change. Registrations, potluck and the hub are untouched. (Prev V12.33.) -->
+<!-- Version: V12.35 | Date: 2026-07-20 | LAST CHANGE: Merged the "Find events for you" card and the topic field into one box (O9). Title + subtitle (empty) or "My interests" + chips (active) sit on the left of a row; the topic input + Add button sit on the right and are never rebuilt, so typing survives the empty->active flip. Matched events fill the width below. The edit pencil is icon-only now (was "Edit") and sits to the LEFT of "My interests". Wraps on mobile so the input drops under the text. (V12.34: banner hides when the event is private.) -->
 </body>
 </html>
