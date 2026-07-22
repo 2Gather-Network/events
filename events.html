@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.46 | Date: 2026-07-20 | LAST CHANGE: Reverted V12.44 "My Appear Network page" auto-fill. It built the link as appear.network/.../r/<memberId>, but the real page has a unique QR suffix (w.hssQR.Q7CnpNDnVJ6DwQ) that cannot be derived from the id - so it showed only the short code and would overwrite a correct link on edit. The field is an editable box again; paste your real Appear link. No saved event was corrupted (verified). (V12.45: default Spread the word; Group link in calendar.) -->
+<!-- Version: V12.47 | Date: 2026-07-20 | LAST CHANGE: "My Appear Network page" auto-fills from the host's STORED Appear link - Main "Page link", fetched via lookupProfile - and locks it read-only. Unlike the reverted V12.44, it never constructs a URL: if nothing is stored it stays an editable paste box, so it can't write a wrong link or clobber a good one. Needs the GAS lookupProfile to return pageLink (deploy) and the member's Main "Page link" filled (one-time). (V12.46: reverted the constructed-URL auto-fill.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2634,15 +2634,45 @@ function setExchange(val) {
   if (label) label.textContent = selectedExchangeTypes.has("share") ? "- required" : "- optional";
 }
 
+// V12.47: cache the host's stored Appear page (Main "Page link", via lookupProfile) for this
+// page load. null = not fetched yet, "" = fetched and empty (no stored link).
+var _hostPageLink = null;
+async function autoFillHostPage() {
+  const hl = document.getElementById("f-hostlink"); if (!hl) return;
+  const mid = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
+  const editable = () => { hl.readOnly = false; hl.style.background = ""; hl.style.color = ""; };
+  if (!mid) { editable(); return; }                       // unknown host -> they paste
+  if (_hostPageLink === null) {
+    try {
+      const r = await fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(mid));
+      const d = await r.json();
+      _hostPageLink = (d && d.pageLink) ? String(d.pageLink) : "";
+    } catch (e) { _hostPageLink = ""; }
+  }
+  // Only lock it when we actually have a stored link - never overwrite with a guessed one.
+  if (document.getElementById("show-hostlink")?.checked && _hostPageLink) {
+    hl.value = _hostPageLink; hl.readOnly = true; hl.style.background = "#f3f4f6"; hl.style.color = "var(--muted)";
+    const err = document.getElementById("hostlink-error"); if (err) err.style.display = "none";
+  } else {
+    editable();                                           // no stored link -> stays a paste box
+  }
+}
+
 function toggleLinkFields() {
   ["hostlink","cooplink","paymentlink","contact"].forEach(k => {
     const field = document.getElementById("field-"+k);
     const cb = document.getElementById("show-"+k);
     if (field && cb) field.style.display = cb.checked ? "block" : "none";
   });
-  // V12.46: V12.44's auto-fill is removed. It built the Appear page as .../r/<memberId>, but the
-  // real page carries a unique QR suffix (e.g. w.hssQR.Q7CnpNDnVJ6DwQ) that cannot be derived
-  // from the id - so it wrote a wrong link AND overwrote a good one when editing. Editable again.
+  // V12.47: "My Appear Network page" auto-fills from the host's STORED Appear link (Main
+  // "Page link"), read-only. If nothing is stored it stays an editable paste box - never a
+  // guessed/constructed URL (that was V12.44's bug).
+  const hlCb = document.getElementById("show-hostlink");
+  const hlInput = document.getElementById("f-hostlink");
+  if (hlCb && hlInput) {
+    if (hlCb.checked) { autoFillHostPage(); }
+    else { hlInput.readOnly = false; hlInput.style.background = ""; hlInput.style.color = ""; }
+  }
 }
 
 function closeModal() { formDirty = false; document.getElementById("post-modal").classList.remove("open"); isMasterUser = false; selectedExchangeTypes = new Set(); recurFreq = null; clearEditDraft(); const rc = document.getElementById("f-recurring"); if (rc) rc.checked = false; const rw = document.getElementById("recurring-freq-wrap"); if (rw) rw.style.display = "none"; const cb = document.getElementById("clone-btn"); if (cb) cb.textContent = "⧉ Clone"; const cw = document.getElementById("clone-count-wrap"); if (cw) cw.style.display = "none"; }
@@ -4083,6 +4113,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.46 | Date: 2026-07-20 | LAST CHANGE: Reverted V12.44 "My Appear Network page" auto-fill. It built the link as appear.network/.../r/<memberId>, but the real page has a unique QR suffix (w.hssQR.Q7CnpNDnVJ6DwQ) that cannot be derived from the id - so it showed only the short code and would overwrite a correct link on edit. The field is an editable box again; paste your real Appear link. No saved event was corrupted (verified). (V12.45: default Spread the word; Group link in calendar.) -->
+<!-- Version: V12.47 | Date: 2026-07-20 | LAST CHANGE: "My Appear Network page" auto-fills from the host's STORED Appear link - Main "Page link", fetched via lookupProfile - and locks it read-only. Unlike the reverted V12.44, it never constructs a URL: if nothing is stored it stays an editable paste box, so it can't write a wrong link or clobber a good one. Needs the GAS lookupProfile to return pageLink (deploy) and the member's Main "Page link" filled (one-time). (V12.46: reverted the constructed-URL auto-fill.) -->
 </body>
 </html>
