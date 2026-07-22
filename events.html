@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.40 | Date: 2026-07-20 | LAST CHANGE: Paste/fetch now also fills "Who is this serving?" (life stages), defaults the "Connected" feeling, and fills Cover + Detail from a fetched page's images. Serving is inferred conservatively - the prompt returns only keys the text clearly implies, [] otherwise (verified: a vague event returns none, a retirement workshop returns late-career/retired/community). "Connected" is the one intended-feeling defaulted on, since every gathering is meant to connect; other feelings and Welcome stay the host's to set. Images come from the Worker's {url} response (og:image -> Cover, next -> Detail) and no-op until the Worker is redeployed to return them. Contact stays the host's from the page. (V12.39: parser anchored to today's date.) -->
+<!-- Version: V12.41 | Date: 2026-07-20 | LAST CHANGE: "Find events for you" matches now show a recurring series once, not every occurrence. getAllRecurring expands each recurrence, so a daily/weekly event (e.g. Ping Pong / RUMMIKUB) filled the matches with the same event on date after date. A recurring event now collapses to its single soonest occurrence (keyed on title); one-off events stay unique by id. Same idea the main grid already used. (V12.40: paste/fetch fills serving, defaults Connected, fills images.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3885,7 +3885,7 @@ function renderForYou() {
   const now = new Date(); now.setHours(0,0,0,0);
   const matchers = getMatchWords(interests);
   const allEv = [...events, ...(typeof getAllRecurring === "function" ? getAllRecurring(2) : [])];
-  const matched = allEv.filter(ev => {
+  const matchedAll = allEv.filter(ev => {
     if (!ev.date) return false;
     const d = new Date(ev.date + "T00:00:00");
     if (d < now) return false;
@@ -3893,7 +3893,22 @@ function renderForYou() {
     const haystack = [ev.title, ev.keywords, ev.categories, ev.description, ev.host, ev.location, ev.venue, ev.experience]
       .filter(Boolean).join(" ").toLowerCase();
     return matchers.some(m => haystack.includes(m.phrase));
-  }).sort((a,b) => new Date(a.date) - new Date(b.date)).slice(0, 6);
+  }).sort((a,b) => new Date(a.date) - new Date(b.date));
+
+  // V12.41: collapse a recurring series to its single soonest occurrence. getAllRecurring
+  // expands every occurrence, so a daily/weekly event was filling the matches with the same
+  // event on date after date. A recurring event (recurFreq set) keys on its title so all its
+  // occurrences count as one; one-off events stay unique by id. Sorted ascending above, so
+  // the first one kept per series is the soonest.
+  const _seenSeries = new Set();
+  const matched = [];
+  for (const ev of matchedAll) {
+    const key = ev.recurFreq ? ("series:" + String(ev.title||"").trim().toLowerCase()) : ("id:" + ev.id);
+    if (_seenSeries.has(key)) continue;
+    _seenSeries.add(key);
+    matched.push(ev);
+    if (matched.length >= 6) break;
+  }
 
   const resultsEl = document.getElementById("for-you-results");
   if (!resultsEl) return;
@@ -4061,6 +4076,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.40 | Date: 2026-07-20 | LAST CHANGE: Paste/fetch now also fills "Who is this serving?" (life stages), defaults the "Connected" feeling, and fills Cover + Detail from a fetched page's images. Serving is inferred conservatively - the prompt returns only keys the text clearly implies, [] otherwise (verified: a vague event returns none, a retirement workshop returns late-career/retired/community). "Connected" is the one intended-feeling defaulted on, since every gathering is meant to connect; other feelings and Welcome stay the host's to set. Images come from the Worker's {url} response (og:image -> Cover, next -> Detail) and no-op until the Worker is redeployed to return them. Contact stays the host's from the page. (V12.39: parser anchored to today's date.) -->
+<!-- Version: V12.41 | Date: 2026-07-20 | LAST CHANGE: "Find events for you" matches now show a recurring series once, not every occurrence. getAllRecurring expands each recurrence, so a daily/weekly event (e.g. Ping Pong / RUMMIKUB) filled the matches with the same event on date after date. A recurring event now collapses to its single soonest occurrence (keyed on title); one-off events stay unique by id. Same idea the main grid already used. (V12.40: paste/fetch fills serving, defaults Connected, fills images.) -->
 </body>
 </html>
