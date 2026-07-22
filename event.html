@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.38 | Date: 2026-07-20 | LAST CHANGE: The edit-PIN handoff no longer postMessages the parent frame. Its listener in events.html went away with the event-view iframe (events V12.29), and the send carried the event's edit PIN to whatever the parent origin happened to be with "*". Navigating the top window to events.html?edit=&pin= is the path that was doing the work anyway - and a blocked navigation now falls back to this frame instead of being swallowed by a bare catch, which would have left a correct PIN doing nothing. (V5.37: Lake Ballinger points at the hub.) -->
+  <!-- Version: V5.38 | Date: 2026-07-20 | LAST CHANGE: The meeting room can be gated behind a completed event profile (roomGated). When on, both room affordances start hidden and applyRoomGate() reveals them only if the viewer's profile has an interest, skill, value, language AND postal - otherwise "You're registered! Please complete your event profile to unlock the virtual meeting space." One getIntake call, shared with the intake prompt, non-blocking. (V5.37: Lake Ballinger RSVP goes to the hub.) -->
   <meta charset="UTF-8">
   <script>
   /* Forward the Lake Ballinger event to its Glide page (m97sjwa3 only). Runs before render, so no flash. */
@@ -333,6 +333,7 @@ function recurToEv(r) {
     contactEmail: r.contactEmail||"", contactPhone: r.contactPhone||"",
     cooplink: r.cooplink||"", paymentlink: r.paymentlink||"",
     meetinglink: ROOMS[r.room] || "", showLinks: r.showLinks||"",
+    roomGated: r.roomGated==="true"||r.roomGated===true||false,
     otherExchange: r.otherExchange||"", exchangeType: r.exchangeType||"",
     recurFreq: r.recurFreq||"weekly", experience: r.experience||"",
     imageUrl: r.imageUrl||"", detailImageUrl: r.detailImageUrl||"", lifeStage: r.lifeStage||"", keywords: r.keywords||"", venue: r.venue||"",
@@ -417,6 +418,7 @@ function toEv(r) {
     description: r.description||"", host: r.host||"", hostlink: r.hostlink||"",
     contactEmail: r.contactEmail||"", contactPhone: r.contactPhone||"",
     cooplink: r.cooplink||"", paymentlink: r.paymentlink||"", meetinglink: r.meetinglink||"",
+    roomGated: r.roomGated==="true"||r.roomGated===true||false,
     showLinks: r.showLinks||"", otherExchange: r.otherExchange||"",
     exchangeType: r.exchangeType||"", recurFreq: r.recurFreq||"",
     experience: r.experience||"", imageUrl: r.imageUrl||"", detailImageUrl: r.detailImageUrl||"", lifeStage: r.lifeStage||"", keywords: r.keywords||"", venue: r.venue||"",
@@ -587,11 +589,16 @@ function render(ev) {
   const isToday = eventDay && eventDay.toDateString() === today.toDateString();
   const gatherUrl = esc(ev.meetinglink || roomUrl);
   const gatherTimeStr = ev.time ? new Date("1970-01-01T"+ev.time).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}) : "";
+  // V5.38: when the host gated the room, both room affordances start HIDDEN and applyRoomGate()
+  // reveals them only once the viewer's profile is confirmed complete - the link is never in
+  // the DOM-visible output before the check, so an incomplete viewer cannot grab it.
+  const _gateRoom = !!ev.roomGated && (ev.format === "virtual" || ev.format === "both");
+  const _hide = _gateRoom ? "display:none;" : "";
   const joinBtn = (ev.format === "virtual" || ev.format === "both") && isToday && !ev.cancelled
-    ? `<a href="${gatherUrl}" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:var(--primary);color:#fff;padding:8px 18px;border-radius:20px;font-weight:700;font-size:13px;text-decoration:none;white-space:nowrap;flex-shrink:0;">🏠 Gather here today${gatherTimeStr ? " at " + gatherTimeStr : ""}</a>`
+    ? `<span id="join-btn-wrap" style="${_hide}"><a href="${gatherUrl}" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:var(--primary);color:#fff;padding:8px 18px;border-radius:20px;font-weight:700;font-size:13px;text-decoration:none;white-space:nowrap;flex-shrink:0;">🏠 Gather here today${gatherTimeStr ? " at " + gatherTimeStr : ""}</a></span>`
     : "";
   const meetingRoomLine = (ev.format === "virtual" || ev.format === "both") && ev.room && !isToday
-    ? `<div style="font-size:14px;margin-bottom:4px;">Meeting room: <a href="${esc(roomUrl)}" rel="noopener" style="color:var(--primary);">${esc(ev.room)}</a></div>`
+    ? `<div id="meeting-room-line" style="font-size:14px;margin-bottom:4px;${_hide}">Meeting room: <a href="${esc(roomUrl)}" rel="noopener" style="color:var(--primary);">${esc(ev.room)}</a></div>${_gateRoom ? `<div id="room-gate-msg" style="display:none;font-size:14px;color:#7B5800;background:#FFF8E7;border:1px solid #F0B429;border-radius:8px;padding:10px 12px;margin-bottom:4px;">You're registered! Please complete your event profile to unlock the virtual meeting space. <a id="room-gate-link" href="https://creating.works" style="color:#1B6896;font-weight:700;">Complete profile</a></div>` : ""}`
     : "";
 
   const locLink = ev.location
@@ -754,6 +761,7 @@ function render(ev) {
   _setMeta("x-image", ev.imageUrl||"");
 
   _currentEv = ev;
+  applyRoomGate();   // V5.38: hide/reveal the meeting room per the host's profile gate (non-blocking)
   if ((_editVerified || _myId) && !ev.cancelled) { loadPotluckClaims(ev.id); }
 
   // RSVP state comes from the sheet, not the device - read registrations on load
@@ -1066,6 +1074,47 @@ function finishRsvp() {
 }
 
 // For events flagged intakeRedirect in the sheet: invite the attendee to build their event profile.
+// V5.38: one getIntake per page load, shared by the room gate and the intake prompt. null =
+// not fetched; {} = fetched and empty; otherwise the profile data. Keyed to one viewer/page.
+var _viewerIntake = null;
+async function _viewerIntakeData(viewer) {
+  if (_viewerIntake !== null) return _viewerIntake;
+  try {
+    const res = await fetch(GS_URL + "?action=getIntake&appearId=" + encodeURIComponent(viewer));
+    const d = await res.json();
+    _viewerIntake = (d && d.found && d.data) ? d.data : {};
+  } catch(e) { _viewerIntake = {}; }
+  return _viewerIntake;
+}
+// Her gate: at least one interest, skill, value, language, AND a postal code.
+function _profileComplete(d) {
+  const has = (s) => String(s || "").split("|").filter(Boolean).length > 0;
+  return has(d.interests) && has(d.skills) && has(d.values) && has(d.languages) && !!String(d.postal || "").trim();
+}
+async function applyRoomGate() {
+  if (!_currentEv || !_currentEv.roomGated) return;
+  if (!(_currentEv.format === "virtual" || _currentEv.format === "both")) return;
+  const jbw = document.getElementById("join-btn-wrap");
+  const mrl = document.getElementById("meeting-room-line");
+  const msg = document.getElementById("room-gate-msg");
+  const viewer = getMemberId();
+  if (!viewer) return;   // not signed in -> room stays hidden; the sign-in CTA handles them
+  const d = await _viewerIntakeData(viewer);
+  if (_profileComplete(d)) {
+    if (jbw) jbw.style.display = "";
+    if (mrl) mrl.style.display = "";
+    if (msg) msg.style.display = "none";
+  } else {
+    if (jbw) jbw.style.display = "none";
+    if (mrl) mrl.style.display = "none";
+    if (msg) {
+      const link = document.getElementById("room-gate-link");
+      if (link) link.href = "https://creating.works/intake.html?id=" + encodeURIComponent(viewer) + "&eventId=" + encodeURIComponent(_currentEv.id);
+      msg.style.display = "block";
+    }
+  }
+}
+
 async function maybeShowIntakePrompt() {
   if (!_currentEv || String(_currentEv.intakeRedirect || "").trim().toLowerCase() !== "true") return;
   if (!_rsvpAppearId) return;
@@ -1073,17 +1122,13 @@ async function maybeShowIntakePrompt() {
   if (!box) return;
   let label = "Create event profile";
   let complete = false;
-  try {
-    const res = await fetch(GS_URL + "?action=getIntake&appearId=" + encodeURIComponent(_rsvpAppearId));
-    const data = await res.json();
-    if (data && data.found) label = "Update event profile";
-    if (data && data.found && data.data) {
-      // "Complete" (Rule 1 / core): has interests AND skills AND values (needs is optional)
-      const has = (s) => String(s || "").split("|").filter(Boolean).length > 0;
-      const d = data.data;
-      complete = has(d.interests) && has(d.skills) && has(d.values);
-    }
-  } catch(e) { /* default to Create / incomplete */ }
+  const data = await _viewerIntakeData(_rsvpAppearId);   // shared with the room gate - no extra call
+  if (data && Object.keys(data).length) {
+    label = "Update event profile";
+    // Core completeness for the prompt stays interests+skills+values (needs optional).
+    const has = (s) => String(s || "").split("|").filter(Boolean).length > 0;
+    complete = has(data.interests) && has(data.skills) && has(data.values);
+  }
   if (complete) {
     // Profile complete: profile view/edit now lives in "Manage my experience" - nothing to prompt here.
     box.style.display = "none";
@@ -1398,6 +1443,6 @@ const PREVIEW_EVENT = {
 
 init();
 </script>
-<!-- Version: V5.38 | Date: 2026-07-20 | LAST CHANGE: The edit-PIN handoff no longer postMessages the parent frame. Its listener in events.html went away with the event-view iframe (events V12.29), and the send carried the event's edit PIN to whatever the parent origin happened to be with "*". Navigating the top window to events.html?edit=&pin= is the path that was doing the work anyway - and a blocked navigation now falls back to this frame instead of being swallowed by a bare catch, which would have left a correct PIN doing nothing. (V5.37: Lake Ballinger points at the hub.) -->
+<!-- Version: V5.38 | Date: 2026-07-20 | LAST CHANGE: The meeting room can be gated behind a completed event profile (roomGated). When on, both room affordances start hidden and applyRoomGate() reveals them only if the viewer's profile has an interest, skill, value, language AND postal - otherwise "You're registered! Please complete your event profile to unlock the virtual meeting space." One getIntake call, shared with the intake prompt, non-blocking. (V5.37: Lake Ballinger RSVP goes to the hub.) -->
 </body>
 </html>
