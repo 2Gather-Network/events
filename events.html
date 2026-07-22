@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.39 | Date: 2026-07-20 | LAST CHANGE: The event-parse prompt now tells the model today's date. Pages often give a day with no year ("Thursday, July 23"), and without an anchor the model guessed a year from training - it picked 2025, which the past-date guard then correctly flagged. It now resolves a bare date to the next upcoming occurrence. Verified: "July 23" with today 2026-07-21 returns 2026-07-23. (V12.38: fetch event details from a link.) -->
+<!-- Version: V12.40 | Date: 2026-07-20 | LAST CHANGE: Paste/fetch now also fills "Who is this serving?" (life stages), defaults the "Connected" feeling, and fills Cover + Detail from a fetched page's images. Serving is inferred conservatively - the prompt returns only keys the text clearly implies, [] otherwise (verified: a vague event returns none, a retirement workshop returns late-career/retired/community). "Connected" is the one intended-feeling defaulted on, since every gathering is meant to connect; other feelings and Welcome stay the host's to set. Images come from the Worker's {url} response (og:image -> Cover, next -> Detail) and no-op until the Worker is redeployed to return them. Contact stays the host's from the page. (V12.39: parser anchored to today's date.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1147,6 +1147,7 @@ async function fetchEventFromUrl() {
       errEl.style.display = "block";
       return;
     }
+    window._fetchedImages = (data && Array.isArray(data.images)) ? data.images : [];   // og:image + content imgs
     document.getElementById("paste-text").value = text;   // visible for review before parsing
     btn.disabled = false; btn.textContent = _label;
     parseEventText();                                     // hand off to the existing extractor
@@ -1200,7 +1201,8 @@ Extract event details from this text. Return ONLY a JSON object with these field
   "paymentlink": "any registration/payment URL",
   "contactEmail": "contact email if mentioned",
   "contactPhone": "contact phone if mentioned",
-  "categories": array of 1-3 category names that best fit the event, chosen from: ${CATEGORIES.map(function(c) { return c.label; }).join(", ")}
+  "categories": array of 1-3 category names that best fit the event, chosen from: ${CATEGORIES.map(function(c) { return c.label; }).join(", ")},
+  "serving": array of who the event is for, ONLY keys clearly implied by the text, chosen from: ${servingFormOptions().map(function(o){ return o.key; }).join(", ")} (empty array if the text does not say - do NOT guess)
 }
 
 Category guide: ${CATEGORIES.map(function(c) { return c.label + "=" + c.label.toLowerCase(); }).join(", ")}
@@ -1280,6 +1282,21 @@ Return ONLY the JSON object, no explanation.`;
       buildFormChips();
       updateRoomPreview();
     }
+
+    // V12.40: who it serves - only what the text implied (the prompt returns [] when unsure).
+    if (parsed.serving && Array.isArray(parsed.serving) && parsed.serving.length) {
+      var _allowed = servingFormOptions().map(function(o){ return o.key; });
+      var _serve = parsed.serving.filter(function(k){ return _allowed.indexOf(k) !== -1; });
+      if (_serve.length && typeof setLifeStages === "function") setLifeStages(_serve.join(","));
+    }
+    // "Connected" is the one intended-feeling we default on - every gathering is meant to
+    // connect people (her call). The host's other feelings are theirs to set, not guessed.
+    if (typeof setExperience === "function") setExperience("connected");
+    // Images pulled from a fetched page (empty for a plain paste). og:image -> cover, next -> detail.
+    var _imgs = (window._fetchedImages || []);
+    if (_imgs[0]) { var _ci = document.getElementById("f-image-url"); if (_ci) _ci.value = _imgs[0]; }
+    if (_imgs[1]) { var _di = document.getElementById("f-detail-image-url"); if (_di) _di.value = _imgs[1]; }
+    window._fetchedImages = [];
 
     // Set format
     if (parsed.format) {
@@ -4044,6 +4061,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.39 | Date: 2026-07-20 | LAST CHANGE: The event-parse prompt now tells the model today's date. Pages often give a day with no year ("Thursday, July 23"), and without an anchor the model guessed a year from training - it picked 2025, which the past-date guard then correctly flagged. It now resolves a bare date to the next upcoming occurrence. Verified: "July 23" with today 2026-07-21 returns 2026-07-23. (V12.38: fetch event details from a link.) -->
+<!-- Version: V12.40 | Date: 2026-07-20 | LAST CHANGE: Paste/fetch now also fills "Who is this serving?" (life stages), defaults the "Connected" feeling, and fills Cover + Detail from a fetched page's images. Serving is inferred conservatively - the prompt returns only keys the text clearly implies, [] otherwise (verified: a vague event returns none, a retirement workshop returns late-career/retired/community). "Connected" is the one intended-feeling defaulted on, since every gathering is meant to connect; other feelings and Welcome stay the host's to set. Images come from the Worker's {url} response (og:image -> Cover, next -> Detail) and no-op until the Worker is redeployed to return them. Contact stays the host's from the page. (V12.39: parser anchored to today's date.) -->
 </body>
 </html>
