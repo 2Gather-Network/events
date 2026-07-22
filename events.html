@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.49 | Date: 2026-07-20 | LAST CHANGE: Host toggle "Require a completed event profile to see the meeting room" (roomGated) in the post AND edit form. Saved to the new events-tab column; parsed on load. Gate enforced on event.html. (V12.48: don't duplicate Cover into Detail.) -->
+<!-- Version: V12.50 | Date: 2026-07-20 | LAST CHANGE: "My Appear Network page" now just works on one click, no GAS deploy. The host's Appear link is remembered on their device (captured from any event with an appear.network hostlink they open or save, so it seeds from their own events). Checking the box fills it and keeps the field HIDDEN - she does not see or edit it. Only if nothing is remembered yet does the box show, for a one-time paste. Drops the lookupProfile dependency (that deploy is no longer needed). (V12.49: meeting-room gate.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1340,6 +1340,7 @@ Return ONLY the JSON object, no explanation.`;
 }
 
 function evToSheet(ev) {
+  _rememberAppearLink(ev.hostlink);   // V12.50: remember her Appear link from any save
   return {
     id: ev.id, title: ev.title || "", categories: Array.isArray(ev.categories) ? ev.categories.join(",") : (ev.categories || ""),
     date: ev.date || "", startTime: ev.time || "", endTime: ev.endtime || "", format: ev.format || "",
@@ -2415,7 +2416,7 @@ function loadEditForm(id) {
   const venueEditEl = document.getElementById("f-venue"); if(venueEditEl) venueEditEl.value = ev.venue || "";
   document.getElementById("f-desc").value  = ev.description || "";
   document.getElementById("f-host").value  = ev.host || "";
-  document.getElementById("f-hostlink").value = ev.hostlink || "";
+  document.getElementById("f-hostlink").value = ev.hostlink || ""; _rememberAppearLink(ev.hostlink);
   const heEl = document.getElementById("f-host-email"); if (heEl) heEl.value = ev.hostEmail || "";
   document.getElementById("f-contact-email").value = ev.contactEmail || "";
   document.getElementById("f-contact-phone").value = ev.contactPhone || "";
@@ -2648,42 +2649,50 @@ function setExchange(val) {
 
 // V12.47: cache the host's stored Appear page (Main "Page link", via lookupProfile) for this
 // page load. null = not fetched yet, "" = fetched and empty (no stored link).
-var _hostPageLink = null;
-async function autoFillHostPage() {
-  const hl = document.getElementById("f-hostlink"); if (!hl) return;
-  const mid = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
-  const editable = () => { hl.readOnly = false; hl.style.background = ""; hl.style.color = ""; };
-  if (!mid) { editable(); return; }                       // unknown host -> they paste
-  if (_hostPageLink === null) {
-    try {
-      const r = await fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(mid));
-      const d = await r.json();
-      _hostPageLink = (d && d.pageLink) ? String(d.pageLink) : "";
-    } catch (e) { _hostPageLink = ""; }
+// V12.50: "My Appear Network page" remembers the host's own Appear link on their device - no
+// GAS deploy needed. It is captured whenever an event with an appear.network hostlink is opened
+// for edit or saved, so it seeds itself from the host's existing events. Checking the box then
+// fills it and keeps the field HIDDEN (she does not want to see or edit it). Only if nothing is
+// remembered yet does the box appear, for a one-time paste.
+function _appearKey() {
+  var m = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
+  return m ? ("appear-link-" + m) : "";
+}
+function _rememberAppearLink(url) {
+  var k = _appearKey();
+  if (k && /^https?:\/\/appear\.network\//i.test(String(url || ""))) {
+    try { localStorage.setItem(k, String(url)); } catch (e) {}
   }
-  // Only lock it when we actually have a stored link - never overwrite with a guessed one.
-  if (document.getElementById("show-hostlink")?.checked && _hostPageLink) {
-    hl.value = _hostPageLink; hl.readOnly = true; hl.style.background = "#f3f4f6"; hl.style.color = "var(--muted)";
-    const err = document.getElementById("hostlink-error"); if (err) err.style.display = "none";
-  } else {
-    editable();                                           // no stored link -> stays a paste box
-  }
+}
+function _knownAppearLink() {
+  var k = _appearKey();
+  try { return k ? (localStorage.getItem(k) || "") : ""; } catch (e) { return ""; }
 }
 
 function toggleLinkFields() {
-  ["hostlink","cooplink","paymentlink","contact"].forEach(k => {
+  ["cooplink","paymentlink","contact"].forEach(k => {   // hostlink handled specially below
     const field = document.getElementById("field-"+k);
     const cb = document.getElementById("show-"+k);
     if (field && cb) field.style.display = cb.checked ? "block" : "none";
   });
-  // V12.47: "My Appear Network page" auto-fills from the host's STORED Appear link (Main
-  // "Page link"), read-only. If nothing is stored it stays an editable paste box - never a
-  // guessed/constructed URL (that was V12.44's bug).
   const hlCb = document.getElementById("show-hostlink");
+  const hlField = document.getElementById("field-hostlink");
   const hlInput = document.getElementById("f-hostlink");
-  if (hlCb && hlInput) {
-    if (hlCb.checked) { autoFillHostPage(); }
-    else { hlInput.readOnly = false; hlInput.style.background = ""; hlInput.style.color = ""; }
+  const hlErr = document.getElementById("hostlink-error");
+  if (hlCb && hlField && hlInput) {
+    if (hlCb.checked) {
+      const known = _knownAppearLink();
+      if (known) {
+        hlInput.value = known;            // include it silently; field stays hidden, value still saves
+        hlField.style.display = "none";
+        if (hlErr) hlErr.style.display = "none";
+      } else {
+        hlInput.readOnly = false; hlInput.style.background = ""; hlInput.style.color = "";
+        hlField.style.display = "block";  // not remembered yet -> show it for a one-time paste
+      }
+    } else {
+      hlField.style.display = "none";
+    }
   }
 }
 
@@ -3475,7 +3484,7 @@ function cloneEvent() {
     document.getElementById("f-location").value = ev.location || "";
     document.getElementById("f-desc").value = ev.description || "";
     document.getElementById("f-host").value = ev.host || "";
-    document.getElementById("f-hostlink").value = ev.hostlink || "";
+    document.getElementById("f-hostlink").value = ev.hostlink || ""; _rememberAppearLink(ev.hostlink);
     document.getElementById("f-cooplink").value = ev.cooplink || "";
     document.getElementById("f-contact-email").value = ev.contactEmail || "";
     document.getElementById("f-contact-phone").value = ev.contactPhone || "";
@@ -4126,6 +4135,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.49 | Date: 2026-07-20 | LAST CHANGE: Host toggle "Require a completed event profile to see the meeting room" (roomGated) in the post AND edit form. Saved to the new events-tab column; parsed on load. Gate enforced on event.html. (V12.48: don't duplicate Cover into Detail.) -->
+<!-- Version: V12.50 | Date: 2026-07-20 | LAST CHANGE: "My Appear Network page" now just works on one click, no GAS deploy. The host's Appear link is remembered on their device (captured from any event with an appear.network hostlink they open or save, so it seeds from their own events). Checking the box fills it and keeps the field HIDDEN - she does not see or edit it. Only if nothing is remembered yet does the box show, for a one-time paste. Drops the lookupProfile dependency (that deploy is no longer needed). (V12.49: meeting-room gate.) -->
 </body>
 </html>
