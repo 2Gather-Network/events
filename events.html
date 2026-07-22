@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.50 | Date: 2026-07-20 | LAST CHANGE: "My Appear Network page" now just works on one click, no GAS deploy. The host's Appear link is remembered on their device (captured from any event with an appear.network hostlink they open or save, so it seeds from their own events). Checking the box fills it and keeps the field HIDDEN - she does not see or edit it. Only if nothing is remembered yet does the box show, for a one-time paste. Drops the lookupProfile dependency (that deploy is no longer needed). (V12.49: meeting-room gate.) -->
+<!-- Version: V12.51 | Date: 2026-07-22 | LAST CHANGE: Date TBD. A host with no date yet ticks "Date to be announced" by the date field; the event saves with date "TBD" (no deploy - just a string), which keeps it OFF the calendar grid, banners and For-You matches, but still reachable and registerable by its direct link. Everywhere a date would show ("Manage event", the event page, exports) it reads "Date to be announced" via a fmtDate/fmtDateShort guard. Set a real date + untick to relist. Start time not required when TBD. (V12.50: Appear page link remembered on-device.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -559,6 +559,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <div class="field">
         <label class="field-label">Date *</label>
         <input class="input" id="f-date" type="date">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dark);margin-top:8px;cursor:pointer;"><input type="checkbox" id="f-date-tbd" onchange="toggleDateTbd()" style="width:15px;height:15px;accent-color:var(--primary);"> Date to be announced</label>
       </div>
       <div class="field">
         <label class="field-label">Start time *</label>
@@ -1250,7 +1251,7 @@ Return ONLY the JSON object, no explanation.`;
     // Fill in the form fields
     if (parsed.title) document.getElementById("f-title").value = parsed.title;
     if (parsed.host) document.getElementById("f-host").value = parsed.host;
-    if (parsed.date) document.getElementById("f-date").value = parsed.date;
+    if (parsed.date) setDateField(parsed.date);
     if (parsed.time) document.getElementById("f-time").value = parsed.time;
     if (parsed.endtime) document.getElementById("f-endtime").value = parsed.endtime;
     if (parsed.description) document.getElementById("f-desc").value = parsed.description;
@@ -1801,7 +1802,7 @@ function updateLocalBanner() {
   // registrations and potluck are untouched. Flip it back to public and the banner returns,
   // no code change. Missing from the feed hides it too, rather than showing the fallback text.
   var _lb = (events||[]).filter(function(e){ return String(e.id||"").trim()==="m97sjwa3"; })[0];
-  if (!_lb || _lb.isPrivate) { b.style.display = "none"; return; }
+  if (!_lb || _lb.isPrivate || _lb.date === "TBD") { b.style.display = "none"; return; }
   if (_bannerBlockedByReg) { b.style.display = "none"; return; }
   b.style.display = (knownState() === "Washington") ? "flex" : "none";
 }
@@ -1822,6 +1823,7 @@ function renderEvents() {
     if (e.id.startsWith("occ-note-")) return false;
     if (e.id.startsWith("cancelled-recurring-")) return false;
     if (e.recurFreq && !e.id.startsWith("recurring-") && _templateTitles.has((e.title||"").toLowerCase())) return false;
+    if (e.date === "TBD") return false;   // V12.51: TBD events are shared by link only, not listed on the calendar
     return !e.isPrivate;
   }).filter(e => {
     let cats = Array.isArray(e.categories) ? e.categories : [e.category].filter(Boolean);
@@ -1961,7 +1963,7 @@ function saveEditDraft() {
   const draft = {
     id: editingId,
     title: document.getElementById("f-title")?.value || "",
-    date: document.getElementById("f-date")?.value || "",
+    date: getDateValue(),
     time: document.getElementById("f-time")?.value || "",
     endtime: document.getElementById("f-endtime")?.value || "",
     location: document.getElementById("f-location")?.value || "",
@@ -1999,7 +2001,7 @@ function restoreEditDraft(id) {
     const d = JSON.parse(raw);
     if (d.id !== id) return false;
     document.getElementById("f-title").value    = d.title || "";
-    document.getElementById("f-date").value     = d.date || "";
+    setDateField(d.date || "");
     document.getElementById("f-time").value     = d.time || "12:00";
     document.getElementById("f-endtime").value  = d.endtime || "13:00";
     document.getElementById("f-location").value = d.location || "";
@@ -2035,7 +2037,7 @@ function restoreEditDraft(id) {
 function saveDraft() {
   if (editingId) return;
   const draft = {
-    title: document.getElementById("f-title")?.value || "", date: document.getElementById("f-date")?.value || "",
+    title: document.getElementById("f-title")?.value || "", date: getDateValue(),
     time: document.getElementById("f-time")?.value || "", endtime: document.getElementById("f-endtime")?.value || "",
     location: document.getElementById("f-location")?.value || "", desc: document.getElementById("f-desc")?.value || "",
     host: document.getElementById("f-host")?.value || "",
@@ -2056,7 +2058,7 @@ function restoreDraft() {
     const d = JSON.parse(raw);
     if (!d.title && !d.desc && !d.host) return false;
     document.getElementById("f-title").value    = d.title || "";
-    document.getElementById("f-date").value     = d.date || "";
+    setDateField(d.date || "");
     document.getElementById("f-time").value     = d.time || "12:00";
     document.getElementById("f-endtime").value  = d.endtime || "13:00";
     document.getElementById("f-location").value = d.location || "";
@@ -2123,6 +2125,7 @@ function openModal(skipDraft = false) {
   document.getElementById("recurring-field").style.display = (isMasterUser || !!sessionStorage.getItem('db-master-session')) ? "block" : "none";
   const cancelSectionReset = document.getElementById("cancel-section"); if(cancelSectionReset) cancelSectionReset.style.display = "none";
   ["f-title","f-date","f-location","f-lat","f-lng","f-desc","f-host","f-hostlink","f-contact-email","f-contact-phone","f-cooplink","f-passcode","f-paymentlink","f-host-note"].forEach(id => { const el = document.getElementById(id); if(el) el.value = ""; });
+  const _tbdReset = document.getElementById("f-date-tbd"); if(_tbdReset) _tbdReset.checked = false; toggleDateTbd();   // V12.51: clear Date TBD on reset
   const hlErr = document.getElementById("hostlink-error"); if(hlErr) hlErr.style.display = "none";
   const cancelReset = document.getElementById("f-cancelled"); if(cancelReset) cancelReset.checked = false;
   const cancelLblReset = document.getElementById("cancel-all-label"); if(cancelLblReset) cancelLblReset.textContent = "Mark as cancelled";
@@ -2403,9 +2406,9 @@ function loadEditForm(id) {
     const recurBase = findRecurringBase(id);
     if (recurBase) {
       const nextOcc = getNextOccurrences(recurBase, 1)[0];
-      document.getElementById("f-date").value = nextOcc ? nextOcc.date : (ev.date || "");
+      setDateField(nextOcc ? nextOcc.date : (ev.date || ""));
     } else {
-      document.getElementById("f-date").value = ev.date || "";
+      setDateField(ev.date || "");
     }
   } else {
     document.getElementById("f-date").value = ev.date || "";
@@ -2944,7 +2947,7 @@ function toggleDesc(id) {
 function addToCalendar(id) {
   const allEv = [...events, ...getAllRecurring(2)];
   const ev = allEv.find(e => e.id === id);
-  if (!ev || !ev.date) return;
+  if (!ev || !ev.date || ev.date === "TBD") return;
   function toCalDT(date, time) { const t = time || "00:00"; return date.replace(/-/g,"") + "T" + t.replace(":","") + "00"; }
   const start = toCalDT(ev.date, ev.time);
   const end   = toCalDT(ev.date, ev.endtime || ev.time);
@@ -3099,12 +3102,34 @@ function fmt12(t) {
 }
 function fmtDateShort(date) {
   if (!date) return "";
+  if (date === "TBD") return "Date to be announced";
   return new Date(date+"T12:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
+}
+
+// V12.51: Date TBD - a host with no date yet ticks "Date to be announced". The event is stored
+// with date "TBD" (nothing to deploy), kept off the calendar/banners/matches, but still reachable
+// and registerable by its direct link, and shows "Date to be announced" wherever a date would be.
+function toggleDateTbd() {
+  var on = !!(document.getElementById("f-date-tbd") && document.getElementById("f-date-tbd").checked);
+  ["f-date","f-time"].forEach(function(id){
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = on; el.style.opacity = on ? "0.5" : "";
+    if (on) el.value = "";
+  });
+}
+function getDateValue() {
+  return (document.getElementById("f-date-tbd") && document.getElementById("f-date-tbd").checked) ? "TBD" : (document.getElementById("f-date") ? document.getElementById("f-date").value : "");
+}
+function setDateField(val) {
+  var cb = document.getElementById("f-date-tbd");
+  if (val === "TBD") { if (cb) cb.checked = true; toggleDateTbd(); }
+  else { if (cb) cb.checked = false; toggleDateTbd(); var d = document.getElementById("f-date"); if (d) d.value = val || ""; }
 }
 
 async function submitEvent() {
   const title    = document.getElementById("f-title").value.trim();
-  const date     = document.getElementById("f-date").value;
+  const date     = getDateValue();
   const time     = document.getElementById("f-time").value;
   const endtime  = document.getElementById("f-endtime").value;
   const location = document.getElementById("f-location").value.trim();
@@ -3132,7 +3157,7 @@ async function submitEvent() {
   if (selectedCats.size === 0) missing.push("at least one category");
   if (!selectedFormat) missing.push("virtual or in-person");
   if (!date) missing.push("date");
-  if (!time) missing.push("start time");
+  if (!time && date !== "TBD") missing.push("start time");
   if (!host) missing.push("host name");
   if (!editingId && !/^\d{4}$/.test(passcode)) missing.push("4-digit private PIN");
   if (missing.length > 0) { errEl.textContent = "Please add: " + missing.join(", ") + "."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
@@ -3141,7 +3166,7 @@ async function submitEvent() {
   if ((selectedFormat === "virtual" || selectedFormat === "both") && !hostingOption) { errEl.textContent = "Please choose where you're hosting this - a community room or your own link."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   if (hostingOption === "db" && !selectedRoom) { errEl.textContent = "Please select which virtual room is best for this event."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   const isCancelling = document.getElementById("f-cancelled")?.checked || document.getElementById("f-cancel-occurrence")?.checked;
-  if (selectedRoom && date && !isCancelling) {
+  if (selectedRoom && date && date !== "TBD" && !isCancelling) {
     const conflict = checkConflict(selectedRoom, date, time, editingId);
     if (conflict) { errEl.textContent = `"${selectedRoom}" is already booked around this time for "${conflict.title}". Please choose a different time or room.`; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   }
@@ -3266,6 +3291,7 @@ async function submitEvent() {
 
 function fmtDate(date, time, endtime) {
   if (!date) return "Date TBD";
+  if (date === "TBD") return "Date to be announced";
   const d  = new Date(date + "T" + (time||"00:00"));
   const ds = d.toLocaleDateString("en-US", {weekday:"short",month:"short",day:"numeric"});
   if (!time) return ds;
@@ -3949,6 +3975,7 @@ function renderForYou() {
     if (d < now) return false;
     if (ev.cancelled || cancelledOccurrences.has(ev.id)) return false;
     if (ev.isPrivate) return false;   // V12.43: a private (e.g. postponed) event must not surface in matches
+    if (ev.date === "TBD") return false;   // V12.51: a TBD (undated) event is shared by link only, not in matches
     const haystack = [ev.title, ev.keywords, ev.categories, ev.description, ev.host, ev.location, ev.venue, ev.experience]
       .filter(Boolean).join(" ").toLowerCase();
     return matchers.some(m => haystack.includes(m.phrase));
@@ -4135,6 +4162,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.50 | Date: 2026-07-20 | LAST CHANGE: "My Appear Network page" now just works on one click, no GAS deploy. The host's Appear link is remembered on their device (captured from any event with an appear.network hostlink they open or save, so it seeds from their own events). Checking the box fills it and keeps the field HIDDEN - she does not see or edit it. Only if nothing is remembered yet does the box show, for a one-time paste. Drops the lookupProfile dependency (that deploy is no longer needed). (V12.49: meeting-room gate.) -->
+<!-- Version: V12.51 | Date: 2026-07-22 | LAST CHANGE: Date TBD. A host with no date yet ticks "Date to be announced" by the date field; the event saves with date "TBD" (no deploy - just a string), which keeps it OFF the calendar grid, banners and For-You matches, but still reachable and registerable by its direct link. Everywhere a date would show ("Manage event", the event page, exports) it reads "Date to be announced" via a fmtDate/fmtDateShort guard. Set a real date + untick to relist. Start time not required when TBD. (V12.50: Appear page link remembered on-device.) -->
 </body>
 </html>
