@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.52 | Date: 2026-07-22 | LAST CHANGE: The event edit-PIN field is now type=text with -webkit-text-security:disc (still visually masked) + inputmode=numeric, instead of type=password. Browsers treated the password field as a login and offered "Save password?" on posting an event, pairing the PIN with a nearby link as a fake username. It is a per-event edit code, not a credential, so this stops the prompt with no visible change. (V12.51: Date TBD - undated events shared by link only, "Date to be announced", off the calendar/banners/matches; start time not required when TBD.) -->
+<!-- Version: V12.53 | Date: 2026-07-22 | LAST CHANGE: Always-visible "Where are you?" picker (country -> state, US reveals states, not US-only) under the search bar, so setting your state is one tap instead of four levels deep in Filters -> In-person -> United States -> state. It writes rememberState() (the same source the local banner's Washington gate reads via knownState()) and mirrors into #filter-state for the in-person location filter; restored on load, cleared by Reset / Clear. (V12.52: edit-PIN field no longer triggers the browser "Save password?" prompt.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -280,6 +280,21 @@
       <button onclick="toggleFilterPanel()" id="filter-panel-btn" class="btn btn-sm" style="white-space:nowrap;background:#154F74;color:#fff;border:1.5px solid #154F74;flex:1;">⚙️ Filters</button>
       <button onclick="resetFilters()" class="btn btn-sm" style="white-space:nowrap;background:#fff;color:var(--dark);border:1.5px solid var(--border);flex:1;">Reset</button>
     </div>
+  </div>
+
+  <!-- V12.53: always-visible "Where are you?" so setting your state is one tap, not four levels
+       deep in Filters. Writes rememberState() - the same source the local banner's Washington gate
+       reads via knownState() - and mirrors into #filter-state for the in-person location filter. -->
+  <div id="where-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+    <span style="font-size:13px;font-weight:700;color:var(--dark);white-space:nowrap;">📍 Where are you?</span>
+    <select id="where-country" class="input" style="width:auto;padding:7px 12px;font-size:13px;" onchange="onWhereCountry()">
+      <option value="">Select country…</option>
+      <option>United States</option>
+      <option value="__other">Somewhere else</option>
+    </select>
+    <select id="where-state" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onWhereState()">
+      <option value="">Select state…</option>
+    </select>
   </div>
 
   <div id="filter-panel" style="display:none;background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;">
@@ -1714,6 +1729,7 @@ function resetFilters() {
   // V12.25: reset clears the state rather than forcing Washington - see setFilterFormat.
   const stateEl = document.getElementById("filter-state");
   if (stateEl) { stateEl.value = ""; rememberState(""); }
+  _resetWhereRow();   // V12.53: clear the always-visible picker too
 }
 
 function setFilter(id) { activeFilter = id; localStorage.setItem("db-filter", id); renderPills(); renderEvents(); }
@@ -1754,6 +1770,51 @@ function onStateChange() {
   var st = document.getElementById("filter-state");
   rememberState(st ? String(st.value || "").trim() : "");
   renderEvents();
+}
+
+// V12.53: the always-visible "Where are you?" picker. Country -> state cascade (US reveals
+// states; the country select is not US-only). Writes through rememberState() (what the banner
+// reads via knownState()) and mirrors into #filter-state so the in-person location filter agrees.
+function onWhereCountry() {
+  var c = document.getElementById("where-country").value;
+  var st = document.getElementById("where-state");
+  if (!st) return;
+  if (c === "United States") {
+    st.innerHTML = '<option value="">Select state…</option>';
+    US_STATES.forEach(function(s){ st.innerHTML += '<option>' + s + '</option>'; });
+    var remembered = knownState();
+    if (remembered && US_STATES.indexOf(remembered) !== -1) st.value = remembered;
+    st.style.display = "";
+  } else {
+    st.style.display = "none";
+    st.value = "";
+    rememberState("");
+    _syncFilterState("");
+    renderEvents();
+  }
+}
+function onWhereState() {
+  var v = document.getElementById("where-state").value;
+  rememberState(v);
+  _syncFilterState(v);
+  renderEvents();   // re-evaluates updateLocalBanner()
+}
+function _syncFilterState(v) {
+  var fs = document.getElementById("filter-state");
+  if (!fs) return;
+  if (v && fs.options.length <= 1) { US_STATES.forEach(function(s){ fs.innerHTML += '<option>' + s + '</option>'; }); }
+  fs.value = v || "";
+}
+function _resetWhereRow() {
+  var wc = document.getElementById("where-country"); if (wc) wc.value = "";
+  var ws = document.getElementById("where-state"); if (ws) { ws.value = ""; ws.style.display = "none"; }
+}
+function restoreWhereRow() {
+  var s = knownState();
+  if (s && US_STATES.indexOf(s) !== -1) {
+    var wc = document.getElementById("where-country");
+    if (wc) { wc.value = "United States"; onWhereCountry(); }
+  }
 }
 
 // The banner used to have its title, date and venue typed in, so renaming the event in the
@@ -3433,6 +3494,7 @@ function clearLocationFilter() {
   document.getElementById("filter-state").innerHTML = '<option value="">All states</option>';
   document.getElementById("filter-state").style.display = "none";
   rememberState("");
+  _resetWhereRow();   // V12.53: keep the always-visible picker in sync
   renderEvents();
 }
 
@@ -3740,6 +3802,7 @@ if (savedFilter) activeFilter = savedFilter;
 
 renderPills();
 setMode(savedMode === 'virtual' ? 'all' : (savedMode || activeMode));
+restoreWhereRow();   // V12.53: reflect a previously-set state in the always-visible picker
 // V12.25: "Use my location" is switched off while we are inside Glide - the embed iframe
 // carries no allow="geolocation", so the prompt never appears and it only ever fails. The
 // code below and useMyLocation() are left intact; restore this line to bring it back once
@@ -4162,6 +4225,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.52 | Date: 2026-07-22 | LAST CHANGE: The event edit-PIN field is now type=text with -webkit-text-security:disc (still visually masked) + inputmode=numeric, instead of type=password. Browsers treated the password field as a login and offered "Save password?" on posting an event, pairing the PIN with a nearby link as a fake username. It is a per-event edit code, not a credential, so this stops the prompt with no visible change. (V12.51: Date TBD - undated events shared by link only, "Date to be announced", off the calendar/banners/matches; start time not required when TBD.) -->
+<!-- Version: V12.53 | Date: 2026-07-22 | LAST CHANGE: Always-visible "Where are you?" picker (country -> state, US reveals states, not US-only) under the search bar, so setting your state is one tap instead of four levels deep in Filters -> In-person -> United States -> state. It writes rememberState() (the same source the local banner's Washington gate reads via knownState()) and mirrors into #filter-state for the in-person location filter; restored on load, cleared by Reset / Clear. (V12.52: edit-PIN field no longer triggers the browser "Save password?" prompt.) -->
 </body>
 </html>
