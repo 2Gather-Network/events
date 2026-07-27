@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.57 | Date: 2026-07-22 | LAST CHANGE: (1) Filter panel: added spacing so "Venue" no longer sits squished under the Format chips. (2) The virtual hosting chip "Gather room" is now "2Gather room", and the "Require a completed event profile" gate toggle only appears once the 2Gather room option is selected. (3) Recurring events on the calendar are now capped to ~1 month ahead (were a fixed count). (V12.56: "Where are you?" filters + collapses to a chip.) -->
+<!-- Version: V12.58 | Date: 2026-07-22 | LAST CHANGE: Added an editable "This event has an Event Hub" checkbox (f-has-hub) to the post/edit form, writing the new events-tab hasHub column (sheetToEv read + payload write + edit-load repopulate + reset). Lets a host mark which event has a hub; the "Event hub" nav on the profile will be gated on it once getEventById returns hasHub (pending deploy). (V12.57: filter spacing, 2Gather room + conditional gate, ~1-month recurring cap.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -571,6 +571,12 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
         </label>
       </div>
     </div>
+
+    <!-- V12.58: mark that this event has an Event Hub; gates the "Event hub" nav on the event profile. -->
+    <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin-bottom:14px;">
+      <input type="checkbox" id="f-has-hub" style="width:16px;height:16px;accent-color:var(--primary);margin-top:2px;flex-shrink:0;">
+      <span style="font-size:13px;color:var(--dark);">🏠 This event has an Event Hub<span style="display:block;font-size:12px;color:var(--muted);">Shows an "Event hub" link on the event profile for this event only.</span></span>
+    </label>
 
     <div id="location-field" style="display:none;" class="field">
       <label class="field-label">Full address</label>
@@ -1432,7 +1438,7 @@ function sheetToEv(row) {
     hostlink: row.hostlink || "", contactEmail: row.contactEmail || "", contactPhone: row.contactPhone || "",
     passcode: row.passcode || "", hostEmail: (row.hostEmail || "").trim(), cooplink: row.cooplink || "", going: parseInt(row.going) || 0,
     meetinglink: row.meetinglink || "", recurring: isRecurring,
-    paymentlink: row.paymentlink || "", exchangeType: row.exchangeType || "", showLinks: row.showLinks || "", otherExchange: row.otherExchange || "", recurFreq: row.recurFreq || "", experience: row.experience || "", imageUrl: row.imageUrl || "", detailImageUrl: row.detailImageUrl || "", isPrivate: row.isPrivate === "true" || row.isPrivate === true || false, roomGated: row.roomGated === "true" || row.roomGated === true || false, lifeStage: row.careerStage || row.lifeStage || "", keywords: row.keywords || "", venue: row.venue || "",
+    paymentlink: row.paymentlink || "", exchangeType: row.exchangeType || "", showLinks: row.showLinks || "", otherExchange: row.otherExchange || "", recurFreq: row.recurFreq || "", experience: row.experience || "", imageUrl: row.imageUrl || "", detailImageUrl: row.detailImageUrl || "", isPrivate: row.isPrivate === "true" || row.isPrivate === true || false, roomGated: row.roomGated === "true" || row.roomGated === true || false, hasHub: row.hasHub === "true" || row.hasHub === true || false, lifeStage: row.careerStage || row.lifeStage || "", keywords: row.keywords || "", venue: row.venue || "",
     interestedEnabled: row.interestedEnabled || "off", interested: row.interested || "", intakeRedirect: row.intakeRedirect || "",
     sharedNotesEnabled: row.sharedNotesEnabled === "true" || row.sharedNotesEnabled === true || false, sharedNotes: row.sharedNotes || "",
     host_note: row.host_note || "",
@@ -2155,6 +2161,7 @@ function saveEditDraft() {
     detailImageUrl: document.getElementById("f-detail-image-url")?.value.trim() || "",
     isPrivate: currentVisibility === "private",
     roomGated: document.getElementById("f-room-gated")?.checked || false,
+    hasHub: document.getElementById("f-has-hub")?.checked || false,
     lifeStage: [...selectedLifeStages].join(","),
     keywords: document.getElementById("f-keywords")?.value.trim() || "",
     hostNote: document.getElementById("f-host-note")?.value.trim() || "",
@@ -2306,7 +2313,7 @@ function openModal(skipDraft = false) {
   const occNoteFieldReset2 = document.getElementById("occurrence-note-field"); if(occNoteFieldReset2) occNoteFieldReset2.style.display = "none";
   const cancelOccFieldReset = document.getElementById("cancel-occurrence-field"); if(cancelOccFieldReset) cancelOccFieldReset.style.display = "none";
   const cancelOccReset = document.getElementById("f-cancel-occurrence"); if(cancelOccReset) cancelOccReset.checked = false;
-  ["show-hostlink","show-cooplink","show-paymentlink","show-contact","f-room-gated"].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; }); const otherReset = document.getElementById("f-exch-other"); if(otherReset) otherReset.value = "";
+  ["show-hostlink","show-cooplink","show-paymentlink","show-contact","f-room-gated","f-has-hub"].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; }); const otherReset = document.getElementById("f-exch-other"); if(otherReset) otherReset.value = "";
   toggleLinkFields();
   selectedExchangeTypes = new Set(); ["spread","time","connections","feedback","skills","stuff","space","money","care","other","noask","free","testimonial","share"].forEach(t => { const b = document.getElementById("exch-"+t); if(b) b.classList.remove("selected"); });
   // V12.45: a new event defaults to "Spread the word" selected - the most common welcome, and
@@ -2674,6 +2681,7 @@ function loadEditForm(id) {
   // set visibility last so draft or earlier resets don't override the event's actual value
   setVisibility(ev.isPrivate ? "private" : "public");
   { const _rg = document.getElementById("f-room-gated"); if (_rg) _rg.checked = !!ev.roomGated; }  // V12.49
+  { const _hh = document.getElementById("f-has-hub"); if (_hh) _hh.checked = !!ev.hasHub; }  // V12.58: editable on load
   // v11.34: prefer known Gather room over meetinglink
   const _knownRoom = ROOMS.some(r => r.name === ev.room);
   if (_knownRoom) {
@@ -3396,6 +3404,7 @@ async function submitEvent() {
     detailImageUrl: document.getElementById("f-detail-image-url")?.value.trim() || "",
     isPrivate: currentVisibility === "private",
     roomGated: document.getElementById("f-room-gated")?.checked || false,
+    hasHub: document.getElementById("f-has-hub")?.checked || false,
     lifeStage: [...selectedLifeStages].join(","),
     keywords: document.getElementById("f-keywords")?.value.trim() || "",
     showLinks: ["hostlink","cooplink","paymentlink","contact"].filter(k => document.getElementById("show-"+k)?.checked).join(","),
@@ -4363,6 +4372,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.57 | Date: 2026-07-22 | LAST CHANGE: (1) Filter panel: added spacing so "Venue" no longer sits squished under the Format chips. (2) The virtual hosting chip "Gather room" is now "2Gather room", and the "Require a completed event profile" gate toggle only appears once the 2Gather room option is selected. (3) Recurring events on the calendar are now capped to ~1 month ahead (were a fixed count). (V12.56: "Where are you?" filters + collapses to a chip.) -->
+<!-- Version: V12.58 | Date: 2026-07-22 | LAST CHANGE: Added an editable "This event has an Event Hub" checkbox (f-has-hub) to the post/edit form, writing the new events-tab hasHub column (sheetToEv read + payload write + edit-load repopulate + reset). Lets a host mark which event has a hub; the "Event hub" nav on the profile will be gated on it once getEventById returns hasHub (pending deploy). (V12.57: filter spacing, 2Gather room + conditional gate, ~1-month recurring cap.) -->
 </body>
 </html>
