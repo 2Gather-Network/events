@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.53 | Date: 2026-07-22 | LAST CHANGE: Always-visible "Where are you?" picker (country -> state, US reveals states, not US-only) under the search bar, so setting your state is one tap instead of four levels deep in Filters -> In-person -> United States -> state. It writes rememberState() (the same source the local banner's Washington gate reads via knownState()) and mirrors into #filter-state for the in-person location filter; restored on load, cleared by Reset / Clear. (V12.52: edit-PIN field no longer triggers the browser "Save password?" prompt.) -->
+<!-- Version: V12.54 | Date: 2026-07-22 | LAST CHANGE: "Where are you?" picker reworked from country/"Somewhere else" to a REGION -> country -> state cascade. Region defaults to North America, country defaults to United States (so a US state is one tap); regions are North/South America, Europe, Asia, Africa, Oceania, Antarctica, and any non-North-America region offers nothing further. North America's countries are United States / Canada / Mexico; only the United States reveals states. Still writes rememberState() (the banner's Washington gate reads it via knownState()) and mirrors into #filter-state. (V12.53: first version of the always-visible Where-are-you picker.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -282,15 +282,23 @@
     </div>
   </div>
 
-  <!-- V12.53: always-visible "Where are you?" so setting your state is one tap, not four levels
-       deep in Filters. Writes rememberState() - the same source the local banner's Washington gate
-       reads via knownState() - and mirrors into #filter-state for the in-person location filter. -->
+  <!-- V12.54: always-visible "Where are you?" - region -> country -> state, defaulting to North
+       America / United States so picking a US state is one tap (not four levels deep in Filters);
+       any other region offers nothing further. Writes rememberState() - the same source the local
+       banner's Washington gate reads via knownState() - and mirrors into #filter-state. -->
   <div id="where-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
     <span style="font-size:13px;font-weight:700;color:var(--dark);white-space:nowrap;">📍 Where are you?</span>
-    <select id="where-country" class="input" style="width:auto;padding:7px 12px;font-size:13px;" onchange="onWhereCountry()">
+    <select id="where-region" class="input" style="width:auto;padding:7px 12px;font-size:13px;" onchange="onWhereRegion()">
+      <option>North America</option>
+      <option>South America</option>
+      <option>Europe</option>
+      <option>Asia</option>
+      <option>Africa</option>
+      <option>Oceania</option>
+      <option>Antarctica</option>
+    </select>
+    <select id="where-country" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onWhereCountry()">
       <option value="">Select country…</option>
-      <option>United States</option>
-      <option value="__other">Somewhere else</option>
     </select>
     <select id="where-state" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onWhereState()">
       <option value="">Select state…</option>
@@ -1772,25 +1780,41 @@ function onStateChange() {
   renderEvents();
 }
 
-// V12.53: the always-visible "Where are you?" picker. Country -> state cascade (US reveals
-// states; the country select is not US-only). Writes through rememberState() (what the banner
-// reads via knownState()) and mirrors into #filter-state so the in-person location filter agrees.
+// V12.54: "Where are you?" region -> country -> state. Defaults to North America / United States so
+// picking a US state is one tap; any other region offers nothing further. Writes rememberState()
+// (the banner reads it via knownState()) and mirrors into #filter-state for the in-person filter.
+function onWhereRegion() {
+  var r  = document.getElementById("where-region").value;
+  var c  = document.getElementById("where-country");
+  var st = document.getElementById("where-state");
+  if (!c || !st) return;
+  st.style.display = "none"; st.value = "";
+  if (r === "North America") {
+    c.innerHTML = "";
+    ["United States","Canada","Mexico"].forEach(function(x){ c.innerHTML += '<option>' + x + '</option>'; });
+    c.value = "United States";
+    c.style.display = "";
+    onWhereCountry();   // cascade to the state dropdown for the US
+  } else {
+    c.style.display = "none"; c.value = "";
+    rememberState(""); _syncFilterState(""); renderEvents();
+  }
+}
 function onWhereCountry() {
-  var c = document.getElementById("where-country").value;
+  var c  = document.getElementById("where-country").value;
   var st = document.getElementById("where-state");
   if (!st) return;
   if (c === "United States") {
     st.innerHTML = '<option value="">Select state…</option>';
     US_STATES.forEach(function(s){ st.innerHTML += '<option>' + s + '</option>'; });
     var remembered = knownState();
-    if (remembered && US_STATES.indexOf(remembered) !== -1) st.value = remembered;
+    st.value = (remembered && US_STATES.indexOf(remembered) !== -1) ? remembered : "";
     st.style.display = "";
-  } else {
-    st.style.display = "none";
-    st.value = "";
-    rememberState("");
-    _syncFilterState("");
+    _syncFilterState(st.value);
     renderEvents();
+  } else {
+    st.style.display = "none"; st.value = "";
+    rememberState(""); _syncFilterState(""); renderEvents();
   }
 }
 function onWhereState() {
@@ -1806,15 +1830,13 @@ function _syncFilterState(v) {
   fs.value = v || "";
 }
 function _resetWhereRow() {
-  var wc = document.getElementById("where-country"); if (wc) wc.value = "";
-  var ws = document.getElementById("where-state"); if (ws) { ws.value = ""; ws.style.display = "none"; }
+  var rg = document.getElementById("where-region"); if (rg) rg.value = "North America";
+  rememberState("");
+  onWhereRegion();   // back to North America / United States, no state selected
 }
 function restoreWhereRow() {
-  var s = knownState();
-  if (s && US_STATES.indexOf(s) !== -1) {
-    var wc = document.getElementById("where-country");
-    if (wc) { wc.value = "United States"; onWhereCountry(); }
-  }
+  var rg = document.getElementById("where-region"); if (rg && !rg.value) rg.value = "North America";
+  onWhereRegion();   // default NA / US; onWhereCountry restores a remembered US state
 }
 
 // The banner used to have its title, date and venue typed in, so renaming the event in the
@@ -4225,6 +4247,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.53 | Date: 2026-07-22 | LAST CHANGE: Always-visible "Where are you?" picker (country -> state, US reveals states, not US-only) under the search bar, so setting your state is one tap instead of four levels deep in Filters -> In-person -> United States -> state. It writes rememberState() (the same source the local banner's Washington gate reads via knownState()) and mirrors into #filter-state for the in-person location filter; restored on load, cleared by Reset / Clear. (V12.52: edit-PIN field no longer triggers the browser "Save password?" prompt.) -->
+<!-- Version: V12.54 | Date: 2026-07-22 | LAST CHANGE: "Where are you?" picker reworked from country/"Somewhere else" to a REGION -> country -> state cascade. Region defaults to North America, country defaults to United States (so a US state is one tap); regions are North/South America, Europe, Asia, Africa, Oceania, Antarctica, and any non-North-America region offers nothing further. North America's countries are United States / Canada / Mexico; only the United States reveals states. Still writes rememberState() (the banner's Washington gate reads it via knownState()) and mirrors into #filter-state. (V12.53: first version of the always-visible Where-are-you picker.) -->
 </body>
 </html>
