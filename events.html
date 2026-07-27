@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.58 | Date: 2026-07-22 | LAST CHANGE: Added an editable "This event has an Event Hub" checkbox (f-has-hub) to the post/edit form, writing the new events-tab hasHub column (sheetToEv read + payload write + edit-load repopulate + reset). Lets a host mark which event has a hub; the "Event hub" nav on the profile will be gated on it once getEventById returns hasHub (pending deploy). (V12.57: filter spacing, 2Gather room + conditional gate, ~1-month recurring cap.) -->
+<!-- Version: V12.59 | Date: 2026-07-22 | LAST CHANGE: Hosts as people + optional org. The Host field placeholder now says "A person's name (first name is fine)", and a new optional "Organization or group" field (f-org) writes the new events-tab org column - fully editable (sheetToEv read, payload write, edit-load repopulate, reset). Shows on the event page as "host · org". (V12.58: editable hasHub checkbox.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -622,7 +622,11 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
 
     <div class="field">
       <label class="field-label">Who's hosting? *</label>
-      <input class="input" id="f-host" placeholder="Full name">
+      <input class="input" id="f-host" placeholder="A person's name (first name is fine)">
+    </div>
+    <div class="field">
+      <label class="field-label">Organization or group <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted);">- optional</span></label>
+      <input class="input" id="f-org" placeholder="e.g. Edmonds Food Bank">
     </div>
 
     <div class="field" style="margin-bottom:12px;">
@@ -1434,7 +1438,7 @@ function sheetToEv(row) {
     date: parseSheetDate(row.date), time: parseSheetTime(row.startTime), endtime: parseSheetTime(row.endTime),
     dayOfWeek: parseInt(row.dayOfWeek) || 0,
     format: row.format || "", location: row.location || "", lat: row.lat || "", lng: row.lng || "",
-    room: row.room || "", description: row.description || "", host: row.host || "",
+    room: row.room || "", description: row.description || "", host: row.host || "", org: row.org || "",
     hostlink: row.hostlink || "", contactEmail: row.contactEmail || "", contactPhone: row.contactPhone || "",
     passcode: row.passcode || "", hostEmail: (row.hostEmail || "").trim(), cooplink: row.cooplink || "", going: parseInt(row.going) || 0,
     meetinglink: row.meetinglink || "", recurring: isRecurring,
@@ -2304,7 +2308,7 @@ function openModal(skipDraft = false) {
   document.getElementById("clone-btn").style.display = "none";
   document.getElementById("recurring-field").style.display = (isMasterUser || !!sessionStorage.getItem('db-master-session')) ? "block" : "none";
   const cancelSectionReset = document.getElementById("cancel-section"); if(cancelSectionReset) cancelSectionReset.style.display = "none";
-  ["f-title","f-date","f-location","f-lat","f-lng","f-desc","f-host","f-hostlink","f-contact-email","f-contact-phone","f-cooplink","f-passcode","f-paymentlink","f-host-note"].forEach(id => { const el = document.getElementById(id); if(el) el.value = ""; });
+  ["f-title","f-date","f-location","f-lat","f-lng","f-desc","f-host","f-org","f-hostlink","f-contact-email","f-contact-phone","f-cooplink","f-passcode","f-paymentlink","f-host-note"].forEach(id => { const el = document.getElementById(id); if(el) el.value = ""; });
   const _tbdReset = document.getElementById("f-date-tbd"); if(_tbdReset) _tbdReset.checked = false; toggleDateTbd();   // V12.51: clear Date TBD on reset
   const hlErr = document.getElementById("hostlink-error"); if(hlErr) hlErr.style.display = "none";
   const cancelReset = document.getElementById("f-cancelled"); if(cancelReset) cancelReset.checked = false;
@@ -2599,6 +2603,7 @@ function loadEditForm(id) {
   const venueEditEl = document.getElementById("f-venue"); if(venueEditEl) venueEditEl.value = ev.venue || "";
   document.getElementById("f-desc").value  = ev.description || "";
   document.getElementById("f-host").value  = ev.host || "";
+  { const _org = document.getElementById("f-org"); if (_org) _org.value = ev.org || ""; }  // V12.59: editable on load
   document.getElementById("f-hostlink").value = ev.hostlink || ""; _rememberAppearLink(ev.hostlink);
   const heEl = document.getElementById("f-host-email"); if (heEl) heEl.value = ev.hostEmail || "";
   document.getElementById("f-contact-email").value = ev.contactEmail || "";
@@ -3340,6 +3345,7 @@ async function submitEvent() {
   const lng      = document.getElementById("f-lng")?.value || "";
   const desc     = document.getElementById("f-desc").value.trim();
   const host     = document.getElementById("f-host").value.trim();
+  const org      = document.getElementById("f-org")?.value.trim() || "";
   const hostlink    = document.getElementById("f-hostlink").value.trim();
   const contactEmail = document.getElementById("f-contact-email")?.value.trim() || "";
   const contactPhone = document.getElementById("f-contact-phone")?.value.trim() || "";
@@ -3392,7 +3398,7 @@ async function submitEvent() {
     location:(selectedFormat==="inperson"||selectedFormat==="both") ? location : null,
     lat:(selectedFormat==="inperson"||selectedFormat==="both") ? lat : "",
     lng:(selectedFormat==="inperson"||selectedFormat==="both") ? lng : "",
-    description:desc, host, hostlink, contactEmail, contactPhone, cooplink,
+    description:desc, host, org, hostlink, contactEmail, contactPhone, cooplink,
     hostEmail: document.getElementById("f-host-email")?.value.trim() || "",
     room:(hostingOption==="db"&&(selectedFormat==="virtual"||selectedFormat==="both")) ? selectedRoom : null,
     meetinglink:(hostingOption==="own") ? (document.getElementById("f-meetinglink")?.value.trim()||"") : "",
@@ -4372,6 +4378,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.58 | Date: 2026-07-22 | LAST CHANGE: Added an editable "This event has an Event Hub" checkbox (f-has-hub) to the post/edit form, writing the new events-tab hasHub column (sheetToEv read + payload write + edit-load repopulate + reset). Lets a host mark which event has a hub; the "Event hub" nav on the profile will be gated on it once getEventById returns hasHub (pending deploy). (V12.57: filter spacing, 2Gather room + conditional gate, ~1-month recurring cap.) -->
+<!-- Version: V12.59 | Date: 2026-07-22 | LAST CHANGE: Hosts as people + optional org. The Host field placeholder now says "A person's name (first name is fine)", and a new optional "Organization or group" field (f-org) writes the new events-tab org column - fully editable (sheetToEv read, payload write, edit-load repopulate, reset). Shows on the event page as "host · org". (V12.58: editable hasHub checkbox.) -->
 </body>
 </html>
