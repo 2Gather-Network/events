@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.56 | Date: 2026-07-22 | LAST CHANGE: "Where are you?" now FILTERS and collapses. Picking a location (US state, or Canada/Mexico, or a non-North-America region) shows all virtual events + only in-person events in that place (in-person with a vague/missing location are kept), and collapses the row to a chip "📍 Location: <place>" ("Alabama, United States" for US) with a Change link to reopen. Applies when you pick the deepest level - no separate submit. Still feeds rememberState()/knownState() for the banner. (V12.55: post-form bulk-calendar link, Appear info button, read-only Appear link.) -->
+<!-- Version: V12.57 | Date: 2026-07-22 | LAST CHANGE: (1) Filter panel: added spacing so "Venue" no longer sits squished under the Format chips. (2) The virtual hosting chip "Gather room" is now "2Gather room", and the "Require a completed event profile" gate toggle only appears once the 2Gather room option is selected. (3) Recurring events on the calendar are now capped to ~1 month ahead (were a fixed count). (V12.56: "Where are you?" filters + collapses to a chip.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -319,7 +319,7 @@
         <button id="filter-fmt-virtual" onclick="setFilterFormat('virtual')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">💻 Virtual</button>
         <button id="filter-fmt-inperson" onclick="setFilterFormat('inperson')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">📍 In-person</button>
       </div>
-    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-top:16px;">
       <div style="flex:1;min-width:160px;position:relative;">
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:5px;">Venue</label>
         <input class="input" id="venue-filter" type="text" placeholder="Search venues..." autocomplete="off" oninput="onVenueInput()" onfocus="onVenueInput()" onblur="setTimeout(()=>hideDropdown('venue-suggestions'),200)" style="padding:7px 12px;font-size:13px;width:100%;">
@@ -550,7 +550,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <div id="hosting-choice" style="display:none;margin-bottom:12px;">
         <div class="room-preview-label" style="margin-bottom:8px;">Where are you hosting this virtually?</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button type="button" class="format-chip" id="hopt-db" onclick="setHostingOption('db')">Gather room</button>
+          <button type="button" class="format-chip" id="hopt-db" onclick="setHostingOption('db')">2Gather room</button>
           <button type="button" class="format-chip" id="hopt-own" onclick="setHostingOption('own')">🔗 My own link</button>
         </div>
       </div>
@@ -562,11 +562,14 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
         <label class="field-label">Your meeting link</label>
         <input class="input" id="f-meetinglink" placeholder="https://zoom.us/j/... or Google Meet link">
       </div>
-      <!-- V12.49: host can require a completed event profile before the meeting room link shows. -->
-      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin-top:6px;">
-        <input type="checkbox" id="f-room-gated" style="width:16px;height:16px;accent-color:var(--primary);margin-top:2px;flex-shrink:0;">
-        <span style="font-size:13px;color:var(--dark);">🔒 Require a completed event profile to see the meeting room<span style="display:block;font-size:12px;color:var(--muted);">Registered guests without a finished profile are prompted to complete it first.</span></span>
-      </label>
+      <!-- V12.49: host can require a completed event profile before the meeting room link shows.
+           V12.57: only shown when the 2Gather room hosting option is selected (setHostingOption). -->
+      <div id="room-gate-toggle" style="display:none;margin-top:6px;">
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="f-room-gated" style="width:16px;height:16px;accent-color:var(--primary);margin-top:2px;flex-shrink:0;">
+          <span style="font-size:13px;color:var(--dark);">🔒 Require a completed event profile to see the meeting room<span style="display:block;font-size:12px;color:var(--muted);">Registered guests without a finished profile are prompted to complete it first.</span></span>
+        </label>
+      </div>
     </div>
 
     <div id="location-field" style="display:none;" class="field">
@@ -1658,6 +1661,7 @@ function setHostingOption(opt) {
   document.getElementById("hopt-own").classList.toggle("selected", opt === "own");
   document.getElementById("db-room-section").style.display  = opt === "db"  ? "block" : "none";
   document.getElementById("own-link-section").style.display = opt === "own" ? "block" : "none";
+  var _rgt = document.getElementById("room-gate-toggle"); if (_rgt) _rgt.style.display = (opt === "db") ? "block" : "none";  // V12.57: gate only with a 2Gather room
   if (opt === "db") renderRoomChips();
   if (opt === "own") selectedRoom = null;
 }
@@ -3828,7 +3832,11 @@ function getNextOccurrences(template, count) {
     const weekOffset = ((diffDays % 14) + 14) % 14;
     if (weekOffset !== 0) d.setDate(d.getDate() + (14 - weekOffset));
   }
-  for (let i = 0; i < count; i++) {
+  // V12.57: cap recurring occurrences to ~1 month ahead (was a fixed count). The date ceiling
+  // governs; count is just a safety max, so weekly/biweekly series only show the next month.
+  const maxDate = new Date(now); maxDate.setDate(maxDate.getDate() + 31); maxDate.setHours(23,59,59,999);
+  const cap = Math.max(count, 8);
+  for (let i = 0; i < cap && d <= maxDate; i++) {
     const dateStr = d.toISOString().split("T")[0];
     const slug    = template.title.toLowerCase().replace(/\s+/g,"-");
     results.push({ ...template, id:`recurring-${slug}-${dateStr}`, date:dateStr, passcode:"", going:0, recurring:true });
@@ -4355,6 +4363,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.56 | Date: 2026-07-22 | LAST CHANGE: "Where are you?" now FILTERS and collapses. Picking a location (US state, or Canada/Mexico, or a non-North-America region) shows all virtual events + only in-person events in that place (in-person with a vague/missing location are kept), and collapses the row to a chip "📍 Location: <place>" ("Alabama, United States" for US) with a Change link to reopen. Applies when you pick the deepest level - no separate submit. Still feeds rememberState()/knownState() for the banner. (V12.55: post-form bulk-calendar link, Appear info button, read-only Appear link.) -->
+<!-- Version: V12.57 | Date: 2026-07-22 | LAST CHANGE: (1) Filter panel: added spacing so "Venue" no longer sits squished under the Format chips. (2) The virtual hosting chip "Gather room" is now "2Gather room", and the "Require a completed event profile" gate toggle only appears once the 2Gather room option is selected. (3) Recurring events on the calendar are now capped to ~1 month ahead (were a fixed count). (V12.56: "Where are you?" filters + collapses to a chip.) -->
 </body>
 </html>
