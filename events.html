@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.54 | Date: 2026-07-22 | LAST CHANGE: "Where are you?" picker reworked from country/"Somewhere else" to a REGION -> country -> state cascade. Region defaults to North America, country defaults to United States (so a US state is one tap); regions are North/South America, Europe, Asia, Africa, Oceania, Antarctica, and any non-North-America region offers nothing further. North America's countries are United States / Canada / Mexico; only the United States reveals states. Still writes rememberState() (the banner's Washington gate reads it via knownState()) and mirrors into #filter-state. (V12.53: first version of the always-visible Where-are-you picker.) -->
+<!-- Version: V12.55 | Date: 2026-07-22 | LAST CHANGE: Post-an-event form: (1) "Add your entire calendar" blue link on the hosting/sharing chooser opens an inline note to contact hello@creating.works (copyable) + a link to Events Hosting by Creating Works. (2) An "i" info button next to "My Appear Network page" reveals an inline explainer of what Appear is for newcomers (no modal). (3) When "My Appear Network page" is checked and a link is remembered, the link now shows READ-ONLY with a confirmation ("Your event will show your name and it will link directly to your Appear Network page") instead of being hidden; a one-time paste box still appears only when nothing is remembered. (V12.54: Where-are-you region -> country -> state cascade.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -401,6 +401,14 @@
       </div>
       <div style="margin-top:16px;">
         <button class="btn btn-outline" onclick="closeChoiceModal()">Cancel</button>
+        <div style="margin-top:14px;text-align:center;">
+          <a href="javascript:void(0)" onclick="toggleBulkCal()" style="font-size:13px;color:var(--primary);font-weight:600;text-decoration:underline;cursor:pointer;">Add your entire calendar</a>
+          <div id="bulk-cal-info" style="display:none;font-size:13px;color:var(--dark);background:#f3f4f6;border-radius:8px;padding:12px 14px;margin-top:10px;text-align:left;line-height:1.5;">
+            To learn how to add your calendar of events in bulk, please contact <span style="font-weight:700;">hello@creating.works</span>
+            <button type="button" onclick="copyBulkEmail(this)" style="margin-left:6px;font-size:12px;padding:2px 8px;border-radius:12px;border:1.5px solid var(--primary);background:#fff;color:var(--primary);cursor:pointer;font-family:inherit;">Copy</button>
+            <div style="margin-top:8px;"><a href="https://creating.works/2gather/event-hosting.html" target="_blank" rel="noopener" style="color:var(--primary);font-weight:700;">Events Hosting by Creating Works</a></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -634,10 +642,14 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
           Contact info (email / phone)
         </label>
         <!-- #3 My Appear Network page -->
-        <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
-          <input type="checkbox" id="show-hostlink" onchange="toggleLinkFields()" style="width:16px;height:16px;accent-color:var(--primary);">
-          My Appear Network page
-        </label>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;flex:1;">
+            <input type="checkbox" id="show-hostlink" onchange="toggleLinkFields()" style="width:16px;height:16px;accent-color:var(--primary);">
+            My Appear Network page
+          </label>
+          <button type="button" onclick="toggleAppearInfo()" aria-label="What is an Appear Network page?" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;line-height:1;">ℹ️</button>
+        </div>
+        <div id="appear-info" style="display:none;font-size:12px;color:var(--muted);background:#f3f4f6;border-radius:8px;padding:8px 10px;margin:0 0 2px 24px;line-height:1.5;">Appear Network is our sister app: your own personal page with a bio, links and a QR code so people can connect with you in person. Checking this puts your name on the event and links it straight to that page. New to it? You can make one free at appear.network.</div>
         <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
           <input type="checkbox" id="show-cooplink" onchange="toggleLinkFields()" style="width:16px;height:16px;accent-color:var(--primary);">
           Group link
@@ -653,6 +665,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
     <div class="field" id="field-hostlink" style="display:none;">
       <label class="field-label">Your Appear Network page link</label>
       <input class="input" id="f-hostlink" type="url" placeholder="https://appear.network/dl/page/...">
+      <p id="hostlink-confirm" style="display:none;font-size:12px;color:#1B6896;font-weight:600;margin-top:6px;">✓ Your event will show your name and it will link directly to your Appear Network page.</p>
       <p id="hostlink-error" style="display:none;font-size:12px;color:#c0392b;margin-top:4px;">This works with pages from Appear Network. <a href="https://appear.network/dl/page/" target="_blank" rel="noopener" style="color:#c0392b;font-weight:700;">Copy your page link here.</a></p>
     </div>
 
@@ -2765,21 +2778,43 @@ function toggleLinkFields() {
   const hlField = document.getElementById("field-hostlink");
   const hlInput = document.getElementById("f-hostlink");
   const hlErr = document.getElementById("hostlink-error");
+  const hlConf = document.getElementById("hostlink-confirm");
   if (hlCb && hlField && hlInput) {
     if (hlCb.checked) {
       const known = _knownAppearLink();
       if (known) {
-        hlInput.value = known;            // include it silently; field stays hidden, value still saves
-        hlField.style.display = "none";
+        // V12.55: show the known link READ-ONLY + a confirmation, instead of hiding it.
+        hlInput.value = known;
+        hlInput.readOnly = true; hlInput.style.background = "#f3f4f6"; hlInput.style.color = "var(--muted)";
+        hlField.style.display = "block";
+        if (hlConf) hlConf.style.display = "block";
         if (hlErr) hlErr.style.display = "none";
       } else {
         hlInput.readOnly = false; hlInput.style.background = ""; hlInput.style.color = "";
+        if (hlConf) hlConf.style.display = "none";
         hlField.style.display = "block";  // not remembered yet -> show it for a one-time paste
       }
     } else {
       hlField.style.display = "none";
+      if (hlConf) hlConf.style.display = "none";
     }
   }
+}
+
+// V12.55: inline info reveal for "My Appear Network page" (no modal), and the bulk-calendar
+// note on the Post-an-event chooser with a copyable hello@creating.works.
+function toggleAppearInfo() {
+  var el = document.getElementById("appear-info");
+  if (el) el.style.display = (el.style.display === "none" || !el.style.display) ? "block" : "none";
+}
+function toggleBulkCal() {
+  var el = document.getElementById("bulk-cal-info");
+  if (el) el.style.display = (el.style.display === "none" || !el.style.display) ? "block" : "none";
+}
+function copyBulkEmail(btn) {
+  var done = function(){ var t = btn.textContent; btn.textContent = "Copied!"; setTimeout(function(){ btn.textContent = t; }, 1500); };
+  try { navigator.clipboard.writeText("hello@creating.works").then(done, done); }
+  catch (e) { done(); }
 }
 
 function closeModal() { formDirty = false; document.getElementById("post-modal").classList.remove("open"); isMasterUser = false; selectedExchangeTypes = new Set(); recurFreq = null; clearEditDraft(); const rc = document.getElementById("f-recurring"); if (rc) rc.checked = false; const rw = document.getElementById("recurring-freq-wrap"); if (rw) rw.style.display = "none"; const cb = document.getElementById("clone-btn"); if (cb) cb.textContent = "⧉ Clone"; const cw = document.getElementById("clone-count-wrap"); if (cw) cw.style.display = "none"; }
@@ -4247,6 +4282,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.54 | Date: 2026-07-22 | LAST CHANGE: "Where are you?" picker reworked from country/"Somewhere else" to a REGION -> country -> state cascade. Region defaults to North America, country defaults to United States (so a US state is one tap); regions are North/South America, Europe, Asia, Africa, Oceania, Antarctica, and any non-North-America region offers nothing further. North America's countries are United States / Canada / Mexico; only the United States reveals states. Still writes rememberState() (the banner's Washington gate reads it via knownState()) and mirrors into #filter-state. (V12.53: first version of the always-visible Where-are-you picker.) -->
+<!-- Version: V12.55 | Date: 2026-07-22 | LAST CHANGE: Post-an-event form: (1) "Add your entire calendar" blue link on the hosting/sharing chooser opens an inline note to contact hello@creating.works (copyable) + a link to Events Hosting by Creating Works. (2) An "i" info button next to "My Appear Network page" reveals an inline explainer of what Appear is for newcomers (no modal). (3) When "My Appear Network page" is checked and a link is remembered, the link now shows READ-ONLY with a confirmation ("Your event will show your name and it will link directly to your Appear Network page") instead of being hidden; a one-time paste box still appears only when nothing is remembered. (V12.54: Where-are-you region -> country -> state cascade.) -->
 </body>
 </html>
