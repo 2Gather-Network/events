@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.55 | Date: 2026-07-22 | LAST CHANGE: Post-an-event form: (1) "Add your entire calendar" blue link on the hosting/sharing chooser opens an inline note to contact hello@creating.works (copyable) + a link to Events Hosting by Creating Works. (2) An "i" info button next to "My Appear Network page" reveals an inline explainer of what Appear is for newcomers (no modal). (3) When "My Appear Network page" is checked and a link is remembered, the link now shows READ-ONLY with a confirmation ("Your event will show your name and it will link directly to your Appear Network page") instead of being hidden; a one-time paste box still appears only when nothing is remembered. (V12.54: Where-are-you region -> country -> state cascade.) -->
+<!-- Version: V12.56 | Date: 2026-07-22 | LAST CHANGE: "Where are you?" now FILTERS and collapses. Picking a location (US state, or Canada/Mexico, or a non-North-America region) shows all virtual events + only in-person events in that place (in-person with a vague/missing location are kept), and collapses the row to a chip "📍 Location: <place>" ("Alabama, United States" for US) with a Change link to reopen. Applies when you pick the deepest level - no separate submit. Still feeds rememberState()/knownState() for the banner. (V12.55: post-form bulk-calendar link, Appear info button, read-only Appear link.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -287,22 +287,28 @@
        any other region offers nothing further. Writes rememberState() - the same source the local
        banner's Washington gate reads via knownState() - and mirrors into #filter-state. -->
   <div id="where-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
-    <span style="font-size:13px;font-weight:700;color:var(--dark);white-space:nowrap;">📍 Where are you?</span>
-    <select id="where-region" class="input" style="width:auto;padding:7px 12px;font-size:13px;" onchange="onWhereRegion()">
-      <option>North America</option>
-      <option>South America</option>
-      <option>Europe</option>
-      <option>Asia</option>
-      <option>Africa</option>
-      <option>Oceania</option>
-      <option>Antarctica</option>
-    </select>
-    <select id="where-country" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onWhereCountry()">
-      <option value="">Select country…</option>
-    </select>
-    <select id="where-state" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onWhereState()">
-      <option value="">Select state…</option>
-    </select>
+    <div id="where-edit" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span style="font-size:13px;font-weight:700;color:var(--dark);white-space:nowrap;">📍 Where are you?</span>
+      <select id="where-region" class="input" style="width:auto;padding:7px 12px;font-size:13px;" onchange="onWhereRegion()">
+        <option>North America</option>
+        <option>South America</option>
+        <option>Europe</option>
+        <option>Asia</option>
+        <option>Africa</option>
+        <option>Oceania</option>
+        <option>Antarctica</option>
+      </select>
+      <select id="where-country" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onWhereCountry()">
+        <option value="">Select country…</option>
+      </select>
+      <select id="where-state" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onWhereState()">
+        <option value="">Select state…</option>
+      </select>
+    </div>
+    <div id="where-chip" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#154F74;background:#E8F2F9;padding:7px 14px;border-radius:20px;">📍 Location: <span id="where-chip-label"></span></span>
+      <a href="javascript:void(0)" onclick="whereChange()" style="font-size:13px;color:var(--primary);font-weight:600;text-decoration:underline;cursor:pointer;">Change</a>
+    </div>
   </div>
 
   <div id="filter-panel" style="display:none;background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;">
@@ -1796,6 +1802,61 @@ function onStateChange() {
 // V12.54: "Where are you?" region -> country -> state. Defaults to North America / United States so
 // picking a US state is one tap; any other region offers nothing further. Writes rememberState()
 // (the banner reads it via knownState()) and mirrors into #filter-state for the in-person filter.
+var _whereApplied = false;
+// V12.56: "Where are you?" now FILTERS and collapses to a chip. Picking your location (a US state,
+// or Canada/Mexico, or a non-North-America region) shows all virtual events + only in-person events
+// in that place (in-person with a vague/missing location are kept), and collapses the row to
+// "📍 Location: <place>" with a Change link. Still feeds rememberState()/knownState() (the banner).
+function _wherePlaceName() {
+  var r = document.getElementById("where-region").value;
+  if (r !== "North America") return r;
+  var c = document.getElementById("where-country").value;
+  return (c === "Canada" || c === "Mexico") ? c : "";
+}
+function _whereChipLabel() {
+  var st = document.getElementById("where-state").value;
+  if (st) return st + ", United States";
+  return _wherePlaceName();
+}
+function whereApply() {
+  var lbl = _whereChipLabel();
+  if (!lbl) return;
+  _whereApplied = true;
+  var l = document.getElementById("where-chip-label"); if (l) l.textContent = lbl;
+  var ed = document.getElementById("where-edit"); if (ed) ed.style.display = "none";
+  var ch = document.getElementById("where-chip"); if (ch) ch.style.display = "flex";
+  renderEvents();
+}
+function whereChange() {
+  _whereApplied = false;
+  var ed = document.getElementById("where-edit"); if (ed) ed.style.display = "flex";
+  var ch = document.getElementById("where-chip"); if (ch) ch.style.display = "none";
+  renderEvents();
+}
+// An in-person event passes when it's in the set place, or when its location is vague/unresolvable
+// (kept, per her call). US: match the state name/abbrev; a DIFFERENT US state named -> hide.
+// Non-US place: match the country/region name -> keep, otherwise hide a located event.
+function _eventMatchesWhere(e) {
+  var loc = String(e.location || "");
+  var locL = loc.toLowerCase();
+  if (!locL.trim()) return true;   // no location -> vague -> keep
+  var st = document.getElementById("where-state").value;
+  if (st) {
+    var abbr = US_STATES_ABBR[st] || "";
+    if (locL.indexOf(st.toLowerCase()) !== -1) return true;
+    if (abbr && new RegExp("\\b" + abbr + "\\b", "i").test(loc)) return true;
+    for (var i = 0; i < US_STATES.length; i++) {
+      var s = US_STATES[i]; if (s === st) continue;
+      if (locL.indexOf(s.toLowerCase()) !== -1) return false;
+      var a = US_STATES_ABBR[s];
+      if (a && new RegExp("\\b" + a + "\\b", "i").test(loc)) return false;
+    }
+    return true;   // no other US state named -> vague -> keep
+  }
+  var place = _wherePlaceName();
+  if (place && locL.indexOf(place.toLowerCase()) !== -1) return true;
+  return false;   // has a location but not this place -> hide
+}
 function onWhereRegion() {
   var r  = document.getElementById("where-region").value;
   var c  = document.getElementById("where-country");
@@ -1807,10 +1868,11 @@ function onWhereRegion() {
     ["United States","Canada","Mexico"].forEach(function(x){ c.innerHTML += '<option>' + x + '</option>'; });
     c.value = "United States";
     c.style.display = "";
-    onWhereCountry();   // cascade to the state dropdown for the US
+    onWhereCountry();   // reveal the state dropdown for the US (no apply until a state is picked)
   } else {
     c.style.display = "none"; c.value = "";
-    rememberState(""); _syncFilterState(""); renderEvents();
+    rememberState(""); _syncFilterState("");
+    whereApply();   // a non-North-America region applies immediately
   }
 }
 function onWhereCountry() {
@@ -1824,17 +1886,18 @@ function onWhereCountry() {
     st.value = (remembered && US_STATES.indexOf(remembered) !== -1) ? remembered : "";
     st.style.display = "";
     _syncFilterState(st.value);
-    renderEvents();
+    renderEvents();   // wait for a state before applying
   } else {
     st.style.display = "none"; st.value = "";
-    rememberState(""); _syncFilterState(""); renderEvents();
+    rememberState(""); _syncFilterState("");
+    whereApply();   // Canada / Mexico applies immediately
   }
 }
 function onWhereState() {
   var v = document.getElementById("where-state").value;
   rememberState(v);
   _syncFilterState(v);
-  renderEvents();   // re-evaluates updateLocalBanner()
+  if (v) whereApply(); else renderEvents();
 }
 function _syncFilterState(v) {
   var fs = document.getElementById("filter-state");
@@ -1845,11 +1908,16 @@ function _syncFilterState(v) {
 function _resetWhereRow() {
   var rg = document.getElementById("where-region"); if (rg) rg.value = "North America";
   rememberState("");
-  onWhereRegion();   // back to North America / United States, no state selected
+  _whereApplied = false;
+  var ch = document.getElementById("where-chip"); if (ch) ch.style.display = "none";
+  var ed = document.getElementById("where-edit"); if (ed) ed.style.display = "flex";
+  onWhereRegion();   // NA / US, empty state, no filter
 }
 function restoreWhereRow() {
   var rg = document.getElementById("where-region"); if (rg && !rg.value) rg.value = "North America";
-  onWhereRegion();   // default NA / US; onWhereCountry restores a remembered US state
+  onWhereRegion();   // NA / US; restores a remembered US state into the dropdown
+  var st = document.getElementById("where-state");
+  if (st && st.value) whereApply();   // a remembered state -> collapse to the chip + filter
 }
 
 // The banner used to have its title, date and venue typed in, so renaming the event in the
@@ -1960,7 +2028,12 @@ function renderEvents() {
     const fmt = typeof _activeFormat !== "undefined" ? _activeFormat : "all";
     const _fmtIsVirtual = !!(e.meetinglink || e.mode === "virtual" || (e.location||"").toLowerCase().includes("virtual") || (e.location||"").toLowerCase().includes("online") || (e.location||"").toLowerCase().includes("zoom"));
     const matchFormat = fmt === "all" || (fmt === "virtual" && _fmtIsVirtual) || (fmt === "inperson" && !_fmtIsVirtual);
-    return matchCat && matchQ && matchTab && matchMode && matchLocation && matchHost && matchDate && matchVenue && matchFormat && matchServingFilter(e);
+    var locWhereOK = true;
+    if (_whereApplied) {   // V12.56: all virtual + only in-person in the set place (vague kept)
+      var _isV = (e.format === "virtual" || e.format === "both" || !e.format);
+      locWhereOK = _isV ? true : _eventMatchesWhere(e);
+    }
+    return matchCat && matchQ && matchTab && matchMode && matchLocation && matchHost && matchDate && matchVenue && matchFormat && matchServingFilter(e) && locWhereOK;
   });
 
   list.sort((a, b) => {
@@ -4282,6 +4355,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.55 | Date: 2026-07-22 | LAST CHANGE: Post-an-event form: (1) "Add your entire calendar" blue link on the hosting/sharing chooser opens an inline note to contact hello@creating.works (copyable) + a link to Events Hosting by Creating Works. (2) An "i" info button next to "My Appear Network page" reveals an inline explainer of what Appear is for newcomers (no modal). (3) When "My Appear Network page" is checked and a link is remembered, the link now shows READ-ONLY with a confirmation ("Your event will show your name and it will link directly to your Appear Network page") instead of being hidden; a one-time paste box still appears only when nothing is remembered. (V12.54: Where-are-you region -> country -> state cascade.) -->
+<!-- Version: V12.56 | Date: 2026-07-22 | LAST CHANGE: "Where are you?" now FILTERS and collapses. Picking a location (US state, or Canada/Mexico, or a non-North-America region) shows all virtual events + only in-person events in that place (in-person with a vague/missing location are kept), and collapses the row to a chip "📍 Location: <place>" ("Alabama, United States" for US) with a Change link to reopen. Applies when you pick the deepest level - no separate submit. Still feeds rememberState()/knownState() for the banner. (V12.55: post-form bulk-calendar link, Appear info button, read-only Appear link.) -->
 </body>
 </html>
