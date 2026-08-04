@@ -1,7 +1,7 @@
 <!DOCTYPE html> 
 <html lang="en">
 <head>
-  <!-- Version: V5.43 | Date: 2026-07-22 | LAST CHANGE: The Event host line now shows the optional organization/group next to the host name ("host · org"), from the new events-tab org field. (V5.42: removed the dead #interest-modal.) -->
+  <!-- Version: V5.44 | Date: 2026-08-03 | LAST CHANGE: The page asks the gate for only the rows this one event needs (action=eventBundle) instead of downloading all 148 events / 171.7KB to render one; falls back to the full feed if that answer is empty or the call fails. (V5.43: host line shows the optional organization next to the host name.) -->
   <meta charset="UTF-8">
   <script>
   /* Forward the Lake Ballinger event to its Glide page (m97sjwa3 only). Runs before render, so no flash. */
@@ -343,7 +343,24 @@ function esc(s) {
   return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-async function fetchEvents() {
+/* V5.44: ask the gate for only the rows THIS event needs.
+   The whole feed is 148 rows / 171.7KB and it was being downloaded to render a
+   single event; one plain event is 1.5KB. The gate slices its own cached copy,
+   so the answer is the same {events:[...]} shape and nothing downstream changes.
+   A recurring id still needs the rec- templates plus the cancelled-/occ-note-
+   override rows, which the gate works out from the id.
+   If the slimmed answer comes back empty or the call fails, fall back to the
+   full feed, so a gate problem can never turn into "Event not found". */
+async function fetchEvents(id) {
+  if (id) {
+    try {
+      const res = await fetch(GS_URL + "?action=eventBundle&id=" + encodeURIComponent(id) + "&t=" + Date.now());
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.events && data.events.length) return data;
+      }
+    } catch(e) {}
+  }
   const res = await fetch(GS_URL + "?t=" + Date.now());
   return res.json();
 }
@@ -1335,7 +1352,7 @@ async function init() {
   // If a template row ID (rec-) is passed, resolve to next occurrence in-place
   if (id.startsWith("rec-")) {
     try {
-      const sheetData = await fetchEvents();
+      const sheetData = await fetchEvents(id);
       const allRows = (sheetData.events || []).filter(r => r.id);
       const tmpl = allRows.find(r => String(r.id) === id);
       if (tmpl && tmpl.dayOfWeek) {
@@ -1366,7 +1383,7 @@ async function init() {
     const dateStr = id.slice(-10);
     const slug    = id.slice("recurring-".length, id.length - 11);
     try {
-      const sheetData = await fetchEvents();
+      const sheetData = await fetchEvents(id);
       const allRows = (sheetData.events || []).filter(r => r.id);
       // Build RECURRING_EVENTS from rec- rows in sheet
       RECURRING_EVENTS = allRows
@@ -1398,7 +1415,7 @@ async function init() {
   }
 
   try {
-    const data = await fetchEvents();
+    const data = await fetchEvents(id);
     const ev = (data.events||[]).filter(r=>r.id).map(toEv).find(e=>e.id===id);
     if (!ev) { showError("Event not found."); return; }
     // Handle ?via= socializer attribution
