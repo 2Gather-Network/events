@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V3.44 | Date: 2026-07-22 | LAST CHANGE: Recurring events on the landing calendar are now capped to ~1 month ahead (matches events.html V12.57), so a weekly series shows only the next month's occurrences. (V3.43: Date TBD support - undated events off the grid + banner, "Date to be announced".) -->
+<!-- Version: V3.45 | Date: 2026-08-03 | LAST CHANGE: The calendar asks the gate for upcoming events only (action=feedUpcoming) instead of downloading every past event and discarding it; 115 of 148 rows and 144KB of the 171.7KB were past. Retries fall back to the whole feed. (V3.44: recurring events capped to ~1 month ahead.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -390,13 +390,31 @@ function sheetToEv(row) {
   };
 }
 
+/* V3.45: ask the gate for the calendar without the past.
+   renderEvents() already computes isPast and drops those cards - but only after
+   downloading them. On 2026-08-03 that was 115 of 148 rows and 144KB of the
+   171.7KB feed, fetched and thrown away on every visit. action=feedUpcoming
+   keeps the rec- templates, the cancelled-/occ-note- override rows, anything
+   undated or TBD, and every event dated on or after yesterday, in the same
+   {events:[...]} shape. The page's own isPast check still has the final say.
+   The host and venue filters are built from what came back, so they now list
+   only people and places with something still to come - which is what the grid
+   could show anyway.
+   First attempt asks for the slim feed; any retry asks for the whole thing, so
+   a gate problem degrades to today's behaviour instead of an empty calendar. */
 async function fetchEvents() {
   for (var attempt = 0; attempt < 6; attempt++) {
     try {
-      const res = await fetch(GS_URL + "?t=" + Date.now() + "_" + attempt);
+      const slim = attempt === 0 ? "?action=feedUpcoming&t=" : "?t=";
+      const res = await fetch(GS_URL + slim + Date.now() + "_" + attempt);
       if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
-      return JSON.parse(text);
+      const data = JSON.parse(text);
+      // An empty answer from the slim call means retry with the whole feed. An
+      // empty answer from the whole feed is the honest state of the sheet, and
+      // must render as an empty calendar rather than an error.
+      if (attempt === 0 && !(data && data.events && data.events.length)) throw new Error("empty slim feed");
+      return data;
     } catch(err) {
       if (attempt === 5) throw err;
       await new Promise(function(r) { setTimeout(r, 500); });
@@ -1149,6 +1167,6 @@ loadEvents();
      to event.html for a long time, so nothing could ever open it - it was unreachable markup
      carrying an iframe and its own share button. Opening an event is a page, not an overlay. -->
 
-<!-- Version: V3.44 | Date: 2026-07-22 | LAST CHANGE: Recurring events on the landing calendar are now capped to ~1 month ahead (matches events.html V12.57), so a weekly series shows only the next month's occurrences. (V3.43: Date TBD support - undated events off the grid + banner, "Date to be announced".) -->
+<!-- Version: V3.45 | Date: 2026-08-03 | LAST CHANGE: The calendar asks the gate for upcoming events only (action=feedUpcoming) instead of downloading every past event and discarding it; 115 of 148 rows and 144KB of the 171.7KB were past. Retries fall back to the whole feed. (V3.44: recurring events capped to ~1 month ahead.) -->
 </body>
 </html>
