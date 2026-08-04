@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.61 | Date: 2026-07-22 | LAST CHANGE: Daily recurring (admin/master only). A new "Daily" recurrence chip + a "Last day" date field; posting a Daily event creates one normal event per day from the start date through the last day (sequential apiAdd, capped 60 days) - no template, plain dated events. Requires a real start date (not Date TBD) and a last day on/after the start. (V12.60: "I'm sharing" records the poster as socializer.) -->
+<!-- Version: V12.62 | Date: 2026-08-03 | LAST CHANGE: Search now reads county, venue, room, org, keywords, categories and experience as well as title/description/location/host, and county+org are carried through the row mapping so they are actually present. Passcode, contact email/phone and URLs are deliberately excluded. Private events are unaffected - they are dropped before the search filter runs. (V12.61: daily recurring for admins.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1411,7 +1411,7 @@ function evToSheet(ev) {
     description: ev.description || "", host: ev.host || "", hostlink: ev.hostlink || "",
     contactEmail: ev.contactEmail || "", contactPhone: ev.contactPhone || "",
     passcode: ev.passcode || "", hostEmail: ev.hostEmail || "", cooplink: ev.cooplink || "", going: ev.going || 0,
-    paymentlink: ev.paymentlink || "", exchangeType: ev.exchangeType || "", showLinks: ev.showLinks || "", otherExchange: ev.otherExchange || "", recurFreq: ev.recurFreq || "", experience: ev.experience || "", imageUrl: ev.imageUrl || "", detailImageUrl: ev.detailImageUrl || "", isPrivate: ev.isPrivate || false, roomGated: ev.roomGated || false, careerStage: ev.lifeStage || "", lifeStage: ev.lifeStage || "", keywords: ev.keywords || "", venue: ev.venue || "",
+    paymentlink: ev.paymentlink || "", exchangeType: ev.exchangeType || "", showLinks: ev.showLinks || "", otherExchange: ev.otherExchange || "", recurFreq: ev.recurFreq || "", experience: ev.experience || "", imageUrl: ev.imageUrl || "", detailImageUrl: ev.detailImageUrl || "", isPrivate: ev.isPrivate || false, roomGated: ev.roomGated || false, careerStage: ev.lifeStage || "", lifeStage: ev.lifeStage || "", keywords: ev.keywords || "", venue: ev.venue || "", org: ev.org || "", county: ev.county || "",
     interestedEnabled: ev.interestedEnabled || "off", interested: ev.interested || "",
     sharedNotesEnabled: ev.sharedNotesEnabled || false, sharedNotes: ev.sharedNotes || "",
     host_note: ev.host_note || "",
@@ -1449,7 +1449,7 @@ function sheetToEv(row) {
     hostlink: row.hostlink || "", contactEmail: row.contactEmail || "", contactPhone: row.contactPhone || "",
     passcode: row.passcode || "", hostEmail: (row.hostEmail || "").trim(), cooplink: row.cooplink || "", going: parseInt(row.going) || 0,
     meetinglink: row.meetinglink || "", recurring: isRecurring,
-    paymentlink: row.paymentlink || "", exchangeType: row.exchangeType || "", showLinks: row.showLinks || "", otherExchange: row.otherExchange || "", recurFreq: row.recurFreq || "", experience: row.experience || "", imageUrl: row.imageUrl || "", detailImageUrl: row.detailImageUrl || "", isPrivate: row.isPrivate === "true" || row.isPrivate === true || false, roomGated: row.roomGated === "true" || row.roomGated === true || false, hasHub: row.hasHub === "true" || row.hasHub === true || false, lifeStage: row.careerStage || row.lifeStage || "", keywords: row.keywords || "", venue: row.venue || "",
+    paymentlink: row.paymentlink || "", exchangeType: row.exchangeType || "", showLinks: row.showLinks || "", otherExchange: row.otherExchange || "", recurFreq: row.recurFreq || "", experience: row.experience || "", imageUrl: row.imageUrl || "", detailImageUrl: row.detailImageUrl || "", isPrivate: row.isPrivate === "true" || row.isPrivate === true || false, roomGated: row.roomGated === "true" || row.roomGated === true || false, hasHub: row.hasHub === "true" || row.hasHub === true || false, lifeStage: row.careerStage || row.lifeStage || "", keywords: row.keywords || "", venue: row.venue || "", county: row.county || "",
     interestedEnabled: row.interestedEnabled || "off", interested: row.interested || "", intakeRedirect: row.intakeRedirect || "",
     sharedNotesEnabled: row.sharedNotesEnabled === "true" || row.sharedNotesEnabled === true || false, sharedNotes: row.sharedNotes || "",
     host_note: row.host_note || "",
@@ -1992,6 +1992,23 @@ function updateLocalBanner() {
   b.style.display = (knownState() === "Washington") ? "flex" : "none";
 }
 
+/* V12.62 / V3.47: search reads every field a person would actually type.
+   Deliberately NOT searched: passcode (that is the event edit PIN, and
+   searchable means guessable), contactEmail / contactPhone (searchable contact
+   details let someone confirm details they only suspect), and the URLs, ids,
+   coordinates and true/false flags, which would only produce baffling matches.
+   Private events never reach this - they are dropped by the `return !e.isPrivate`
+   filter that runs before this one. */
+var SEARCH_FIELDS = ["title","description","location","county","venue","room","host","org","keywords","experience"];
+function matchesQuery(e, q) {
+  if (!q) return true;
+  for (var i = 0; i < SEARCH_FIELDS.length; i++) {
+    if (String(e[SEARCH_FIELDS[i]] || "").toLowerCase().indexOf(q) !== -1) return true;
+  }
+  var cats = Array.isArray(e.categories) ? e.categories.join(" ") : String(e.categories || "");
+  return cats.toLowerCase().indexOf(q) !== -1;
+}
+
 function renderEvents() {
   updateLocalBanner();   // re-evaluate whenever filters change, including the state select
   const evPageBase = window.location.href.replace(/\/[^/]*(\?.*)?$/, "/");
@@ -2014,7 +2031,7 @@ function renderEvents() {
     let cats = Array.isArray(e.categories) ? e.categories : [e.category].filter(Boolean);
     cats = cats.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; });
     const matchCat  = activeFilter === "all" || cats.includes(activeFilter);
-    const matchQ    = !q || e.title.toLowerCase().includes(q) || (e.description||"").toLowerCase().includes(q) || (e.location||"").toLowerCase().includes(q) || (e.host||"").toLowerCase().includes(q);
+    const matchQ    = matchesQuery(e, q);
     const evEndMs   = e.endtime ? new Date(e.date + "T" + e.endtime).getTime() : new Date(e.date + "T" + (e.time||"00:00")).getTime() + 60*60*1000;
     const evStartMs = new Date(e.date + "T" + (e.time||"00:00")).getTime();
     const isPast    = evEndMs < now;
@@ -4421,6 +4438,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.61 | Date: 2026-07-22 | LAST CHANGE: Daily recurring (admin/master only). A new "Daily" recurrence chip + a "Last day" date field; posting a Daily event creates one normal event per day from the start date through the last day (sequential apiAdd, capped 60 days) - no template, plain dated events. Requires a real start date (not Date TBD) and a last day on/after the start. (V12.60: "I'm sharing" records the poster as socializer.) -->
+<!-- Version: V12.62 | Date: 2026-08-03 | LAST CHANGE: Search now reads county, venue, room, org, keywords, categories and experience as well as title/description/location/host, and county+org are carried through the row mapping so they are actually present. Passcode, contact email/phone and URLs are deliberately excluded. Private events are unaffected - they are dropped before the search filter runs. (V12.61: daily recurring for admins.) -->
 </body>
 </html>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V3.46 | Date: 2026-08-03 | LAST CHANGE: Venue/Host filter row gets the margin-top:16px it was missing, so "Venue" is no longer squished under the Format chips - events.html got this in V12.57 but index.html never did. (V3.45: the calendar asks the gate for upcoming events only.) -->
+<!-- Version: V3.47 | Date: 2026-08-03 | LAST CHANGE: Search now reads county, venue, room, org, keywords, categories and experience as well as title/description/location/host; county, org and keywords are carried through sheetToEv, which never mapped them. Passcode, contact email/phone and URLs are deliberately excluded. (V3.46: the Venue/Host row gets its missing top margin.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -382,6 +382,10 @@ function sheetToEv(row) {
     passcode: row.passcode||"", cooplink: row.cooplink||"", going: parseInt(row.going)||0,
     meetinglink: row.meetinglink||"", recurring: isRecurring, recurFreq: row.recurFreq||"", experience: row.experience||"", imageUrl: row.imageUrl||"",
     venue: row.venue||"",
+    // V3.47: county, org and keywords were never mapped here either, so searching
+    // for a county, an organisation or a keyword matched nothing at all - the same
+    // silent miss described just below for isPrivate. matchQ reads these.
+    county: row.county||"", org: row.org||"", keywords: row.keywords||"",
     cancelled: row.cancelled==="true"||row.cancelled===true||false,
     // V3.41: carry isPrivate through. It was never mapped here, so on index.html every event
     // read as public - the grid filter (return !e.isPrivate) and the V3.40 banner check both
@@ -661,6 +665,23 @@ function updateLocalBanner() {
   b.style.display = (knownState() === "Washington") ? "flex" : "none";
 }
 
+/* V12.62 / V3.47: search reads every field a person would actually type.
+   Deliberately NOT searched: passcode (that is the event edit PIN, and
+   searchable means guessable), contactEmail / contactPhone (searchable contact
+   details let someone confirm details they only suspect), and the URLs, ids,
+   coordinates and true/false flags, which would only produce baffling matches.
+   Private events never reach this - they are dropped by the `return !e.isPrivate`
+   filter that runs before this one. */
+var SEARCH_FIELDS = ["title","description","location","county","venue","room","host","org","keywords","experience"];
+function matchesQuery(e, q) {
+  if (!q) return true;
+  for (var i = 0; i < SEARCH_FIELDS.length; i++) {
+    if (String(e[SEARCH_FIELDS[i]] || "").toLowerCase().indexOf(q) !== -1) return true;
+  }
+  var cats = Array.isArray(e.categories) ? e.categories.join(" ") : String(e.categories || "");
+  return cats.toLowerCase().indexOf(q) !== -1;
+}
+
 function renderEvents() {
   updateLocalBanner();   // re-evaluate whenever filters change, including the state select
   const evPageBase = window.location.href.replace(/\/[^/]*(\?.*)?$/, "/");
@@ -683,7 +704,7 @@ function renderEvents() {
     let cats = Array.isArray(e.categories) ? e.categories : [e.category].filter(Boolean);
     cats = cats.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; });
     const matchCat  = activeFilter === "all" || cats.includes(activeFilter);
-    const matchQ    = !q || e.title.toLowerCase().includes(q) || (e.description||"").toLowerCase().includes(q) || (e.location||"").toLowerCase().includes(q) || (e.host||"").toLowerCase().includes(q);
+    const matchQ    = matchesQuery(e, q);
     const evEndMs   = e.endtime ? new Date(e.date + "T" + e.endtime).getTime() : new Date(e.date + "T" + (e.time||"00:00")).getTime() + 60*60*1000;
     const evStartMs = new Date(e.date + "T" + (e.time||"00:00")).getTime();
     const isPast    = evEndMs < now;
@@ -1167,6 +1188,6 @@ loadEvents();
      to event.html for a long time, so nothing could ever open it - it was unreachable markup
      carrying an iframe and its own share button. Opening an event is a page, not an overlay. -->
 
-<!-- Version: V3.46 | Date: 2026-08-03 | LAST CHANGE: Venue/Host filter row gets the margin-top:16px it was missing, so "Venue" is no longer squished under the Format chips - events.html got this in V12.57 but index.html never did. (V3.45: the calendar asks the gate for upcoming events only.) -->
+<!-- Version: V3.47 | Date: 2026-08-03 | LAST CHANGE: Search now reads county, venue, room, org, keywords, categories and experience as well as title/description/location/host; county, org and keywords are carried through sheetToEv, which never mapped them. Passcode, contact email/phone and URLs are deliberately excluded. (V3.46: the Venue/Host row gets its missing top margin.) -->
 </body>
 </html>
