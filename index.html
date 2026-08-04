@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V3.48 | Date: 2026-08-04 | LAST CHANGE: Event card images get loading="lazy" + decoding="async" + intrinsic width/height, so a phone only decodes and paints the images it can actually see. The calendar now renders ~390 cards for one month across two senior centres. (V3.47: search reads county, org, keywords and categories.) -->
+<!-- Version: V3.49 | Date: 2026-08-04 | LAST CHANGE: The calendar renders the first 60 events with a "Load more" button and a "Showing 60 of N" count; one month across two senior centres is ~390 cards. Search and filters still run over every event - the cap is applied after filtering, and resets whenever the result set changes. (V3.48: card images lazy-load.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -672,6 +672,50 @@ function updateLocalBanner() {
    coordinates and true/false flags, which would only produce baffling matches.
    Private events never reach this - they are dropped by the `return !e.isPrivate`
    filter that runs before this one. */
+/* V3.49 / V12.64: render the first PAGE_SIZE cards, then a "Load more" button.
+   One month across two senior centres is ~390 cards, which is a lot of DOM for a
+   phone even with lazy images. It also stops one busy venue burying the smaller
+   ones - Edmonds ran 288 cards against Lake Ballinger's 86.
+
+   Searching and filtering still run over EVERY event, not just the rendered 60:
+   the cap is applied after filtering, so a search finds matches anywhere in the
+   month and then shows the first 60 of the results.
+
+   The cap resets whenever the result set changes, so a new search always starts
+   at the top. Signature is the joined ids - clicking Load more does not change
+   the result set, so it does not reset itself. */
+var PAGE_SIZE = 60;
+var _shownCount = PAGE_SIZE;
+var _lastListSig = null;
+
+function applyPageCap(list) {
+  var sig = list.map(function(e) { return e.id; }).join(",");
+  if (sig !== _lastListSig) { _lastListSig = sig; _shownCount = PAGE_SIZE; }
+  return list.slice(0, _shownCount);
+}
+
+function loadMoreEvents() {
+  // The result set has not changed, so applyPageCap sees the same signature and
+  // leaves the raised _shownCount alone. No save/restore needed.
+  _shownCount += PAGE_SIZE;
+  renderEvents();
+}
+
+function renderLoadMore(total, shown) {
+  var old = document.getElementById("load-more-wrap");
+  if (old) old.remove();
+  if (total <= shown) return;
+  var grid = document.getElementById("event-grid");
+  if (!grid || !grid.parentNode) return;
+  var wrap = document.createElement("div");
+  wrap.id = "load-more-wrap";
+  wrap.style.cssText = "text-align:center;margin:22px 0 8px;";
+  wrap.innerHTML =
+    '<button onclick="loadMoreEvents()" style="padding:10px 26px;border-radius:22px;font-size:14px;font-weight:700;border:none;background:#154F74;color:#fff;cursor:pointer;">Load more</button>' +
+    '<div style="font-size:12px;color:var(--muted);margin-top:8px;">Showing ' + shown + ' of ' + total + ' events</div>';
+  grid.parentNode.insertBefore(wrap, grid.nextSibling);
+}
+
 var SEARCH_FIELDS = ["title","description","location","county","venue","room","host","org","keywords","experience"];
 function matchesQuery(e, q) {
   if (!q) return true;
@@ -748,6 +792,8 @@ function renderEvents() {
   });
 
   grid.innerHTML = "";
+  var _lm = document.getElementById("load-more-wrap");   // drop it now; re-added below only if needed
+  if (_lm) _lm.remove();
   if (list.length === 0) {
     const msg = activeTab === "past" ? "No past events yet." : "Be the first to post something for the community.";
     if (isLoadingData) {
@@ -757,6 +803,11 @@ function renderEvents() {
     }
     return;
   }
+
+  // V3.49 / V12.64: cap the render AFTER filtering, so search still covers everything
+  var _totalMatches = list.length;
+  list = applyPageCap(list);
+  renderLoadMore(_totalMatches, list.length);
 
   list.forEach(ev => {
     let cats = Array.isArray(ev.categories) ? ev.categories : [ev.category].filter(Boolean);
@@ -1188,6 +1239,6 @@ loadEvents();
      to event.html for a long time, so nothing could ever open it - it was unreachable markup
      carrying an iframe and its own share button. Opening an event is a page, not an overlay. -->
 
-<!-- Version: V3.48 | Date: 2026-08-04 | LAST CHANGE: Event card images get loading="lazy" + decoding="async" + intrinsic width/height, so a phone only decodes and paints the images it can actually see. The calendar now renders ~390 cards for one month across two senior centres. (V3.47: search reads county, org, keywords and categories.) -->
+<!-- Version: V3.49 | Date: 2026-08-04 | LAST CHANGE: The calendar renders the first 60 events with a "Load more" button and a "Showing 60 of N" count; one month across two senior centres is ~390 cards. Search and filters still run over every event - the cap is applied after filtering, and resets whenever the result set changes. (V3.48: card images lazy-load.) -->
 </body>
 </html>

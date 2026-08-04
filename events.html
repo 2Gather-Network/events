@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.63 | Date: 2026-08-04 | LAST CHANGE: Event card images and the manage-list thumbnails get loading="lazy" + decoding="async" + intrinsic width/height, so offscreen images are not decoded or painted. (V12.62: search reads county, org, keywords and categories.) -->
+<!-- Version: V12.64 | Date: 2026-08-04 | LAST CHANGE: The calendar renders the first 60 events with a "Load more" button and a "Showing 60 of N" count. Search and filters still run over every event - the cap is applied after filtering, and resets whenever the result set changes. (V12.63: card images lazy-load.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1999,6 +1999,50 @@ function updateLocalBanner() {
    coordinates and true/false flags, which would only produce baffling matches.
    Private events never reach this - they are dropped by the `return !e.isPrivate`
    filter that runs before this one. */
+/* V3.49 / V12.64: render the first PAGE_SIZE cards, then a "Load more" button.
+   One month across two senior centres is ~390 cards, which is a lot of DOM for a
+   phone even with lazy images. It also stops one busy venue burying the smaller
+   ones - Edmonds ran 288 cards against Lake Ballinger's 86.
+
+   Searching and filtering still run over EVERY event, not just the rendered 60:
+   the cap is applied after filtering, so a search finds matches anywhere in the
+   month and then shows the first 60 of the results.
+
+   The cap resets whenever the result set changes, so a new search always starts
+   at the top. Signature is the joined ids - clicking Load more does not change
+   the result set, so it does not reset itself. */
+var PAGE_SIZE = 60;
+var _shownCount = PAGE_SIZE;
+var _lastListSig = null;
+
+function applyPageCap(list) {
+  var sig = list.map(function(e) { return e.id; }).join(",");
+  if (sig !== _lastListSig) { _lastListSig = sig; _shownCount = PAGE_SIZE; }
+  return list.slice(0, _shownCount);
+}
+
+function loadMoreEvents() {
+  // The result set has not changed, so applyPageCap sees the same signature and
+  // leaves the raised _shownCount alone. No save/restore needed.
+  _shownCount += PAGE_SIZE;
+  renderEvents();
+}
+
+function renderLoadMore(total, shown) {
+  var old = document.getElementById("load-more-wrap");
+  if (old) old.remove();
+  if (total <= shown) return;
+  var grid = document.getElementById("event-grid");
+  if (!grid || !grid.parentNode) return;
+  var wrap = document.createElement("div");
+  wrap.id = "load-more-wrap";
+  wrap.style.cssText = "text-align:center;margin:22px 0 8px;";
+  wrap.innerHTML =
+    '<button onclick="loadMoreEvents()" style="padding:10px 26px;border-radius:22px;font-size:14px;font-weight:700;border:none;background:#154F74;color:#fff;cursor:pointer;">Load more</button>' +
+    '<div style="font-size:12px;color:var(--muted);margin-top:8px;">Showing ' + shown + ' of ' + total + ' events</div>';
+  grid.parentNode.insertBefore(wrap, grid.nextSibling);
+}
+
 var SEARCH_FIELDS = ["title","description","location","county","venue","room","host","org","keywords","experience"];
 function matchesQuery(e, q) {
   if (!q) return true;
@@ -2081,6 +2125,8 @@ function renderEvents() {
   });
 
   grid.innerHTML = "";
+  var _lm = document.getElementById("load-more-wrap");   // drop it now; re-added below only if needed
+  if (_lm) _lm.remove();
   if (list.length === 0) {
     if (isLoadingData) {
       grid.innerHTML = `<div style="text-align:center;padding:30px 20px;"><div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#1b6896;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px;"></div><p style="color:#6b7280;font-size:14px;margin:0;">Loading events...</p></div>`;
@@ -2090,6 +2136,11 @@ function renderEvents() {
     }
     return;
   }
+
+  // V3.49 / V12.64: cap the render AFTER filtering, so search still covers everything
+  var _totalMatches = list.length;
+  list = applyPageCap(list);
+  renderLoadMore(_totalMatches, list.length);
 
   list.forEach(ev => {
     let cats = Array.isArray(ev.categories) ? ev.categories : [ev.category].filter(Boolean);
@@ -4438,6 +4489,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.63 | Date: 2026-08-04 | LAST CHANGE: Event card images and the manage-list thumbnails get loading="lazy" + decoding="async" + intrinsic width/height, so offscreen images are not decoded or painted. (V12.62: search reads county, org, keywords and categories.) -->
+<!-- Version: V12.64 | Date: 2026-08-04 | LAST CHANGE: The calendar renders the first 60 events with a "Load more" button and a "Showing 60 of N" count. Search and filters still run over every event - the cap is applied after filtering, and resets whenever the result set changes. (V12.63: card images lazy-load.) -->
 </body>
 </html>
