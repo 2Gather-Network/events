@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.68 | Date: 2026-08-04 | LAST CHANGE: "I'm sharing an event I'm not hosting" opens this same form, so the Event registration control was showing in the sharing flow and defaulting to Required - an event you do not run then asked people to Sign in to RSVP. It is now hidden and set to off when sharing, and always shown when hosting or editing. Switching back to hosting restores the Required default, so a host who changed their mind cannot silently post with registration off. (V12.66: event links encode the id.) -->
+<!-- Version: V12.69 | Date: 2026-08-04 | LAST CHANGE: Posting stamps hostType (host or socializer). In the sharing flow the name and link fields describe the POSTER, both filled from what the device remembers, since the backend has no name for her and returns no Appear URL. (V12.68: switching back to hosting restores the registration default.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -621,7 +621,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
     </div>
 
     <div class="field">
-      <label class="field-label">Who's hosting? *</label>
+      <label class="field-label" id="host-field-label">Who's hosting? *</label>
       <input class="input" id="f-host" placeholder="A person's name (first name is fine)">
     </div>
     <div class="field">
@@ -1118,6 +1118,17 @@ let _choiceMethod = null;
 function applySharingMode(sharing) {
   var f = document.getElementById("registration-field");
   if (f) f.style.display = sharing ? "none" : "";
+  // V12.69: on a shared event the credited person is the SOCIALIZER, so the name
+  // and link fields describe the poster rather than whoever runs it. Both fill
+  // themselves from what this device already remembers.
+  var lab = document.getElementById("host-field-label");
+  if (lab) lab.textContent = sharing ? "Your name *" : "Who's hosting? *";
+  if (sharing) {
+    var hn = document.getElementById("f-host");
+    if (hn && !hn.value.trim()) hn.value = _knownPosterName();
+    var hl = document.getElementById("f-hostlink");
+    if (hl && !hl.value.trim()) hl.value = _knownAppearLink();
+  }
   // Restore the form default when NOT sharing, or a host who picked share and
   // changed their mind would silently post with registration off. openEdit calls
   // this before it loads the event, so the saved value still wins on an edit.
@@ -1429,7 +1440,7 @@ function evToSheet(ev) {
     description: ev.description || "", host: ev.host || "", hostlink: ev.hostlink || "",
     contactEmail: ev.contactEmail || "", contactPhone: ev.contactPhone || "",
     passcode: ev.passcode || "", hostEmail: ev.hostEmail || "", cooplink: ev.cooplink || "", going: ev.going || 0,
-    paymentlink: ev.paymentlink || "", exchangeType: ev.exchangeType || "", showLinks: ev.showLinks || "", otherExchange: ev.otherExchange || "", recurFreq: ev.recurFreq || "", experience: ev.experience || "", imageUrl: ev.imageUrl || "", detailImageUrl: ev.detailImageUrl || "", isPrivate: ev.isPrivate || false, roomGated: ev.roomGated || false, careerStage: ev.lifeStage || "", lifeStage: ev.lifeStage || "", keywords: ev.keywords || "", venue: ev.venue || "", org: ev.org || "", county: ev.county || "",
+    paymentlink: ev.paymentlink || "", exchangeType: ev.exchangeType || "", showLinks: ev.showLinks || "", otherExchange: ev.otherExchange || "", recurFreq: ev.recurFreq || "", experience: ev.experience || "", imageUrl: ev.imageUrl || "", detailImageUrl: ev.detailImageUrl || "", isPrivate: ev.isPrivate || false, roomGated: ev.roomGated || false, careerStage: ev.lifeStage || "", lifeStage: ev.lifeStage || "", keywords: ev.keywords || "", venue: ev.venue || "", org: ev.org || "", county: ev.county || "" hostType: ev.hostType || "",
     interestedEnabled: ev.interestedEnabled || "off", interested: ev.interested || "",
     sharedNotesEnabled: ev.sharedNotesEnabled || false, sharedNotes: ev.sharedNotes || "",
     host_note: ev.host_note || "",
@@ -1467,7 +1478,7 @@ function sheetToEv(row) {
     hostlink: row.hostlink || "", contactEmail: row.contactEmail || "", contactPhone: row.contactPhone || "",
     passcode: row.passcode || "", hostEmail: (row.hostEmail || "").trim(), cooplink: row.cooplink || "", going: parseInt(row.going) || 0,
     meetinglink: row.meetinglink || "", recurring: isRecurring,
-    paymentlink: row.paymentlink || "", exchangeType: row.exchangeType || "", showLinks: row.showLinks || "", otherExchange: row.otherExchange || "", recurFreq: row.recurFreq || "", experience: row.experience || "", imageUrl: row.imageUrl || "", detailImageUrl: row.detailImageUrl || "", isPrivate: row.isPrivate === "true" || row.isPrivate === true || false, roomGated: row.roomGated === "true" || row.roomGated === true || false, hasHub: row.hasHub === "true" || row.hasHub === true || false, lifeStage: row.careerStage || row.lifeStage || "", keywords: row.keywords || "", venue: row.venue || "", county: row.county || "",
+    paymentlink: row.paymentlink || "", exchangeType: row.exchangeType || "", showLinks: row.showLinks || "", otherExchange: row.otherExchange || "", recurFreq: row.recurFreq || "", experience: row.experience || "", imageUrl: row.imageUrl || "", detailImageUrl: row.detailImageUrl || "", isPrivate: row.isPrivate === "true" || row.isPrivate === true || false, roomGated: row.roomGated === "true" || row.roomGated === true || false, hasHub: row.hasHub === "true" || row.hasHub === true || false, lifeStage: row.careerStage || row.lifeStage || "", keywords: row.keywords || "", venue: row.venue || "", county: row.county || "" hostType: row.hostType || "",
     interestedEnabled: row.interestedEnabled || "off", interested: row.interested || "", intakeRedirect: row.intakeRedirect || "",
     sharedNotesEnabled: row.sharedNotesEnabled === "true" || row.sharedNotesEnabled === true || false, sharedNotes: row.sharedNotes || "",
     host_note: row.host_note || "",
@@ -2969,6 +2980,23 @@ function _knownAppearLink() {
   try { return k ? (localStorage.getItem(k) || "") : ""; } catch (e) { return ""; }
 }
 
+/* V12.69: the same trick for the poster's own name. The backend has no name for
+   her (lookupProfile returns an empty one) and does not return an Appear URL at
+   all, so both are remembered on the device instead. Typed once in the sharing
+   flow, filled in every time after. */
+function _nameKey() {
+  var m = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
+  return m ? ("poster-name-" + m) : "";
+}
+function _rememberPosterName(name) {
+  var k = _nameKey();
+  if (k && String(name || "").trim()) { try { localStorage.setItem(k, String(name).trim()); } catch (e) {} }
+}
+function _knownPosterName() {
+  var k = _nameKey();
+  try { return k ? (localStorage.getItem(k) || "") : ""; } catch (e) { return ""; }
+}
+
 function toggleLinkFields() {
   ["cooplink","paymentlink","contact"].forEach(k => {   // hostlink handled specially below
     const field = document.getElementById("field-"+k);
@@ -3628,7 +3656,11 @@ async function submitEvent() {
       return;
     }
     const newId = Array.from({length:8}, () => Math.floor(Math.random()*36).toString(36)).join('');
-    const newEv = { id:newId, ...eventData, passcode, going:0 };
+    // V12.69: record WHICH relationship this person has to the event, so the page
+    // can say "Shared by" rather than "Event host". hostlink is the Appear URL
+    // either way, which is why no separate socializer columns were needed.
+    const newEv = { id:newId, ...eventData, passcode, going:0, hostType: window._isSharing ? "socializer" : "host" };
+    if (window._isSharing) _rememberPosterName(eventData.host);
     const RL_KEY = "db-post-log";
     let log = []; try { log = JSON.parse(localStorage.getItem(RL_KEY)||"[]"); } catch {}
     log.push(Date.now()); localStorage.setItem(RL_KEY, JSON.stringify(log));
@@ -4525,6 +4557,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.68 | Date: 2026-08-04 | LAST CHANGE: "I'm sharing an event I'm not hosting" opens this same form, so the Event registration control was showing in the sharing flow and defaulting to Required - an event you do not run then asked people to Sign in to RSVP. It is now hidden and set to off when sharing, and always shown when hosting or editing. Switching back to hosting restores the Required default, so a host who changed their mind cannot silently post with registration off. (V12.66: event links encode the id.) -->
+<!-- Version: V12.69 | Date: 2026-08-04 | LAST CHANGE: Posting stamps hostType (host or socializer). In the sharing flow the name and link fields describe the POSTER, both filled from what the device remembers, since the backend has no name for her and returns no Appear URL. (V12.68: switching back to hosting restores the registration default.) -->
 </body>
 </html>
