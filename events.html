@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.72 | Date: 2026-08-10 | LAST CHANGE: The picture path anchors the year. Reading a flyer that gives a day and month with no year, the model landed a year late every time (3 of 3 on a live test); naming today's date again beside the image instruction fixed it (3 of 3). The existing rule at the top of the prompt says "when the text gives a date", which an image does not. (V12.71: upload a picture of an event.) -->
+<!-- Version: V12.73 | Date: 2026-08-10 | LAST CHANGE: The year on a bare date is now worked out in code. Reading a flyer that printed only a day and month, the model put the year a year late on two runs in three, and rewording the instruction did not hold. It now reports whether a 4-digit year was actually printed, and when it was not, _resolveBareYear picks the next year in which that day and month have not already gone by. (V12.71: upload a picture of an event.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1340,6 +1340,25 @@ async function fetchEventFromUrl() {
   btn.disabled = false; btn.textContent = _label;
 }
 
+// V12.73: take the month and day the model read, and give them the next year in which that
+// date has not already gone by. Today itself counts as upcoming.
+function _resolveBareYear(dateStr) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ""));
+  if (!m) return dateStr;
+  var mm = +m[2], dd = +m[3];
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return dateStr;
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var y = today.getFullYear();
+  var cand = new Date(y, mm - 1, dd);
+  // A 29 February rolls into March in a common year, so step on until the date is real.
+  var guard = 0;
+  while ((cand.getMonth() !== mm - 1 || cand.getDate() !== dd || cand < today) && guard < 8) {
+    y++; cand = new Date(y, mm - 1, dd); guard++;
+  }
+  if (cand.getMonth() !== mm - 1 || cand.getDate() !== dd) return dateStr;
+  return y + "-" + String(mm).padStart(2, "0") + "-" + String(dd).padStart(2, "0");
+}
+
 async function parseEventText() {
   const text = document.getElementById("paste-text").value.trim();
   const errEl = document.getElementById("parse-error");
@@ -1373,6 +1392,7 @@ Extract event details from this text. Return ONLY a JSON object with these field
   "title": "event name/title",
   "host": "host/organizer name",
   "date": "YYYY-MM-DD format",
+  "yearStated": true only if a 4-digit year is actually printed in the source, false if the source gives only a day and month,
   "time": "HH:MM in 24hr format (start time)",
   "endtime": "HH:MM in 24hr format (end time)",
   "format": "virtual" or "inperson" or "both",
@@ -1390,7 +1410,7 @@ Extract event details from this text. Return ONLY a JSON object with these field
 
 Category guide: ${CATEGORIES.map(function(c) { return c.label + "=" + c.label.toLowerCase(); }).join(", ")}
 
-${_pasteImage ? `The event details are in the image above. Read every word on it, including small print. A date on it with no year means the next occurrence on or after ${_todayStr} - tested, and without this line the year lands a year late.\n\n` : ""}Text to parse:
+${_pasteImage ? `The event details are in the image above. Read every word on it, including small print. A date on it with no year means the next occurrence on or after ${_todayStr}.\n\n` : ""}Text to parse:
 ${text || "(none - use the image)"}
 
 Return ONLY the JSON object, no explanation.`;
@@ -1433,6 +1453,10 @@ Return ONLY the JSON object, no explanation.`;
     // Fill in the form fields
     if (parsed.title) document.getElementById("f-title").value = parsed.title;
     if (parsed.host) document.getElementById("f-host").value = parsed.host;
+    // V12.73: when the source printed no year, the year is ours to work out, not the model's.
+    // Reading a flyer it put the date a year late on two runs in three, and no wording of the
+    // instruction fixed that reliably. A day and month resolve to the next time they come round.
+    if (parsed.date && parsed.yearStated === false) parsed.date = _resolveBareYear(parsed.date);
     if (parsed.date) setDateField(parsed.date);
     if (parsed.time) document.getElementById("f-time").value = parsed.time;
     if (parsed.endtime) document.getElementById("f-endtime").value = parsed.endtime;
@@ -4648,6 +4672,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.72 | Date: 2026-08-10 | LAST CHANGE: The picture path anchors the year. Reading a flyer that gives a day and month with no year, the model landed a year late every time (3 of 3 on a live test); naming today's date again beside the image instruction fixed it (3 of 3). The existing rule at the top of the prompt says "when the text gives a date", which an image does not. (V12.71: upload a picture of an event.) -->
+<!-- Version: V12.73 | Date: 2026-08-10 | LAST CHANGE: The year on a bare date is now worked out in code. Reading a flyer that printed only a day and month, the model put the year a year late on two runs in three, and rewording the instruction did not hold. It now reports whether a 4-digit year was actually printed, and when it was not, _resolveBareYear picks the next year in which that day and month have not already gone by. (V12.71: upload a picture of an event.) -->
 </body>
 </html>
