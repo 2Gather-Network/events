@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V12.76 | Date: 2026-08-10 | LAST CHANGE: The share box is titled "Share an event" now that it takes a link, text or a picture. A picture carrying several events fills the form with the first and says so at the top, pointing a whole calendar at hello@creating.works - before this the response came back as a list, the fill read single fields off it, and the form arrived blank in silence. Sharing an event you do not run no longer asks for the contribution list, contact details, group link, payment link or visibility, which is always public on a share; the Appear page option stays. The Appear explainer is rewritten and links to appear.network/dl/page. Editing a listing you shared now shows a sharer's form rather than the full hosting one: loadEditForm reads hostType off the event instead of the flag the posting flow leaves behind, and the contribution tick no longer reloads onto a hidden list. openEdit still resets to hosting first, so V12.67's stale-flag fix stands. (V12.73: bare-date years resolved in code.) -->
+<!-- Version: V12.77 | Date: 2026-08-10 | LAST CHANGE: The share box is titled "Share an event" now that it takes a link, text or a picture. A picture carrying several events fills the form with the first and says so at the top, pointing a whole calendar at hello@creating.works - before this the response came back as a list, the fill read single fields off it, and the form arrived blank in silence. Sharing an event you do not run no longer asks for the contribution list, contact details, group link, payment link or visibility, which is always public on a share; the Appear page option stays. The Appear explainer is rewritten and links to appear.network/dl/page. The Appear page link can no longer be typed, pasted or read off a flyer. Ticking "My Appear Network page" looks the address up through lookupProfile for whoever is posting and carries it in a hidden field; the paste box is gone, the extractor's hostlink is ignored, and sharing no longer plants a value without a tick. No page found means the tick comes back off with a line saying so. Five of the eleven links on the calendar pointed at app.daybalancer.com, three of those at screens that were not profile pages. (V12.76: editing a shared listing shows a sharer's form.) (V12.73: bare-date years resolved in code.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -706,10 +706,13 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
 
     <!-- #3 Updated label + validation error -->
     <div class="field" id="field-hostlink" style="display:none;">
-      <label class="field-label">Your Appear Network page link</label>
-      <input class="input" id="f-hostlink" type="url" placeholder="https://appear.network/dl/page/...">
+      <!-- V12.77: no box. Whatever sat here became the link behind a person's name on a public
+           page, and five of the eleven links on the calendar had been typed wrong. The address
+           is looked up for whoever is posting and travels in a hidden field. -->
+      <input type="hidden" id="f-hostlink">
+      <p id="hostlink-checking" style="display:none;font-size:12px;color:var(--muted);margin-top:6px;">Finding your Appear Network page...</p>
       <p id="hostlink-confirm" style="display:none;font-size:12px;color:#1B6896;font-weight:600;margin-top:6px;">✓ Your event will show your name and it will link directly to your Appear Network page.</p>
-      <p id="hostlink-error" style="display:none;font-size:12px;color:#c0392b;margin-top:4px;">This works with pages from Appear Network. <a href="https://appear.network/dl/page/" target="_blank" rel="noopener" style="color:#c0392b;font-weight:700;">Copy your page link here.</a></p>
+      <p id="hostlink-error" style="display:none;font-size:12px;color:#c0392b;margin-top:4px;">We could not find an Appear Network page for you. <a href="https://appear.network/dl/page" target="_blank" rel="noopener" style="color:#c0392b;font-weight:700;">Build yours here</a>, then tick this again.</p>
     </div>
 
     <div class="field" id="field-cooplink" style="display:none;">
@@ -1150,8 +1153,7 @@ function applySharingMode(sharing) {
   if (sharing) {
     var hn = document.getElementById("f-host");
     if (hn && !hn.value.trim()) hn.value = _knownPosterName();
-    var hl = document.getElementById("f-hostlink");
-    if (hl && !hl.value.trim()) hl.value = _knownAppearLink();
+    // V12.77: the link is no longer planted here. Ticking "My Appear Network page" looks it up.
   }
   // V12.74: a sharer is asked only for what a sharer can answer. The contribution list, the
   // contact details, the group link and the payment link all belong to whoever runs the event,
@@ -1431,7 +1433,6 @@ Extract event details from this text. Return ONLY a JSON object with these field
   "venue": "venue / place name only, e.g. Lake Ballinger Community Center (null if none)",
   "location": "street address only, WITHOUT the venue name (e.g. 23000 Lakeview Dr, Mountlake Terrace, WA)",
   "description": "event description",
-  "hostlink": "any URL for the host's page",
   "cooplink": "any group/organization URL",
   "paymentlink": "any registration/payment URL",
   "contactEmail": "contact email if mentioned",
@@ -1506,10 +1507,8 @@ Return ONLY the JSON object, no explanation.`;
     if (parsed.description) document.getElementById("f-desc").value = parsed.description;
     if (parsed.location) document.getElementById("f-location").value = parsed.location;
     if (parsed.venue) document.getElementById("f-venue").value = parsed.venue;
-    if (parsed.hostlink) {
-      document.getElementById("f-hostlink").value = parsed.hostlink;
-      document.getElementById("show-hostlink").checked = true;
-    }
+    // V12.77: parsed.hostlink is deliberately ignored. The Appear link is looked up for the
+    // person posting and is never taken from a flyer, a fetched page or anything typed.
     if (parsed.cooplink) {
       document.getElementById("f-cooplink").value = parsed.cooplink;
       document.getElementById("show-cooplink").checked = true;
@@ -3182,26 +3181,57 @@ function toggleLinkFields() {
   const hlInput = document.getElementById("f-hostlink");
   const hlErr = document.getElementById("hostlink-error");
   const hlConf = document.getElementById("hostlink-confirm");
+  const hlChk = document.getElementById("hostlink-checking");
   if (hlCb && hlField && hlInput) {
     if (hlCb.checked) {
-      const known = _knownAppearLink();
-      if (known) {
-        // V12.55: show the known link READ-ONLY + a confirmation, instead of hiding it.
-        hlInput.value = known;
-        hlInput.readOnly = true; hlInput.style.background = "#f3f4f6"; hlInput.style.color = "var(--muted)";
-        hlField.style.display = "block";
-        if (hlConf) hlConf.style.display = "block";
-        if (hlErr) hlErr.style.display = "none";
-      } else {
-        hlInput.readOnly = false; hlInput.style.background = ""; hlInput.style.color = "";
-        if (hlConf) hlConf.style.display = "none";
-        hlField.style.display = "block";  // not remembered yet -> show it for a one-time paste
-      }
+      // V12.77: the tick asks who is posting and looks their page up. Nothing is typed here.
+      hlField.style.display = "block";
+      if (hlConf) hlConf.style.display = "none";
+      if (hlErr) hlErr.style.display = "none";
+      if (hlChk) hlChk.style.display = "block";
+      _resolveMyAppearLink().then(function(link) {
+        // They may have unticked while the lookup was in flight.
+        if (!hlCb.checked) return;
+        if (hlChk) hlChk.style.display = "none";
+        hlInput.value = link || "";
+        if (link) {
+          if (hlConf) hlConf.style.display = "block";
+        } else {
+          // No page to link to, so the tick comes back off rather than leaving a name
+          // that promises a link the event does not have.
+          hlCb.checked = false;
+          if (hlErr) hlErr.style.display = "block";
+        }
+      });
     } else {
       hlField.style.display = "none";
+      hlInput.value = "";
       if (hlConf) hlConf.style.display = "none";
+      if (hlChk) hlChk.style.display = "none";
     }
   }
+}
+
+/* V12.77: one lookup per page load, shared by every tick. getMemberId is whoever has the form
+   open, so this returns that person's page rather than anyone else's. The device's own memory
+   is the fallback for a browser that cannot say who it belongs to, and it only ever holds an
+   appear.network address because _rememberAppearLink refuses anything else. */
+var _myAppearLinkPromise = null;
+function _resolveMyAppearLink() {
+  if (_myAppearLinkPromise) return _myAppearLinkPromise;
+  _myAppearLinkPromise = (async function() {
+    var me = getMemberId();
+    if (me) {
+      try {
+        var res = await fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(me));
+        var d = await res.json();
+        var link = String((d && d.pageLink) || "").trim();
+        if (/^https?:\/\/appear\.network\//i.test(link)) { _rememberAppearLink(link); return link; }
+      } catch (e) {}
+    }
+    return _knownAppearLink() || "";
+  })();
+  return _myAppearLinkPromise;
 }
 
 // V12.55: inline info reveal for "My Appear Network page" (no modal), and the bulk-calendar
@@ -4731,7 +4761,7 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.76 | Date: 2026-08-10 | LAST CHANGE: The share box is titled "Share an event" now that it takes a link, text or a picture. A picture carrying several events fills the form with the first and says so at the top, pointing a whole calendar at hello@creating.works - before this the response came back as a list, the fill read single fields off it, and the form arrived blank in silence. Sharing an event you do not run no longer asks for the contribution list, contact details, group link, payment link or visibility, which is always public on a share; the Appear page option stays. The Appear explainer is rewritten and links to appear.network/dl/page. Editing a listing you shared now shows a sharer's form rather than the full hosting one: loadEditForm reads hostType off the event instead of the flag the posting flow leaves behind, and the contribution tick no longer reloads onto a hidden list. openEdit still resets to hosting first, so V12.67's stale-flag fix stands. (V12.73: bare-date years resolved in code.) -->
+<!-- Version: V12.77 | Date: 2026-08-10 | LAST CHANGE: The share box is titled "Share an event" now that it takes a link, text or a picture. A picture carrying several events fills the form with the first and says so at the top, pointing a whole calendar at hello@creating.works - before this the response came back as a list, the fill read single fields off it, and the form arrived blank in silence. Sharing an event you do not run no longer asks for the contribution list, contact details, group link, payment link or visibility, which is always public on a share; the Appear page option stays. The Appear explainer is rewritten and links to appear.network/dl/page. The Appear page link can no longer be typed, pasted or read off a flyer. Ticking "My Appear Network page" looks the address up through lookupProfile for whoever is posting and carries it in a hidden field; the paste box is gone, the extractor's hostlink is ignored, and sharing no longer plants a value without a tick. No page found means the tick comes back off with a line saying so. Five of the eleven links on the calendar pointed at app.daybalancer.com, three of those at screens that were not profile pages. (V12.76: editing a shared listing shows a sharer's form.) (V12.73: bare-date years resolved in code.) -->
 </body>
 <!--
   Copyright 2026 DayBalancer LLC. All rights reserved.
