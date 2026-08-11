@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Version: V12.70 | Date: 2026-08-04 | LAST CHANGE: HOTFIX - V12.69 was missing a comma before hostType in toEv, which is a syntax error, so no script on the page ran and the calendar rendered zero events for everyone signed in. (V12.69: socializer credit.) -->
+<!-- Version: V12.71 | Date: 2026-08-10 | LAST CHANGE: "Paste event details" takes a picture as a third way in. Upload a flyer, a poster photo or a screenshot and it is shrunk in the browser to 1568px, then sent as an image block on the same Haiku call the pasted text already used - the extraction, the form fill and every field downstream are untouched. A HEIC the browser cannot decode says so plainly. The text box drops from 320px to 140px so all three ways in and both buttons sit on one screen. (V12.70: hotfix for the missing comma in toEv.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -152,8 +152,12 @@
   .choice-btn-title { font-size:15px; font-weight:700; color:var(--dark); margin-bottom:2px; }
   .choice-btn-desc { font-size:13px; color:var(--muted); }
   .paste-modal { max-width:560px; }
-  .paste-textarea { width:100%; min-height:320px; border:1.5px solid var(--border); border-radius:8px; padding:14px 16px; font-size:14px; font-family:inherit; color:var(--dark); background:var(--white); outline:none; resize:vertical; line-height:1.5; }
+  /* V12.71: 140px rather than 320px. With three ways in, the box was pushing the buttons
+     below the fold on a phone. It still drags taller for anyone pasting a long flyer. */
+  .paste-textarea { width:100%; min-height:140px; border:1.5px solid var(--border); border-radius:8px; padding:14px 16px; font-size:14px; font-family:inherit; color:var(--dark); background:var(--white); outline:none; resize:vertical; line-height:1.5; }
   .paste-textarea:focus { border-color:var(--primary); }
+  .paste-file-chip { display:none; align-items:center; gap:8px; margin-top:8px; font-size:13px; color:var(--dark); background:#F1F6FA; border:1px solid var(--border); border-radius:8px; padding:7px 12px; }
+  .paste-file-x { cursor:pointer; font-weight:700; color:var(--muted); background:none; border:none; font-size:15px; line-height:1; padding:0 2px; font-family:inherit; }
   .paste-hint { font-size:13px; color:var(--muted); margin-top:8px; margin-bottom:16px; }
   .parse-error { color:#c0392b; font-size:13px; margin-bottom:12px; display:none; }
   .parsing-status { color:var(--primary); font-size:13px; margin-bottom:12px; display:none; font-weight:600; }
@@ -462,7 +466,7 @@
 <div class="modal-overlay" id="paste-modal">
   <div class="modal paste-modal">
     <div class="modal-title">Paste event details</div>
-    <p style="font-size:14px;color:var(--muted);margin-bottom:16px;">Paste any text describing your event - an email, flyer, or notes. We'll extract the details and fill the form for you to review.</p>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:16px;">Paste a link, paste any text describing your event, or upload a picture of a flyer or poster. We'll extract the details and fill the form for you to review.</p>
     <!-- V12.38: fetch from a link. The Worker pulls the page server-side (browsers cannot fetch
          cross-origin) and returns its text, which drops into the box below for review before parsing. -->
     <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -470,7 +474,16 @@
         style="flex:1;min-width:0;border:1.5px solid var(--border);border-radius:8px;padding:9px 14px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;box-sizing:border-box;">
       <button class="btn btn-outline" style="flex-shrink:0;white-space:nowrap;" id="fetch-url-btn" onclick="fetchEventFromUrl()">Fetch from link</button>
     </div>
-    <div style="text-align:center;font-size:12px;color:var(--muted);margin-bottom:8px;">or paste the text yourself</div>
+    <!-- V12.71: third way in. A flyer, a screenshot or a photo of a poster goes straight to the
+         same extractor - the picture is shrunk in the browser and sent as an image block on the
+         very same call the pasted text uses, so nothing downstream changes. -->
+    <div style="text-align:center;font-size:12px;color:var(--muted);margin-bottom:8px;">or upload a picture of it</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <input type="file" id="paste-image-input" accept="image/*" style="display:none;" onchange="handlePasteImage(this)">
+      <button class="btn btn-outline" style="flex:1;" id="paste-image-btn" onclick="document.getElementById('paste-image-input').click()">🖼️ Upload image</button>
+    </div>
+    <div class="paste-file-chip" id="paste-file-chip"><span id="paste-file-name"></span><button type="button" class="paste-file-x" onclick="clearPasteImage()" aria-label="Remove image">✕</button></div>
+    <div style="text-align:center;font-size:12px;color:var(--muted);margin:8px 0;">or paste the text yourself</div>
     <textarea class="paste-textarea" id="paste-text" placeholder="Example:
 
 Community Wealth Circle
@@ -1206,12 +1219,83 @@ function openPasteModal() {
   document.getElementById("parsing-status").style.display = "none";
   document.getElementById("parse-btn").disabled = false;
   document.getElementById("parse-btn").textContent = "Parse and fill form";
+  clearPasteImage();
   document.getElementById("paste-modal").classList.add("open");
   setTimeout(() => document.getElementById("paste-text").focus(), 100);
 }
 
 function closePasteModal() {
   document.getElementById("paste-modal").classList.remove("open");
+  clearPasteImage();
+}
+
+// V12.71: the picture the host uploaded, already shrunk and base64'd, ready to travel as an
+// image block. Null whenever there is no picture.
+var _pasteImage = null;
+// Claude reads an image at up to 1568px on its long edge, so anything larger is detail nobody
+// sees and upload time nobody wants. Shrinking here also keeps a phone photo well inside the
+// API's 5MB ceiling.
+const PASTE_IMAGE_MAX_EDGE = 1568;
+
+function clearPasteImage() {
+  _pasteImage = null;
+  var chip = document.getElementById("paste-file-chip");
+  if (chip) chip.style.display = "none";
+  var input = document.getElementById("paste-image-input");
+  if (input) input.value = "";
+  var btn = document.getElementById("paste-image-btn");
+  if (btn) { btn.disabled = false; btn.textContent = "🖼️ Upload image"; }
+}
+
+function handlePasteImage(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  var errEl = document.getElementById("parse-error");
+  var btn = document.getElementById("paste-image-btn");
+  errEl.style.display = "none";
+  btn.disabled = true;
+  btn.textContent = "Reading...";
+
+  var reader = new FileReader();
+  reader.onerror = function() { _pasteImageFailed(file); };
+  reader.onload = function() {
+    var img = new Image();
+    // A HEIC straight off an iPhone is the one format a browser may refuse to decode, and it
+    // fails here rather than silently sending nothing.
+    img.onerror = function() { _pasteImageFailed(file); };
+    img.onload = function() {
+      var scale = Math.min(1, PASTE_IMAGE_MAX_EDGE / Math.max(img.width, img.height));
+      var w = Math.max(1, Math.round(img.width * scale));
+      var h = Math.max(1, Math.round(img.height * scale));
+      var canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext("2d");
+      // A flyer saved as a PNG often has a transparent background, which reads as black once
+      // it lands on a JPEG. White first keeps the text legible to the model.
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      var dataUrl;
+      try { dataUrl = canvas.toDataURL("image/jpeg", 0.85); }
+      catch(e) { _pasteImageFailed(file); return; }
+      _pasteImage = { mediaType: "image/jpeg", data: dataUrl.split(",")[1] || "", name: file.name || "image" };
+      document.getElementById("paste-file-name").textContent = _pasteImage.name;
+      document.getElementById("paste-file-chip").style.display = "flex";
+      btn.disabled = false;
+      btn.textContent = "🖼️ Replace image";
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function _pasteImageFailed(file) {
+  var errEl = document.getElementById("parse-error");
+  var heic = /\.(heic|heif)$/i.test((file && file.name) || "");
+  errEl.textContent = heic
+    ? "This browser can't read HEIC photos. On an iPhone, share the photo as a JPEG, or take a screenshot of it and upload that."
+    : "Couldn't read that image. Try a JPEG or PNG.";
+  errEl.style.display = "block";
+  clearPasteImage();
 }
 
 // V12.38: fetch a link's text through the Worker (server-side, so no browser CORS block),
@@ -1262,12 +1346,14 @@ async function parseEventText() {
   const statusEl = document.getElementById("parsing-status");
   const btn = document.getElementById("parse-btn");
   
-  if (!text || text.length < 20) {
-    errEl.textContent = "Please paste more details about your event.";
+  // V12.71: a picture carries the details on its own, so the length floor only applies when
+  // text is the only thing we were given.
+  if (!_pasteImage && (!text || text.length < 20)) {
+    errEl.textContent = "Please paste more details about your event, or upload a picture of it.";
     errEl.style.display = "block";
     return;
   }
-  
+
   errEl.style.display = "none";
   statusEl.style.display = "block";
   btn.disabled = true;
@@ -1304,19 +1390,24 @@ Extract event details from this text. Return ONLY a JSON object with these field
 
 Category guide: ${CATEGORIES.map(function(c) { return c.label + "=" + c.label.toLowerCase(); }).join(", ")}
 
-Text to parse:
-${text}
+${_pasteImage ? "The event details are in the image above. Read every word on it, including small print." : ""}Text to parse:
+${text || "(none - use the image)"}
 
 Return ONLY the JSON object, no explanation.`;
 
   try {
+    // V12.71: when a picture came in, it rides ahead of the same instructions as an image block.
+    // Haiku reads images, so the model and everything downstream stay exactly as they were.
+    const userContent = _pasteImage
+      ? [{ type: "image", source: { type: "base64", media_type: _pasteImage.mediaType, data: _pasteImage.data } }, { type: "text", text: prompt }]
+      : prompt;
     const response = await fetch(WORKER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 1000,
-        messages: [{ role: "user", content: prompt }]
+        messages: [{ role: "user", content: userContent }]
       })
     });
     
@@ -4557,6 +4648,6 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.70 | Date: 2026-08-04 | LAST CHANGE: HOTFIX - V12.69 was missing a comma before hostType in toEv, which is a syntax error, so no script on the page ran and the calendar rendered zero events for everyone signed in. (V12.69: socializer credit.) -->
+<!-- Version: V12.71 | Date: 2026-08-10 | LAST CHANGE: "Paste event details" takes a picture as a third way in. Upload a flyer, a poster photo or a screenshot and it is shrunk in the browser to 1568px, then sent as an image block on the same Haiku call the pasted text already used - the extraction, the form fill and every field downstream are untouched. A HEIC the browser cannot decode says so plainly. The text box drops from 320px to 140px so all three ways in and both buttons sit on one screen. (V12.70: hotfix for the missing comma in toEv.) -->
 </body>
 </html>
