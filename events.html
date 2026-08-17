@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V12.78 | Date: 2026-08-10 | LAST CHANGE: The share box is titled "Share an event" now that it takes a link, text or a picture. A picture carrying several events fills the form with the first and says so at the top, pointing a whole calendar at hello@creating.works - before this the response came back as a list, the fill read single fields off it, and the form arrived blank in silence. Sharing an event you do not run no longer asks for the contribution list, contact details, group link, payment link or visibility, which is always public on a share; the Appear page option stays. The Appear explainer is rewritten and links to appear.network/dl/page. The Appear page link can no longer be typed, pasted or read off a flyer. Ticking "My Appear Network page" looks the address up through lookupProfile for whoever is posting and carries it in a hidden field; the paste box is gone, the extractor's hostlink is ignored, and sharing no longer plants a value without a tick. No page found means the tick comes back off with a line saying so. Five of the eleven links on the calendar pointed at app.daybalancer.com, three of those at screens that were not profile pages. Posting while the lookup is still running waits for it rather than saving a tick with no address behind it. (V12.76: editing a shared listing shows a sharer's form.) (V12.73: bare-date years resolved in code.) -->
+<!-- Version: V12.79 | Date: 2026-08-05 | LAST CHANGE: Date to be announced now clears the END time too, so a lone end time cannot survive as "Time: - 1:00 PM". The posted-event box gets an X top-left and Done becomes View event, which opens the event you just posted - the only way to reach it when it is private. "My Appear Network page" no longer attaches when the host is someone else. (V12.78: Appear link looked up, never typed.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -922,7 +922,10 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
 
 <!-- EVENT SUMMARY MODAL -->
 <div class="modal-overlay" id="summary-modal">
-  <div class="modal" style="max-width:480px;">
+  <div class="modal" style="max-width:480px;position:relative;">
+    <!-- V12.79: a way out that is not "Done". Done sends you to My events, which is
+         no help when the event you just posted is private and you want to see it. -->
+    <button onclick="closeSummaryModal(true)" aria-label="Close" style="position:absolute;top:10px;left:12px;background:none;border:none;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;padding:4px 8px;font-family:inherit;">✕</button>
     <div style="text-align:center;margin-bottom:20px;">
       <div style="font-size:36px;margin-bottom:8px;">✅</div>
       <div class="modal-title" style="margin-bottom:4px;">Event posted!</div>
@@ -932,7 +935,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
       <button class="btn btn-green" style="flex:1;" onclick="copySummary()">📋 Copy all</button>
       <button class="btn btn-outline" style="flex:1;" id="summary-cal-btn" onclick="addToCalendarFromSummary()">📅 Add to calendar</button>
-      <button class="btn btn-outline" onclick="closeSummaryModal()">Done</button>
+      <button class="btn btn-outline" onclick="viewPostedEvent()">View event</button>
     </div>
     <p id="copy-confirm" style="text-align:center;font-size:13px;color:var(--green);font-weight:700;margin-top:10px;display:none;">Copied to clipboard!</p>
   </div>
@@ -3194,7 +3197,16 @@ function toggleLinkFields() {
         if (!hlCb.checked) return;
         if (hlChk) hlChk.style.display = "none";
         hlInput.value = link || "";
-        if (link) {
+        if (link && !_hostIsMe()) {
+          // V12.79: the host is someone else, so this page is not theirs to show.
+          hlInput.value = "";
+          hlCb.checked = false;
+          hlField.style.display = "none";
+          if (hlErr) {
+            hlErr.innerHTML = "This links <b>your</b> Appear Network page, so it only applies to events you are hosting. For someone else's event, paste their page into the link field instead.";
+            hlErr.style.display = "block";
+          }
+        } else if (link) {
           if (hlConf) hlConf.style.display = "block";
         } else {
           // No page to link to, so the tick comes back off rather than leaving a name
@@ -3217,6 +3229,20 @@ function toggleLinkFields() {
    is the fallback for a browser that cannot say who it belongs to, and it only ever holds an
    appear.network address because _rememberAppearLink refuses anything else. */
 var _myAppearLinkPromise = null;
+var _myAppearName = "";
+
+// V12.79: an Appear page belongs to a person, so it may only be attached to an
+// event that person is hosting. Posting on someone else's behalf and ticking
+// "My Appear Network page" was putting Jessie's page against their name.
+function _hostIsMe() {
+  var h = (document.getElementById("f-host") || {}).value || "";
+  h = h.trim();
+  if (!h) return true;                       // nothing typed yet, assume it is them
+  if (!_myAppearName) return true;           // we do not know who we are, do not block
+  var first = function (x) { return String(x).trim().split(/\s+/)[0].toLowerCase(); };
+  return first(h) === first(_myAppearName);
+}
+
 function _resolveMyAppearLink() {
   if (_myAppearLinkPromise) return _myAppearLinkPromise;
   _myAppearLinkPromise = (async function() {
@@ -3226,6 +3252,7 @@ function _resolveMyAppearLink() {
         var res = await fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(me));
         var d = await res.json();
         var link = String((d && d.pageLink) || "").trim();
+        _myAppearName = String((d && d.name) || "").trim();   // V12.79: used to check the host is me
         if (/^https?:\/\/appear\.network\//i.test(link)) { _rememberAppearLink(link); return link; }
       } catch (e) {}
     }
@@ -3593,12 +3620,27 @@ function showSummary(ev) {
 }
 
 function addToCalendarFromSummary() { if (summaryEventId) addToCalendar(summaryEventId); }
-function closeSummaryModal() {
+function closeSummaryModal(stay) {
   document.getElementById("summary-modal").classList.remove("open");
+  if (stay) return;   // V12.79: the ✕ dismisses and leaves you on the board
   const savedId = getMemberId();
   if (savedId && window.location.hash !== "#nomy") {
     window.location.href = "myevents.html?id=" + encodeURIComponent(savedId);
   }
+}
+
+// V12.79: a private event is off the calendar, so after posting one there was no
+// way to reach it. The id is already held for the QR and calendar buttons.
+function viewPostedEvent() {
+  document.getElementById("summary-modal").classList.remove("open");
+  if (!summaryEventId) { closeSummaryModal(); return; }
+  const base = window.location.href.replace(/\/[^/]*(\?.*)?$/, "/");
+  const mc = getMemberId();
+  const url = base + "event.html?id=" + encodeURIComponent(summaryEventId) + (mc ? "&memberCard=" + encodeURIComponent(mc) : "");
+  try {
+    if (window.self !== window.top) { window.top.location.href = url; return; }
+  } catch (e) {}
+  window.location.href = url;
 }
 
 let _notesEventId = null;
@@ -3663,7 +3705,9 @@ function fmtDateShort(date) {
 // and registerable by its direct link, and shows "Date to be announced" wherever a date would be.
 function toggleDateTbd() {
   var on = !!(document.getElementById("f-date-tbd") && document.getElementById("f-date-tbd").checked);
-  ["f-date","f-time"].forEach(function(id){
+  // V12.79: end time clears with the others. With no date and no start, an end
+  // time on its own reads as "Time: - 1:00 PM" on the posted summary.
+  ["f-date","f-time","f-endtime"].forEach(function(id){
     var el = document.getElementById(id);
     if (!el) return;
     el.disabled = on; el.style.opacity = on ? "0.5" : "";
@@ -4767,7 +4811,7 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.78 | Date: 2026-08-10 | LAST CHANGE: The share box is titled "Share an event" now that it takes a link, text or a picture. A picture carrying several events fills the form with the first and says so at the top, pointing a whole calendar at hello@creating.works - before this the response came back as a list, the fill read single fields off it, and the form arrived blank in silence. Sharing an event you do not run no longer asks for the contribution list, contact details, group link, payment link or visibility, which is always public on a share; the Appear page option stays. The Appear explainer is rewritten and links to appear.network/dl/page. The Appear page link can no longer be typed, pasted or read off a flyer. Ticking "My Appear Network page" looks the address up through lookupProfile for whoever is posting and carries it in a hidden field; the paste box is gone, the extractor's hostlink is ignored, and sharing no longer plants a value without a tick. No page found means the tick comes back off with a line saying so. Five of the eleven links on the calendar pointed at app.daybalancer.com, three of those at screens that were not profile pages. Posting while the lookup is still running waits for it rather than saving a tick with no address behind it. (V12.76: editing a shared listing shows a sharer's form.) (V12.73: bare-date years resolved in code.) -->
+<!-- Version: V12.79 | Date: 2026-08-05 | LAST CHANGE: Date to be announced now clears the END time too, so a lone end time cannot survive as "Time: - 1:00 PM". The posted-event box gets an X top-left and Done becomes View event, which opens the event you just posted - the only way to reach it when it is private. "My Appear Network page" no longer attaches when the host is someone else. (V12.78: Appear link looked up, never typed.) -->
 </body>
 <!--
   Copyright 2026 DayBalancer LLC. All rights reserved.
