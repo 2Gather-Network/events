@@ -18,7 +18,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌱</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>">
 <title>Group Hub — Creating Works</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -259,7 +259,7 @@ function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()
 // stored per item as "item" or "item:level" (2 parts) or "item:category:level" (3 parts)
 function parseTagStr(str){
   if(!str) return [];
-  return String(str).split('|').filter(Boolean).map(function(s){
+  return String(str).split(/[|,]/).filter(Boolean).map(function(s){
     var p=s.split(':');
     // meta = everything after the item: roles for interests (Fan,Participant,Coach), level for skills
     return {item:(p[0]||'').trim(), category:(p.length>=3?p[1]:'').trim(), meta:p.slice(1).join(':').trim()};
@@ -268,7 +268,7 @@ function parseTagStr(str){
 // needs stored as "item[:local]:ntype:category"
 function parseNeeds(str){
   if(!str) return [];
-  return String(str).split('|').filter(Boolean).map(function(s){
+  return String(str).split(/[|,]/).filter(Boolean).map(function(s){
     var detail=''; var tio=s.indexOf('~'); if(tio>-1){ try{detail=decodeURIComponent(s.slice(tio+1));}catch(e){detail=s.slice(tio+1);} s=s.slice(0,tio); }
     var p=s.split(':');
     var local=p[1]==='local';
@@ -312,26 +312,22 @@ function fmtDate(d){
   return String(d);
 }
 async function loadEvent(){
-  // GROUP-MVP-1: header shows the group name; skip event date/venue (group has no location).
+  // GROUP-MVP-2: header title comes from the mapped display event (getEventById), which owns
+  // the human-readable group/event name today. No date/venue for a group. Fallback "Group" if
+  // the fetch fails or the mapping is missing.
   var titleEl=document.getElementById('event-title');
   var metaEl=document.getElementById('event-meta');
-  if(titleEl) titleEl.textContent=_groupName;
   if(metaEl) metaEl.textContent='';
-  if(!_eventId) return;
+  if(!_eventId){ if(titleEl) titleEl.textContent='Group'; return; }
   try{
     var res=await fetch(GS_URL+'?action=getEventById&id='+encodeURIComponent(_eventId));
     var d=await res.json();
-    if(!d.found||!d.event) return;
+    if(!d.found||!d.event){ if(titleEl) titleEl.textContent='Group'; return; }
     var ev=d.event;
+    if(titleEl) titleEl.textContent=ev.title||'Group';
     window._hostEmail=ev.hostEmail||ev.contactEmail||'';
     var _hb=document.getElementById('hub-help-btn'); if(_hb) _hb.style.display=window._hostEmail?'':'none';
-    var bits=[];
-    var when='';
-    var where='';
-    if(when)  bits.push('📅 '+escHTML(when));
-    if(where) bits.push('📍 '+escHTML(where));
-    if(metaEl) metaEl.innerHTML=bits.join('');
-  }catch(e){}
+  }catch(e){ if(titleEl) titleEl.textContent='Group'; }
 }
 
 // ── Members ──
@@ -818,7 +814,7 @@ function filterAll(q){ _searchQ=(q||'').toLowerCase().trim(); renderAll(); }
 function renderHubNav(){
   var el=document.getElementById('hub-topnav'); if(!el) return;
   var WB='text-decoration:none;color:#185FA5;background:#fff;font-size:16px;font-weight:700;padding:12px 22px;border-radius:24px;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;';
-  var links='<a href="https://gather.2gather.network/events.html'+(_myId?'?memberCard='+encodeURIComponent(_myId):'')+'" style="'+WB+'">All events</a> <a href="#" onclick="return false" style="'+WB+'">All groups</a>';
+  var links='<a href="https://gather.2gather.network/events.html'+(_myId?'?memberCard='+encodeURIComponent(_myId):'')+'" style="'+WB+'">All events</a> <a href="https://appear.network/dl/groups" style="'+WB+'">All groups</a>';
   // "Event profile" (view mine) only when I'm signed in AND actually have a profile.
   // My photo is nested at the right of this pill (from _photoMap — no extra GAS call);
   // this replaces the old top-right face.
