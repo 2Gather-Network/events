@@ -334,8 +334,22 @@ function parseNeeds(str){
 }
 
 // ── Reference-data lookups ──
+// Fuzzy category lookup. Exact match first (fast), then a substring pass so Main-sourced
+// chips (Specialties, Indie shines in, etc.) still pick up a category when the label is
+// close but not identical to a reference-data entry. Results are memoized in _refCache.
+var _refCache={};
 function refFor(item){
-  return _catMap[String(item||'').toLowerCase()]||{category:'',associations:''};
+  var key=String(item||'').toLowerCase().trim();
+  if(!key) return {category:'',associations:''};
+  if(_refCache.hasOwnProperty(key)) return _refCache[key];
+  if(_catMap[key]){ _refCache[key]=_catMap[key]; return _catMap[key]; }
+  for(var k in _catMap){
+    if(!_catMap.hasOwnProperty(k) || !k) continue;
+    if(key.indexOf(k)>-1 || k.indexOf(key)>-1){ _refCache[key]=_catMap[k]; return _catMap[k]; }
+  }
+  var empty={category:'',associations:''};
+  _refCache[key]=empty;
+  return empty;
 }
 async function loadRefData(){
   try{
@@ -459,11 +473,15 @@ async function loadMember(appearId){
 function processRow(data, appearId){
   if(_members.some(function(m){return normId(m.appearId)===normId(appearId);})) return;
   var pm=_photoMap[normId(appearId)]||{};
+  // Searchable blob: concat of every text field so the header search box matches keywords
+  // (advocating, needs items, language, first name) even if they aren't in the chip label.
+  var search=String([data.first,data.name,data.languages,data.advocating,data.skills,data.interests,data.values,data.domains,data.needs].filter(Boolean).join(' ')).toLowerCase();
   var member={
     appearId:appearId,
     photo:pm.photo||'',
     pageLink:pm.pageLink||'',
     name:data.first||data.name||appearId,   // first name once getEventProfiles returns it; the id is only a last resort
+    search:search,
     skills:parseTagStr(data.skills),
     interests:parseTagStr(data.interests),
     values:parseTagStr(data.values).concat(parseTagStr(data.domains)),
@@ -520,7 +538,7 @@ function memberChips(field){
       var low=label.toLowerCase();
       if(_parentCats[low]) return;            // never show a 1st-degree parent category
       if(seen[low]) return; seen[low]=true;   // one chip per person per item
-      out.push({item:label, category:it.category||'', detail:it.detail||'', member:{appearId:m.appearId, photo:m.photo, pageLink:m.pageLink}});
+      out.push({item:label, category:it.category||'', detail:it.detail||'', member:{appearId:m.appearId, photo:m.photo, pageLink:m.pageLink, search:m.search||''}});
     });
   });
   return shuffle(out);
@@ -688,7 +706,12 @@ function renderSection(bodyId, countId, entries, needsMode, key){
   var filtered=entries.filter(function(en){
     if(!_searchQ) return true;
     var cat=needsMode?(en.category||''):(refFor(en.item).category||'');
-    return en.item.toLowerCase().indexOf(_searchQ)>-1 || cat.toLowerCase().indexOf(_searchQ)>-1;
+    if(en.item.toLowerCase().indexOf(_searchQ)>-1) return true;
+    if(cat.toLowerCase().indexOf(_searchQ)>-1) return true;
+    // Person-level search: match against the guest's full Main text (advocating, needs,
+    // language, name, etc.). Keeps the chip when any of their Main data mentions the query.
+    if(en.member && en.member.search && en.member.search.indexOf(_searchQ)>-1) return true;
+    return false;
   });
   if(countEl){
     var ppl={}; filtered.forEach(function(en){ ppl[normId(en.member.appearId)]=true; });
@@ -972,7 +995,10 @@ function updateHeaderButton(){
 (async function init(){
   document.title='Event Hub';                              // descriptive title for bookmarking
   var _sb=document.getElementById('hub-share-btn'); if(_sb && _eventId!=='m97sjwa3') _sb.style.display='none';   // QR share button is Lake-Ballinger-only
-  if(!_myId){ var _tb=document.querySelector('.top-bar'); if(_tb) _tb.style.display='none'; }   // search is signed-in-only (has memberCard)
+  if(!_myId){
+    var _tb=document.querySelector('.top-bar'); if(_tb) _tb.style.display='none';
+    var _sl=document.querySelector('.hub-search-slot'); if(_sl) _sl.style.display='none';   // search is signed-in-only
+  }
   renderHubNav();                                          // in-app nav above the header (blue body)
   loadEvent();                                             // independent, fire-and-forget (sets host email for the envelope button)
   var enrich=Promise.all([loadRefData(), loadCategories()]); // heavy — don't block first paint
