@@ -79,7 +79,8 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .gp-more{display:inline-flex;align-items:center;justify-content:center;padding:0 14px;height:36px;border-radius:24px;background:#2d5282;color:#fff;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;border:none;font-family:'DM Sans',sans-serif;}
 .gp-more:hover{background:#1e3a5f;}
 .q-count{font-size:13px;color:#9ea3b8;font-weight:600;}
-.lang-accent{width:100%;font-size:12px;color:#8a90a2;font-weight:600;padding:6px 2px 0;border-top:1px solid #f0f1f5;margin-top:4px;}
+.lang-accent{width:100%;font-size:12px;color:#8a90a2;font-weight:600;padding:6px 2px 0;border-top:1px solid #f0f1f5;margin-top:4px;cursor:pointer;}
+.lang-accent:hover{color:#2d5282;}
 .q-toggle{font-size:12px;color:#9ea3b8;transition:transform 0.2s;}
 .q-toggle.open{transform:rotate(180deg);}
 .q-body{padding:10px 12px;display:flex;flex-wrap:wrap;gap:7px;transition:max-height 0.25s ease;align-content:flex-start;}
@@ -399,11 +400,17 @@ async function loadMembers(){
     var res=await fetch(GS_URL+'?action=getGroupMembers&groupId='+encodeURIComponent(_groupId));
     var d=await res.json();
     if(d && d.attendees){
-      // Filter out test/staff accounts before anything downstream sees them.
+      // Filter out test/staff accounts and photoless guests before anything downstream sees them.
+      // Photoless guests are ones Main has no Image column value for (legacy imports, or accounts
+      // where the photo upload never completed).
+      var _dropTest=0, _dropNoPhoto=0;
       var attendees=d.attendees.filter(function(p){
         var nm=String(p.first||p.name||'').toLowerCase().trim();
-        return nm !== 'test' && nm.indexOf('test ') !== 0;
+        if(nm === 'test' || nm.indexOf('test ') === 0){ _dropTest++; return false; }
+        if(!p.photo || !String(p.photo).trim()){ _dropNoPhoto++; return false; }
+        return true;
       });
+      try{ console.log('[group-hub] filtered', _dropTest, 'test accounts and', _dropNoPhoto, 'photoless guests out of', d.attendees.length); }catch(e){}
       attendees.forEach(function(p){ _photoMap[normId(p.appearId)]={photo:p.photo||'',pageLink:p.pageLink||''}; });
       attendees.forEach(function(p){ processRow(p, p.appearId); });
       if(d.me){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
@@ -542,7 +549,7 @@ function buildChips(){
 // "Show all (N)" button that expands inline. Every img uses loading="lazy" so large groups
 // (Appear Network at 697 members) do not stall the tab on load. Guests whose name is "test"
 // (case-insensitive) are filtered out.
-var PHOTOS_INITIAL=60;
+var PHOTOS_INITIAL=(window.matchMedia && window.matchMedia('(max-width: 720px)').matches) ? 20 : 60;
 var _photosExpanded=false;
 function renderGuestPhotos(){
   var el=document.getElementById('guest-photos');
@@ -701,7 +708,7 @@ function renderSection(bodyId, countId, entries, needsMode, key){
   // skills chips keep their space. The full list lives in this section's "Show all" view.
   if(key==='skills'&&!_searchQ){
     var langs=allLanguages();
-    if(langs.length) html+='<div class="lang-accent">🗣 '+langs.length+' '+(langs.length===1?'language':'languages')+' spoken here</div>';
+    if(langs.length) html+='<div class="lang-accent" onclick="expandSection(\'skills\');">🗣 '+langs.length+' '+(langs.length===1?'language':'languages')+' spoken here</div>';
   }
   body.innerHTML=html;
 }
@@ -911,7 +918,8 @@ function toggleMatches(){
   _matchMode=!_matchMode;
   var btn=document.getElementById('matches-btn');
   var legend=document.getElementById('match-legend');
-  if(btn){ btn.classList.toggle('active',_matchMode); btn.textContent=_matchMode?'Show all':'My matches'; }
+  if(btn) btn.classList.toggle('active',_matchMode);
+  updateHeaderButton();
   if(legend) legend.style.display=_matchMode?'flex':'none';
   renderAll();
 }
@@ -938,9 +946,28 @@ function renderHubNav(){
   el.innerHTML='<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:18px 20px 20px;">'+links+'</div>';
 }
 // "My matches" only for someone with a completed event profile (matching needs their own data).
+// Count is (unique-person) matches summed across all four chip categories, computed after
+// buildChips has run. Shows as "My matches (N)"; in match mode the button text flips to "Show all".
+function countMyMatches(){
+  var seen={};
+  ['skills','interests','values'].forEach(function(k){
+    (_chips[k]||[]).forEach(function(en){
+      if(matchOfferingChip(en)) seen[normId(en.member&&en.member.appearId)]=true;
+    });
+  });
+  (_chips.needs||[]).forEach(function(en){
+    if(matchNeedChip(en)) seen[normId(en.member&&en.member.appearId)]=true;
+  });
+  delete seen[normId(_myId)];
+  return Object.keys(seen).filter(Boolean).length;
+}
 function updateHeaderButton(){
   var btn=document.getElementById('matches-btn'); if(!btn) return;
   btn.style.display=_myData?'':'none';
+  if(!_myData) return;
+  var n=0;
+  try{ n=countMyMatches(); }catch(e){}
+  btn.textContent=_matchMode ? 'Show all' : ('My matches'+(n?' ('+n+')':''));
 }
 (async function init(){
   document.title='Event Hub';                              // descriptive title for bookmarking
