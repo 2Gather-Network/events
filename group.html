@@ -221,10 +221,54 @@ function _profileUrl(appearId){
   return INTAKE_URL+encodeURIComponent(appearId||'')+(_myId?'&me='+encodeURIComponent(_myId):'');
 }
 
-// GROUP-MVP-2: read ?id= as GROUP id; map known groups to an ASSOCIATED EVENT for
-// display metadata (title). Group members will come from a future getGroupMembers
-// endpoint; until then, cards render empty. We do NOT show event attendees in place
-// of group members — those aren't the same set of people.
+// GROUP-MVP-3: id → name lookup for every known group (from Groups CSV, 41 entries).
+// Both id formats (Group ID and 🔒 New Group ID) point to the same name. beYd4M39RCqGSbP4KsNqGQ
+// is deliberately labelled "Appear Network" (override per Jessie 2026-08-17; source CSV had
+// "New network members"). Group names are only rendered when a viewer memberCard is present.
+var GROUP_NAMES = {
+  "00dX3VJnS9CrptCyDdyOpA": "Snohomish County",
+  "1pU..g-IQ0ivsuC3wDteeQ": "Amazon Alumni - New 🔥",
+  "2lr0EI4eSXilqAH5YfqTng": "Snohomish County",
+  "4gEUVsZtTG2ohNTaGx0T5w": "5 Corners",
+  "5.gZCl7vRzeG9SGmvaj.bw": "OGM",
+  "5JUwh7P7Tw6NW-Qrl-Do.A": "SINGAPORE",
+  "6p49G99ISM-X.o3qKgNjRA": "Ikigai Support",
+  "7LXDK-P.R7KAimhUCBBHOQ": "Creating Works Co-Creation Team",
+  "BG.r2UtBQJ2HyM36DqmOIg": "Campfire 🔥",
+  "BNjmp4OHRpinBBEgXg8uqw": "Dream Job",
+  "DSXpfADYROaaceHZlv5Zkw": "Dream Job",
+  "GKhStTT0R5WMDEdqfxx5eg": "Cooperative Business Network",
+  "IrTlfNBbRu2bdHbIDZmktA": "a11y Design",
+  "LC4PlqUwTX-w2XzdYNXVJw": "Climate Group",
+  "PFX71XCETkq14EMJeAb1YA": "Cooperative Business Network",
+  "PH.2C1LoT0WzQ3NzEYwYUQ": "BigeMaruppini Family",
+  "ZIkgXb-dSHK2Q-lq4hpPpQ": "Ikigai Support",
+  "a-qjnRIMuS1iZ3PjyCTBMOg": "5 Corners",
+  "bM-YWZO0SGyDdbgF2Gg2RQ": "ADMIN",
+  "beYd4M39RCqGSbP4KsNqGQ": "Appear Network",
+  "bfIi7iDdQZOq89wjvANsIQ": "a11y Design",
+  "eH7Z9mVdT1O2470M-u.BJA": "Seattle Tech Network",
+  "f-fb7Y5MSKmMDaJRUaPX4w": "Lake Ballinger Center",
+  "g9QwzwQ1RMSLt8VO1.v4kg": "Empty",
+  "hDW0yKagQemPm0BckoQDow": "Climate Group",
+  "hWMEAtB.Tp6.8qqSzNMNUQ": "Neuroemergent  - New 🔥",
+  "iUIQ2.fWT0uHbJuffaqliA": "GRC Network",
+  "m7ELRu.kTwuBjr0-KBUE0w": "New network members",
+  "mTXIojX7TbSd6-Bo-ETnng": "GRC Network",
+  "oLEurfI6TdOtG.bHSQyOaA": "Snohomish Green Build",
+  "q6AegNG6TkGsdn7Alcj75g": "ADMIN",
+  "qShtslngRVyVJbAMghA7NA": "OGM",
+  "tn.jgL8wQliq26wEwTv-ow": "Seattle Tech Network",
+  "u4kiXrDoRo-z-.zX63VlHQ": "BigeMaruppini Family",
+  "uF3ymszISk6ZxAsiLkIJlg": "Campfire 🔥",
+  "umXYs0cCTlW0uDVcqBi8UQ": "Hack for Social Impact",
+  "v-SI8y5OSUKcA6to2U87yg": "Creating Works Co-Creation Team",
+  "vPR5snGfQECf.gekNGzakQ": "Empty",
+  "wb-wqx2vTTWtKurfBBDjxA": "Women in Tech Seattle Regatta",
+  "ygerrVqVTD2q62REgC2aSQ": "Lake Ballinger Center"
+};
+
+// Legacy map (kept as a soft fallback if a group needs its title pulled from a display event).
 var params=new URLSearchParams(window.location.search);
 var _groupId=(params.get('id')||params.get('groupId')||params.get('group')||'').trim();
 var GROUP_TITLE_EVENT={
@@ -321,22 +365,27 @@ function fmtDate(d){
   return String(d);
 }
 async function loadEvent(){
-  // GROUP-MVP-2: header title comes from the mapped display event (getEventById), which owns
-  // the human-readable group/event name today. No date/venue for a group. Fallback "Group" if
-  // the fetch fails or the mapping is missing.
+  // GROUP-MVP-3: header shows the group name from GROUP_NAMES, and ONLY when a viewer is
+  // signed in (memberCard=). Anonymous viewers see a generic "Group" label — group names are
+  // not exposed publicly. Optional soft fallback to a mapped display event via getEventById
+  // when the id is not in GROUP_NAMES.
   var titleEl=document.getElementById('event-title');
   var metaEl=document.getElementById('event-meta');
   if(metaEl) metaEl.textContent='';
-  if(!_eventId){ if(titleEl) titleEl.textContent='Group'; return; }
+  if(!titleEl) return;
+  if(!_myId){ titleEl.textContent='Group'; return; }
+  var mapped=GROUP_NAMES[_groupId];
+  if(mapped){ titleEl.textContent=mapped; return; }
+  if(!_eventId){ titleEl.textContent='Group'; return; }
   try{
     var res=await fetch(GS_URL+'?action=getEventById&id='+encodeURIComponent(_eventId));
     var d=await res.json();
-    if(!d.found||!d.event){ if(titleEl) titleEl.textContent='Group'; return; }
+    if(!d.found||!d.event){ titleEl.textContent='Group'; return; }
     var ev=d.event;
-    if(titleEl) titleEl.textContent=ev.title||'Group';
+    titleEl.textContent=ev.title||'Group';
     window._hostEmail=ev.hostEmail||ev.contactEmail||'';
     var _hb=document.getElementById('hub-help-btn'); if(_hb) _hb.style.display=window._hostEmail?'':'none';
-  }catch(e){ if(titleEl) titleEl.textContent='Group'; }
+  }catch(e){ titleEl.textContent='Group'; }
 }
 
 // ── Members ──
