@@ -132,6 +132,7 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .mp-key-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block;}
 .mp-key-dot.share{background:#5DCAA5;}
 .mp-key-dot.comp{background:#EE8B2C;}
+.mp-key-dot.coseek{background:#7F77DD;}
 .mp-row{display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-top:1px solid #DDE4EE;}
 .mp-row:first-of-type{border-top:none;padding-top:6px;}
 .mp-photo{width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;}
@@ -143,6 +144,7 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .mp-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:6px;display:inline-block;}
 .mp-dot.share{background:#5DCAA5;}
 .mp-dot.comp{background:#EE8B2C;}
+.mp-dot.coseek{background:#7F77DD;}
 .mp-item-text{display:flex;flex-direction:column;}
 .mp-item-name{line-height:1.3;}
 .mp-note{font-size:11px;color:#6A8FAF;margin-top:2px;}
@@ -777,7 +779,7 @@ function computeMyMatches(){
   var byPerson={};
   function slotFor(mem){
     var mid=normId(mem.appearId);
-    if(!byPerson[mid]) byPerson[mid]={appearId:mem.appearId,photo:mem.photo||'',pageLink:mem.pageLink||'',shared:{},comp:{}};
+    if(!byPerson[mid]) byPerson[mid]={appearId:mem.appearId,photo:mem.photo||'',pageLink:mem.pageLink||'',shared:{},comp:{},coseek:{}};
     return byPerson[mid];
   }
   ['skills','interests','values'].forEach(function(field){
@@ -795,7 +797,8 @@ function computeMyMatches(){
     var mt=matchNeedChip(en); if(!mt) return;
     var slot=slotFor(en.member);
     var key=en.item.toLowerCase();
-    if(mt==='green'){ slot.shared[key]={item:en.item}; }
+    // Both need the same thing -> its own bucket (purple), not lumped in with "in common" offers.
+    if(mt==='green'){ slot.coseek[key]={item:en.item}; }
     else if(mt==='orange'){ slot.comp[key]={item:en.item, direction:'you offer / they need'}; }
   });
   var out=[];
@@ -806,9 +809,10 @@ function computeMyMatches(){
     s.name=mem.name||mem.appearId;
     s.sharedList=Object.keys(s.shared).map(function(k){return s.shared[k];});
     s.compList=Object.keys(s.comp).map(function(k){return s.comp[k];});
+    s.coseekList=Object.keys(s.coseek).map(function(k){return s.coseek[k];});
     out.push(s);
   });
-  out.sort(function(a,b){ return (b.sharedList.length+b.compList.length)-(a.sharedList.length+a.compList.length); });
+  out.sort(function(a,b){ return (b.sharedList.length+b.compList.length+b.coseekList.length)-(a.sharedList.length+a.compList.length+a.coseekList.length); });
   return out;
 }
 
@@ -822,6 +826,7 @@ function renderMatchesPanel(){
     if((m.name||'').toLowerCase().indexOf(q)>-1) return true;
     for(var i=0;i<m.sharedList.length;i++){ if(m.sharedList[i].item.toLowerCase().indexOf(q)>-1) return true; }
     for(var j=0;j<m.compList.length;j++){ if(m.compList[j].item.toLowerCase().indexOf(q)>-1) return true; }
+    for(var k=0;k<m.coseekList.length;k++){ if(m.coseekList[k].item.toLowerCase().indexOf(q)>-1) return true; }
     return false;
   }) : matches;
   var n=filtered.length;
@@ -829,7 +834,7 @@ function renderMatchesPanel(){
     ? n+' of '+total+' '+(total===1?'match':'matches')
     : total+' '+(total===1?'person':'people')+' match you';
   var head='<div class="mp-head"><div><div class="mp-title">'+titleLine+'</div>'+(total?'<div class="mp-sub">Most matches first</div>':'')+'</div></div>';
-  var key='<div class="mp-key"><span class="mp-key-item"><span class="mp-key-dot share"></span>In common</span><span class="mp-key-item"><span class="mp-key-dot comp"></span>Offer/need match</span></div>';
+  var key='<div class="mp-key"><span class="mp-key-item"><span class="mp-key-dot share"></span>In common</span><span class="mp-key-item"><span class="mp-key-dot comp"></span>Offer/need match</span><span class="mp-key-item"><span class="mp-key-dot coseek"></span>You both need this</span></div>';
   var search=total>5 ? '<div class="mp-search-wrap"><input type="text" class="mp-search" placeholder="Filter by name or skill…" oninput="filterMatches(this.value)" value="'+escHTML(_matchesQ)+'"></div>' : '';
   if(!total){
     var msg=_myData
@@ -852,6 +857,8 @@ function renderMatchesPanel(){
       return '<div class="mp-item"><span class="mp-dot share"></span><div class="mp-item-text"><span class="mp-item-name">'+escHTML(it.item)+'</span></div></div>';
     }).concat(m.compList.map(function(c){
       return '<div class="mp-item"><span class="mp-dot comp"></span><div class="mp-item-text"><span class="mp-item-name">'+escHTML(c.item)+'</span><span class="mp-note">'+escHTML(c.direction)+'</span></div></div>';
+    })).concat(m.coseekList.map(function(cs){
+      return '<div class="mp-item"><span class="mp-dot coseek"></span><div class="mp-item-text"><span class="mp-item-name">'+escHTML(cs.item)+'</span></div></div>';
     })).join('');
     return '<div class="mp-row">'
       +photoEl
