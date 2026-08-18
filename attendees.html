@@ -71,6 +71,15 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .mp-search-wrap{padding:0 0 12px;}
 .mp-search{width:100%;padding:10px 14px;border:1px solid #DDE4EE;border-radius:20px;font-size:14px;font-family:'DM Sans',sans-serif;background:#F7F9FC;color:#1A2E42;box-sizing:border-box;}
 .mp-search:focus{outline:none;border-color:#1F699E;background:#fff;}
+/* Photo strip below the header (mirrors group.html) */
+.guest-photos{display:flex;flex-wrap:wrap;gap:6px;padding:10px 0 0;margin-top:10px;border-top:1px solid #f0f1f5;}
+.guest-photos .gp-count{font-size:12.5px;color:#6b7280;font-weight:600;width:100%;padding-bottom:6px;}
+.guest-photo{width:36px;height:36px;border-radius:50%;overflow:hidden;background:#e8eaf0;cursor:pointer;flex-shrink:0;position:relative;}
+.guest-photo.noclick{cursor:default;}
+.guest-photo img{width:100%;height:100%;object-fit:cover;display:block;}
+.guest-photo:hover{outline:2px solid #2d5282;}
+.gp-more{display:inline-flex;align-items:center;justify-content:center;padding:0 14px;height:36px;border-radius:24px;background:#2d5282;color:#fff;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;border:none;font-family:'DM Sans',sans-serif;}
+.gp-more:hover{background:#1e3a5f;}
 .hub-btn-group{display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .btn-help{background:#2d5282;color:#fff;border:none;border-radius:24px;height:38px;padding:0 14px;font-size:16px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;flex-shrink:0;line-height:38px;}
 .btn-help:hover{background:#1e3a5f;}
@@ -180,6 +189,7 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
       <span class="lg"><span class="dot dot-orange"></span>You can help / they can help</span>
       <span class="lg"><span class="dot dot-green"></span>Shared in common</span>
     </div>
+    <div class="guest-photos" id="guest-photos"></div>
   </div>
 </div>
 
@@ -501,7 +511,65 @@ function buildChips(){
   _chips.interests=memberChips('interests');
   _chips.values   =memberChips('values');
   _chips.needs    =memberChips('needs');
+  renderGuestPhotos();
 }
+
+// ── Photo strip below the header (mirrors group.html) ──
+// Shows PHOTOS_INITIAL faces from _members, viewer first if signed in. Search filters both the
+// strip and the chip sections via filterAll. "Show more" appends PHOTOS_STEP at a time.
+var PHOTOS_INITIAL=(window.matchMedia && window.matchMedia('(max-width: 720px)').matches) ? 20 : 60;
+var PHOTOS_STEP=30;
+var _photosShown=PHOTOS_INITIAL;
+var _shuffledMembers=null;
+function renderGuestPhotos(){
+  var el=document.getElementById('guest-photos');
+  if(!el) return;
+  var visible=_members.filter(function(m){
+    var nm=(m.name||m.first||'').toLowerCase().trim();
+    if(nm==='test' || nm.indexOf('test ')===0) return false;
+    if(_searchQ && (!m.search || m.search.indexOf(_searchQ)===-1)) return false;
+    if(!m.photo) return false;
+    return true;
+  });
+  if(!visible.length){ el.style.display='none'; return; }
+  if(!_shuffledMembers || _shuffledMembers.length !== visible.length){
+    _shuffledMembers=shuffle(visible.slice());
+    if(_myId){
+      var mineIdx=-1;
+      for(var i=0;i<_shuffledMembers.length;i++){ if(normId(_shuffledMembers[i].appearId)===normId(_myId)){ mineIdx=i; break; } }
+      if(mineIdx>0){ var me=_shuffledMembers.splice(mineIdx,1)[0]; _shuffledMembers.unshift(me); }
+    }
+  }
+  var ordered=_shuffledMembers;
+  el.style.display='';
+  var n=ordered.length;
+  var showCount=Math.min(_photosShown, n);
+  var slice=ordered.slice(0, showCount);
+  var head='<div class="gp-count">'+n+' '+(n===1?'person':'people')+' here</div>';
+  var cells=slice.map(function(m){
+    var display=m.name||m.appearId||'';
+    var inner=m.photo
+      ? '<img src="'+escHTML(m.photo)+'" alt="" loading="lazy" onerror="var p=this.closest(\'.guest-photo\'); if(p) p.remove();">'
+      : '';
+    if(!inner) return '';
+    var attrs=' title="'+escHTML(display)+'"';
+    if(_myId){
+      attrs+=' onclick="openProfile(\''+escHTML(m.appearId||'')+'\',\''+escHTML(m.pageLink||'')+'\')"';
+      return '<div class="guest-photo"'+attrs+'>'+inner+'</div>';
+    }
+    return '<div class="guest-photo noclick"'+attrs+'>'+inner+'</div>';
+  }).join('');
+  var buttons='';
+  if(showCount < n){
+    buttons+='<button class="gp-more" onclick="loadMorePhotos()">Show more</button>';
+  }
+  if(_photosShown > PHOTOS_INITIAL){
+    buttons+=' <button class="gp-more" onclick="resetPhotos()">Show fewer</button>';
+  }
+  el.innerHTML=head+cells+buttons;
+}
+window.loadMorePhotos=function(){ _photosShown += PHOTOS_STEP; renderGuestPhotos(); };
+window.resetPhotos=function(){ _photosShown = PHOTOS_INITIAL; renderGuestPhotos(); try{document.getElementById('guest-photos').scrollIntoView({behavior:'smooth',block:'start'});}catch(e){} };
 
 // ── Match colour for a single person's chip (never pairs a user with themselves) ──
 // Offering chip (skills / interests / values):
@@ -770,6 +838,8 @@ function renderAll(){
   var cta=document.getElementById('profile-cta');
   var exp=document.getElementById('expanded-view');
   var panel=document.getElementById('matches-panel');
+  var photos=document.getElementById('guest-photos');
+  var searchSlot=document.querySelector('.hub-search-slot');
   if(_expanded){                                          // full-page single-quadrant view
     if(grid) grid.style.display='none';
     if(contrib) contrib.style.display='none';
@@ -785,6 +855,8 @@ function renderAll(){
     if(cta) cta.style.display='';
     if(exp) exp.style.display='none';
     if(panel) panel.style.display='';
+    if(photos) photos.style.display='none';
+    if(searchSlot) searchSlot.style.display='none';
     renderMatchesPanel();
     return;
   }
@@ -793,6 +865,8 @@ function renderAll(){
   if(cta) cta.style.display='';
   if(exp) exp.style.display='none';
   if(panel) panel.style.display='none';
+  if(photos) photos.style.display='';
+  if(searchSlot) searchSlot.style.display='';
   renderSection('skills-body','skills-count',_chips.skills,false,'skills');
   renderSection('interests-body','interests-count',_chips.interests,false,'interests');
   renderSection('values-body','values-count',_chips.values,false,'values');
@@ -983,7 +1057,7 @@ function toggleMatches(){
   try{window.scrollTo(0,0);}catch(e){}
   renderAll();
 }
-function filterAll(q){ _searchQ=(q||'').toLowerCase().trim(); renderAll(); }
+function filterAll(q){ _searchQ=(q||'').toLowerCase().trim(); renderAll(); renderGuestPhotos(); }
 
 // ── Boot ──
 // Fire all independent GAS calls in parallel. Paint chips as soon as people load
