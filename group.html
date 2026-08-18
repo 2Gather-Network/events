@@ -152,6 +152,9 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .mp-btn.primary{background:#2d5282;color:#fff;border-color:#2d5282;}
 .mp-btn.primary:hover{background:#1e3a5f;}
 .mp-empty{padding:40px 20px;text-align:center;color:#6A8FAF;font-size:14px;}
+.mp-search-wrap{padding:0 0 12px;}
+.mp-search{width:100%;padding:10px 14px;border:1px solid #DDE4EE;border-radius:20px;font-size:14px;font-family:'DM Sans',sans-serif;background:#F7F9FC;color:#1A2E42;box-sizing:border-box;}
+.mp-search:focus{outline:none;border-color:#1F699E;background:#fff;}
 </style>
 </head>
 <body>
@@ -809,20 +812,38 @@ function computeMyMatches(){
   return out;
 }
 
+var _matchesQ='';
 function renderMatchesPanel(){
   var el=document.getElementById('matches-panel'); if(!el) return;
   var matches=computeMyMatches();
-  var n=matches.length;
-  var head='<div class="mp-head"><div><div class="mp-title">'+n+' '+(n===1?'person':'people')+' match you</div>'+(n?'<div class="mp-sub">Most matches first</div>':'')+'</div><a class="mp-back" onclick="toggleMatches()">Back to categories</a></div>';
+  var total=matches.length;
+  var q=_matchesQ;
+  var filtered=q ? matches.filter(function(m){
+    if((m.name||'').toLowerCase().indexOf(q)>-1) return true;
+    for(var i=0;i<m.sharedList.length;i++){ if(m.sharedList[i].item.toLowerCase().indexOf(q)>-1) return true; }
+    for(var j=0;j<m.compList.length;j++){ if(m.compList[j].item.toLowerCase().indexOf(q)>-1) return true; }
+    return false;
+  }) : matches;
+  var n=filtered.length;
+  var titleLine=q
+    ? n+' of '+total+' '+(total===1?'match':'matches')
+    : total+' '+(total===1?'person':'people')+' match you';
+  var head='<div class="mp-head"><div><div class="mp-title">'+titleLine+'</div>'+(total?'<div class="mp-sub">Most matches first</div>':'')+'</div></div>';
   var key='<div class="mp-key"><span class="mp-key-item"><span class="mp-key-dot share"></span>In common</span><span class="mp-key-item"><span class="mp-key-dot comp"></span>Offer/need match</span></div>';
-  if(!n){
+  var search=total>5 ? '<div class="mp-search-wrap"><input type="text" class="mp-search" placeholder="Filter by name or skill…" oninput="filterMatches(this.value)" value="'+escHTML(_matchesQ)+'"></div>' : '';
+  if(!total){
     var msg=_myData
       ? 'Nobody in this group shares or complements your profile yet.'
       : 'Fill out your event profile to see who you match with here.';
     el.innerHTML=head+key+'<div class="mp-empty">'+escHTML(msg)+'</div>';
     return;
   }
-  var rows=matches.map(function(m){
+  if(q && !n){
+    el.innerHTML=head+key+search+'<div class="mp-empty">No matches for "'+escHTML(q)+'".</div>';
+    var _sf=el.querySelector('.mp-search'); if(_sf){ _sf.focus(); var _v=_sf.value; _sf.value=''; _sf.value=_v; }
+    return;
+  }
+  var rows=filtered.map(function(m){
     var initial=escHTML((m.name||m.appearId||'?').charAt(0).toUpperCase());
     var photoEl=m.photo
       ? '<img class="mp-photo" src="'+escHTML(m.photo)+'" alt="" data-initial="'+initial+'" onerror="imgFallback(this)">'
@@ -841,8 +862,12 @@ function renderMatchesPanel(){
       +'</div>'
     +'</div>';
   }).join('');
-  el.innerHTML=head+key+rows;
+  el.innerHTML=head+key+search+rows;
+  // Keep the search input focused after re-render so typing doesn't drop caret.
+  var sf=el.querySelector('.mp-search');
+  if(sf && q){ sf.focus(); var v=sf.value; sf.value=''; sf.value=v; }
 }
+window.filterMatches=function(q){ _matchesQ=(q||'').toLowerCase().trim(); renderMatchesPanel(); };
 
 window.bookmarkMatch=function(btn, theirId){
   if(!_myId){ if(typeof showToast==='function') showToast('Sign in to bookmark'); return; }
