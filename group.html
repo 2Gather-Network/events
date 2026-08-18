@@ -568,7 +568,9 @@ function buildChips(){
 // (Appear Network at 697 members) do not stall the tab on load. Guests whose name is "test"
 // (case-insensitive) are filtered out.
 var PHOTOS_INITIAL=(window.matchMedia && window.matchMedia('(max-width: 720px)').matches) ? 20 : 60;
-var _photosExpanded=false;
+var PHOTOS_STEP=30;             // "Load more" adds this many at a time
+var _photosShown=PHOTOS_INITIAL;
+var _shuffledMembers=null;      // shuffled once per session and reused so the browser cache hits on re-renders
 function renderGuestPhotos(){
   var el=document.getElementById('guest-photos');
   if(!el) return;
@@ -577,18 +579,22 @@ function renderGuestPhotos(){
     return nm !== 'test' && nm.indexOf('test ') !== 0;
   });
   if(!visible.length){ el.style.display='none'; return; }
-  // Shuffle so the same faces are not front-loaded every session, then hoist the viewer
-  // to the front so their own face is always the first chip.
-  visible=shuffle(visible.slice());
-  if(_myId){
-    var mineIdx=-1;
-    for(var i=0;i<visible.length;i++){ if(normId(visible[i].appearId)===normId(_myId)){ mineIdx=i; break; } }
-    if(mineIdx>0){ var me=visible.splice(mineIdx,1)[0]; visible.unshift(me); }
+  // Shuffle ONCE per session and reuse. Subsequent renders (Load more, Show fewer) reuse
+  // the same order so the browser cache serves the same img URLs without a fresh flicker.
+  if(!_shuffledMembers || _shuffledMembers.length !== visible.length){
+    _shuffledMembers=shuffle(visible.slice());
+    if(_myId){
+      var mineIdx=-1;
+      for(var i=0;i<_shuffledMembers.length;i++){ if(normId(_shuffledMembers[i].appearId)===normId(_myId)){ mineIdx=i; break; } }
+      if(mineIdx>0){ var me=_shuffledMembers.splice(mineIdx,1)[0]; _shuffledMembers.unshift(me); }
+    }
   }
+  var ordered=_shuffledMembers;
   el.style.display='';
-  var n=visible.length;
+  var n=ordered.length;
+  var showCount=Math.min(_photosShown, n);
+  var slice=ordered.slice(0, showCount);
   var head='<div class="gp-count">'+n+' '+(n===1?'guest':'guests')+' in this group</div>';
-  var slice=_photosExpanded?visible:visible.slice(0,PHOTOS_INITIAL);
   var cells=slice.map(function(m){
     var display=m.name||m.appearId||'';
     // No initial fallback: if the photo URL 404s, drop the whole cell rather than showing
@@ -604,16 +610,19 @@ function renderGuestPhotos(){
     }
     return '<div class="guest-photo noclick"'+attrs+'>'+inner+'</div>';
   }).join('');
-  var more='';
-  if(!_photosExpanded && n>PHOTOS_INITIAL){
-    more='<button class="gp-more" onclick="expandGuestPhotos()">Show all ('+n+')</button>';
-  } else if(_photosExpanded && n>PHOTOS_INITIAL){
-    more='<button class="gp-more" onclick="collapseGuestPhotos()">Show fewer</button>';
+  var buttons='';
+  if(showCount < n){
+    var remain=n-showCount;
+    var step=Math.min(PHOTOS_STEP, remain);
+    buttons+='<button class="gp-more" onclick="loadMorePhotos()">Load '+step+' more ('+remain+' left)</button>';
   }
-  el.innerHTML=head+cells+more;
+  if(_photosShown > PHOTOS_INITIAL){
+    buttons+=' <button class="gp-more" onclick="resetPhotos()">Show fewer</button>';
+  }
+  el.innerHTML=head+cells+buttons;
 }
-window.expandGuestPhotos=function(){ _photosExpanded=true; renderGuestPhotos(); };
-window.collapseGuestPhotos=function(){ _photosExpanded=false; renderGuestPhotos(); try{document.getElementById('guest-photos').scrollIntoView({behavior:'smooth',block:'start'});}catch(e){} };
+window.loadMorePhotos=function(){ _photosShown += PHOTOS_STEP; renderGuestPhotos(); };
+window.resetPhotos=function(){ _photosShown = PHOTOS_INITIAL; renderGuestPhotos(); try{document.getElementById('guest-photos').scrollIntoView({behavior:'smooth',block:'start'});}catch(e){} };
 
 // ── Match colour for a single person's chip (never pairs a user with themselves) ──
 // Offering chip (skills / interests / values):
