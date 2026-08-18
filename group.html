@@ -577,16 +577,26 @@ function renderGuestPhotos(){
     return nm !== 'test' && nm.indexOf('test ') !== 0;
   });
   if(!visible.length){ el.style.display='none'; return; }
+  // Shuffle so the same faces are not front-loaded every session, then hoist the viewer
+  // to the front so their own face is always the first chip.
+  visible=shuffle(visible.slice());
+  if(_myId){
+    var mineIdx=-1;
+    for(var i=0;i<visible.length;i++){ if(normId(visible[i].appearId)===normId(_myId)){ mineIdx=i; break; } }
+    if(mineIdx>0){ var me=visible.splice(mineIdx,1)[0]; visible.unshift(me); }
+  }
   el.style.display='';
   var n=visible.length;
   var head='<div class="gp-count">'+n+' '+(n===1?'guest':'guests')+' in this group</div>';
   var slice=_photosExpanded?visible:visible.slice(0,PHOTOS_INITIAL);
   var cells=slice.map(function(m){
     var display=m.name||m.appearId||'';
-    var initial=(display.charAt(0)||'?').toUpperCase();
+    // No initial fallback: if the photo URL 404s, drop the whole cell rather than showing
+    // a lone letter (avoids the 'A' problem she flagged).
     var inner=m.photo
-      ? '<img src="'+escHTML(m.photo)+'" alt="" loading="lazy" onerror="this.parentNode.innerHTML=&quot;<div class=\\&quot;gp-initial\\&quot;>'+escHTML(initial)+'</div>&quot;">'
-      : '<div class="gp-initial">'+escHTML(initial)+'</div>';
+      ? '<img src="'+escHTML(m.photo)+'" alt="" loading="lazy" onerror="var p=this.closest(\'.guest-photo\'); if(p) p.remove();">'
+      : '';
+    if(!inner) return '';
     var attrs=' title="'+escHTML(display)+'"';
     if(_myId){
       attrs+=' onclick="openProfile(\''+escHTML(m.appearId||'')+'\',\''+escHTML(m.pageLink||'')+'\')"';
