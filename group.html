@@ -812,7 +812,13 @@ function computeMyMatches(){
     s.coseekList=Object.keys(s.coseek).map(function(k){return s.coseek[k];});
     out.push(s);
   });
-  out.sort(function(a,b){ return (b.sharedList.length+b.compList.length+b.coseekList.length)-(a.sharedList.length+a.compList.length+a.coseekList.length); });
+  // Priority order: offer/need > both-need > in-common. Any comp match beats any row without one,
+  // then coseek, then shared as the final tie-break.
+  out.sort(function(a,b){
+    if(b.compList.length!==a.compList.length) return b.compList.length-a.compList.length;
+    if(b.coseekList.length!==a.coseekList.length) return b.coseekList.length-a.coseekList.length;
+    return b.sharedList.length-a.sharedList.length;
+  });
   return out;
 }
 
@@ -834,7 +840,7 @@ function renderMatchesPanel(){
     ? n+' of '+total+' '+(total===1?'match':'matches')
     : total+' '+(total===1?'person':'people')+' match you';
   var head='<div class="mp-head"><div><div class="mp-title">'+titleLine+'</div>'+(total?'<div class="mp-sub">Most matches first</div>':'')+'</div></div>';
-  var key='<div class="mp-key"><span class="mp-key-item"><span class="mp-key-dot share"></span>In common</span><span class="mp-key-item"><span class="mp-key-dot comp"></span>Offer/need match</span><span class="mp-key-item"><span class="mp-key-dot coseek"></span>You both need this</span></div>';
+  var key='<div class="mp-key"><span class="mp-key-item"><span class="mp-key-dot comp"></span>Offer/need match</span><span class="mp-key-item"><span class="mp-key-dot coseek"></span>You both need this</span><span class="mp-key-item"><span class="mp-key-dot share"></span>In common</span></div>';
   var search=total>5 ? '<div class="mp-search-wrap"><input type="text" class="mp-search" placeholder="Filter by name or skill…" oninput="filterMatches(this.value)" value="'+escHTML(_matchesQ)+'"></div>' : '';
   if(!total){
     var msg=_myData
@@ -853,12 +859,13 @@ function renderMatchesPanel(){
     var photoEl=m.photo
       ? '<img class="mp-photo" src="'+escHTML(m.photo)+'" alt="" data-initial="'+initial+'" onerror="imgFallback(this)">'
       : '<div class="mp-photo-fallback">'+initial+'</div>';
-    var items=m.sharedList.map(function(it){
-      return '<div class="mp-item"><span class="mp-dot share"></span><div class="mp-item-text"><span class="mp-item-name">'+escHTML(it.item)+'</span></div></div>';
-    }).concat(m.compList.map(function(c){
+    // Item order mirrors the row priority: offer/need first, then both-need, then in-common.
+    var items=m.compList.map(function(c){
       return '<div class="mp-item"><span class="mp-dot comp"></span><div class="mp-item-text"><span class="mp-item-name">'+escHTML(c.item)+'</span><span class="mp-note">'+escHTML(c.direction)+'</span></div></div>';
-    })).concat(m.coseekList.map(function(cs){
+    }).concat(m.coseekList.map(function(cs){
       return '<div class="mp-item"><span class="mp-dot coseek"></span><div class="mp-item-text"><span class="mp-item-name">'+escHTML(cs.item)+'</span></div></div>';
+    })).concat(m.sharedList.map(function(it){
+      return '<div class="mp-item"><span class="mp-dot share"></span><div class="mp-item-text"><span class="mp-item-name">'+escHTML(it.item)+'</span></div></div>';
     })).join('');
     return '<div class="mp-row">'
       +photoEl
