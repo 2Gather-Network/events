@@ -538,22 +538,49 @@ async function loadMyDataFallback(){
   }catch(e){}
 }
 
+// Union merge: ikigai items win on duplicates (they carry sub-levels), Main-only items still surface.
+function unionByItem(mainArr, ikArr){
+  var out=[]; var seen={};
+  (ikArr||[]).forEach(function(x){
+    if(!x||!x.item) return;
+    var k=String(x.item).toLowerCase().trim();
+    if(seen[k]) return;
+    seen[k]=true; out.push(x);
+  });
+  (mainArr||[]).forEach(function(x){
+    if(!x||!x.item) return;
+    var k=String(x.item).toLowerCase().trim();
+    if(seen[k]) return;
+    seen[k]=true; out.push(x);
+  });
+  return out;
+}
 function processRow(data, appearId){
   if(_members.some(function(m){return normId(m.appearId)===normId(appearId);})) return;
   var pm=_photoMap[normId(appearId)]||{};
-  // Searchable blob: concat of every text field so the header search box matches keywords
-  // (advocating, needs items, language, first name) even if they aren't in the chip label.
-  var search=String([data.first,data.name,data.languages,data.advocating,data.skills,data.interests,data.values,data.domains,data.needs].filter(Boolean).join(' ')).toLowerCase();
+  // Searchable blob: include Main AND ikigai tokens so header search finds people via ikigai items too.
+  var search=String([data.first,data.name,data.languages,data.advocating,
+    data.skills,data.interests,data.values,data.domains,data.needs,
+    data.ikigaiSkills,data.ikigaiInterests,data.ikigaiValues,data.ikigaiDomains,data.ikigaiNeeds
+  ].filter(Boolean).join(' ')).toLowerCase();
+  var mainSkills    = parseTagStr(data.skills);
+  var mainInterests = parseTagStr(data.interests);
+  var mainValues    = parseTagStr(data.values).concat(parseTagStr(data.domains));
+  var mainNeeds     = parseNeeds(data.needs);
+  var ikSkills      = data.ikigaiSkills    ? parseTagStr(data.ikigaiSkills)    : [];
+  var ikInterests   = data.ikigaiInterests ? parseTagStr(data.ikigaiInterests) : [];
+  var ikValues      = data.ikigaiValues    ? parseTagStr(data.ikigaiValues).concat(data.ikigaiDomains?parseTagStr(data.ikigaiDomains):[]) : (data.ikigaiDomains?parseTagStr(data.ikigaiDomains):[]);
+  var ikNeeds       = data.ikigaiNeeds     ? parseNeeds(data.ikigaiNeeds)      : [];
   var member={
     appearId:appearId,
     photo:pm.photo||'',
     pageLink:pm.pageLink||'',
     name:data.first||data.name||appearId,   // first name once getEventProfiles returns it; the id is only a last resort
     search:search,
-    skills:parseTagStr(data.skills),
-    interests:parseTagStr(data.interests),
-    values:parseTagStr(data.values).concat(parseTagStr(data.domains)),
-    needs:parseNeeds(data.needs),
+    skills:    unionByItem(mainSkills, ikSkills),
+    interests: unionByItem(mainInterests, ikInterests),
+    values:    unionByItem(mainValues, ikValues),
+    needs:     unionByItem(mainNeeds, ikNeeds),
     languages:String(data.languages||'').split('|').map(function(s){return s.trim();}).filter(Boolean)
   };
   _members.push(member);
