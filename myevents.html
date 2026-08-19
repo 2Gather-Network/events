@@ -1623,7 +1623,7 @@ async function renderMyEventsList(memberId, data) {
   };
   const sectionLabel = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);';
   function listHTML(evs, emptyMsg){
-    if(!evs.length) return '<div style="font-size:14px;color:var(--muted);margin:8px 0 16px;">'+emptyMsg+'</div><a href="https://gather.2gather.network" style="display:inline-block;background:var(--primary);color:#fff;font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;text-decoration:none;">Browse events</a>';
+    if(!evs.length) return '<div style="font-size:14px;color:var(--muted);margin:8px 0 16px;">'+emptyMsg+'</div><a href="https://2gather.network" style="display:inline-block;background:var(--primary);color:#fff;font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;text-decoration:none;">Browse events</a>';
     var up=evs.filter(isUpcoming), pa=evs.filter(function(e){return !isUpcoming(e);});
     var h='';
     if(up.length) h+='<div style="'+sectionLabel+'margin:0 0 10px;">Upcoming</div>'+up.map(row).join('');
@@ -1633,20 +1633,32 @@ async function renderMyEventsList(memberId, data) {
   function tabBtn(id,label,active){ return '<button onclick="myEvTab(\''+id+'\')" id="tab-'+id+'-btn" style="flex:1;background:'+(active?'var(--primary)':'#fff')+';color:'+(active?'#fff':'var(--dark)')+';border:1px solid '+(active?'var(--primary)':'var(--border)')+';padding:9px 12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">'+label+'</button>'; }
   var _WB = 'text-decoration:none;color:#185FA5;background:#fff;font-size:14px;font-weight:600;padding:8px 15px;border-radius:20px;white-space:nowrap;';
   var _tn = document.getElementById('topnav');
+  // Placeholder photo icon; swapped for the real photo once lookupProfile returns.
+  var _mePic = '<span id="topnav-me-photo-wrap" style="width:22px;height:22px;border-radius:50%;background:#e6ebf3;display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;">👤</span>';
   if (_tn) _tn.innerHTML = '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#1F699E;padding:12px 14px;border-radius:12px;margin:0 0 20px;">'
-    + '<a href="https://gather.2gather.network/events.html?memberCard=' + encodeURIComponent(memberId) + '" style="' + _WB + '">All events</a>'
-    + '<a href="https://creating.works/intake.html?show=' + encodeURIComponent(memberId) + '" style="' + _WB + '">Event profile</a>'
+    + '<a href="https://2gather.network" style="' + _WB + '">All events</a>'
+    + '<a href="https://appear.network/dl/groups" style="' + _WB + '">My groups</a>'
+    + '<a href="https://creating.works/intake.html?show=' + encodeURIComponent(memberId) + '&me=' + encodeURIComponent(memberId) + '" style="' + _WB + 'display:inline-flex;align-items:center;gap:8px;">My profile' + _mePic + '</a>'
     + '</div>';
+  // Fire-and-forget photo lookup so the My profile pill gets the person's face instead of a placeholder.
+  (function(){
+    fetch(GS_URL + '?action=lookupProfile&appearId=' + encodeURIComponent(memberId))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d || !d.found || !d.photo) return;
+        var wrap = document.getElementById('topnav-me-photo-wrap');
+        if(!wrap) return;
+        wrap.outerHTML = '<img id="topnav-me-photo-wrap" src="' + esc(d.photo) + '" alt="me" style="width:22px;height:22px;border-radius:50%;object-fit:cover;">';
+      }).catch(function(){});
+  })();
   let html = '<div class="card-body"><h1 style="margin:0 0 16px;">My events</h1>';
-  if (hosting.length) {
-    html += '<div style="display:flex;border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:16px;">'
-      + tabBtn('attending','Attending ('+attending.length+')',true)
-      + tabBtn('hosting','Hosting ('+hosting.length+')',false) + '</div>';
-    html += '<div id="tab-attending">' + listHTML(attending, "You\'re not registered for any events yet.") + '</div>';
-    html += '<div id="tab-hosting" style="display:none;">' + listHTML(hosting, "You\'re not hosting any events yet.") + '</div>';
-  } else {
-    html += listHTML(attending, "You\'re not registered for any events yet.");
-  }
+  // Always show both tabs even when Hosting is empty — the tab itself is a signal
+  // that hosting exists as a mode, and a zero-state message lands you in the right place.
+  html += '<div style="display:flex;border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:16px;">'
+    + tabBtn('attending','Attending ('+attending.length+')',true)
+    + tabBtn('hosting','Hosting ('+hosting.length+')',false) + '</div>';
+  html += '<div id="tab-attending">' + listHTML(attending, "You\'re not registered for any events yet.") + '</div>';
+  html += '<div id="tab-hosting" style="display:none;">' + listHTML(hosting, "You haven\'t hosted any events yet.") + '</div>';
   html += '</div>';
   card.innerHTML = html;
   window.myEvTab = function(which){
