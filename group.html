@@ -362,6 +362,23 @@ function parseTagStr(str){
     return {item:(p[0]||'').trim(), category:(p.length>=3?p[1]:'').trim(), meta:p.slice(1).join(':').trim()};
   }).filter(function(o){return o.item;});
 }
+// Ikigai interests only: items split on | (never comma) because a single item may carry a
+// comma-separated multi-role suffix like "Kayaking:Participant,Fan". Comma-splitting here
+// used to break "Fan" off as its own bogus chip.
+function parseIkigaiInterests(str){
+  if(!str) return [];
+  return String(str).split('|').filter(Boolean).map(function(s){
+    var p=s.split(':');
+    return {item:(p[0]||'').trim(), category:(p.length>=3?p[1]:'').trim(), meta:p.slice(1).join(':').trim()};
+  }).filter(function(o){return o.item;});
+}
+// Display helper: title-case the first letter of each whitespace-separated word.
+// Preserves internal casing so acronyms like MTG / PNW stay untouched.
+function titleCase(s){
+  return String(s||'').split(/(\s+)/).map(function(w){
+    return w && w.charAt(0) ? w.charAt(0).toUpperCase() + w.slice(1) : w;
+  }).join('');
+}
 // needs stored as "item[:local]:ntype:category"
 function parseNeeds(str){
   if(!str) return [];
@@ -565,11 +582,17 @@ function processRow(data, appearId){
   ].filter(Boolean).join(' ')).toLowerCase();
   var mainSkills        = parseTagStr(data.skills);
   var mainCommunityType = parseTagStr(data.interests);   // Main.Desired community type — kept for future event matching, NOT rendered as a recreational interest
-  var mainHobbies       = data.hobbies ? parseTagStr(data.hobbies).filter(function(h){ return h.item.split(/\s+/).length <= 2; }) : [];   // Main.Hobbies — comma-separated, may carry :Coach role suffix; drop >2 word tokens as a safety net
+  // Main.Hobbies — comma-separated, may carry :Coach role suffix; drop >2 word tokens as a safety net.
+  // Every hobby defaults to a Fan role tag; Coach wins if we detected it during import.
+  var mainHobbies       = data.hobbies
+    ? parseTagStr(data.hobbies)
+        .filter(function(h){ return h.item.split(/\s+/).length <= 2; })
+        .map(function(h){ if(!h.meta) h.meta='Fan'; return h; })
+    : [];
   var mainValues        = parseTagStr(data.values).concat(parseTagStr(data.domains));
   var mainNeeds         = parseNeeds(data.needs);
   var ikSkills          = data.ikigaiSkills    ? parseTagStr(data.ikigaiSkills)    : [];
-  var ikInterests       = data.ikigaiInterests ? parseTagStr(data.ikigaiInterests) : [];
+  var ikInterests       = data.ikigaiInterests ? parseIkigaiInterests(data.ikigaiInterests) : [];
   var ikValues          = data.ikigaiValues    ? parseTagStr(data.ikigaiValues).concat(data.ikigaiDomains?parseTagStr(data.ikigaiDomains):[]) : (data.ikigaiDomains?parseTagStr(data.ikigaiDomains):[]);
   var ikNeeds           = data.ikigaiNeeds     ? parseNeeds(data.ikigaiNeeds)      : [];
   var member={
@@ -794,7 +817,7 @@ function chipHTML(entry, matchType, needsMode){
   var infoEl='';   // (i) seeking-detail removed from hub chips
   var popEl='';
   // Click into a profile only on the signed-in hub (has memberCard); anonymous chips are not clickable.
-  var _chipInner=photoEl+'<div class="chip-text"><span class="chip-label">'+escHTML(label)+'</span>'+catEl+'</div>';
+  var _chipInner=photoEl+'<div class="chip-text"><span class="chip-label">'+escHTML(titleCase(label))+'</span>'+catEl+'</div>';
   var openInner=_myId
     ? '<span class="chip-open" onclick="openProfile(\''+escHTML(mem.appearId||'')+'\',\''+escHTML(mem.pageLink||'')+'\')">'+_chipInner+'</span>'
     : '<span class="chip-open" style="cursor:default;">'+_chipInner+'</span>';
