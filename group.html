@@ -448,19 +448,20 @@ async function loadEvent(){
   var metaEl=document.getElementById('event-meta');
   if(metaEl) metaEl.textContent='';
   if(!titleEl) return;
-  if(!_myId){ titleEl.textContent='Group'; return; }
+  var setTitle=function(name){ titleEl.textContent = name ? ('Hub: ' + name) : 'Hub'; };
+  if(!_myId){ setTitle(''); return; }
   var mapped=GROUP_NAMES[_groupId];
-  if(mapped){ titleEl.textContent=mapped; return; }
-  if(!_eventId){ titleEl.textContent='Group'; return; }
+  if(mapped){ setTitle(mapped); return; }
+  if(!_eventId){ setTitle(''); return; }
   try{
     var res=await fetch(GS_URL+'?action=getEventById&id='+encodeURIComponent(_eventId));
     var d=await res.json();
-    if(!d.found||!d.event){ titleEl.textContent='Group'; return; }
+    if(!d.found||!d.event){ setTitle(''); return; }
     var ev=d.event;
-    titleEl.textContent=ev.title||'Group';
+    setTitle(ev.title||'');
     window._hostEmail=ev.hostEmail||ev.contactEmail||'';
     var _hb=document.getElementById('hub-help-btn'); if(_hb) _hb.style.display=window._hostEmail?'':'none';
-  }catch(e){ titleEl.textContent='Group'; }
+  }catch(e){ setTitle(''); }
 }
 
 // ── Members ──
@@ -588,11 +589,11 @@ function processRow(data, appearId){
   var mainCommunityType = parseTagStr(data.interests);        // Main.Desired community type — fallback for interests when ikigai is empty
   var mainProfSvc       = data.professionalServices ? parseTagStr(data.professionalServices) : [];   // Main.Professional services — fallback for skills when ikigai is empty
   // Main.Hobbies — comma-separated, may carry :Coach role suffix; drop >2 word tokens as a safety net.
-  // Every hobby defaults to a Fan role tag; Coach wins if we detected it during import.
+  // Every hobby defaults to a Participant role tag; Coach wins if we detected it during import.
   var mainHobbies       = data.hobbies
     ? parseTagStr(data.hobbies)
         .filter(function(h){ return h.item.split(/\s+/).length <= 2; })
-        .map(function(h){ if(!h.meta) h.meta='Fan'; return h; })
+        .map(function(h){ if(!h.meta) h.meta='Participant'; return h; })
     : [];
   var mainValues        = parseTagStr(data.values).concat(parseTagStr(data.domains));   // Main.values now includes Eco focus via getGroupMembers
   var mainNeeds         = parseNeeds(data.needs);
@@ -814,13 +815,21 @@ document.addEventListener('click', function(e){
   var pops=document.querySelectorAll('.seek-detail-pop');
   for(var k=0;k<pops.length;k++){ if(pops[k].style.display==='block'){ pops[k].style.display='none'; if(pops[k].parentNode) pops[k].parentNode.style.zIndex=''; } }
 });
-function chipHTML(entry, matchType, needsMode){
+function chipHTML(entry, matchType, needsMode, key){
   var label=entry.item;
   var mem=entry.member||{};
   var photo=mem.photo;
   var dim=_matchMode&&!matchType;
   var cls='chip'+(dim?' dim':'')+(matchType==='green'?' match':'')+(matchType==='orange'?' match-need':'')+(_myId?'':' noclick');
-  var cat=needsMode?(entry.category||''):(refFor(label).category||'');
+  // Subtitle sourcing:
+  //  - needs: entry.category (from parseNeeds, already meaningful)
+  //  - interests: entry.meta (role — Participant, Fan, Coach); blank if no role. Reference-data category ignored here because it produces bad joins like Beach→Court.
+  //  - everything else (skills, values): reference-data category
+  var cat;
+  if(needsMode){ cat=entry.category||''; }
+  else if(key==='interests'){ cat=(entry.meta||'').split(',').map(function(s){return s.trim();}).filter(Boolean).join(', '); }
+  else { cat=refFor(label).category||''; }
+  if(cat==='Domain') cat='Domain interest';
   var initial=escHTML((label||'?').charAt(0).toUpperCase());
   var photoEl=photo
     ?'<img class="chip-photo" src="'+escHTML(photo)+'" alt="" data-initial="'+initial+'" onerror="imgFallback(this)">'
@@ -1013,7 +1022,7 @@ function renderSection(bodyId, countId, entries, needsMode, key){
   var shown=filtered.slice(0,10);   // grid shows first 10; "Show all" opens the full in-page view
   var html=shown.map(function(en){
     var mt=_matchMode?(needsMode?matchNeedChip(en):matchOfferingChip(en)):'';
-    return chipHTML(en, mt, needsMode);
+    return chipHTML(en, mt, needsMode, key);
   }).join('');
   if(filtered.length>10){
     html+='<div class="show-all-pill-wrap"><a class="show-all-pill" onclick="expandSection(\''+key+'\')">Show all ('+filtered.length+')</a></div>';
@@ -1118,7 +1127,7 @@ function renderExpanded(){
   });
   var chipsFor=function(list){
     return list.length
-      ? list.map(function(en){ var mt=_matchMode?(meta.needsMode?matchNeedChip(en):matchOfferingChip(en)):''; return chipHTML(en, mt, meta.needsMode); }).join('')
+      ? list.map(function(en){ var mt=_matchMode?(meta.needsMode?matchNeedChip(en):matchOfferingChip(en)):''; return chipHTML(en, mt, meta.needsMode, key); }).join('')
       : '<span class="empty">Nothing here yet.</span>';
   };
 
