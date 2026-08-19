@@ -432,18 +432,55 @@ async function loadMember(appearId){
   }catch(e){}
 }
 
+// Ikigai interests only: items split on | (never comma) because a single item may carry a
+// comma-separated multi-role suffix like "Kayaking:Participant,Fan".
+function parseIkigaiInterests(str){
+  if(!str) return [];
+  return String(str).split('|').filter(Boolean).map(function(s){
+    var p=s.split(':');
+    return {item:(p[0]||'').trim(), category:(p.length>=3?p[1]:'').trim(), meta:p.slice(1).join(':').trim()};
+  }).filter(function(o){return o.item;});
+}
 function processRow(data, appearId){
   if(_members.some(function(m){return normId(m.appearId)===normId(appearId);})) return;
   var pm=_photoMap[normId(appearId)]||{};
+  // Searchable blob: include Main AND ikigai tokens so search finds people via either source.
+  var search=String([data.first,data.name,data.languages,data.advocating,
+    data.skills,data.interests,data.values,data.domains,data.needs,data.hobbies,data.professionalServices,
+    data.ikigaiSkills,data.ikigaiInterests,data.ikigaiValues,data.ikigaiDomains,data.ikigaiNeeds
+  ].filter(Boolean).join(' ')).toLowerCase();
+  // Rule of thumb: Main-sourced items that lack an ikigai-shaped category subtitle are only
+  // shown as a FALLBACK when the corresponding ikigai lane is empty. Same as group.html.
+  var mainSkills        = parseTagStr(data.skills);
+  var mainCommunityType = parseTagStr(data.interests);   // Main.Desired community type — fallback for interests
+  var mainProfSvc       = data.professionalServices ? parseTagStr(data.professionalServices) : [];   // fallback for skills
+  var mainHobbies       = data.hobbies
+    ? parseTagStr(data.hobbies)
+        .filter(function(h){ return h.item.split(/\s+/).length <= 2; })
+        .map(function(h){ if(!h.meta) h.meta='Participant'; return h; })
+    : [];
+  var mainValues        = parseTagStr(data.values).concat(parseTagStr(data.domains));
+  var mainNeeds         = parseNeeds(data.needs);
+  var ikSkills          = data.ikigaiSkills    ? parseTagStr(data.ikigaiSkills)    : [];
+  var ikInterests       = data.ikigaiInterests ? parseIkigaiInterests(data.ikigaiInterests) : [];
+  var ikValues          = data.ikigaiValues    ? parseTagStr(data.ikigaiValues).concat(data.ikigaiDomains?parseTagStr(data.ikigaiDomains):[]) : (data.ikigaiDomains?parseTagStr(data.ikigaiDomains):[]);
+  var ikNeeds           = data.ikigaiNeeds     ? parseNeeds(data.ikigaiNeeds)      : [];
   var member={
     appearId:appearId,
     photo:pm.photo||'',
     pageLink:pm.pageLink||'',
     name:data.first||data.name||appearId,   // first name once getEventProfiles returns it; the id is only a last resort
-    skills:parseTagStr(data.skills),
-    interests:parseTagStr(data.interests),
-    values:parseTagStr(data.values).concat(parseTagStr(data.domains)),
-    needs:parseNeeds(data.needs),
+    search:search,
+    skills:        ikSkills.length
+                   ? unionByItem(mainSkills, ikSkills)
+                   : unionByItem(mainSkills, mainProfSvc),
+    interests:     (ikInterests.length
+                   ? unionByItem(mainHobbies, ikInterests)
+                   : unionByItem(mainHobbies, mainCommunityType))
+                   .map(function(x){ if(!x.meta) x.meta='Participant'; return x; }),
+    communityType: mainCommunityType,
+    values:        unionByItem(mainValues, ikValues),
+    needs:         unionByItem(mainNeeds, ikNeeds),
     languages:String(data.languages||'').split('|').map(function(s){return s.trim();}).filter(Boolean)
   };
   _members.push(member);
