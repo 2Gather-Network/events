@@ -541,25 +541,35 @@ function someoneElse(map){
 }
 
 // ── One chip per person per item (parent categories excluded) ──
+// Round-robin ordering: chips grouped by person, interleaved so first N shown are unique people.
 function memberChips(field){
-  var out=[];
+  var byPerson={};
+  var pids=[];
   _members.forEach(function(m){
+    var pid=normId(m.appearId);
     var seen={};
     (m[field]||[]).forEach(function(it){
       var label=(it.item||'').trim(); if(!label) return;
       var low=label.toLowerCase();
-      if(_parentCats[low]) return;            // never show a 1st-degree parent category
-      if(seen[low]) return; seen[low]=true;   // one chip per person per item
-      out.push({item:label, category:it.category||'', meta:it.meta||'', detail:it.detail||'', member:{appearId:m.appearId, photo:m.photo, pageLink:m.pageLink}});
+      if(_parentCats[low]) return;
+      if(seen[low]) return; seen[low]=true;
+      if(!byPerson[pid]){ byPerson[pid]=[]; pids.push(pid); }
+      byPerson[pid].push({item:label, category:it.category||'', meta:it.meta||'', detail:it.detail||'', member:{appearId:m.appearId, photo:m.photo, pageLink:m.pageLink}});
     });
   });
-  var shuffled = shuffle(out);
+  pids=shuffle(pids);
+  pids.forEach(function(pid){ byPerson[pid]=shuffle(byPerson[pid]); });
+  var out=[]; var maxLen=0;
+  pids.forEach(function(pid){ if(byPerson[pid].length>maxLen) maxLen=byPerson[pid].length; });
+  for(var i=0;i<maxLen;i++){
+    pids.forEach(function(pid){ if(byPerson[pid][i]) out.push(byPerson[pid][i]); });
+  }
   if (field === 'needs') {
-    var withCat = shuffled.filter(function(c){ return c.category; });
-    var bare    = shuffled.filter(function(c){ return !c.category; });
+    var withCat = out.filter(function(c){ return c.category; });
+    var bare    = out.filter(function(c){ return !c.category; });
     return withCat.concat(bare);
   }
-  return shuffled;
+  return out;
 }
 // Languages spoken across everyone here, de-duped case-insensitively, alphabetical.
 // Shown as a one-line accent under the skills chips (so nothing gets squeezed), and in full on Show all.
