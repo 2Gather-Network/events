@@ -667,6 +667,7 @@ var PHOTOS_INITIAL=(window.matchMedia && window.matchMedia('(max-width: 720px)')
 var PHOTOS_STEP=30;             // "Load more" adds this many at a time
 var _photosShown=PHOTOS_INITIAL;
 var _shuffledMembers=null;      // shuffled once per session and reused so the browser cache hits on re-renders
+var _withCount=0;               // count of viewer + members with any profile info; used to hide empties from the initial strip when the group has >30 people
 function renderGuestPhotos(){
   var el=document.getElementById('guest-photos');
   if(!el) return;
@@ -681,11 +682,11 @@ function renderGuestPhotos(){
   // the same order so the browser cache serves the same img URLs without a fresh flicker.
   if(!_shuffledMembers || _shuffledMembers.length !== visible.length){
     var _shuf=shuffle(visible.slice());
-    // Partition: viewer first (if present), then people with any profile data, then empty profiles.
-    // "Empty" = zero items across skills, interests, values, needs.
+    // Partition: viewer first (if present), then people with any profile info, then empty profiles.
+    // "Empty" = zero items across skills, interests, values, needs, AND community type (Main data too).
     var _mineNorm = _myId ? normId(_myId) : '';
     var _hasData = function(m){
-      return (m.skills&&m.skills.length) || (m.interests&&m.interests.length) || (m.values&&m.values.length) || (m.needs&&m.needs.length);
+      return (m.skills&&m.skills.length) || (m.interests&&m.interests.length) || (m.values&&m.values.length) || (m.needs&&m.needs.length) || (m.communityType&&m.communityType.length);
     };
     var _mine=null, _with=[], _without=[];
     _shuf.forEach(function(m){
@@ -693,11 +694,18 @@ function renderGuestPhotos(){
       if(_hasData(m)) _with.push(m); else _without.push(m);
     });
     _shuffledMembers = (_mine?[_mine]:[]).concat(_with).concat(_without);
+    _withCount = (_mine?1:0) + _with.length;
   }
   var ordered=_shuffledMembers;
   el.style.display='';
   var n=ordered.length;
-  var showCount=Math.min(_photosShown, n);
+  // Groups over 30 people: hide empties from the initial strip; they still surface at the bottom
+  // of Show more (because _without sits last in _shuffledMembers). ≤30 people: everyone shows.
+  var HIDE_EMPTIES_THRESHOLD = 30;
+  var initialCap = (n > HIDE_EMPTIES_THRESHOLD) ? _withCount : n;
+  var showCount = (_photosShown === PHOTOS_INITIAL)
+    ? Math.min(_photosShown, initialCap)
+    : Math.min(_photosShown, n);
   var slice=ordered.slice(0, showCount);
   var head='<div class="gp-count">'+n+' '+(n===1?'person':'people')+' here</div>';
   var cells=slice.map(function(m){
