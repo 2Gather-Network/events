@@ -577,11 +577,16 @@ function processRow(data, appearId){
   var pm=_photoMap[normId(appearId)]||{};
   // Searchable blob: include Main AND ikigai tokens so header search finds people via ikigai items too.
   var search=String([data.first,data.name,data.languages,data.advocating,
-    data.skills,data.interests,data.values,data.domains,data.needs,data.hobbies,
+    data.skills,data.interests,data.values,data.domains,data.needs,data.hobbies,data.professionalServices,
     data.ikigaiSkills,data.ikigaiInterests,data.ikigaiValues,data.ikigaiDomains,data.ikigaiNeeds
   ].filter(Boolean).join(' ')).toLowerCase();
+  // Rule of thumb: Main-sourced items that lack an ikigai-shaped category subtitle are only
+  // shown as a FALLBACK when the corresponding ikigai lane is empty. That's what suppresses
+  // bare chips like "Advisor", "Feedback provider", "Professional services", or the
+  // 13-parent-category "Desired community type" labels once someone has real ikigai data.
   var mainSkills        = parseTagStr(data.skills);
-  var mainCommunityType = parseTagStr(data.interests);   // Main.Desired community type — kept for future event matching, NOT rendered as a recreational interest
+  var mainCommunityType = parseTagStr(data.interests);        // Main.Desired community type — fallback for interests when ikigai is empty
+  var mainProfSvc       = data.professionalServices ? parseTagStr(data.professionalServices) : [];   // Main.Professional services — fallback for skills when ikigai is empty
   // Main.Hobbies — comma-separated, may carry :Coach role suffix; drop >2 word tokens as a safety net.
   // Every hobby defaults to a Fan role tag; Coach wins if we detected it during import.
   var mainHobbies       = data.hobbies
@@ -589,7 +594,7 @@ function processRow(data, appearId){
         .filter(function(h){ return h.item.split(/\s+/).length <= 2; })
         .map(function(h){ if(!h.meta) h.meta='Fan'; return h; })
     : [];
-  var mainValues        = parseTagStr(data.values).concat(parseTagStr(data.domains));
+  var mainValues        = parseTagStr(data.values).concat(parseTagStr(data.domains));   // Main.values now includes Eco focus via getGroupMembers
   var mainNeeds         = parseNeeds(data.needs);
   var ikSkills          = data.ikigaiSkills    ? parseTagStr(data.ikigaiSkills)    : [];
   var ikInterests       = data.ikigaiInterests ? parseIkigaiInterests(data.ikigaiInterests) : [];
@@ -601,11 +606,18 @@ function processRow(data, appearId){
     pageLink:pm.pageLink||'',
     name:data.first||data.name||appearId,   // first name once getEventProfiles returns it; the id is only a last resort
     search:search,
-    skills:        unionByItem(mainSkills, ikSkills),
-    interests:     unionByItem(mainHobbies, ikInterests),    // recreational interests = Main.Hobbies + ikigai.interests (ikigai wins on duplicates so its sub-levels survive)
-    communityType: mainCommunityType,                        // reserved for event matching; not currently rendered as chips
+    // Skills: Specialties + Indie shines in always; Professional services ONLY when ikigai is empty; ikigai always
+    skills:        ikSkills.length
+                   ? unionByItem(mainSkills, ikSkills)
+                   : unionByItem(mainSkills, mainProfSvc),
+    // Interests: Hobbies always; Desired community type ONLY when ikigai.interests is empty; ikigai always
+    interests:     ikInterests.length
+                   ? unionByItem(mainHobbies, ikInterests)
+                   : unionByItem(mainHobbies, mainCommunityType),
+    communityType: mainCommunityType,                        // still exposed as a separate lane for future event matching
     values:        unionByItem(mainValues, ikValues),
-    needs:         unionByItem(mainNeeds, ikNeeds),
+    // Needs: ikigai only when present; Main.Seeking pro bono (the bare labels) is ONLY a fallback
+    needs:         ikNeeds.length ? ikNeeds : mainNeeds,
     languages:String(data.languages||'').split('|').map(function(s){return s.trim();}).filter(Boolean)
   };
   _members.push(member);
