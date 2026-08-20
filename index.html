@@ -187,6 +187,19 @@
         <button id="fmt-virtual" onclick="setFormat('virtual')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">💻 Virtual</button>
         <button id="fmt-inperson" onclick="setFormat('inperson')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">📍 In-person</button>
       </div>
+      <!-- Mood filter — matches the six experience values a host can tag on an event. Any picked = OR. -->
+      <div style="margin-top:14px;">
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:4px;">How would you like to feel?</label>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Show events based on your desired mood.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="filter-mood-connected" onclick="toggleMoodFilter('connected')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🌐 Connected</button>
+          <button id="filter-mood-expressed" onclick="toggleMoodFilter('expressed')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🎨 Expressed</button>
+          <button id="filter-mood-nourished" onclick="toggleMoodFilter('nourished')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🥘 Nourished</button>
+          <button id="filter-mood-energized" onclick="toggleMoodFilter('energized')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🌀 Energized</button>
+          <button id="filter-mood-playful" onclick="toggleMoodFilter('playful')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🏓 Playful</button>
+          <button id="filter-mood-rested" onclick="toggleMoodFilter('rested')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">💙 Rested</button>
+        </div>
+      </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-top:16px;">
       <div style="flex:1;min-width:160px;position:relative;">
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:5px;">Venue</label>
@@ -489,6 +502,21 @@ async function loadEvents() {
 let _hostList = [];
 let _venueList = [];
 let _activeFormat = "all";
+// Mood filter — subset of ["connected","expressed","nourished","energized","playful","rested"].
+// Empty = no filter, all moods. Any picked = OR match against event.experience.
+var _selectedMoods = new Set();
+function toggleMoodFilter(m) {
+  var btn = document.getElementById("filter-mood-" + m);
+  if (!btn) return;
+  if (_selectedMoods.has(m)) {
+    _selectedMoods.delete(m);
+    btn.style.background = "#fff"; btn.style.color = "var(--dark)"; btn.style.border = "1.5px solid var(--border)"; btn.style.fontWeight = "";
+  } else {
+    _selectedMoods.add(m);
+    btn.style.background = "#154F74"; btn.style.color = "#fff"; btn.style.border = "none"; btn.style.fontWeight = "600";
+  }
+  try { renderEvents(); } catch(e) {}
+}
 
 function setFormat(fmt) {
   _activeFormat = fmt;
@@ -809,7 +837,14 @@ function renderEvents() {
     const _fmt = typeof _activeFormat !== "undefined" ? _activeFormat : "all";
     const _fmtIsVirtual = !!(e.meetinglink || e.mode === "virtual" || (e.location||"").toLowerCase().includes("virtual") || (e.location||"").toLowerCase().includes("online") || (e.location||"").toLowerCase().includes("zoom"));
     const matchFormat = _fmt === "all" || (_fmt === "virtual" && _fmtIsVirtual) || (_fmt === "inperson" && !_fmtIsVirtual);
-    return matchCat && matchQ && effectiveMatchTab && matchMode && matchLocation && matchHost && matchVenue && matchDate && matchFormat && matchServingFilter(e);
+    // Mood: OR-match. When any mood is picked, event.experience must contain at least one.
+    var matchMood = true;
+    if (_selectedMoods.size > 0) {
+      var expList = String(e.experience || "").toLowerCase().split(",").map(function(s){return s.trim();});
+      matchMood = false;
+      _selectedMoods.forEach(function(m){ if (expList.indexOf(m) !== -1) matchMood = true; });
+    }
+    return matchCat && matchQ && effectiveMatchTab && matchMode && matchLocation && matchHost && matchVenue && matchDate && matchFormat && matchServingFilter(e) && matchMood;
   });
 
   list.sort((a, b) => {
