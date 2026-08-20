@@ -39,6 +39,7 @@
       --card-bg: #ffffff;
       --radius: 14px;
     }
+    [data-nav]{cursor:pointer;}
     body {
       font-family: 'Nunito Sans','Segoe UI',sans-serif;
       background: var(--bg);
@@ -409,6 +410,11 @@ function getMemberId() {
 function esc(s) {
   return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
+// Hover-URL leak protection: anchors that would carry memberCard / me / show / id in a static
+// href are rendered WITHOUT an href, and the real URL lives in data-nav — read at click time.
+// Browser's hover URL preview stays empty; tooltip content comes from the native title="" attr.
+window._safeNavGo=function(el){try{var u=el&&el.getAttribute&&el.getAttribute('data-nav');if(u){window.location.href=u;}}catch(e){}return false;};
+document.addEventListener('keydown',function(e){if(e.key!=='Enter'&&e.key!==' ')return;var t=e.target;if(t&&t.tagName==='A'&&!t.hasAttribute('href')&&t.hasAttribute('data-nav')){e.preventDefault();_safeNavGo(t);}});
 
 async function fetchEvents() {
   const res = await fetch(GS_URL + "?t=" + Date.now());
@@ -880,7 +886,7 @@ function render(ev) {
         <button class="btn btn-outline" onclick="openQrModal()" title="Get QR code" style="padding:10px 14px;">⊞ QR</button>
         ${!ev.cancelled ? `<button class="btn btn-outline" onclick="openEditPin()" title="Edit this event" style="padding:10px 14px;">✏️</button>` : ""}
       </div>
-      ${window._sharedByCard ? `<div style="text-align:right;margin-top:24px;padding-top:12px;border-top:1px solid var(--border);"><div style="font-size:12px;color:var(--muted);">Shared by <a href="https://appear.network/dl/page/s/e13594/r/${encodeURIComponent(window._sharedByCard)}" rel="noopener" target="_blank" style="color:var(--primary);text-decoration:none;font-weight:600;">${window._sharedByCard}</a></div></div>` : ""}
+      ${window._sharedByCard ? `<div style="text-align:right;margin-top:24px;padding-top:12px;border-top:1px solid var(--border);"><div style="font-size:12px;color:var(--muted);">Shared by <a role="link" tabindex="0" data-nav="https://appear.network/dl/page/s/e13594/r/${encodeURIComponent(window._sharedByCard)}" title="${esc(window._sharedByCard)}" onclick="return _safeNavGo(this)" rel="noopener" target="_blank" style="color:var(--primary);text-decoration:none;font-weight:600;">${window._sharedByCard}</a></div></div>` : ""}
 
     </div>
     <div style="padding:14px 24px 148px;background:#f9fafb;border-top:1px solid var(--border);text-align:center;font-size:13px;color:var(--muted);">
@@ -1298,7 +1304,7 @@ async function maybeShowIntakePrompt() {
   } catch(e) { /* default to Create */ }
   const url = "https://creating.works/intake.html?id=" + encodeURIComponent(_rsvpAppearId) + "&eventId=" + encodeURIComponent(_currentEv.id);
   box.innerHTML = '<p style="font-size:14px;color:#1a1a2e;margin:0 0 12px;font-weight:600;line-height:1.5;">To receive compatible connections for this event, please complete your event profile next.</p>'
-    + '<a href="' + url + '" style="display:inline-block;background:#154F74;color:#fff;font-weight:700;font-size:15px;padding:12px 20px;border-radius:10px;text-decoration:none;">' + label + '</a>';
+    + '<a role="link" tabindex="0" data-nav="' + url + '" title="Event profile" onclick="return _safeNavGo(this)" style="display:inline-block;background:#154F74;color:#fff;font-weight:700;font-size:15px;padding:12px 20px;border-radius:10px;text-decoration:none;">' + label + '</a>';
   box.style.display = "block";
 }
 window.maybeShowIntakePrompt = maybeShowIntakePrompt;
@@ -1313,7 +1319,7 @@ async function loadWhoIsGoing() {
     const section = document.getElementById("who-is-going");
     if (!list || !section) return;
     list.innerHTML = data.attendees.map(a => `
-      <a href="${a.pageLink || ('https://appear.network/dl/page/s/e13594/r/' + encodeURIComponent(a.appearId))}" title="${a.appearId}" style="display:block;width:44px;height:44px;border-radius:50%;overflow:hidden;border:2px solid var(--border);">
+      <a role="link" tabindex="0" data-nav="${a.pageLink || ('https://appear.network/dl/page/s/e13594/r/' + encodeURIComponent(a.appearId))}" title="${esc(a.name||a.appearId)}" onclick="return _safeNavGo(this)" style="display:block;width:44px;height:44px;border-radius:50%;overflow:hidden;border:2px solid var(--border);">
         <img src="${a.photo}" alt="${a.appearId}" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='https://ui-avatars.com/api/?name=${a.appearId}&size=44'">
       </a>`).join("");
     section.style.display = "block";
@@ -1615,7 +1621,7 @@ async function renderMyEventsList(memberId, data) {
     const when = e.date ? fmtDate(e.date, e.time, e.endtime) : "";
     const loc = e.venue || e.location || "";
     const href = "event.html?id=" + encodeURIComponent(e.id) + "&memberCard=" + encodeURIComponent(memberId);
-    return '<a href="' + href + '" style="display:block;text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;">'
+    return '<a role="link" tabindex="0" data-nav="' + href + '" title="' + esc(e.title || 'Event') + '" onclick="return _safeNavGo(this)" style="display:block;text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;">'
       + '<div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:4px;">' + esc(e.title || "Event") + '</div>'
       + (when ? '<div style="font-size:13px;color:var(--muted);">' + esc(when) + '</div>' : "")
       + (loc ? '<div style="font-size:13px;color:var(--muted);">📍 ' + esc(loc) + '</div>' : "")
@@ -1638,7 +1644,7 @@ async function renderMyEventsList(memberId, data) {
   if (_tn) _tn.innerHTML = '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#1F699E;padding:12px 14px;border-radius:12px;margin:0 0 20px;">'
     + '<a href="https://2gather.network" style="' + _WB + '">All events</a>'
     + '<a href="https://appear.network/dl/groups" style="' + _WB + '">My groups</a>'
-    + '<a href="https://creating.works/intake.html?show=' + encodeURIComponent(memberId) + '&me=' + encodeURIComponent(memberId) + '" style="' + _WB + 'display:inline-flex;align-items:center;gap:8px;">My profile' + _mePic + '</a>'
+    + '<a role="link" tabindex="0" data-nav="https://creating.works/intake.html?show=' + encodeURIComponent(memberId) + '&me=' + encodeURIComponent(memberId) + '" title="My profile" onclick="return _safeNavGo(this)" style="' + _WB + 'display:inline-flex;align-items:center;gap:8px;">My profile' + _mePic + '</a>'
     + '</div>';
   // Fire-and-forget photo lookup so the My profile pill gets the person's face instead of a placeholder.
   (function(){
@@ -1678,7 +1684,7 @@ function _helpLink(ev){
     return '<button onclick="helpClick(this,\''+email.replace(/['"\\]/g,'')+'\')" title="Copy the host\'s email" style="background:none;border:none;cursor:pointer;font-size:13px;color:#1B6896;font-weight:700;white-space:nowrap;flex-shrink:0;font-family:inherit;padding:0;">Visit event host</button>';
   }
   var prof='https://creating.works/intake.html?show='+encodeURIComponent((ev&&ev.hostMemberCard)||'')+'&eventId='+encodeURIComponent((ev&&ev.id)||'');
-  return '<a href="'+prof+'" title="Ask the host" style="text-decoration:none;font-size:13px;color:#1B6896;font-weight:700;white-space:nowrap;flex-shrink:0;">Visit event host</a>';
+  return '<a role="link" tabindex="0" data-nav="'+prof+'" title="Event host" onclick="return _safeNavGo(this)" style="text-decoration:none;font-size:13px;color:#1B6896;font-weight:700;white-space:nowrap;flex-shrink:0;">Visit event host</a>';
 }
 window.helpClick=function(btn, email){
   try{ navigator.clipboard.writeText(email); }catch(e){}
@@ -1693,8 +1699,8 @@ async function renderEventExperience(memberId, eventId, data) {
   var _WBme = 'text-decoration:none;color:#185FA5;background:#fff;font-size:14px;font-weight:600;padding:8px 15px;border-radius:20px;white-space:nowrap;';
   var _tnME = document.getElementById('topnav');
   if (_tnME) _tnME.innerHTML = '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#1F699E;padding:12px 14px;border-radius:12px;margin:0 0 20px;">'
-    + '<a href="https://gather.2gather.network/events.html?memberCard=' + encodeURIComponent(memberId) + '" style="' + _WBme + '">All events</a>'
-    + '<a href="https://gather.2gather.network/myevents.html?id=' + encodeURIComponent(memberId) + '" style="' + _WBme + '">My events</a>'
+    + '<a role="link" tabindex="0" data-nav="https://gather.2gather.network/events.html?memberCard=' + encodeURIComponent(memberId) + '" title="Events" onclick="return _safeNavGo(this)" style="' + _WBme + '">All events</a>'
+    + '<a role="link" tabindex="0" data-nav="https://gather.2gather.network/myevents.html?id=' + encodeURIComponent(memberId) + '" title="Events" onclick="return _safeNavGo(this)" style="' + _WBme + '">My events</a>'
     + '</div>';
   const title = ev ? ev.title : "This event";
   const when = ev && ev.date ? fmtDate(ev.date, ev.time, ev.endtime) : "";
@@ -1722,14 +1728,14 @@ async function renderEventExperience(memberId, eventId, data) {
   html += '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:4px;">' + (isHost ? 'Manage event' : 'Manage my experience') + '</div>';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 12px;">'
     + '<h1 style="margin:0;flex:1;min-width:0;">' + esc(title) + '</h1>'
-    + '<a href="https://gather.2gather.network/attendees.html?id=' + encodeURIComponent(eventId) + '&memberCard=' + m + '" style="display:inline-flex;align-items:center;gap:8px;background:var(--primary);color:#fff;text-decoration:none;font-size:15px;font-weight:700;padding:11px 20px;border-radius:24px;white-space:nowrap;flex-shrink:0;">Visit event hub</a>'
+    + '<a role="link" tabindex="0" data-nav="https://gather.2gather.network/attendees.html?id=' + encodeURIComponent(eventId) + '&memberCard=' + m + '" title="' + esc(title || 'Event page') + '" onclick="return _safeNavGo(this)" style="display:inline-flex;align-items:center;gap:8px;background:var(--primary);color:#fff;text-decoration:none;font-size:15px;font-weight:700;padding:11px 20px;border-radius:24px;white-space:nowrap;flex-shrink:0;">Visit event hub</a>'
     + '</div>';
   html += when ? '<div style="font-size:13px;color:var(--muted);margin-bottom:18px;">' + esc(when) + '</div>' : '<div style="margin-bottom:12px;"></div>';
   // Visit event hub moved to the title row as a prominent blue button.
-  html += '<a href="https://gather.2gather.network/match.html?me=' + m + '&event=' + encodeURIComponent(eventId) + '" style="' + linkStyle + '">🔳 Share my 1:1 match code</a>';
-  html += '<a href="https://creating.works/intake.html?show=' + m + '&eventId=' + encodeURIComponent(eventId) + '" style="' + linkStyle + '">👤 View my event profile</a>';
+  html += '<a role="link" tabindex="0" data-nav="https://gather.2gather.network/match.html?me=' + m + '&event=' + encodeURIComponent(eventId) + '" title="1:1 match code" onclick="return _safeNavGo(this)" style="' + linkStyle + '">🔳 Share my 1:1 match code</a>';
+  html += '<a role="link" tabindex="0" data-nav="https://creating.works/intake.html?show=' + m + '&eventId=' + encodeURIComponent(eventId) + '" title="My profile" onclick="return _safeNavGo(this)" style="' + linkStyle + '">👤 View my event profile</a>';
 
-  html += '<a href="https://creating.works/giving.html?id=' + m + '" style="' + linkStyle + '">🎁 Share ways to appreciate</a>';
+  html += '<a role="link" tabindex="0" data-nav="https://creating.works/giving.html?id=' + m + '" title="Appreciate list" onclick="return _safeNavGo(this)" style="' + linkStyle + '">🎁 Share ways to appreciate</a>';
   // "My other events" removed - redundant with the top nav's "All events" and not tied to this event.
   var _mSafe = String(memberId).replace(/[^A-Za-z0-9._-]/g, "");
   var _eSafe = String(eventId).replace(/[^A-Za-z0-9._-]/g, "");
@@ -1835,7 +1841,7 @@ function _expClaimChip(c){
   var nm=esc(nmRaw);
   var note=c.elaboration?'<div style="font-size:12px;color:var(--muted);margin-top:1px;">'+esc(c.elaboration)+'</div>':'';
   var link='https://creating.works/intake.html?show='+encodeURIComponent(c.appearId||'');
-  return '<a href="'+link+'" style="display:flex;align-items:flex-start;gap:8px;text-decoration:none;color:var(--dark);margin-top:8px;">'+ph+'<div><div style="font-size:13px;font-weight:600;">'+nm+'</div>'+note+'</div></a>';
+  return '<a role="link" tabindex="0" data-nav="'+link+'" title="'+esc(nmRaw||c.appearId||'View profile')+'" onclick="return _safeNavGo(this)" style="display:flex;align-items:flex-start;gap:8px;text-decoration:none;color:var(--dark);margin-top:8px;">'+ph+'<div><div style="font-size:13px;font-weight:600;">'+nm+'</div>'+note+'</div></a>';
 }
 var _expPage={};
 function buildExpContribHTML(memberId){
@@ -1975,7 +1981,7 @@ function _doCancel(btn, memberId, eventId){
   fetch(GS_URL + "?action=cancelRsvp&appearId=" + encodeURIComponent(memberId) + "&eventId=" + encodeURIComponent(eventId)).catch(function(){});
   var msg = document.getElementById("exp-cancel-msg");
   if (msg) {
-    msg.innerHTML = 'You\'re no longer registered for this event. <a href="https://gather.2gather.network/event.html?id=' + encodeURIComponent(eventId) + '&memberCard=' + encodeURIComponent(memberId) + '" style="color:#1B6896;font-weight:700;text-decoration:underline;">Visit event</a> to register again.';
+    msg.innerHTML = 'You\'re no longer registered for this event. <a role="link" tabindex="0" data-nav="https://gather.2gather.network/event.html?id=' + encodeURIComponent(eventId) + '&memberCard=' + encodeURIComponent(memberId) + '" title="Event" onclick="return _safeNavGo(this)" style="color:#1B6896;font-weight:700;text-decoration:underline;">Visit event</a> to register again.';
     msg.style.display = "block";
   }
 }

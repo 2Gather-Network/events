@@ -21,6 +21,7 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-height:100vh;}
+[data-nav]{cursor:pointer;}
 .header-stack{position:sticky;top:0;z-index:100;}
 .event-header{background:#fff;border-radius:14px;margin:0 14px 14px;padding:14px 18px;}
 .event-header-row{align-items:center;}
@@ -293,6 +294,11 @@ var _myProvide={};                // lower(item) -> true : what I can provide
 
 function normId(id){return String(id||'').split('.').join('').toLowerCase();}
 function escHTML(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+// Hover-URL leak protection: anchors that would carry memberCard / me / show / id in a static
+// href are rendered WITHOUT an href, and the real URL lives in data-nav — read at click time.
+// Browser's hover URL preview stays empty; tooltip content comes from the native title="" attr.
+window._safeNavGo=function(el){try{var u=el&&el.getAttribute&&el.getAttribute('data-nav');if(u){window.location.href=u;}}catch(e){}return false;};
+document.addEventListener('keydown',function(e){if(e.key!=='Enter'&&e.key!==' ')return;var t=e.target;if(t&&t.tagName==='A'&&!t.hasAttribute('href')&&t.hasAttribute('data-nav')){e.preventDefault();_safeNavGo(t);}});
 function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
 
 // ── Tag parsing (must match intake.html serialization) ──
@@ -856,7 +862,7 @@ function renderMatchesPanel(){
       +photoEl
       +'<div class="mp-body"><div class="mp-name">'+escHTML(m.name)+'</div><div class="mp-list">'+items+'</div></div>'
       +'<div class="mp-actions">'
-        +'<a class="mp-btn primary" href="'+escHTML(_profileUrl(m.appearId))+'">Visit profile</a>'
+        +'<a class="mp-btn primary" role="link" tabindex="0" data-nav="'+escHTML(_profileUrl(m.appearId))+'" title="'+escHTML(m.name||m.appearId||'View profile')+'" onclick="return _safeNavGo(this)">Visit profile</a>'
         +'<button class="mp-btn" onclick="bookmarkMatch(this,\''+escHTML(m.appearId)+'\')">Bookmark</button>'
       +'</div>'
     +'</div>';
@@ -1167,7 +1173,7 @@ function renderHubNav(){
   var links='<a href="https://appear.network/dl/groups" style="'+WB+'">My groups</a>';
   // "+ Post an event" — same target as the "post an event" flow on events.html.
   var _postUrl='https://gather.2gather.network/events.html?action=post'+(_myId?'&memberCard='+encodeURIComponent(_myId):'');
-  links+='<a href="'+_postUrl+'" style="'+WB+'">+ Post an event</a>';
+  links+='<a role="link" tabindex="0" data-nav="'+_postUrl+'" title="Post an event" onclick="return _safeNavGo(this)" style="'+WB+'">+ Post an event</a>';
   // "Event profile" (view mine) only when I'm signed in AND actually have a profile.
   // My photo is nested at the right of this pill (from _photoMap — no extra GAS call);
   // this replaces the old top-right face.
@@ -1176,7 +1182,7 @@ function renderHubNav(){
     var _pic=_pm.photo
       ? '<img src="'+escHTML(_pm.photo)+'" alt="me" style="width:22px;height:22px;border-radius:50%;object-fit:cover;">'
       : '<span style="width:22px;height:22px;border-radius:50%;background:#e6ebf3;display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;">👤</span>';
-    links+='<a href="https://creating.works/intake.html?show='+encodeURIComponent(_myId)+'&me='+encodeURIComponent(_myId)+(_eventId?'&hubEventId='+encodeURIComponent(_eventId):'')+'" style="'+WB+'display:inline-flex;align-items:center;gap:8px;">My profile'+_pic+'</a>';
+    links+='<a role="link" tabindex="0" data-nav="https://creating.works/intake.html?show='+encodeURIComponent(_myId)+'&me='+encodeURIComponent(_myId)+(_eventId?'&hubEventId='+encodeURIComponent(_eventId):'')+'" title="My profile" onclick="return _safeNavGo(this)" style="'+WB+'display:inline-flex;align-items:center;gap:8px;">My profile'+_pic+'</a>';
   }
   el.innerHTML='<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:18px 20px 20px;">'+links+'</div>';
 }
@@ -1234,7 +1240,7 @@ async function loadContributions(){
     var sub=(catMap[c.item]||c.category||'');
     var link=_profileUrl(c.appearId);
     var subEl=sub?'<span class="chip-cat">'+escHTML(sub)+'</span>':'';
-    return '<a class="chip" href="'+link+'" style="text-decoration:none;"><span>'+ph+'</span><span class="chip-text"><span class="chip-label">'+escHTML(c.item)+'</span>'+subEl+'</span></a>';
+    return '<a class="chip" role="link" tabindex="0" data-nav="'+link+'" title="'+escHTML(c.name||c.appearId||'View profile')+'" onclick="return _safeNavGo(this)" style="text-decoration:none;"><span>'+ph+'</span><span class="chip-text"><span class="chip-label">'+escHTML(c.item)+'</span>'+subEl+'</span></a>';
   }
   function col(title, list){
     var body=list.length?list.map(function(c){return chip(c);}).join(''):'<span class="empty">Nothing here yet.</span>';
