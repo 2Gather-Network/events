@@ -601,6 +601,15 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <span style="font-size:13px;color:var(--dark);">🏠 This event has an Event Hub<span style="display:block;font-size:12px;color:var(--muted);">Shows an "Event hub" link on the event profile for this event only.</span></span>
     </label>
 
+    <!-- Group association — shown only when arriving via ?groupId=X (from a group page's "+ Post an event" chip).
+         Pre-checked. Unchecking un-associates. Persists via eventData.groupId → sheet column "groupId". -->
+    <label id="f-group-assoc-row" style="display:none;align-items:flex-start;gap:8px;cursor:pointer;margin-bottom:14px;">
+      <input type="checkbox" id="f-group-assoc" style="width:16px;height:16px;accent-color:var(--primary);margin-top:2px;flex-shrink:0;">
+      <span style="font-size:13px;color:var(--dark);">👥 Associate with <span id="f-group-assoc-name">this group</span><span style="display:block;font-size:12px;color:var(--muted);">People in this group see the event surfaced first, and it appears on the group page.</span></span>
+    </label>
+    <input type="hidden" id="f-group-assoc-id">
+    <input type="hidden" id="f-group-assoc-name-val">
+
     <div id="location-field" style="display:none;" class="field">
       <label class="field-label">Full address</label>
       <div style="display:flex;gap:8px;align-items:center;">
@@ -2625,7 +2634,28 @@ function openModal(skipDraft = false) {
   const occNoteFieldReset2 = document.getElementById("occurrence-note-field"); if(occNoteFieldReset2) occNoteFieldReset2.style.display = "none";
   const cancelOccFieldReset = document.getElementById("cancel-occurrence-field"); if(cancelOccFieldReset) cancelOccFieldReset.style.display = "none";
   const cancelOccReset = document.getElementById("f-cancel-occurrence"); if(cancelOccReset) cancelOccReset.checked = false;
-  ["show-hostlink","show-cooplink","show-paymentlink","show-contact","f-room-gated","f-has-hub"].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; }); const otherReset = document.getElementById("f-exch-other"); if(otherReset) otherReset.value = "";
+  ["show-hostlink","show-cooplink","show-paymentlink","show-contact","f-room-gated","f-has-hub","f-group-assoc"].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; }); const otherReset = document.getElementById("f-exch-other"); if(otherReset) otherReset.value = "";
+  // Group association: shows + pre-checks the "Associate with <name>" checkbox when the modal
+  // was opened from a group page's "+ Post an event" (URL carries ?groupId=X&groupName=Y).
+  try {
+    var _gp = new URLSearchParams(window.location.search);
+    var _gid = String(_gp.get("groupId") || "").trim();
+    var _gnm = String(_gp.get("groupName") || "").trim();
+    var _gRow = document.getElementById("f-group-assoc-row");
+    var _gChk = document.getElementById("f-group-assoc");
+    var _gLbl = document.getElementById("f-group-assoc-name");
+    var _gIdInp = document.getElementById("f-group-assoc-id");
+    var _gNmInp = document.getElementById("f-group-assoc-name-val");
+    if (_gid) {
+      if (_gRow) _gRow.style.display = "flex";
+      if (_gChk) _gChk.checked = true;
+      if (_gLbl && _gnm) _gLbl.textContent = _gnm;
+      if (_gIdInp) _gIdInp.value = _gid;
+      if (_gNmInp) _gNmInp.value = _gnm;
+    } else {
+      if (_gRow) _gRow.style.display = "none";
+    }
+  } catch(e){}
   toggleLinkFields();
   selectedExchangeTypes = new Set(); ["spread","time","connections","feedback","skills","stuff","space","money","care","other","noask","free","testimonial","share"].forEach(t => { const b = document.getElementById("exch-"+t); if(b) b.classList.remove("selected"); });
   // V12.45: a new event defaults to "Spread the word" selected - the most common welcome, and
@@ -3841,6 +3871,16 @@ async function submitEvent() {
   };
   // Enable contributions -> intakeRedirect="true". Only set when checked (never write "false"), so it can't wipe an existing flag.
   if (document.getElementById("f-contributions")?.checked) eventData.intakeRedirect = "true";
+  // Group association: if the checkbox is checked (was pre-checked when arriving from a group
+  // page), persist groupId to the sheet. If unchecked, write "" so a prior association clears.
+  {
+    var _gAssoc = document.getElementById("f-group-assoc");
+    var _gAssocId = document.getElementById("f-group-assoc-id")?.value || "";
+    var _gAssocRow = document.getElementById("f-group-assoc-row");
+    if (_gAssocRow && _gAssocRow.style.display !== "none") {
+      eventData.groupId = _gAssoc?.checked ? _gAssocId : "";
+    }
+  }
 
   if (editingId) {
     const isRec = editingId.startsWith("recurring-");
