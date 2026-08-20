@@ -1316,26 +1316,34 @@ function filterAll(q){ _searchQ=(q||'').toLowerCase().trim(); renderAll(); rende
 function renderHubNav(){
   var el=document.getElementById('hub-topnav'); if(!el) return;
   var WB='text-decoration:none;color:#185FA5;background:#fff;font-size:16px;font-weight:700;padding:12px 22px;border-radius:24px;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;';
-  var links='';
-  // Order (2026-08-19): My profile, then My groups, then + Post an event.
-  // "My profile" pill — only when signed in AND actually have a profile. Photo nested at right.
+  // Two clusters: LEFT (My profile · My groups), RIGHT (Group events · + Post an event).
+  var leftLinks='';
   if(_myId && _myData){
     var _pm=_photoMap[normId(_myId)]||{};
     var _pic=_pm.photo
       ? '<img src="'+escHTML(_pm.photo)+'" alt="me" style="width:22px;height:22px;border-radius:50%;object-fit:cover;">'
       : '<span style="width:22px;height:22px;border-radius:50%;background:#e6ebf3;display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;">👤</span>';
-    links+='<a role="link" tabindex="0" data-nav="https://creating.works/intake.html?show='+encodeURIComponent(_myId)+'&me='+encodeURIComponent(_myId)+(_groupId?'&groupId='+encodeURIComponent(_groupId):'')+'" title="My profile" onclick="return _safeNavGo(this)" style="'+WB+'display:inline-flex;align-items:center;gap:8px;">My profile'+_pic+'</a>';
+    leftLinks+='<a role="link" tabindex="0" data-nav="https://creating.works/intake.html?show='+encodeURIComponent(_myId)+'&me='+encodeURIComponent(_myId)+(_groupId?'&groupId='+encodeURIComponent(_groupId):'')+'" title="My profile" onclick="return _safeNavGo(this)" style="'+WB+'display:inline-flex;align-items:center;gap:8px;">My profile'+_pic+'</a>';
   }
-  links+='<a href="https://appear.network/dl/groups" style="'+WB+'">My groups</a>';
-  // "+ Post an event" — carry the current group so events.html can pre-check "Associate with this group".
+  leftLinks+='<a href="https://appear.network/dl/groups" style="'+WB+'">My groups</a>';
+  var rightLinks='';
+  // "Group events" pill — shown ONLY if the group has at least one associated event
+  // (loadGroupEvents populates _groupEvents and re-renders this nav on completion).
+  if (typeof _groupEvents !== 'undefined' && _groupEvents && _groupEvents.length > 0) {
+    rightLinks+='<a role="link" tabindex="0" title="Group events" onclick="document.getElementById(\'group-events\').scrollIntoView({behavior:\'smooth\',block:\'start\'});return false;" style="'+WB+'cursor:pointer;">📅 Group events ('+_groupEvents.length+')</a>';
+  }
+  // "+ Post an event" — carry the current group so events.html can pre-check "Relate to group".
   var _postUrl='https://gather.2gather.network/events.html?action=post'+(_myId?'&memberCard='+encodeURIComponent(_myId):'');
   if (_groupId) {
     _postUrl += '&groupId=' + encodeURIComponent(_groupId);
     var _gName = (typeof GROUP_NAMES !== 'undefined' && GROUP_NAMES[_groupId]) || '';
     if (_gName) _postUrl += '&groupName=' + encodeURIComponent(_gName);
   }
-  links+='<a role="link" tabindex="0" data-nav="'+_postUrl+'" title="Post an event" onclick="return _safeNavGo(this)" style="'+WB+'">+ Post an event</a>';
-  el.innerHTML='<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:18px 20px 20px;">'+links+'</div>';
+  rightLinks+='<a role="link" tabindex="0" data-nav="'+_postUrl+'" title="Post an event" onclick="return _safeNavGo(this)" style="'+WB+'">+ Post an event</a>';
+  el.innerHTML='<div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:18px 20px 20px;">'
+    +'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">'+leftLinks+'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">'+rightLinks+'</div>'
+    +'</div>';
 }
 // "My matches" only for someone with a completed event profile (matching needs their own data).
 // Count is (unique-person) matches summed across all four chip categories, computed after
@@ -1361,6 +1369,49 @@ function updateHeaderButton(){
   try{ n=countMyMatches(); }catch(e){}
   btn.textContent=_matchMode ? 'Back to group' : ('My matches'+(n?' ('+n+')':''));
 }
+// Group events state — populated by loadGroupEvents when the group has associated events.
+// Filter is client-side (event.groupId === _groupId) against the cached feedUpcoming payload.
+var _groupEvents = [];
+async function loadGroupEvents(){
+  if(!_groupId) return;
+  try{
+    var res = await fetch(GS_URL + '?t=' + Date.now());
+    if(!res.ok) return;
+    var all = await res.json();
+    if(!Array.isArray(all)) return;
+    var today = new Date(); today.setHours(0,0,0,0);
+    _groupEvents = all.filter(function(e){
+      if(!e || !e.groupId) return false;
+      if(String(e.groupId).trim() !== String(_groupId).trim()) return false;
+      if(e.isPrivate) return false;
+      if(e.cancelled === true || e.cancelled === 'true') return false;
+      if(!e.date) return false;
+      var d = new Date(e.date + 'T00:00:00');
+      return d >= today;
+    }).sort(function(a,b){ return String(a.date).localeCompare(String(b.date)); });
+    renderGroupEventsSection();
+    renderHubNav();   // now that we know the count, the "Group events (N)" pill can appear
+  }catch(e){}
+}
+function renderGroupEventsSection(){
+  var el = document.getElementById('group-events'); if(!el) return;
+  if(!_groupEvents.length){ el.style.display='none'; el.innerHTML=''; return; }
+  var groupName = (typeof GROUP_NAMES !== 'undefined' && GROUP_NAMES[_groupId]) || 'this group';
+  var cards = _groupEvents.map(function(ev){
+    var when = ev.date + (ev.time ? ' · ' + ev.time : '');
+    var url = 'https://gather.2gather.network/event.html?id=' + encodeURIComponent(ev.id) + (_myId ? '&memberCard=' + encodeURIComponent(_myId) : '');
+    return '<a role="link" tabindex="0" data-nav="' + escHTML(url) + '" title="' + escHTML(ev.title||'Event') + '" onclick="return _safeNavGo(this)" '
+      + 'style="display:block;background:#fff;border:1.5px solid #DDE4EE;border-radius:12px;padding:12px 14px;text-decoration:none;color:#1A2E42;cursor:pointer;">'
+      + '<div style="font-size:14px;font-weight:800;color:#1A2E42;margin-bottom:4px;">' + escHTML(ev.title||'') + '</div>'
+      + '<div style="font-size:12px;color:#6B7A8D;">🗓️ ' + escHTML(when) + '</div>'
+      + '</a>';
+  }).join('');
+  el.style.display = '';
+  el.innerHTML = '<div style="background:#fff;border-radius:14px;padding:18px 20px;margin:14px 20px 0;">'
+    + '<div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:12px;">📅 Group events — '+escHTML(groupName)+'</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">' + cards + '</div>'
+    + '</div>';
+}
 (async function init(){
   document.title='Group';                              // descriptive title for bookmarking
   var _sb=document.getElementById('hub-share-btn'); if(_sb && _eventId!=='m97sjwa3') _sb.style.display='none';   // QR share button is Lake-Ballinger-only
@@ -1370,6 +1421,7 @@ function updateHeaderButton(){
   }
   renderHubNav();                                          // in-app nav above the header (blue body)
   loadEvent();                                             // independent, fire-and-forget (sets host email for the envelope button)
+  loadGroupEvents();                                       // fire-and-forget; updates nav pill + section when done
   var enrich=Promise.all([loadRefData(), loadCategories()]); // heavy — don't block first paint
   await loadMembers();                                     // first paint + sets _myData (do I have a profile?)
   renderProfileCta();                                      // "Build my event profile" when I have an ID but no profile
