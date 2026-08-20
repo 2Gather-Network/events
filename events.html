@@ -2002,14 +2002,35 @@ var _bannerBlockedByReg = false;
 // from the "Use my location" reverse geocode, or from the person choosing one - and fall
 // back to that when the select has not been populated yet.
 var LOC_STATE_KEY = "db-state";
+// Brave desktop with default Shields prunes localStorage between sessions on many sites, so the
+// picked state was disappearing on reload and the picker looked empty each visit. Mirror to a
+// first-party cookie (survives Brave's localStorage pruning) and fall back to it on read.
+function _stateCookieGet() {
+  try {
+    var m = document.cookie.match(/(?:^|;\s*)db-state=([^;]*)/);
+    return m ? decodeURIComponent(m[1]) : "";
+  } catch(e) { return ""; }
+}
+function _stateCookieSet(v) {
+  try {
+    if (v) {
+      var d = new Date(); d.setTime(d.getTime() + 365*24*60*60*1000);
+      document.cookie = "db-state=" + encodeURIComponent(v) + "; expires=" + d.toUTCString() + "; path=/; SameSite=Lax";
+    } else {
+      document.cookie = "db-state=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    }
+  } catch(e) {}
+}
 function knownState() {
   var st = document.getElementById("filter-state");
   var live = st ? String(st.value || "").trim() : "";
   if (live) return live;
-  try { return String(localStorage.getItem(LOC_STATE_KEY) || "").trim(); } catch(e) { return ""; }
+  try { var ls = String(localStorage.getItem(LOC_STATE_KEY) || "").trim(); if (ls) return ls; } catch(e) {}
+  return _stateCookieGet();
 }
 function rememberState(v) {
   try { if (v) localStorage.setItem(LOC_STATE_KEY, v); else localStorage.removeItem(LOC_STATE_KEY); } catch(e) {}
+  _stateCookieSet(v);
 }
 function onStateChange() {
   var st = document.getElementById("filter-state");
@@ -4411,7 +4432,9 @@ try {
 // filters by it and the local banner can see it. The country must be set first or the state
 // options do not exist yet to select from.
 try {
-  var _savedState = String(localStorage.getItem(LOC_STATE_KEY) || "").trim();
+  var _lsState = "";
+  try { _lsState = String(localStorage.getItem(LOC_STATE_KEY) || "").trim(); } catch(e){}
+  var _savedState = _lsState || _stateCookieGet();   // cookie fallback for Brave localStorage pruning
   if (_savedState) {
     var _regionEl = document.getElementById("filter-region");
     var _countryEl = document.getElementById("filter-country");
