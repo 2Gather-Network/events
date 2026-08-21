@@ -572,34 +572,64 @@ function pick(el, key){
     scored.sort(function(a, b) { return b.score - a.score; });
     return scored;
   }
-  function _matchKicker(m) {
-    var nm = m.person.first || m.person.name || m.person.appearId;
-    if (m.theyOfferYouNeed.length && m.youOfferTheyNeed.length) return { emoji: '🔗', label: 'MUTUAL MATCH · ' + nm.toUpperCase() };
-    if (m.theyOfferYouNeed.length)                              return { emoji: '🌱', label: 'THEY OFFER WHAT YOU NEED · ' + nm.toUpperCase() };
-    if (m.youOfferTheyNeed.length)                              return { emoji: '🤝', label: 'YOU OFFER WHAT THEY NEED · ' + nm.toUpperCase() };
-    if (m.coseek.length)                                        return { emoji: '💡', label: 'BOTH SEEKING · ' + nm.toUpperCase() };
-    return                                                             { emoji: '✨', label: 'IN COMMON · ' + nm.toUpperCase() };
+  // Topic-first grouping (mockup V4 shape). Each card = one topic + everyone who matches on it.
+  // A person appears under their SINGLE strongest topic — comp (offer/need) beats coseek beats shared.
+  function _topicKindLabel(kind) {
+    if (kind === 'theyOfferYouNeed') return { emoji: '🌱', prefix: 'MATCH', body: 'You need <b>{t}</b>. {who} offer{s} it.' };
+    if (kind === 'youOfferTheyNeed') return { emoji: '🤝', prefix: 'MATCH', body: 'You offer <b>{t}</b>. {who} {is} looking for it.' };
+    if (kind === 'coseek')           return { emoji: '💡', prefix: 'BOTH SEEKING', body: 'You and {who} are both looking for <b>{t}</b>.' };
+    return                                  { emoji: '✨', prefix: 'IN COMMON', body: 'You and {who} both value <b>{t}</b>.' };
   }
-  function _matchBody(m) {
-    var nm = m.person.first || m.person.name || 'They';
-    var parts = [];
-    if (m.theyOfferYouNeed.length) {
-      var t = m.theyOfferYouNeed.slice(0, 2).map(function(x){ return '<b>' + _escHtml(x) + '</b>'; }).join(' / ');
-      parts.push('You need ' + t + '. ' + _escHtml(nm) + ' offers it.');
-    }
-    if (m.youOfferTheyNeed.length) {
-      var y = m.youOfferTheyNeed.slice(0, 2).map(function(x){ return '<b>' + _escHtml(x) + '</b>'; }).join(' / ');
-      parts.push('You offer ' + y + '. ' + _escHtml(nm) + ' is looking for it.');
-    }
-    if (m.coseek.length && !m.theyOfferYouNeed.length && !m.youOfferTheyNeed.length) {
-      var c = m.coseek.slice(0, 2).map(function(x){ return '<b>' + _escHtml(x) + '</b>'; }).join(' / ');
-      parts.push('You and ' + _escHtml(nm) + ' are both looking for ' + c + '.');
-    }
-    if (m.shared.length && !parts.length) {
-      var s = m.shared.slice(0, 3).map(function(x){ return '<b>' + _escHtml(x) + '</b>'; }).join(' / ');
-      parts.push('You and ' + _escHtml(nm) + ' both value ' + s + '.');
-    }
-    return parts.join(' ');
+  function _groupByTopic(scored) {
+    // scored = array from _computeMatches with per-person buckets. Fold to (kind,topic) cards.
+    var kindPri = { theyOfferYouNeed: 3, youOfferTheyNeed: 3, coseek: 2, shared: 1 };
+    var cards = {}; // key = kind::topicLower → { kind, topic, people:[], sig }
+    scored.forEach(function(m) {
+      // Find this person's STRONGEST single topic to anchor them under one card.
+      var best = null;
+      ['theyOfferYouNeed','youOfferTheyNeed','coseek','shared'].forEach(function(k) {
+        if (best) return;
+        var arr = m[k];
+        if (arr && arr.length) best = { kind: k, topic: arr[0] };
+      });
+      if (!best) return;
+      var key = best.kind + '::' + best.topic.toLowerCase();
+      if (!cards[key]) cards[key] = { kind: best.kind, topic: best.topic, people: [] };
+      cards[key].people.push(m);
+    });
+    var list = Object.keys(cards).map(function(k){ return cards[k]; });
+    list.sort(function(a, b) {
+      if (kindPri[b.kind] !== kindPri[a.kind]) return kindPri[b.kind] - kindPri[a.kind];
+      if (b.people.length !== a.people.length) return b.people.length - a.people.length;
+      return a.topic.localeCompare(b.topic);
+    });
+    return list;
+  }
+  function _matchKicker(card) {
+    var lbl = _topicKindLabel(card.kind);
+    var n = card.people.length;
+    var suffix = ' · ' + n + (n === 1 ? ' PERSON' : ' PEOPLE');
+    return { emoji: lbl.emoji, label: lbl.prefix + ' · ' + card.topic.toUpperCase() + suffix };
+  }
+  function _matchBody(card) {
+    var lbl = _topicKindLabel(card.kind);
+    var n = card.people.length;
+    var whoNames = card.people.slice(0, 2).map(function(m){ return _escHtml(m.person.first || m.person.name || 'someone'); });
+    var whoText, isText = 'is', sText = 's';
+    if (n === 1) { whoText = whoNames[0]; isText = 'is'; sText = 's'; }
+    else if (n === 2) { whoText = whoNames[0] + ' and ' + whoNames[1]; isText = 'are'; sText = ''; }
+    else { whoText = whoNames.join(', ') + ' and ' + (n - 2) + ' more'; isText = 'are'; sText = ''; }
+    return lbl.body.replace('{t}', _escHtml(card.topic)).replace('{who}', whoText).replace('{is}', isText).replace('{s}', sText);
+  }
+  function _personChipHTML(m) {
+    var p = m.person;
+    var av = p.photo
+      ? '<span class="ph" style="overflow:hidden;padding:0;background:transparent;"><img src="' + _escHtml(p.photo) + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></span>'
+      : '<span class="ph">' + _escHtml(String(p.first || p.name || '?').charAt(0).toUpperCase()) + '</span>';
+    // Person chip = face + name; whole chip anchors to their Appear page.
+    var el = p.pageLink ? 'a' : 'span';
+    var attrs = p.pageLink ? ' href="' + _escHtml(p.pageLink) + '" title="Open ' + _escHtml(p.first || p.name || 'this person') + '\'s Appear page"' : '';
+    return '<' + el + ' class="who"' + attrs + ' style="text-decoration:none;color:inherit;cursor:' + (p.pageLink ? 'pointer' : 'default') + ';">' + av + _escHtml(p.first || p.name || p.appearId) + '</' + el + '>';
   }
   function _renderMatches() {
     var grid = document.getElementById('gp-matches-results');
@@ -630,27 +660,24 @@ function pick(el, key){
     title.style.display = '';
     if (sub) sub.style.display = '';
     if (empty) empty.style.display = 'none';
+    // Group into topic-cards (mockup V4 shape). Person-count of matches (people, not cards) still
+    // drives the title so users read '17 matches' the way they think of it.
+    var cards = _groupByTopic(_matchResults);
     title.textContent = (firstName ? firstName + ', ' : '') + n + (n === 1 ? ' match' : ' matches');
     if (tileSub) tileSub.textContent = n + (n === 1 ? ' match' : ' matches') + ' ready';
     grid.innerHTML = '';
-    _matchResults.slice(0, 20).forEach(function(m) {
-      var p = m.person;
-      var card = document.createElement(p.pageLink ? 'a' : 'div');
-      if (p.pageLink) { card.href = p.pageLink; card.setAttribute('title', 'Open ' + (p.first || p.name || 'this person') + '\'s Appear page'); }
-      card.className = 'feed-card' + ((m.theyOfferYouNeed.length || m.youOfferTheyNeed.length) ? ' strong' : '');
-      card.setAttribute('style', 'margin-bottom:0;text-decoration:none;color:inherit;cursor:' + (p.pageLink ? 'pointer' : 'default') + ';');
-      var kick = _matchKicker(m);
-      var av = p.photo
-        ? '<div style="width:44px;height:44px;border-radius:50%;overflow:hidden;flex-shrink:0;"><img src="' + _escHtml(p.photo) + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></div>'
-        : '<div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#7DD3FC,#1F699E);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;flex-shrink:0;">' + _escHtml(String(p.first || p.name || '?').charAt(0).toUpperCase()) + '</div>';
-      var inner = '<div class="kicker">' + kick.emoji + ' ' + _escHtml(kick.label) + '</div>'
-        + '<div style="display:flex;gap:12px;align-items:flex-start;margin-top:6px;">'
-        + av
-        + '<div style="flex:1;min-width:0;">'
-        + '<div style="font-size:14px;color:#1A2E42;line-height:1.5;">' + _matchBody(m) + '</div>'
-        + '</div></div>';
-      card.innerHTML = inner;
-      grid.appendChild(card);
+    cards.slice(0, 20).forEach(function(card) {
+      var isStrong = (card.kind === 'theyOfferYouNeed' || card.kind === 'youOfferTheyNeed');
+      var cardEl = document.createElement('div');
+      cardEl.className = 'feed-card' + (isStrong ? ' strong' : '');
+      cardEl.setAttribute('style', 'margin-bottom:0;');
+      var kick = _matchKicker(card);
+      var chipsHtml = card.people.slice(0, 8).map(_personChipHTML).join('');
+      var extra = card.people.length > 8 ? '<span class="who" style="background:transparent;border:none;color:#6B7A8D;">+ ' + (card.people.length - 8) + ' more</span>' : '';
+      cardEl.innerHTML = '<div class="kicker">' + kick.emoji + ' ' + _escHtml(kick.label) + '</div>'
+        + '<div class="body">' + _matchBody(card) + '</div>'
+        + '<div class="who-row">' + chipsHtml + extra + '</div>';
+      grid.appendChild(cardEl);
     });
   }
   function _renderSearch(q, results) {
