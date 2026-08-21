@@ -333,17 +333,24 @@
           <div style="margin-top:12px;"><button class="btn" onclick="gpPost()">+ Post event</button></div>
         </div>
 
-        <!-- Search results panel (inline; opened from the header search).
-             Real search wiring is queued — filter members by what they offer / need.
-             Until then: honest empty state — no fabricated results. -->
+        <!-- Search results panel (opened from the header search).
+             Filters over d.attendees client-side — no extra GAS call. Matches on offer-side fields
+             (skills, values, interests, hobbies, domains, professionalServices) and need-side
+             (needs), plus name. Cards are clickable to each person's Appear page. -->
         <div id="gp-search" style="display:none;">
-          <div style="background:#fff;border-radius:14px;padding:24px 26px;">
-            <div style="font-size:12px;font-weight:800;letter-spacing:.06em;color:#1F699E;text-transform:uppercase;">Search</div>
-            <div style="font-size:20px;font-weight:800;color:#1A2E42;margin-top:2px;">Coming soon</div>
-            <div style="font-size:14px;color:#4B5A6D;margin-top:10px;line-height:1.55;">Search will surface people in this group by what they offer or are looking for. Fill in your profile so others can find you.</div>
-            <div style="margin-top:18px;">
-              <a role="link" tabindex="0" id="gp-search-goprofile" style="display:inline-block;background:#1F699E;color:#fff;padding:10px 18px;border-radius:24px;font-weight:700;font-size:14px;text-decoration:none;cursor:pointer;">Update my profile</a>
+          <div style="background:#fff;border-radius:14px;padding:20px 24px;margin-bottom:14px;">
+            <div style="font-size:17px;font-weight:800;color:#1A2E42;">Search results <span id="gp-search-query" style="font-weight:500;color:#6B7A8D;font-size:14px;"></span></div>
+            <div style="font-size:13px;color:#6B7A8D;margin-top:4px;"><b style="color:#1A2E42;" id="gp-search-count">0 matches</b></div>
+            <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
+              <button class="btn" data-scope="all" onclick="gpSearchFilter('all', this)">All</button>
+              <button class="btn ghost" data-scope="offers" onclick="gpSearchFilter('offers', this)">🟢 Offering</button>
+              <button class="btn ghost" data-scope="needs" onclick="gpSearchFilter('needs', this)">🟠 Seeking</button>
             </div>
+          </div>
+          <div id="gp-search-results" class="grid-2" style="margin-bottom:14px;"></div>
+          <div id="gp-search-empty" style="display:none;background:#fff;border-radius:14px;padding:24px 28px;text-align:center;">
+            <div style="font-size:15px;font-weight:800;color:#1A2E42;">No matches found.</div>
+            <div style="font-size:13px;color:#6B7A8D;margin-top:6px;">Try a different keyword, or broaden the filter.</div>
           </div>
         </div>
 
@@ -464,31 +471,107 @@ function pick(el, key){
     try { window.scrollTo({top:0, behavior:'smooth'}); } catch(e){}
   };
   window.gpOnboardDone = function(){ gpShow('concierge'); };
-  window.gpSearchFilter = function(scope, btn){
-    var buttons = document.querySelectorAll('#gp-search [data-scope]');
-    buttons.forEach(function(b){
-      if (b.tagName === 'BUTTON') {
-        b.className = (b.dataset.scope === scope) ? 'btn' : 'btn ghost';
+  // Search: match on offer-side fields, need-side fields, and name. Cards get data-scope:
+  // 'offers' (only offer-side hit), 'needs' (only need-side), 'both', or 'name' (name-only).
+  var _SRC_OFFER = ['skills','values','interests','hobbies','domains','professionalServices'];
+  var _SRC_NEED  = ['needs'];
+  var _SRC_IK    = {skills:'ikigaiSkills',values:'ikigaiValues',interests:'ikigaiInterests',domains:'ikigaiDomains',needs:'ikigaiNeeds'};
+  function _searchFieldHit(person, fields, qLower) {
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i];
+      var raw = String(person[f] || '') + '|' + String(person[_SRC_IK[f]] || '');
+      if (!raw || raw.toLowerCase().indexOf(qLower) === -1) continue;
+      var tokens = raw.split('|');
+      for (var j = 0; j < tokens.length; j++) {
+        var t = tokens[j].trim();
+        if (t && t.toLowerCase().indexOf(qLower) !== -1) return { field: f, token: t };
       }
+    }
+    return null;
+  }
+  function _escHtml(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function _runSearch(q) {
+    var out = [];
+    var qLower = q.toLowerCase();
+    var meNrm = String(meId || '').split('.').join('').toLowerCase();
+    _gpHereAttendees.forEach(function(p) {
+      var pn = String(p.appearId || '').split('.').join('').toLowerCase();
+      if (pn === meNrm) return; // skip self
+      var offer = _searchFieldHit(p, _SRC_OFFER, qLower);
+      var need  = _searchFieldHit(p, _SRC_NEED,  qLower);
+      var name = ((p.first || '') + ' ' + (p.name || '')).toLowerCase();
+      var nameHit = name.indexOf(qLower) !== -1;
+      if (!offer && !need && !nameHit) return;
+      var scope = (offer && need) ? 'both' : (offer ? 'offers' : (need ? 'needs' : 'name'));
+      out.push({ person: p, offer: offer, need: need, nameHit: nameHit, scope: scope });
+    });
+    return out;
+  }
+  function _renderSearch(q, results) {
+    var qEcho = document.getElementById('gp-search-query');
+    var countEl = document.getElementById('gp-search-count');
+    var grid = document.getElementById('gp-search-results');
+    var empty = document.getElementById('gp-search-empty');
+    if (qEcho) qEcho.textContent = q ? 'for "' + q + '"' : '';
+    if (countEl) countEl.textContent = results.length + (results.length === 1 ? ' match' : ' matches');
+    if (grid) {
+      grid.innerHTML = '';
+      results.forEach(function(r) {
+        var p = r.person;
+        var card = document.createElement(p.pageLink ? 'a' : 'div');
+        if (p.pageLink) { card.href = p.pageLink; card.setAttribute('title', 'Open ' + (p.first || p.name || 'this person') + '\'s Appear page'); }
+        card.className = 'feed-card gp-result';
+        card.setAttribute('data-scope', r.scope);
+        card.setAttribute('style', 'margin-bottom:0;text-decoration:none;color:inherit;cursor:' + (p.pageLink ? 'pointer' : 'default') + ';');
+        var av = p.photo
+          ? '<div style="width:44px;height:44px;border-radius:50%;background:transparent;overflow:hidden;flex-shrink:0;"><img src="' + _escHtml(p.photo) + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></div>'
+          : '<div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#7DD3FC,#1F699E);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;flex-shrink:0;">' + _escHtml(String(p.first || p.name || '?').charAt(0).toUpperCase()) + '</div>';
+        var tag = '';
+        if (r.offer && r.need) tag = '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;"><span style="color:#1F7A56;">🟢 Offering</span> <span style="color:#6B7A8D;">·</span> <span style="color:#B36A0F;">🟠 Seeking</span></div>';
+        else if (r.offer) tag = '<div style="font-size:12px;color:#1F7A56;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">🟢 Offering</div>';
+        else if (r.need)  tag = '<div style="font-size:12px;color:#B36A0F;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">🟠 Seeking</div>';
+        var snippet = '';
+        if (r.offer) snippet += '<b style="background:#FFF4CC;padding:1px 4px;border-radius:4px;">' + _escHtml(r.offer.token) + '</b>';
+        if (r.need)  { if (snippet) snippet += ' <span style="color:#6B7A8D;">·</span> '; snippet += '<b style="background:#FFE0CC;padding:1px 4px;border-radius:4px;">' + _escHtml(r.need.token) + '</b>'; }
+        card.innerHTML = '<div style="display:flex;gap:12px;align-items:flex-start;">' + av
+          + '<div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:800;color:#1A2E42;">' + _escHtml(p.first || p.name || p.appearId) + '</div>'
+          + tag
+          + (snippet ? '<div style="font-size:14px;color:#1A2E42;margin-top:6px;">' + snippet + '</div>' : '')
+          + '</div></div>';
+        grid.appendChild(card);
+      });
+    }
+    if (empty) empty.style.display = results.length === 0 ? 'block' : 'none';
+  }
+  window.gpSearchFilter = function(scope, btn){
+    document.querySelectorAll('#gp-search [data-scope]').forEach(function(b){
+      if (b.tagName === 'BUTTON') b.className = (b.dataset.scope === scope) ? 'btn' : 'btn ghost';
     });
     var cards = document.querySelectorAll('#gp-search-results .gp-result');
     var visible = 0;
     cards.forEach(function(c){
-      var match = (scope === 'all') || (c.dataset.scope === scope);
+      var cs = c.dataset.scope;
+      var match;
+      if (scope === 'all')         match = true;
+      else if (scope === 'offers') match = (cs === 'offers' || cs === 'both');
+      else if (scope === 'needs')  match = (cs === 'needs'  || cs === 'both');
+      else                         match = (cs === scope);
       c.style.display = match ? '' : 'none';
       if (match) visible++;
     });
     var empty = document.getElementById('gp-search-empty');
     if (empty) empty.style.display = visible === 0 ? 'block' : 'none';
     var countEl = document.getElementById('gp-search-count');
-    if (countEl) countEl.textContent = visible + ' matches';
+    if (countEl) countEl.textContent = visible + (visible === 1 ? ' match' : ' matches');
   };
   window.gpTileSearch = function(){
     var el = document.getElementById('gp-tile-search');
     var q = el ? el.value.trim() : '';
-    var qEcho = document.getElementById('gp-search-query');
-    if (qEcho) qEcho.textContent = q ? ('for "' + q + '"') : '(all)';
+    var results = q ? _runSearch(q) : [];
+    _renderSearch(q, results);
     gpShow('search');
+    var allBtn = document.querySelector('#gp-search [data-scope="all"]');
+    if (allBtn) gpSearchFilter('all', allBtn);
   };
   window.gpPost = function(){
     var name = document.getElementById('gp-header-name');
@@ -680,8 +763,6 @@ var myPill = document.getElementById('gp-myprofile-pill');
       // (Was: personalized eyebrow "First, we found matches for you" — misleading with no data.)
       var goProfileLink = document.getElementById('gp-feed-goprofile');
       if (goProfileLink) goProfileLink.onclick = goProfile;
-      var goProfileLink2 = document.getElementById('gp-search-goprofile');
-      if (goProfileLink2) goProfileLink2.onclick = goProfile;
       // Onboarding screen — leads with "Group: <name>" (2026-08-21 change), then the cover image.
       var onboardTitle = document.getElementById('gp-onboard-title');
       if (onboardTitle) onboardTitle.textContent = 'Group: ' + (groupName || '');
