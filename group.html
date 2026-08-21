@@ -330,34 +330,32 @@
           <div style="margin-top:12px;"><button class="btn" onclick="gpPost()">+ Post event</button></div>
         </div>
 
-        <!-- Search results panel (opened from the header search).
-             Filters over d.attendees client-side — no extra GAS call. Matches on offer-side fields
-             (skills, values, interests, hobbies, domains, professionalServices) and need-side
-             (needs), plus name. Cards are clickable to each person's Appear page. -->
-        <div id="gp-search" style="display:none;">
-          <div style="background:#fff;border-radius:14px;padding:20px 24px;margin-bottom:14px;">
-            <div style="font-size:17px;font-weight:800;color:#1A2E42;">Search results <span id="gp-search-query" style="font-weight:500;color:#6B7A8D;font-size:14px;"></span></div>
-            <div style="font-size:13px;color:#6B7A8D;margin-top:4px;"><b style="color:#1A2E42;" id="gp-search-count">0 matches</b></div>
-            <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
-              <button class="btn" data-scope="all" onclick="gpSearchFilter('all', this)">All</button>
-              <button class="btn ghost" data-scope="offers" onclick="gpSearchFilter('offers', this)">🟢 Offering</button>
-              <button class="btn ghost" data-scope="needs" onclick="gpSearchFilter('needs', this)">🟠 Seeking</button>
-            </div>
-          </div>
-          <div id="gp-search-results" class="grid-2" style="margin-bottom:14px;"></div>
-          <div id="gp-search-empty" style="display:none;background:#fff;border-radius:14px;padding:24px 28px;text-align:center;">
-            <div style="font-size:15px;font-weight:800;color:#1A2E42;">No matches found.</div>
-            <div style="font-size:13px;color:#6B7A8D;margin-top:6px;">Try a different keyword, or broaden the filter.</div>
-          </div>
-        </div>
+        <!-- (Search panel removed 2026-08-21 — results now render inline in the Members panel below.) -->
 
-        <!-- Members panel (inline; opened from the sidebar View all members button) -->
+        <!-- Members panel — opened from the sidebar 'View all' button.
+             Doubles as the search page: type in the box, results render inline below (no panel switch). -->
         <div id="gp-members" style="display:none;background:#fff;border-radius:14px;padding:24px 28px;">
           <div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:12px;">All members</div>
           <div style="display:flex;align-items:center;gap:8px;background:#F7F9FC;border:1.5px solid #DDE4EE;border-radius:22px;padding:4px 6px 4px 14px;margin-bottom:16px;">
             <input id="gp-tile-search" type="text" placeholder="Search skills, interests, values, needs" onkeydown="if(event.key==='Enter'){gpTileSearch();}" style="flex:1;border:none;background:transparent;font-family:inherit;font-size:14px;padding:6px 4px;outline:none;color:#1A2E42;min-width:0;">
             <button class="btn" onclick="gpTileSearch()">Search</button>
+            <button class="btn ghost" id="gp-search-clear" style="display:none;" onclick="gpSearchClear()">Clear</button>
           </div>
+          <!-- Search results block — hidden until there's a query. -->
+          <div id="gp-search-block" style="display:none;">
+            <div style="font-size:13px;color:#6B7A8D;margin-bottom:10px;"><b style="color:#1A2E42;" id="gp-search-count">0 matches</b> <span id="gp-search-query" style="color:#6B7A8D;"></span></div>
+            <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+              <button class="btn" data-scope="all" onclick="gpSearchFilter('all', this)">All</button>
+              <button class="btn ghost" data-scope="offers" onclick="gpSearchFilter('offers', this)">🟢 Offering</button>
+              <button class="btn ghost" data-scope="needs" onclick="gpSearchFilter('needs', this)">🟠 Seeking</button>
+            </div>
+            <div id="gp-search-results" class="grid-2" style="margin-bottom:14px;"></div>
+            <div id="gp-search-empty" style="display:none;background:#F7F9FC;border-radius:12px;padding:20px;text-align:center;">
+              <div style="font-size:15px;font-weight:800;color:#1A2E42;">No matches found.</div>
+              <div style="font-size:13px;color:#6B7A8D;margin-top:6px;">Try a different keyword, or broaden the filter.</div>
+            </div>
+          </div>
+          <!-- Default roster (small avatars) — shown when no search query. -->
           <div id="gp-members-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>
         </div>
 
@@ -455,7 +453,7 @@ function pick(el, key){
     var pageHdr = document.getElementById('gp-page-header');
     if (pageHdr) pageHdr.style.display = (view === 'onboard') ? 'none' : '';
     // Update the third breadcrumb segment (hide on concierge/onboard, show the view name in panels)
-    var labels = { feed:'Matches', messages:'Messages', invites:'Invitations', events:'Group events', search:'Search', members:'Members' };
+    var labels = { feed:'Matches', messages:'Messages', invites:'Invitations', events:'Group events', members:'Members' };
     var sep = document.getElementById('gp-crumb-sep');
     var vw  = document.getElementById('gp-crumb-view');
     if (labels[view]) {
@@ -470,7 +468,7 @@ function pick(el, key){
   window.gpOnboardDone = function(){ gpShow('concierge'); };
   // Search: match on offer-side fields, need-side fields, and name. Cards get data-scope:
   // 'offers' (only offer-side hit), 'needs' (only need-side), 'both', or 'name' (name-only).
-  var _SRC_OFFER = ['skills','values','interests','hobbies','domains','professionalServices'];
+  var _SRC_OFFER = ['skills','values','interests','hobbies','domains','professionalServices','advocating'];
   var _SRC_NEED  = ['needs'];
   var _SRC_IK    = {skills:'ikigaiSkills',values:'ikigaiValues',interests:'ikigaiInterests',domains:'ikigaiDomains',needs:'ikigaiNeeds'};
   function _searchFieldHit(person, fields, qLower) {
@@ -564,11 +562,37 @@ function pick(el, key){
   window.gpTileSearch = function(){
     var el = document.getElementById('gp-tile-search');
     var q = el ? el.value.trim() : '';
-    var results = q ? _runSearch(q) : [];
+    // Always land on the Members panel — the search results render inline below the input, not on a separate page.
+    if (document.getElementById('gp-members').style.display === 'none' || document.getElementById('gp-members').style.display === '') {
+      gpShow('members');
+    }
+    var block = document.getElementById('gp-search-block');
+    var roster = document.getElementById('gp-members-list');
+    var clr = document.getElementById('gp-search-clear');
+    if (!q) {
+      if (block) block.style.display = 'none';
+      if (roster) roster.style.display = '';
+      if (clr) clr.style.display = 'none';
+      return;
+    }
+    var results = _runSearch(q);
     _renderSearch(q, results);
-    gpShow('search');
-    var allBtn = document.querySelector('#gp-search [data-scope="all"]');
+    if (block) block.style.display = '';
+    if (roster) roster.style.display = 'none';
+    if (clr) clr.style.display = '';
+    var allBtn = document.querySelector('#gp-members [data-scope="all"]');
     if (allBtn) gpSearchFilter('all', allBtn);
+  };
+  window.gpSearchClear = function(){
+    var el = document.getElementById('gp-tile-search');
+    if (el) el.value = '';
+    var block = document.getElementById('gp-search-block');
+    var roster = document.getElementById('gp-members-list');
+    var clr = document.getElementById('gp-search-clear');
+    if (block) block.style.display = 'none';
+    if (roster) roster.style.display = '';
+    if (clr) clr.style.display = 'none';
+    if (el) el.focus();
   };
   window.gpPost = function(){
     var name = document.getElementById('gp-header-name');
