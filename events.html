@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V12.79 | Date: 2026-08-05 | LAST CHANGE: Date to be announced now clears the END time too, so a lone end time cannot survive as "Time: - 1:00 PM". The posted-event box gets an X top-left and Done becomes View event, which opens the event you just posted - the only way to reach it when it is private. "My Appear Network page" no longer attaches when the host is someone else. (V12.78: Appear link looked up, never typed.) -->
+<!-- Version: V12.80 | Date: 2026-08-21 | LAST CHANGE: Filter-panel reorder ("How would you like to feel?" now sits below Venue/Host/Show). Category pills and mood chips dim when picking them would return zero events under the current filter chain, and tapping an already-active category deselects it. Topic input is hidden until "Add topics" is tapped (was always visible, read as a search field on first visit). For You matches collapse to a "You have N event matches · Show" bar on mobile. Nav button "+ Post an event" -> "+ Post event" (modal titles unchanged). (V12.79: Date TBD clears end time too; posted-event box gains ✕ + View event; Appear page no longer attaches when host is someone else.) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -65,6 +65,19 @@
   .cat-pill { background:var(--white); border:1.5px solid var(--border); border-radius:20px; padding:5px 14px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; color:var(--muted); transition:all .15s; white-space:nowrap; }
   .cat-pill:hover { border-color:var(--primary); color:var(--primary); }
   .cat-pill.active { background:#154F74; border-color:#154F74; color:white; }
+  /* V12.80: a dim category or mood chip has no events under the current filter chain.
+     Kept clickable so the user is not silently locked out; the low opacity is the signal. */
+  .cat-pill.dim { opacity:.4; }
+  .cat-pill.dim:hover { border-color:var(--border); color:var(--muted); }
+  .mood-chip.dim { opacity:.4; }
+  /* For You matches collapse on mobile — the row of match cards eats the fold on a small
+     screen, so we show a one-line bar with the count and a Show toggle instead. */
+  #for-you-collapse-bar { display:none; }
+  @media (max-width:768px) {
+    #for-you-collapse-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; padding-top:14px; border-top:1px solid var(--border); font-size:13px; color:var(--muted); }
+    #for-you-collapse-bar .fy-toggle { color:var(--primary); font-weight:700; cursor:pointer; }
+    #for-you-results.collapsed { display:none !important; }
+  }
 
   .form-cat-chips { display:flex; gap:8px; flex-wrap:wrap; }
   .form-cat-chip { background:var(--white); border:1.5px solid var(--border); border-radius:20px; padding:6px 14px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; color:var(--muted); transition:all .15s; white-space:nowrap; user-select:none; }
@@ -221,7 +234,7 @@
   </div>
   <div class="header-right" style="display:flex;gap:10px;">
     <button class="btn btn-white btn-sm" onclick="goMyEvents()" ontouchstart="goMyEvents()" style="touch-action:manipulation;-webkit-tap-highlight-color:transparent;">My events</button>
-    <button class="btn btn-white btn-sm" onclick="openPostEvent()" ontouchstart="openPostEvent()" style="touch-action:manipulation;-webkit-tap-highlight-color:transparent;">+ Post an event</button>
+    <button class="btn btn-white btn-sm" onclick="openPostEvent()" ontouchstart="openPostEvent()" style="touch-action:manipulation;-webkit-tap-highlight-color:transparent;">+ Post event</button>
     
   </div>
 </div>
@@ -262,13 +275,14 @@
           </div>
         </div>
       </div>
-      <!-- The topic field + button live in the right column, outside both state blocks that
-           renderForYou() rebuilds, so an in-progress typed value is never destroyed. -->
+      <!-- V12.80: input hidden until "Add topics" is tapped. First-time joiners read the field
+           as a search bar; a button-first reveal makes the intent obvious. Button label flips to
+           "Add" while open, back to "Add topics" after a save. -->
       <div id="topic-add-row" style="display:flex;gap:8px;position:relative;flex-shrink:0;">
         <input id="interests-input" type="text" placeholder='Topic or "exact phrase"' autocomplete="off"
-          style="width:220px;max-width:52vw;border:1.5px solid var(--border);border-radius:8px;padding:9px 14px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;box-sizing:border-box;"
+          style="display:none;width:220px;max-width:52vw;border:1.5px solid var(--border);border-radius:8px;padding:9px 14px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;box-sizing:border-box;"
           oninput="onInterestsInput(event)" onkeydown="onInterestsKeydown(event)">
-        <button onclick="addInterest()" style="flex-shrink:0;background:#154F74;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;">Add topics</button>
+        <button id="topic-add-btn" onclick="onTopicAddClick()" style="flex-shrink:0;background:#154F74;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;">Add topics</button>
         <div id="interests-autocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:20;max-height:180px;overflow-y:auto;margin-top:4px;"></div>
       </div>
     </div>
@@ -276,6 +290,8 @@
          with no picker, flooding the topic list. Removed 2026-08-19; keep pullProfileInterests()
          function in JS (harmless without the row) in case another entry point calls it. -->
 <!-- Matches, full width below the row. renderForYou toggles this with the active state. -->
+    <!-- V12.80: on mobile the bar below stands in for the results grid, which collapses via the .collapsed class. -->
+    <div id="for-you-collapse-bar"></div>
     <div id="for-you-results" style="display:none;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);"></div>
     <!-- Inline reveal rather than an overlay - modals render badly inside Glide. Adding happens
          in the row above, so this panel is only for removing topics. -->
@@ -335,19 +351,6 @@
         <button id="filter-fmt-virtual" onclick="setFilterFormat('virtual')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">💻 Virtual</button>
         <button id="filter-fmt-inperson" onclick="setFilterFormat('inperson')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">📍 In-person</button>
       </div>
-      <!-- Mood filter — matches the six experience values a host can tag on an event. Any picked = OR. -->
-      <div style="margin-top:14px;">
-        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:4px;">How would you like to feel?</label>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Show events based on your desired mood.</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button id="filter-mood-connected" onclick="toggleMoodFilter('connected')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🌐 Connected</button>
-          <button id="filter-mood-expressed" onclick="toggleMoodFilter('expressed')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🎨 Expressed</button>
-          <button id="filter-mood-nourished" onclick="toggleMoodFilter('nourished')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🥘 Nourished</button>
-          <button id="filter-mood-energized" onclick="toggleMoodFilter('energized')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🌀 Energized</button>
-          <button id="filter-mood-playful" onclick="toggleMoodFilter('playful')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🏓 Playful</button>
-          <button id="filter-mood-rested" onclick="toggleMoodFilter('rested')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">💙 Rested</button>
-        </div>
-      </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-top:16px;">
       <div style="flex:1;min-width:160px;position:relative;">
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:5px;">Venue</label>
@@ -371,6 +374,19 @@
         </select>
       </div>
     </div>
+      <!-- V12.80: mood filter moved below Venue/Host/Show so the section header 'How would you like to feel?' does not sit above the field-name labels. Any picked mood = OR-match on the event's experience list. -->
+      <div style="margin-top:14px;">
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:4px;">How would you like to feel?</label>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Show events based on your desired mood.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="filter-mood-connected" onclick="toggleMoodFilter('connected')" class="mood-chip" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🌐 Connected</button>
+          <button id="filter-mood-expressed" onclick="toggleMoodFilter('expressed')" class="mood-chip" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🎨 Expressed</button>
+          <button id="filter-mood-nourished" onclick="toggleMoodFilter('nourished')" class="mood-chip" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🥘 Nourished</button>
+          <button id="filter-mood-energized" onclick="toggleMoodFilter('energized')" class="mood-chip" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🌀 Energized</button>
+          <button id="filter-mood-playful" onclick="toggleMoodFilter('playful')" class="mood-chip" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">🏓 Playful</button>
+          <button id="filter-mood-rested" onclick="toggleMoodFilter('rested')" class="mood-chip" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">💙 Rested</button>
+        </div>
+      </div>
     </div>
     <div id="location-filter" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
       <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:8px;">Filter by location</label>
@@ -1970,10 +1986,17 @@ function renderPills() {
   c.innerHTML = "";
   var allBtn = makeFilterBtn("Show all categories", activeFilter === "all", function() { setFilter("all"); });
   allBtn.style.background = "#154F74"; allBtn.style.borderColor = "#154F74"; allBtn.style.color = "#fff";
+  allBtn.setAttribute("data-cat-label", "all");   // V12.80: skip this pill when dimming
   c.appendChild(allBtn);
   CATEGORIES.forEach(function(cat) {
     var isActive = activeFilter === cat.label;
-    c.appendChild(makeFilterBtn(cat.emoji + " " + cat.label, isActive, function() { setFilter(cat.label); }));
+    // V12.80: tapping the active pill deselects the filter (resets to All). Otherwise picking it filters as before.
+    var btn = makeFilterBtn(cat.emoji + " " + cat.label, isActive, function() {
+      if (activeFilter === cat.label) setFilter("all");
+      else setFilter(cat.label);
+    });
+    btn.setAttribute("data-cat-label", cat.label);
+    c.appendChild(btn);
   });
 }
 function makeFilterBtn(text, isActive, onClick) {
@@ -2339,11 +2362,95 @@ function matchesQuery(e, q) {
   return cats.toLowerCase().indexOf(q) !== -1;
 }
 
+// V12.80: filter chain extracted so the chip-dim helper can reuse it without duplicating logic.
+// opts.skipCat / opts.skipMood let the helper answer "would this event pass if we ignored the
+// category (or mood) filter?" — the two questions a dim indicator needs.
+function _passesEventFilters(e, opts) {
+  opts = opts || {};
+  const q = (document.getElementById("search-input")?.value || "").toLowerCase();
+  const now = Date.now();
+  const MS_WEEK    = 7*24*60*60*1000;
+  const MS_MONTH   = 30*24*60*60*1000;
+  const MS_QUARTER = 91*24*60*60*1000;
+  let cats = Array.isArray(e.categories) ? e.categories : [e.category].filter(Boolean);
+  cats = cats.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; });
+  const matchCat  = opts.skipCat || activeFilter === "all" || cats.includes(activeFilter);
+  const matchQ    = matchesQuery(e, q);
+  const evEndMs   = e.endtime ? new Date(e.date + "T" + e.endtime).getTime() : new Date(e.date + "T" + (e.time||"00:00")).getTime() + 60*60*1000;
+  const evStartMs = new Date(e.date + "T" + (e.time||"00:00")).getTime();
+  const isPast    = evEndMs < now;
+  const matchTab  = activeTab === "past" ? isPast : !isPast;
+  let matchDate = true;
+  if (activeDateFilter === "week")         matchDate = evStartMs >= now && evStartMs <= now + MS_WEEK;
+  else if (activeDateFilter === "month")   matchDate = evStartMs >= now && evStartMs <= now + MS_MONTH;
+  else if (activeDateFilter === "past-week")   matchDate = evEndMs >= now - MS_WEEK && evEndMs < now;
+  else if (activeDateFilter === "past-month")  matchDate = evEndMs >= now - MS_MONTH && evEndMs < now;
+  else if (activeDateFilter === "past-quarter") matchDate = evEndMs >= now - MS_QUARTER && evEndMs < now;
+  else if (activeDateFilter === "upcoming") matchDate = true;
+  if (isPast && evEndMs < now - MS_QUARTER) matchDate = false;
+  const isVirtual  = e.format === "virtual" || e.format === "both" || !e.format;
+  const isInPerson = e.format === "inperson" || e.format === "both" || !e.format;
+  const matchMode  = q ? true : activeMode === "all" ? true : activeMode === "virtual" ? isVirtual : isInPerson;
+  let matchLocation = true;
+  if (activeMode === "inperson") {
+    const state = document.getElementById("filter-state")?.value || "";
+    const loc   = (e.location || "").toLowerCase();
+    if (state) {
+      const stateAbbr = (US_STATES_ABBR && US_STATES_ABBR[state]) || "";
+      matchLocation = loc.includes(state.toLowerCase()) || (stateAbbr && loc.includes(", " + stateAbbr.toLowerCase())) || (stateAbbr && loc.includes(" " + stateAbbr.toLowerCase() + " ")) || (stateAbbr && new RegExp("\\b" + stateAbbr + "\\b","i").test(e.location||""));
+    }
+  }
+  const activeHost = document.getElementById("host-filter")?.value || "";
+  const matchHost  = !activeHost || (e.host||"").toLowerCase().includes(activeHost.toLowerCase());
+  const activeVenue = (document.getElementById("venue-filter")?.value || "").trim();
+  const matchVenue = !activeVenue || (e.venue||"").toLowerCase().includes(activeVenue.toLowerCase());
+  const fmt = typeof _activeFormat !== "undefined" ? _activeFormat : "all";
+  const _fmtIsVirtual = !!(e.meetinglink || e.mode === "virtual" || (e.location||"").toLowerCase().includes("virtual") || (e.location||"").toLowerCase().includes("online") || (e.location||"").toLowerCase().includes("zoom"));
+  const matchFormat = fmt === "all" || (fmt === "virtual" && _fmtIsVirtual) || (fmt === "inperson" && !_fmtIsVirtual);
+  var locWhereOK = true;
+  if (_whereApplied) {   // V12.56: all virtual + only in-person in the set place (vague kept)
+    var _isV = (e.format === "virtual" || e.format === "both" || !e.format);
+    locWhereOK = _isV ? true : _eventMatchesWhere(e);
+  }
+  var matchMood = true;
+  if (!opts.skipMood && _selectedMoods.size > 0) {
+    var expList = String(e.experience || "").toLowerCase().split(",").map(function(s){return s.trim();});
+    matchMood = false;
+    _selectedMoods.forEach(function(m){ if (expList.indexOf(m) !== -1) matchMood = true; });
+  }
+  return matchCat && matchQ && matchTab && matchMode && matchLocation && matchHost && matchDate && matchVenue && matchFormat && matchServingFilter(e) && locWhereOK && matchMood;
+}
+
+// V12.80: dim category pills and mood chips that would return zero events under the current
+// filter chain. Called at the end of renderEvents so counts stay in sync with what is shown.
+// Each pill's own filter is excluded so an active category does not zero out every other pill.
+function _applyChipDims(baseListForCat, baseListForMood) {
+  var catCounts = {};
+  baseListForCat.forEach(function(e) {
+    var cats = Array.isArray(e.categories) ? e.categories : [e.category].filter(Boolean);
+    cats.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; })
+        .forEach(function(lbl) { catCounts[lbl] = (catCounts[lbl] || 0) + 1; });
+  });
+  document.querySelectorAll("#cat-pills .cat-pill").forEach(function(btn) {
+    var lbl = btn.getAttribute("data-cat-label");
+    if (!lbl || lbl === "all") { btn.classList.remove("dim"); return; }
+    btn.classList.toggle("dim", !catCounts[lbl]);
+  });
+  var moodCounts = { connected:0, expressed:0, nourished:0, energized:0, playful:0, rested:0 };
+  baseListForMood.forEach(function(e) {
+    var expList = String(e.experience || "").toLowerCase().split(",").map(function(s){return s.trim();});
+    Object.keys(moodCounts).forEach(function(m) { if (expList.indexOf(m) !== -1) moodCounts[m]++; });
+  });
+  Object.keys(moodCounts).forEach(function(m) {
+    var btn = document.getElementById("filter-mood-" + m);
+    if (btn) btn.classList.toggle("dim", !moodCounts[m]);
+  });
+}
+
 function renderEvents() {
   updateLocalBanner();   // re-evaluate whenever filters change, including the state select
   const evPageBase = window.location.href.replace(/\/[^/]*(\?.*)?$/, "/");
   const grid = document.getElementById("event-grid");
-  const q    = document.getElementById("search-input").value.toLowerCase();
   const now  = Date.now();
 
   const publicRec = getPublicRecurring(2);
@@ -2351,65 +2458,14 @@ function renderEvents() {
 
   // v11.29: skip stale sheet rows and occ-note- rows from card display
   const _templateTitles = new Set(RECURRING_EVENTS.map(r => r.title.toLowerCase()));
-  let list = allEvents.filter(e => {
+  const _prefiltered = allEvents.filter(e => {
     if (e.id.startsWith("occ-note-")) return false;
     if (e.id.startsWith("cancelled-recurring-")) return false;
     if (e.recurFreq && !e.id.startsWith("recurring-") && _templateTitles.has((e.title||"").toLowerCase())) return false;
     if (e.date === "TBD") return false;   // V12.51: TBD events are shared by link only, not listed on the calendar
     return !e.isPrivate;
-  }).filter(e => {
-    let cats = Array.isArray(e.categories) ? e.categories : [e.category].filter(Boolean);
-    cats = cats.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; });
-    const matchCat  = activeFilter === "all" || cats.includes(activeFilter);
-    const matchQ    = matchesQuery(e, q);
-    const evEndMs   = e.endtime ? new Date(e.date + "T" + e.endtime).getTime() : new Date(e.date + "T" + (e.time||"00:00")).getTime() + 60*60*1000;
-    const evStartMs = new Date(e.date + "T" + (e.time||"00:00")).getTime();
-    const isPast    = evEndMs < now;
-    const matchTab  = activeTab === "past" ? isPast : !isPast;
-    let matchDate = true;
-    const MS_WEEK    = 7*24*60*60*1000;
-    const MS_MONTH   = 30*24*60*60*1000;
-    const MS_QUARTER = 91*24*60*60*1000;
-    if (activeDateFilter === "week")         matchDate = evStartMs >= now && evStartMs <= now + MS_WEEK;
-    else if (activeDateFilter === "month")   matchDate = evStartMs >= now && evStartMs <= now + MS_MONTH;
-    else if (activeDateFilter === "past-week")   matchDate = evEndMs >= now - MS_WEEK && evEndMs < now;
-    else if (activeDateFilter === "past-month")  matchDate = evEndMs >= now - MS_MONTH && evEndMs < now;
-    else if (activeDateFilter === "past-quarter") matchDate = evEndMs >= now - MS_QUARTER && evEndMs < now;
-    else if (activeDateFilter === "upcoming") matchDate = true;
-    if (isPast && evEndMs < now - MS_QUARTER) matchDate = false;
-    const isVirtual  = e.format === "virtual" || e.format === "both" || !e.format;
-    const isInPerson = e.format === "inperson" || e.format === "both" || !e.format;
-    const matchMode  = q ? true : activeMode === "all" ? true : activeMode === "virtual" ? isVirtual : isInPerson;
-    let matchLocation = true;
-    if (activeMode === "inperson") {
-      const state = document.getElementById("filter-state")?.value || "";
-      const loc   = (e.location || "").toLowerCase();
-      if (state) {
-        const stateAbbr = (US_STATES_ABBR && US_STATES_ABBR[state]) || "";
-        matchLocation = loc.includes(state.toLowerCase()) || (stateAbbr && loc.includes(", " + stateAbbr.toLowerCase())) || (stateAbbr && loc.includes(" " + stateAbbr.toLowerCase() + " ")) || (stateAbbr && new RegExp("\\b" + stateAbbr + "\\b","i").test(e.location||""));
-      }
-    }
-    const activeHost = document.getElementById("host-filter")?.value || "";
-    const matchHost  = !activeHost || (e.host||"").toLowerCase().includes(activeHost.toLowerCase());
-    const activeVenue = (document.getElementById("venue-filter")?.value || "").trim();
-    const matchVenue = !activeVenue || (e.venue||"").toLowerCase().includes(activeVenue.toLowerCase());
-    const fmt = typeof _activeFormat !== "undefined" ? _activeFormat : "all";
-    const _fmtIsVirtual = !!(e.meetinglink || e.mode === "virtual" || (e.location||"").toLowerCase().includes("virtual") || (e.location||"").toLowerCase().includes("online") || (e.location||"").toLowerCase().includes("zoom"));
-    const matchFormat = fmt === "all" || (fmt === "virtual" && _fmtIsVirtual) || (fmt === "inperson" && !_fmtIsVirtual);
-    var locWhereOK = true;
-    if (_whereApplied) {   // V12.56: all virtual + only in-person in the set place (vague kept)
-      var _isV = (e.format === "virtual" || e.format === "both" || !e.format);
-      locWhereOK = _isV ? true : _eventMatchesWhere(e);
-    }
-    // Mood: OR-match. When any mood is picked, the event's experience list must contain at least one.
-    var matchMood = true;
-    if (_selectedMoods.size > 0) {
-      var expList = String(e.experience || "").toLowerCase().split(",").map(function(s){return s.trim();});
-      matchMood = false;
-      _selectedMoods.forEach(function(m){ if (expList.indexOf(m) !== -1) matchMood = true; });
-    }
-    return matchCat && matchQ && matchTab && matchMode && matchLocation && matchHost && matchDate && matchVenue && matchFormat && matchServingFilter(e) && locWhereOK && matchMood;
   });
+  let list = _prefiltered.filter(function(e) { return _passesEventFilters(e); });
 
   list.sort((a, b) => {
     const da = new Date(a.date + "T" + (a.time||"00:00")).getTime();
@@ -2491,6 +2547,12 @@ function renderEvents() {
       </div>`;
     grid.appendChild(card);
   });
+
+  // V12.80: dim chips whose own filter would zero-out the visible set.
+  // For each candidate we hold every OTHER filter and count what remains.
+  var _catBase  = _prefiltered.filter(function(e) { return _passesEventFilters(e, {skipCat:true}); });
+  var _moodBase = _prefiltered.filter(function(e) { return _passesEventFilters(e, {skipMood:true}); });
+  _applyChipDims(_catBase, _moodBase);
 }
 
 async function markGoing(id) {
@@ -4737,6 +4799,14 @@ function pullProfileInterests() {
   if (typeof showToast === "function") showToast("Added " + added + " from your event profile");
 }
 
+// V12.80: matches collapse to a one-line bar on mobile so the row of cards does not push the
+// calendar below the fold on a phone. Default collapsed; the toggle flips it for this session
+// only. Desktop hides the bar via CSS media query and always shows the grid.
+var _fyCollapsedMobile = true;
+function toggleFyCollapse() {
+  _fyCollapsedMobile = !_fyCollapsedMobile;
+  renderForYou();
+}
 function renderForYou() {
   const interests = loadInterests();
   updatePullProfileLink();   // link state is independent of which render branch runs below
@@ -4745,10 +4815,12 @@ function renderForYou() {
   if (!emptyEl || !activeEl) return;
 
   var _fyResults = document.getElementById("for-you-results");
+  const _fyBar = document.getElementById("for-you-collapse-bar");
   if (interests.length === 0) {
     emptyEl.style.display = "block";
     activeEl.style.display = "none";
     if (_fyResults) _fyResults.style.display = "none";   // V12.35: results live outside the active block now
+    if (_fyBar) _fyBar.innerHTML = "";
     return;
   }
   emptyEl.style.display = "none";
@@ -4796,6 +4868,18 @@ function renderForYou() {
 
   const resultsEl = document.getElementById("for-you-results");
   if (!resultsEl) return;
+  // Update the mobile collapse bar. Empty state stays uncollapsed (nothing to hide).
+  if (_fyBar) {
+    if (matched.length === 0) {
+      _fyBar.innerHTML = "";
+      resultsEl.classList.remove("collapsed");
+    } else {
+      const label = matched.length === 1 ? "1 event match" : (matched.length + " event matches");
+      const action = _fyCollapsedMobile ? "Show" : "Hide";
+      _fyBar.innerHTML = "<span>You have " + label + "</span><span class=\"fy-toggle\" onclick=\"toggleFyCollapse()\">" + action + "</span>";
+      resultsEl.classList.toggle("collapsed", _fyCollapsedMobile);
+    }
+  }
   if (matched.length === 0) {
     resultsEl.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:8px 0;">🔍 No upcoming events match your topics. <a onclick="toggleInterestsPanel()" style="color:var(--primary);font-weight:700;cursor:pointer;">Try broadening your keywords</a></div>`;
     return;
@@ -4875,7 +4959,32 @@ function addInterest() {
   document.getElementById("interests-autocomplete").style.display = "none";
   renderInterestsChips();
   renderForYou();
-  input.focus();   // the field is always on screen now, so keep the cursor ready for the next topic
+  closeTopicInput();   // V12.80: input is hidden by default, so collapse it after saving
+}
+
+// V12.80: the "Add topics" button toggles the input open, then acts as Add on the second tap.
+// First tap: reveal + focus. With text + tap: save. Empty + tap while open: cancel/close.
+function onTopicAddClick() {
+  const input = document.getElementById("interests-input");
+  if (!input) return;
+  const open = input.style.display !== "none";
+  if (!open) {
+    input.style.display = "";
+    input.focus();
+    const btn = document.getElementById("topic-add-btn");
+    if (btn) btn.textContent = "Add";
+    return;
+  }
+  if (input.value.trim()) { addInterest(); return; }
+  closeTopicInput();
+}
+function closeTopicInput() {
+  const input = document.getElementById("interests-input");
+  if (input) { input.style.display = "none"; input.value = ""; }
+  const ac = document.getElementById("interests-autocomplete");
+  if (ac) ac.style.display = "none";
+  const btn = document.getElementById("topic-add-btn");
+  if (btn) btn.textContent = "Add topics";
 }
 
 function onInterestsKeydown(e) {
@@ -4962,7 +5071,7 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.79 | Date: 2026-08-05 | LAST CHANGE: Date to be announced now clears the END time too, so a lone end time cannot survive as "Time: - 1:00 PM". The posted-event box gets an X top-left and Done becomes View event, which opens the event you just posted - the only way to reach it when it is private. "My Appear Network page" no longer attaches when the host is someone else. (V12.78: Appear link looked up, never typed.) -->
+<!-- Version: V12.80 | Date: 2026-08-21 | LAST CHANGE: Filter-panel reorder ("How would you like to feel?" now sits below Venue/Host/Show). Category pills and mood chips dim when picking them would return zero events under the current filter chain, and tapping an already-active category deselects it. Topic input is hidden until "Add topics" is tapped (was always visible, read as a search field on first visit). For You matches collapse to a "You have N event matches · Show" bar on mobile. Nav button "+ Post an event" -> "+ Post event" (modal titles unchanged). (V12.79: Date TBD clears end time too; posted-event box gains ✕ + View event; Appear page no longer attaches when host is someone else.) -->
 </body>
 <!--
   Copyright 2026 DayBalancer LLC. All rights reserved.
