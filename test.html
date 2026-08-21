@@ -562,6 +562,29 @@ function pick(el, key){
 // (viewer's offers × others' needs) is a larger next-phase build.
 (function(){
   var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
+  // Members "Here now" strip — dynamic per-row cap so 8 people never wrap 1 onto row 2.
+  var _gpHereAttendees = [];
+  function gpRenderHereStrip(){
+    var hn = document.getElementById('gp-here-strip');
+    if (!hn) return;
+    var w = hn.clientWidth || 284;
+    var perRow = Math.max(1, Math.floor((w + 6) / 38)); // 32px photo + 6px gap
+    hn.innerHTML = '';
+    _gpHereAttendees.slice(0, perRow).forEach(function(p){
+      var a = document.createElement('a');
+      a.setAttribute('role','link'); a.setAttribute('tabindex','0');
+      a.setAttribute('title', p.first || p.name || p.appearId || '');
+      a.setAttribute('style','width:32px;height:32px;border-radius:50%;background:#B7C4D6;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;text-decoration:none;cursor:pointer;overflow:hidden;');
+      if (p.photo) { var img = document.createElement('img'); img.src = p.photo; img.setAttribute('style','width:100%;height:100%;object-fit:cover;'); a.appendChild(img); }
+      else { a.textContent = (p.first||p.name||'?').charAt(0).toUpperCase(); }
+      hn.appendChild(a);
+    });
+  }
+  var _gpResizeTimer;
+  window.addEventListener('resize', function(){
+    clearTimeout(_gpResizeTimer);
+    _gpResizeTimer = setTimeout(gpRenderHereStrip, 120);
+  });
   // Small GROUP_NAMES snapshot mirroring group.html — falls back to "Group" when unknown.
   var GROUP_NAMES = {
     'eH7Z9mVdT1O2470M-u.BJA':'Seattle Tech Network','tn.jgL8wQliq26wEwTv-ow':'Seattle Tech Network',
@@ -694,19 +717,10 @@ function pick(el, key){
       // Sidebar heading + a small sample of member photos; full list is in the Members panel.
       var mh = document.getElementById('gp-members-heading');
       if (mh) mh.textContent = attendees.length + ' members';
-      var hn = document.getElementById('gp-here-strip');
-      if (hn) {
-        hn.innerHTML = '';
-        attendees.slice(0,8).forEach(function(p){
-          var a = document.createElement('a');
-          a.setAttribute('role','link'); a.setAttribute('tabindex','0');
-          a.setAttribute('title', p.first || p.name || p.appearId || '');
-          a.setAttribute('style','width:32px;height:32px;border-radius:50%;background:#B7C4D6;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;text-decoration:none;cursor:pointer;overflow:hidden;');
-          if (p.photo) { var img = document.createElement('img'); img.src = p.photo; img.setAttribute('style','width:100%;height:100%;object-fit:cover;'); a.appendChild(img); }
-          else { a.textContent = (p.first||p.name||'?').charAt(0).toUpperCase(); }
-          hn.appendChild(a);
-        });
-      }
+      // Members strip — cap the count to what fits in ONE row of the sidebar (Jessie: no orphan bottom row).
+      // Photos are 32px + 6px gap, so perRow = floor((width + 6) / 38). Re-renders on resize.
+      _gpHereAttendees = attendees;
+      gpRenderHereStrip();
       // Full members panel
       var ml = document.getElementById('gp-members-list');
       if (ml) {
