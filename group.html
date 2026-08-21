@@ -546,7 +546,7 @@ function pick(el, key){
     return {offers: offers, needs: needs, count: people.length};
   }
 
-  fetch(GS_URL + '?action=getGroupMembers&groupId=' + encodeURIComponent(groupId) + (meId ? '&me=' + encodeURIComponent(meId) : ''))
+  fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId) + (meId ? '&me=' + encodeURIComponent(meId) : ''))
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d) return;
@@ -560,6 +560,59 @@ function pick(el, key){
           if (_aNrm === _meNrm) { _myIdx = _i; break; }
         }
         if (_myIdx > 0) { attendees.unshift(attendees.splice(_myIdx, 1)[0]); }
+      }
+      // Upgrade page chrome with real group data from d.group (falls back to GROUP_NAMES + hardcoded placeholders when Groups tab is empty).
+      if (d.group) {
+        if (d.group.name) {
+          groupName = d.group.name;
+          document.title = groupName + ' — Match page';
+          if (hdrName) hdrName.textContent = 'Group: ' + groupName;
+          var onboardTitleEl = document.getElementById('gp-onboard-title');
+          if (onboardTitleEl) onboardTitleEl.textContent = 'Group: ' + groupName;
+        }
+        if (d.group.image) {
+          if (hdrAv && hdrAv.tagName === 'IMG') hdrAv.src = d.group.image;
+          var coverEl = document.getElementById('gp-onboard-cover');
+          if (coverEl) coverEl.src = d.group.image;
+        }
+        if (d.group.intro) {
+          var introEl = document.getElementById('gp-intro-copy');
+          if (introEl) introEl.textContent = d.group.intro;
+        }
+        if (d.group.agreements) {
+          var agreeEl = document.getElementById('gp-agreements');
+          if (agreeEl) agreeEl.textContent = d.group.agreements;
+        }
+        // Hosts row on the onboard screen: filter attendees to those in d.group.hostIds.
+        if (d.group.hostIds && d.group.hostIds.length) {
+          var hostListEl = document.getElementById('gp-host-list');
+          if (hostListEl) {
+            var _hostNrm = function(x){ return String(x||'').split('.').join('').toLowerCase(); };
+            var _hostSet = {};
+            d.group.hostIds.forEach(function(h){ _hostSet[_hostNrm(h)] = true; });
+            var _hosts = attendees.filter(function(a){ return _hostSet[_hostNrm(a.appearId)]; });
+            hostListEl.innerHTML = '';
+            _hosts.forEach(function(h){
+              var chip = document.createElement('div');
+              chip.setAttribute('style','display:inline-flex;align-items:center;gap:8px;background:#F7F9FC;border:1px solid #DDE4EE;padding:5px 12px 5px 5px;border-radius:20px;font-size:13px;font-weight:600;color:#1A2E42;');
+              var av = document.createElement('span');
+              if (h.photo) {
+                var img = document.createElement('img');
+                img.src = h.photo; img.alt = '';
+                img.setAttribute('style','width:24px;height:24px;border-radius:50%;object-fit:cover;display:block;');
+                av.appendChild(img);
+              } else {
+                av.setAttribute('style','display:inline-flex;width:24px;height:24px;border-radius:50%;background:#B7C4D6;color:#fff;align-items:center;justify-content:center;font-size:11px;font-weight:800;');
+                av.textContent = String(h.first || h.name || '?').charAt(0).toUpperCase();
+              }
+              chip.appendChild(av);
+              var nm = document.createElement('span');
+              nm.textContent = h.first || h.name || h.appearId;
+              chip.appendChild(nm);
+              hostListEl.appendChild(chip);
+            });
+          }
+        }
       }
       // Counts
       var totalCount = attendees.length + (d.me && !attendees.some(function(a){return a.appearId===d.me.appearId;}) ? 1 : 0);
