@@ -256,7 +256,7 @@
             <div style="background:#F7FBFF;border:1.5px solid #C9DFF3;border-radius:12px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
               <div>
                 <div style="font-size:15px;font-weight:800;color:#1A2E42;">See introductions</div>
-                <div id="gp-tile-intro-sub" style="font-size:14px;color:#6B7A8D;margin-top:3px;">Coming soon</div>
+                <div id="gp-tile-intro-sub" style="font-size:14px;color:#6B7A8D;margin-top:3px;">Loading…</div>
               </div>
               <button class="btn" onclick="gpShow('feed')" >View</button>
             </div>
@@ -302,12 +302,18 @@
         <!-- Matches panel — hidden until Matches tile is clicked.
              Real match wiring is next up (algorithm ports from the pre-promotion group.html).
              Until then: honest empty state — no fabricated introductions. -->
+        <!-- Matches panel — computed client-side from getGroupBundle data. See _computeMatches. -->
         <div id="gp-feed" style="display:none;">
-          <div style="background:#fff;border-radius:14px;padding:24px 26px;">
+          <div style="background:#fff;border-radius:14px;padding:20px 22px;margin-bottom:14px;">
             <div id="gp-matches-eyebrow" style="font-size:12px;font-weight:800;letter-spacing:.06em;color:#1F699E;text-transform:uppercase;">Matches</div>
-            <div style="font-size:20px;font-weight:800;color:#1A2E42;margin-top:2px;">Coming soon</div>
-            <div style="font-size:14px;color:#4B5A6D;margin-top:10px;line-height:1.55;">We're wiring real introductions for this group — ranked by overlap between what you shared in your profile and what others in the group offer or are looking for. Fill in your profile and check back.</div>
-            <div style="margin-top:18px;">
+            <div id="gp-matches-title" style="font-size:20px;font-weight:800;color:#1A2E42;margin-top:2px;">Loading…</div>
+            <div id="gp-matches-sub" style="font-size:13px;color:#6B7A8D;margin-top:4px;">Ranked by strongest overlap with what you shared.</div>
+          </div>
+          <div id="gp-matches-results" class="grid-2" style="margin-bottom:14px;"></div>
+          <div id="gp-matches-empty" style="display:none;background:#fff;border-radius:14px;padding:24px 28px;text-align:center;">
+            <div style="font-size:15px;font-weight:800;color:#1A2E42;">No matches yet.</div>
+            <div id="gp-matches-empty-sub" style="font-size:13px;color:#6B7A8D;margin-top:6px;">Fill in more of your profile to find people who share what you offer or need.</div>
+            <div style="margin-top:14px;">
               <a role="link" tabindex="0" id="gp-feed-goprofile" style="display:inline-block;background:#1F699E;color:#fff;padding:10px 18px;border-radius:24px;font-weight:700;font-size:14px;text-decoration:none;cursor:pointer;">Update my profile</a>
             </div>
           </div>
@@ -501,6 +507,151 @@ function pick(el, key){
       out.push({ person: p, offer: offer, need: need, nameHit: nameHit, scope: scope });
     });
     return out;
+  }
+  // ── Match algorithm ──
+  // Cross the viewer's offer/need tokens against every other member's offer/need tokens.
+  // Four buckets:
+  //   theyOfferYouNeed  = their offer × your need   (they can help you)
+  //   youOfferTheyNeed  = your offer × their need   (you can help them)
+  //   coseek            = your need × their need    (both looking for the same thing)
+  //   shared            = your offer × their offer  (in common)
+  // Score prioritizes offer/need (comp) over both-need (coseek) over in-common (shared).
+  var _me = null;
+  var _matchResults = [];
+  function _tokenizePerson(person, fields) {
+    var out = [];
+    var seen = {};
+    fields.forEach(function(f) {
+      var main = String(person[f] || '');
+      var ik   = _SRC_IK[f] ? String(person[_SRC_IK[f]] || '') : '';
+      (main + '|' + ik).split(/[|,]/).forEach(function(t) {
+        var trimmed = String(t || '').split(':')[0].trim(); // strip ikigai level suffix
+        var low = trimmed.toLowerCase();
+        if (trimmed && trimmed.length > 1 && !seen[low]) { seen[low] = true; out.push(trimmed); }
+      });
+    });
+    return out;
+  }
+  function _tokenMap(tokens) {
+    var m = {};
+    tokens.forEach(function(t) { m[t.toLowerCase()] = t; });
+    return m;
+  }
+  function _intersectTokens(aMap, bMap) {
+    var out = [];
+    Object.keys(aMap).forEach(function(k) { if (bMap[k]) out.push(aMap[k]); });
+    return out;
+  }
+  function _computeMatches(me, others) {
+    if (!me) return [];
+    var meOffer = _tokenMap(_tokenizePerson(me, _SRC_OFFER));
+    var meNeed  = _tokenMap(_tokenizePerson(me, _SRC_NEED));
+    if (Object.keys(meOffer).length === 0 && Object.keys(meNeed).length === 0) return []; // viewer has no profile
+    var scored = [];
+    others.forEach(function(p) {
+      var pn = String(p.appearId || '').split('.').join('').toLowerCase();
+      var mn = String(me.appearId || '').split('.').join('').toLowerCase();
+      if (pn === mn) return;
+      var pOffer = _tokenMap(_tokenizePerson(p, _SRC_OFFER));
+      var pNeed  = _tokenMap(_tokenizePerson(p, _SRC_NEED));
+      var theyOfferYouNeed = _intersectTokens(pOffer, meNeed);
+      var youOfferTheyNeed = _intersectTokens(meOffer, pNeed);
+      var coseek           = _intersectTokens(meNeed,  pNeed);
+      var shared           = _intersectTokens(meOffer, pOffer);
+      var score = theyOfferYouNeed.length * 3 + youOfferTheyNeed.length * 3 + coseek.length * 2 + shared.length;
+      if (score === 0) return;
+      scored.push({
+        person: p,
+        theyOfferYouNeed: theyOfferYouNeed,
+        youOfferTheyNeed: youOfferTheyNeed,
+        coseek: coseek,
+        shared: shared,
+        score: score
+      });
+    });
+    scored.sort(function(a, b) { return b.score - a.score; });
+    return scored;
+  }
+  function _matchKicker(m) {
+    var nm = m.person.first || m.person.name || m.person.appearId;
+    if (m.theyOfferYouNeed.length && m.youOfferTheyNeed.length) return { emoji: '🔗', label: 'MUTUAL MATCH · ' + nm.toUpperCase() };
+    if (m.theyOfferYouNeed.length)                              return { emoji: '🌱', label: 'THEY OFFER WHAT YOU NEED · ' + nm.toUpperCase() };
+    if (m.youOfferTheyNeed.length)                              return { emoji: '🤝', label: 'YOU OFFER WHAT THEY NEED · ' + nm.toUpperCase() };
+    if (m.coseek.length)                                        return { emoji: '💡', label: 'BOTH SEEKING · ' + nm.toUpperCase() };
+    return                                                             { emoji: '✨', label: 'IN COMMON · ' + nm.toUpperCase() };
+  }
+  function _matchBody(m) {
+    var nm = m.person.first || m.person.name || 'They';
+    var parts = [];
+    if (m.theyOfferYouNeed.length) {
+      var t = m.theyOfferYouNeed.slice(0, 2).map(function(x){ return '<b>' + _escHtml(x) + '</b>'; }).join(' / ');
+      parts.push('You need ' + t + '. ' + _escHtml(nm) + ' offers it.');
+    }
+    if (m.youOfferTheyNeed.length) {
+      var y = m.youOfferTheyNeed.slice(0, 2).map(function(x){ return '<b>' + _escHtml(x) + '</b>'; }).join(' / ');
+      parts.push('You offer ' + y + '. ' + _escHtml(nm) + ' is looking for it.');
+    }
+    if (m.coseek.length && !m.theyOfferYouNeed.length && !m.youOfferTheyNeed.length) {
+      var c = m.coseek.slice(0, 2).map(function(x){ return '<b>' + _escHtml(x) + '</b>'; }).join(' / ');
+      parts.push('You and ' + _escHtml(nm) + ' are both looking for ' + c + '.');
+    }
+    if (m.shared.length && !parts.length) {
+      var s = m.shared.slice(0, 3).map(function(x){ return '<b>' + _escHtml(x) + '</b>'; }).join(' / ');
+      parts.push('You and ' + _escHtml(nm) + ' both value ' + s + '.');
+    }
+    return parts.join(' ');
+  }
+  function _renderMatches() {
+    var grid = document.getElementById('gp-matches-results');
+    var empty = document.getElementById('gp-matches-empty');
+    var title = document.getElementById('gp-matches-title');
+    var sub = document.getElementById('gp-matches-sub');
+    var emptySub = document.getElementById('gp-matches-empty-sub');
+    var tileSub = document.getElementById('gp-tile-intro-sub');
+    if (!grid || !title) return;
+    var firstName = (_me && _me.first) ? _me.first : '';
+    var n = _matchResults.length;
+    // Header line
+    if (n === 0) {
+      title.style.display = 'none';
+      if (sub) sub.style.display = 'none';
+      grid.innerHTML = '';
+      if (empty) empty.style.display = 'block';
+      // Empty-state sub-copy depends on why: no viewer profile vs no overlap.
+      if (emptySub) {
+        var hasProfile = _me && (_tokenizePerson(_me, _SRC_OFFER).length + _tokenizePerson(_me, _SRC_NEED).length > 0);
+        emptySub.textContent = hasProfile
+          ? 'Nobody in this group shares or complements your profile yet. As more people fill in their profiles, matches will show here.'
+          : 'Fill in your profile so we can find people who share what you offer or need.';
+      }
+      if (tileSub) tileSub.textContent = 'No matches yet';
+      return;
+    }
+    title.style.display = '';
+    if (sub) sub.style.display = '';
+    if (empty) empty.style.display = 'none';
+    title.textContent = (firstName ? firstName + ', ' : '') + n + (n === 1 ? ' match' : ' matches');
+    if (tileSub) tileSub.textContent = n + (n === 1 ? ' match' : ' matches') + ' ready';
+    grid.innerHTML = '';
+    _matchResults.slice(0, 20).forEach(function(m) {
+      var p = m.person;
+      var card = document.createElement(p.pageLink ? 'a' : 'div');
+      if (p.pageLink) { card.href = p.pageLink; card.setAttribute('title', 'Open ' + (p.first || p.name || 'this person') + '\'s Appear page'); }
+      card.className = 'feed-card' + ((m.theyOfferYouNeed.length || m.youOfferTheyNeed.length) ? ' strong' : '');
+      card.setAttribute('style', 'margin-bottom:0;text-decoration:none;color:inherit;cursor:' + (p.pageLink ? 'pointer' : 'default') + ';');
+      var kick = _matchKicker(m);
+      var av = p.photo
+        ? '<div style="width:44px;height:44px;border-radius:50%;overflow:hidden;flex-shrink:0;"><img src="' + _escHtml(p.photo) + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></div>'
+        : '<div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#7DD3FC,#1F699E);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;flex-shrink:0;">' + _escHtml(String(p.first || p.name || '?').charAt(0).toUpperCase()) + '</div>';
+      var inner = '<div class="kicker">' + kick.emoji + ' ' + _escHtml(kick.label) + '</div>'
+        + '<div style="display:flex;gap:12px;align-items:flex-start;margin-top:6px;">'
+        + av
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:14px;color:#1A2E42;line-height:1.5;">' + _matchBody(m) + '</div>'
+        + '</div></div>';
+      card.innerHTML = inner;
+      grid.appendChild(card);
+    });
   }
   function _renderSearch(q, results) {
     var qEcho = document.getElementById('gp-search-query');
@@ -732,6 +883,11 @@ function pick(el, key){
       // Members strip — cap the count to what fits in ONE row of the sidebar (Jessie: no orphan bottom row).
       // Photos are 32px + 6px gap, so perRow = floor((width + 6) / 38). Re-renders on resize.
       _gpHereAttendees = attendees;
+      // Compute matches: viewer's profile crossed against every other member. Populates the
+      // Matches panel + updates the concierge tile sub with the real count.
+      _me = d.me || null;
+      _matchResults = _computeMatches(_me, _gpHereAttendees);
+      _renderMatches();
       gpRenderHereStrip();
       // Full members panel
       var ml = document.getElementById('gp-members-list');
