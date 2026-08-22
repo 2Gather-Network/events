@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Apply to join</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{
+    --bg:#1F699E; --card:#fff; --ink:#1A2E42; --soft:#4B5A6D; --muted:#6B7A8D;
+    --line:#DDE4EE; --panel:#F7FBFF; --panel-line:#C9DFF3; --brand:#1F699E;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);font-family:'DM Sans','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);}
+  .wrap{max-width:820px;margin:0 auto;padding:24px 20px 60px;}
+  .breadcrumb{color:#fff;font-size:14px;font-weight:600;margin-bottom:14px;opacity:.92;}
+  .breadcrumb a{color:#fff;text-decoration:none;}
+  .card{background:var(--card);border-radius:14px;padding:28px 30px;margin-bottom:16px;}
+  h1{font-size:24px;font-weight:800;margin:0;line-height:1.25;}
+  .lede{font-size:15px;color:var(--soft);margin:10px 0 22px;line-height:1.55;}
+  .q{font-size:16px;font-weight:700;color:var(--ink);margin:22px 0 6px;}
+  textarea{width:100%;min-height:96px;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:15px;line-height:1.55;background:#F7F9FC;resize:vertical;}
+  textarea:focus{outline:none;border-color:var(--brand);background:#fff;}
+  .actions{display:flex;gap:10px;justify-content:flex-start;margin-top:22px;flex-wrap:wrap;}
+  .btn{background:var(--brand);color:#fff;border:0;padding:12px 24px;border-radius:26px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn.ghost{background:#fff;color:var(--brand);border:1.5px solid var(--brand);}
+  .status{margin-top:12px;padding:10px 14px;border-radius:10px;font-size:14px;line-height:1.5;display:none;}
+  .status.err{display:block;background:#FBE9E7;border:1px solid #E8B0A5;color:#7A2410;}
+  .status.ok{display:block;background:#E7F5EA;border:1px solid #A5D5B0;color:#1A5A2C;}
+  .foot{color:#fff;opacity:.55;font-size:11px;text-align:right;margin-top:24px;font-weight:600;letter-spacing:.05em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="breadcrumb" id="crumb">‹ <a href="#" id="crumb-back">Group</a> / Apply to join</div>
+
+  <div class="card" id="main-card">
+    <h1 id="page-title">A few questions before you join</h1>
+    <p class="lede" id="page-lede">Answer briefly and your request goes to the host.</p>
+    <div id="q-list"></div>
+
+    <div id="save-status" class="status"></div>
+
+    <div class="actions">
+      <a class="btn ghost" id="cancel-btn" href="#">Cancel</a>
+      <button class="btn" id="send-btn">Send request</button>
+    </div>
+  </div>
+
+  <div class="foot">Creating.Works &nbsp;·&nbsp; V2.50.JU</div>
+</div>
+
+<script>
+(function(){
+  var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
+  var params = new URLSearchParams(window.location.search);
+  var groupId = (params.get('id') || params.get('groupId') || '').trim();
+  var meId = (params.get('memberCard') || params.get('me') || params.get('appearId') || '').trim();
+
+  var groupHref = 'https://gather.2gather.network/group.html?id=' + encodeURIComponent(groupId) + (meId ? '&memberCard=' + encodeURIComponent(meId) : '');
+  document.getElementById('crumb-back').href = groupHref;
+  document.getElementById('cancel-btn').href = groupHref;
+
+  if (!groupId) {
+    document.getElementById('main-card').innerHTML = '<h1>Missing group.</h1><p class="lede">This page needs <code>?id=&lt;groupId&gt;</code>.</p>';
+    return;
+  }
+
+  if (!meId) {
+    document.getElementById('main-card').innerHTML = '<h1>Sign in first.</h1>'
+      + '<p class="lede">You need an Appear account to apply. Sign in, then come back to this link.</p>'
+      + '<div class="actions"><a class="btn" href="https://appear.network/">Sign in on Appear</a></div>';
+    return;
+  }
+
+  // Load the group's screening questions and name
+  fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || !d.group) return;
+      var g = d.group;
+      var nm = g.name || 'this group';
+      document.getElementById('crumb-back').textContent = nm;
+      document.getElementById('page-title').textContent = 'A few questions before you join';
+      var hostName = 'The host';
+      if (g.hostIds && g.hostIds.length && Array.isArray(d.attendees)) {
+        var _hNrm = String(g.hostIds[0]).split('.').join('').toLowerCase();
+        var h = d.attendees.find(function(a){ return String(a.appearId||'').split('.').join('').toLowerCase() === _hNrm; });
+        if (h) hostName = h.first || h.name || hostName;
+      }
+      document.getElementById('page-lede').textContent = hostName + ' asked to hear from you before you land in ' + nm + '. Answer briefly and your request goes to ' + hostName + '.';
+
+      var qs = String(g.screeningQuestions || '').split('|').filter(Boolean);
+      if (!qs.length) qs = ['What draws you to this group? What are you hoping to find here?'];
+      var list = document.getElementById('q-list');
+      qs.forEach(function(q, i){
+        var lbl = document.createElement('div'); lbl.className = 'q'; lbl.textContent = q;
+        var ta = document.createElement('textarea'); ta.setAttribute('data-idx', i); ta.placeholder = 'A few sentences is plenty.';
+        list.appendChild(lbl); list.appendChild(ta);
+      });
+    })
+    .catch(function(){
+      var list = document.getElementById('q-list');
+      var lbl = document.createElement('div'); lbl.className = 'q'; lbl.textContent = 'What draws you to this group? What are you hoping to find here?';
+      var ta = document.createElement('textarea'); ta.setAttribute('data-idx', 0); ta.placeholder = 'A few sentences is plenty.';
+      list.appendChild(lbl); list.appendChild(ta);
+    });
+
+  var statusEl = document.getElementById('save-status');
+  var sendBtn = document.getElementById('send-btn');
+  function showStatus(kind, msg){ statusEl.className = 'status ' + kind; statusEl.textContent = msg; }
+
+  sendBtn.addEventListener('click', function(){
+    var answers = [];
+    document.querySelectorAll('#q-list textarea').forEach(function(t){ answers.push(t.value.trim()); });
+    if (!answers.some(function(a){ return a; })) {
+      showStatus('err', 'Answer at least one question so the host knows why you\'re interested.');
+      return;
+    }
+    sendBtn.disabled = true;
+    showStatus('ok', 'Sending your request…');
+
+    var url = GS_URL + '?action=saveJoinRequest'
+      + '&groupId=' + encodeURIComponent(groupId)
+      + '&appearId=' + encodeURIComponent(meId)
+      + '&answers=' + encodeURIComponent(answers.join('|'));
+
+    fetch(url)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.status === 'ok') {
+          if (d.joined) {
+            showStatus('ok', 'You\'re in — taking you to the group.');
+            setTimeout(function(){ window.location.href = groupHref; }, 900);
+          } else {
+            document.getElementById('main-card').innerHTML = '<h1>Request sent.</h1>'
+              + '<p class="lede">The host will get back to you by email. You can close this page.</p>'
+              + '<div class="actions"><a class="btn ghost" href="' + groupHref + '">Back to the group page</a></div>';
+          }
+        } else {
+          sendBtn.disabled = false;
+          showStatus('err', (d && d.message) ? d.message : 'Backend not wired yet — try again once Jessie pastes the saveJoinRequest action.');
+        }
+      })
+      .catch(function(){
+        sendBtn.disabled = false;
+        showStatus('err', 'Backend not wired yet — try again once Jessie pastes the saveJoinRequest action.');
+      });
+  });
+})();
+</script>
+</body>
+</html>

@@ -294,9 +294,10 @@
           <div id="gp-host-list" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
           <div style="font-size:12px;font-weight:800;color:#6B7A8D;letter-spacing:.06em;text-transform:uppercase;margin-top:22px;margin-bottom:8px;">How we relate here</div>
           <div id="gp-agreements" style="font-size:14px;color:#4B5A6D;line-height:1.55;">Group agreements will appear here once the host writes them.</div>
-          <div style="margin-top:22px;">
+          <div id="gp-onboard-actions" style="margin-top:22px;">
             <button class="btn" onclick="gpOnboardDone()">Take me to the group</button>
           </div>
+          <div id="gp-onboard-status" style="margin-top:12px;font-size:14px;color:#6B7A8D;line-height:1.5;display:none;"></div>
         </div>
 
         <!-- Matches panel — hidden until Matches tile is clicked.
@@ -970,19 +971,87 @@ var myPill = document.getElementById('gp-myprofile-pill');
       // Onboarding screen — leads with "Group: <name>" (2026-08-21 change), then the cover image.
       var onboardTitle = document.getElementById('gp-onboard-title');
       if (onboardTitle) onboardTitle.textContent = 'Group: ' + (groupName || '');
+      // Populate onboard actions based on viewer state (anonymous / not-a-member / member).
+      // The button choice matches Bulletin 2.5's join flow:
+      //   anonymous → "Sign in on Appear then come back" (no anonymous joins)
+      //   signed-in + not a member → "Join this group" (POSTs saveJoinRequest; open groups auto-join,
+      //     screening groups redirect to /groups/apply.html)
+      //   member → "Take me to the group" (concierge)
+      var _isPublic = d.group && String(d.group.type || '').toLowerCase() === 'public';
+      var _viewerInGroup = false;
+      if (meId) {
+        var _vNrm = String(meId).split('.').join('').toLowerCase();
+        _viewerInGroup = attendees.some(function(a){
+          return String(a.appearId||'').split('.').join('').toLowerCase() === _vNrm;
+        });
+      }
+      (function(){
+        var box = document.getElementById('gp-onboard-actions');
+        var stat = document.getElementById('gp-onboard-status');
+        if (!box) return;
+        box.innerHTML = '';
+        if (!meId) {
+          var a = document.createElement('a');
+          a.className = 'btn';
+          a.href = 'https://appear.network/';
+          a.textContent = 'Sign in on Appear to join';
+          a.setAttribute('style','text-decoration:none;');
+          box.appendChild(a);
+          if (stat) { stat.style.display = 'block'; stat.textContent = 'You need an Appear account to join this group. Sign in, then return here.'; }
+        } else if (!_viewerInGroup) {
+          var b = document.createElement('button');
+          b.className = 'btn';
+          b.textContent = 'Join this group';
+          b.addEventListener('click', function(){
+            b.disabled = true;
+            if (stat) { stat.style.display = 'block'; stat.textContent = 'Sending your request…'; }
+            var joinMode = (d.group && d.group.joinMode) || 'open';
+            if (joinMode === 'screen') {
+              window.location.href = 'https://gather.2gather.network/groups/apply.html?id=' + encodeURIComponent(groupId) + '&memberCard=' + encodeURIComponent(meId);
+              return;
+            }
+            fetch(GS_URL + '?action=saveJoinRequest&groupId=' + encodeURIComponent(groupId) + '&appearId=' + encodeURIComponent(meId))
+              .then(function(r){ return r.json(); })
+              .then(function(res){
+                if (res && res.status === 'ok') {
+                  if (stat) stat.textContent = res.joined ? 'You\'re in. Reloading…' : 'Request sent. The host will get back to you.';
+                  if (res.joined) { setTimeout(function(){ window.location.reload(); }, 700); }
+                } else {
+                  b.disabled = false;
+                  if (stat) stat.textContent = (res && res.message) ? res.message : 'Backend not wired yet — try again once Jessie pastes the saveJoinRequest action.';
+                }
+              })
+              .catch(function(){
+                b.disabled = false;
+                if (stat) stat.textContent = 'Backend not wired yet — try again once Jessie pastes the saveJoinRequest action.';
+              });
+          });
+          box.appendChild(b);
+        } else {
+          var t = document.createElement('button');
+          t.className = 'btn';
+          t.textContent = 'Take me to the group';
+          t.addEventListener('click', function(){ gpOnboardDone(); });
+          box.appendChild(t);
+        }
+      })();
+
       // ?view=<panel> preview — manual override wins over any auto-detect below.
       var vm = (location.search.match(/[?&]view=([a-z]+)/) || [])[1];
       if (vm) {
         gpShow(vm);
-      } else if (meId) {
-        // New-member auto-detect (Doug's ask): a signed-in viewer who is NOT in the group's
-        // members list is brand new here — show the onboarding card instead of the concierge tiles.
-        // Anonymous viewers (no meId) stay on the concierge default; no auto-onboard for them.
-        var _viewerNrm = String(meId).split('.').join('').toLowerCase();
-        var _viewerInGroup = attendees.some(function(a){
-          return String(a.appearId||'').split('.').join('').toLowerCase() === _viewerNrm;
-        });
-        if (!_viewerInGroup) gpShow('onboard');
+      } else {
+        // Public groups (Groups.type === 'Public') stay open to anonymous viewers.
+        // Non-Public groups force the onboard/join screen for anonymous viewers and for signed-in
+        // viewers who are not yet members.
+        // NOTE: this is UI-only defense-in-depth. The getGroupBundle response STILL contains every
+        // member's offer/need data for anonymous callers on non-Public groups — that leak is fixed
+        // by a matching GAS edit (see Bulletin 2.5 assumptions doc + gate/GAS scratchpad).
+        if (meId) {
+          if (!_viewerInGroup) gpShow('onboard');
+        } else if (!_isPublic) {
+          gpShow('onboard');
+        }
       }
     })
     .catch(function(){});
