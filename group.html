@@ -604,7 +604,25 @@ function pick(el, key){
     Object.keys(aMap).forEach(function(k) { if (bMap[k]) out.push(aMap[k]); });
     return out;
   }
+  // Map of the viewer's need item (lowercase) -> free-text detail (the ~encoded suffix),
+  // so a match card can show "You need Cooking: demos at our event" instead of just "Cooking".
+  var _meNeedDetails = {};
+  function _extractNeedDetails(me){
+    var map = {};
+    if (!me) return map;
+    var raw = String(me.needs || '') + '|' + String(me.ikigaiNeeds || '');
+    raw.split(/[|,]/).forEach(function(tok){
+      tok = String(tok || '').trim(); if (!tok) return;
+      var detail = '';
+      var at = tok.indexOf('~');
+      if (at !== -1){ try { detail = decodeURIComponent(tok.slice(at+1)); } catch(e){ detail = tok.slice(at+1); } tok = tok.slice(0, at); }
+      var item = tok.split(':')[0].trim();
+      if (item && detail) map[item.toLowerCase()] = detail;
+    });
+    return map;
+  }
   function _computeMatches(me, others) {
+    _meNeedDetails = _extractNeedDetails(me);
     if (!me) return [];
     var meOffer = _tokenMap(_tokenizePerson(me, _SRC_OFFER));
     var meNeed  = _tokenMap(_tokenizePerson(me, _SRC_NEED));
@@ -681,7 +699,13 @@ function pick(el, key){
     if (n === 1) { whoText = whoNames[0]; isText = 'is'; sText = 's'; }
     else if (n === 2) { whoText = whoNames[0] + ' and ' + whoNames[1]; isText = 'are'; sText = ''; }
     else { whoText = whoNames.join(', ') + ' and ' + (n - 2) + ' more'; isText = 'are'; sText = ''; }
-    return lbl.body.replace('{t}', _escHtml(card.topic)).replace('{who}', whoText).replace('{is}', isText).replace('{s}', sText);
+    // Show the viewer's own free-text detail on need-side cards: "Cooking: demos at our event".
+    var topicText = card.topic;
+    if (card.kind === 'theyOfferYouNeed' || card.kind === 'coseek') {
+      var d = _meNeedDetails[String(card.topic).toLowerCase()];
+      if (d) topicText = card.topic + ': ' + d;
+    }
+    return lbl.body.replace('{t}', _escHtml(topicText)).replace('{who}', whoText).replace('{is}', isText).replace('{s}', sText);
   }
   function _personChipHTML(m) {
     var p = m.person;
