@@ -515,6 +515,39 @@ function pick(el, key){
     return null;
   }
   function _escHtml(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  // Hrefless navigation so the browser never shows the target URL on hover (no-hover-leak pattern).
+  window._safeNavGo = window._safeNavGo || function(el){ try{ var u = el && el.getAttribute && el.getAttribute('data-nav'); if(u){ window.location.href = u; } }catch(e){} return false; };
+  // Turn an internal encoded token (e.g. "Cat Sitter:local:skill:Pets & Animal Care" or
+  // "Project Manager:Business & Finance:Expert Level~note") into something a member can read.
+  // Returns { name, meta, local }. Drops the internal type words and the ~detail suffix.
+  function _prettyToken(raw){
+    var s = String(raw || '');
+    var detail = '';
+    var tildeAt = s.indexOf('~');
+    if (tildeAt !== -1){ try{ detail = decodeURIComponent(s.slice(tildeAt+1)); }catch(e){ detail = s.slice(tildeAt+1); } s = s.slice(0, tildeAt); }
+    var parts = s.split(':').map(function(x){ return x.trim(); }).filter(Boolean);
+    var name = parts.shift() || '';
+    var local = false;
+    var NOISE = { 'local':1, 'skill':1, 'thing':1, 'resource':1, 'service':1 };
+    var meta = [];
+    parts.forEach(function(x){
+      var lx = x.toLowerCase();
+      if (lx === 'local'){ local = true; return; }
+      if (NOISE[lx]) return;
+      meta.push(x);
+    });
+    if (detail) meta.push(detail);
+    return { name: name, meta: meta.join(' · '), local: local };
+  }
+  function _tokenChip(token, bg){
+    var p = _prettyToken(token);
+    var html = '<span style="display:inline-flex;align-items:center;gap:5px;background:'+bg+';padding:2px 9px;border-radius:12px;">';
+    if (p.local) html += '<span title="Local">📍</span>';
+    html += '<b style="color:#1A2E42;">' + _escHtml(p.name) + '</b>';
+    if (p.meta) html += '<span style="color:#6B7A8D;font-weight:500;font-size:13px;">· ' + _escHtml(p.meta) + '</span>';
+    html += '</span>';
+    return html;
+  }
   function _runSearch(q) {
     var out = [];
     var qLower = q.toLowerCase();
@@ -650,9 +683,12 @@ function pick(el, key){
     var av = p.photo
       ? '<span class="ph" style="overflow:hidden;padding:0;background:transparent;"><img src="' + _escHtml(p.photo) + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></span>'
       : '<span class="ph">' + _escHtml(String(p.first || p.name || '?').charAt(0).toUpperCase()) + '</span>';
-    // Person chip = face + name; whole chip anchors to their Appear page.
+    // Person chip = face + name; whole chip navigates to their profile.
+    // Hrefless (data-nav + _safeNavGo) so the Appear URL never shows on hover.
+    var attrs = p.pageLink
+      ? ' role="link" tabindex="0" data-nav="' + _escHtml(p.pageLink) + '" onclick="return _safeNavGo(this)" title="Open ' + _escHtml(p.first || p.name || 'this person') + '\'s profile"'
+      : '';
     var el = p.pageLink ? 'a' : 'span';
-    var attrs = p.pageLink ? ' href="' + _escHtml(p.pageLink) + '" title="Open ' + _escHtml(p.first || p.name || 'this person') + '\'s Appear page"' : '';
     return '<' + el + ' class="who"' + attrs + ' style="text-decoration:none;color:inherit;cursor:' + (p.pageLink ? 'pointer' : 'default') + ';">' + av + _escHtml(p.first || p.name || p.appearId) + '</' + el + '>';
   }
   function _renderMatches() {
@@ -716,7 +752,13 @@ function pick(el, key){
       results.forEach(function(r) {
         var p = r.person;
         var card = document.createElement(p.pageLink ? 'a' : 'div');
-        if (p.pageLink) { card.href = p.pageLink; card.setAttribute('title', 'Open ' + (p.first || p.name || 'this person') + '\'s Appear page'); }
+        if (p.pageLink) {
+          // Hrefless so the Appear URL never shows on hover. Click navigates same-tab via _safeNavGo.
+          card.setAttribute('role','link'); card.setAttribute('tabindex','0');
+          card.setAttribute('data-nav', p.pageLink);
+          card.setAttribute('onclick', 'return _safeNavGo(this)');
+          card.setAttribute('title', 'Open ' + (p.first || p.name || 'this person') + '\'s profile');
+        }
         card.className = 'feed-card gp-result';
         card.setAttribute('data-scope', r.scope);
         card.setAttribute('style', 'margin-bottom:0;text-decoration:none;color:inherit;cursor:' + (p.pageLink ? 'pointer' : 'default') + ';');
@@ -728,8 +770,8 @@ function pick(el, key){
         else if (r.offer) tag = '<div style="font-size:12px;color:#1F7A56;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">🟢 Offering</div>';
         else if (r.need)  tag = '<div style="font-size:12px;color:#B36A0F;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">🟠 Seeking</div>';
         var snippet = '';
-        if (r.offer) snippet += '<b style="background:#FFF4CC;padding:1px 4px;border-radius:4px;">' + _escHtml(r.offer.token) + '</b>';
-        if (r.need)  { if (snippet) snippet += ' <span style="color:#6B7A8D;">·</span> '; snippet += '<b style="background:#FFE0CC;padding:1px 4px;border-radius:4px;">' + _escHtml(r.need.token) + '</b>'; }
+        if (r.offer) snippet += _tokenChip(r.offer.token, '#EAF6EE');
+        if (r.need)  { if (snippet) snippet += ' '; snippet += _tokenChip(r.need.token, '#FCEFE0'); }
         card.innerHTML = '<div style="display:flex;gap:12px;align-items:flex-start;">' + av
           + '<div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:800;color:#1A2E42;">' + _escHtml(p.first || p.name || p.appearId) + '</div>'
           + tag
@@ -899,12 +941,14 @@ function pick(el, key){
             var _hosts = attendees.filter(function(a){ return _hostSet[_hostNrm(a.appearId)]; });
             hostListEl.innerHTML = '';
             _hosts.forEach(function(h){
-              // Host chip is a plain anchor to their Appear page when we have one, else a div.
-              // Same-tab per [no-new-tabs]. pageLink is public (appear.network/dl/page/...), no hover-leak concern.
+              // Host chip navigates to their profile. Hrefless (data-nav + _safeNavGo) so the URL
+              // never shows on hover; same-tab per [no-new-tabs].
               var chip = h.pageLink ? document.createElement('a') : document.createElement('div');
               if (h.pageLink) {
-                chip.href = h.pageLink;
-                chip.setAttribute('title', 'Open ' + (h.first || h.name || 'host') + '\'s Appear page');
+                chip.setAttribute('role','link'); chip.setAttribute('tabindex','0');
+                chip.setAttribute('data-nav', h.pageLink);
+                chip.setAttribute('onclick', 'return _safeNavGo(this)');
+                chip.setAttribute('title', 'Open ' + (h.first || h.name || 'host') + '\'s profile');
               }
               chip.setAttribute('style','display:inline-flex;align-items:center;gap:8px;background:#F7F9FC;border:1px solid #DDE4EE;padding:5px 12px 5px 5px;border-radius:20px;font-size:13px;font-weight:600;color:#1A2E42;text-decoration:none;cursor:'+(h.pageLink?'pointer':'default')+';');
               var av = document.createElement('span');
