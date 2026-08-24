@@ -747,9 +747,12 @@ function getAllRecurring(count = 2) { return RECURRING_EVENTS.flatMap(t => getNe
 function getPublicRecurring(count = 2) {
   const generated = RECURRING_EVENTS.filter(t => !t.adminOnly).flatMap(t => getNextOccurrences(t, count));
   const realEvents = events.filter(e => !e.id.startsWith("rec-") && !e.id.startsWith("occ-note-") && !e.id.startsWith("cancelled-"));
-  const seen = new Set(realEvents.map(e => `${e.room}|${e.date}|${e.time}`));
+  // V12.82: only dedupe by room|date|time when a real room is set, so a blank-room in-person event
+  // does not hide an unrelated generated recurring occurrence at the same date+time. Title+date still
+  // catches a genuine repost of the same event. (Mirrors the fix in events.html.)
+  const seen = new Set(realEvents.filter(e => e.room).map(e => `${e.room}|${e.date}|${e.time}`));
   const seenTitleDate = new Set(realEvents.map(e => `${(e.title||"").toLowerCase()}|${e.date}`));
-  return generated.filter(rec => !seen.has(`${rec.room}|${rec.date}|${rec.time}`) && !seenTitleDate.has(`${(rec.title||"").toLowerCase()}|${rec.date}`));
+  return generated.filter(rec => !(rec.room && seen.has(`${rec.room}|${rec.date}|${rec.time}`)) && !seenTitleDate.has(`${(rec.title||"").toLowerCase()}|${rec.date}`));
 }
 
 function fmtDate(date, time, endtime) {

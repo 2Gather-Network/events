@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V12.81 | Date: 2026-08-21 | LAST CHANGE: Post-event form: the "Enable event contributions (sign-up list)" checkbox is hidden (feature on hold; existing events with sign-up lists still edit and render). Room-gate label: "Require a completed profile to see the virtual room. / Those without a finished profile are prompted to complete it first." (was "event profile" / "meeting room" / "Registered guests"). (V12.80: filter-panel reorder, chip dim, topic input reveal, mobile For You collapse, "+ Post event".) -->
+<!-- Version: V12.82 | Date: 2026-08-23 | LAST CHANGE: recurring dedupe ignores blank rooms so a generated occurrence is not hidden by an unrelated blank-room event at the same date+time (Intention Lab restored, +25 occurrences); calendar page size 60 -> 30; floating "Top" scroll-to-top button. Prev V12.81 - Post-event form: the "Enable event contributions (sign-up list)" checkbox is hidden (feature on hold; existing events with sign-up lists still edit and render). Room-gate label: "Require a completed profile to see the virtual room. / Those without a finished profile are prompted to complete it first." (was "event profile" / "meeting room" / "Registered guests"). (V12.80: filter-panel reorder, chip dim, topic input reveal, mobile For You collapse, "+ Post event".) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2300,14 +2300,14 @@ function updateLocalBanner() {
    phone even with lazy images. It also stops one busy venue burying the smaller
    ones - Edmonds ran 288 cards against Lake Ballinger's 86.
 
-   Searching and filtering still run over EVERY event, not just the rendered 60:
+   Searching and filtering still run over EVERY event, not just the rendered 30:
    the cap is applied after filtering, so a search finds matches anywhere in the
-   month and then shows the first 60 of the results.
+   month and then shows the first 30 of the results.
 
    The cap resets whenever the result set changes, so a new search always starts
    at the top. Signature is the joined ids - clicking Load more does not change
    the result set, so it does not reset itself. */
-var PAGE_SIZE = 60;
+var PAGE_SIZE = 30;
 var _shownCount = PAGE_SIZE;
 var _lastListSig = null;
 
@@ -4511,9 +4511,13 @@ function getPublicRecurring(count = 2) {
   const generated = RECURRING_EVENTS.filter(t => !t.adminOnly).flatMap(t => getNextOccurrences(t, count));
   // v11.30: exclude rec-, occ-note-, cancelled- rows from dedup checks - only real posted events should block template cards
   const realEvents = events.filter(e => !e.id.startsWith("rec-") && !e.id.startsWith("occ-note-") && !e.id.startsWith("cancelled-"));
-  const seen = new Set(realEvents.map(e => `${e.room}|${e.date}|${e.time}`));
+  // V12.82: only dedupe by room|date|time when a real room is set. In-person events leave room
+  // blank, so two unrelated blank-room events at the same date+time were colliding and hiding a
+  // generated recurring occurrence (Intention Lab vanished whenever another 1pm in-person event
+  // landed the same Tuesday). Title+date still catches a genuine repost of the same event.
+  const seen = new Set(realEvents.filter(e => e.room).map(e => `${e.room}|${e.date}|${e.time}`));
   const seenTitleDate = new Set(realEvents.map(e => `${(e.title||"").toLowerCase()}|${e.date}`));
-  return generated.filter(rec => !seen.has(`${rec.room}|${rec.date}|${rec.time}`) && !seenTitleDate.has(`${(rec.title||"").toLowerCase()}|${rec.date}`));
+  return generated.filter(rec => !(rec.room && seen.has(`${rec.room}|${rec.date}|${rec.time}`)) && !seenTitleDate.has(`${(rec.title||"").toLowerCase()}|${rec.date}`));
 }
 
 function getEventMs(ev) { if (!ev.date) return null; return new Date(ev.date+"T"+(ev.time||"09:00")).getTime(); }
@@ -5074,7 +5078,21 @@ function selectInterestSuggestion(val) {
   </div>
 </div>
 
-<!-- Version: V12.81 | Date: 2026-08-21 | LAST CHANGE: Post-event form: the "Enable event contributions (sign-up list)" checkbox is hidden (feature on hold; existing events with sign-up lists still edit and render). Room-gate label: "Require a completed profile to see the virtual room. / Those without a finished profile are prompted to complete it first." (was "event profile" / "meeting room" / "Registered guests"). (V12.80: filter-panel reorder, chip dim, topic input reveal, mobile For You collapse, "+ Post event".) -->
+<!-- Version: V12.82 | Date: 2026-08-23 | LAST CHANGE: recurring dedupe ignores blank rooms so a generated occurrence is not hidden by an unrelated blank-room event at the same date+time (Intention Lab restored, +25 occurrences); calendar page size 60 -> 30; floating "Top" scroll-to-top button. Prev V12.81 - Post-event form: the "Enable event contributions (sign-up list)" checkbox is hidden (feature on hold; existing events with sign-up lists still edit and render). Room-gate label: "Require a completed profile to see the virtual room. / Those without a finished profile are prompted to complete it first." (was "event profile" / "meeting room" / "Registered guests"). (V12.80: filter-panel reorder, chip dim, topic input reveal, mobile For You collapse, "+ Post event".) -->
+<script>
+/* V12.82: floating "Top" button - a lot of scrolling on the calendar, this jumps back up. */
+(function(){
+  var b = document.createElement("button");
+  b.id = "back-to-top"; b.type = "button"; b.textContent = "Top";
+  b.setAttribute("aria-label", "Back to top");
+  b.style.cssText = "position:fixed;bottom:20px;right:20px;z-index:9999;display:none;width:52px;height:52px;border-radius:50%;border:none;background:#154F74;color:#fff;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,0.28);";
+  b.onclick = function(){ window.scrollTo({ top:0, behavior:"smooth" }); };
+  document.body.appendChild(b);
+  function upd(){ b.style.display = (window.scrollY > 500) ? "block" : "none"; }
+  window.addEventListener("scroll", upd, { passive:true });
+  upd();
+})();
+</script>
 </body>
 <!--
   Copyright 2026 DayBalancer LLC. All rights reserved.
