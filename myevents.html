@@ -385,6 +385,7 @@ function recurToEv(r) {
     format: r.format||"", location: r.location||"",
     room: r.room||"", description: r.description||"",
     host: r.host||"", hostlink: r.hostlink||"", hostType: r.hostType||"",
+    hasBB: String(r.hasBB!==undefined&&r.hasBB!==""?r.hasBB:r.hasHub||"").trim().toLowerCase()==="true",
     contactEmail: r.contactEmail||"", contactPhone: r.contactPhone||"",
     cooplink: r.cooplink||"", paymentlink: r.paymentlink||"",
     meetinglink: ROOMS[r.room] || "", showLinks: r.showLinks||"",
@@ -479,6 +480,7 @@ function toEv(r) {
     date: parseDate(r.date), time: parseTime(r.startTime), endtime: parseTime(r.endTime),
     format: r.format||"", location: r.location||"", room: r.room||"",
     description: r.description||"", host: r.host||"", hostlink: r.hostlink||"", hostType: r.hostType||"",
+    hasBB: String(r.hasBB!==undefined&&r.hasBB!==""?r.hasBB:r.hasHub||"").trim().toLowerCase()==="true",
     contactEmail: r.contactEmail||"", contactPhone: r.contactPhone||"",
     cooplink: r.cooplink||"", paymentlink: r.paymentlink||"", meetinglink: r.meetinglink||"",
     showLinks: r.showLinks||"", otherExchange: r.otherExchange||"",
@@ -1788,7 +1790,12 @@ async function renderMyEventsList(memberId, data) {
       + esc(when) + (loc ? ' · 📍 ' + esc(loc) : '') + '</div>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">'
       + '<a role="link" tabindex="0" data-nav="' + esc(evUrl) + '" onclick="return _safeNavGo(this)" style="font-size:13px;font-weight:700;padding:8px 15px;border-radius:22px;background:var(--primary);color:#fff;text-decoration:none;cursor:pointer;">Open event</a>'
-      + '<a role="link" tabindex="0" data-nav="' + esc(bbUrl) + '" onclick="return _safeNavGo(this)" style="font-size:13px;font-weight:700;padding:8px 15px;border-radius:22px;background:#fff;color:var(--primary);border:1.5px solid var(--primary);text-decoration:none;cursor:pointer;">View bulletin board</a>'
+      // A bulletin board only exists for an event whose host asked for one, so the button only
+      // shows when the sheet says so. It used to show on every event whether or not there was
+      // anything behind it.
+      + (e.hasBB
+        ? '<a role="link" tabindex="0" data-nav="' + esc(bbUrl) + '" onclick="return _safeNavGo(this)" style="font-size:13px;font-weight:700;padding:8px 15px;border-radius:22px;background:#fff;color:var(--primary);border:1.5px solid var(--primary);text-decoration:none;cursor:pointer;">View bulletin board</a>'
+        : '')
       + '</div>'
       // Cancelling a registration and choosing whether other guests see you had lived only in
       // the per-event Manage my experience panel. They belong with the event itself.
@@ -1804,8 +1811,8 @@ async function renderMyEventsList(memberId, data) {
           + '</div>'
         : '')
       + '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 8px;">'
-      + '<div style="font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Who is coming</div>'
-      + '<a role="link" tabindex="0" data-nav="' + esc(bbUrl) + '" onclick="return _safeNavGo(this)" style="font-size:13px;font-weight:700;color:var(--primary);text-decoration:underline;cursor:pointer;">See attendees</a>'
+      + '<div style="font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Event attendees</div>'
+      + (e.hasBB ? '<a role="link" tabindex="0" data-nav="' + esc(bbUrl) + '" onclick="return _safeNavGo(this)" style="font-size:13px;font-weight:700;color:var(--primary);text-decoration:underline;cursor:pointer;">See all attendees</a>' : '')
       + '</div>'
       + '<div id="who-row" style="display:flex;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--muted);">Loading…</div>'
       + '</div>';
@@ -1840,13 +1847,49 @@ async function renderMyEventsList(memberId, data) {
         if (_whoFor !== want) return;
         var el = document.getElementById('who-row'); if (!el) return;
         var ats = (d && d.attendees) || [];
-        if (!ats.length) { el.textContent = 'Nobody has registered yet.'; return; }
-        el.innerHTML = ats.slice(0, 8).map(function(a){
+        // The host belongs in the room they are hosting. getAttendees only returns people who
+        // registered, and a host often does not register for their own event, so the host is
+        // found by matching the event's hostlink against the ids already returned and pulled to
+        // the front. If none of them is the host, a name-only pill stands in.
+        var _ev = (bucket() || []).filter(function(x){ return String(x.id) === want; })[0] || {};
+        var _hl = _expNorm(_ev.hostlink || '');
+        var _hostIdx = -1;
+        for (var _i = 0; _i < ats.length; _i++) {
+          var _an = _expNorm(ats[_i].appearId || '');
+          if (_an && _hl.indexOf(_an) > -1) { _hostIdx = _i; break; }
+        }
+        var _host = _hostIdx > -1 ? ats.splice(_hostIdx, 1)[0] : null;
+        var _hostName = String((_host && (_host.first || _host.name)) || _ev.host || '').trim();
+
+        // A face here opens that person's profile. Hrefless (data-nav + _safeNavGo) so the id
+        // never shows on hover, and only when we actually have a page to open.
+        var wrapLink = function(a, inner, label){
+          if (!a || !a.pageLink) return inner;
+          return '<a role="link" tabindex="0" data-nav="' + esc(a.pageLink) + '" title="' + esc(label || 'Open profile')
+            + '" onclick="return _safeNavGo(this)" style="text-decoration:none;display:inline-flex;cursor:pointer;">' + inner + '</a>';
+        };
+        var circle = function(a){
           var initial = String(a.first || a.name || a.appearId || '?').charAt(0).toUpperCase();
-          return a.photo
+          var inner = a.photo
             ? '<img src="' + esc(a.photo) + '" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">'
             : '<span style="width:32px;height:32px;border-radius:50%;background:#B7C4D6;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;">' + esc(initial) + '</span>';
-        }).join('') + (ats.length > 8 ? '<span style="width:32px;height:32px;border-radius:50%;background:#B7C4D6;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">+' + (ats.length - 8) + '</span>' : '');
+          return wrapLink(a, inner, (a.first || a.name) ? ('Open ' + (a.first || a.name) + "'s profile") : 'Open profile');
+        };
+        var hostPill = '';
+        if (_host || _hostName) {
+          var _hp = _host && _host.photo
+            ? '<img src="' + esc(_host.photo) + '" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">'
+            : '<span style="width:28px;height:28px;border-radius:50%;background:#B7C4D6;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">'
+              + esc(String(_hostName || '?').charAt(0).toUpperCase()) + '</span>';
+          hostPill = wrapLink(_host,
+            '<span style="display:inline-flex;align-items:center;gap:7px;background:#fff;border:1.5px solid var(--primary);border-radius:20px;padding:2px 12px 2px 2px;font-size:13px;font-weight:700;color:var(--primary);">'
+            + _hp + esc(_hostName || 'Host')
+            + '<span style="font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;background:var(--primary);color:#fff;border-radius:10px;padding:2px 7px;">Host</span></span>',
+            _hostName ? ('Open ' + _hostName + "'s profile") : 'Open profile');
+        }
+        if (!hostPill && !ats.length) { el.textContent = 'Nobody has registered yet.'; return; }
+        el.innerHTML = hostPill + ats.slice(0, 8).map(circle).join('')
+          + (ats.length > 8 ? '<span style="width:32px;height:32px;border-radius:50%;background:#B7C4D6;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">+' + (ats.length - 8) + '</span>' : '');
       })
       .catch(function(){
         var el = document.getElementById('who-row');
