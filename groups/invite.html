@@ -74,9 +74,14 @@
     <div id="save-status" class="status"></div>
 
     <div class="actions">
-      <a class="btn ghost" id="skip-btn" role="link" tabindex="0" onclick="return _safeNavGo(this)">Skip for now</a>
+      <a class="btn ghost" id="skip-btn" role="link" tabindex="0" onclick="return _safeNavGo(this)">Done for now</a>
       <button class="btn" id="send-btn" disabled>Send invitations</button>
     </div>
+  </div>
+
+  <div class="card" id="sent-card" style="display:none;">
+    <div class="q" style="margin-top:0;">Already invited</div>
+    <div id="sent-list"></div>
   </div>
 </div>
 
@@ -221,6 +226,48 @@
   var sendBtn = document.getElementById('send-btn');
   function showStatus(kind, msg){ statusEl.className = 'status ' + kind; statusEl.textContent = msg; }
 
+  // Who has already been invited to this group, and where they got to. Loaded on arrival and
+  // again after every send, so the page is a record rather than a one-shot form.
+  function fmtWhen(iso){
+    var d = new Date(String(iso || ''));
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  function loadSent(){
+    var card = document.getElementById('sent-card');
+    var list = document.getElementById('sent-list');
+    if (!card || !list) return;
+    fetch(GS_URL + '?action=getGroupInvites&groupId=' + encodeURIComponent(groupId)
+      + '&hostAppearId=' + encodeURIComponent(meId))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var arr = (d && d.invites) || [];
+        if (!Array.isArray(arr) || !arr.length) { card.style.display = 'none'; return; }
+        list.innerHTML = '';
+        arr.forEach(function(v){
+          var row = document.createElement('div');
+          row.setAttribute('style', 'display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--border,#DDE4EE);font-size:14px;');
+          var nm = document.createElement('span');
+          nm.setAttribute('style', 'flex:1;min-width:0;font-weight:600;color:var(--ink,#1A2E42);');
+          nm.textContent = v.name || v.appearId || 'Someone';
+          var when = document.createElement('span');
+          when.setAttribute('style', 'color:var(--muted,#6B7A8D);white-space:nowrap;');
+          when.textContent = fmtWhen(v.sentAt);
+          var st = document.createElement('span');
+          var joined = String(v.status || '').toLowerCase() === 'joined';
+          st.setAttribute('style', 'white-space:nowrap;font-size:12px;font-weight:800;text-transform:uppercase;'
+            + 'letter-spacing:.04em;padding:3px 9px;border-radius:10px;'
+            + (joined ? 'background:#E7F5EA;color:#1A5A2C;' : 'background:#EEF6FF;color:#154F74;'));
+          st.textContent = joined ? 'Joined' : 'Invited';
+          row.appendChild(nm); row.appendChild(when); row.appendChild(st);
+          list.appendChild(row);
+        });
+        card.style.display = '';
+      })
+      .catch(function(){});
+  }
+  loadSent();
+
   sendBtn.addEventListener('click', function(){
     if (!invitees.length) return;
     sendBtn.disabled = true;
@@ -234,8 +281,15 @@
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (d && d.status === 'ok') {
-          showStatus('ok', 'Invitations sent (' + (d.sent || invitees.length) + ' sent, ' + (d.skipped || 0) + ' skipped).');
-          setTimeout(function(){ window.location.href = groupHref; }, 900);  // JS-triggered nav, no hover leak
+          var _n = (d.sent === undefined) ? invitees.length : d.sent;
+          var _sk = d.skipped || 0;
+          showStatus('ok', _n + (_n === 1 ? ' invitation sent' : ' invitations sent')
+            + (_sk ? ', ' + _sk + ' already invited' : '') + '.');
+          // Staying put on purpose. Being thrown into the group after every send made inviting a
+          // second person mean navigating back.
+          invitees.length = 0;
+          renderInvitees();
+          loadSent();
         } else {
           sendBtn.disabled = false;
           var msg = (d && d.message) ? d.message : 'Backend not wired yet. Your list is still here — try again after Jessie pastes the inviteToGroup action.';
