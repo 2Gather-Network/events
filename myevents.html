@@ -12,7 +12,7 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V5.46 | Date: 2026-07-22 | LAST CHANGE: Removed the dead #interest-modal (same as event V5.42) - submitInterest()/closeInterestModal() defined nowhere, nothing opened it. No behaviour change. (V5.45: blank-button fix - link colors scoped to a:not(.btn).) -->
+  <!-- Version: V5.47 | Date: 2026-08-24 | LAST CHANGE: My events list - a registration for a recurring occurrence (recurring-<slug>-<date>) now resolves back to its rec- template, so recurring events show under Attending instead of disappearing. (V5.46: removed the dead #interest-modal.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1607,7 +1607,35 @@ async function renderMyEventsList(memberId, data) {
   });
   const activeIds = Object.keys(byEvent).filter(function(eid) { return !byEvent[eid].cancelled; });
   const allEv = (data.events || []).filter(r => r.id).map(toEv);
-  const attending = allEv.filter(function(e) { return activeIds.indexOf(String(e.id)) > -1; });
+  // V5.47: a registration for a recurring event stores a GENERATED occurrence id
+  // (recurring-<slug>-<YYYY-MM-DD>). The sheet only holds the rec- template, so that id
+  // matched no row and the occurrence silently vanished from Attending. Resolve each one
+  // back to its template (same slug rule the single-event view uses) and give it the date
+  // carried in the id, so it lists like any other event.
+  const _slugOf = function(t){ return String(t || "").toLowerCase().replace(/\s+/g, "-"); };
+  const _recRows = (data.events || []).filter(function(r) {
+    return String(r.id || "").indexOf("rec-") === 0 && r.title;
+  });
+  const _cancelledOcc = {};
+  (data.events || []).forEach(function(r) {
+    const rid = String(r.id || "");
+    if (rid.indexOf("cancelled-") === 0) _cancelledOcc[rid.slice("cancelled-".length)] = true;
+  });
+  const occurrences = activeIds.filter(function(eid) {
+    return eid.indexOf("recurring-") === 0
+      && !_cancelledOcc[eid]
+      && !allEv.some(function(e) { return String(e.id) === eid; });
+  }).map(function(eid) {
+    const dateStr = eid.slice(-10);
+    const slug = eid.slice("recurring-".length, eid.length - 11);
+    const tmpl = _recRows.find(function(r) { return _slugOf(r.title) === slug; });
+    if (!tmpl) return null;
+    const e = toEv(tmpl);
+    e.id = eid;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) e.date = dateStr;
+    return e;
+  }).filter(Boolean);
+  const attending = allEv.filter(function(e) { return activeIds.indexOf(String(e.id)) > -1; }).concat(occurrences);
   const hosting = allEv.filter(function(e) { return e.hostMemberCard && _expNorm(e.hostMemberCard) === _expNorm(memberId); });
   const byDate = function(a, b) { return String(a.date || "").localeCompare(String(b.date || "")); };
   attending.sort(byDate); hosting.sort(byDate);
