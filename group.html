@@ -1116,6 +1116,19 @@ function pick(el, key){
           .concat(_rest.filter(function(p){ return p.photo; }))
           .concat(_rest.filter(function(p){ return !p.photo; }));
       })();
+      // A host belongs to their own group. Membership is read from the member list alone, so a
+      // group whose host was never written into it treated that host as a stranger: no Hosts
+      // row, nought members, and an invitation to join a group they run. 5 Corners on 2026-08-25.
+      (function(){
+        if (!meId || !d.me || !d.group) return;
+        var _n = function(x){ return String(x||'').split('.').join('').toLowerCase(); };
+        var _meK = _n(meId);
+        var _hostOf = [].concat(d.group.hostIds || [], d.group.coHostIds || [])
+          .some(function(h){ return _n(h) === _meK; });
+        if (!_hostOf) return;
+        if (attendees.some(function(a){ return _n(a.appearId) === _meK; })) return;
+        attendees = [d.me].concat(attendees);
+      })();
       // Upgrade page chrome with real group data from d.group (falls back to GROUP_NAMES + hardcoded placeholders when Groups tab is empty).
       if (d.group) {
         if (d.group.name) {
@@ -1273,6 +1286,9 @@ var myPill = document.getElementById('gp-myprofile-pill');
         });
         var _hostIds = (d.group && d.group.hostIds) || [];
         _viewerIsHost = _hostIds.some(function(h){ return String(h||'').split('.').join('').toLowerCase() === _vNrm; });
+        // Hosting is belonging. Without this a host of a group with an empty member list is
+        // shown the door they came in by, and asked to join what they run.
+        if (_viewerIsHost) _viewerInGroup = true;
       }
       // Say plainly which way the viewer belongs here. Standing in a group without being told
       // whether you run it or attend it was the same screen either way.
