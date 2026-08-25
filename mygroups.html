@@ -130,7 +130,7 @@
     html += '<h2>' + esc(g.name || 'Group') + '</h2>';
     html += '<span class="badge ' + (g.role === 'cohost' ? 'cohost' : 'host') + '">' + roleLabel + '</span>';
     html += '<div class="stats">' + esc(g.intro || '') + (g.intro ? '<br>' : '')
-      + '<b>' + (g.members || 0) + '</b> people · <b>' + (g.offers || 0) + '</b> offers · <b>' + (g.needs || 0) + '</b> needs'
+      + '<span id="detail-counts">Counting…</span>'
       + (pending ? ' · <b style="color:var(--brand);">' + pending + ' pending requests</b>' : '') + '</div>';
     html += '<div class="acts">'
       + '<a class="btn solid sm" role="link" tabindex="0" data-nav="' + groupUrl(g,'group') + '" onclick="return _safeNavGo(this)">Open group</a>'
@@ -140,6 +140,41 @@
       + (pending ? '<a class="btn sm" role="link" tabindex="0" data-nav="' + groupUrl(g,'admin') + '" onclick="return _safeNavGo(this)">View requests (' + pending + ')</a>' : '')
       + '</div>';
     detail.innerHTML = html;
+    _countSeq++;
+    loadCounts(g, _countSeq);
+  }
+
+  // getMyGroups reports zero offers and zero needs for every group, so this panel was stating
+  // something that was never true while the group page showed real numbers for the same group.
+  // They are counted here exactly the way the group page counts them, from the group's own data,
+  // so the two can never disagree again. One call per group, remembered so coming back is instant.
+  var _counts = {}, _countSeq = 0;
+  function _countTokens(v){ return String(v || '').split('|').filter(Boolean).length; }
+  function loadCounts(g, seq){
+    if (_counts[g.groupId]) { paintCounts(g, seq); return; }
+    fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(g.groupId) + '&me=' + encodeURIComponent(meId))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var people = ((d && d.attendees) || []).filter(function(p){ return p.photo || p.first || p.name; });
+        var offers = 0, needs = 0;
+        people.forEach(function(p){
+          offers += _countTokens(p.skills) + _countTokens(p.interests) + _countTokens(p.values);
+          needs  += _countTokens(p.needs);
+        });
+        _counts[g.groupId] = { people: people.length, offers: offers, needs: needs };
+        paintCounts(g, seq);
+      })
+      .catch(function(){ paintCounts(g, seq, true); });
+  }
+  function paintCounts(g, seq, failed){
+    // Another group may have been clicked while this was in flight, so a late answer is dropped
+    // rather than painted over the group now on screen.
+    if (seq !== _countSeq) return;
+    var el = document.getElementById('detail-counts');
+    if (!el) return;
+    var c = _counts[g.groupId];
+    if (!c) { el.textContent = failed ? 'Could not load the numbers.' : ''; return; }
+    el.innerHTML = '<b>' + c.people + '</b> people · <b>' + c.offers + '</b> offers · <b>' + c.needs + '</b> needs';
   }
 
   var _groups = [];
