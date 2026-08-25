@@ -252,7 +252,7 @@
         <!-- Back-to-group-home pill. Shown above whichever panel is open (except concierge itself
              and the onboard screen — both ARE the group home). Mirrors the breadcrumb; second
              click target above the fold. Managed by gpShow(). -->
-        <a id="gp-back-home" role="link" tabindex="0" onclick="gpShow('concierge')"
+        <a id="gp-back-home" class="gp-back-home-pill" role="link" tabindex="0" onclick="gpShow('concierge')"
            style="display:none;align-items:center;gap:6px;background:#fff;color:#1F699E;font-size:13px;font-weight:700;padding:8px 14px;border-radius:20px;text-decoration:none;cursor:pointer;margin-bottom:10px;width:fit-content;border:1.5px solid #C9DFF3;">
           <span id="gp-back-home-label">Group home</span>
         </a>
@@ -301,7 +301,7 @@
           <div id="gp-onboard-title" style="font-size:22px;font-weight:800;color:#1A2E42;line-height:1.25;">Group</div>
           <img id="gp-onboard-cover" src="https://storage.googleapis.com/glide-prod.appspot.com/uploads-v2/mV6AgDKKrR9A9k9673KJ/pub/qwVNLMlt19536Vl5XRvI.png" alt="" style="width:100%;height:160px;object-fit:cover;border-radius:12px;margin-top:16px;display:block;">
           <div id="gp-intro-copy" style="font-size:15px;color:#4B5A6D;margin-top:14px;line-height:1.55;">This is a group for people who share this focus. Take a minute to get located, then come back to see what's here for you.</div>
-          <div style="font-size:12px;font-weight:800;color:#6B7A8D;letter-spacing:.06em;text-transform:uppercase;margin-top:22px;margin-bottom:8px;">Hosts</div>
+          <div id="gp-hosts-label" style="font-size:12px;font-weight:800;color:#6B7A8D;letter-spacing:.06em;text-transform:uppercase;margin-top:22px;margin-bottom:8px;">Hosts</div>
           <div id="gp-host-list" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
           <div style="font-size:12px;font-weight:800;color:#6B7A8D;letter-spacing:.06em;text-transform:uppercase;margin-top:22px;margin-bottom:8px;">How we relate here</div>
           <div id="gp-agreements" style="font-size:14px;color:#4B5A6D;line-height:1.55;">Group agreements will appear here once the host writes them.</div>
@@ -407,6 +407,8 @@
 
     <style>
       .gp-tile:hover{background:#EEF6FF;border-color:#7DB8DD;}
+      /* The top group-home pill duplicates the sidebar button on desktop, so it is mobile only. */
+      @media(min-width:901px){ #gp-back-home.gp-back-home-pill{display:none !important;} }
       @media(max-width:900px){
         #gp-layout{grid-template-columns:1fr !important;}
         #gp-sidebar{order:2;}
@@ -974,6 +976,8 @@ function pick(el, key){
             var _hostSet = {};
             d.group.hostIds.forEach(function(h){ _hostSet[_hostNrm(h)] = true; });
             var _hosts = attendees.filter(function(a){ return _hostSet[_hostNrm(a.appearId)]; });
+            var _hLabel = document.getElementById('gp-hosts-label');
+            if (_hLabel) _hLabel.textContent = (_hosts.length === 1) ? 'Host' : 'Hosts';
             hostListEl.innerHTML = '';
             _hosts.forEach(function(h){
               // Host chip navigates to their profile. Hrefless (data-nav + _safeNavGo) so the URL
@@ -1036,7 +1040,16 @@ function pick(el, key){
       var st = computeStats(attendees);
       var _plu = function(n, one, many){ return n + ' ' + (n === 1 ? one : many); };
       var statsHTML = '<b style="color:#1A2E42;">'+_plu(st.offers,'offer','offers')+'</b> and <b style="color:#1A2E42;">'+_plu(st.needs,'need','needs')+'</b> across <b style="color:#1A2E42;">'+_plu(st.count,'person','people')+'</b>';
-      var sline = document.getElementById('gp-stats-line'); if (sline) sline.innerHTML = statsHTML;
+      // Signed out, the feed carries no profile data, so the tally would read 0 offers and
+      // 0 needs and look broken. Hide it, the full member list, and the profile pill instead.
+      var sline = document.getElementById('gp-stats-line');
+      if (sline) { if (meId) { sline.innerHTML = statsHTML; sline.style.display = ''; } else { sline.style.display = 'none'; } }
+      if (!meId) {
+        var _viewAllBtn = document.querySelector('button[onclick="gpShow(\'members\')"]');
+        if (_viewAllBtn) _viewAllBtn.style.display = 'none';
+        var _pillEl = document.getElementById('gp-myprofile-pill');
+        if (_pillEl) _pillEl.style.display = 'none';
+      }
       // Concierge greeting — first arrival = "Welcome, First." · return = "Welcome back, First 🌱"
       // (Detects first arrival by looking up markStorage key; simple flag.)
       var greet = document.getElementById('gp-greet-line');
@@ -1106,10 +1119,10 @@ var myPill = document.getElementById('gp-myprofile-pill');
           var a = document.createElement('a');
           a.className = 'btn';
           a.href = 'https://appear.network/';
-          a.textContent = 'Sign in on Appear to join';
+          a.textContent = 'Sign in/up';
           a.setAttribute('style','text-decoration:none;');
           box.appendChild(a);
-          if (stat) { stat.style.display = 'block'; stat.textContent = 'You need an Appear account to join this group. Sign in, then return here.'; }
+          if (stat) { stat.style.display = 'none'; stat.textContent = ''; }
         } else if (!_viewerInGroup) {
           var b = document.createElement('button');
           b.className = 'btn';
