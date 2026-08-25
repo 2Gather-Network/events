@@ -12,7 +12,7 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V5.47 | Date: 2026-08-24 | LAST CHANGE: My events list - a registration for a recurring occurrence (recurring-<slug>-<date>) now resolves back to its rec- template, so recurring events show under Attending instead of disappearing. (V5.46: removed the dead #interest-modal.) -->
+  <!-- Version: V5.48 | Date: 2026-08-24 | LAST CHANGE: A "Date to be announced" event now reads as one - parseDate kept splitting "TBD" on its "T" and returning "", which killed every downstream TBD guard, so it showed no date and sorted as past. TBD now survives and lists under Upcoming. (V5.47: recurring registrations resolve back to their rec- template so they show under Attending.) -->
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -439,6 +439,10 @@ function jsonp(params) {
 function parseDate(v) {
   if (!v) return "";
   const s = String(v).trim();
+  // V5.47: "TBD" has to survive this. It contains a "T", so the ISO split below turned it
+  // into "" and every downstream `date === "TBD"` guard went dead — a Date-to-be-announced
+  // event read as undated and sorted as past.
+  if (s.toUpperCase() === "TBD") return "TBD";
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   if (s.includes("T")) return s.split("T")[0];
   const m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
@@ -1640,7 +1644,12 @@ async function renderMyEventsList(memberId, data) {
   const byDate = function(a, b) { return String(a.date || "").localeCompare(String(b.date || "")); };
   attending.sort(byDate); hosting.sort(byDate);
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const isUpcoming = function(e) { return e.date && new Date(e.date + "T00:00:00") >= today; };
+  // A Date-to-be-announced event has not happened yet, so it belongs under Upcoming.
+  // People register for one to show interest (Jessie 2026-08-24).
+  const isUpcoming = function(e) {
+    if (String(e.date || "").toUpperCase() === "TBD") return true;
+    return e.date && new Date(e.date + "T00:00:00") >= today;
+  };
 
   const card = document.getElementById("card");
   if (!card) return;
