@@ -1615,10 +1615,21 @@ async function renderMyEventsList(memberId, data) {
     if (!eid) return;
     const ts = _regTimestamp(rw);
     if (!byEvent[eid] || ts.localeCompare(byEvent[eid].ts) > 0) {
-      byEvent[eid] = { ts: ts, cancelled: String(rw.cancelled || "").trim().toLowerCase() === "true" };
+      byEvent[eid] = {
+        ts: ts,
+        cancelled: String(rw.cancelled || "").trim().toLowerCase() === "true",
+        // The going setting rides on the same registration row, so the toggle can show its
+        // real state instead of guessing.
+        pub: String(rw.public || "").trim().toLowerCase() === "true"
+      };
     }
   });
   const activeIds = Object.keys(byEvent).filter(function(eid) { return !byEvent[eid].cancelled; });
+  const _regPublic = {};
+  Object.keys(byEvent).forEach(function(eid){ _regPublic[eid] = !!byEvent[eid].pub; });
+  // The cancel and going controls are rendered into a string, so their handlers are global and
+  // read the member id from here rather than being passed it through the markup.
+  window._myevMemberId = memberId;
   const allEv = (data.events || []).filter(r => r.id).map(toEv);
   // V5.47: a registration for a recurring event stores a GENERATED occurrence id
   // (recurring-<slug>-<YYYY-MM-DD>). The sheet only holds the rec- template, so that id
@@ -1779,6 +1790,19 @@ async function renderMyEventsList(memberId, data) {
       + '<a role="link" tabindex="0" data-nav="' + esc(evUrl) + '" onclick="return _safeNavGo(this)" style="font-size:13px;font-weight:700;padding:8px 15px;border-radius:22px;background:var(--primary);color:#fff;text-decoration:none;cursor:pointer;">Open event</a>'
       + '<a role="link" tabindex="0" data-nav="' + esc(bbUrl) + '" onclick="return _safeNavGo(this)" style="font-size:13px;font-weight:700;padding:8px 15px;border-radius:22px;background:#fff;color:var(--primary);border:1.5px solid var(--primary);text-decoration:none;cursor:pointer;">View bulletin board</a>'
       + '</div>'
+      // Cancelling a registration and choosing whether other guests see you had lived only in
+      // the per-event Manage my experience panel. They belong with the event itself.
+      + (_pane === 'attending'
+        ? '<div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:12px;align-items:flex-start;">'
+          + '<label style="display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--dark);font-weight:600;cursor:pointer;">'
+            + '<input type="checkbox" id="myev-public"' + (_regPublic[String(e.id)] ? ' checked' : '')
+            + ' onchange="myevTogglePublic(this,\'' + encodeURIComponent(String(e.id)) + '\')" style="width:18px;height:18px;cursor:pointer;">'
+            + 'Show me as going to other guests'
+          + '</label>'
+          + '<button type="button" onclick="myevCancel(this,\'' + encodeURIComponent(String(e.id)) + '\')" style="background:none;border:none;color:#C0392B;font-size:13.5px;font-weight:700;cursor:pointer;text-decoration:underline;padding:0;">Cancel my registration</button>'
+          + '<div id="myev-reg-msg" style="display:none;font-size:13.5px;color:var(--muted);"></div>'
+          + '</div>'
+        : '')
       + '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 8px;">'
       + '<div style="font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Who is coming</div>'
       + '<a role="link" tabindex="0" data-nav="' + esc(bbUrl) + '" onclick="return _safeNavGo(this)" style="font-size:13px;font-weight:700;color:var(--primary);text-decoration:underline;cursor:pointer;">See attendees</a>'
@@ -2122,6 +2146,30 @@ async function expLoadClaims(memberId, eventId){
   var hs=document.getElementById('exp-host-signups'); if(hs) hs.innerHTML=buildHostSignupsHTML(memberId);
   var hl=document.getElementById('potluck-host-list'); if(hl && typeof buildPotluckHostListHTML==='function') hl.innerHTML=buildPotluckHostListHTML();
 }
+// Cancel and the going toggle, in their new home on the My events detail panel. Same two
+// actions the per-event panel used: rsvp updates the existing registration in place, cancelRsvp
+// marks it cancelled. The id is carried through the markup encoded, because a recurring event's
+// id is built from its title and a title can contain an apostrophe.
+window.myevTogglePublic = function(cb, encId){
+  var eid = decodeURIComponent(encId), me = window._myevMemberId || '';
+  if (!me || !eid) return;
+  fetch(GS_URL + '?action=rsvp&appearId=' + encodeURIComponent(me) + '&eventId=' + encodeURIComponent(eid)
+    + '&public=' + (cb.checked ? 'true' : 'false')).catch(function(){});
+};
+window.myevCancel = function(btn, encId){
+  var eid = decodeURIComponent(encId), me = window._myevMemberId || '';
+  if (!me || !eid) return;
+  if (!confirm('Cancel your registration for this event?')) return;
+  btn.disabled = true; btn.style.opacity = '0.5';
+  fetch(GS_URL + '?action=cancelRsvp&appearId=' + encodeURIComponent(me) + '&eventId=' + encodeURIComponent(eid)).catch(function(){});
+  var cb = document.getElementById('myev-public'); if (cb) cb.disabled = true;
+  var msg = document.getElementById('myev-reg-msg');
+  if (msg) {
+    msg.textContent = 'You are no longer registered. Open the event to register again.';
+    msg.style.display = 'block';
+  }
+};
+
 var _cancelCtx=null;
 window.expTogglePublic = function(cb){
   var memberId=window._currentMyId, eventId=window._currentEventId;
