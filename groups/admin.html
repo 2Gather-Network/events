@@ -283,6 +283,21 @@
   // ── PIN GATE ──
   // The code box stays hidden until a code has actually been sent, so the card only ever asks
   // for something that exists.
+  var ROLE_COPY = {
+    host:       { label: 'Host',        lede: "You're the host of this group. Manage people, review join requests, or edit group info." },
+    cohost:     { label: 'Co-host',     lede: "You're a co-host of this group. Manage people, review join requests, or edit group info." },
+    superadmin: { label: 'Super admin', lede: "You do not host this group. You can manage it because you are a super admin, and the code goes to your own inbox." }
+  };
+  function applyRole(role, groupName){
+    var r = ROLE_COPY[String(role || '').toLowerCase()];
+    var t = document.getElementById('pin-title');
+    var l = document.getElementById('pin-lede');
+    var nm = String(groupName || '').trim();
+    if (nm) { document.title = nm + ' admin'; }
+    if (t) t.textContent = (nm ? nm + ' · ' : '') + (r ? r.label : 'Group admin');
+    if (l && r) l.textContent = r.lede;
+  }
+
   function revealCodeEntry(){
     var inp = document.getElementById('pin-input');
     if (inp) { inp.style.display = ''; inp.focus(); }
@@ -299,7 +314,11 @@
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (d && d.status === 'ok') {
-          showStatus('pin-status', 'ok', 'Code sent. Check the host email inbox.');
+          showStatus('pin-status', 'ok', 'Code sent. Check your email.');
+          // The backend now says which role you are here as. Until it did, this card told every
+          // caller "you're the host of this group", which is untrue for a co-host and plainly
+          // false for a super admin opening somebody else's group.
+          applyRole(d.role, d.groupName);
           revealCodeEntry();
         } else {
           showStatus('pin-status', 'err', (d && d.message) ? d.message : 'Backend not wired yet — Jessie needs to paste the sendAdminPin action.');
