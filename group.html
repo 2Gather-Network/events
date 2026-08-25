@@ -579,37 +579,65 @@ function pick(el, key){
     return out;
   }
   // ── Match algorithm ──
-  // Cross the viewer's offer/need tokens against every other member's offer/need tokens.
-  // Four buckets:
-  //   theyOfferYouNeed  = their offer × your need   (they can help you)
-  //   youOfferTheyNeed  = your offer × their need   (you can help them)
-  //   coseek            = your need × their need    (both looking for the same thing)
-  //   shared            = your offer × their offer  (in common)
-  // Score prioritizes offer/need (comp) over both-need (coseek) over in-common (shared).
+  // Cross the viewer's tokens against every other member's. Each token remembers which field it
+  // came from, so a match knows whether the word was a skill, something enjoyed, or something
+  // valued, and the sentence says only what that supports.
+  //   theyOfferYouNeed   = their SKILL × your need    (they can actually help you)
+  //   youOfferTheyNeed   = your SKILL × their need    (you can actually help them)
+  //   theyRelateYouNeed  = what they enjoy or value × your need   (worth asking, not an offer)
+  //   youRelateTheyNeed  = what you enjoy or value × their need
+  //   coseek             = your need × their need     (both looking for the same thing)
+  //   shared             = everything else in common, worded from the field it matched on
+  // Score puts a real offer above a soft lead, and both above bare common ground.
   var _me = null;
   var _matchResults = [];
+  // What a field actually means about a person. Something they can provide is an offer. What
+  // they enjoy and what they care about are real signals, but they are not offers. Treating all
+  // seven fields as offers put words in people's mouths: somebody who merely likes cooking was
+  // being announced as offering to cook at your event.
+  var _FIELD_KIND = {
+    skills: 'offer', professionalServices: 'offer',
+    interests: 'enjoy', hobbies: 'enjoy',
+    values: 'value', domains: 'value', advocating: 'value',
+    needs: 'need'
+  };
+  var _KIND_RANK = { offer: 3, enjoy: 2, value: 1, need: 0 };
+
   function _tokenizePerson(person, fields) {
     var out = [];
     var seen = {};
     fields.forEach(function(f) {
       var main = String(person[f] || '');
       var ik   = _SRC_IK[f] ? String(person[_SRC_IK[f]] || '') : '';
+      var kind = _FIELD_KIND[f] || 'value';
       (main + '|' + ik).split(/[|,]/).forEach(function(t) {
         var trimmed = String(t || '').split(':')[0].trim(); // strip ikigai level suffix
         var low = trimmed.toLowerCase();
-        if (trimmed && trimmed.length > 1 && !seen[low]) { seen[low] = true; out.push(trimmed); }
+        if (!trimmed || trimmed.length <= 1) return;
+        // The same word can sit in more than one field. Keep the strongest claim it supports,
+        // so a skill is not demoted to an interest just because it appears in both.
+        if (seen[low]) {
+          if (_KIND_RANK[kind] > _KIND_RANK[seen[low].k]) seen[low].k = kind;
+          return;
+        }
+        seen[low] = { t: trimmed, k: kind };
+        out.push(seen[low]);
       });
     });
     return out;
   }
   function _tokenMap(tokens) {
     var m = {};
-    tokens.forEach(function(t) { m[t.toLowerCase()] = t; });
+    tokens.forEach(function(o) { m[o.t.toLowerCase()] = o; });
     return m;
   }
+  // A hit carries what the word meant on BOTH sides, so the sentence can be written truthfully
+  // rather than assuming the strongest reading.
   function _intersectTokens(aMap, bMap) {
     var out = [];
-    Object.keys(aMap).forEach(function(k) { if (bMap[k]) out.push(aMap[k]); });
+    Object.keys(aMap).forEach(function(k) {
+      if (bMap[k]) out.push({ t: aMap[k].t, aKind: aMap[k].k, bKind: bMap[k].k });
+    });
     return out;
   }
   // Map of the viewer's need item (lowercase) -> free-text detail (the ~encoded suffix),
@@ -642,16 +670,26 @@ function pick(el, key){
       if (pn === mn) return;
       var pOffer = _tokenMap(_tokenizePerson(p, _SRC_OFFER));
       var pNeed  = _tokenMap(_tokenizePerson(p, _SRC_NEED));
-      var theyOfferYouNeed = _intersectTokens(pOffer, meNeed);
-      var youOfferTheyNeed = _intersectTokens(meOffer, pNeed);
+      // A hit against your need only counts as an offer when it came from their skills or the
+      // services they provide. Anything else is a softer lead and is worded as one.
+      var _pxNeed = _intersectTokens(pOffer, meNeed);
+      var _mxNeed = _intersectTokens(meOffer, pNeed);
+      var theyOfferYouNeed = _pxNeed.filter(function(x){ return x.aKind === 'offer'; });
+      var theyRelateYouNeed = _pxNeed.filter(function(x){ return x.aKind !== 'offer'; });
+      var youOfferTheyNeed = _mxNeed.filter(function(x){ return x.aKind === 'offer'; });
+      var youRelateTheyNeed = _mxNeed.filter(function(x){ return x.aKind !== 'offer'; });
       var coseek           = _intersectTokens(meNeed,  pNeed);
       var shared           = _intersectTokens(meOffer, pOffer);
-      var score = theyOfferYouNeed.length * 3 + youOfferTheyNeed.length * 3 + coseek.length * 2 + shared.length;
+      var score = theyOfferYouNeed.length * 3 + youOfferTheyNeed.length * 3
+                + theyRelateYouNeed.length * 2 + youRelateTheyNeed.length * 2
+                + coseek.length * 2 + shared.length;
       if (score === 0) return;
       scored.push({
         person: p,
         theyOfferYouNeed: theyOfferYouNeed,
         youOfferTheyNeed: youOfferTheyNeed,
+        theyRelateYouNeed: theyRelateYouNeed,
+        youRelateTheyNeed: youRelateTheyNeed,
         coseek: coseek,
         shared: shared,
         score: score
@@ -662,25 +700,46 @@ function pick(el, key){
   }
   // Topic-first grouping (mockup V4 shape). Each card = one topic + everyone who matches on it.
   // A person appears under their SINGLE strongest topic — comp (offer/need) beats coseek beats shared.
+  // Every line says what the data supports and nothing more. The in-common line used to say
+  // "both value" whatever it had matched on, so an interest like Singing was reported as a value.
   function _topicKindLabel(kind) {
-    if (kind === 'theyOfferYouNeed') return { emoji: '🌱', prefix: 'MATCH', body: 'You need <b>{t}</b>. {who} offer{s} it' };
-    if (kind === 'youOfferTheyNeed') return { emoji: '🤝', prefix: 'MATCH', body: 'You offer <b>{t}</b>. {who} {is} looking for it' };
-    if (kind === 'coseek')           return { emoji: '💡', prefix: 'BOTH SEEKING', body: 'You and {who} are both looking for <b>{t}</b>' };
-    return                                  { emoji: '✨', prefix: 'IN COMMON', body: 'You and {who} both value <b>{t}</b>' };
+    if (kind === 'theyOfferYouNeed')  return { emoji: '🌱', prefix: 'MATCH',        body: 'You need <b>{t}</b>. {who} offer{s} it' };
+    if (kind === 'youOfferTheyNeed')  return { emoji: '🤝', prefix: 'MATCH',        body: 'You offer <b>{t}</b>. {who} {is} looking for it' };
+    if (kind === 'relate_enjoy')      return { emoji: '🌾', prefix: 'WORTH ASKING', body: 'You need <b>{t}</b>. {who} enjoy{s} it' };
+    if (kind === 'relate_value')      return { emoji: '🌾', prefix: 'WORTH ASKING', body: 'You need <b>{t}</b>. {who} care{s} about it' };
+    if (kind === 'yrelate_enjoy')     return { emoji: '🌾', prefix: 'WORTH ASKING', body: 'You enjoy <b>{t}</b>. {who} {is} looking for it' };
+    if (kind === 'yrelate_value')     return { emoji: '🌾', prefix: 'WORTH ASKING', body: 'You care about <b>{t}</b>. {who} {is} looking for it' };
+    if (kind === 'coseek')            return { emoji: '💡', prefix: 'BOTH SEEKING', body: 'You and {who} are both looking for <b>{t}</b>' };
+    if (kind === 'shared_offer')      return { emoji: '✨', prefix: 'IN COMMON',    body: 'You and {who} both offer <b>{t}</b>' };
+    if (kind === 'shared_enjoy')      return { emoji: '✨', prefix: 'IN COMMON',    body: 'You and {who} both enjoy <b>{t}</b>' };
+    if (kind === 'shared_value')      return { emoji: '✨', prefix: 'IN COMMON',    body: 'You and {who} both value <b>{t}</b>' };
+    return                                   { emoji: '✨', prefix: 'IN COMMON',    body: 'You and {who} share <b>{t}</b>' };
   }
   function _groupByTopic(scored) {
     // scored = array from _computeMatches with per-person buckets. Fold to (kind,topic) cards.
-    var kindPri = { theyOfferYouNeed: 3, youOfferTheyNeed: 3, coseek: 2, shared: 1 };
+    var kindPri = {
+      theyOfferYouNeed: 4, youOfferTheyNeed: 4,
+      coseek: 3,
+      relate_enjoy: 2, relate_value: 2, yrelate_enjoy: 2, yrelate_value: 2,
+      shared_offer: 1, shared_enjoy: 1, shared_value: 1, shared_mixed: 1
+    };
     var cards = {}; // key = kind::topicLower → { kind, topic, people:[], sig }
     scored.forEach(function(m) {
       // Find this person's STRONGEST single topic to anchor them under one card.
       var best = null;
-      ['theyOfferYouNeed','youOfferTheyNeed','coseek','shared'].forEach(function(k) {
+      ['theyOfferYouNeed','youOfferTheyNeed','coseek','theyRelateYouNeed','youRelateTheyNeed','shared'].forEach(function(k) {
         if (best) return;
         var arr = m[k];
-        if (arr && arr.length) best = { kind: k, topic: arr[0] };
+        if (arr && arr.length) best = { kind: k, topic: arr[0].t, tok: arr[0] };
       });
       if (!best) return;
+      // The softer buckets and the in-common bucket carry their wording in the key, so a card
+      // never mixes people whose word meant different things.
+      if (best.kind === 'theyRelateYouNeed') best.kind = 'relate_' + best.tok.aKind;
+      else if (best.kind === 'youRelateTheyNeed') best.kind = 'yrelate_' + best.tok.aKind;
+      else if (best.kind === 'shared') {
+        best.kind = (best.tok.aKind === best.tok.bKind) ? ('shared_' + best.tok.aKind) : 'shared_mixed';
+      }
       var key = best.kind + '::' + best.topic.toLowerCase();
       if (!cards[key]) cards[key] = { kind: best.kind, topic: best.topic, people: [] };
       cards[key].people.push(m);
@@ -709,7 +768,8 @@ function pick(el, key){
     else { whoText = whoNames.join(', ') + ' and ' + (n - 2) + ' more'; isText = 'are'; sText = ''; }
     // Show the viewer's own free-text detail on need-side cards: "Cooking: demos at our event".
     var topicText = card.topic;
-    if (card.kind === 'theyOfferYouNeed' || card.kind === 'coseek') {
+    if (card.kind === 'theyOfferYouNeed' || card.kind === 'coseek'
+        || card.kind === 'relate_enjoy' || card.kind === 'relate_value') {
       var d = _meNeedDetails[String(card.topic).toLowerCase()];
       if (d) topicText = card.topic + ': ' + d;
     }
