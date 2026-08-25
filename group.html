@@ -344,8 +344,8 @@
         <!-- Group events panel (inline; opened from the Group events tile View button) -->
         <div id="gp-events" style="display:none;background:#fff;border-radius:14px;padding:24px 28px;">
           <div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:12px;">Group events</div>
-          <div style="font-size:14px;color:#6B7A8D;">Events related to this group will show here. Post one to get started.</div>
-          <div style="margin-top:12px;"><button class="btn" onclick="gpPost()">+ Post event</button></div>
+          <div id="gp-events-list" style="font-size:14px;color:#6B7A8D;">Loading\u2026</div>
+          <div style="margin-top:14px;"><button class="btn" onclick="gpPost()">+ Post event</button></div>
         </div>
 
         <!-- (Search panel removed 2026-08-21 — results now render inline in the Members panel below.) -->
@@ -526,12 +526,79 @@ function pick(el, key){
   if (_gpGroupsLink) _gpGroupsLink.setAttribute('data-nav', 'https://gather.2gather.network/mygroups.html' + (meId ? '?CWid=' + encodeURIComponent(meId) : ''));
   if (!groupId) return; // no group id — leave the concierge welcome as-is
   // View switcher for the concierge
+  // The group's own events. The tie between an event and its group was being written and then
+  // erased on the way out by a duplicate column, so this panel had nothing to show and was left
+  // as a stub saying to post the first one. Lake Ballinger had 117.
+  function gpLoadEvents(){
+    var box = document.getElementById('gp-events-list');
+    var sub = document.getElementById('gp-tile-events-sub');
+    if (!box || !groupId) return;
+    fetch(GS_URL + '?action=feedUpcoming')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var all = (d && d.events) || [];
+        var mine = all.filter(function(ev){ return String(ev.groupId || '').trim() === groupId; });
+        if (sub) sub.textContent = mine.length
+          ? (mine.length + (mine.length === 1 ? ' event coming up' : ' events coming up'))
+          : 'Post the first event for this group';
+        if (!mine.length) {
+          box.textContent = 'No events coming up for this group yet.';
+          return;
+        }
+        box.innerHTML = '';
+        mine.slice(0, 40).forEach(function(ev){
+          var row = document.createElement('div');
+          row.style.cssText = 'padding:12px 0;border-top:1px solid #f0f1f5;';
+          var a = document.createElement('a');
+          a.setAttribute('role','link'); a.setAttribute('tabindex','0');
+          a.setAttribute('data-nav', 'https://gather.2gather.network/event.html?id='
+            + encodeURIComponent(ev.id) + (meId ? '&memberCard=' + encodeURIComponent(meId) : ''));
+          a.setAttribute('onclick','return _safeNavGo(this)');
+          a.style.cssText = 'font-weight:700;color:#1A2E42;font-size:15px;text-decoration:none;cursor:pointer;';
+          a.textContent = ev.title || 'Event';
+          var when = document.createElement('div');
+          when.style.cssText = 'font-size:13px;color:#6B7A8D;margin-top:2px;';
+          when.textContent = gpWhen(ev);
+          row.appendChild(a); row.appendChild(when);
+          box.appendChild(row);
+        });
+      })
+      .catch(function(){ box.textContent = 'Could not load events just now.'; });
+  }
+  var GP_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  function gpWhen(ev){
+    var bits = [];
+    var d = String(ev.date || '').trim();
+    if (d) {
+      var t = new Date(d);
+      bits.push(isNaN(t.getTime()) ? d : t.toLocaleDateString(undefined,
+        { weekday:'short', month:'short', day:'numeric' }));
+    } else if (ev.recurFreq && ev.dayOfWeek !== '' && ev.dayOfWeek !== null && ev.dayOfWeek !== undefined) {
+      bits.push('Every ' + (GP_DAYS[parseInt(ev.dayOfWeek, 10)] || 'week'));
+    }
+    // startTime is stored as a time on a 1899 date, so the clock face is read from the text
+    // rather than converted, which would shift it by the reader's own timezone.
+    var st = String(ev.startTime || '').trim();
+    if (st.length >= 16 && st.charAt(10) === 'T') {
+      var hh = parseInt(st.slice(11, 13), 10), mm = st.slice(14, 16);
+      if (!isNaN(hh)) {
+        var ampm = hh >= 12 ? 'pm' : 'am';
+        var h12 = hh % 12; if (h12 === 0) h12 = 12;
+        bits.push(h12 + (mm === '00' ? '' : ':' + mm) + ampm);
+      }
+    }
+    var loc = String(ev.venue || ev.location || '').trim();
+    if (loc) bits.push(loc);
+    return bits.join(' \u00b7 ');
+  }
+
   window.gpShow = function(view){
     var ids = ['gp-concierge','gp-onboard','gp-feed','gp-messages','gp-invites','gp-events','gp-search','gp-members'];
     ids.forEach(function(i){ var el = document.getElementById(i); if (el) el.style.display = 'none'; });
     var map = { concierge:'gp-concierge', onboard:'gp-onboard', feed:'gp-feed', messages:'gp-messages', invites:'gp-invites', events:'gp-events', search:'gp-search', members:'gp-members' };
     var target = map[view];
     if (target) { var t = document.getElementById(target); if (t) t.style.display = 'block'; }
+    if (view === 'events') gpLoadEvents();
     // Hide the small page header (image + Group: <name>) on the onboarding screen, show it everywhere else.
     var pageHdr = document.getElementById('gp-page-header');
     if (pageHdr) pageHdr.style.display = (view === 'onboard') ? 'none' : '';
@@ -1300,6 +1367,10 @@ var myPill = document.getElementById('gp-myprofile-pill');
         if (_viewerIsHost) { _rb.textContent = 'Host'; _rb.style.display = 'block'; }
         else if (_viewerInGroup) { _rb.textContent = 'Member'; _rb.style.display = 'block'; }
       })();
+
+      // Filled on the landing screen too, so the tile states the real number rather than
+      // inviting somebody to post the first of a hundred and seventeen.
+      gpLoadEvents();
 
       // Host-only "Manage group" button in the sidebar → admin.html for this group.
       var _manageWrap = document.getElementById('gp-manage-wrap');
