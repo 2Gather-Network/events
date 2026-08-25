@@ -70,14 +70,15 @@
 
   <!-- PIN GATE (default) -->
   <div id="stage-pin" class="card">
-    <h1>Enter the group admin PIN</h1>
-    <p class="lede" id="pin-lede">We're emailing a one-time 6-digit code to the host email. Enter it below to unlock admin. The code expires in 15 minutes and can only be used once.</p>
-    <input type="text" id="pin-input" inputmode="numeric" pattern="[0-9]*" placeholder="Example: 428091" style="max-width:220px;font-size:18px;letter-spacing:.2em;text-align:center;">
+    <h1>Verify it is you</h1>
+    <p class="lede" id="pin-lede">We will email a one-time 6-digit code to the host email. It expires in 15 minutes and can only be used once.</p>
+    <input type="text" id="pin-input" inputmode="numeric" pattern="[0-9]*" placeholder="Example: 428091" style="max-width:220px;font-size:18px;letter-spacing:.2em;text-align:center;display:none;">
     <div style="display:flex;gap:10px;margin-top:16px;">
       <a class="btn ghost" id="pin-cancel" role="link" tabindex="0" onclick="return _safeNavGo(this)">Cancel</a>
-      <button class="btn" id="pin-unlock">Unlock admin</button>
+      <button class="btn" id="pin-send">Send code</button>
+      <button class="btn" id="pin-unlock" style="display:none;">Unlock admin</button>
     </div>
-    <div style="font-size:12px;color:var(--muted);margin-top:12px;">Didn't get it? <a href="#" id="pin-resend" style="color:var(--brand);font-weight:700;text-decoration:none;">Send again</a></div>
+    <div id="pin-again" style="display:none;font-size:12px;color:var(--muted);margin-top:12px;">Didn't get it? <a href="#" id="pin-resend" style="color:var(--brand);font-weight:700;text-decoration:none;">Send again</a></div>
     <div id="pin-status" class="status"></div>
   </div>
 
@@ -107,13 +108,29 @@
     <!-- MEMBERS TAB -->
     <div id="tab-members" class="card hidden">
       <h2>All members</h2>
-      <input type="text" id="mem-search" placeholder="Search by name…" style="margin-bottom:14px;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+        <input type="text" id="mem-search" placeholder="Search by name…" style="flex:1;min-width:180px;margin:0;">
+        <label id="mem-size-wrap" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap;">
+          Show
+          <select id="mem-size" style="padding:8px 10px;border:1.5px solid #DDE4EE;border-radius:10px;font:inherit;">
+            <option value="25">25</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+          </select>
+          at a time
+        </label>
+      </div>
       <div id="mem-list"></div>
+      <div id="mem-more-wrap" style="display:none;margin-top:14px;text-align:center;">
+        <button class="btn ghost" id="mem-more">Show more</button>
+        <div id="mem-count" style="font-size:12.5px;color:var(--muted);margin-top:8px;"></div>
+      </div>
     </div>
 
     <!-- GROUP INFO TAB -->
     <div id="tab-info" class="card hidden">
       <h2>Edit group info</h2>
+      <div id="save-info-status-top" class="status"></div>
 
       <div class="q">Group name:</div>
       <input type="text" id="e-name">
@@ -149,7 +166,7 @@
     <!-- DANGER ZONE -->
     <div id="tab-danger" class="card hidden">
       <h2 style="color:var(--danger);">Permanent changes</h2>
-      <p class="lede">These actions can't be undone. Each re-checks your admin PIN before running.</p>
+      <p class="lede">Each of these re-checks your admin PIN before it runs. Transferring the group and archiving it cannot be undone.</p>
 
       <div class="row" style="align-items:flex-start;flex-wrap:wrap;">
         <div class="who">
@@ -245,18 +262,33 @@
 
   function showStatus(elId, kind, msg){
     var el = document.getElementById(elId);
-    el.className = 'status ' + kind;
-    el.textContent = msg;
+    if (!el) return;
+    // An empty message clears the box rather than leaving a coloured strip with nothing in it.
+    el.className = msg ? ('status ' + kind) : '';
+    el.textContent = msg || '';
   }
 
   // ── PIN GATE ──
+  // The code box stays hidden until a code has actually been sent, so the card only ever asks
+  // for something that exists.
+  function revealCodeEntry(){
+    var inp = document.getElementById('pin-input');
+    if (inp) { inp.style.display = ''; inp.focus(); }
+    var unlock = document.getElementById('pin-unlock'); if (unlock) unlock.style.display = '';
+    var again  = document.getElementById('pin-again');  if (again)  again.style.display = '';
+    var send   = document.getElementById('pin-send');   if (send)   send.style.display = 'none';
+  }
   function requestPin(){
+    var send = document.getElementById('pin-send');
+    if (send) send.disabled = true;
+    setTimeout(function(){ if (send) send.disabled = false; }, 1200);
     showStatus('pin-status', 'ok', 'Sending code to host email…');
     fetch(GS_URL + '?action=sendAdminPin&groupId=' + encodeURIComponent(groupId) + '&hostAppearId=' + encodeURIComponent(meId))
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (d && d.status === 'ok') {
           showStatus('pin-status', 'ok', 'Code sent. Check the host email inbox.');
+          revealCodeEntry();
         } else {
           showStatus('pin-status', 'err', (d && d.message) ? d.message : 'Backend not wired yet — Jessie needs to paste the sendAdminPin action.');
         }
@@ -274,11 +306,11 @@
 
   if (getToken()) {
     unlockDashboard();
-  } else {
-    // First landing: automatically request a PIN.
-    requestPin();
   }
+  // Landing here never sends a code. Opening Manage is not the same as asking for mail, and a
+  // code that arrives unbidden reads as something going wrong. The person asks, then it sends.
 
+  document.getElementById('pin-send').addEventListener('click', function(){ requestPin(); });
   document.getElementById('pin-resend').addEventListener('click', function(e){ e.preventDefault(); requestPin(); });
 
   document.getElementById('pin-unlock').addEventListener('click', function(){
@@ -458,20 +490,47 @@
 
   // ── MEMBERS ──
   var _members = [];
+  // A membership carries no join date, so there is nothing to sort on directly. Members arrive
+  // in the order the profile sheet holds them, which is the order people were added, so the most
+  // recent sit at the end. Reversing that is the closest thing to newest first until a real
+  // join date exists. The list is deliberately not labelled "newest" for that reason.
+  var _memShown = 0;
+  // Some embeds report an innerWidth of 0 before they have laid out, which would drop a desktop
+  // into the phone page size. Fall through to the document width and then to a desktop default.
+  function _memWidth(){
+    return window.innerWidth
+      || (document.documentElement && document.documentElement.clientWidth)
+      || (document.body && document.body.clientWidth)
+      || 1024;
+  }
+  function _memPageSize(){
+    if (_memWidth() < 768) return 10;
+    var sel = document.getElementById('mem-size');
+    return parseInt((sel && sel.value) || '50', 10) || 50;
+  }
   function renderMembers(list){
-    _members = list.slice();
-    _members.sort(function(a,b){ return String(a.first||a.name||'').localeCompare(String(b.first||b.name||'')); });
+    _members = list.slice().reverse();
+    // Choosing a page size is a desktop affordance. On a phone it is ten, and Show more does
+    // the rest without a control taking up the width.
+    var wrap = document.getElementById('mem-size-wrap');
+    if (wrap) wrap.style.display = (_memWidth() < 768) ? 'none' : 'inline-flex';
+    _memShown = _memPageSize();
     filterMembers(document.getElementById('mem-search').value);
   }
   function filterMembers(q){
     var list = document.getElementById('mem-list');
     list.innerHTML = '';
     var qs = String(q||'').trim().toLowerCase();
-    var shown = _members.filter(function(m){
+    var matching = _members.filter(function(m){
       if (!qs) return true;
       var nm = ((m.first||'')+' '+(m.name||'')).toLowerCase();
       return nm.indexOf(qs) !== -1;
     });
+    var shown = matching.slice(0, _memShown);
+    var moreWrap = document.getElementById('mem-more-wrap');
+    var countEl  = document.getElementById('mem-count');
+    if (moreWrap) moreWrap.style.display = (matching.length > shown.length) ? 'block' : 'none';
+    if (countEl)  countEl.textContent = 'Showing ' + shown.length + ' of ' + matching.length;
     shown.forEach(function(m){
       var row = document.createElement('div'); row.className = 'row';
       var av = document.createElement('span'); av.className = 'av';
@@ -479,9 +538,19 @@
       else av.textContent = String(m.first || m.name || '?').charAt(0).toUpperCase();
       var who = document.createElement('div'); who.className = 'who';
       var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = (m.first || m.name || m.appearId);
-      var sub = document.createElement('div'); sub.className = 'sub';
-      sub.textContent = 'Values: ' + String(m.values || '').split('|').filter(Boolean).slice(0,3).join(' / ');
-      who.appendChild(nm); who.appendChild(sub);
+      who.appendChild(nm);
+      // Values and domains read as one list of what a person cares about, and the stored level
+      // suffix is dropped. Somebody who has filled in neither gets no line at all, rather than
+      // the word "Values:" followed by nothing.
+      var tags = String(m.values || '').split('|')
+        .concat(String(m.domains || '').split('|'))
+        .map(function(t){ return String(t).split(':')[0].trim(); })
+        .filter(Boolean);
+      if (tags.length) {
+        var sub = document.createElement('div'); sub.className = 'sub';
+        sub.textContent = tags.slice(0, 3).join(' / ');
+        who.appendChild(sub);
+      }
       var acts = document.createElement('div'); acts.className = 'actions-row';
       var view = document.createElement('a'); view.className = 'btn ghost sm'; view.textContent = 'View profile';
       view.setAttribute('role', 'link'); view.setAttribute('tabindex', '0');
@@ -493,7 +562,19 @@
       list.appendChild(row);
     });
   }
-  document.getElementById('mem-search').addEventListener('input', function(){ filterMembers(this.value); });
+  // A new search starts from the first page again, otherwise a narrow result would arrive
+  // already scrolled past.
+  document.getElementById('mem-search').addEventListener('input', function(){
+    _memShown = _memPageSize(); filterMembers(this.value);
+  });
+  document.getElementById('mem-more').addEventListener('click', function(){
+    _memShown += _memPageSize();
+    filterMembers(document.getElementById('mem-search').value);
+  });
+  document.getElementById('mem-size').addEventListener('change', function(){
+    _memShown = _memPageSize();
+    filterMembers(document.getElementById('mem-search').value);
+  });
 
   // ── GROUP INFO SAVE ──
   document.getElementById('info-save').addEventListener('click', function(){
@@ -521,8 +602,15 @@
       .then(function(d){
         btn.disabled = false;
         if (d && d.status === 'ok') {
-          showStatus('save-info-status', 'ok', 'Saved.');
+          // On a phone this form runs well past one screen, so a save used to leave you at the
+          // bottom looking at Cancel and Save with no sign anything had happened. The
+          // confirmation moves to the top of the panel and the panel comes back into view.
+          showStatus('save-info-status', 'ok', '');
+          showStatus('save-info-status-top', 'ok', 'Saved.');
+          var panel = document.getElementById('tab-info');
+          if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else {
+          showStatus('save-info-status-top', 'ok', '');
           showStatus('save-info-status', 'err', (d && d.message) ? d.message : 'Backend not wired yet.');
         }
       })
@@ -533,8 +621,10 @@
   });
 
   // ── DANGER ZONE ──
-  function dangerAction(actionName, label){
-    if (!confirm(label + ' — are you sure? This cannot be undone.')) return;
+  // Resetting a passcode is reversible: set another one and you are back. Only the transfer and
+  // the archive are one-way, so only they say so.
+  function dangerAction(actionName, label, warning){
+    if (!confirm(label + ' — are you sure? ' + (warning || 'This cannot be undone.'))) return;
     var tok = getToken() || '';
     showStatus('danger-status', 'ok', 'Sending…');
     fetch(GS_URL + '?action=' + actionName + '&groupId=' + encodeURIComponent(groupId) + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok))
@@ -550,7 +640,7 @@
         showStatus('danger-status', 'err', 'Backend not wired yet — Jessie needs to paste the ' + actionName + ' action.');
       });
   }
-  document.getElementById('danger-reset').addEventListener('click', function(){ dangerAction('resetGroupPasscode', 'Reset passcode'); });
+  document.getElementById('danger-reset').addEventListener('click', function(){ dangerAction('resetGroupPasscode', 'Reset passcode', 'Anyone holding the old passcode will need the new one. You can set another passcode at any time.'); });
   document.getElementById('danger-transfer').addEventListener('click', function(){ dangerAction('transferGroupHost', 'Transfer host'); });
   document.getElementById('danger-archive').addEventListener('click', function(){ dangerAction('archiveGroup', 'Archive group'); });
 
