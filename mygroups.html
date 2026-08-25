@@ -76,7 +76,21 @@
 
   <div class="head">
     <h1>My groups</h1>
+    <button type="button" class="btn" id="join-btn">Join a group</button>
     <a class="btn" role="link" tabindex="0" id="new-group-btn" onclick="return _safeNavGo(this)">+ Start a new group</a>
+  </div>
+
+  <div class="card" id="join-card" style="display:none;background:#fff;border-radius:14px;padding:20px 22px;margin-bottom:14px;">
+    <div style="font-size:16px;font-weight:800;color:var(--ink);margin-bottom:4px;">Join a group</div>
+    <p style="font-size:14px;color:var(--soft);line-height:1.55;margin:0 0 14px;">
+      Every group has a passcode. Ask the host for theirs and enter it here.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <input type="text" id="join-code" maxlength="10" placeholder="Example: SEAHOUSE"
+        style="flex:1;min-width:180px;padding:11px 13px;border:1.5px solid var(--line);border-radius:10px;font:inherit;">
+      <button type="button" class="btn solid" id="join-go">Join</button>
+      <button type="button" class="btn ghost" id="join-cancel">Cancel</button>
+    </div>
+    <div id="join-status" style="font-size:14px;margin-top:12px;"></div>
   </div>
 
   <div class="layout">
@@ -127,6 +141,52 @@
     if (back) back.setAttribute('data-nav', 'https://creating.works/profile.html' + (meId ? '?CWid=' + encodeURIComponent(meId) : ''));
   })();
   document.getElementById('new-group-btn').setAttribute('data-nav', 'https://gather.2gather.network/groups/create.html' + (meId ? '?CWid=' + encodeURIComponent(meId) : ''));
+
+  // Joining a group. The passcode is the only credential a group has, so the person types the
+  // code the host gave them and the backend finds the one group it belongs to. Codes are not
+  // guaranteed unique across groups, so an ambiguous code is refused rather than guessed at.
+  var joinCard = document.getElementById('join-card');
+  var joinCode = document.getElementById('join-code');
+  var joinStat = document.getElementById('join-status');
+  function joinSay(msg, kind){
+    joinStat.textContent = msg || '';
+    joinStat.style.color = kind === 'err' ? '#7A2410' : (kind === 'ok' ? '#1E6B3A' : 'var(--soft)');
+  }
+  document.getElementById('join-btn').addEventListener('click', function(){
+    if (!meId){ joinSay('Sign in first, then you can join a group.', 'err'); joinCard.style.display=''; return; }
+    joinCard.style.display = '';
+    joinSay('');
+    joinCode.value = '';
+    joinCode.focus();
+  });
+  document.getElementById('join-cancel').addEventListener('click', function(){
+    joinCard.style.display = 'none';
+  });
+  joinCode.addEventListener('keydown', function(e){ if (e.key === 'Enter') doJoin(); });
+  document.getElementById('join-go').addEventListener('click', doJoin);
+
+  function doJoin(){
+    var code = String(joinCode.value || '').trim();
+    if (!code){ joinSay('Enter the passcode the host gave you.', 'err'); return; }
+    if (!meId){ joinSay('Sign in first, then you can join a group.', 'err'); return; }
+    joinSay('Checking\u2026');
+    fetch(GS_URL + '?action=joinByPasscode&appearId=' + encodeURIComponent(meId)
+      + '&passcode=' + encodeURIComponent(code))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || d.ok !== true){
+          joinSay((d && d.message) || 'That passcode did not match any group.', 'err');
+          return;
+        }
+        if (d.already){
+          joinSay('You are already in ' + (d.name || 'that group') + '.', 'ok');
+          return;
+        }
+        joinSay('You joined ' + (d.name || 'the group') + '. Bringing it in\u2026', 'ok');
+        setTimeout(function(){ location.reload(); }, 900);
+      })
+      .catch(function(){ joinSay('Could not reach the server. Try again in a moment.', 'err'); });
+  }
 
   if (!meId) {
     // Signed out, this page used to be a dead end: it said "sign in from your group page" and
