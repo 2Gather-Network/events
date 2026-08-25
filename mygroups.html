@@ -34,6 +34,16 @@
   .layout{display:grid;grid-template-columns:280px 1fr;gap:16px;}
   @media(max-width:760px){.layout{grid-template-columns:1fr;}}
   .rail{background:#fff;border-radius:14px;padding:8px;height:fit-content;}
+  /* The folded bar replaces the list on a phone once a group is picked, so the group you chose
+     is the first thing on screen instead of sitting below a screenful of list. */
+  .rail-folded{display:none;width:100%;align-items:center;gap:10px;background:#fff;border:0;
+    border-radius:14px;padding:14px 16px;font:inherit;font-size:14.5px;font-weight:700;
+    color:var(--brand);cursor:pointer;text-align:left;margin-bottom:14px;}
+  .rail-folded .chev{font-size:13px;line-height:1;opacity:.75;}
+  .railtools{display:flex;gap:8px;align-items:center;margin:6px 6px 10px;}
+  .railtools .search{flex:1;min-width:0;margin:0;}
+  .railsort{border:1px solid var(--line);border-radius:18px;background:#fff;font:inherit;
+    font-size:13px;color:var(--ink);padding:8px 10px;cursor:pointer;max-width:44%;}
   .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:4px 6px 10px;}
   .seg-btn{flex:1;background:#fff;color:var(--ink);border:0;font:inherit;font-size:13.5px;font-weight:700;padding:9px 6px;cursor:pointer;}
   .seg-btn.on{background:var(--brand);color:#fff;}
@@ -70,12 +80,19 @@
   </div>
 
   <div class="layout">
+    <button type="button" id="rail-folded" class="rail-folded">
+      <span class="chev">&#8964;</span>
+      <span id="rail-folded-label">View all groups</span>
+    </button>
     <div class="rail" id="rail">
       <div class="seg" id="rail-seg">
         <button type="button" class="seg-btn on" id="seg-member">Member</button>
         <button type="button" class="seg-btn" id="seg-hosted">Host</button>
       </div>
-      <div class="search"><input type="text" id="rail-filter" placeholder="Filter…"></div>
+      <div class="railtools">
+        <div class="search"><input type="text" id="rail-filter" placeholder="Filter…"></div>
+        <select id="rail-sort" class="railsort" aria-label="Sort groups"></select>
+      </div>
       <div id="rail-items"></div>
     </div>
     <div class="detail" id="detail">
@@ -180,7 +197,34 @@
     el.innerHTML = '<b>' + c.people + '</b> people · <b>' + c.offers + '</b> offers · <b>' + c.needs + '</b> needs';
   }
 
-  var _groups = [], _pane = 'member';
+  var _groups = [], _pane = 'member', _sort = 'pending';
+  // Declared as data so another page can reuse the same control by changing this list alone.
+  // Newest and oldest only appear once the groups actually carry a created date.
+  var SORTS = [
+    { key: 'pending', label: 'Needs me first', cmp: function(a, b){
+        var pa = parseInt(a.pending, 10) || 0, pb = parseInt(b.pending, 10) || 0;
+        return pb - pa || String(a.name||'').localeCompare(String(b.name||''));
+      } },
+    { key: 'name', label: 'Name A to Z', cmp: function(a, b){
+        return String(a.name||'').localeCompare(String(b.name||''));
+      } },
+    { key: 'newest', label: 'Newest first', needsDate: true, cmp: function(a, b){
+        return String(b.dateCreated||'').localeCompare(String(a.dateCreated||''));
+      } },
+    { key: 'oldest', label: 'Oldest first', needsDate: true, cmp: function(a, b){
+        return String(a.dateCreated||'').localeCompare(String(b.dateCreated||''));
+      } }
+  ];
+  function _haveDates(){ return _groups.some(function(g){ return String(g.dateCreated||'').trim(); }); }
+  function renderSort(){
+    var sel = document.getElementById('rail-sort'); if (!sel) return;
+    var dates = _haveDates();
+    var opts = SORTS.filter(function(o){ return !o.needsDate || dates; });
+    if (!opts.some(function(o){ return o.key === _sort; })) _sort = opts[0].key;
+    sel.innerHTML = opts.map(function(o){
+      return '<option value="' + o.key + '"' + (o.key === _sort ? ' selected' : '') + '>' + esc(o.label) + '</option>';
+    }).join('');
+  }
   // Hosting a group and belonging to one are different relationships, so they get their own
   // lists rather than one pile. A group you host is never also listed under Member.
   function _isHosted(g){ var r = String(g.role || '').toLowerCase(); return r === 'host' || r === 'cohost'; }
@@ -201,14 +245,9 @@
       if (!_inPane(g)) return false;
       return !q || String(g.name||'').toLowerCase().indexOf(q) !== -1;
     });
-    // Groups with somebody waiting on you come first. Groups have no dates, so "what needs me"
-    // is the only ordering that earns its place; the rest stay alphabetical so the list is
-    // predictable to scan.
-    shown.sort(function(a, b){
-      var pa = parseInt(a.pending, 10) || 0, pb = parseInt(b.pending, 10) || 0;
-      if (pa !== pb) return pb - pa;
-      return String(a.name || '').localeCompare(String(b.name || ''));
-    });
+    renderSort();
+    var _s = SORTS.filter(function(o){ return o.key === _sort; })[0] || SORTS[0];
+    shown.sort(_s.cmp);
     if (!shown.length) {
       // An empty Member list is usually not a filter miss, it is that the backend does not
       // return joined groups yet, so say which it is rather than "no groups match".
@@ -225,16 +264,46 @@
         + (g.pending ? '<span class="dot">' + g.pending + '</span>' : '');
       it.addEventListener('click', function(){
         rail.querySelectorAll('.item').forEach(function(x){ x.classList.remove('on'); });
-        it.classList.add('on'); renderDetail(g);
+        it.classList.add('on'); renderDetail(g); foldRail(true);
       });
       rail.appendChild(it);
     });
     renderDetail(shown[0]);
   }
+  // On a phone the list and the group stack, so after picking a group you were left staring at
+  // the same list with no sign the group was far below. Picking one folds the list away; the bar
+  // brings it back. A laptop shows both side by side already, so nothing folds there.
+  function _isPhone(){
+    return (window.innerWidth || document.documentElement.clientWidth || 1024) < 760;
+  }
+  function foldRail(folded){
+    var bar = document.getElementById('rail-folded');
+    // The whole panel folds, tabs and filter included. `rail` is the item list inside it, so
+    // hiding that alone left the tabs and the filter box stranded on their own.
+    var panel = document.getElementById('rail');
+    if (!bar || !panel) return;
+    var on = folded && _isPhone();
+    bar.style.display = on ? 'flex' : 'none';
+    panel.style.display = on ? 'none' : '';
+    if (on) { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch(e){} }
+  }
+  (function(){
+    var bar = document.getElementById('rail-folded');
+    if (bar) bar.addEventListener('click', function(){ foldRail(false); });
+    var t; window.addEventListener('resize', function(){
+      clearTimeout(t);
+      t = setTimeout(function(){ if (!_isPhone()) foldRail(false); }, 120);
+    });
+  })();
+
   filterInput.addEventListener('input', renderRail);
+  (function(){
+    var sel = document.getElementById('rail-sort');
+    if (sel) sel.addEventListener('change', function(){ _sort = sel.value; renderRail(); });
+  })();
   ['hosted','member'].forEach(function(pane){
     var b = document.getElementById('seg-' + pane);
-    if (b) b.addEventListener('click', function(){ _pane = pane; renderRail(); });
+    if (b) b.addEventListener('click', function(){ _pane = pane; foldRail(false); renderRail(); });
   });
 
   fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(meId))
