@@ -717,9 +717,13 @@ function pick(el, key){
   }
   function _personChipHTML(m) {
     var p = m.person;
+    var _init = String(p.first || p.name || '?').charAt(0).toUpperCase();
+    // The initial travels with the chip so a photo URL that fails to load can fall back to it
+    // instead of leaving the browser's broken-image box, which is what Glide URLs that have gone
+    // stale were doing.
     var av = p.photo
-      ? '<span class="ph" style="overflow:hidden;padding:0;background:transparent;"><img src="' + _escHtml(p.photo) + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></span>'
-      : '<span class="ph">' + _escHtml(String(p.first || p.name || '?').charAt(0).toUpperCase()) + '</span>';
+      ? '<span class="ph" data-initial="' + _escHtml(_init) + '" style="overflow:hidden;padding:0;background:transparent;"><img src="' + _escHtml(p.photo) + '" alt="" data-chip-photo="1" style="width:100%;height:100%;object-fit:cover;display:block;"></span>'
+      : '<span class="ph">' + _escHtml(_init) + '</span>';
     // Person chip = face + name; whole chip navigates to their profile.
     // Hrefless (data-nav + _safeNavGo) so the Appear URL never shows on hover.
     var attrs = p.pageLink
@@ -769,11 +773,25 @@ function pick(el, key){
       cardEl.className = 'feed-card' + (isStrong ? ' strong' : '');
       cardEl.setAttribute('style', 'margin-bottom:0;');
       var kick = _matchKicker(card);
-      var chipsHtml = card.people.slice(0, 8).map(_personChipHTML).join('');
+      // People with a photo lead the chips. Those without follow rather than being dropped, so a
+      // card still fills when few in the group have uploaded one. Everyone on a card matches on
+      // the same topic, so leading with faces costs little in ranking.
+      var _ordered = card.people.filter(function(x){ return x.person && x.person.photo; })
+        .concat(card.people.filter(function(x){ return !(x.person && x.person.photo); }));
+      var chipsHtml = _ordered.slice(0, 8).map(_personChipHTML).join('');
       var extra = card.people.length > 8 ? '<span class="who" style="background:transparent;border:none;color:#6B7A8D;">+ ' + (card.people.length - 8) + ' more</span>' : '';
       cardEl.innerHTML = '<div class="kicker">' + kick.emoji + ' ' + _escHtml(kick.label) + '</div>'
         + '<div class="body">' + _matchBody(card) + '</div>'
         + '<div class="who-row">' + chipsHtml + extra + '</div>';
+      // A stale photo URL used to leave the browser's broken-image box sitting in the chip.
+      // It now falls back to the initial, the same as somebody with no photo at all.
+      Array.prototype.slice.call(cardEl.querySelectorAll('img[data-chip-photo]')).forEach(function(img){
+        img.onerror = function(){
+          var host = img.parentNode; if (!host) return;
+          host.removeAttribute('style');
+          host.textContent = host.getAttribute('data-initial') || '?';
+        };
+      });
       grid.appendChild(cardEl);
     });
   }
