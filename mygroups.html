@@ -197,25 +197,41 @@
     el.innerHTML = '<b>' + c.people + '</b> people · <b>' + c.offers + '</b> offers · <b>' + c.needs + '</b> needs';
   }
 
-  var _groups = [], _pane = 'member', _sort = 'pending';
+  var _groups = [], _pane = 'member', _sort = 'name';
   // Declared as data so another page can reuse the same control by changing this list alone.
-  // Newest and oldest only appear once the groups actually carry a created date.
+  //
+  // "Needs me first" was removed rather than shipped: it sorted on a pending-requests count that
+  // the backend returns as 0 for every group, because nothing stores a join request yet. A label
+  // promising "someone is waiting for you" that quietly gives you alphabetical order is worse
+  // than not offering it. It comes back the day requests are actually recorded.
+  //
+  // Dates are compared as time, not as text. The sheet stores them like
+  // "Mon Jul 28 2025 00:00:00 GMT-0700", so comparing the strings would sort by the weekday name.
+  function _time(g){
+    var t = new Date(String(g.dateCreated || '')).getTime();
+    return isNaN(t) ? null : t;
+  }
   var SORTS = [
-    { key: 'pending', label: 'Needs me first', cmp: function(a, b){
-        var pa = parseInt(a.pending, 10) || 0, pb = parseInt(b.pending, 10) || 0;
-        return pb - pa || String(a.name||'').localeCompare(String(b.name||''));
-      } },
     { key: 'name', label: 'Name A to Z', cmp: function(a, b){
         return String(a.name||'').localeCompare(String(b.name||''));
       } },
     { key: 'newest', label: 'Newest first', needsDate: true, cmp: function(a, b){
-        return String(b.dateCreated||'').localeCompare(String(a.dateCreated||''));
+        var ta = _time(a), tb = _time(b);
+        // A group with no recorded date sits at the bottom rather than pretending to be oldest.
+        if (ta === null && tb === null) return String(a.name||'').localeCompare(String(b.name||''));
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        return tb - ta;
       } },
     { key: 'oldest', label: 'Oldest first', needsDate: true, cmp: function(a, b){
-        return String(a.dateCreated||'').localeCompare(String(b.dateCreated||''));
+        var ta = _time(a), tb = _time(b);
+        if (ta === null && tb === null) return String(a.name||'').localeCompare(String(b.name||''));
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        return ta - tb;
       } }
   ];
-  function _haveDates(){ return _groups.some(function(g){ return String(g.dateCreated||'').trim(); }); }
+  function _haveDates(){ return _groups.some(function(g){ return _time(g) !== null; }); }
   function renderSort(){
     var sel = document.getElementById('rail-sort'); if (!sel) return;
     var dates = _haveDates();
