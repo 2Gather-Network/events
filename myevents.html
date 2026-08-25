@@ -1654,63 +1654,153 @@ async function renderMyEventsList(memberId, data) {
   const card = document.getElementById("card");
   if (!card) return;
   document.title = 'My events';
-  const row = function(e) {
-    const when = e.date ? fmtDate(e.date, e.time, e.endtime) : "";
-    const loc = e.venue || e.location || "";
-    const href = "event.html?id=" + encodeURIComponent(e.id) + "&memberCard=" + encodeURIComponent(memberId);
-    return '<a role="link" tabindex="0" data-nav="' + href + '" title="' + esc(e.title || 'Event') + '" onclick="return _safeNavGo(this)" style="display:block;text-decoration:none;color:inherit;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;">'
-      + '<div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:4px;">' + esc(e.title || "Event") + '</div>'
-      + (when ? '<div style="font-size:13px;color:var(--muted);">' + esc(when) + '</div>' : "")
-      + (loc ? '<div style="font-size:13px;color:var(--muted);">📍 ' + esc(loc) + '</div>' : "")
-      + '</a>';
-  };
-  const sectionLabel = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);';
-  function listHTML(evs, emptyMsg, emptyBtn){
-    if(!evs.length) return '<div style="font-size:14px;color:var(--muted);margin:8px 0 16px;">'+emptyMsg+'</div>'+(emptyBtn||'<a href="https://2gather.network" style="display:inline-block;background:var(--primary);color:#fff;font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;text-decoration:none;">Browse events</a>');
-    var up=evs.filter(isUpcoming), pa=evs.filter(function(e){return !isUpcoming(e);});
-    var h='';
-    if(up.length) h+='<div style="'+sectionLabel+'margin:0 0 10px;">Upcoming</div>'+up.map(row).join('');
-    if(pa.length) h+='<div style="'+sectionLabel+'margin:18px 0 10px;">Past</div>'+pa.map(row).join('');
-    return h;
-  }
-  function tabBtn(id,label,active){ return '<button onclick="myEvTab(\''+id+'\')" id="tab-'+id+'-btn" style="flex:1;background:'+(active?'var(--primary)':'#fff')+';color:'+(active?'#fff':'var(--dark)')+';border:1px solid '+(active?'var(--primary)':'var(--border)')+';padding:9px 12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">'+label+'</button>'; }
-  var _WB = 'text-decoration:none;color:#185FA5;background:#fff;font-size:14px;font-weight:600;padding:8px 15px;border-radius:20px;white-space:nowrap;';
-  var _tn = document.getElementById('topnav');
-  // Placeholder photo icon; swapped for the real photo once lookupProfile returns.
-  var _mePic = '<span id="topnav-me-photo-wrap" style="width:22px;height:22px;border-radius:50%;background:#e6ebf3;display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;">👤</span>';
-  if (_tn) _tn.innerHTML = '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#1F699E;padding:12px 14px;border-radius:12px;margin:0 0 20px;">'
-    + '<a href="https://2gather.network" style="' + _WB + '">All events</a>'
-    + '<a href="https://gather.2gather.network/groups/host.html" style="' + _WB + '">My groups</a>'
-    + '<a role="link" tabindex="0" data-nav="https://creating.works/profile.html?show=' + encodeURIComponent(memberId) + '&me=' + encodeURIComponent(memberId) + '" title="My profile" onclick="return _safeNavGo(this)" style="' + _WB + 'display:inline-flex;align-items:center;gap:8px;">My profile' + _mePic + '</a>'
-    + '</div>';
-  // Fire-and-forget photo lookup so the My profile pill gets the person's face instead of a placeholder.
+  // ── My events list: rail + detail, matching the My groups page ──────────────
+  const LOGO = 'https://raw.githubusercontent.com/2Gather-Network/events/main/images/2gather_logo.png';
+  const cameFromProfile = (new URLSearchParams(location.search).get('from') === 'profile');
+
+  // The single-event view keeps the narrow card; the list needs the wide one.
   (function(){
-    fetch(GS_URL + '?action=lookupProfile&appearId=' + encodeURIComponent(memberId))
+    var shell = card.parentElement;
+    if (shell && shell.style) shell.style.maxWidth = 'none';
+    card.style.maxWidth = 'none';
+    card.style.background = 'transparent';
+    card.style.border = '0';
+    card.style.borderRadius = '0';
+    card.style.boxShadow = 'none';
+    var tn = document.getElementById('topnav');
+    if (tn) tn.style.display = 'none';
+  })();
+
+  const evThumb = function(e, cls){
+    var src = e.imageUrl || LOGO;
+    var fb = e.imageUrl ? '' : ';object-fit:contain;background:#F7FBFF;border:1px solid #C9DFF3;padding:5px';
+    return '<img class="' + cls + '" src="' + esc(src) + '" alt="" style="border-radius:8px;object-fit:cover;flex-shrink:0' + fb + '">';
+  };
+
+  let _pane = 'attending', _when = 'upcoming', _sel = null;
+  const bucket = function(){
+    var list = (_pane === 'attending') ? attending : hosting;
+    return list.filter(function(e){ return (_when === 'upcoming') ? isUpcoming(e) : !isUpcoming(e); });
+  };
+
+  const renderRail = function(){
+    var evs = bucket();
+    var up = (_pane === 'attending' ? attending : hosting).filter(isUpcoming).length;
+    var pa = (_pane === 'attending' ? attending : hosting).length - up;
+    var segBtn = function(id, label){
+      var on = (_pane === id);
+      return '<button onclick="myEvPane(\'' + id + '\')" style="flex:1;background:' + (on ? 'var(--primary)' : '#fff')
+        + ';color:' + (on ? '#fff' : 'var(--dark)') + ';border:0;font:inherit;font-size:13.5px;font-weight:700;padding:9px 6px;cursor:pointer;">'
+        + label + '</button>';
+    };
+    var uBtn = function(id, label, n){
+      var on = (_when === id);
+      return '<span onclick="myEvWhen(\'' + id + '\')" style="font-size:13.5px;font-weight:' + (on ? '700' : '600')
+        + ';color:' + (on ? 'var(--primary)' : '#6B7A8D') + ';padding:0 0 8px;cursor:pointer;'
+        + (on ? 'border-bottom:2px solid var(--primary);' : '') + '">' + label
+        + ' <span style="color:#6B7A8D;font-weight:600;">' + n + '</span></span>';
+    };
+    var items = evs.length
+      ? evs.map(function(e, i){
+          var on = (_sel === String(e.id)) || (_sel === null && i === 0);
+          if (on) _sel = String(e.id);
+          return '<div onclick="myEvPick(\'' + esc(String(e.id)) + '\')" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;cursor:pointer;'
+            + (on ? 'background:#EEF6FF;' : '') + '">'
+            + evThumb(e, 'ev-thumb').replace('class="ev-thumb"', 'style="width:34px;height:34px;"')
+            + '<div style="min-width:0;"><div style="font-size:14px;font-weight:700;line-height:1.2;color:var(--dark);">' + esc(e.title || 'Event') + '</div>'
+            + '<div style="font-size:12px;color:var(--muted);margin-top:2px;">' + esc(e.date ? fmtDate(e.date, e.time, e.endtime) : 'Date to be announced') + '</div>'
+            + '</div></div>';
+        }).join('')
+      : '<div style="padding:14px 10px;font-size:13px;color:var(--muted);">Nothing here yet.</div>';
+    return '<div style="background:#fff;border-radius:14px;padding:10px;height:fit-content;">'
+      + '<div style="display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:4px 4px 10px;">'
+      + segBtn('attending', 'Attending (' + attending.length + ')') + segBtn('hosting', 'Hosting (' + hosting.length + ')')
+      + '</div>'
+      + '<div style="display:flex;gap:18px;margin:0 6px 10px;border-bottom:1px solid var(--border);">'
+      + uBtn('upcoming', 'Upcoming', up) + uBtn('past', 'Past', pa) + '</div>'
+      + items + '</div>';
+  };
+
+  const renderDetail = function(){
+    var evs = bucket();
+    var e = evs.filter(function(x){ return String(x.id) === String(_sel); })[0] || evs[0];
+    if (!e) return '<div style="background:#fff;border-radius:14px;padding:24px 28px;min-height:340px;">'
+      + '<div style="font-size:14px;color:var(--muted);">Pick an event to see it here.</div></div>';
+    var when = e.date ? fmtDate(e.date, e.time, e.endtime) : 'Date to be announced';
+    var loc = e.venue || e.location || '';
+    var evUrl = 'event.html?id=' + encodeURIComponent(e.id) + '&memberCard=' + encodeURIComponent(memberId);
+    var bbUrl = 'https://gather.2gather.network/attendees.html?id=' + encodeURIComponent(e.id) + '&memberCard=' + encodeURIComponent(memberId);
+    var cover = e.imageUrl
+      ? '<img src="' + esc(e.imageUrl) + '" alt="" style="width:100%;height:150px;object-fit:cover;border-radius:12px;display:block;margin-bottom:16px;">'
+      : '<div style="width:100%;height:150px;border-radius:12px;background:#F7FBFF;border:1px solid #C9DFF3;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">'
+        + '<img src="' + LOGO + '" alt="" style="height:54px;opacity:.85;"></div>';
+    return '<div style="background:#fff;border-radius:14px;padding:24px 28px;min-height:340px;">'
+      + cover
+      + '<h2 style="font-size:22px;font-weight:800;margin:0 0 8px;color:var(--dark);">' + esc(e.title || 'Event') + '</h2>'
+      + '<span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:3px 9px;border-radius:10px;background:#E7F5EA;color:#1A5A2C;">'
+      + (_pane === 'hosting' ? 'Hosting' : 'Attending') + '</span>'
+      + '<div style="font-size:14px;color:var(--soft,#4B5A6D);margin:14px 0;line-height:1.6;">'
+      + (e.description ? esc(String(e.description).slice(0, 260)) + '<br>' : '')
+      + esc(when) + (loc ? ' · 📍 ' + esc(loc) : '') + '</div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">'
+      + '<a role="link" tabindex="0" data-nav="' + esc(evUrl) + '" onclick="return _safeNavGo(this)" style="font-size:13px;font-weight:700;padding:8px 15px;border-radius:22px;background:var(--primary);color:#fff;text-decoration:none;cursor:pointer;">Open event</a>'
+      + '<a role="link" tabindex="0" data-nav="' + esc(bbUrl) + '" onclick="return _safeNavGo(this)" style="font-size:13px;font-weight:700;padding:8px 15px;border-radius:22px;background:#fff;color:var(--primary);border:1.5px solid var(--primary);text-decoration:none;cursor:pointer;">View bulletin board</a>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 8px;">'
+      + '<div style="font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Who is coming</div>'
+      + '<a role="link" tabindex="0" data-nav="' + esc(bbUrl) + '" onclick="return _safeNavGo(this)" style="font-size:13px;font-weight:700;color:var(--primary);text-decoration:underline;cursor:pointer;">See attendees</a>'
+      + '</div>'
+      + '<div id="who-row" style="display:flex;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--muted);">Loading…</div>'
+      + '</div>';
+  };
+
+  const paint = function(){
+    var crumb = cameFromProfile
+      ? '<div style="color:#fff;font-size:14px;font-weight:600;opacity:.92;margin-bottom:12px;">&lsaquo; '
+        + '<a role="link" tabindex="0" data-nav="https://creating.works/profile.html?CWid=' + encodeURIComponent(memberId) + '" onclick="return _safeNavGo(this)" style="color:#fff;text-decoration:underline;cursor:pointer;">My profile</a> / My events</div>'
+      : '';
+    card.innerHTML = crumb
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px;">'
+      + '<h1 style="font-size:26px;font-weight:800;margin:0;color:#fff;">My events</h1>'
+      + '<a href="https://2gather.network" style="background:#fff;color:var(--primary);padding:11px 20px;border-radius:26px;font-size:15px;font-weight:700;text-decoration:none;">Browse events</a>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:300px 1fr;gap:16px;" id="me-layout">'
+      + renderRail() + renderDetail() + '</div>';
+    if (window.matchMedia && window.matchMedia('(max-width:760px)').matches) {
+      var L = document.getElementById('me-layout'); if (L) L.style.gridTemplateColumns = '1fr';
+    }
+    loadWho();
+  };
+
+  // Attendees are a slow, per-event read, so they load only for the event on screen.
+  let _whoFor = null;
+  const loadWho = function(){
+    var row = document.getElementById('who-row'); if (!row || !_sel) return;
+    var want = String(_sel); _whoFor = want;
+    fetch(GS_URL + '?action=getAttendees&eventId=' + encodeURIComponent(want))
       .then(function(r){ return r.json(); })
       .then(function(d){
-        if(!d || !d.found || !d.photo) return;
-        var wrap = document.getElementById('topnav-me-photo-wrap');
-        if(!wrap) return;
-        wrap.outerHTML = '<img id="topnav-me-photo-wrap" src="' + esc(d.photo) + '" alt="me" style="width:22px;height:22px;border-radius:50%;object-fit:cover;">';
-      }).catch(function(){});
-  })();
-  let html = '<div class="card-body"><h1 style="margin:0 0 16px;">My events</h1>';
-  // Always show both tabs even when Hosting is empty — the tab itself is a signal
-  // that hosting exists as a mode, and a zero-state message lands you in the right place.
-  html += '<div style="display:flex;border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:16px;">'
-    + tabBtn('attending','Attending ('+attending.length+')',true)
-    + tabBtn('hosting','Hosting ('+hosting.length+')',false) + '</div>';
-  html += '<div id="tab-attending">' + listHTML(attending, "You\'re not registered for any events yet.") + '</div>';
-  html += '<div id="tab-hosting" style="display:none;">' + listHTML(hosting, "You haven\'t hosted any events yet.") + '</div>';
-  html += '</div>';
-  card.innerHTML = html;
-  window.myEvTab = function(which){
-    ['attending','hosting'].forEach(function(id){
-      var pane=document.getElementById('tab-'+id); var btn=document.getElementById('tab-'+id+'-btn');
-      if(pane) pane.style.display=(id===which)?'block':'none';
-      if(btn){ var on=(id===which); btn.style.background=on?'var(--primary)':'#fff'; btn.style.color=on?'#fff':'var(--dark)'; btn.style.borderColor=on?'var(--primary)':'var(--border)'; }
-    });
+        if (_whoFor !== want) return;
+        var el = document.getElementById('who-row'); if (!el) return;
+        var ats = (d && d.attendees) || [];
+        if (!ats.length) { el.textContent = 'Nobody has registered yet.'; return; }
+        el.innerHTML = ats.slice(0, 8).map(function(a){
+          var initial = String(a.first || a.name || a.appearId || '?').charAt(0).toUpperCase();
+          return a.photo
+            ? '<img src="' + esc(a.photo) + '" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">'
+            : '<span style="width:32px;height:32px;border-radius:50%;background:#B7C4D6;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;">' + esc(initial) + '</span>';
+        }).join('') + (ats.length > 8 ? '<span style="width:32px;height:32px;border-radius:50%;background:#B7C4D6;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">+' + (ats.length - 8) + '</span>' : '');
+      })
+      .catch(function(){
+        var el = document.getElementById('who-row');
+        if (el && _whoFor === want) el.textContent = 'Could not load attendees.';
+      });
   };
+
+  window.myEvPane = function(which){ _pane = which; _sel = null; paint(); };
+  window.myEvWhen = function(which){ _when = which; _sel = null; paint(); };
+  window.myEvPick = function(id){ _sel = String(id); paint(); };
+  paint();
 }
 
 // "Manage my experience" - the per-event Event experience panel (personal hub for one event).
