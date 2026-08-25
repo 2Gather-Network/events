@@ -113,7 +113,7 @@
         <button type="button" class="seg-btn" id="seg-hosted">Host</button>
       </div>
       <div class="railtools">
-        <div class="search"><input type="text" id="rail-filter" placeholder="Filter…"></div>
+        <div class="search"><input type="text" id="rail-filter" placeholder="&#128270; Search"></div>
         <select id="rail-sort" class="railsort" aria-label="Sort groups"></select>
       </div>
       <div id="rail-items"></div>
@@ -218,6 +218,7 @@
   // Joining ends inside the group, not back at the list. Reloading My groups dropped the
   // person on whichever group sorts first, which is not the one they just joined.
   function goToGroup(groupId){
+    try { sessionStorage.setItem('cw-just-joined', '1'); } catch(err){}
     location.href = 'https://gather.2gather.network/group.html?id=' + encodeURIComponent(groupId)
       + (meId ? '&CWid=' + encodeURIComponent(meId) : '');
   }
@@ -371,7 +372,7 @@
     el.innerHTML = '<b>' + c.people + '</b> people · <b>' + c.offers + '</b> offers · <b>' + c.needs + '</b> needs';
   }
 
-  var _groups = [], _pane = 'member', _sort = 'name';
+  var _groups = [], _pane = 'member', _sort = 'newest';
   // Declared as data so another page can reuse the same control by changing this list alone.
   //
   // "Needs me first" was removed rather than shipped: it sorted on a pending-requests count that
@@ -386,9 +387,6 @@
     return isNaN(t) ? null : t;
   }
   var SORTS = [
-    { key: 'name', label: 'Name A to Z', cmp: function(a, b){
-        return String(a.name||'').localeCompare(String(b.name||''));
-      } },
     { key: 'newest', label: 'Newest first', needsDate: true, cmp: function(a, b){
         var ta = _time(a), tb = _time(b);
         // A group with no recorded date sits at the bottom rather than pretending to be oldest.
@@ -403,6 +401,9 @@
         if (ta === null) return 1;
         if (tb === null) return -1;
         return ta - tb;
+      } },
+    { key: 'name', label: 'Name A to Z', cmp: function(a, b){
+        return String(a.name||'').localeCompare(String(b.name||''));
       } }
   ];
   function _haveDates(){ return _groups.some(function(g){ return _time(g) !== null; }); }
@@ -496,7 +497,13 @@
     if (b) b.addEventListener('click', function(){ _pane = pane; foldRail(false); renderRail(); });
   });
 
-  fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(meId))
+  // Straight after a join the cached list is a minute out of date, and a minute is exactly how
+  // long it takes to look at the group and come back for it. That one load skips the cache.
+  var _fresh = '';
+  try {
+    if (sessionStorage.getItem('cw-just-joined')) { _fresh = '&nocache=1'; sessionStorage.removeItem('cw-just-joined'); }
+  } catch(err){}
+  fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(meId) + _fresh)
     .then(function(r){ return r.json(); })
     .then(function(d){
       // A deployed getMyGroups always returns a `groups` array (possibly empty).
