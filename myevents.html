@@ -384,7 +384,7 @@ function recurToEv(r) {
     time: r.time||"", endtime: r.endtime||"",
     format: r.format||"", location: r.location||"",
     room: r.room||"", description: r.description||"",
-    host: r.host||"", hostlink: r.hostlink||"",
+    host: r.host||"", hostlink: r.hostlink||"", hostType: r.hostType||"",
     contactEmail: r.contactEmail||"", contactPhone: r.contactPhone||"",
     cooplink: r.cooplink||"", paymentlink: r.paymentlink||"",
     meetinglink: ROOMS[r.room] || "", showLinks: r.showLinks||"",
@@ -478,7 +478,7 @@ function toEv(r) {
     id: String(r.id||""), title: r.title||"",
     date: parseDate(r.date), time: parseTime(r.startTime), endtime: parseTime(r.endTime),
     format: r.format||"", location: r.location||"", room: r.room||"",
-    description: r.description||"", host: r.host||"", hostlink: r.hostlink||"",
+    description: r.description||"", host: r.host||"", hostlink: r.hostlink||"", hostType: r.hostType||"",
     contactEmail: r.contactEmail||"", contactPhone: r.contactPhone||"",
     cooplink: r.cooplink||"", paymentlink: r.paymentlink||"", meetinglink: r.meetinglink||"",
     showLinks: r.showLinks||"", otherExchange: r.otherExchange||"",
@@ -1649,16 +1649,20 @@ async function renderMyEventsList(memberId, data) {
     return e;
   }).filter(Boolean);
   const attending = allEv.filter(function(e) { return activeIds.indexOf(String(e.id)) > -1; }).concat(occurrences);
-  // hostMemberCard is blank on nearly every row, so hosting also matches the member id inside
-  // hostlink, which is how the sheet actually records who hosts an event.
-  const hosting = allEv.filter(function(e) {
+  // hostMemberCard is blank on nearly every row, so an event counts as yours when your member id
+  // appears in hostlink. The sheet's hostType column then says which kind: host or socializer.
+  const _mine = allEv.filter(function(e) {
     var me = _expNorm(memberId);
     if (!me) return false;
     if (e.hostMemberCard && _expNorm(e.hostMemberCard) === me) return true;
     return _expNorm(e.hostlink || '').indexOf(me) > -1;
   });
+  const _isSocialized = function(e){ return String(e.hostType || '').trim().toLowerCase() === 'socializer'; };
+  // A blank hostType is treated as hosting, since that is what the column meant before it existed.
+  const hosting = _mine.filter(function(e){ return !_isSocialized(e); });
+  const socialized = _mine.filter(_isSocialized);
   const byDate = function(a, b) { return String(a.date || "").localeCompare(String(b.date || "")); };
-  attending.sort(byDate); hosting.sort(byDate);
+  attending.sort(byDate); hosting.sort(byDate); socialized.sort(byDate);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   // A Date-to-be-announced event has not happened yet, so it belongs under Upcoming.
   // People register for one to show interest (Jessie 2026-08-24).
@@ -1701,15 +1705,17 @@ async function renderMyEventsList(memberId, data) {
   };
 
   let _pane = 'attending', _when = 'upcoming', _sel = null;
+  const paneList = function(){
+    return (_pane === 'attending') ? attending : (_pane === 'socialized') ? socialized : hosting;
+  };
   const bucket = function(){
-    var list = (_pane === 'attending') ? attending : hosting;
-    return list.filter(function(e){ return (_when === 'upcoming') ? isUpcoming(e) : !isUpcoming(e); });
+    return paneList().filter(function(e){ return (_when === 'upcoming') ? isUpcoming(e) : !isUpcoming(e); });
   };
 
   const renderRail = function(){
     var evs = bucket();
-    var up = (_pane === 'attending' ? attending : hosting).filter(isUpcoming).length;
-    var pa = (_pane === 'attending' ? attending : hosting).length - up;
+    var up = paneList().filter(isUpcoming).length;
+    var pa = paneList().length - up;
     var segBtn = function(id, label){
       var on = (_pane === id);
       return '<button onclick="myEvPane(\'' + id + '\')" style="flex:1;background:' + (on ? 'var(--primary)' : '#fff')
@@ -1737,7 +1743,9 @@ async function renderMyEventsList(memberId, data) {
       : '<div style="padding:14px 10px;font-size:13px;color:var(--muted);">Nothing here yet.</div>';
     return '<div style="background:#fff;border-radius:14px;padding:10px;height:fit-content;">'
       + '<div style="display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:4px 4px 10px;">'
-      + segBtn('attending', 'Attending (' + attending.length + ')') + segBtn('hosting', 'Hosting (' + hosting.length + ')')
+      + segBtn('attending', 'Attending (' + attending.length + ')')
+      + segBtn('hosting', 'Hosting (' + hosting.length + ')')
+      + segBtn('socialized', 'Socialized (' + socialized.length + ')')
       + '</div>'
       + '<div style="display:flex;gap:18px;margin:0 6px 10px;border-bottom:1px solid var(--border);">'
       + uBtn('upcoming', 'Upcoming', up) + uBtn('past', 'Past', pa) + '</div>'
@@ -1763,7 +1771,7 @@ async function renderMyEventsList(memberId, data) {
       + cover
       + '<h2 style="font-size:22px;font-weight:800;margin:0 0 8px;color:var(--dark);">' + esc(e.title || 'Event') + '</h2>'
       + '<span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:3px 9px;border-radius:10px;background:#E7F5EA;color:#1A5A2C;">'
-      + (_pane === 'hosting' ? 'Hosting' : 'Attending') + '</span>'
+      + (_pane === 'hosting' ? 'Hosting' : _pane === 'socialized' ? 'Socialized' : 'Attending') + '</span>'
       + '<div style="font-size:14px;color:var(--soft,#4B5A6D);margin:14px 0;line-height:1.6;">'
       + (e.description ? esc(String(e.description).slice(0, 260)) + '<br>' : '')
       + esc(when) + (loc ? ' · 📍 ' + esc(loc) : '') + '</div>'
