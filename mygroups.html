@@ -51,6 +51,7 @@
   .badge{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:10px;}
   .badge.host{background:#E7F5EA;color:#1A5A2C;}
   .badge.cohost{background:#EEF6FF;color:#154F74;}
+  .badge.member{background:#F7FBFF;color:#4B5A6D;border:1px solid #C9DFF3;}
   .detail .stats{font-size:14px;color:var(--soft);margin:14px 0;line-height:1.6;}
   .detail .stats b{color:var(--ink);}
   .detail .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
@@ -124,12 +125,13 @@
   }
 
   function renderDetail(g){
-    var roleLabel = (g.role === 'cohost') ? 'Co-host' : 'Host';
+    var _r = String(g.role || '').toLowerCase();
+    var roleLabel = _r === 'cohost' ? 'Co-host' : (_r === 'host' ? 'Host' : 'Member');
     var pending = g.pending || 0;
     var html = '';
     html += g.image ? '<img class="cover" src="' + esc(g.image) + '" alt="">' : '<div class="cover"></div>';
     html += '<h2>' + esc(g.name || 'Group') + '</h2>';
-    html += '<span class="badge ' + (g.role === 'cohost' ? 'cohost' : 'host') + '">' + roleLabel + '</span>';
+    html += '<span class="badge ' + (_r === 'cohost' ? 'cohost' : (_r === 'host' ? 'host' : 'member')) + '">' + roleLabel + '</span>';
     html += '<div class="stats">' + esc(g.intro || '') + (g.intro ? '<br>' : '')
       + '<span id="detail-counts">Counting…</span>'
       + (pending ? ' · <b style="color:var(--brand);">' + pending + ' pending requests</b>' : '') + '</div>';
@@ -182,15 +184,18 @@
   // Hosting a group and belonging to one are different relationships, so they get their own
   // lists rather than one pile. A group you host is never also listed under Member.
   function _isHosted(g){ var r = String(g.role || '').toLowerCase(); return r === 'host' || r === 'cohost'; }
-  function _inPane(g){ return _pane === 'hosted' ? _isHosted(g) : !_isHosted(g); }
+  // Hosting a group means belonging to it, so Member is every group you are in and Host is the
+  // subset you run. They overlap on purpose: a host is not a different kind of person.
+  function _inPane(g){ return _pane === 'hosted' ? _isHosted(g) : true; }
   function renderRail(){
     var q = (filterInput.value || '').trim().toLowerCase();
     // The tab carries the count, the way Attending and Hosting do on My events.
     var nHost = _groups.filter(_isHosted).length;
+    var nMember = _groups.length;
     var segH = document.getElementById('seg-hosted');
     var segM = document.getElementById('seg-member');
     if (segH) { segH.textContent = 'Host (' + nHost + ')'; segH.classList.toggle('on', _pane === 'hosted'); }
-    if (segM) { segM.textContent = 'Member (' + (_groups.length - nHost) + ')'; segM.classList.toggle('on', _pane === 'member'); }
+    if (segM) { segM.textContent = 'Member (' + nMember + ')'; segM.classList.toggle('on', _pane === 'member'); }
     rail.innerHTML = '';
     var shown = _groups.filter(function(g){
       if (!_inPane(g)) return false;
@@ -208,8 +213,7 @@
       // An empty Member list is usually not a filter miss, it is that the backend does not
       // return joined groups yet, so say which it is rather than "no groups match".
       var _msg = q ? 'No groups match.'
-        : (_pane === 'member' ? 'No groups here yet. Groups you have joined without hosting are not returned by the backend yet.'
-                              : 'You are not hosting a group yet.');
+        : (_pane === 'member' ? 'You are not in a group yet.' : 'You are not hosting a group yet.');
       rail.innerHTML = '<div style="padding:12px;color:#6B7A8D;font-size:13px;line-height:1.5;">' + _msg + '</div>';
       detail.innerHTML = '<div class="status info">Nothing to show here.</div>';
       return;
