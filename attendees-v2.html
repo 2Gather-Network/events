@@ -227,7 +227,7 @@
     <!-- Row 1: Breadcrumbs (Groups / <this group>) left · My profile pill (with face) right. -->
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
       <div style="display:flex;align-items:center;gap:6px;font-size:14px;color:#fff;flex-wrap:wrap;">
-        <a id="gp-crumb-groups" href="https://appear.network/dl/groups" style="color:#fff;text-decoration:none;opacity:.85;display:inline-flex;align-items:center;gap:4px;"><span style="opacity:.7;font-size:20px;line-height:1;">&lsaquo;</span> My events</a>
+        <a id="gp-crumb-groups" role="link" tabindex="0" onclick="return _safeNavGo(this)" title="My events" style="color:#fff;text-decoration:none;opacity:.85;cursor:pointer;display:inline-flex;align-items:center;gap:4px;"><span style="opacity:.7;font-size:20px;line-height:1;">&lsaquo;</span> My events</a>
         <span style="opacity:.6;">/</span>
         <a id="gp-crumb-name" role="link" tabindex="0" onclick="gpShow('concierge')" style="color:#fff;text-decoration:none;font-weight:800;cursor:pointer;">Event title</a>
         <span id="gp-crumb-sep" style="opacity:.6;display:none;">/</span>
@@ -298,19 +298,13 @@
           </div>
         </div>
 
-        <!-- New-member orientation (shown instead of the tiles when the person has no engagement yet).
-             Preview URL: append &view=onboard to force this screen. -->
+        <!-- Registrants-only wall. The event bulletin is for people registered for this event,
+             so anyone else gets this instead of the board (Jessie 2026-08-24). No Register
+             button here on purpose: registering happens on the event page. -->
         <div id="gp-onboard" style="display:none;background:#fff;border-radius:14px;padding:28px 28px 24px;">
-          <div id="gp-onboard-title" style="font-size:22px;font-weight:800;color:#1A2E42;line-height:1.25;">Event</div>
-          <img id="gp-onboard-cover" src="https://storage.googleapis.com/glide-prod.appspot.com/uploads-v2/mV6AgDKKrR9A9k9673KJ/pub/qwVNLMlt19536Vl5XRvI.png" alt="" style="width:100%;height:160px;object-fit:cover;border-radius:12px;margin-top:16px;display:block;">
-          <div id="gp-intro-copy" style="font-size:15px;color:#4B5A6D;margin-top:14px;line-height:1.55;">This is an event for people who share this focus. Take a minute to get located, then come back to see what's here for you.</div>
-          <div style="font-size:12px;font-weight:800;color:#6B7A8D;letter-spacing:.06em;text-transform:uppercase;margin-top:22px;margin-bottom:8px;">Hosts</div>
-          <div id="gp-host-list" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
-          <div style="font-size:12px;font-weight:800;color:#6B7A8D;letter-spacing:.06em;text-transform:uppercase;margin-top:22px;margin-bottom:8px;">How we relate here</div>
-          <div id="gp-agreements" style="font-size:14px;color:#4B5A6D;line-height:1.55;">Event details will appear here once the host adds them.</div>
-          <div id="gp-onboard-actions" style="margin-top:22px;">
-            <button class="btn" onclick="gpOnboardDone()">Take me to the event</button>
-          </div>
+          <div id="gp-onboard-title" style="font-size:22px;font-weight:800;color:#1A2E42;line-height:1.25;">This event</div>
+          <div id="gp-onboard-copy" style="font-size:15px;color:#4B5A6D;margin-top:12px;line-height:1.55;">This bulletin is for people registered for this event.</div>
+          <div id="gp-onboard-actions" style="margin-top:22px;"></div>
           <div id="gp-onboard-status" style="margin-top:12px;font-size:14px;color:#6B7A8D;line-height:1.5;display:none;"></div>
         </div>
 
@@ -476,12 +470,15 @@ function pick(el, key){
   // Accept the same URL variants group.html has always accepted (this file is served at group.html too).
   var groupId = (params.get('id')||params.get('groupId')||params.get('group')||'').trim();
   var meId    = (params.get('CWid')||params.get('appearId')||params.get('memberCard')||params.get('guest')||params.get('me')||'').trim();
-  // "My events" breadcrumb points to our Groups I host page, not back to Appear.
+  // "My events" breadcrumb opens the viewer's own My events list. Hrefless (data-nav +
+  // _safeNavGo) because the URL carries their id, which is a bearer token.
   var _gpGroupsLink = document.getElementById('gp-crumb-groups');
-  if (_gpGroupsLink) _gpGroupsLink.href = 'https://creating.works/intake-da.html?manage=groups' + (meId ? '&id=' + encodeURIComponent(meId) : '');
+  if (_gpGroupsLink) _gpGroupsLink.setAttribute('data-nav', 'https://gather.2gather.network/myevents.html' + (meId ? '?id=' + encodeURIComponent(meId) : ''));
   if (!groupId) return; // no group id — leave the concierge welcome as-is
   // View switcher for the concierge
   window.gpShow = function(view){
+    // Registrants-only: once locked, every view resolves to the wall.
+    if (window._gpLocked) view = 'onboard';
     var ids = ['gp-concierge','gp-onboard','gp-feed','gp-messages','gp-invites','gp-events','gp-search','gp-members'];
     ids.forEach(function(i){ var el = document.getElementById(i); if (el) el.style.display = 'none'; });
     var map = { concierge:'gp-concierge', onboard:'gp-onboard', feed:'gp-feed', messages:'gp-messages', invites:'gp-invites', events:'gp-events', search:'gp-search', members:'gp-members' };
@@ -509,7 +506,6 @@ function pick(el, key){
     if (sidebarBack) sidebarBack.style.display = atHome ? 'none' : 'flex';
     try { window.scrollTo({top:0, behavior:'smooth'}); } catch(e){}
   };
-  window.gpOnboardDone = function(){ gpShow('concierge'); };
   // Search: match on offer-side fields, need-side fields, and name. Cards get data-scope:
   // 'offers' (only offer-side hit), 'needs' (only need-side), 'both', or 'name' (name-only).
   var _SRC_OFFER = ['skills','values','interests','hobbies','domains','professionalServices','advocating'];
@@ -942,12 +938,35 @@ function pick(el, key){
     .then(function(_res){
       var _ep = _res[0] || {};
       var _ev = (_res[1] && _res[1].event) || {};
-      var _when = [_ev.date, _ev.time].filter(Boolean).join(' · ');
+      // The sheet hands back an ISO stamp, a plain YYYY-MM-DD, or the literal "TBD".
+      var _fmtWhen = function(dt, tm) {
+        var raw = String(dt || '').trim();
+        if (!raw) return '';
+        if (raw.toUpperCase() === 'TBD') return 'Date to be announced';
+        var ymd = raw.indexOf('T') > -1 ? raw.split('T')[0] : raw;
+        var day = new Date(ymd + 'T00:00:00');
+        var out = isNaN(day.getTime())
+          ? raw
+          : day.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+        return tm ? (out + ' · ' + tm) : out;
+      };
+      var _when = _fmtWhen(_ev.date, _ev.time);
       var _where = [_ev.venue, _ev.location].filter(Boolean).join(', ');
+      // getEventProfiles returns the viewer separately in `me` and LEAVES THEM OUT of
+      // `attendees`, so the board has to put them back or you never see yourself in the room
+      // and every count is short by one. (Live attendees.html does the same merge.)
+      var _list = (_ep.attendees || []).slice();
+      if (_ep.me && _ep.me.appearId) {
+        var _meN = String(_ep.me.appearId).split('.').join('').toLowerCase();
+        var _already = _list.some(function(a){
+          return String(a.appearId||'').split('.').join('').toLowerCase() === _meN;
+        });
+        if (!_already) _list.unshift(_ep.me);
+      }
       return {
         group: { name: _ev.title || '', image: _ev.image || '', eventWhen: _when, eventWhere: _where,
                  hostIds: _ev.hostMemberCard ? [_ev.hostMemberCard] : [] },
-        attendees: _ep.attendees || [],
+        attendees: _list,
         me: _ep.me || null,
         meRegistered: _ep.meRegistered
       };
@@ -1038,7 +1057,7 @@ function pick(el, key){
       var totalCount = attendees.length + (d.me && !attendees.some(function(a){return a.appearId===d.me.appearId;}) ? 1 : 0);
       // Sidebar heading + a small sample of member photos; full list is in the Members panel.
       var mh = document.getElementById('gp-members-heading');
-      if (mh) mh.textContent = attendees.length + (attendees.length === 1 ? ' member' : ' members');
+      if (mh) mh.textContent = attendees.length + (attendees.length === 1 ? ' attendee' : ' attendees');
       // Members strip — cap the count to what fits in ONE row of the sidebar (Jessie: no orphan bottom row).
       // Photos are 32px + 6px gap, so perRow = floor((width + 6) / 38). Re-renders on resize.
       _gpHereAttendees = attendees;
@@ -1100,94 +1119,63 @@ var myPill = document.getElementById('gp-myprofile-pill');
       // (Was: personalized eyebrow "First, we found matches for you" — misleading with no data.)
       var goProfileLink = document.getElementById('gp-feed-goprofile');
       if (goProfileLink) goProfileLink.onclick = goProfile;
-      // Onboarding screen — leads with "Group: <name>" (2026-08-21 change), then the cover image.
+      // Registrants-only wall — the title is just the event name.
       var onboardTitle = document.getElementById('gp-onboard-title');
-      if (onboardTitle) onboardTitle.textContent = 'Group: ' + (groupName || '');
-      // Populate onboard actions based on viewer state (anonymous / not-a-member / member).
-      // The button choice matches Bulletin 2.5's join flow:
-      //   anonymous → "Sign in on Appear then come back" (no anonymous joins)
-      //   signed-in + not a member → "Join this group" (POSTs saveJoinRequest; open groups auto-join,
-      //     screening groups redirect to /groups/request.html)
-      //   member → "Take me to the event" (concierge)
-      var _viewerInGroup = false;
+      if (onboardTitle) onboardTitle.textContent = groupName || 'This event';
+      // Who is looking. meRegistered from getEventProfiles is authoritative — a cancelled
+      // registration comes back false — and the attendee-list check is only a fallback for a
+      // backend that does not return the flag.
+      var _viewerRegistered = false;
       var _viewerIsHost = false;
       if (meId) {
         var _vNrm = String(meId).split('.').join('').toLowerCase();
-        _viewerInGroup = attendees.some(function(a){
-          return String(a.appearId||'').split('.').join('').toLowerCase() === _vNrm;
-        });
+        _viewerRegistered = (typeof d.meRegistered === 'boolean')
+          ? d.meRegistered
+          : attendees.some(function(a){
+              return String(a.appearId||'').split('.').join('').toLowerCase() === _vNrm;
+            });
         var _hostIds = (d.group && d.group.hostIds) || [];
         _viewerIsHost = _hostIds.some(function(h){ return String(h||'').split('.').join('').toLowerCase() === _vNrm; });
       }
-      // Host-only "Manage event" button in the sidebar → admin.html for this group.
+      if (_viewerIsHost) _viewerRegistered = true;   // the host always gets into their own event
+      // Host-only "Manage event" button in the sidebar -> the host panel for this event.
       var _manageWrap = document.getElementById('gp-manage-wrap');
       var _manageLink = document.getElementById('gp-manage-link');
       if (_manageWrap && _manageLink && _viewerIsHost) {
-        _manageLink.setAttribute('data-nav', 'https://gather.2gather.network/groups/admin.html?id=' + encodeURIComponent(groupId) + '&CWid=' + encodeURIComponent(meId));
+        _manageLink.setAttribute('data-nav', 'https://gather.2gather.network/myevents.html?id=' + encodeURIComponent(groupId) + '&memberCard=' + encodeURIComponent(meId) + '&manage=1');
         _manageWrap.style.display = 'block';
       }
       (function(){
-        var box = document.getElementById('gp-onboard-actions');
-        var stat = document.getElementById('gp-onboard-status');
+        var copy = document.getElementById('gp-onboard-copy');
+        var box  = document.getElementById('gp-onboard-actions');
+        if (copy) {
+          copy.textContent = meId
+            ? 'This bulletin is for people registered for this event.'
+            : 'This bulletin is for people registered for this event. Open it from your own link so we know who you are.';
+        }
         if (!box) return;
         box.innerHTML = '';
-        if (!meId) {
-          var a = document.createElement('a');
-          a.className = 'btn';
-          a.href = 'https://appear.network/';
-          a.textContent = 'Sign in on Appear to join';
-          a.setAttribute('style','text-decoration:none;');
-          box.appendChild(a);
-          if (stat) { stat.style.display = 'block'; stat.textContent = 'You need an Appear account to join this group. Sign in, then return here.'; }
-        } else if (!_viewerInGroup) {
-          var b = document.createElement('button');
-          b.className = 'btn';
-          b.textContent = 'Join this group';
-          b.addEventListener('click', function(){
-            b.disabled = true;
-            if (stat) { stat.style.display = 'block'; stat.textContent = 'Sending your request…'; }
-            var joinMode = (d.group && d.group.joinMode) || 'open';
-            if (joinMode === 'screen') {
-              window.location.href = 'https://gather.2gather.network/groups/request.html?id=' + encodeURIComponent(groupId) + '&CWid=' + encodeURIComponent(meId);
-              return;
-            }
-            fetch(GS_URL + '?action=saveJoinRequest&groupId=' + encodeURIComponent(groupId) + '&appearId=' + encodeURIComponent(meId))
-              .then(function(r){ return r.json(); })
-              .then(function(res){
-                if (res && res.status === 'ok') {
-                  if (stat) stat.textContent = res.joined ? 'You\'re in. Reloading…' : 'Request sent. The host will get back to you.';
-                  if (res.joined) { setTimeout(function(){ window.location.reload(); }, 700); }
-                } else {
-                  b.disabled = false;
-                  if (stat) stat.textContent = (res && res.message) ? res.message : 'Backend not wired yet — try again once Jessie pastes the saveJoinRequest action.';
-                }
-              })
-              .catch(function(){
-                b.disabled = false;
-                if (stat) stat.textContent = 'Backend not wired yet — try again once Jessie pastes the saveJoinRequest action.';
-              });
-          });
-          box.appendChild(b);
-        } else {
-          var t = document.createElement('button');
-          t.className = 'btn';
-          t.textContent = 'Take me to the event';
-          t.addEventListener('click', function(){ gpOnboardDone(); });
-          box.appendChild(t);
-        }
+        // No Register button here on purpose (Jessie 2026-08-24). Registering happens on the
+        // event page, not on a board this person should not be looking at.
+        var a = document.createElement('a');
+        a.className = 'btn';
+        a.setAttribute('role','link');
+        a.setAttribute('tabindex','0');
+        a.setAttribute('data-nav', 'https://gather.2gather.network/event.html?id=' + encodeURIComponent(groupId) + '&info=1');
+        a.setAttribute('onclick','return _safeNavGo(this)');
+        a.setAttribute('style','text-decoration:none;cursor:pointer;');
+        a.textContent = 'See the event';
+        box.appendChild(a);
       })();
 
-      // ?view=<panel> preview — manual override wins over any auto-detect below.
-      var vm = (location.search.match(/[?&]view=([a-z]+)/) || [])[1];
-      if (vm) {
-        gpShow(vm);
+      // Anyone not registered is locked to the wall — the breadcrumb, the tiles and ?view=
+      // all resolve back to it, so there is no way to click into the board from here.
+      window._gpLocked = !_viewerRegistered;
+      if (window._gpLocked) {
+        gpShow('onboard');
       } else {
-        // No group is viewable logged-out (Bulletin 2.6): anonymous viewers AND signed-in
-        // non-members both get the onboard/join screen. Member offer/need data is also stripped
-        // server-side in getGroupBundle for non-members (defense in depth).
-        if (!meId || !_viewerInGroup) {
-          gpShow('onboard');
-        }
+        var vm = (location.search.match(/[?&]view=([a-z]+)/) || [])[1];
+        if (vm) gpShow(vm);
       }
     })
     .catch(function(){});
