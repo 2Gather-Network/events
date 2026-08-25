@@ -709,6 +709,27 @@ function pick(el, key){
     var meOffer = _tokenMap(_tokenizePerson(me, _SRC_OFFER));
     var meNeed  = _tokenMap(_tokenizePerson(me, _SRC_NEED));
     if (Object.keys(meOffer).length === 0 && Object.keys(meNeed).length === 0) return []; // viewer has no profile
+    // A word most of the group shares is not a match, it is a default. "Professional services"
+    // sits on 47% of Climate Group and produced a 50-person card that said nothing while
+    // outranking every real overlap. Anything held by more than a quarter of the group stops
+    // forming an in-common card. The floor of five keeps small groups untouched, where three
+    // people sharing something genuinely means something.
+    var _freq = {}, _total = 0;
+    others.forEach(function(p) {
+      _total++;
+      var seen = {};
+      _tokenizePerson(p, _SRC_OFFER).forEach(function(o) {
+        var k = o.t.toLowerCase();
+        if (seen[k]) return;
+        seen[k] = true;
+        _freq[k] = (_freq[k] || 0) + 1;
+      });
+    });
+    var _tooCommon = function(t) {
+      var n = _freq[String(t).toLowerCase()] || 0;
+      return n >= 5 && _total > 0 && (n / _total) > 0.25;
+    };
+
     var scored = [];
     others.forEach(function(p) {
       var pn = String(p.appearId || '').split('.').join('').toLowerCase();
@@ -725,7 +746,7 @@ function pick(el, key){
       var youOfferTheyNeed = _mxNeed.filter(function(x){ return x.aKind === 'offer'; });
       var youRelateTheyNeed = _mxNeed.filter(function(x){ return x.aKind !== 'offer'; });
       var coseek           = _intersectTokens(meNeed,  pNeed);
-      var shared           = _intersectTokens(meOffer, pOffer);
+      var shared           = _intersectTokens(meOffer, pOffer).filter(function(x){ return !_tooCommon(x.t); });
       var score = theyOfferYouNeed.length * 3 + youOfferTheyNeed.length * 3
                 + theyRelateYouNeed.length * 2 + youRelateTheyNeed.length * 2
                 + coseek.length * 2 + shared.length;
