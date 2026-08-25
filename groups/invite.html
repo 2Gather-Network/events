@@ -144,7 +144,11 @@
     if (_lookupTimer) clearTimeout(_lookupTimer);
     if (q.length < 2) { lookupResults.classList.remove('on'); lookupResults.innerHTML = ''; return; }
     _lookupTimer = setTimeout(function(){
-      fetch(GS_URL + '?action=lookupProfile&name=' + encodeURIComponent(q))
+      // findPeople, not lookupProfile: an id is what opens a profile, so the backend checks the
+      // caller hosts this group before it hands any back.
+      fetch(GS_URL + '?action=findPeople&q=' + encodeURIComponent(q)
+        + '&groupId=' + encodeURIComponent(groupId)
+        + '&hostAppearId=' + encodeURIComponent(meId))
         .then(function(r){ return r.json(); })
         .then(function(matches){
           lookupResults.innerHTML = '';
@@ -152,8 +156,18 @@
           // Searching by name is not built on the backend: lookupProfile only answers to an id,
           // so a name comes back as {found:false} and every search read "No matches", which
           // blamed the data for a feature that does not exist yet. Say the true thing instead.
-          var _notBuilt = !Array.isArray(matches) && !!matches && matches.matches === undefined;
-          if (_notBuilt) {
+          var _err = (!Array.isArray(matches) && matches && matches.status === 'error') ? matches.message : '';
+          var _notBuilt = !Array.isArray(matches) && !!matches && matches.matches === undefined && !_err;
+          if (_err) {
+            // Built as text, not markup: this string comes from the backend, and this file has
+            // no escaper of its own.
+            lookupResults.innerHTML = '';
+            var _e = document.createElement('div');
+            _e.className = 'lookup-item';
+            _e.setAttribute('style', 'cursor:default;color:var(--muted);');
+            _e.textContent = _err;
+            lookupResults.appendChild(_e);
+          } else if (_notBuilt) {
             lookupResults.innerHTML = '<div class="lookup-item" style="cursor:default;color:var(--muted);">'
               + 'Searching by name is not switched on yet, so this finds nobody. It is not that they are missing.</div>';
           } else if (!arr.length) {

@@ -72,6 +72,7 @@
     <div class="rail" id="rail">
       <div class="seg" id="rail-seg">
         <button type="button" class="seg-btn on" id="seg-hosted">Hosted</button>
+        <button type="button" class="seg-btn" id="seg-member">Member</button>
       </div>
       <div class="search"><input type="text" id="rail-filter" placeholder="Filter…"></div>
       <div id="rail-items"></div>
@@ -177,17 +178,32 @@
     el.innerHTML = '<b>' + c.people + '</b> people · <b>' + c.offers + '</b> offers · <b>' + c.needs + '</b> needs';
   }
 
-  var _groups = [];
+  var _groups = [], _pane = 'hosted';
+  // Hosting a group and belonging to one are different relationships, so they get their own
+  // lists rather than one pile. A group you host is never also listed under Member.
+  function _isHosted(g){ var r = String(g.role || '').toLowerCase(); return r === 'host' || r === 'cohost'; }
+  function _inPane(g){ return _pane === 'hosted' ? _isHosted(g) : !_isHosted(g); }
   function renderRail(){
     var q = (filterInput.value || '').trim().toLowerCase();
-    // The tab carries the count, the way Attending and Hosting do on My events. Groups you have
-    // joined but do not host are not in getMyGroups yet, so Hosted stands alone for now.
-    var seg = document.getElementById('seg-hosted');
-    if (seg) seg.textContent = 'Hosted (' + _groups.length + ')';
+    // The tab carries the count, the way Attending and Hosting do on My events.
+    var nHost = _groups.filter(_isHosted).length;
+    var segH = document.getElementById('seg-hosted');
+    var segM = document.getElementById('seg-member');
+    if (segH) { segH.textContent = 'Hosted (' + nHost + ')'; segH.classList.toggle('on', _pane === 'hosted'); }
+    if (segM) { segM.textContent = 'Member (' + (_groups.length - nHost) + ')'; segM.classList.toggle('on', _pane === 'member'); }
     rail.innerHTML = '';
-    var shown = _groups.filter(function(g){ return !q || String(g.name||'').toLowerCase().indexOf(q) !== -1; });
+    var shown = _groups.filter(function(g){
+      if (!_inPane(g)) return false;
+      return !q || String(g.name||'').toLowerCase().indexOf(q) !== -1;
+    });
     if (!shown.length) {
-      rail.innerHTML = '<div style="padding:12px;color:#6B7A8D;font-size:13px;">No groups match.</div>';
+      // An empty Member list is usually not a filter miss, it is that the backend does not
+      // return joined groups yet, so say which it is rather than "no groups match".
+      var _msg = q ? 'No groups match.'
+        : (_pane === 'member' ? 'No groups here yet. Groups you have joined without hosting are not returned by the backend yet.'
+                              : 'You are not hosting a group yet.');
+      rail.innerHTML = '<div style="padding:12px;color:#6B7A8D;font-size:13px;line-height:1.5;">' + _msg + '</div>';
+      detail.innerHTML = '<div class="status info">Nothing to show here.</div>';
       return;
     }
     shown.forEach(function(g, i){
@@ -204,6 +220,10 @@
     renderDetail(shown[0]);
   }
   filterInput.addEventListener('input', renderRail);
+  ['hosted','member'].forEach(function(pane){
+    var b = document.getElementById('seg-' + pane);
+    if (b) b.addEventListener('click', function(){ _pane = pane; renderRail(); });
+  });
 
   fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(meId))
     .then(function(r){ return r.json(); })
