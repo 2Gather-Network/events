@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V1.95 | Date: 2026-08-26 | LAST CHANGE: the tab and shared links carry the tool name.
+/*  Version: V1.96 | Date: 2026-08-26 | LAST CHANGE: group pages take the 2Gather mark as their tab icon.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -261,9 +261,9 @@
 
   // ---- the tab icon ---------------------------------------------------------
   // Runs on every page that loads this file, with or without the bar, so the
-  // browser tab always says which tool you are in. A group page and anything on
-  // Creating.Works show the seedling, any other 2Gather page shows the 2Gather
-  // mark, and an Appear page shows a globe. Appear's own pages are built in Glide and set their icon
+  // browser tab always says which tool you are in. Every 2Gather page, groups
+  // included, shows the 2Gather mark. Creating.Works shows the seedling and an
+  // Appear page shows a globe. Appear's own pages are built in Glide and set their icon
   // there, so this only reaches ours.
   function emoji(ch) {
     return 'data:image/svg+xml,' + encodeURIComponent(
@@ -276,8 +276,7 @@
       var host = (window.location.hostname || '').toLowerCase();
       var path = (window.location.pathname || '').toLowerCase();
       var href = '';
-      if (path.indexOf('group') > -1) { href = emoji('\uD83C\uDF31'); }
-      else if (host.indexOf('creating.works') > -1) { href = emoji('\uD83C\uDF31'); }
+      if (host.indexOf('creating.works') > -1) { href = emoji('\uD83C\uDF31'); }
       else if (host.indexOf('appear') > -1) { href = emoji('\uD83C\uDF0D'); }
       else if (host.indexOf('2gather') > -1) { href = LOGO; }
       if (!href) return;
