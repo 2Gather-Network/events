@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V1.10 | Date: 2026-08-26 | LAST CHANGE: real logo mark, capitalised tabs, no Appear link, the person's own photo.
+/*  Version: V1.20 | Date: 2026-08-26 | LAST CHANGE: the left mark reads Gathering for the common good.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -124,7 +124,7 @@
         '<a role="link" tabindex="0" class="cwtb-mark" data-nav="' + link(EVENTS, 'memberCard') +
           '" onclick="return _safeNavGo(this)">' +
           '<span class="cwtb-glyph"><img src="' + LOGO + '" alt=""></span>' +
-          '<span class="cwtb-word">2Gather</span></a>' +
+          '<span class="cwtb-word">Gathering for the common good.</span></a>' +
         '<div class="cwtb-tabs">' + tabs + '</div>' +
         photo +
       '</div>' +
@@ -150,7 +150,7 @@
       '.cwtb-bar{background:#1F699E;display:flex;align-items:center;gap:14px;padding:0 16px;height:58px;}' +
       '.cwtb-mark{display:flex;align-items:center;gap:9px;flex-shrink:0;text-decoration:none;cursor:pointer;}' +
       '.cwtb-glyph{width:30px;height:30px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;}'+'.cwtb-glyph img{width:22px;height:22px;object-fit:contain;display:block;}' +
-      '.cwtb-word{color:#fff;font-size:18px;font-weight:800;}' +
+      '.cwtb-word{color:#fff;font-size:16px;font-weight:400;}' +
       '.cwtb-tabs{display:flex;align-items:center;gap:4px;margin:0 auto;overflow-x:auto;' +
         'scrollbar-width:none;-ms-overflow-style:none;}' +
       '.cwtb-tabs::-webkit-scrollbar{display:none;}' +
