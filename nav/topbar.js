@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V1.00 | Date: 2026-08-26 | LAST CHANGE: first build of the shared 2Gather top bar.
+/*  Version: V1.10 | Date: 2026-08-26 | LAST CHANGE: real logo mark, capitalised tabs, no Appear link, the person's own photo.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -24,6 +24,7 @@
   var HIDE_INSIDE_GLIDE = true;         // inside the Glide frame Glide already draws its own bar.
 
   // ---- the bar, in one place ------------------------------------------------
+  var LOGO     = 'https://gather.2gather.network/images/2gather_logo.png';
   var EVENTS   = 'https://gather.2gather.network/events.html';
   var MYEVENTS = 'https://gather.2gather.network/myevents.html';
   var MYGROUPS = 'https://gather.2gather.network/mygroups.html';
@@ -32,7 +33,6 @@
   var PROFILE  = 'https://creating.works/profile.html';
   var EDITME   = 'https://creating.works/profile-edit.html';
   var ACCOUNT  = 'https://creating.works/account.html';
-  var APPEAR   = 'https://appear.network/dl/network';
   var ABOUT    = 'https://appear.network/dl/about';
   var SUPPORT  = 'https://appear.network/dl/support';
 
@@ -123,13 +123,9 @@
       '<div class="cwtb-bar">' +
         '<a role="link" tabindex="0" class="cwtb-mark" data-nav="' + link(EVENTS, 'memberCard') +
           '" onclick="return _safeNavGo(this)">' +
-          '<span class="cwtb-glyph"><svg width="18" height="18" viewBox="0 0 100 100" aria-hidden="true">' +
-          '<path d="M50 4 C56 30 70 44 96 50 C70 56 56 70 50 96 C44 70 30 56 4 50 C30 44 44 30 50 4 Z"' +
-          ' fill="#E8791F"/></svg></span>' +
+          '<span class="cwtb-glyph"><img src="' + LOGO + '" alt=""></span>' +
           '<span class="cwtb-word">2Gather</span></a>' +
         '<div class="cwtb-tabs">' + tabs + '</div>' +
-        '<span class="cwtb-div"></span>' +
-        a('Appear', APPEAR, 'cwtb-tab cwtb-away') +
         photo +
       '</div>' +
       '<div class="cwtb-more" id="cwtb-more-row">' + more + '</div>';
@@ -153,17 +149,15 @@
       '#cw-topbar{font-family:"DM Sans","Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}' +
       '.cwtb-bar{background:#1F699E;display:flex;align-items:center;gap:14px;padding:0 16px;height:58px;}' +
       '.cwtb-mark{display:flex;align-items:center;gap:9px;flex-shrink:0;text-decoration:none;cursor:pointer;}' +
-      '.cwtb-glyph{width:28px;height:28px;border-radius:7px;background:#fff;display:flex;align-items:center;justify-content:center;}' +
+      '.cwtb-glyph{width:30px;height:30px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;}'+'.cwtb-glyph img{width:22px;height:22px;object-fit:contain;display:block;}' +
       '.cwtb-word{color:#fff;font-size:18px;font-weight:800;}' +
       '.cwtb-tabs{display:flex;align-items:center;gap:4px;margin:0 auto;overflow-x:auto;' +
         'scrollbar-width:none;-ms-overflow-style:none;}' +
       '.cwtb-tabs::-webkit-scrollbar{display:none;}' +
-      '.cwtb-tab{color:#fff;font-size:14.5px;font-weight:600;padding:9px 15px;border-radius:9px;' +
-        'text-decoration:none;white-space:nowrap;cursor:pointer;}' +
+      '.cwtb-tab{color:#fff;font-size:14px;font-weight:500;letter-spacing:.6px;' +
+        'text-transform:uppercase;padding:9px 15px;border-radius:9px;'+'text-decoration:none;white-space:nowrap;cursor:pointer;}' +
       '.cwtb-tab:hover{background:rgba(255,255,255,.12);}' +
-      '.cwtb-on{background:rgba(255,255,255,.20);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);font-weight:700;}' +
-      '.cwtb-away{color:rgba(255,255,255,.78);flex-shrink:0;}' +
-      '.cwtb-div{width:1px;height:22px;background:rgba(255,255,255,.28);flex-shrink:0;}' +
+      '.cwtb-on{background:rgba(255,255,255,.20);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);}' +
       '.cwtb-face{width:36px;height:36px;border-radius:50%;flex-shrink:0;overflow:hidden;cursor:pointer;' +
         'background:linear-gradient(135deg,#7DD3FC,#1F699E);color:#fff;display:flex;align-items:center;' +
         'justify-content:center;box-shadow:0 0 0 2px rgba(255,255,255,.55);text-decoration:none;}' +
@@ -182,6 +176,44 @@
     document.head.appendChild(s);
   }
 
+  // ---- the person's own photo, and the pill it replaces ---------------------
+  // The page fetches the photo after it loads, so watch for it rather than
+  // reading once. The old My profile pill comes off the page while the bar is
+  // up, because the photo in the bar is that same link.
+  function adopt() {
+    var face = document.querySelector('#cw-topbar .cwtb-face');
+    if (!face) return true;
+
+    var pill = document.getElementById('gp-myprofile-pill');
+    if (pill) { pill.style.display = 'none'; }
+
+    var src = window.CW_TOPBAR_PHOTO || '';
+    if (!src) {
+      var img = document.querySelector('#gp-myprofile-avatar img, #gp-myprofile-pill img, .cw-me-photo img');
+      if (img && img.getAttribute('src')) { src = img.getAttribute('src'); }
+    }
+    if (src) {
+      face.innerHTML = '<img src="' + src + '" alt="">';
+      return true;
+    }
+
+    var av = document.getElementById('gp-myprofile-avatar');
+    var letter = av ? String(av.textContent || '').trim() : '';
+    if (letter && letter !== '?') {
+      face.innerHTML = '<span style="font-weight:800;font-size:15px;">' + letter.charAt(0) + '</span>';
+    }
+    return false;
+  }
+
+  function watchForPhoto() {
+    if (adopt()) return;
+    var tries = 0;
+    var t = setInterval(function () {
+      tries++;
+      if (adopt() || tries > 40) { clearInterval(t); }
+    }, 400);
+  }
+
   function asked() {
     try { return new URLSearchParams(window.location.search).get('topbar') === '1'; }
     catch (e) { return false; }
@@ -197,6 +229,7 @@
     }
     style();
     draw();
+    watchForPhoto();
   }
 
   if (document.readyState === 'loading') {
