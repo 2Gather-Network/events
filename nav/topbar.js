@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V1.90 | Date: 2026-08-26 | LAST CHANGE: the bar carries its own seam, and the page below is untouched.
+/*  Version: V1.95 | Date: 2026-08-26 | LAST CHANGE: the tab and shared links carry the tool name.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -236,6 +236,29 @@
     return true;
   }
 
+  // ---- the tab, and what a shared link says --------------------------------
+  // Pages rename themselves as they load, so keep the tool on the end of
+  // whatever they set. Runs with or without the bar.
+  function titleGuard() {
+    var host = (window.location.hostname || '').toLowerCase();
+    var tool = host.indexOf('2gather') > -1 ? '2Gather'
+             : host.indexOf('creating.works') > -1 ? 'Creating.Works'
+             : host.indexOf('appear') > -1 ? 'Appear' : '';
+    if (!tool) return;
+    var tail = ' \u00B7 ' + tool;
+    function fix() {
+      var t = document.title || '';
+      if (t && t.indexOf(tool) === -1) { document.title = t + tail; }
+    }
+    fix();
+    try {
+      var el = document.querySelector('title');
+      if (el && window.MutationObserver) {
+        new MutationObserver(fix).observe(el, { childList: true });
+      }
+    } catch (e) {}
+  }
+
   // ---- the tab icon ---------------------------------------------------------
   // Runs on every page that loads this file, with or without the bar, so the
   // browser tab always says which tool you are in. A group page and anything on
@@ -276,6 +299,7 @@
 
   function go() {
     favicon();
+    titleGuard();
     if (document.getElementById('cw-topbar')) return;
     var framed = false;
     try { framed = (window.self !== window.top); } catch (e) { framed = true; }
