@@ -346,6 +346,25 @@
         </div>
 
         <!-- Group events panel (inline; opened from the Group events tile View button) -->
+        <!-- The intake gate. Five questions and one about being thanked, shown once, between
+             joining a first group and standing in it. Behind ?intro=1 until the backend can say
+             whether somebody has answered before. -->
+        <div id="gp-intro" style="display:none;background:#fff;border-radius:14px;padding:24px 28px;">
+          <div style="display:flex;align-items:center;gap:10px;margin:0 0 6px;">
+            <span style="font-size:22px;font-weight:800;color:#1A2E42;">Before you go in</span>
+            <img src="https://raw.githubusercontent.com/2Gather-Network/events/main/images/2gather_logo.png" alt="2Gather" style="width:26px;height:26px;border-radius:7px;display:block;">
+          </div>
+          <p style="font-size:14.5px;color:#6B7A8D;margin:0 0 22px;max-width:62ch;line-height:1.55;">
+            Your answers below help others get to know you and will generate matches to the right
+            people over time. Two are needed<span style="color:#B8862F;font-weight:800;">*</span>
+            and the rest can wait. You can change any of it later.</p>
+          <div id="gp-intro-qs"></div>
+          <div style="display:flex;gap:12px;align-items:center;margin-top:22px;padding-top:18px;border-top:1px solid #f0f1f5;flex-wrap:wrap;">
+            <button class="btn" id="gp-intro-go" style="background:#1F699E;color:#fff;">Begin my new journey \u{1F4AB}</button>
+            <span id="gp-intro-status" style="font-size:13px;color:#6B7A8D;"></span>
+          </div>
+        </div>
+
         <div id="gp-events" style="display:none;background:#fff;border-radius:14px;padding:24px 28px;">
           <div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:12px;">Group events</div>
           <div id="gp-events-list" style="font-size:14px;color:#6B7A8D;">Loading\u2026</div>
@@ -622,13 +641,151 @@ function pick(el, key){
       .catch(function(){});
   })();
 
+  // ── The intake gate ────────────────────────────────────────────────────────────────────
+  // Five questions in a person's own words, plus how they like to be thanked. Answered once,
+  // between joining a first group and standing in it. What somebody writes is kept as written;
+  // we read it into tags afterwards and they can correct those on their profile.
+  var GP_INTRO_Q = [
+    { key:'introNeed',   need:false, q:'What do you need?',
+      hint:'Something you are looking for right now.',
+      ph:'A cat sitter for the last week of September, a massage therapist local to Seattle, and someone who can help me get a PT nursing job where I can travel anywhere.' },
+    { key:'introEnjoy',  need:true,  q:'What do you enjoy?',
+      hint:'What you love doing.',
+      ph:'Pickleball, kayaking, singing badly in a group, anything on the water.' },
+    { key:'introSkills', need:true,  q:'What skills pay the bills and/or how do you like helping others?',
+      hint:'Name whatever you’re good at. You are multi-dimensional so please shine your light! ✨',
+      ph:'Facilitating a room full of people who disagree. Experience design. Cutting short hair, helping people move (I’m great at finding ways to make small spaces very functional!)' },
+    { key:'introValues', need:false, q:'What do you care about?',
+      hint:'What matters to you, and what you want more of in the world.',
+      ph:'Housing, food security, keeping the lake swimmable…' },
+    { key:'introOffer',  need:false, q:'What do you have to offer?',
+      hint:'A thing, a space, or a resource you can share.',
+      ph:'A spare room for the month of September, a truck for moving stuff, a meeting space to meet each week, and gardening tools.' }
+  ];
+  // Shown to a person, stored as the category that already exists on the giving page.
+  var GP_THANKS = [
+    { label:'\u{1F48E} Money',                        value:'Money' },
+    { label:'\u{1F49B} Say thank you',                value:'Say thank you' },
+    { label:'✨ Acts of service',                 value:'Acts of service' },
+    { label:'\u{1F4E6} Something from my gift list',  value:'Physical goods' },
+    { label:'\u{1F331} Pass it on to somebody else',  value:'Pass it on' }
+  ];
+  var _gpThanksPicked = {};
+
+  function gpRenderIntro(prefill){
+    var box = document.getElementById('gp-intro-qs');
+    if (!box) return;
+    box.innerHTML = '';
+    GP_INTRO_Q.forEach(function(q, i){
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'padding:18px 0;' + (i ? 'border-top:1px solid #f0f1f5;' : 'padding-top:0;');
+      var t = document.createElement('div');
+      t.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;';
+      t.textContent = q.q;
+      if (q.need) {
+        var star = document.createElement('span');
+        star.style.cssText = 'color:#B8862F;font-weight:800;margin-left:4px;';
+        star.textContent = '*';
+        t.appendChild(star);
+      }
+      var h = document.createElement('div');
+      h.style.cssText = 'font-size:13.5px;color:#6B7A8D;margin-bottom:12px;';
+      h.textContent = q.hint;
+      var ta = document.createElement('textarea');
+      ta.id = 'gp-intro-' + q.key;
+      ta.rows = 3;
+      ta.placeholder = q.ph;
+      ta.value = (prefill && prefill[q.key]) || '';
+      ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
+        + 'padding:12px 14px;font:inherit;font-size:14.5px;color:#1A2E42;line-height:1.5;resize:vertical;';
+      wrap.appendChild(t); wrap.appendChild(h); wrap.appendChild(ta);
+      box.appendChild(wrap);
+    });
+
+    var tw = document.createElement('div');
+    tw.style.cssText = 'padding:18px 0 0;border-top:1px solid #f0f1f5;';
+    var tt = document.createElement('div');
+    tt.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;';
+    tt.textContent = 'How do you like to get appreciated? \u{1F381}';
+    var th = document.createElement('div');
+    th.style.cssText = 'font-size:13.5px;color:#6B7A8D;margin-bottom:12px;';
+    th.textContent = 'When somebody wants to give something back, this is where it lands. Pick as many as you are happy to receive.';
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+    GP_THANKS.forEach(function(opt){
+      var b = document.createElement('button');
+      b.type = 'button';
+      var paint = function(){
+        b.style.cssText = 'font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;font:inherit;font-size:13.5px;'
+          + (_gpThanksPicked[opt.value]
+              ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;'
+              : 'background:#EEF1F5;border:1px solid #DDE3EA;color:#6B7A8D;');
+      };
+      b.textContent = opt.label;
+      paint();
+      b.addEventListener('click', function(){
+        _gpThanksPicked[opt.value] = !_gpThanksPicked[opt.value];
+        paint();
+      });
+      row.appendChild(b);
+    });
+    tw.appendChild(tt); tw.appendChild(th); tw.appendChild(row);
+    box.appendChild(tw);
+  }
+
+  function gpSaveIntro(){
+    var stat = document.getElementById('gp-intro-status');
+    var btn = document.getElementById('gp-intro-go');
+    var val = function(k){ var el = document.getElementById('gp-intro-' + k); return el ? String(el.value || '').trim() : ''; };
+    var missing = GP_INTRO_Q.filter(function(q){ return q.need && !val(q.key); });
+    if (missing.length) {
+      stat.style.color = '#7A2410';
+      stat.textContent = 'Still needed: ' + missing.map(function(q){ return q.q.replace(/\?$/, ''); }).join(', ') + '.';
+      var first = document.getElementById('gp-intro-' + missing[0].key);
+      if (first) first.focus();
+      return;
+    }
+    btn.disabled = true;
+    stat.style.color = '#6B7A8D';
+    stat.textContent = 'Saving…';
+    var qs = 'action=saveIntro&appearId=' + encodeURIComponent(meId)
+      + '&appreciation=' + encodeURIComponent(Object.keys(_gpThanksPicked).filter(function(k){ return _gpThanksPicked[k]; }).join('|'));
+    GP_INTRO_Q.forEach(function(q){ qs += '&' + q.key + '=' + encodeURIComponent(val(q.key)); });
+    fetch(GS_URL + '?' + qs)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || (d.status !== 'ok' && d.ok !== true)) {
+          btn.disabled = false;
+          stat.style.color = '#7A2410';
+          stat.textContent = (d && d.message) || 'Could not save just now. Try again in a moment.';
+          return;
+        }
+        gpShow('concierge');
+      })
+      .catch(function(){
+        btn.disabled = false;
+        stat.style.color = '#7A2410';
+        stat.textContent = 'Could not reach the server. Try again in a moment.';
+      });
+  }
+
+  (function(){
+    var b = document.getElementById('gp-intro-go');
+    if (b) b.addEventListener('click', gpSaveIntro);
+    // ?intro=1 opens the gate for review while the backend piece is still being deployed.
+    if ((new URLSearchParams(location.search).get('intro') || '') === '1') {
+      setTimeout(function(){ gpShow('intro'); }, 0);
+    }
+  })();
+
   window.gpShow = function(view){
-    var ids = ['gp-concierge','gp-onboard','gp-feed','gp-messages','gp-invites','gp-events','gp-search','gp-members'];
+    var ids = ['gp-concierge','gp-onboard','gp-feed','gp-messages','gp-invites','gp-events','gp-search','gp-members','gp-intro'];
     ids.forEach(function(i){ var el = document.getElementById(i); if (el) el.style.display = 'none'; });
-    var map = { concierge:'gp-concierge', onboard:'gp-onboard', feed:'gp-feed', messages:'gp-messages', invites:'gp-invites', events:'gp-events', search:'gp-search', members:'gp-members' };
+    var map = { concierge:'gp-concierge', onboard:'gp-onboard', feed:'gp-feed', messages:'gp-messages', invites:'gp-invites', events:'gp-events', search:'gp-search', members:'gp-members', intro:'gp-intro' };
     var target = map[view];
     if (target) { var t = document.getElementById(target); if (t) t.style.display = 'block'; }
     if (view === 'events') gpLoadEvents();
+    if (view === 'intro') gpRenderIntro(null);
     // Hide the small page header (image + Group: <name>) on the onboarding screen, show it everywhere else.
     var pageHdr = document.getElementById('gp-page-header');
     if (pageHdr) pageHdr.style.display = (view === 'onboard') ? 'none' : '';
