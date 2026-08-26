@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V3.50 | Date: 2026-08-26 | LAST CHANGE: one switch decides where Sign in goes.
+/*  Version: V3.60 | Date: 2026-08-26 | LAST CHANGE: Commons comes off the bar, every group carries Gather.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -38,7 +38,8 @@
   var START    = 'https://gather.2gather.network/groups/create';
   var JOIN     = 'https://gather.2gather.network/mygroups?join=1';
   var FINDTIME = 'https://gather.2gather.network/find-a-time.html';
-  var COMMONS  = 'https://events.2gather.network/events/yvrgej/zkxbzq';   // The Commons room
+  var COMMONS  = 'https://events.2gather.network/events/yvrgej/zkxbzq';   // The Commons room, still
+                                                                          // reachable from a group's Gather button
   var PROFILE  = 'https://creating.works/profile';
   var EDITME   = 'https://creating.works/profile-edit';
   var ACCOUNT  = 'https://creating.works/account';
@@ -58,7 +59,6 @@
       { label: 'Start a group', url: START,   carry: 'CWid' },
       { label: 'Join a group',  url: JOIN,    carry: 'CWid' }
     ]},
-    { key: 'commons', label: 'Commons', url: COMMONS },
     { key: 'more', label: 'More', items: [
       { label: 'Find a Time (Beta)', url: FINDTIME },
       { label: 'My profile',         url: ACCOUNT, carry: 'CWid' },

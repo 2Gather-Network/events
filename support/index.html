@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V1.00 | Date: 2026-08-26 | LAST CHANGE: plainer labels, and the name field loses its example. -->
+<!-- Version: V1.00 | Date: 2026-08-26 | LAST CHANGE: it stops sitting on Sending when the backend has no such action. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -148,18 +148,36 @@ window._safeNavGo = window._safeNavGo || function (el) {
       + '&appearId=' + encodeURIComponent(who)
       + '&page=' + encodeURIComponent(document.referrer || '');
 
+    // An action the script does not know falls through to the events feed, which is
+    // 364KB and about ten seconds. So say something at eight rather than sit on
+    // "Sending" while a feed nobody asked for arrives.
+    var answered = false;
+    var giveUp = setTimeout(function () {
+      if (answered) return;
+      answered = true;
+      btn.disabled = false;
+      tell('This is not saving yet. The helpdesk tab and the saveSupportTicket action are not in the script. Email hello@creating.works and it will reach the same person.', false);
+    }, 8000);
+
     fetch(url).then(function (r) { return r.text(); }).then(function (t) {
-      var ok = false;
-      try { ok = JSON.parse(t).status === 'ok'; } catch (e) {}
-      if (ok) {
-        btn.disabled = false;
+      if (answered) return;
+      answered = true;
+      clearTimeout(giveUp);
+      btn.disabled = false;
+      var parsed = null;
+      try { parsed = JSON.parse(t); } catch (e) {}
+      if (parsed && parsed.status === 'ok') {
         document.getElementById('msg').value = '';
         tell('Sent. Thank you, somebody will read this and answer you.', true);
+      } else if (parsed && parsed.events) {
+        tell('This is not saving yet. The saveSupportTicket action is not in the script. Email hello@creating.works and it will reach the same person.', false);
       } else {
-        btn.disabled = false;
-        tell('That did not save. The saveSupportTicket action is not in the script yet.', false);
+        tell('That did not save. ' + ((parsed && parsed.message) || 'The backend refused it.'), false);
       }
     }).catch(function () {
+      if (answered) return;
+      answered = true;
+      clearTimeout(giveUp);
       btn.disabled = false;
       tell('That did not send. Check your connection and try once more.', false);
     });
@@ -195,6 +213,6 @@ window._safeNavGo = window._safeNavGo || function (el) {
     });
 })();
 </script>
-<script src="/nav/topbar.js?v=3.50" defer></script>
+<script src="/nav/topbar.js?v=3.60" defer></script>
 </body>
 </html>
