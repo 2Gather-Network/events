@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V1.96 | Date: 2026-08-26 | LAST CHANGE: group pages take the 2Gather mark as their tab icon.
+/*  Version: V2.00 | Date: 2026-08-26 | LAST CHANGE: Commons opens the room, About and Support stay on 2Gather.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -30,12 +30,12 @@
   var MYEVENTS = 'https://gather.2gather.network/myevents.html';
   var MYGROUPS = 'https://gather.2gather.network/mygroups.html';
   var FINDTIME = 'https://gather.2gather.network/find-a-time.html';
-  var COMMONS  = 'https://2gather.network';                        // CONFIRM: the commons page.
+  var COMMONS  = 'https://events.2gather.network/events/yvrgej/zkxbzq';  // The Commons room.
   var PROFILE  = 'https://creating.works/profile.html';
   var EDITME   = 'https://creating.works/profile-edit.html';
   var ACCOUNT  = 'https://creating.works/account.html';
-  var ABOUT    = 'https://appear.network/dl/about';
-  var SUPPORT  = 'https://appear.network/dl/support';
+  var ABOUT    = 'https://2gather.network/dl/about';      // until 2gather.network/about.html exists
+  var SUPPORT  = 'https://2gather.network/dl/support';    // until 2gather.network/support.html exists
 
   // key = which tab lights up. carry = which name this destination reads the person by.
   var TABS = [
