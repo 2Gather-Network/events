@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V3.12 | Date: 2026-08-26 | LAST CHANGE: only the tab you opened stays lit.
+/*  Version: V3.20 | Date: 2026-08-26 | LAST CHANGE: every page answers at a clean path, /mygroups not /mygroups.html.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -25,12 +25,12 @@
 
   // ---- addresses, all of them, in one place ---------------------------------
   var LOGO     = 'https://gather.2gather.network/images/2gather_logo.png';
-  var EVENTS   = 'https://gather.2gather.network/events.html';
-  var MYEVENTS = 'https://gather.2gather.network/myevents.html';
-  var POST     = 'https://gather.2gather.network/events.html?action=post';
-  var MYGROUPS = 'https://gather.2gather.network/mygroups.html';
-  var START    = 'https://gather.2gather.network/groups/create.html';
-  var JOIN     = 'https://gather.2gather.network/mygroups.html?join=1';
+  var EVENTS   = 'https://gather.2gather.network/events';
+  var MYEVENTS = 'https://gather.2gather.network/myevents';
+  var POST     = 'https://gather.2gather.network/events?action=post';
+  var MYGROUPS = 'https://gather.2gather.network/mygroups';
+  var START    = 'https://gather.2gather.network/groups/create';
+  var JOIN     = 'https://gather.2gather.network/mygroups?join=1';
   var FINDTIME = 'https://gather.2gather.network/find-a-time.html';
   var COMMONS  = 'https://events.2gather.network/events/yvrgej/zkxbzq';   // The Commons room
   var PROFILE  = 'https://creating.works/profile.html';

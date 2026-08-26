@@ -1,0 +1,349 @@
+<!doctype html>
+<!--
+  Copyright 2026 DayBalancer LLC. All rights reserved.
+  hello@creating.works
+-->
+<!-- Version: V1.20 | Date: 2026-08-26 | LAST CHANGE: ?chips=1 tappable words under every question, More on the long lists, social or ecological on values -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta property="og:site_name" content="2Gather">
+<meta property="og:title" content="Before you go in · 2Gather">
+<title>Before you go in · 2Gather</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌱</text></svg>">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--brand:#1F699E;--ink:#1A2E42;--soft:#6B7A8D;--line:#DDE3EA;--panel:#F7FBFF;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--brand);color:var(--ink);
+    font-family:'DM Sans','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    line-height:1.55;padding:26px 18px 60px;}
+  .wrap{max-width:760px;margin:0 auto;}
+  .crumb{color:#fff;font-size:14px;font-weight:800;margin:0 0 14px;text-decoration:none;display:inline-block;cursor:pointer;}
+  .card{background:#fff;border-radius:14px;padding:24px 28px;}
+  .btn{background:var(--brand);color:#fff;border:0;font:inherit;font-size:14.5px;font-weight:700;
+    padding:11px 22px;border-radius:24px;cursor:pointer;}
+  .btn[disabled]{opacity:.6;cursor:default;}
+  .cw-intro-box::placeholder{color:#9AA8B7;opacity:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="crumb" id="intro-back" role="link" tabindex="0">&lsaquo; Back</a>
+  <div class="card">
+    <div style="font-size:22px;font-weight:800;color:#1A2E42;margin:0 0 6px;" id="gp-intro-title">Before you go in</div>
+    <p id="gp-intro-lede" style="font-size:14.5px;color:#6B7A8D;margin:0 0 22px;max-width:62ch;line-height:1.55;">
+      Your answers below help others get to know you and will generate matches to the right people
+      over time. Two answers are needed <span style="color:#B8862F;font-weight:800;">*</span> and the rest can
+      wait. You can change any of it later.</p>
+    <div id="gp-intro-qs"></div>
+    <div style="display:flex;gap:12px;align-items:center;margin-top:22px;padding-top:18px;border-top:1px solid #f0f1f5;flex-wrap:wrap;">
+      <button class="btn" id="gp-intro-go">Begin my new journey &#128171;</button>
+      <span id="gp-intro-status" style="font-size:13px;color:#6B7A8D;"></span>
+    </div>
+  </div>
+</div>
+<script>
+  var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
+  var params = new URLSearchParams(window.location.search);
+  var meId = (params.get('CWid') || params.get('appearId') || params.get('memberCard') || params.get('me') || '').trim();
+  // Where to send somebody once they are through. Only our own two hosts are accepted, so a
+  // crafted link cannot use this page to bounce anybody somewhere else.
+  var _next = (function(){
+    var raw = params.get('next') || '';
+    try {
+      var u = new URL(raw, 'https://gather.2gather.network');
+      if (u.host === 'gather.2gather.network' || u.host === 'creating.works') return u.toString();
+    } catch(err){}
+    return 'https://gather.2gather.network/mygroups' + (meId ? '?CWid=' + encodeURIComponent(meId) : '');
+  })();
+  window._gpAlreadyIn = (params.get('already') || '') === '1';
+  // The group bundle is cached for a minute, and the answer just changed. Without this the
+  // page somebody lands on could still believe they had not answered and ask again.
+  function _introDone(){
+    var u = _next + (_next.indexOf('?') > -1 ? '&' : '?') + 'nocache=1';
+    window.location.href = u;
+  }
+
+  var GP_INTRO_Q = [
+    { key:'introNeed',   need:false, q:'What do you need?',
+      hint:'Something you are looking for right now.',
+      ph:'A cat sitter for the last week of September, a massage therapist local to Seattle, and someone who can help me get a PT nursing job where I can travel anywhere.' },
+    { key:'introEnjoy',  need:true,  q:'What do you enjoy?',
+      hint:'What you love doing.',
+      ph:'Pickleball, kayaking, singing badly in a group, anything on the water.' },
+    { key:'introSkills', need:true,  q:'What skills pay the bills and/or how do you like helping others?',
+      hint:'Name whatever you’re good at. You are multi-dimensional so please shine your light! ✨',
+      ph:'Facilitating a room full of people who disagree. Experience design. Cutting short hair, helping people move (I’m great at finding ways to make small spaces very functional!)' },
+    { key:'introValues', need:false, q:'What do you care about?',
+      hint:'What matters to you, and what you want more of in the world.',
+      ph:'Housing, food security, keeping the lake swimmable…' },
+    { key:'introOffer',  need:false, q:'What do you have to offer?',
+      hint:'A thing, a space, or a resource you can share.',
+      ph:'A spare room for the month of September, a truck for moving stuff, a meeting space to meet each week, and gardening tools.' }
+  ];
+  // Shown to a person, stored as the category that already exists on the giving page.
+  var GP_THANKS = [
+    { label:'\u{1F48E} Money',                        value:'Money' },
+    { label:'\u{1F49B} Say thank you',                value:'Say thank you' },
+    { label:'✨ Acts of service',                 value:'Acts of service' },
+    { label:'\u{1F4E6} Something from my gift list',  value:'Physical goods' },
+    { label:'\u{1F331} Pass it on to somebody else',  value:'Pass it on' }
+  ];
+  var _gpThanksPicked = {};
+
+  // Chips under every question, behind ?chips=1 so the live page is untouched while this is
+  // being looked at. Somebody in a hurry taps and moves on, somebody with something specific to
+  // say still types it. The words come from the reference sheet, so a tap produces something
+  // matching already knows.
+  //
+  //   need + offer  three pills, a person, a place, a thing
+  //   enjoy         the five kinds of recreation, which is all of them
+  //   skills        five categories, More opens the other thirteen
+  //   care about    social or ecological first, then that side's values, and you can flip
+  var GP_CHIPS_ON = (params.get('chips') || '') === '1';
+  var GP_PPT = ['A person', 'A place', 'A thing'];
+  var GP_CHIPS = {
+    introNeed:   { words: GP_PPT },
+    introEnjoy:  { words: ['Sports', 'Outdoor & Nature', 'Making & Collecting', 'Movement & Performance', 'Games & Strategy'] },
+    introSkills: { words: ['Home & Construction', 'Business & Finance', 'Physical Wellbeing', 'Arts & Culture', 'Technology & Communications'],
+                   more:  ['Community & Civic', 'Mechanical & Manufacturing', 'Food & Drink', 'Transportation', 'Family Wellbeing',
+                           'Self-Expression & Beauty', 'Mental Wellbeing', 'Nature & Outdoors', 'Pets & Animal Care',
+                           'Events & Gatherings', 'Making & Collecting', 'Recreation & Hobbies', 'Basic needs and security'] },
+    introValues: { lenses: [
+                     { label:'Social',
+                       words:['Housing and Shelter', 'Food Security', 'Safety and Peace', 'Community Health', 'Economic Opportunity'],
+                       more: ['Physical Wellbeing', 'Mental Wellbeing', 'Urgent Medical Care', 'Clothing and Supplies',
+                              'Empowerment and Resilience', 'Freedom and Autonomy', 'Personal Expression', 'Local Economic Vitality',
+                              'Wealth Equity', 'Quality Goods and Services', 'Information Access', 'Social and Civic Engagement',
+                              'Cultural Vitality', 'Shared Community Resources', 'Transportation Access', 'Reliable Utilities',
+                              'Digital Connectivity'] },
+                     { label:'Ecological',
+                       words:['Clean Water', 'Clean Air', 'Climate Stability', 'Biodiversity', 'Clean Energy'],
+                       more: ['Clean Soil', 'Clean Food', 'Animal Welfare', 'Water Security', 'Land Security', 'Eco Values'] }
+                   ] },
+    introOffer:  { words: GP_PPT }
+  };
+  var _gpChipsPicked = {};
+
+  // A tapped chip writes its word into the box, so a person sees the answer they just gave and
+  // can keep typing after it. It is also kept in _gpChipsPicked, which is what a later change
+  // will store as a tag rather than as a sentence.
+  function gpChipBtn(key, word, ta){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = word;
+    var paint = function(){
+      b.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
+        + (_gpChipsPicked[key] && _gpChipsPicked[key][word]
+            ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;'
+            : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;');
+    };
+    paint();
+    b.addEventListener('click', function(){
+      if (!_gpChipsPicked[key]) _gpChipsPicked[key] = {};
+      var on = !_gpChipsPicked[key][word];
+      _gpChipsPicked[key][word] = on;
+      var parts = String(ta.value || '').split(', ').map(function(x){ return x.trim(); }).filter(Boolean);
+      var at = parts.indexOf(word);
+      if (on && at === -1) parts.push(word);
+      if (!on && at > -1) parts.splice(at, 1);
+      ta.value = parts.join(', ');
+      paint();
+    });
+    return b;
+  }
+
+  // A quiet pill that opens the rest of a list. It removes itself once pressed, because a
+  // control that has already done its work is one more thing to read past.
+  function gpMoreBtn(label, onOpen){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
+      + 'background:#EEF1F5;border:1px dashed #C4CDD8;color:#6B7A8D;font-weight:600;';
+    b.addEventListener('click', function(){ b.parentNode.removeChild(b); onOpen(); });
+    return b;
+  }
+
+  function gpChipRow(key, ta){
+    var cfg = GP_CHIPS[key];
+    if (!GP_CHIPS_ON || !cfg) return null;
+    var box = document.createElement('div');
+    box.style.cssText = 'margin-top:10px;';
+    var lead = document.createElement('div');
+    lead.style.cssText = 'font-size:13px;color:#6B7A8D;margin-bottom:8px;';
+    lead.textContent = 'Or tap any below...';
+    box.appendChild(lead);
+
+    // Social or ecological is asked first, and the other side stays on screen so somebody can
+    // flip without going back. Anything already tapped stays tapped when the list changes.
+    if (cfg.lenses) {
+      var lensRow = document.createElement('div');
+      lensRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+      var wordRow = document.createElement('div');
+      wordRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;';
+      var current = null;
+      var lensBtns = [];
+      var paintLenses = function(){
+        lensBtns.forEach(function(pair){
+          pair.btn.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 16px;border-radius:20px;cursor:pointer;'
+            + (current === pair.lens
+                ? 'background:#1A2E42;border:1px solid #1A2E42;color:#fff;font-weight:700;'
+                : 'background:#F7FBFF;border:1px solid #C9DFF3;color:#1A2E42;font-weight:700;');
+        });
+      };
+      var showLens = function(lens){
+        current = lens;
+        paintLenses();
+        wordRow.innerHTML = '';
+        lens.words.forEach(function(w){ wordRow.appendChild(gpChipBtn(key, w, ta)); });
+        if (lens.more && lens.more.length) {
+          wordRow.appendChild(gpMoreBtn('More', function(){
+            lens.more.forEach(function(w){ wordRow.appendChild(gpChipBtn(key, w, ta)); });
+          }));
+        }
+      };
+      cfg.lenses.forEach(function(lens){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = lens.label;
+        b.addEventListener('click', function(){ showLens(lens); });
+        lensBtns.push({ btn:b, lens:lens });
+        lensRow.appendChild(b);
+      });
+      paintLenses();
+      box.appendChild(lensRow);
+      box.appendChild(wordRow);
+      return box;
+    }
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+    cfg.words.forEach(function(w){ row.appendChild(gpChipBtn(key, w, ta)); });
+    if (cfg.more && cfg.more.length) {
+      row.appendChild(gpMoreBtn('More', function(){
+        cfg.more.forEach(function(w){ row.appendChild(gpChipBtn(key, w, ta)); });
+      }));
+    }
+    box.appendChild(row);
+    return box;
+  }
+
+  function gpRenderIntro(prefill){
+    var box = document.getElementById('gp-intro-qs');
+    if (!box) return;
+    if (window._gpAlreadyIn) {
+      var _t = document.getElementById('gp-intro-title');
+      var _l = document.getElementById('gp-intro-lede');
+      if (_t) _t.textContent = 'You are already in. We have a few questions.';
+      if (_l) _l.innerHTML = 'Nothing changes about your place here. These answers are what let '
+        + 'people find you and what puts the right people in front of you, and we never asked for '
+        + 'them. Two answers are needed <span style="color:#B8862F;font-weight:800;">*</span> and the rest '
+        + 'can wait. You can change any of it later.';
+    }
+    box.innerHTML = '';
+    GP_INTRO_Q.forEach(function(q, i){
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'padding:18px 0;' + (i ? 'border-top:1px solid #f0f1f5;' : 'padding-top:0;');
+      var t = document.createElement('div');
+      t.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;';
+      t.textContent = q.q;
+      if (q.need) {
+        var star = document.createElement('span');
+        star.style.cssText = 'color:#B8862F;font-weight:800;margin-left:4px;';
+        star.textContent = '*';
+        t.appendChild(star);
+      }
+      var h = document.createElement('div');
+      h.style.cssText = 'font-size:13.5px;color:#6B7A8D;margin-bottom:12px;';
+      h.textContent = q.hint;
+      var ta = document.createElement('textarea');
+      ta.id = 'gp-intro-' + q.key;
+      ta.rows = 3;
+      ta.placeholder = q.ph;
+      ta.value = (prefill && prefill[q.key]) || '';
+      ta.className = 'cw-intro-box';
+      ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
+        + 'padding:12px 14px;font:inherit;font-size:14.5px;color:#1A2E42;line-height:1.5;resize:vertical;';
+      wrap.appendChild(t); wrap.appendChild(h); wrap.appendChild(ta);
+      var chipRow = gpChipRow(q.key, ta);
+      if (chipRow) wrap.appendChild(chipRow);
+      box.appendChild(wrap);
+    });
+
+    var tw = document.createElement('div');
+    tw.style.cssText = 'padding:18px 0 0;border-top:1px solid #f0f1f5;';
+    var tt = document.createElement('div');
+    tt.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;';
+    tt.textContent = 'How do you like to get appreciated? \u{1F381}';
+    var th = document.createElement('div');
+    th.style.cssText = 'font-size:13.5px;color:#6B7A8D;margin-bottom:12px;';
+    th.textContent = 'When somebody wants to give something back, this is where it lands. Pick as many as you are happy to receive.';
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+    GP_THANKS.forEach(function(opt){
+      var b = document.createElement('button');
+      b.type = 'button';
+      var paint = function(){
+        b.style.cssText = 'font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;font:inherit;font-size:13.5px;'
+          + (_gpThanksPicked[opt.value]
+              ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;'
+              : 'background:#EEF1F5;border:1px solid #DDE3EA;color:#6B7A8D;');
+      };
+      b.textContent = opt.label;
+      paint();
+      b.addEventListener('click', function(){
+        _gpThanksPicked[opt.value] = !_gpThanksPicked[opt.value];
+        paint();
+      });
+      row.appendChild(b);
+    });
+    tw.appendChild(tt); tw.appendChild(th); tw.appendChild(row);
+    box.appendChild(tw);
+  }
+
+  function gpSaveIntro(){
+    var stat = document.getElementById('gp-intro-status');
+    var btn = document.getElementById('gp-intro-go');
+    var val = function(k){ var el = document.getElementById('gp-intro-' + k); return el ? String(el.value || '').trim() : ''; };
+    var missing = GP_INTRO_Q.filter(function(q){ return q.need && !val(q.key); });
+    if (missing.length) {
+      stat.style.color = '#7A2410';
+      stat.textContent = 'Still needed: ' + missing.map(function(q){ return q.q.replace(/\?$/, ''); }).join(', ') + '.';
+      var first = document.getElementById('gp-intro-' + missing[0].key);
+      if (first) first.focus();
+      return;
+    }
+    btn.disabled = true;
+    stat.style.color = '#6B7A8D';
+    stat.textContent = 'Saving…';
+    var qs = 'action=saveIntro&appearId=' + encodeURIComponent(meId)
+      + '&appreciation=' + encodeURIComponent(Object.keys(_gpThanksPicked).filter(function(k){ return _gpThanksPicked[k]; }).join('|'));
+    GP_INTRO_Q.forEach(function(q){ qs += '&' + q.key + '=' + encodeURIComponent(val(q.key)); });
+    fetch(GS_URL + '?' + qs)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || (d.status !== 'ok' && d.ok !== true)) {
+          btn.disabled = false;
+          stat.style.color = '#7A2410';
+          stat.textContent = (d && d.message) || 'Could not save just now. Try again in a moment.';
+          return;
+        }
+        _introDone();
+      })
+      .catch(function(){
+        btn.disabled = false;
+        stat.style.color = '#7A2410';
+        stat.textContent = 'Could not reach the server. Try again in a moment.';
+      });
+  }
+
+
+  document.getElementById('intro-back').addEventListener('click', function(){ window.location.href = _next; });
+  document.getElementById('gp-intro-go').addEventListener('click', gpSaveIntro);
+  gpRenderIntro(null);
+</script>
+<script src="/nav/topbar.js?v=3.20" defer></script>
+</body>
+</html>
