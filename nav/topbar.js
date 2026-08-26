@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V3.11 | Date: 2026-08-26 | LAST CHANGE: only the tab you opened stays lit.
+/*  Version: V3.12 | Date: 2026-08-26 | LAST CHANGE: only the tab you opened stays lit.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -220,6 +220,7 @@
         'text-decoration:none;cursor:pointer;white-space:nowrap;}' +
       '.cwtb-item:hover{background:#F7FBFF;}' +
       '.cwtb-lit{background:rgba(255,255,255,.20);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);}' +
+      '#cw-topbar.cwtb-menuing .cwtb-tab.cwtb-on:not(.cwtb-lit){background:transparent;box-shadow:none;}' +
       '@media(max-width:700px){.cwtb-bar{gap:8px;padding:0 10px;height:54px;}' +
         '.cwtb-word{display:none;}.cwtb-tabs{margin-left:auto;}' +
         '.cwtb-tab{padding:8px 10px;font-size:13px;letter-spacing:.3px;}}';
