@@ -3,7 +3,7 @@
   Copyright 2026 DayBalancer LLC. All rights reserved.
   hello@creating.works
 -->
-<!-- Version: V1.00 | Date: 2026-08-25 | LAST CHANGE: the intake gate, lifted out of group.html so joining and creating share one implementation -->
+<!-- Version: V1.10 | Date: 2026-08-26 | LAST CHANGE: ?chips=1 puts five tappable words under each of the first four questions -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -90,6 +90,60 @@
   ];
   var _gpThanksPicked = {};
 
+  // Chips under the first four boxes, behind ?chips=1 so the live page is untouched while this
+  // is being looked at. Somebody in a hurry taps one and moves on, somebody with something
+  // specific to say still types it. The fifth question has none on purpose: what you have to
+  // offer is the one answer nobody can guess for you.
+  // The words come from the reference sheet (recreation recTypes, skill categories, values,
+  // resource kinds), so a tap produces a word the matching already knows.
+  var GP_CHIPS_ON = (params.get('chips') || '') === '1';
+  var GP_CHIPS = {
+    introNeed:   ['A person with a skill', 'A space', 'Equipment or tools', 'A vehicle', 'Someone to do it with'],
+    introEnjoy:  ['Sports', 'Outdoor & Nature', 'Making & Collecting', 'Movement & Performance', 'Games & Strategy'],
+    introSkills: ['Home & Construction', 'Business & Finance', 'Physical Wellbeing', 'Arts & Culture', 'Technology & Communications'],
+    introValues: ['Housing and Shelter', 'Food Security', 'Clean Water', 'Climate Stability', 'Safety and Peace']
+  };
+  var _gpChipsPicked = {};
+
+  // A tapped chip writes its word into the box, so a person sees the answer they just gave and
+  // can keep typing after it. It is also kept in _gpChipsPicked, which is what a later change
+  // will store as a tag rather than as a sentence.
+  function gpChipRow(key, ta){
+    var list = GP_CHIPS[key];
+    if (!GP_CHIPS_ON || !list) return null;
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;';
+    var lead = document.createElement('div');
+    lead.style.cssText = 'font-size:13px;color:#6B7A8D;width:100%;margin-bottom:2px;';
+    lead.textContent = 'Or tap one and move on.';
+    row.appendChild(lead);
+    list.forEach(function(word){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = word;
+      var paint = function(){
+        b.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
+          + (_gpChipsPicked[key] && _gpChipsPicked[key][word]
+              ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;'
+              : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;');
+      };
+      paint();
+      b.addEventListener('click', function(){
+        if (!_gpChipsPicked[key]) _gpChipsPicked[key] = {};
+        var on = !_gpChipsPicked[key][word];
+        _gpChipsPicked[key][word] = on;
+        var parts = String(ta.value || '').split(', ').map(function(x){ return x.trim(); }).filter(Boolean);
+        var at = parts.indexOf(word);
+        if (on && at === -1) parts.push(word);
+        if (!on && at > -1) parts.splice(at, 1);
+        ta.value = parts.join(', ');
+        paint();
+      });
+      row.appendChild(b);
+    });
+    return row;
+  }
+
   function gpRenderIntro(prefill){
     var box = document.getElementById('gp-intro-qs');
     if (!box) return;
@@ -127,6 +181,8 @@
       ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
         + 'padding:12px 14px;font:inherit;font-size:14.5px;color:#1A2E42;line-height:1.5;resize:vertical;';
       wrap.appendChild(t); wrap.appendChild(h); wrap.appendChild(ta);
+      var chipRow = gpChipRow(q.key, ta);
+      if (chipRow) wrap.appendChild(chipRow);
       box.appendChild(wrap);
     });
 
