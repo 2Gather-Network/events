@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V3.00 | Date: 2026-08-26 | LAST CHANGE: every tab is a place with a menu, and the bar is on.
+/*  Version: V3.10 | Date: 2026-08-26 | LAST CHANGE: a menu opens as a white panel under its tab.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -141,8 +141,16 @@
 
     document.body.insertBefore(el, document.body.firstChild);
 
-    // one menu open at a time, opening in place rather than over the page
+    // one menu open at a time, as a panel under the tab that opened it
     var triggers = el.querySelectorAll('[data-menu]');
+    function place(t, r) {
+      var bar = el.querySelector('.cwtb-bar');
+      r.style.top = (bar.offsetHeight + 8) + 'px';
+      r.style.left = '0px';
+      var want = t.getBoundingClientRect().left - el.getBoundingClientRect().left;
+      var room = el.clientWidth - r.offsetWidth - 8;
+      r.style.left = Math.max(8, Math.min(want, room)) + 'px';
+    }
     function show(key) {
       var t, r, k;
       for (var a = 0; a < triggers.length; a++) {
@@ -151,9 +159,19 @@
         r = el.querySelector('[data-row="' + k + '"]');
         var on = (k === key);
         t.setAttribute('aria-expanded', on ? 'true' : 'false');
-        if (r) { r.className = 'cwtb-row' + (on ? ' cwtb-open' : ''); }
+        t.className = t.className.replace(/ ?cwtb-lit/, '') + (on ? ' cwtb-lit' : '');
+        if (r) {
+          r.className = 'cwtb-row' + (on ? ' cwtb-open' : '');
+          if (on) { place(t, r); }
+        }
       }
     }
+    document.addEventListener('click', function (e) {
+      if (!el.contains(e.target)) { show(''); }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { show(''); }
+    });
     for (var b = 0; b < triggers.length; b++) {
       (function (t) {
         var k = t.getAttribute('data-menu');
@@ -192,12 +210,13 @@
         'background:linear-gradient(135deg,#7DD3FC,#1F699E);display:block;' +
         'box-shadow:0 0 0 2px rgba(255,255,255,.55);}' +
       '.cwtb-face img{width:100%;height:100%;object-fit:cover;display:block;}' +
-      '.cwtb-row{display:none;background:#1F699E;border-top:1px solid rgba(255,255,255,.18);' +
-        'padding:6px 12px 12px;flex-wrap:wrap;gap:4px;box-shadow:0 6px 14px rgba(15,45,70,.18);}' +
-      '.cwtb-row.cwtb-open{display:flex;}' +
-      '.cwtb-item{color:#fff;font-size:14px;font-weight:600;padding:9px 14px;border-radius:9px;' +
+      '.cwtb-row{display:none;position:absolute;min-width:236px;background:#fff;border-radius:14px;' +
+        'padding:10px 0;box-shadow:0 14px 34px rgba(15,45,70,.28);z-index:20;}' +
+      '.cwtb-row.cwtb-open{display:block;}' +
+      '.cwtb-item{display:block;padding:13px 22px;font-size:16px;font-weight:500;color:#1A2E42;' +
         'text-decoration:none;cursor:pointer;white-space:nowrap;}' +
-      '.cwtb-item:hover{background:rgba(255,255,255,.14);}' +
+      '.cwtb-item:hover{background:#F7FBFF;}' +
+      '.cwtb-lit{background:rgba(255,255,255,.20);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);}' +
       '@media(max-width:700px){.cwtb-bar{gap:8px;padding:0 10px;height:54px;}' +
         '.cwtb-word{display:none;}.cwtb-tabs{margin-left:auto;}' +
         '.cwtb-tab{padding:8px 10px;font-size:13px;letter-spacing:.3px;}}';
