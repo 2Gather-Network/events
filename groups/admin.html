@@ -234,19 +234,28 @@
 
   // Session token storage
   var TOK_KEY = 'cw_admin_' + groupId;
+  var SUPER_TOK_KEY = 'cw_admin_super_' + meId;
   function getToken(){
-    try {
-      var raw = localStorage.getItem(TOK_KEY);
-      if (!raw) return null;
-      var obj = JSON.parse(raw);
-      if (obj && obj.token && obj.expiresAt && obj.expiresAt > Date.now()) return obj.token;
-    } catch(e){}
+    // A super admin's verification is about the person, not the group, so it is kept under a
+    // second key and tried when this group has none. Otherwise every group asked for its own
+    // code, which is not what an hour of verification is supposed to mean.
+    var _keys = [TOK_KEY, SUPER_TOK_KEY];
+    for (var ki = 0; ki < _keys.length; ki++) {
+      try {
+        var raw = localStorage.getItem(_keys[ki]);
+        if (!raw) continue;
+        var obj = JSON.parse(raw);
+        if (obj && obj.token && obj.expiresAt && obj.expiresAt > Date.now()) return obj.token;
+      } catch(e){}
+    }
     return null;
   }
-  function setToken(tok){
-    try {
-      localStorage.setItem(TOK_KEY, JSON.stringify({token: tok, expiresAt: Date.now() + 60*60*1000}));
-    } catch(e){}
+  function setToken(tok, superTok){
+    var stamp = function(k, t){
+      try { localStorage.setItem(k, JSON.stringify({token: t, expiresAt: Date.now() + 60*60*1000})); } catch(e){}
+    };
+    if (tok) stamp(TOK_KEY, tok);
+    if (superTok) stamp(SUPER_TOK_KEY, superTok);
   }
 
   var groupData = null;
@@ -403,7 +412,7 @@
       .then(function(d){
         btn.disabled = false;
         if (d && d.status === 'ok' && d.sessionToken) {
-          setToken(d.sessionToken);
+          setToken(d.sessionToken, d.superToken);
           unlockDashboard();
         } else {
           showStatus('pin-status', 'err', (d && d.message) ? d.message : 'Invalid or expired code.');
