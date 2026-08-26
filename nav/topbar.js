@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V1.60 | Date: 2026-08-26 | LAST CHANGE: a white look, drawn with ?topbar=white.
+/*  Version: V1.70 | Date: 2026-08-26 | LAST CHANGE: ?topbar=crumb lifts the breadcrumb into a white strip.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -173,7 +173,7 @@
       '@media(max-width:700px){.cwtb-bar{gap:8px;padding:0 10px;height:54px;}' +
         '.cwtb-word{display:none;}.cwtb-tabs{margin:0;}.cwtb-tab{padding:8px 11px;font-size:13.5px;}}'
       /* the white look: chrome steps back, the page keeps the blue */
-      + '.cwtb-light .cwtb-bar{background:#fff;border-bottom:1px solid #DDE3EA;}'+ '.cwtb-light .cwtb-glyph{background:transparent;}'+ '.cwtb-light .cwtb-word{color:#6B7A8D;}'+ '.cwtb-light .cwtb-tab{color:#1F699E;}'+ '.cwtb-light .cwtb-tab:hover{background:#F7FBFF;}'+ '.cwtb-light .cwtb-on{background:#F7FBFF;box-shadow:inset 0 0 0 1px #C9DFF3;font-weight:700;}'+ '.cwtb-light .cwtb-face{box-shadow:0 0 0 2px #C9DFF3;}'+ '.cwtb-light .cwtb-more{background:#fff;border-top:1px solid #DDE3EA;}'+ '.cwtb-light .cwtb-item{color:#1F699E;}'+ '.cwtb-light .cwtb-item:hover{background:#F7FBFF;}';
+      + '.cwtb-light .cwtb-bar{background:#fff;border-bottom:1px solid #DDE3EA;}'+ '.cwtb-light .cwtb-glyph{background:transparent;}'+ '.cwtb-light .cwtb-word{color:#6B7A8D;}'+ '.cwtb-light .cwtb-tab{color:#1F699E;}'+ '.cwtb-light .cwtb-tab:hover{background:#F7FBFF;}'+ '.cwtb-light .cwtb-on{background:#F7FBFF;box-shadow:inset 0 0 0 1px #C9DFF3;font-weight:700;}'+ '.cwtb-light .cwtb-face{box-shadow:0 0 0 2px #C9DFF3;}'+ '.cwtb-light .cwtb-more{background:#fff;border-top:1px solid #DDE3EA;}'+ '.cwtb-light .cwtb-item{color:#1F699E;}'+ '.cwtb-light .cwtb-item:hover{background:#F7FBFF;}'+ '.cwtb-crumb{background:#fff;border-bottom:1px solid #DDE3EA;padding:11px 18px;}'+ '.cwtb-crumb *{color:#1A2E42 !important;}'+ '.cwtb-crumb a{cursor:pointer;text-decoration:none;}';
     var s = document.createElement('style');
     s.id = 'cw-topbar-style';
     s.textContent = css;
@@ -218,6 +218,24 @@
     }, 400);
   }
 
+  // ---- the white breadcrumb strip ------------------------------------------
+  // ?topbar=crumb keeps the bar and the page blue and lifts the page's own
+  // breadcrumb into a white strip under the bar, so the chrome has a bottom.
+  function crumbStrip() {
+    var bar = document.getElementById('cw-topbar');
+    var first = document.getElementById('gp-crumb-groups');
+    if (!bar || !first || !first.parentElement) return false;
+    var row = first.parentElement;
+    var host = row.parentElement;
+    var strip = document.createElement('div');
+    strip.className = 'cwtb-crumb';
+    strip.appendChild(row);
+    bar.appendChild(strip);
+    // the row it came from held the crumbs and the pill, and both are gone now
+    if (host && host.children.length === 0) { host.style.display = 'none'; }
+    return true;
+  }
+
   // ---- the tab icon ---------------------------------------------------------
   // Runs on every page that loads this file, with or without the bar, so the
   // browser tab always says which tool you are in. A group page and anything on
@@ -254,7 +272,7 @@
     try { return String(new URLSearchParams(window.location.search).get('topbar') || ''); }
     catch (e) { return ''; }
   }
-  function asked() { return mode() === '1' || mode() === 'white'; }
+  function asked() { var m = mode(); return m === '1' || m === 'white' || m === 'crumb'; }
 
   function go() {
     favicon();
@@ -268,6 +286,7 @@
     style();
     draw();
     watchForPhoto();
+    if (mode() === 'crumb') { crumbStrip(); }
   }
 
   if (document.readyState === 'loading') {
