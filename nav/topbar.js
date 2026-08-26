@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V1.70 | Date: 2026-08-26 | LAST CHANGE: ?topbar=crumb lifts the breadcrumb into a white strip.
+/*  Version: V1.80 | Date: 2026-08-26 | LAST CHANGE: ?topbar=sheet gives the bar a seam and lifts the page under it.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -173,7 +173,7 @@
       '@media(max-width:700px){.cwtb-bar{gap:8px;padding:0 10px;height:54px;}' +
         '.cwtb-word{display:none;}.cwtb-tabs{margin:0;}.cwtb-tab{padding:8px 11px;font-size:13.5px;}}'
       /* the white look: chrome steps back, the page keeps the blue */
-      + '.cwtb-light .cwtb-bar{background:#fff;border-bottom:1px solid #DDE3EA;}'+ '.cwtb-light .cwtb-glyph{background:transparent;}'+ '.cwtb-light .cwtb-word{color:#6B7A8D;}'+ '.cwtb-light .cwtb-tab{color:#1F699E;}'+ '.cwtb-light .cwtb-tab:hover{background:#F7FBFF;}'+ '.cwtb-light .cwtb-on{background:#F7FBFF;box-shadow:inset 0 0 0 1px #C9DFF3;font-weight:700;}'+ '.cwtb-light .cwtb-face{box-shadow:0 0 0 2px #C9DFF3;}'+ '.cwtb-light .cwtb-more{background:#fff;border-top:1px solid #DDE3EA;}'+ '.cwtb-light .cwtb-item{color:#1F699E;}'+ '.cwtb-light .cwtb-item:hover{background:#F7FBFF;}'+ '.cwtb-crumb{background:#fff;border-bottom:1px solid #DDE3EA;padding:11px 18px;}'+ '.cwtb-crumb *{color:#1A2E42 !important;}'+ '.cwtb-crumb a{cursor:pointer;text-decoration:none;}';
+      + '.cwtb-light .cwtb-bar{background:#fff;border-bottom:1px solid #DDE3EA;}'+ '.cwtb-light .cwtb-glyph{background:transparent;}'+ '.cwtb-light .cwtb-word{color:#6B7A8D;}'+ '.cwtb-light .cwtb-tab{color:#1F699E;}'+ '.cwtb-light .cwtb-tab:hover{background:#F7FBFF;}'+ '.cwtb-light .cwtb-on{background:#F7FBFF;box-shadow:inset 0 0 0 1px #C9DFF3;font-weight:700;}'+ '.cwtb-light .cwtb-face{box-shadow:0 0 0 2px #C9DFF3;}'+ '.cwtb-light .cwtb-more{background:#fff;border-top:1px solid #DDE3EA;}'+ '.cwtb-light .cwtb-item{color:#1F699E;}'+ '.cwtb-light .cwtb-item:hover{background:#F7FBFF;}'+ '.cwtb-crumb{background:#fff;border-bottom:1px solid #DDE3EA;padding:11px 18px;}'+ '.cwtb-crumb *{color:#1A2E42 !important;}'+ '.cwtb-crumb a{cursor:pointer;text-decoration:none;}'/* the seam look: the bar keeps its blue and gains a bottom, the page lifts into a sheet */+ '.cwtb-sheet .cwtb-bar{box-shadow:0 2px 0 rgba(0,0,0,.10),0 6px 14px rgba(15,45,70,.18);position:relative;z-index:5;}'+ '.cwtb-sheet #home{padding-top:10px !important;}'+ '.cwtb-sheet #home .design-body{background:#F4F7FA;border-radius:16px 16px 0 0;padding:18px 18px 26px;}'+ '.cwtb-sheet #gp-page-header,.cwtb-sheet #gp-concierge,.cwtb-sheet #gp-layout > div > div,'+ '.cwtb-sheet #gp-layout aside,.cwtb-sheet #gp-members-card{border:1px solid #DDE3EA;}';
     var s = document.createElement('style');
     s.id = 'cw-topbar-style';
     s.textContent = css;
@@ -272,7 +272,7 @@
     try { return String(new URLSearchParams(window.location.search).get('topbar') || ''); }
     catch (e) { return ''; }
   }
-  function asked() { var m = mode(); return m === '1' || m === 'white' || m === 'crumb'; }
+  function asked() { var m = mode(); return m === '1' || m === 'white' || m === 'crumb' || m === 'sheet'; }
 
   function go() {
     favicon();
@@ -287,6 +287,7 @@
     draw();
     watchForPhoto();
     if (mode() === 'crumb') { crumbStrip(); }
+    if (mode() === 'sheet') { document.documentElement.classList.add('cwtb-sheet'); }
   }
 
   if (document.readyState === 'loading') {
