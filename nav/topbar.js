@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V1.20 | Date: 2026-08-26 | LAST CHANGE: the left mark reads Gathering for the common good.
+/*  Version: V1.30 | Date: 2026-08-26 | LAST CHANGE: the tab icon follows the tool, seedling on groups.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -214,12 +214,43 @@
     }, 400);
   }
 
+  // ---- the tab icon ---------------------------------------------------------
+  // Runs on every page that loads this file, with or without the bar, so the
+  // browser tab always says which tool you are in. A group page shows the
+  // seedling, any other 2Gather page shows the 2Gather mark, and an Appear page
+  // shows a globe. Appear's own pages are built in Glide and set their icon
+  // there, so this only reaches ours.
+  function emoji(ch) {
+    return 'data:image/svg+xml,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+      '<text y=".9em" font-size="90">' + ch + '</text></svg>');
+  }
+
+  function favicon() {
+    try {
+      var host = (window.location.hostname || '').toLowerCase();
+      var path = (window.location.pathname || '').toLowerCase();
+      var href = '';
+      if (path.indexOf('group') > -1) { href = emoji('\uD83C\uDF31'); }
+      else if (host.indexOf('appear') > -1) { href = emoji('\uD83C\uDF0D'); }
+      else if (host.indexOf('2gather') > -1) { href = LOGO; }
+      if (!href) return;
+      var links = document.querySelectorAll('link[rel~="icon"]');
+      for (var i = 0; i < links.length; i++) { links[i].parentNode.removeChild(links[i]); }
+      var l = document.createElement('link');
+      l.rel = 'icon';
+      l.href = href;
+      document.head.appendChild(l);
+    } catch (e) {}
+  }
+
   function asked() {
     try { return new URLSearchParams(window.location.search).get('topbar') === '1'; }
     catch (e) { return false; }
   }
 
   function go() {
+    favicon();
     if (document.getElementById('cw-topbar')) return;
     var framed = false;
     try { framed = (window.self !== window.top); } catch (e) { framed = true; }
