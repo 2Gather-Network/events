@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V3.30 | Date: 2026-08-26 | LAST CHANGE: About and Support are our own pages now.
+/*  Version: V3.40 | Date: 2026-08-26 | LAST CHANGE: the id comes out of the address bar, behind ?mask=1.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -67,8 +67,12 @@
   function me() {
     try {
       var p = new URLSearchParams(window.location.search);
-      return String(p.get('CWid') || p.get('memberCard') || p.get('me') || p.get('appearId') || '').trim();
-    } catch (e) { return ''; }
+      var fromUrl = String(p.get('CWid') || p.get('memberCard') || p.get('me') || p.get('appearId') || '').trim();
+      if (fromUrl) return fromUrl;
+    } catch (e) {}
+    // the address may already have been cleaned, so fall back to what this device knows
+    try { return String(window.CW_ID || localStorage.getItem('cw-id') || localStorage.getItem('appear-id') || '').trim(); }
+    catch (e) { return ''; }
   }
 
   function link(url, carry) {
@@ -259,6 +263,53 @@
     }, 400);
   }
 
+  // ---- taking the id out of the address bar ---------------------------------
+  // Somebody arrives at /mygroups?CWid=w.hss. We read the id, remember it on this
+  // device under the key the pages already fall back to, then rewrite the address
+  // to /mygroups with nothing after it. No reload, and the history entry is
+  // replaced rather than added, so the version carrying the id is not left behind
+  // either. Everything else in the query stays, because a group id or an event id
+  // is not a person.
+  //
+  // ?mask=1 turns it on for one page while we watch it work. MASK_BY_DEFAULT makes
+  // it the rule everywhere.
+  var MASK_BY_DEFAULT = false;
+  var WHO_PARAMS = ['CWid', 'memberCard', 'appearId', 'me'];
+
+  function remember(id) {
+    if (!id) return;
+    window.CW_ID = id;
+    try { localStorage.setItem('appear-id', id); } catch (e) {}
+    try { localStorage.setItem('cw-id', id); } catch (e) {}
+  }
+
+  function maskWanted() {
+    try {
+      if (new URLSearchParams(window.location.search).get('mask') === '0') return false;
+      if (new URLSearchParams(window.location.search).get('mask') === '1') return true;
+    } catch (e) {}
+    return MASK_BY_DEFAULT;
+  }
+
+  function stripId() {
+    var p, id = '';
+    try { p = new URLSearchParams(window.location.search); } catch (e) { return; }
+
+    for (var i = 0; i < WHO_PARAMS.length; i++) {
+      var v = p.get(WHO_PARAMS[i]);
+      if (v && !id) { id = String(v).trim(); }
+    }
+    remember(id);
+    if (!id || !maskWanted()) return;
+    if (!window.history || !window.history.replaceState) return;
+
+    for (var j = 0; j < WHO_PARAMS.length; j++) { p.delete(WHO_PARAMS[j]); }
+    p.delete('mask');
+    var rest = p.toString();
+    var clean = window.location.pathname + (rest ? '?' + rest : '') + window.location.hash;
+    try { window.history.replaceState(null, '', clean); } catch (e) {}
+  }
+
   // ---- the tab, and what a shared link says --------------------------------
   // Pages rename themselves as they load, so keep the tool on the end of
   // whatever they set. Runs with or without the bar.
@@ -315,6 +366,7 @@
   function go() {
     favicon();
     titleGuard();
+    setTimeout(stripId, 0);
     if (document.getElementById('cw-topbar') || hidden() || !SHOW_EVERYWHERE) return;
     var framed = false;
     try { framed = (window.self !== window.top); } catch (e) { framed = true; }
