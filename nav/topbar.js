@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V1.40 | Date: 2026-08-26 | LAST CHANGE: Creating.Works pages take the seedling too.
+/*  Version: V1.50 | Date: 2026-08-26 | LAST CHANGE: tabs sit right beside the photo, larger mark, smaller line.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -149,9 +149,9 @@
       '#cw-topbar{font-family:"DM Sans","Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}' +
       '.cwtb-bar{background:#1F699E;display:flex;align-items:center;gap:14px;padding:0 16px;height:58px;}' +
       '.cwtb-mark{display:flex;align-items:center;gap:9px;flex-shrink:0;text-decoration:none;cursor:pointer;}' +
-      '.cwtb-glyph{width:30px;height:30px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;}'+'.cwtb-glyph img{width:22px;height:22px;object-fit:contain;display:block;}' +
-      '.cwtb-word{color:#fff;font-size:16px;font-weight:400;}' +
-      '.cwtb-tabs{display:flex;align-items:center;gap:4px;margin:0 auto;overflow-x:auto;' +
+      '.cwtb-glyph{width:38px;height:38px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;}'+'.cwtb-glyph img{width:30px;height:30px;object-fit:contain;display:block;}' +
+      '.cwtb-word{color:rgba(255,255,255,.85);font-size:13px;font-weight:400;}' +
+      '.cwtb-tabs{display:flex;align-items:center;gap:4px;margin-left:auto;margin-right:6px;overflow-x:auto;' +
         'scrollbar-width:none;-ms-overflow-style:none;}' +
       '.cwtb-tabs::-webkit-scrollbar{display:none;}' +
       '.cwtb-tab{color:#fff;font-size:14px;font-weight:500;letter-spacing:.6px;' +
