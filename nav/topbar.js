@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V3.10 | Date: 2026-08-26 | LAST CHANGE: a menu opens as a white panel under its tab.
+/*  Version: V3.11 | Date: 2026-08-26 | LAST CHANGE: only the tab you opened stays lit.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -153,6 +153,9 @@
     }
     function show(key) {
       var t, r, k;
+      // while a menu is open, the page's own tab stops looking selected, so only
+      // the tab you opened is lit
+      el.className = key ? 'cwtb-menuing' : '';
       for (var a = 0; a < triggers.length; a++) {
         t = triggers[a];
         k = t.getAttribute('data-menu');
