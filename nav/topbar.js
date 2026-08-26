@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V1.50 | Date: 2026-08-26 | LAST CHANGE: tabs sit right beside the photo, larger mark, smaller line.
+/*  Version: V1.60 | Date: 2026-08-26 | LAST CHANGE: a white look, drawn with ?topbar=white.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -21,6 +21,7 @@
   'use strict';
 
   var SHOW_EVERYWHERE = false;          // <-- the one switch. true = live on every page.
+  var LOOK = 'blue';                    // 'blue' or 'white'. ?topbar=white overrides it.
   var HIDE_INSIDE_GLIDE = true;         // inside the Glide frame Glide already draws its own bar.
 
   // ---- the bar, in one place ------------------------------------------------
@@ -119,6 +120,7 @@
 
     var el = document.createElement('div');
     el.id = 'cw-topbar';
+    if (mode() === 'white' || LOOK === 'white') { el.className = 'cwtb-light'; }
     el.innerHTML =
       '<div class="cwtb-bar">' +
         '<a role="link" tabindex="0" class="cwtb-mark" data-nav="' + link(EVENTS, 'memberCard') +
@@ -169,7 +171,9 @@
         'text-decoration:none;cursor:pointer;white-space:nowrap;}' +
       '.cwtb-item:hover{background:rgba(255,255,255,.14);}' +
       '@media(max-width:700px){.cwtb-bar{gap:8px;padding:0 10px;height:54px;}' +
-        '.cwtb-word{display:none;}.cwtb-tabs{margin:0;}.cwtb-tab{padding:8px 11px;font-size:13.5px;}}';
+        '.cwtb-word{display:none;}.cwtb-tabs{margin:0;}.cwtb-tab{padding:8px 11px;font-size:13.5px;}}'
+      /* the white look: chrome steps back, the page keeps the blue */
+      + '.cwtb-light .cwtb-bar{background:#fff;border-bottom:1px solid #DDE3EA;}'+ '.cwtb-light .cwtb-glyph{background:transparent;}'+ '.cwtb-light .cwtb-word{color:#6B7A8D;}'+ '.cwtb-light .cwtb-tab{color:#1F699E;}'+ '.cwtb-light .cwtb-tab:hover{background:#F7FBFF;}'+ '.cwtb-light .cwtb-on{background:#F7FBFF;box-shadow:inset 0 0 0 1px #C9DFF3;font-weight:700;}'+ '.cwtb-light .cwtb-face{box-shadow:0 0 0 2px #C9DFF3;}'+ '.cwtb-light .cwtb-more{background:#fff;border-top:1px solid #DDE3EA;}'+ '.cwtb-light .cwtb-item{color:#1F699E;}'+ '.cwtb-light .cwtb-item:hover{background:#F7FBFF;}';
     var s = document.createElement('style');
     s.id = 'cw-topbar-style';
     s.textContent = css;
@@ -245,10 +249,12 @@
     } catch (e) {}
   }
 
-  function asked() {
-    try { return new URLSearchParams(window.location.search).get('topbar') === '1'; }
-    catch (e) { return false; }
+  // ?topbar=1 draws the blue bar, ?topbar=white draws the white one.
+  function mode() {
+    try { return String(new URLSearchParams(window.location.search).get('topbar') || ''); }
+    catch (e) { return ''; }
   }
+  function asked() { return mode() === '1' || mode() === 'white'; }
 
   function go() {
     favicon();
