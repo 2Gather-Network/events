@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V3.40 | Date: 2026-08-26 | LAST CHANGE: the id comes out of the address bar, behind ?mask=1.
+/*  Version: V3.50 | Date: 2026-08-26 | LAST CHANGE: one switch decides where Sign in goes.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -21,6 +21,12 @@
   'use strict';
 
   var SHOW_EVERYWHERE   = true;   // the bar draws on every page that loads this file
+
+  // Where "Sign in" goes. Today it is Glide, which is the last dependency we have on
+  // it. When our own sign-in page exists, this one line points every page at it, on
+  // both domains, because every page reads it from here rather than holding its own
+  // copy. Pages read window.CW_SIGNIN, so it is set before anything draws.
+  window.CW_SIGNIN = window.CW_SIGNIN || 'https://appear.network/';
   var HIDE_INSIDE_GLIDE = true;   // inside the Glide frame Glide already draws its own bar
 
   // ---- addresses, all of them, in one place ---------------------------------
