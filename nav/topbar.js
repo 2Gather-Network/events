@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V4.40 | Date: 2026-08-26 | LAST CHANGE: Sign in and Sign up both live in the bar.
+/*  Version: V4.50 | Date: 2026-08-26 | LAST CHANGE: a page that is somebody's own asks first and draws nothing else.
     V4.12 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
@@ -243,6 +243,14 @@
       '.cwtb-signin:hover{background:#F7FBFF;}' +
       '.cwtb-ghost{background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55);margin-left:8px;}' +
       '.cwtb-ghost:hover{background:rgba(255,255,255,.12);}' +
+      '.cwtb-ask{padding:48px 20px;display:flex;justify-content:center;}' +
+      '.cwtb-ask-card{background:#fff;border-radius:16px;padding:34px 34px 30px;max-width:460px;width:100%;}' +
+      '.cwtb-ask-card h1{font-size:22px;font-weight:800;color:#1A2E42;margin:0 0 8px;line-height:1.3;}' +
+      '.cwtb-ask-card p{font-size:15px;color:#6B7A8D;line-height:1.55;margin:0 0 22px;}' +
+      '.cwtb-ask-row{display:flex;gap:10px;flex-wrap:wrap;}' +
+      '.cwtb-ask-go{background:#1F699E;color:#fff;font-size:15px;font-weight:700;padding:12px 24px;' +
+        'border-radius:24px;text-decoration:none;cursor:pointer;}' +
+      '.cwtb-ask-ghost{background:#fff;color:#1F699E;box-shadow:inset 0 0 0 1.5px #C9DFF3;}' +
       '@media(max-width:700px){.cwtb-signin{padding:8px 13px;font-size:13px;}.cwtb-ghost{margin-left:6px;}}' +
       '.cwtb-row{display:none;position:absolute;min-width:236px;background:#fff;border-radius:14px;' +
         'padding:10px 0;box-shadow:0 14px 34px rgba(15,45,70,.28);z-index:20;}' +
@@ -339,6 +347,42 @@
     try { window.history.replaceState(null, '', clean); } catch (e) {}
   }
 
+  // ---- pages that are somebody's own -----------------------------------------
+  // My groups signed out used to draw its heading, its buttons and an empty card,
+  // which is a page pretending to be about you while knowing nothing about you.
+  // These paths now ask first and draw nothing else. When our own sign-in page
+  // exists this becomes a redirect carrying where they were headed.
+  var MINE_ONLY = ['/mygroups', '/myevents'];
+
+  function askToSignIn() {
+    var path = (window.location.pathname || '').toLowerCase();
+    var gated = MINE_ONLY.some(function (p) { return path.indexOf(p) === 0; });
+    if (!gated || me()) return;
+
+    var what = path.indexOf('/myevents') === 0 ? 'your events' : 'your groups';
+    var bar = document.getElementById('cw-topbar');
+    var ask = document.createElement('div');
+    ask.className = 'cwtb-ask';
+    ask.innerHTML =
+      '<div class="cwtb-ask-card">' +
+        '<h1>Sign in to see ' + what + '.</h1>' +
+        '<p>They are here waiting. We just need to know who you are.</p>' +
+        '<div class="cwtb-ask-row">' +
+          '<a role="link" tabindex="0" class="cwtb-ask-go" data-nav="' +
+            (window.CW_SIGNIN || 'https://appear.network/') +
+            '" onclick="return _safeNavGo(this)">Sign in</a>' +
+          '<a role="link" tabindex="0" class="cwtb-ask-go cwtb-ask-ghost" data-nav="' +
+            (window.CW_SIGNUP || 'https://appear.network/') +
+            '" onclick="return _safeNavGo(this)">Sign up</a>' +
+        '</div>' +
+      '</div>';
+
+    // Everything the page drew for itself comes off, so nothing half-loads behind this.
+    var kids = Array.prototype.slice.call(document.body.children);
+    kids.forEach(function (el) { if (el !== bar && el.tagName !== 'SCRIPT') { el.style.display = 'none'; } });
+    document.body.appendChild(ask);
+  }
+
   // ---- the tab, and what a shared link says --------------------------------
   // Pages rename themselves as they load, so keep the tool on the end of
   // whatever they set. Runs with or without the bar.
@@ -403,6 +447,7 @@
     style();
     draw();
     watchForPhoto();
+    askToSignIn();
   }
 
   if (document.readyState === 'loading') {
