@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V4.20 | Date: 2026-08-26 | LAST CHANGE: My events is handed the person by the name it reads.
+/*  Version: V4.30 | Date: 2026-08-26 | LAST CHANGE: Sign in lives in the bar when nobody is known.
     V4.12 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
@@ -136,9 +136,15 @@
       }
     }
 
-    var photo = '<a role="link" tabindex="0" class="cwtb-face" title="My profile" data-nav="' +
-                link(EDITME, 'CWid') + '" onclick="return _safeNavGo(this)">' +
-                (window.CW_TOPBAR_PHOTO ? '<img src="' + window.CW_TOPBAR_PHOTO + '" alt="">' : '') + '</a>';
+    // Known: your photo, opening your own profile ready to edit.
+    // Not known: the way in, in the same corner, on every page.
+    var photo = me()
+      ? '<a role="link" tabindex="0" class="cwtb-face" title="My profile" data-nav="' +
+        link(EDITME, 'CWid') + '" onclick="return _safeNavGo(this)">' +
+        (window.CW_TOPBAR_PHOTO ? '<img src="' + window.CW_TOPBAR_PHOTO + '" alt="">' : '') + '</a>'
+      : '<a role="link" tabindex="0" class="cwtb-signin" data-nav="' +
+        (window.CW_SIGNIN || 'https://appear.network/') +
+        '" onclick="return _safeNavGo(this)">Sign in</a>';
 
     var el = document.createElement('div');
     el.id = 'cw-topbar';
@@ -228,6 +234,9 @@
         'background:linear-gradient(135deg,#7DD3FC,#1F699E);display:block;' +
         'box-shadow:0 0 0 2px rgba(255,255,255,.55);}' +
       '.cwtb-face img{width:100%;height:100%;object-fit:cover;display:block;}' +
+      '.cwtb-signin{flex-shrink:0;background:#fff;color:#1F699E;font-size:14px;font-weight:700;' +
+        'padding:9px 18px;border-radius:22px;text-decoration:none;cursor:pointer;white-space:nowrap;}' +
+      '.cwtb-signin:hover{background:#F7FBFF;}' +
       '.cwtb-row{display:none;position:absolute;min-width:236px;background:#fff;border-radius:14px;' +
         'padding:10px 0;box-shadow:0 14px 34px rgba(15,45,70,.28);z-index:20;}' +
       '.cwtb-row.cwtb-open{display:block;}' +
