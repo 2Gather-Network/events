@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V5.42 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 full-bleed also stretches a centred flex item.
+/*  Version: V5.50 | Date: 2026-08-26 | LAST CHANGE: the bar runs edge to edge on every page.
+    V5.42 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 full-bleed also stretches a centred flex item.
     V5.41 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 previews the full-bleed bar.
     V5.40 | Date: 2026-08-26 | LAST CHANGE: your own id comes out of show= as well.
     V5.31 | Date: 2026-08-26 | LAST CHANGE: the front door never shows a face.
@@ -242,7 +243,7 @@
     }
   }
 
-  // ?chrome=2 — preview of the full-bleed bar (Jessie 2026-08-26). The bar is a child of
+  // The bar runs edge to edge (Jessie 2026-08-26, approved on the event page). It is a child of
   // <body>, so any page that pads its body pushes the bar in from the edges and the shadow
   // turns that gutter into a frame. This reads the container's own padding and cancels it,
   // which works whatever padding a given page uses. Deliberately not width:100vw — that
@@ -264,9 +265,8 @@
     var bar = host.querySelector('.cwtb-bar');
     if (bar) bar.style.boxShadow = 'none';
   }
-  function maybeFullBleed() {
+  function applyFullBleed() {
     try {
-      if (!/[?&]chrome=2\b/.test(window.location.search)) return;
       fullBleed();
       window.addEventListener('resize', fullBleed);
     } catch (e) {}
@@ -573,7 +573,7 @@
     if (framed && HIDE_INSIDE_GLIDE) return;
     style();
     draw();
-    maybeFullBleed();
+    applyFullBleed();
     watchForPhoto();
     fetchPhotoOnce();
     askToSignIn();
