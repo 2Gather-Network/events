@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V4.10 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
+/*  Version: V4.11 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -231,6 +231,8 @@
       '.cwtb-item{display:block;padding:13px 22px;font-size:16px;font-weight:500;color:#1A2E42;' +
         'text-decoration:none;cursor:pointer;white-space:nowrap;}' +
       '.cwtb-item:hover{background:#F7FBFF;}' +
+      // a page that draws its own mark and tagline would show them twice
+      '.cwtb-drawn .cw-dupe-brand{display:none !important;}' +
       '.cwtb-lit{background:rgba(255,255,255,.20);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);}' +
       '#cw-topbar.cwtb-menuing .cwtb-tab.cwtb-on:not(.cwtb-lit){background:transparent;box-shadow:none;}' +
       '@media(max-width:700px){.cwtb-bar{gap:8px;padding:0 10px;height:54px;}' +
