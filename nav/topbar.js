@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V5.00 | Date: 2026-08-26 | LAST CHANGE: Sign in is ours, and it carries you back where you were.
+/*  Version: V5.10 | Date: 2026-08-26 | LAST CHANGE: no empty circle, ever.
+    V5.00 | Date: 2026-08-26 | LAST CHANGE: Sign in is ours, and it carries you back where you were.
     V4.51 | Date: 2026-08-26 | LAST CHANGE: a page that is somebody's own asks first and draws nothing else.
     V4.12 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
 
@@ -143,18 +144,25 @@
       }
     }
 
-    // Known: your photo, opening your own profile ready to edit.
-    // Not known: the way in, in the same corner, on every page.
-    var photo = me()
-      ? '<a role="link" tabindex="0" class="cwtb-face" title="My profile" data-nav="' +
-        link(EDITME, 'CWid') + '" onclick="return _safeNavGo(this)">' +
-        (window.CW_TOPBAR_PHOTO ? '<img src="' + window.CW_TOPBAR_PHOTO + '" alt="">' : '') + '</a>'
-      : '<a role="link" tabindex="0" class="cwtb-signin" data-nav="' +
-        (window.CW_SIGNIN || 'https://appear.network/') +
-        '" onclick="return _safeNavGo(this)">Sign in</a>' +
-        '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost" data-nav="' +
-        (window.CW_SIGNUP || 'https://appear.network/') +
-        '" onclick="return _safeNavGo(this)">Sign up</a>';
+    // Three states, and no empty circle among them. With a photo, the photo. Known
+    // but no photo yet, the words instead, which the photo replaces when it arrives.
+    // Not known, the two doors.
+    var photo;
+    if (me() && window.CW_TOPBAR_PHOTO) {
+      photo = '<a role="link" tabindex="0" class="cwtb-face" title="My profile" data-nav="' +
+              link(EDITME, 'CWid') + '" onclick="return _safeNavGo(this)">' +
+              '<img src="' + window.CW_TOPBAR_PHOTO + '" alt=""></a>';
+    } else if (me()) {
+      photo = '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost cwtb-mine" data-nav="' +
+              link(EDITME, 'CWid') + '" onclick="return _safeNavGo(this)">My profile</a>';
+    } else {
+      photo = '<a role="link" tabindex="0" class="cwtb-signin" data-nav="' +
+              (window.CW_SIGNIN || 'https://appear.network/') +
+              '" onclick="return _safeNavGo(this)">Sign in</a>' +
+              '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost" data-nav="' +
+              (window.CW_SIGNUP || 'https://appear.network/') +
+              '" onclick="return _safeNavGo(this)">Sign up</a>';
+    }
 
     var el = document.createElement('div');
     el.id = 'cw-topbar';
@@ -285,7 +293,8 @@
   // reading once. The old My profile pill comes off while the bar is up,
   // because the photo in the bar is that same link.
   function adopt() {
-    var face = document.querySelector('#cw-topbar .cwtb-face');
+    var face = document.querySelector('#cw-topbar .cwtb-face') ||
+               document.querySelector('#cw-topbar .cwtb-mine');
     if (!face) return true;
 
     var pill = document.getElementById('gp-myprofile-pill');
@@ -296,7 +305,11 @@
       var img = document.querySelector('#gp-myprofile-avatar img, #gp-myprofile-pill img, .cw-me-photo img');
       if (img && img.getAttribute('src')) { src = img.getAttribute('src'); }
     }
-    if (src) { face.innerHTML = '<img src="' + src + '" alt="">'; return true; }
+    if (src) {
+      face.className = 'cwtb-face';
+      face.innerHTML = '<img src="' + src + '" alt="">';
+      return true;
+    }
     return false;
   }
 
