@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V5.41 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 previews the full-bleed bar.
+/*  Version: V5.42 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 full-bleed also stretches a centred flex item.
+    V5.41 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 previews the full-bleed bar.
     V5.40 | Date: 2026-08-26 | LAST CHANGE: your own id comes out of show= as well.
     V5.31 | Date: 2026-08-26 | LAST CHANGE: the front door never shows a face.
     V5.30 | Date: 2026-08-26 | LAST CHANGE: Creating.Works pages strip their ids too.
@@ -251,6 +252,11 @@
     if (!host) return;
     var p  = host.parentElement || document.body;
     var cs = window.getComputedStyle(p);
+    // A page that centres its children with flex makes the bar a flex item, which shrinks to
+    // its own content. Stretching it back is what actually widens the bar; the negative
+    // margins below only cancel the container's padding.
+    host.style.alignSelf = 'stretch';
+    host.style.width     = 'auto';
     host.style.marginLeft  = '-' + (parseFloat(cs.paddingLeft) || 0) + 'px';
     host.style.marginRight = '-' + (parseFloat(cs.paddingRight) || 0) + 'px';
     host.style.marginTop   = '-' + (parseFloat(cs.paddingTop) || 0) + 'px';
