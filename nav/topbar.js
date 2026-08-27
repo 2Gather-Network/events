@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V5.10 | Date: 2026-08-26 | LAST CHANGE: no empty circle, ever.
+/*  Version: V5.20 | Date: 2026-08-26 | LAST CHANGE: ids come out of the address bar everywhere, and your photo follows you.
     V5.00 | Date: 2026-08-26 | LAST CHANGE: Sign in is ours, and it carries you back where you were.
     V4.51 | Date: 2026-08-26 | LAST CHANGE: a page that is somebody's own asks first and draws nothing else.
     V4.12 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
@@ -313,6 +313,36 @@
     return false;
   }
 
+  // The bar wants a face on every page, and most pages never fetch one. So it is
+  // looked up once, kept on the device beside the id it belongs to, and reused.
+  // One small public read, and only when we do not already have it.
+  function fetchPhotoOnce() {
+    var who = me();
+    if (!who) return;
+    try {
+      if (localStorage.getItem('cw-photo-for') === who && localStorage.getItem('cw-photo')) {
+        window.CW_TOPBAR_PHOTO = localStorage.getItem('cw-photo');
+        adopt();
+        return;
+      }
+    } catch (e) {}
+    try {
+      fetch('https://cw-api-gate.jessieupp.workers.dev/?action=lookupProfile&appearId=' +
+            encodeURIComponent(who))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || !d.photo) return;
+          window.CW_TOPBAR_PHOTO = d.photo;
+          try {
+            localStorage.setItem('cw-photo', d.photo);
+            localStorage.setItem('cw-photo-for', who);
+          } catch (e) {}
+          adopt();
+        })
+        .catch(function () {});
+    } catch (e) {}
+  }
+
   function watchForPhoto() {
     if (adopt()) return;
     var tries = 0;
@@ -332,7 +362,7 @@
   //
   // ?mask=1 turns it on for one page while we watch it work. MASK_BY_DEFAULT makes
   // it the rule everywhere.
-  var MASK_BY_DEFAULT = false;
+  var MASK_BY_DEFAULT = true;
   var WHO_PARAMS = ['CWid', 'memberCard', 'appearId', 'me'];
 
   function remember(id) {
@@ -469,6 +499,7 @@
     style();
     draw();
     watchForPhoto();
+    fetchPhotoOnce();
     askToSignIn();
   }
 
