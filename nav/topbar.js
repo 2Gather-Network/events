@@ -417,8 +417,8 @@
   // ---- pages that are somebody's own -----------------------------------------
   // My groups signed out used to draw its heading, its buttons and an empty card,
   // which is a page pretending to be about you while knowing nothing about you.
-  // These paths now ask first and draw nothing else. When our own sign-in page
-  // exists this becomes a redirect carrying where they were headed.
+  // Our own sign-in page exists now, so these paths go straight there carrying
+  // where the person was headed. Asking on a card first only added a click.
   var MINE_ONLY = ['/mygroups', '/myevents'];
 
   function askToSignIn() {
@@ -426,6 +426,16 @@
     var gated = MINE_ONLY.some(function (p) { return path.indexOf(p) === 0; });
     if (!gated || me()) return;
 
+    // Straight to sign-in, carrying where they were headed so they land back here.
+    // replace() rather than href, so Back returns to wherever they came from
+    // instead of bouncing them forward into this same redirect again.
+    var go = window.CW_SIGNIN || '';
+    if (go.indexOf('/signin') > -1) {
+      try { window.location.replace(go); return; } catch (e) {}
+    }
+
+    // Only if that address is missing or is not our own sign-in page. Nobody should
+    // be left staring at a page that knows nothing about them.
     var what = path.indexOf('/myevents') === 0 ? 'your events' : 'your groups';
     var bar = document.getElementById('cw-topbar');
     var ask = document.createElement('div');
@@ -444,7 +454,6 @@
         '</div>' +
       '</div>';
 
-    // Everything the page drew for itself comes off, so nothing half-loads behind this.
     var kids = Array.prototype.slice.call(document.body.children);
     kids.forEach(function (el) { if (el !== bar && el.tagName !== 'SCRIPT') { el.style.display = 'none'; } });
     document.body.appendChild(ask);
