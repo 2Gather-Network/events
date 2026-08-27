@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V5.20 | Date: 2026-08-26 | LAST CHANGE: ids come out of the address bar everywhere, and your photo follows you.
+/*  Version: V5.30 | Date: 2026-08-26 | LAST CHANGE: Creating.Works pages strip their ids too.
+    V5.20 | Date: 2026-08-26 | LAST CHANGE: ids come out of the address bar everywhere, and your photo follows you.
     V5.00 | Date: 2026-08-26 | LAST CHANGE: Sign in is ours, and it carries you back where you were.
     V4.51 | Date: 2026-08-26 | LAST CHANGE: a page that is somebody's own asks first and draws nothing else.
     V4.12 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
@@ -492,6 +493,15 @@
     favicon();
     titleGuard();
     setTimeout(stripId, 0);
+
+    // Creating.Works loads this file for the tab icon, the title and the strip, and
+    // not for the bar. Those pages are reached from inside 2Gather and carry their
+    // own furniture, so a second bar would be one too many. ?topbar=1 draws it there
+    // when we want to look at how it would sit.
+    try {
+      if (window.location.hostname.indexOf('creating.works') > -1 &&
+          new URLSearchParams(window.location.search).get('topbar') !== '1') { return; }
+    } catch (e) {}
     if (document.getElementById('cw-topbar') || hidden() || !SHOW_EVERYWHERE) return;
     var framed = false;
     try { framed = (window.self !== window.top); } catch (e) { framed = true; }
