@@ -419,7 +419,15 @@
   // which is a page pretending to be about you while knowing nothing about you.
   // Our own sign-in page exists now, so these paths go straight there carrying
   // where the person was headed. Asking on a card first only added a click.
-  var MINE_ONLY = ['/mygroups', '/myevents'];
+  // Every path here needs to know who you are before it is worth drawing. A group's
+  // own page is deliberately NOT here: somebody invited to a group should be able to
+  // look at it, see a few faces and first names, and then be asked to sign in when
+  // they act. Looking is not the same as doing.
+  var MINE_ONLY = [
+    '/mygroups', '/myevents',
+    '/groups/create', '/groups/invite', '/groups/host', '/groups/request',
+    '/commons', '/attendees'
+  ];
 
   function askToSignIn() {
     var path = (window.location.pathname || '').toLowerCase();
@@ -436,7 +444,9 @@
 
     // Only if that address is missing or is not our own sign-in page. Nobody should
     // be left staring at a page that knows nothing about them.
-    var what = path.indexOf('/myevents') === 0 ? 'your events' : 'your groups';
+    var what = path.indexOf('/myevents') === 0 ? 'your events'
+             : path.indexOf('/mygroups') === 0 ? 'your groups'
+             : 'this';
     var bar = document.getElementById('cw-topbar');
     var ask = document.createElement('div');
     ask.className = 'cwtb-ask';
