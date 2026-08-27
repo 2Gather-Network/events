@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V4.12 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
+/*  Version: V4.20 | Date: 2026-08-26 | LAST CHANGE: My events is handed the person by the name it reads.
+    V4.12 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -50,7 +51,9 @@
   var NAV = [
     { key: 'events', label: 'Events', items: [
       { label: 'Calendar of events', url: EVENTS,   carry: 'memberCard' },
-      { label: 'My events',          url: MYEVENTS, carry: 'memberCard' },
+      // My events reads the person as `id`. Sent as memberCard it sees nothing and
+      // falls back to a demo event, which is what it did until now.
+      { label: 'My events',          url: MYEVENTS, carry: 'id' },
       { label: 'Post an event',      url: POST,     carry: 'memberCard' },
       { label: 'My event profile',   url: PROFILE,  carry: 'CWid' }
     ]},
