@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V3.60 | Date: 2026-08-26 | LAST CHANGE: Commons comes off the bar, every group carries Gather.
+/*  Version: V4.00 | Date: 2026-08-26 | LAST CHANGE: every link points at 2gather.network.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -30,21 +30,21 @@
   var HIDE_INSIDE_GLIDE = true;   // inside the Glide frame Glide already draws its own bar
 
   // ---- addresses, all of them, in one place ---------------------------------
-  var LOGO     = 'https://gather.2gather.network/images/2gather_logo.png';
-  var EVENTS   = 'https://gather.2gather.network/events';
-  var MYEVENTS = 'https://gather.2gather.network/myevents';
-  var POST     = 'https://gather.2gather.network/events?action=post';
-  var MYGROUPS = 'https://gather.2gather.network/mygroups';
-  var START    = 'https://gather.2gather.network/groups/create';
-  var JOIN     = 'https://gather.2gather.network/mygroups?join=1';
-  var FINDTIME = 'https://gather.2gather.network/find-a-time.html';
+  var LOGO     = 'https://2gather.network/images/2gather_logo.png';
+  var EVENTS   = 'https://2gather.network/events';
+  var MYEVENTS = 'https://2gather.network/myevents';
+  var POST     = 'https://2gather.network/events?action=post';
+  var MYGROUPS = 'https://2gather.network/mygroups';
+  var START    = 'https://2gather.network/groups/create';
+  var JOIN     = 'https://2gather.network/mygroups?join=1';
+  var FINDTIME = 'https://2gather.network/find-a-time.html';
   var COMMONS  = 'https://events.2gather.network/events/yvrgej/zkxbzq';   // The Commons room, still
                                                                           // reachable from a group's Gather button
   var PROFILE  = 'https://creating.works/profile';
   var EDITME   = 'https://creating.works/profile-edit';
   var ACCOUNT  = 'https://creating.works/account';
-  var ABOUT    = 'https://gather.2gather.network/about';
-  var SUPPORT  = 'https://gather.2gather.network/support';
+  var ABOUT    = 'https://2gather.network/about';
+  var SUPPORT  = 'https://2gather.network/support';
 
   // carry says which name that destination reads the person by.
   var NAV = [
