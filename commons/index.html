@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V1.00 | Date: 2026-08-26 | LAST CHANGE: the toggle shows your real state when the page opens. -->
+<!-- Version: V1.10 | Date: 2026-08-27 | LAST CHANGE: smaller toggle and button, who is here opens with the toggle, and the count answers the tap at once. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -36,16 +36,16 @@
   .count{font-size:14px;color:rgba(255,255,255,.9);}
 
   .toggle{display:inline-flex;align-items:center;gap:10px;cursor:pointer;}
-  .track{width:56px;height:32px;border-radius:20px;background:transparent;position:relative;
+  .track{width:42px;height:23px;border-radius:20px;background:transparent;position:relative;
          transition:background .15s;flex-shrink:0;box-shadow:inset 0 0 0 2px #fff;}
-  .knob{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:#fff;
+  .knob{position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;
         transition:left .15s;}
   .toggle.on .track{background:#FFCC4D;box-shadow:inset 0 0 0 2px #FFCC4D;}
-  .toggle.on .knob{left:28px;}
+  .toggle.on .knob{left:22px;}
 
   .count{font-size:13.5px;color:rgba(255,255,255,.85);}
-  .seewho{background:#fff;color:var(--brand);font-size:15px;font-weight:700;padding:11px 22px;
-          border-radius:26px;cursor:pointer;white-space:nowrap;border:0;font-family:inherit;}
+  .seewho{background:#fff;color:var(--brand);font-size:13px;font-weight:700;padding:7px 15px;
+          border-radius:20px;cursor:pointer;white-space:nowrap;border:0;font-family:inherit;}
   .seewho[disabled]{opacity:.5;cursor:default;}
 
   /* Who is here, opening in place under the header rather than over the room. */
@@ -97,7 +97,7 @@
 
 <div class="here" id="here">
   <div class="faces" id="faces"></div>
-  <p class="note" id="here-note">No need to login - just share your name 🎯 Unmute your mic below.</p>
+  <p class="note" id="here-note">No need to login - just share your name 🎯 Unmute your mic below. Collapse the white bar anytime.</p>
 </div>
 
 <div class="stage">
@@ -139,6 +139,25 @@ window._safeNavGo = window._safeNavGo || function (el) {
   var here = document.getElementById('here');
   var faces = document.getElementById('faces');
   var beat = null;
+  var known = 0;      // what the room last told us, so a tap can move the number itself
+  var myFace = null;  // our own name and photo, remembered so we can draw ourselves at once
+  try { myFace = JSON.parse(localStorage.getItem('cw-commons-me') || 'null'); } catch (e) {}
+
+  // One face, drawn the same way whether the room told us about it or we are drawing
+  // ourselves before the room has answered.
+  function faceHtml(p, viewer) {
+    // Their profile, as anybody sees it. show is who is being looked at, me is who is looking.
+    // Your own profile needs no id in the link, because the device already knows you.
+    var mine = viewer && String(p.appearId).split('.').join('').toLowerCase() ===
+               String(viewer).split('.').join('').toLowerCase();
+    var to = mine ? 'https://creating.works/profile'
+                  : 'https://creating.works/profile?show=' + encodeURIComponent(p.appearId) +
+                    (viewer ? '&me=' + encodeURIComponent(viewer) : '');
+    return '<a class="who" role="link" tabindex="0"' + (mine ? ' data-me="1"' : '') +
+           ' data-nav="' + to + '" onclick="return _safeNavGo(this)">' +
+           (p.photo ? '<img src="' + p.photo + '" alt="">' : '') +
+           '<span class="nm">' + (p.name || p.first || 'Someone') + '</span></a>';
+  }
 
   function say(n) {
     try { localStorage.setItem('cw-commons-count', String(n)); } catch (e) {}
@@ -173,7 +192,8 @@ window._safeNavGo = window._safeNavGo || function (el) {
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var list = (d && d.people) || [];
-        say(list.length);
+        known = list.length;
+        say(known);
         var html = '', viewer = me();
 
         // The toggle shows the truth rather than starting off every time. If the room
@@ -181,7 +201,12 @@ window._safeNavGo = window._safeNavGo || function (el) {
         if (viewer) {
           var mineHere = false, vn = String(viewer).split('.').join('').toLowerCase();
           for (var k = 0; k < list.length; k++) {
-            if (String(list[k].appearId).split('.').join('').toLowerCase() === vn) { mineHere = true; break; }
+            if (String(list[k].appearId).split('.').join('').toLowerCase() === vn) {
+              mineHere = true;
+              myFace = list[k];
+              try { localStorage.setItem('cw-commons-me', JSON.stringify(list[k])); } catch (e) {}
+              break;
+            }
           }
           var showing = t.className.indexOf('on') > -1;
           if (mineHere && !showing) {
@@ -194,20 +219,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
             if (beat) { clearInterval(beat); beat = null; }
           }
         }
-        for (var i = 0; i < list.length; i++) {
-          var p = list[i];
-          // Their profile, as anybody sees it. show is who is being looked at, me is who is looking.
-          // Your own profile needs no id in the link, because the device already knows you.
-          var mine = viewer && String(p.appearId).split('.').join('').toLowerCase() ===
-                     String(viewer).split('.').join('').toLowerCase();
-          var to = mine ? 'https://creating.works/profile'
-                        : 'https://creating.works/profile?show=' + encodeURIComponent(p.appearId) +
-                          (viewer ? '&me=' + encodeURIComponent(viewer) : '');
-          html += '<a class="who" role="link" tabindex="0" data-nav="' + to +
-                  '" onclick="return _safeNavGo(this)">' +
-                  (p.photo ? '<img src="' + p.photo + '" alt="">' : '') +
-                  '<span class="nm">' + (p.name || p.first || 'Someone') + '</span></a>';
-        }
+        for (var i = 0; i < list.length; i++) { html += faceHtml(list[i], viewer); }
         faces.innerHTML = html;
       })
       .catch(function () {
@@ -230,7 +242,25 @@ window._safeNavGo = window._safeNavGo || function (el) {
     t.setAttribute('aria-checked', on ? 'true' : 'false');
     // Say it on screen at once rather than waiting for the round trip, so turning
     // yourself off never looks like it did nothing.
-    if (!on) { say(0); faces.innerHTML = ''; }
+    // setPresence and getPresence run one after the other, about two to three seconds each,
+    // so waiting for both made a tap look ignored. The screen answers now and the server
+    // confirms behind it. Turning off drops the count by one rather than to zero, because
+    // other people are still in the room.
+    var next = on ? known + 1 : (known > 0 ? known - 1 : 0);
+    if (on) {
+      here.className = 'here open';
+      var f0 = document.getElementById('fold');
+      if (f0) { f0.className = 'fold show open'; }
+      if (myFace && !faces.querySelector('[data-me]')) {
+        faces.innerHTML = faceHtml(myFace, me()) + faces.innerHTML;
+      }
+    } else {
+      var meEl = faces.querySelector('[data-me]');
+      if (meEl) { meEl.parentNode.removeChild(meEl); }
+      if (!next) { faces.innerHTML = ''; }
+    }
+    say(next);
+    known = next;
     tell(on);
     // While somebody says they are available we say so every two minutes, so a closed
     // tab drops off by itself rather than leaving a ghost in the room.
