@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V5.31 | Date: 2026-08-26 | LAST CHANGE: the front door never shows a face.
+/*  Version: V5.40 | Date: 2026-08-26 | LAST CHANGE: your own id comes out of show= as well.
+    V5.31 | Date: 2026-08-26 | LAST CHANGE: the front door never shows a face.
     V5.30 | Date: 2026-08-26 | LAST CHANGE: Creating.Works pages strip their ids too.
     V5.20 | Date: 2026-08-26 | LAST CHANGE: ids come out of the address bar everywhere, and your photo follows you.
     V5.00 | Date: 2026-08-26 | LAST CHANGE: Sign in is ours, and it carries you back where you were.
@@ -399,6 +400,11 @@
     if (!window.history || !window.history.replaceState) return;
 
     for (var j = 0; j < WHO_PARAMS.length; j++) { p.delete(WHO_PARAMS[j]); }
+    // `show` is who is being looked at, so it stays, unless that is the person looking,
+    // in which case it is their own id sitting in their own address bar.
+    var shown = p.get('show');
+    if (shown && String(shown).split('.').join('').toLowerCase() ===
+                 String(id).split('.').join('').toLowerCase()) { p.delete('show'); }
     p.delete('mask');
     var rest = p.toString();
     var clean = window.location.pathname + (rest ? '?' + rest : '') + window.location.hash;

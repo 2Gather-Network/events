@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V1.00 | Date: 2026-08-26 | LAST CHANGE: smaller faces, each one opening that person's profile. -->
+<!-- Version: V1.00 | Date: 2026-08-26 | LAST CHANGE: the header reads the way the old one did, and turning off answers at once. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -28,23 +28,24 @@
   body{background:var(--brand);color:#fff;display:flex;flex-direction:column;
        font-family:'DM Sans','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;}
 
-  .head{padding:16px 20px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
-  .head .who{flex:1;min-width:240px;}
-  .head h1{font-size:17px;font-weight:800;margin:0 0 3px;}
-  .head p{font-size:13.5px;color:rgba(255,255,255,.82);margin:0;line-height:1.5;}
-  .count{font-size:13.5px;color:rgba(255,255,255,.82);}
+  .head{padding:18px 22px;display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+  .right{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:10px;}
+  .head .said{flex:1;min-width:260px;}
+  .head h1{font-size:16px;font-weight:800;margin:0 0 4px;}
+  .head p{font-size:14px;color:rgba(255,255,255,.82);margin:0;line-height:1.5;}
+  .count{font-size:14px;color:rgba(255,255,255,.9);}
 
   .toggle{display:inline-flex;align-items:center;gap:10px;cursor:pointer;}
-  .track{width:52px;height:30px;border-radius:20px;background:rgba(255,255,255,.28);position:relative;
-         transition:background .15s;flex-shrink:0;}
-  .knob{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;
+  .track{width:56px;height:32px;border-radius:20px;background:transparent;position:relative;
+         transition:background .15s;flex-shrink:0;box-shadow:inset 0 0 0 2px #fff;}
+  .knob{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:#fff;
         transition:left .15s;}
-  .toggle.on .track{background:#E8B21F;}
-  .toggle.on .knob{left:25px;}
+  .toggle.on .track{background:#E8B21F;box-shadow:inset 0 0 0 2px #E8B21F;}
+  .toggle.on .knob{left:28px;}
 
   .count{font-size:13.5px;color:rgba(255,255,255,.85);}
-  .seewho{background:#fff;color:var(--brand);font-size:14px;font-weight:700;padding:9px 18px;
-          border-radius:22px;cursor:pointer;white-space:nowrap;border:0;font-family:inherit;}
+  .seewho{background:#fff;color:var(--brand);font-size:15px;font-weight:700;padding:11px 22px;
+          border-radius:26px;cursor:pointer;white-space:nowrap;border:0;font-family:inherit;}
   .seewho[disabled]{opacity:.5;cursor:default;}
 
   /* Who is here, opening in place under the header rather than over the room. */
@@ -70,15 +71,17 @@
 <body>
 
 <div class="head">
-  <div class="who">
-    <h1>Show up as available</h1>
-    <p>Say you are here and open to talking. Turn it off when you are not.</p>
+  <div class="said">
+    <h1>Show up as available 🟡</h1>
+    <p>Enable to say you're available to connect. Disable to say you're no longer available.</p>
   </div>
   <span class="toggle" id="avail" role="switch" aria-checked="false" tabindex="0">
     <span class="track"><span class="knob"></span></span>
   </span>
-  <span class="count" id="count">Nobody has said they are available.</span>
-  <button class="seewho" id="seewho">See who is in the commons</button>
+  <div class="right">
+    <span class="count" id="count">0 available in commons</span>
+    <button class="seewho" id="seewho">🟡 See who's in the commons</button>
+  </div>
 </div>
 
 <div class="here" id="here">
@@ -126,11 +129,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
   var faces = document.getElementById('faces');
   var beat = null;
 
-  function say(n) {
-    count.textContent = !n ? 'Nobody has said they are available.'
-      : (n === 1 ? '1 person is available in the commons.'
-                 : n + ' people are available in the commons.');
-  }
+  function say(n) { count.textContent = n + ' available in commons'; }
 
   function tell(on) {
     var who = me();
@@ -151,8 +150,12 @@ window._safeNavGo = window._safeNavGo || function (el) {
         for (var i = 0; i < list.length; i++) {
           var p = list[i];
           // Their profile, as anybody sees it. show is who is being looked at, me is who is looking.
-          var to = 'https://creating.works/profile?show=' + encodeURIComponent(p.appearId) +
-                   (viewer ? '&me=' + encodeURIComponent(viewer) : '');
+          // Your own profile needs no id in the link, because the device already knows you.
+          var mine = viewer && String(p.appearId).split('.').join('').toLowerCase() ===
+                     String(viewer).split('.').join('').toLowerCase();
+          var to = mine ? 'https://creating.works/profile'
+                        : 'https://creating.works/profile?show=' + encodeURIComponent(p.appearId) +
+                          (viewer ? '&me=' + encodeURIComponent(viewer) : '');
           html += '<a class="who" role="link" tabindex="0" data-nav="' + to +
                   '" onclick="return _safeNavGo(this)">' +
                   (p.photo ? '<img src="' + p.photo + '" alt="">' : '') +
@@ -169,6 +172,9 @@ window._safeNavGo = window._safeNavGo || function (el) {
     var on = t.className.indexOf('on') === -1;
     t.className = on ? 'toggle on' : 'toggle';
     t.setAttribute('aria-checked', on ? 'true' : 'false');
+    // Say it on screen at once rather than waiting for the round trip, so turning
+    // yourself off never looks like it did nothing.
+    if (!on) { say(0); faces.innerHTML = '<p class="none">Nobody is here just now.</p>'; }
     tell(on);
     // While somebody says they are available we say so every two minutes, so a closed
     // tab drops off by itself rather than leaving a ghost in the room.
@@ -190,7 +196,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
   setInterval(load, 60000);
 })();
 </script>
-<script src="https://2gather.network/nav/topbar.js?v=5.31" defer></script>
+<script src="https://2gather.network/nav/topbar.js?v=5.40" defer></script>
 </body>
 <!--
   Copyright 2026 DayBalancer LLC. All rights reserved.
