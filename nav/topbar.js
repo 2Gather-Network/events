@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V5.40 | Date: 2026-08-26 | LAST CHANGE: your own id comes out of show= as well.
+/*  Version: V5.41 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 previews the full-bleed bar.
+    V5.40 | Date: 2026-08-26 | LAST CHANGE: your own id comes out of show= as well.
     V5.31 | Date: 2026-08-26 | LAST CHANGE: the front door never shows a face.
     V5.30 | Date: 2026-08-26 | LAST CHANGE: Creating.Works pages strip their ids too.
     V5.20 | Date: 2026-08-26 | LAST CHANGE: ids come out of the address bar everywhere, and your photo follows you.
@@ -238,6 +239,31 @@
         });
       })(triggers[b]);
     }
+  }
+
+  // ?chrome=2 — preview of the full-bleed bar (Jessie 2026-08-26). The bar is a child of
+  // <body>, so any page that pads its body pushes the bar in from the edges and the shadow
+  // turns that gutter into a frame. This reads the container's own padding and cancels it,
+  // which works whatever padding a given page uses. Deliberately not width:100vw — that
+  // counts the scrollbar and gives desktop a horizontal scroll.
+  function fullBleed() {
+    var host = document.getElementById('cw-topbar');
+    if (!host) return;
+    var p  = host.parentElement || document.body;
+    var cs = window.getComputedStyle(p);
+    host.style.marginLeft  = '-' + (parseFloat(cs.paddingLeft) || 0) + 'px';
+    host.style.marginRight = '-' + (parseFloat(cs.paddingRight) || 0) + 'px';
+    host.style.marginTop   = '-' + (parseFloat(cs.paddingTop) || 0) + 'px';
+    host.style.marginBottom = '18px';
+    var bar = host.querySelector('.cwtb-bar');
+    if (bar) bar.style.boxShadow = 'none';
+  }
+  function maybeFullBleed() {
+    try {
+      if (!/[?&]chrome=2\b/.test(window.location.search)) return;
+      fullBleed();
+      window.addEventListener('resize', fullBleed);
+    } catch (e) {}
   }
 
   function style() {
@@ -541,6 +567,7 @@
     if (framed && HIDE_INSIDE_GLIDE) return;
     style();
     draw();
+    maybeFullBleed();
     watchForPhoto();
     fetchPhotoOnce();
     askToSignIn();
