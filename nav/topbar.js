@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V4.51 | Date: 2026-08-26 | LAST CHANGE: a page that is somebody's own asks first and draws nothing else.
+/*  Version: V5.00 | Date: 2026-08-26 | LAST CHANGE: Sign in is ours, and it carries you back where you were.
+    V4.51 | Date: 2026-08-26 | LAST CHANGE: a page that is somebody's own asks first and draws nothing else.
     V4.12 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
@@ -27,7 +28,12 @@
   // it. When our own sign-in page exists, this one line points every page at it, on
   // both domains, because every page reads it from here rather than holding its own
   // copy. Pages read window.CW_SIGNIN, so it is set before anything draws.
-  window.CW_SIGNIN = window.CW_SIGNIN || 'https://appear.network/';
+  window.CW_SIGNIN = window.CW_SIGNIN || (function () {
+    try {
+      var back = window.location.pathname + window.location.search;
+      return 'https://2gather.network/signin/?next=' + encodeURIComponent(back);
+    } catch (e) { return 'https://2gather.network/signin/'; }
+  })();
   window.CW_SIGNUP = window.CW_SIGNUP || 'https://appear.network/';
   var HIDE_INSIDE_GLIDE = true;   // inside the Glide frame Glide already draws its own bar
 
