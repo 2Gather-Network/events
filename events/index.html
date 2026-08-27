@@ -1805,6 +1805,10 @@ async function loadEvents() {
       const allRows = (data.events || []).filter(r => r.id).map(sheetToEv);
       RECURRING_EVENTS = allRows.filter(e => e.id.startsWith("rec-") && e.recurFreq && e.dayOfWeek);
       events = allRows.filter(e => !e.id.startsWith("rec-"));
+      // The first-load path calls this; the retry path did not, so a visitor whose first
+      // request failed saw cancelled occurrences as live unless a previous visit had
+      // already cached them in localStorage.
+      syncCancelledOccurrences(events);
     } catch(e2) {
       console.warn("Events retry also failed - showing recurring events only", e2);
       const bar = document.getElementById("loading-bar");
@@ -4858,6 +4862,10 @@ function renderForYou() {
   const allEv = [...events, ...(typeof getAllRecurring === "function" ? getAllRecurring(2) : [])];
   const matchedAll = allEv.filter(ev => {
     if (!ev.date) return false;
+    // A cancelled- row is a marker that switches off one date of a series, not an event.
+    // The main list already drops these; For You never got the same guard, so markers were
+    // rendering as cards (they carry a date and a title, so they match interests).
+    if (String(ev.id || "").startsWith("cancelled-")) return false;
     const d = new Date(ev.date + "T00:00:00");
     if (d < now) return false;
     if (ev.cancelled || cancelledOccurrences.has(ev.id)) return false;
