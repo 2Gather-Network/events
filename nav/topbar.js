@@ -84,13 +84,16 @@
   // ---- who is looking -------------------------------------------------------
   // Only these names carry a person. `id` is a group id on group.html and an
   // event id on event.html, so it is never read here.
+  // One definition of who is looking, shared with every page. nav/identity.js loads
+  // synchronously ahead of this file and has already resolved and remembered them.
+  // The fallback below only runs if identity.js failed to load, so the bar still works.
   function me() {
+    if (window.CW && window.CW.me) { return window.CW.me().id; }
     try {
       var p = new URLSearchParams(window.location.search);
       var fromUrl = String(p.get('CWid') || p.get('memberCard') || p.get('me') || p.get('appearId') || '').trim();
       if (fromUrl) return fromUrl;
     } catch (e) {}
-    // the address may already have been cleaned, so fall back to what this device knows
     try { return String(window.CW_ID || localStorage.getItem('cw-id') || localStorage.getItem('appear-id') || '').trim(); }
     catch (e) { return ''; }
   }
