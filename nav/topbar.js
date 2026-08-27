@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V4.00 | Date: 2026-08-26 | LAST CHANGE: every link points at 2gather.network.
+/*  Version: V4.10 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
     Change a label, a link or the order here and every page changes with it.
@@ -37,7 +37,7 @@
   var MYGROUPS = 'https://2gather.network/mygroups';
   var START    = 'https://2gather.network/groups/create';
   var JOIN     = 'https://2gather.network/mygroups?join=1';
-  var FINDTIME = 'https://2gather.network/find-a-time.html';
+  var FINDTIME = 'https://2gather.network/find-a-time';
   var COMMONS  = 'https://events.2gather.network/events/yvrgej/zkxbzq';   // The Commons room, still
                                                                           // reachable from a group's Gather button
   var PROFILE  = 'https://creating.works/profile';
@@ -150,6 +150,8 @@
       '</div>' + rows;
 
     document.body.insertBefore(el, document.body.firstChild);
+    // A page that draws its own mark and tagline would show them twice now
+    document.documentElement.className += ' cwtb-drawn';
 
     // one menu open at a time, as a panel under the tab that opened it
     var triggers = el.querySelectorAll('[data-menu]');
