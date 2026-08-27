@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V4.30 | Date: 2026-08-26 | LAST CHANGE: Sign in lives in the bar when nobody is known.
+/*  Version: V4.40 | Date: 2026-08-26 | LAST CHANGE: Sign in and Sign up both live in the bar.
     V4.12 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
@@ -28,6 +28,7 @@
   // both domains, because every page reads it from here rather than holding its own
   // copy. Pages read window.CW_SIGNIN, so it is set before anything draws.
   window.CW_SIGNIN = window.CW_SIGNIN || 'https://appear.network/';
+  window.CW_SIGNUP = window.CW_SIGNUP || 'https://appear.network/';
   var HIDE_INSIDE_GLIDE = true;   // inside the Glide frame Glide already draws its own bar
 
   // ---- addresses, all of them, in one place ---------------------------------
@@ -144,7 +145,10 @@
         (window.CW_TOPBAR_PHOTO ? '<img src="' + window.CW_TOPBAR_PHOTO + '" alt="">' : '') + '</a>'
       : '<a role="link" tabindex="0" class="cwtb-signin" data-nav="' +
         (window.CW_SIGNIN || 'https://appear.network/') +
-        '" onclick="return _safeNavGo(this)">Sign in</a>';
+        '" onclick="return _safeNavGo(this)">Sign in</a>' +
+        '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost" data-nav="' +
+        (window.CW_SIGNUP || 'https://appear.network/') +
+        '" onclick="return _safeNavGo(this)">Sign up</a>';
 
     var el = document.createElement('div');
     el.id = 'cw-topbar';
@@ -237,6 +241,9 @@
       '.cwtb-signin{flex-shrink:0;background:#fff;color:#1F699E;font-size:14px;font-weight:700;' +
         'padding:9px 18px;border-radius:22px;text-decoration:none;cursor:pointer;white-space:nowrap;}' +
       '.cwtb-signin:hover{background:#F7FBFF;}' +
+      '.cwtb-ghost{background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55);margin-left:8px;}' +
+      '.cwtb-ghost:hover{background:rgba(255,255,255,.12);}' +
+      '@media(max-width:700px){.cwtb-signin{padding:8px 13px;font-size:13px;}.cwtb-ghost{margin-left:6px;}}' +
       '.cwtb-row{display:none;position:absolute;min-width:236px;background:#fff;border-radius:14px;' +
         'padding:10px 0;box-shadow:0 14px 34px rgba(15,45,70,.28);z-index:20;}' +
       '.cwtb-row.cwtb-open{display:block;}' +
