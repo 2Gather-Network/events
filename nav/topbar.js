@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V5.30 | Date: 2026-08-26 | LAST CHANGE: Creating.Works pages strip their ids too.
+/*  Version: V5.31 | Date: 2026-08-26 | LAST CHANGE: the front door never shows a face.
+    V5.30 | Date: 2026-08-26 | LAST CHANGE: Creating.Works pages strip their ids too.
     V5.20 | Date: 2026-08-26 | LAST CHANGE: ids come out of the address bar everywhere, and your photo follows you.
     V5.00 | Date: 2026-08-26 | LAST CHANGE: Sign in is ours, and it carries you back where you were.
     V4.51 | Date: 2026-08-26 | LAST CHANGE: a page that is somebody's own asks first and draws nothing else.
@@ -148,12 +149,16 @@
     // Three states, and no empty circle among them. With a photo, the photo. Known
     // but no photo yet, the words instead, which the photo replaces when it arrives.
     // Not known, the two doors.
+    // On the sign-in page itself there is no face to show, whatever the device
+    // remembers. Somebody standing at the front door is not through it yet.
+    var atDoor = (window.location.pathname || '').toLowerCase().indexOf('/signin') === 0;
+
     var photo;
-    if (me() && window.CW_TOPBAR_PHOTO) {
+    if (!atDoor && me() && window.CW_TOPBAR_PHOTO) {
       photo = '<a role="link" tabindex="0" class="cwtb-face" title="My profile" data-nav="' +
               link(EDITME, 'CWid') + '" onclick="return _safeNavGo(this)">' +
               '<img src="' + window.CW_TOPBAR_PHOTO + '" alt=""></a>';
-    } else if (me()) {
+    } else if (!atDoor && me()) {
       photo = '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost cwtb-mine" data-nav="' +
               link(EDITME, 'CWid') + '" onclick="return _safeNavGo(this)">My profile</a>';
     } else {
