@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V4.50 | Date: 2026-08-26 | LAST CHANGE: a page that is somebody's own asks first and draws nothing else.
+/*  Version: V4.51 | Date: 2026-08-26 | LAST CHANGE: a page that is somebody's own asks first and draws nothing else.
     V4.12 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
 
     ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
@@ -248,9 +248,12 @@
       '.cwtb-ask-card h1{font-size:22px;font-weight:800;color:#1A2E42;margin:0 0 8px;line-height:1.3;}' +
       '.cwtb-ask-card p{font-size:15px;color:#6B7A8D;line-height:1.55;margin:0 0 22px;}' +
       '.cwtb-ask-row{display:flex;gap:10px;flex-wrap:wrap;}' +
-      '.cwtb-ask-go{background:#1F699E;color:#fff;font-size:15px;font-weight:700;padding:12px 24px;' +
-        'border-radius:24px;text-decoration:none;cursor:pointer;}' +
-      '.cwtb-ask-ghost{background:#fff;color:#1F699E;box-shadow:inset 0 0 0 1.5px #C9DFF3;}' +
+      // A page's own link colour was bleeding into these, so the filled button lost its text.
+      '.cwtb-ask-go{background:#1F699E !important;color:#fff !important;font-size:15px;font-weight:700;' +
+        'padding:12px 24px;border-radius:24px;text-decoration:none !important;cursor:pointer;' +
+        'display:inline-block;line-height:1.2;}' +
+      '.cwtb-ask-ghost{background:#fff !important;color:#1F699E !important;' +
+        'box-shadow:inset 0 0 0 1.5px #C9DFF3;}' +
       '@media(max-width:700px){.cwtb-signin{padding:8px 13px;font-size:13px;}.cwtb-ghost{margin-left:6px;}}' +
       '.cwtb-row{display:none;position:absolute;min-width:236px;background:#fff;border-radius:14px;' +
         'padding:10px 0;box-shadow:0 14px 34px rgba(15,45,70,.28);z-index:20;}' +
