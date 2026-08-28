@@ -45,7 +45,7 @@
       return SIGNIN + '?next=' + encodeURIComponent(here + window.location.search);
     } catch (e) { return SIGNIN; }
   })();
-  window.CW_SIGNUP = window.CW_SIGNUP || 'https://appear.network/';
+  window.CW_SIGNUP = window.CW_SIGNUP || 'https://2gather.network/signup/';
   var HIDE_INSIDE_GLIDE = true;   // inside the Glide frame Glide already draws its own bar
 
   // ---- addresses, all of them, in one place ---------------------------------
@@ -174,10 +174,10 @@
               link(EDITME, 'CWid') + '" onclick="return _safeNavGo(this)">My profile</a>';
     } else {
       photo = '<a role="link" tabindex="0" class="cwtb-signin" data-nav="' +
-              (window.CW_SIGNIN || 'https://appear.network/') +
+              (window.CW_SIGNIN || 'https://2gather.network/signin/') +
               '" onclick="return _safeNavGo(this)">Sign in</a>' +
               '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost" data-nav="' +
-              (window.CW_SIGNUP || 'https://appear.network/') +
+              (window.CW_SIGNUP || 'https://2gather.network/signup/') +
               '" onclick="return _safeNavGo(this)">Sign up</a>';
     }
 
@@ -492,10 +492,10 @@
         '<p>They are here waiting. We just need to know who you are.</p>' +
         '<div class="cwtb-ask-row">' +
           '<a role="link" tabindex="0" class="cwtb-ask-go" data-nav="' +
-            (window.CW_SIGNIN || 'https://appear.network/') +
+            (window.CW_SIGNIN || 'https://2gather.network/signin/') +
             '" onclick="return _safeNavGo(this)">Sign in</a>' +
           '<a role="link" tabindex="0" class="cwtb-ask-go cwtb-ask-ghost" data-nav="' +
-            (window.CW_SIGNUP || 'https://appear.network/') +
+            (window.CW_SIGNUP || 'https://2gather.network/signup/') +
             '" onclick="return _safeNavGo(this)">Sign up</a>' +
         '</div>' +
       '</div>';
