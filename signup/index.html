@@ -48,6 +48,10 @@
   .quiet a{color:var(--brand);font-weight:700;cursor:pointer;text-decoration:none;}
   .step2{display:none;}
   .step0{display:none;}
+  .agree{margin:20px 0 12px;font-size:13.5px;color:var(--soft);line-height:1.6;}
+  .agree a{color:var(--brand);font-weight:700;}
+  .tick{display:flex;align-items:flex-start;gap:10px;font-size:14px;font-weight:500;margin:0 0 10px;line-height:1.45;cursor:pointer;}
+  .tick input{width:18px;height:18px;flex-shrink:0;margin:1px 0 0;accent-color:var(--brand);}
 </style>
   <script src="/nav/identity.js?v=1"></script>
   <script src="/nav/firststop.js?v=1"></script>
@@ -68,8 +72,16 @@
       <p class="lede">One profile across: DayBalancer, Appear, 2Gather</p>
       <label for="first">Your first name</label>
       <input id="first" type="text" autocomplete="given-name">
+      <label for="last" style="margin-top:16px;">Your last name</label>
+      <input id="last" type="text" autocomplete="family-name">
       <label for="email" style="margin-top:16px;">Your email</label>
       <input id="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com">
+      <p class="agree">By creating an account, you agree to our
+        <a href="https://creating.works/terms-of-service.html">Terms of Service</a>,
+        <a href="https://creating.works/privacy-policy.html">Privacy Policy</a>, and
+        <a href="https://creating.works/code-of-conduct.html">Code of Conduct</a>.</p>
+      <label class="tick"><input id="agree" type="checkbox"> I read these and I agree to them.</label>
+      <label class="tick"><input id="over18" type="checkbox"> I confirm that I am at least 18 years of age or older.</label>
       <button id="send">Send my code</button>
       <div class="say" id="say1"></div>
       <p class="quiet">Already here? <a role="link" tabindex="0" data-nav="/signin/"
@@ -115,6 +127,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
 
   var email = '';
   var first = '';
+  var last = '';
 
   function tell(which, msg, good) {
     var el = document.getElementById(which);
@@ -126,16 +139,23 @@ window._safeNavGo = window._safeNavGo || function (el) {
   function sendCode(againBtn) {
     var v = document.getElementById('email').value.trim();
     var f = document.getElementById('first');
+    var l = document.getElementById('last');
     var firstName = f ? f.value.trim() : '';
-    if (!firstName) { tell('say1', 'Put in the name you would like people to see.', false); f.focus(); return; }
+    var lastName = l ? l.value.trim() : '';
+    if (!firstName) { tell('say1', 'Put in the first name you would like people to see.', false); f.focus(); return; }
+    if (!lastName) { tell('say1', 'Put in your last name.', false); l.focus(); return; }
     if (!v || v.indexOf('@') === -1) { tell('say1', 'Put in the email you use here.', false); return; }
+    if (!document.getElementById('agree').checked) { tell('say1', 'Please read the terms and tick the box to agree.', false); return; }
+    if (!document.getElementById('over18').checked) { tell('say1', 'You need to be eighteen or older to have an account here.', false); return; }
     email = v;
     first = firstName;
+    last = lastName;
     var btn = document.getElementById('send');
     btn.disabled = true;
     btn.textContent = 'Sending…';
 
-    fetch(GS_URL + '?action=sendSigninPin&signup=1&first=' + encodeURIComponent(first)
+    fetch(GS_URL + '?action=sendSigninPin&signup=1&terms=1&age=1'
+          + '&first=' + encodeURIComponent(first) + '&last=' + encodeURIComponent(last)
           + '&email=' + encodeURIComponent(email))
       .then(function (r) { return r.json(); })
       .then(function () {
@@ -182,11 +202,15 @@ window._safeNavGo = window._safeNavGo || function (el) {
     if (e.key === 'Enter') { e.preventDefault(); sendCode(); }
   });
   document.getElementById('first').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('last').focus(); }
+  });
+  document.getElementById('last').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { e.preventDefault(); document.getElementById('email').focus(); }
   });
 
   document.getElementById('again').addEventListener('click', function () {
-    fetch(GS_URL + '?action=sendSigninPin&signup=1&first=' + encodeURIComponent(first)
+    fetch(GS_URL + '?action=sendSigninPin&signup=1&terms=1&age=1'
+          + '&first=' + encodeURIComponent(first) + '&last=' + encodeURIComponent(last)
           + '&email=' + encodeURIComponent(email));
     tell('say2', 'Another code is on its way to ' + email + '.', true);
   });
