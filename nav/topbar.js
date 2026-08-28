@@ -61,7 +61,6 @@
                                                                           // reachable from a group's Gather button
   var PROFILE  = 'https://2gather.network/profile';
   var EDITME   = 'https://2gather.network/profile-edit';
-  var ACCOUNT  = 'https://2gather.network/account';
   var ABOUT    = 'https://2gather.network/about';
   var SUPPORT  = 'https://2gather.network/support';
 
@@ -84,7 +83,6 @@
       { label: 'Where do I start?',  url: 'https://2gather.network/welcome/' },
       { label: 'Find a Time (Beta)', url: FINDTIME },
       { label: 'My profile',         url: PROFILE, carry: 'CWid' },
-      { label: 'My account',         url: ACCOUNT, carry: 'CWid' },
       { label: 'About',              url: ABOUT },
       { label: 'Support',            url: SUPPORT },
       { label: 'Sign out',           signOut: true }
