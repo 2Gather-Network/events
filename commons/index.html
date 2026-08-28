@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V1.10 | Date: 2026-08-27 | LAST CHANGE: smaller toggle and button, who is here opens with the toggle, and the count answers the tap at once. -->
+<!-- Version: V1.20 | Date: 2026-08-28 | LAST CHANGE: the commons asks you to sign in, and the room is not loaded until you have. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -72,6 +72,13 @@
   .foot{background:#fff;border-top:1px solid var(--line);padding:11px 20px;color:var(--soft);
         font-size:13px;line-height:1.55;}
   .foot a{color:var(--brand);font-weight:700;cursor:pointer;text-decoration:none;}
+  /* The signed-out screen. In the page rather than over it, so nothing sits on top. */
+  .ask{flex:1;padding:44px 22px 60px;text-align:center;}
+  .ask h1{font-size:20px;font-weight:800;margin:0 0 10px;}
+  .ask p{font-size:15px;color:rgba(255,255,255,.85);margin:0 auto 22px;max-width:420px;line-height:1.55;}
+  .ask a{display:inline-block;background:#fff;color:var(--brand);font-size:15px;font-weight:700;
+         padding:11px 24px;border-radius:26px;text-decoration:none;cursor:pointer;margin:0 5px;}
+  .ask a.ghost{background:transparent;color:#fff;box-shadow:inset 0 0 0 2px rgba(255,255,255,.6);}
   @media(max-width:700px){ iframe{min-height:420px;} }
 </style>
   <script src="https://2gather.network/nav/identity.js?v=1"></script>
@@ -106,7 +113,7 @@
           title="The Commons"
           allow="camera; microphone; display-capture; autoplay; fullscreen"
           allowfullscreen
-          src="https://events.2gather.network/events/yvrgej/zkxbzq"></iframe>
+          data-src="https://events.2gather.network/events/yvrgej/zkxbzq"></iframe>
 </div>
 
 <div class="foot">
@@ -134,6 +141,51 @@ window._safeNavGo = window._safeNavGo || function (el) {
                     localStorage.getItem('appear-id') || '').trim();
     } catch (e) { return ''; }
   }
+
+  // Being listed in the commons publishes a name and a photo, so the page asks for a real
+  // sign-in rather than an id the device happens to remember. An id is only a claim.
+  function session() {
+    try {
+      var tok = localStorage.getItem('cw-token') || '';
+      if (!tok) {
+        var who = String(localStorage.getItem('cw-id') || localStorage.getItem('appear-id') || '')
+                    .split('.').join('').toLowerCase();
+        if (who) {
+          var kept = JSON.parse(localStorage.getItem('cw-edit-' + who) || 'null');
+          if (kept && kept.t) tok = kept.t;
+        }
+      }
+      if (!tok) return '';
+      var exp = parseInt(String(tok).split('.')[1], 10);
+      if (!exp || exp < Date.now()) return '';
+      return tok;
+    } catch (e) { return ''; }
+  }
+
+  var TOKEN = session();
+  if (!TOKEN) {
+    // The room is never fetched, so nobody who has not signed in loads it at all.
+    ['.head', '.fold', '.here', '.stage'].forEach(function (sel) {
+      var el = document.querySelector(sel);
+      if (el) { el.parentNode.removeChild(el); }
+    });
+    var ask = document.createElement('div');
+    ask.className = 'ask';
+    ask.innerHTML =
+      '<h1>Sign in to come into the commons.</h1>' +
+      '<p>The room shows who is here by name and photo, so it asks who you are before you go in.</p>' +
+      '<a role="link" tabindex="0" data-nav="https://2gather.network/signin?next=/commons/" ' +
+        'onclick="return _safeNavGo(this)">Sign in</a>' +
+      '<a class="ghost" role="link" tabindex="0" data-nav="https://appear.network/" ' +
+        'onclick="return _safeNavGo(this)">Sign up</a>';
+    // Before the support line, so that stays at the foot of the page rather than above the ask.
+    var foot = document.querySelector('.foot');
+    if (foot) { document.body.insertBefore(ask, foot); } else { document.body.appendChild(ask); }
+    return;
+  }
+
+  var room = document.getElementById('room');
+  if (room) { room.src = room.getAttribute('data-src'); }
 
   var t = document.getElementById('avail');
   var count = document.getElementById('count');
@@ -183,7 +235,8 @@ window._safeNavGo = window._safeNavGo || function (el) {
     var who = me();
     if (!who) return;
     fetch(GS_URL + '?action=setPresence&userID=' + encodeURIComponent(who) +
-          '&groupId=' + encodeURIComponent(ROOM) + '&available=' + (on ? 'true' : 'false'))
+          '&groupId=' + encodeURIComponent(ROOM) + '&available=' + (on ? 'true' : 'false') +
+          '&editToken=' + encodeURIComponent(TOKEN))
       .then(function () { load(); })
       .catch(function () {});
   }
