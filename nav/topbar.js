@@ -36,10 +36,14 @@
   // both domains, because every page reads it from here rather than holding its own
   // copy. Pages read window.CW_SIGNIN, so it is set before anything draws.
   window.CW_SIGNIN = window.CW_SIGNIN || (function () {
+    var SIGNIN = 'https://2gather.network/signin/';
     try {
-      var back = window.location.pathname + window.location.search;
-      return 'https://2gather.network/signin/?next=' + encodeURIComponent(back);
-    } catch (e) { return 'https://2gather.network/signin/'; }
+      var here = window.location.pathname || '';
+      // Already on sign-in: carrying this page as the way back would send somebody
+      // who just entered a code straight back to entering a code.
+      if (here.indexOf('/signin') === 0) { return SIGNIN; }
+      return SIGNIN + '?next=' + encodeURIComponent(here + window.location.search);
+    } catch (e) { return SIGNIN; }
   })();
   window.CW_SIGNUP = window.CW_SIGNUP || 'https://appear.network/';
   var HIDE_INSIDE_GLIDE = true;   // inside the Glide frame Glide already draws its own bar
