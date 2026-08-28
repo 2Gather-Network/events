@@ -59,9 +59,9 @@
   var FINDTIME = 'https://2gather.network/find-a-time';
   var COMMONS  = 'https://events.2gather.network/events/yvrgej/zkxbzq';   // The Commons room, still
                                                                           // reachable from a group's Gather button
-  var PROFILE  = 'https://creating.works/profile';
-  var EDITME   = 'https://creating.works/profile-edit';
-  var ACCOUNT  = 'https://creating.works/account';
+  var PROFILE  = 'https://2gather.network/profile';
+  var EDITME   = 'https://2gather.network/profile-edit';
+  var ACCOUNT  = 'https://2gather.network/account';
   var ABOUT    = 'https://2gather.network/about';
   var SUPPORT  = 'https://2gather.network/support';
 
@@ -83,7 +83,8 @@
     { key: 'more', label: 'More', items: [
       { label: 'Where do I start?',  url: 'https://2gather.network/welcome/' },
       { label: 'Find a Time (Beta)', url: FINDTIME },
-      { label: 'My profile',         url: ACCOUNT, carry: 'CWid' },
+      { label: 'My profile',         url: PROFILE, carry: 'CWid' },
+      { label: 'My account',         url: ACCOUNT, carry: 'CWid' },
       { label: 'About',              url: ABOUT },
       { label: 'Support',            url: SUPPORT },
       { label: 'Sign out',           signOut: true }
@@ -175,11 +176,11 @@
     var photo;
     if (!atDoor && me() && window.CW_TOPBAR_PHOTO) {
       photo = '<a role="link" tabindex="0" class="cwtb-face" title="My profile" data-nav="' +
-              link(EDITME, 'CWid') + '" onclick="return _safeNavGo(this)">' +
+              link(PROFILE, 'CWid') + '" onclick="return _safeNavGo(this)">' +
               '<img src="' + window.CW_TOPBAR_PHOTO + '" alt=""></a>';
     } else if (!atDoor && me()) {
       photo = '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost cwtb-mine" data-nav="' +
-              link(EDITME, 'CWid') + '" onclick="return _safeNavGo(this)">My profile</a>';
+              link(PROFILE, 'CWid') + '" onclick="return _safeNavGo(this)">My profile</a>';
     } else {
       photo = '<a role="link" tabindex="0" class="cwtb-signin" data-nav="' +
               (window.CW_SIGNIN || 'https://2gather.network/signin/') +
