@@ -23,7 +23,7 @@
 
   var WHO   = ['CWid', 'memberCard', 'appearId', 'me'];
   var KEEP  = ['cw-id', 'appear-id'];           // where a person is remembered
-  var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-token'];
+  var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-token', 'cw-first'];
 
   function ls(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
 
