@@ -633,19 +633,23 @@
 
     var bar = d.createElement('div');
     bar.id = 'cw-viewas';
-    bar.style.cssText = 'position:sticky;top:0;z-index:99999;display:flex;align-items:center;gap:10px;'
+    bar.style.cssText = 'position:relative;z-index:4;display:flex;align-items:center;gap:10px;'
       + 'flex-wrap:wrap;padding:7px 14px;font:600 13px/1.4 "DM Sans",system-ui,sans-serif;'
-      + (seen ? 'background:#B8862F;color:#fff;' : 'background:#1A2E42;color:#fff;');
+      + 'background:#fff;color:#1A2E42;border-bottom:1px solid #E3EAF0;'
+      // White throughout, as asked. Standing in somebody else's shoes still has to be
+      // impossible to miss, so that state keeps an amber edge and an amber name.
+      + (seen ? 'box-shadow:inset 4px 0 0 #B8862F;' : '');
 
     var says = d.createElement('span');
     says.textContent = seen ? ('Viewing as ' + (name || seen)) : 'Viewing as yourself';
+    if (seen) { says.style.color = '#8A6220'; }
     bar.appendChild(says);
 
     var pick = d.createElement('button');
     pick.type = 'button';
     pick.textContent = seen ? 'Someone else' : 'View as someone';
     pick.style.cssText = 'font:inherit;padding:4px 12px;border-radius:14px;cursor:pointer;'
-      + 'border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;';
+      + 'border:1px solid #C3D0DB;background:transparent;color:#1A2E42;';
     pick.onclick = function () { open(bar); };
     bar.appendChild(pick);
 
@@ -654,19 +658,23 @@
       stop.type = 'button';
       stop.textContent = 'Back to me';
       stop.style.cssText = 'font:inherit;padding:4px 12px;border-radius:14px;cursor:pointer;'
-        + 'border:0;background:#fff;color:#1A2E42;font-weight:800;';
+        + 'border:0;background:#1A2E42;color:#fff;font-weight:800;';
       stop.onclick = function () { w.CW.stopViewing(); w.location.reload(); };
       bar.appendChild(stop);
     }
 
-    d.body.insertBefore(bar, d.body.firstChild);
+    // Under the nav, not over it. It used to go in at the very top of the page, which put it
+    // above the bar and pushed the whole site down by its height.
+    var nav = d.getElementById('cw-topbar');
+    if (nav && nav.parentNode) { nav.parentNode.insertBefore(bar, nav.nextSibling); }
+    else { d.body.insertBefore(bar, d.body.firstChild); }
   }
 
   function open(bar) {
     var old = d.getElementById('cw-viewas-pick'); if (old) { old.remove(); return; }
     var panel = d.createElement('div');
     panel.id = 'cw-viewas-pick';
-    panel.style.cssText = 'position:sticky;top:34px;z-index:99999;background:#fff;color:#1A2E42;'
+    panel.style.cssText = 'position:relative;z-index:4;background:#fff;color:#1A2E42;'
       + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "DM Sans",system-ui,sans-serif;';
 
     var inp = d.createElement('input');
