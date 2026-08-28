@@ -82,7 +82,7 @@
     { key:'introValues', need:false, q:'What do you care about?',
       hint:'What matters to you, and what you want more of in the world.',
       ph:'Housing, food security, keeping the lake swimmable…' },
-    { key:'introOffer',  need:false, q:'Do you have anything to offer right now?',
+    { key:'introOffer',  need:false, q:'Do you have a thing you want to offer right now?',
       hint:'A thing, a space, or a resource you can share.',
       ph:'A spare room for the month of September, a truck for moving stuff, a meeting space to meet each week, and gardening tools.' }
   ];
@@ -128,6 +128,88 @@
                    ] },
   };
   var _gpChipsPicked = {};
+  var _gpLangPicked = {}, _gpMethodPicked = {};
+  var GP_LANGS = ['English','Mandarin','Cantonese','Hindi','Spanish','Arabic','Bengali','Portuguese','French','Urdu',
+    'Russian','Indonesian','German','Japanese','Swahili','Marathi','Telugu','Turkish','Tamil','Vietnamese','Korean',
+    'Italian','Thai','Persian (Farsi)','Polish','Pashto','Punjabi','Ukrainian','Malayalam','Kannada','Romanian','Dutch',
+    'Greek','Czech','Hungarian','Gujarati','Somali','Swedish','Norwegian','Hebrew','Danish','Finnish','Albanian',
+    'Croatian','Lithuanian','Nepali','Khmer (Cambodian)','Hmong','Estonian','Laotian','Sign Language'];
+  // The short form, spelled exactly as the profile stores it, so the two pages never disagree
+  // about what somebody said.
+  var GP_METHODS = ['\u{1F5C2} Organizing and planning','\u{1F527} Repairing and fixing',
+    '\u{1F4DA} Demonstrating what I know','\u{1F9ED} Consulting and advising',
+    '\u{1F300} Facilitating and coaching','\u{1F3A8} Making and designing','\u{1F33F} Caring and healing'];
+
+  function gpPickRow(all, picked, firstN){
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+    function btn(word){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = word;
+      var paint = function(){
+        b.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
+          + (picked[word]
+              ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;'
+              : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;');
+      };
+      paint();
+      b.addEventListener('click', function(){ picked[word] = !picked[word]; paint(); });
+      return b;
+    }
+    var shown = all.filter(function(w, i){ return !firstN || i < firstN || picked[w]; });
+    var rest  = all.filter(function(w){ return shown.indexOf(w) === -1; });
+    shown.forEach(function(w){ row.appendChild(btn(w)); });
+    if (rest.length) {
+      row.appendChild(gpMoreBtn('More', function(){
+        rest.forEach(function(w){ row.appendChild(btn(w)); });
+      }));
+    }
+    return { row: row, add: function(w){ picked[w] = true; row.appendChild(btn(w)); } };
+  }
+
+  function gpBlock(title, hint, body){
+    var w = document.createElement('div');
+    w.style.cssText = 'padding:18px 0;border-top:1px solid #f0f1f5;';
+    var t = document.createElement('div');
+    t.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;';
+    t.textContent = title;
+    var h = document.createElement('div');
+    h.style.cssText = 'font-size:13.5px;color:#6B7A8D;margin-bottom:12px;';
+    h.textContent = hint;
+    w.appendChild(t); w.appendChild(h); w.appendChild(body);
+    return w;
+  }
+
+  function gpLanguagesBlock(){
+    var picker = gpPickRow(GP_LANGS, _gpLangPicked, 8);
+    var wrap = document.createElement('div');
+    wrap.appendChild(picker.row);
+    var line = document.createElement('div');
+    line.style.cssText = 'display:flex;gap:8px;margin-top:10px;';
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = 'Another language';
+    inp.style.cssText = 'flex:1;min-width:0;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;'
+      + 'padding:9px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
+    var add = document.createElement('button');
+    add.type = 'button';
+    add.textContent = 'Add';
+    add.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:9px 18px;border-radius:20px;'
+      + 'border:0;background:#1F699E;color:#fff;cursor:pointer;';
+    function commit(){ var v = inp.value.trim(); if (!v) return; picker.add(v); inp.value = ''; inp.focus(); }
+    add.addEventListener('click', commit);
+    inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); commit(); } });
+    line.appendChild(inp); line.appendChild(add);
+    wrap.appendChild(line);
+    return gpBlock('Which languages do you speak?', 'So people know they can talk to you in theirs.', wrap);
+  }
+
+  function gpMethodsBlock(){
+    return gpBlock('What comes most naturally to you?',
+      'How you like to help, rather than what you know.',
+      gpPickRow(GP_METHODS, _gpMethodPicked, 0).row);
+  }
 
   // Faces on the chips. The reference sheet carries an emoji for exactly one list, the seven
   // ways of helping, and nothing else, so these are picked here for now. When an emoji column
@@ -339,7 +421,11 @@
       var chipRow = gpChipRow(q.key, ta);
       if (chipRow) wrap.appendChild(chipRow);
       box.appendChild(wrap);
-      if (q.key === 'introSkills') box.appendChild(gpThanksBlock());
+      if (q.key === 'introSkills') {
+        box.appendChild(gpLanguagesBlock());
+        box.appendChild(gpMethodsBlock());
+        box.appendChild(gpThanksBlock());
+      }
     });
   }
 
@@ -390,8 +476,11 @@
     btn.disabled = true;
     stat.style.color = '#6B7A8D';
     stat.textContent = 'Saving…';
+    var picked = function(map, sep){ return Object.keys(map).filter(function(k){ return map[k]; }).join(sep); };
     var qs = 'action=saveIntro&appearId=' + encodeURIComponent(meId)
-      + '&appreciation=' + encodeURIComponent(Object.keys(_gpThanksPicked).filter(function(k){ return _gpThanksPicked[k]; }).join('|'));
+      + '&appreciation=' + encodeURIComponent(picked(_gpThanksPicked, '|'))
+      + '&languages=' + encodeURIComponent(picked(_gpLangPicked, ', '))
+      + '&methods=' + encodeURIComponent(picked(_gpMethodPicked, '|'));
     GP_INTRO_Q.forEach(function(q){ qs += '&' + q.key + '=' + encodeURIComponent(val(q.key)); });
     fetch(GS_URL + '?' + qs)
       .then(function(r){ return r.json(); })
@@ -458,6 +547,13 @@
             }
           }
           if (v) { use[q.key] = v; any = true; }
+        });
+        // Anything already chosen shows as chosen, so nobody picks their own languages twice.
+        String(have.languages || '').split(/[|,]/).forEach(function(l){
+          var v = String(l).trim(); if (v) { _gpLangPicked[v] = true; any = true; }
+        });
+        String(have.methods || '').split('|').forEach(function(m){
+          var v = String(m).trim(); if (v) { _gpMethodPicked[v] = true; any = true; }
         });
         if (any) { gpRenderIntro(use); }
       })
