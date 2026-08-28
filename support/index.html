@@ -77,15 +77,22 @@
       </select>
     </div>
 
-    <div class="row">
-      <label for="name">Your name</label>
-      <input id="name" type="text" autocomplete="name">
+    <div class="row" id="known" style="display:none;">
+      <div class="hint" id="known-say"></div>
+      <a role="link" tabindex="0" id="known-change" style="font-size:13.5px;color:#1F699E;font-weight:700;cursor:pointer;">Use a different name or address</a>
     </div>
 
-    <div class="row">
-      <label for="email">Your email</label>
-      <input id="email" type="email" autocomplete="email" placeholder="Ex: you@example.com">
-      <div class="hint">So somebody can answer you.</div>
+    <div id="ask">
+      <div class="row">
+        <label for="name">Your name</label>
+        <input id="name" type="text" autocomplete="name">
+      </div>
+
+      <div class="row">
+        <label for="email">Your email</label>
+        <input id="email" type="email" autocomplete="email" placeholder="Ex: you@example.com">
+        <div class="hint">So somebody can answer you.</div>
+      </div>
     </div>
 
     <div class="row">
@@ -120,6 +127,46 @@ window._safeNavGo = window._safeNavGo || function (el) {
   // Who sees the open list. The read action checks this again on its own side; this
   // only decides whether the panel is drawn.
   var KEEPERS = ['w.hss', 'whss'];
+
+  // Asking somebody who is signed in for their name and address is the page not bothering to
+  // look. It looks, and says what it found. The fields stay one press away, because somebody
+  // may want an answer sent somewhere else.
+  (function () {
+    if (!who) { return; }
+    var nameEl = document.getElementById('name');
+    var mailEl = document.getElementById('email');
+    var known = document.getElementById('known');
+    var knownSay = document.getElementById('known-say');
+    var ask = document.getElementById('ask');
+    document.getElementById('known-change').addEventListener('click', function () {
+      known.style.display = 'none';
+      ask.style.display = '';
+    });
+    function settle() {
+      if (!nameEl.value || !mailEl.value) { return; }
+      knownSay.textContent = 'We will reply to ' + nameEl.value + ' at ' + mailEl.value + '.';
+      known.style.display = '';
+      ask.style.display = 'none';
+    }
+    fetch(GS_URL + '?action=lookupProfile&appearId=' + encodeURIComponent(who))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.name) { nameEl.value = d.name; settle(); } })
+      .catch(function () {});
+    var tok = '';
+    try {
+      var key = 'cw-edit-' + String(who).split('.').join('').toLowerCase();
+      var raw = localStorage.getItem(key);
+      if (raw) { var o = JSON.parse(raw); if (o && o.t) { tok = o.t; } }
+      if (!tok) { tok = localStorage.getItem('cw-token') || ''; }
+    } catch (e) {}
+    if (tok) {
+      fetch(GS_URL + '?action=getAccount&appearId=' + encodeURIComponent(who)
+            + '&editToken=' + encodeURIComponent(tok))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (d && d.status === 'ok' && d.email) { mailEl.value = d.email; settle(); } })
+        .catch(function () {});
+    }
+  })();
 
   var say = document.getElementById('say');
   function tell(msg, good) {
