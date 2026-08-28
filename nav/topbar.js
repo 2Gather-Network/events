@@ -85,7 +85,8 @@
       { label: 'Find a Time (Beta)', url: FINDTIME },
       { label: 'My profile',         url: ACCOUNT, carry: 'CWid' },
       { label: 'About',              url: ABOUT },
-      { label: 'Support',            url: SUPPORT }
+      { label: 'Support',            url: SUPPORT },
+      { label: 'Sign out',           signOut: true }
     ]}
   ];
 
@@ -150,7 +151,13 @@
                 ' tabindex="0" aria-expanded="false" data-menu="' + n.key + '">' + n.label + CARET + '</span>';
         var row = '';
         for (j = 0; j < n.items.length; j++) {
-          row += anchor(n.items[j].label, link(n.items[j].url, n.items[j].carry), 'cwtb-item');
+          var it = n.items[j];
+          if (it.signOut) {
+            if (!me()) { continue; }   // nothing to leave
+            row += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">' + it.label + '</a>';
+            continue;
+          }
+          row += anchor(it.label, link(it.url, it.carry), 'cwtb-item');
         }
         rows += '<div class="cwtb-row" data-row="' + n.key + '">' + row + '</div>';
       } else {
@@ -225,6 +232,15 @@
           if (on) { place(t, r); }
         }
       }
+    }
+    // Leaving is one definition, in identity.js, so this asks it rather than clearing keys of
+    // its own and drifting from what signing out means everywhere else.
+    var outs = el.querySelectorAll('[data-signout]');
+    for (var o = 0; o < outs.length; o++) {
+      outs[o].addEventListener('click', function () {
+        if (window.CW && window.CW.forget) { window.CW.forget(); }
+        window.location.href = 'https://2gather.network/signin/?out=1';
+      });
     }
     document.addEventListener('click', function (e) {
       if (!el.contains(e.target)) { show(''); }
