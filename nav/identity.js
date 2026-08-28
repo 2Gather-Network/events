@@ -79,10 +79,29 @@
     });
   }
 
-  // resolve once, now, before any page script runs
-  var found = fromUrl();
-  if (found) { remember(found); strip(); }
-  else       { found = fromDevice(); if (found) { w.CW_ID = found; } }
+  /* Resolve once, now, before any page script runs.
+
+     An id in the address used to win outright: it was saved over whoever the device already
+     knew and then wiped from the address bar, so opening somebody else's link quietly made
+     you them, with nothing on screen to say so. That was the URL-as-password problem a real
+     sign-in was built to end.
+
+     The address is now believed only when there is nobody to contradict it, or when it names
+     the same person the device already holds. Sign-in still works: it remembers you before it
+     redirects, so the id it carries matches. A link naming somebody else is dropped, and taken
+     out of the address either way, because an id in an address is a credential and does not
+     belong on screen. Signing out first is how you become somebody else on purpose. */
+  var stored = fromDevice();
+  var fromLink = fromUrl();
+  var found = '';
+  if (fromLink && (!stored || normalise(fromLink) === normalise(stored))) {
+    found = remember(fromLink);
+    strip();
+  } else if (stored) {
+    found = stored;
+    w.CW_ID = stored;
+    if (fromLink) { strip(); }
+  }
 
   w.CW = {
     /* The one call. Always the same shape, never null, so CW.me().id cannot throw
