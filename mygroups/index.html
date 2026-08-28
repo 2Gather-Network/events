@@ -36,6 +36,17 @@
   .btn.solid{background:var(--brand);color:#fff;}
   .btn.ghost{background:transparent;color:var(--brand);border:1.5px solid var(--brand);}
   .btn.sm{padding:7px 14px;font-size:13px;}
+  .evhead{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 8px;}
+  .evrow{display:flex;gap:12px;align-items:baseline;padding:10px 12px;border:1px solid var(--line);
+    border-radius:12px;margin-bottom:8px;text-decoration:none;cursor:pointer;background:#fff;}
+  .evrow:hover{background:var(--panel);border-color:var(--panel-line);}
+  .evwhen{flex:0 0 88px;font-size:13px;font-weight:800;color:var(--brand);white-space:nowrap;}
+  .evtext{min-width:0;display:flex;flex-direction:column;gap:2px;}
+  .evtitle{font-size:14px;font-weight:700;color:var(--ink);line-height:1.25;}
+  .evsub{font-size:12.5px;color:var(--soft);}
+  .evmore{display:inline-block;font-size:13.5px;font-weight:700;color:var(--brand);
+    text-decoration:none;cursor:pointer;padding:4px 2px;}
   .layout{display:grid;grid-template-columns:280px 1fr;gap:16px;}
   @media(max-width:760px){.layout{grid-template-columns:1fr;}}
   .rail{background:#fff;border-radius:14px;padding:8px;height:fit-content;}
@@ -306,6 +317,8 @@
   var DEFAULT_GROUP_IMG = 'https://raw.githubusercontent.com/2Gather-Network/events/main/images/2gather_logo.png';
   function groupImg(g){ return String((g && g.image) || '').trim() || DEFAULT_GROUP_IMG; }
   function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  // Same shape the backend uses, so a group id written one way still matches one written another.
+  function _norm(x){ return String(x||'').split('.').join('').toLowerCase(); }
 
   function groupUrl(g, page){
     var base = 'https://2gather.network/';
@@ -349,9 +362,84 @@
           : '')
       + (_runsIt && pending ? '<a class="btn sm" role="link" tabindex="0" data-nav="' + groupUrl(g,'admin') + '" onclick="return _safeNavGo(this)">View requests (' + pending + ')</a>' : '')
       + '</div>';
+    if (_showEvents) html += '<div id="detail-events" style="margin-top:18px;"></div>';
     detail.innerHTML = html;
     _countSeq++;
     loadCounts(g, _countSeq);
+    if (_showEvents) loadGroupEvents(g, _countSeq);
+  }
+
+  // ---- What is on in this group -------------------------------------------
+  // Behind ?events=1 until it is signed off. The events sheet carries a groupId, so this is
+  // the same public feed the calendar reads, narrowed to one group. No new backend call
+  // shape, and the whole feed is fetched once and reused as you click between groups.
+  var _showEvents = (params.get('events') || '') === '1';
+  var EV_SHOWN = 4;                       // more than this and the rest go behind View more
+  var _evAll = null, _evPending = null;
+
+  function _evFeed(){
+    if (_evAll) return Promise.resolve(_evAll);
+    if (_evPending) return _evPending;
+    _evPending = fetch(GS_URL + '?t=1')
+      .then(function(r){ return r.json(); })
+      .then(function(d){ _evAll = (d && d.events) || []; return _evAll; })
+      .catch(function(){ _evAll = []; return _evAll; });
+    return _evPending;
+  }
+
+  function _evDate(e){
+    var t = Date.parse(String(e.date || ''));
+    return isNaN(t) ? 0 : t;
+  }
+  function _evDayLabel(e){
+    var d = new Date(_evDate(e));
+    if (!_evDate(e)) return '';
+    var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var DAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    // The sheet stores a date at midnight UTC, so reading it in local time can slide it a day.
+    return DAY[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + MON[d.getUTCMonth()];
+  }
+
+  function loadGroupEvents(g, seq){
+    var host = document.getElementById('detail-events');
+    if (!host) return;
+    host.innerHTML = '<div style="font-size:13.5px;color:var(--muted);">Looking for what is on…</div>';
+    _evFeed().then(function(all){
+      if (seq !== _countSeq) return;                    // they clicked another group meanwhile
+      var el = document.getElementById('detail-events'); if (!el) return;
+      var target = _norm(g.groupId);
+      var midnight = new Date(); midnight.setHours(0,0,0,0);
+      var mine = all.filter(function(e){
+        if (_norm(e.groupId) !== target) return false;
+        return _evDate(e) >= midnight.getTime();
+      }).sort(function(a,b){ return _evDate(a) - _evDate(b); });
+
+      if (!mine.length) {
+        el.innerHTML = '<div class="evhead">What is on</div>'
+          + '<div style="font-size:13.5px;color:var(--muted);">Nothing on the calendar yet.</div>';
+        return;
+      }
+      var rows = mine.slice(0, EV_SHOWN).map(function(e){
+        var when = _evDayLabel(e);
+        var time = String(e.startTime || '').trim();
+        var where = String(e.venue || e.location || '').trim();
+        var sub = [time, where].filter(Boolean).join(' · ');
+        var url = 'https://2gather.network/events/?event=' + encodeURIComponent(e.id || '');
+        return '<a class="evrow" role="link" tabindex="0" data-nav="' + esc(url) + '"'
+          + ' onclick="return _safeNavGo(this)">'
+          + '<span class="evwhen">' + esc(when) + '</span>'
+          + '<span class="evtext"><span class="evtitle">' + esc(e.title || 'Event') + '</span>'
+          + (sub ? '<span class="evsub">' + esc(sub) + '</span>' : '') + '</span></a>';
+      }).join('');
+
+      var more = mine.length - EV_SHOWN;
+      var tail = more > 0
+        ? '<a class="evmore" role="link" tabindex="0" data-nav="' + esc(groupUrl(g,'group'))
+          + '" onclick="return _safeNavGo(this)">View the other ' + more
+          + (more === 1 ? ' event' : ' events') + '</a>'
+        : '';
+      el.innerHTML = '<div class="evhead">What is on</div>' + rows + tail;
+    });
   }
 
   // getMyGroups reports zero offers and zero needs for every group, so this panel was stating
