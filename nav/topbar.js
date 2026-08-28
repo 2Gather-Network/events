@@ -381,13 +381,20 @@
   function fetchPhotoOnce() {
     var who = me();
     if (!who) return;
+    // Showing the remembered picture straight away is right. Never asking again was not: once
+    // a wrong or out-of-date one was on a device it stayed there for good, and somebody who
+    // changed their photo on Appear kept seeing the old one with no way to correct it. The
+    // remembered one still paints instantly; it is simply checked again once a day behind it.
+    var fresh = false;
     try {
       if (localStorage.getItem('cw-photo-for') === who && localStorage.getItem('cw-photo')) {
         window.CW_TOPBAR_PHOTO = localStorage.getItem('cw-photo');
         adopt();
-        return;
+        var when = parseInt(localStorage.getItem('cw-photo-at') || '0', 10);
+        fresh = !!when && (Date.now() - when) < 86400000;
       }
     } catch (e) {}
+    if (fresh) return;
     try {
       fetch('https://cw-api-gate.jessieupp.workers.dev/?action=lookupProfile&appearId=' +
             encodeURIComponent(who))
@@ -398,6 +405,7 @@
           try {
             localStorage.setItem('cw-photo', d.photo);
             localStorage.setItem('cw-photo-for', who);
+            localStorage.setItem('cw-photo-at', String(Date.now()));
           } catch (e) {}
           adopt();
         })

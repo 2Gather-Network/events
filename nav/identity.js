@@ -1,7 +1,7 @@
 /* Creating.Works — who is looking at this page.
  *
  * Load this FIRST in <head>, with no defer and no async:
- *     <script src="/nav/identity.js?v=1"></script>
+ *     <script src="/nav/identity.js?v=5"></script>
  *
  * It must run before a page's own script, which is the whole reason it exists.
  * topbar.js is deferred, so anything that asked topbar ran too early and got nothing,
@@ -23,7 +23,7 @@
 
   var WHO   = ['CWid', 'memberCard', 'appearId', 'me'];
   var KEEP  = ['cw-id', 'appear-id'];           // where a person is remembered
-  var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-token', 'cw-first',
+  var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-photo-at', 'cw-token', 'cw-first',
                'cw-view-as', 'cw-view-as-name', 'cw-super'];
   /* Looking at the site as somebody else, for the handful of people who run it.
      Deliberately a SEPARATE key from cw-id. Signing in and standing in somebody's shoes are
