@@ -41,8 +41,10 @@
         // Somebody who has just written five sentences about themselves should land on the page
         // that shows them, not on an empty list of groups, which is where the questions go by
         // default.
+        // Finishing the questions lands on a choice of doors rather than on the profile, because
+        // somebody who came to start a group should not be marched through their profile first.
         finish(spoken ? next : '/intro/?first=1&next=' +
-               encodeURIComponent('https://2gather.network/profile-edit/'));
+               encodeURIComponent('https://2gather.network/welcome/'));
       })
       .catch(function () { clearTimeout(timer); finish(next); });
   };
