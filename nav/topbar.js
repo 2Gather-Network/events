@@ -81,6 +81,7 @@
       { label: 'Join a group',  url: JOIN,    carry: 'CWid' }
     ]},
     { key: 'more', label: 'More', items: [
+      { label: 'Where do I start?',  url: 'https://2gather.network/welcome/' },
       { label: 'Find a Time (Beta)', url: FINDTIME },
       { label: 'My profile',         url: ACCOUNT, carry: 'CWid' },
       { label: 'About',              url: ABOUT },
