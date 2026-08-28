@@ -587,3 +587,127 @@
     document.addEventListener('DOMContentLoaded', go);
   } else { go(); }
 })();
+
+/* ── Viewing as somebody else ─────────────────────────────────────────────────
+ * For the handful of people who run this. Standing in somebody's shoes is the only honest way
+ * to answer "what does this look like for them", and guessing from the data never is.
+ *
+ * Three rules it keeps.
+ *   It is never invisible. While it is on, an amber bar sits above everything saying whose
+ *   view this is, on every page, with a way out.
+ *   It is never a write. It sets its own key rather than cw-id, so CW.me().viewing is true and
+ *   anything that saves can refuse. Signing out ends it.
+ *   It is never open. The bar only appears at all once the backend has said this person is a
+ *   super admin, and the backend decides that from a list only it can see.
+ */
+(function (w, d) {
+  'use strict';
+  if (!w.CW || !w.CW.realMe) { return; }
+
+  var GS = 'https://cw-api-gate.jessieupp.workers.dev';
+  var me = w.CW.realMe();
+  if (!me.known) { return; }
+
+  function ls(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
+
+  function paint() {
+    var old = d.getElementById('cw-viewas'); if (old) { old.remove(); }
+    var seen = w.CW.viewingAs();
+    var name = ls(function () { return w.localStorage.getItem('cw-view-as-name') || ''; }, '');
+
+    var bar = d.createElement('div');
+    bar.id = 'cw-viewas';
+    bar.style.cssText = 'position:sticky;top:0;z-index:99999;display:flex;align-items:center;gap:10px;'
+      + 'flex-wrap:wrap;padding:7px 14px;font:600 13px/1.4 "DM Sans",system-ui,sans-serif;'
+      + (seen ? 'background:#B8862F;color:#fff;' : 'background:#1A2E42;color:#fff;');
+
+    var says = d.createElement('span');
+    says.textContent = seen ? ('Viewing as ' + (name || seen)) : 'Viewing as yourself';
+    bar.appendChild(says);
+
+    var pick = d.createElement('button');
+    pick.type = 'button';
+    pick.textContent = seen ? 'Someone else' : 'View as someone';
+    pick.style.cssText = 'font:inherit;padding:4px 12px;border-radius:14px;cursor:pointer;'
+      + 'border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;';
+    pick.onclick = function () { open(bar); };
+    bar.appendChild(pick);
+
+    if (seen) {
+      var stop = d.createElement('button');
+      stop.type = 'button';
+      stop.textContent = 'Back to me';
+      stop.style.cssText = 'font:inherit;padding:4px 12px;border-radius:14px;cursor:pointer;'
+        + 'border:0;background:#fff;color:#1A2E42;font-weight:800;';
+      stop.onclick = function () { w.CW.stopViewing(); w.location.reload(); };
+      bar.appendChild(stop);
+    }
+
+    d.body.insertBefore(bar, d.body.firstChild);
+  }
+
+  function open(bar) {
+    var old = d.getElementById('cw-viewas-pick'); if (old) { old.remove(); return; }
+    var panel = d.createElement('div');
+    panel.id = 'cw-viewas-pick';
+    panel.style.cssText = 'position:sticky;top:34px;z-index:99999;background:#fff;color:#1A2E42;'
+      + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "DM Sans",system-ui,sans-serif;';
+
+    var inp = d.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = 'Type a name, or paste an id';
+    inp.style.cssText = 'width:100%;max-width:420px;border:1.5px solid #DDE3EA;border-radius:10px;'
+      + 'padding:9px 12px;font:inherit;outline:none;';
+    var out = d.createElement('div');
+    out.style.cssText = 'margin-top:8px;display:flex;flex-direction:column;gap:5px;max-width:420px;';
+    panel.appendChild(inp); panel.appendChild(out);
+    bar.parentNode.insertBefore(panel, bar.nextSibling);
+    inp.focus();
+
+    function row(id, label) {
+      var b = d.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.style.cssText = 'text-align:left;font:inherit;padding:8px 11px;border-radius:9px;cursor:pointer;'
+        + 'border:1px solid #DDE3EA;background:#F7FBFF;color:#1A2E42;';
+      b.onclick = function () { w.CW.viewAs(id, label); w.location.reload(); };
+      return b;
+    }
+
+    var timer = null;
+    inp.addEventListener('input', function () {
+      var q = inp.value.trim();
+      if (timer) { clearTimeout(timer); }
+      out.innerHTML = '';
+      if (q.length < 2) { return; }
+      // Anything without a space is as likely to be an id as a name, so offer it either way.
+      if (q.indexOf(' ') === -1) { out.appendChild(row(q, q)); }
+      timer = setTimeout(function () {
+        fetch(GS + '?action=findAnyone&appearId=' + encodeURIComponent(me.id)
+              + '&q=' + encodeURIComponent(q))
+          .then(function (r) { return r.json(); })
+          .then(function (dd) {
+            if (!dd || dd.status !== 'ok' || !dd.matches) { return; }
+            dd.matches.forEach(function (p) {
+              out.appendChild(row(p.appearId, (p.name || p.appearId)));
+            });
+          })
+          .catch(function () {});
+      }, 350);
+    });
+  }
+
+  // Asked once and remembered, because the answer does not change between pages and the
+  // backend takes its time. A wrong yes shows a bar that the backend still refuses to serve.
+  var known = ls(function () { return w.localStorage.getItem('cw-super'); }, null);
+  if (known === 'yes') { paint(); return; }
+  if (known === 'no') { return; }
+  fetch(GS + '?action=amISuper&appearId=' + encodeURIComponent(me.id))
+    .then(function (r) { return r.json(); })
+    .then(function (dd) {
+      var yes = !!(dd && dd.status === 'ok' && dd.isSuper);
+      ls(function () { w.localStorage.setItem('cw-super', yes ? 'yes' : 'no'); });
+      if (yes) { paint(); }
+    })
+    .catch(function () {});
+})(window, document);

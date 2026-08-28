@@ -23,7 +23,13 @@
 
   var WHO   = ['CWid', 'memberCard', 'appearId', 'me'];
   var KEEP  = ['cw-id', 'appear-id'];           // where a person is remembered
-  var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-token', 'cw-first'];
+  var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-token', 'cw-first',
+               'cw-view-as', 'cw-view-as-name', 'cw-super'];
+  /* Looking at the site as somebody else, for the handful of people who run it.
+     Deliberately a SEPARATE key from cw-id. Signing in and standing in somebody's shoes are
+     different things, and keeping them apart is what lets every page know the difference and
+     refuse to write. It is also why signing out ends it: it is in the list above. */
+  var VIEW_KEY = 'cw-view-as';
 
   function ls(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
 
@@ -103,12 +109,45 @@
     if (fromLink) { strip(); }
   }
 
+  function viewingAs() {
+    return ls(function () { return String(w.localStorage.getItem(VIEW_KEY) || '').trim(); }, '');
+  }
+
   w.CW = {
     /* The one call. Always the same shape, never null, so CW.me().id cannot throw
-       on a page nobody has signed in to. */
+       on a page nobody has signed in to.
+
+       While somebody is looking as another person, `id` is that other person, because every
+       page reads this and every page should show what they would see. `viewing` says so, and
+       anything that writes is expected to check it and refuse. */
     me: function () {
-      var id = String(w.CW_ID || '').trim() || fromDevice();
-      return { id: id, key: normalise(id), known: !!id };
+      var real = String(w.CW_ID || '').trim() || fromDevice();
+      var seen = viewingAs();
+      if (seen && normalise(seen) !== normalise(real)) {
+        return { id: seen, key: normalise(seen), known: true, viewing: true, realId: real };
+      }
+      return { id: real, key: normalise(real), known: !!real, viewing: false, realId: real };
+    },
+    /* Who is actually signed in, whatever they are looking at. Anything that writes, or that
+       decides what somebody is allowed to do, asks this rather than me(). */
+    realMe: function () {
+      var real = String(w.CW_ID || '').trim() || fromDevice();
+      return { id: real, key: normalise(real), known: !!real };
+    },
+    viewingAs: viewingAs,
+    viewAs: function (id, name) {
+      id = String(id || '').trim();
+      ls(function () {
+        if (!id) { w.localStorage.removeItem(VIEW_KEY); w.localStorage.removeItem('cw-view-as-name'); }
+        else { w.localStorage.setItem(VIEW_KEY, id); w.localStorage.setItem('cw-view-as-name', String(name || '')); }
+      });
+      return id;
+    },
+    stopViewing: function () {
+      ls(function () {
+        w.localStorage.removeItem(VIEW_KEY);
+        w.localStorage.removeItem('cw-view-as-name');
+      });
     },
     remember: function (id) { return remember(id); },
     normalise: normalise,
