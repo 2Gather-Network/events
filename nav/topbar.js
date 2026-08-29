@@ -296,6 +296,12 @@
     var css =
       '#cw-topbar{font-family:"DM Sans","Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;' +
         'position:relative;z-index:5;}' +
+      // The admin strip stacked to nearly 200px on a narrow window, because every button became
+      // its own row and pushed the whole site down. It stays one or two tight lines now.
+      '@media (max-width:700px){#cw-viewas{font-size:11.5px !important;gap:6px 8px !important;' +
+        'padding:5px 8px !important;}' +
+        '#cw-viewas button{padding:3px 8px !important;font-size:11.5px !important;}' +
+        '#cw-viewas a{font-size:11.5px !important;}}' +
       '.cwtb-bar{background:#1F699E;display:flex;align-items:center;gap:14px;padding:0 16px;height:58px;' +
         'box-shadow:0 2px 0 rgba(0,0,0,.10),0 6px 14px rgba(15,45,70,.18);}' +
       '.cwtb-mark{display:flex;align-items:center;gap:10px;flex-shrink:0;text-decoration:none;cursor:pointer;}' +
