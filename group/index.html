@@ -298,8 +298,13 @@
               <div>
                 <div style="font-size:15px;font-weight:800;color:#1A2E42;">See group events</div>
                 <div id="gp-tile-events-sub" style="font-size:14px;color:#6B7A8D;margin-top:3px;">Post the first event for this group</div>
+                <div id="gp-tile-events-pics" style="display:none;gap:6px;margin-top:8px;"></div>
               </div>
-              <button class="btn" onclick="gpShow('events')">View</button>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <button class="btn" onclick="gpShow('events')">View</button>
+                <a class="btn ghost" role="link" tabindex="0" id="gp-tile-events-post"
+                   onclick="return _safeNavGo(this)" style="text-decoration:none;cursor:pointer;">+ Post event</a>
+              </div>
             </div>
           </div>
         </div>
@@ -572,17 +577,48 @@ function pick(el, key){
   // erased on the way out by a duplicate column, so this panel had nothing to show and was left
   // as a stub saying to post the first one. Lake Ballinger had 117.
   function gpLoadEvents(){
+    var postBtn = document.getElementById('gp-tile-events-post');
+    if (postBtn) {
+      postBtn.setAttribute('data-nav', 'https://2gather.network/events?action=post'
+        + (meId ? '&memberCard=' + encodeURIComponent(meId) : ''));
+    }
     var box = document.getElementById('gp-events-list');
     var sub = document.getElementById('gp-tile-events-sub');
     if (!box || !groupId) return;
-    fetch(GS_URL + '?action=feedUpcoming')
+    // The whole feed, not just what is coming, so the tile can say what this group has
+    // already done as well as what is next. It is the cached call, so it costs little.
+    fetch(GS_URL + '?t=' + Date.now())
       .then(function(r){ return r.json(); })
       .then(function(d){
         var all = (d && d.events) || [];
-        var mine = all.filter(function(ev){ return String(ev.groupId || '').trim() === groupId; });
-        if (sub) sub.textContent = mine.length
-          ? (mine.length + (mine.length === 1 ? ' event coming up' : ' events coming up'))
-          : 'Post the first event for this group';
+        var forGroup = all.filter(function(ev){ return String(ev.groupId || '').trim() === groupId; });
+        var today = new Date(); today.setHours(0,0,0,0);
+        var past = [], mine = [];
+        forGroup.forEach(function(ev){
+          var when = ev.date ? new Date(String(ev.date).slice(0,10) + 'T00:00:00') : null;
+          if (when && when < today) { past.push(ev); } else { mine.push(ev); }
+        });
+        mine.sort(function(a,b){ return String(a.date||'').localeCompare(String(b.date||'')); });
+        past.sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
+
+        if (sub) {
+          sub.textContent = (past.length || mine.length)
+            ? (past.length + ' past \u00b7 ' + mine.length + ' upcoming')
+            : 'Post the first event for this group';
+        }
+
+        // Four pictures of what this group actually does, upcoming first.
+        var pics = document.getElementById('gp-tile-events-pics');
+        if (pics) {
+          var shots = mine.concat(past)
+            .map(function(ev){ return ev.imageUrl || ev.detailImageUrl || ''; })
+            .filter(Boolean).slice(0, 4);
+          pics.innerHTML = shots.map(function(u){
+            return '<img src="' + u + '" alt="" style="width:38px;height:38px;border-radius:9px;' +
+                   'object-fit:cover;display:block;">';
+          }).join('');
+          pics.style.display = shots.length ? 'flex' : 'none';
+        }
         if (!mine.length) {
           box.textContent = 'No events coming up for this group yet.';
           return;
@@ -1189,7 +1225,17 @@ function pick(el, key){
     // drives the title so users read '17 matches' the way they think of it.
     var cards = _groupByTopic(_matchResults);
     title.textContent = (firstName ? firstName + ', ' : '') + n + (n === 1 ? ' match' : ' matches');
-    if (tileSub) tileSub.textContent = n + (n === 1 ? ' match' : ' matches') + ' ready';
+    // Ready means somebody needs what you have, or you need what they have. Brewing means
+    // you only share something so far, which is worth seeing and is not an introduction.
+    if (tileSub) {
+      var ready = 0, brewing = 0;
+      for (var mi = 0; mi < _matchResults.length; mi++) {
+        if ((_matchResults[mi].score || 0) >= 3) { ready++; } else { brewing++; }
+      }
+      tileSub.textContent = brewing
+        ? (ready + ' ready \u00b7 ' + brewing + ' brewing')
+        : (ready + (ready === 1 ? ' match' : ' matches') + ' ready');
+    }
     grid.innerHTML = '';
     cards.slice(0, 20).forEach(function(card) {
       var isStrong = (card.kind === 'theyOfferYouNeed' || card.kind === 'youOfferTheyNeed');
