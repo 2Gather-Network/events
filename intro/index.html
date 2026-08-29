@@ -347,6 +347,118 @@
     return box;
   }
 
+
+  // ---- A face, before the words -------------------------------------------
+  // This lives here rather than on the sign-up page on purpose. Somebody who gives up on
+  // sign-up was never here; somebody who gives up on this page is already in and can come back
+  // to it whenever they like. So the optional things belong on this side of the door.
+  var PHOTO_URL = 'https://cw-photos.jessieupp.workers.dev';
+  var _gpPhotoToken = '';
+
+  // The same session the profile editor asks for. Signing up wrote it under both names, so
+  // either will do and neither means asking somebody for a second code.
+  function gpToken(){
+    if (_gpPhotoToken) return _gpPhotoToken;
+    try {
+      var norm = String(meId || '').split('.').join('').toLowerCase();
+      var raw = localStorage.getItem('cw-edit-' + norm);
+      if (raw) {
+        var o = JSON.parse(raw);
+        if (o && o.t && (!o.exp || o.exp > Date.now())) { _gpPhotoToken = o.t; return _gpPhotoToken; }
+      }
+      var t2 = localStorage.getItem('cw-token') || '';
+      var who = String(localStorage.getItem('cw-id') || '').split('.').join('').toLowerCase();
+      if (t2 && who && who === norm) {
+        var exp = parseInt(String(t2).split('.')[1], 10);
+        if (exp && Date.now() <= exp - 60000) { _gpPhotoToken = t2; return _gpPhotoToken; }
+      }
+    } catch (e) {}
+    return '';
+  }
+
+  function gpPhotoStat(msg){ var el = document.getElementById('gp-photo-stat'); if (el) el.textContent = msg || ''; }
+  function gpPhotoShow(url){
+    var f = document.getElementById('gp-photo-face'); if (!f) return;
+    f.innerHTML = '<img src="' + url + '" alt="" style="width:100%;height:100%;object-fit:cover;">';
+    var b = document.getElementById('gp-photo-btn'); if (b) b.textContent = 'Change photo';
+  }
+
+  function gpPhotoBlock(){
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;align-items:center;gap:16px;padding:0 0 18px;flex-wrap:wrap;';
+    wrap.innerHTML =
+      '<div id="gp-photo-face" style="width:76px;height:76px;border-radius:50%;overflow:hidden;'
+      + 'background:#EDF3F9;border:1.5px solid #DDE3EA;flex-shrink:0;display:flex;align-items:center;'
+      + 'justify-content:center;font-size:26px;">\u{1F331}</div>'
+      + '<div style="min-width:0;">'
+      + '<div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;">Your photo</div>'
+      + '<div style="font-size:13.5px;color:#6B7A8D;line-height:1.5;margin-bottom:8px;max-width:52ch;">'
+      + 'A face is how people recognise you at an event. You can add it later instead.</div>'
+      + '<button type="button" id="gp-photo-btn" style="font:inherit;font-size:13.5px;font-weight:700;'
+      + 'padding:8px 16px;border-radius:20px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;'
+      + 'cursor:pointer;">Add a photo</button>'
+      + '<div id="gp-photo-stat" style="font-size:13px;color:#6B7A8D;margin-top:6px;"></div>'
+      + '</div>';
+    var btn = wrap.querySelector('#gp-photo-btn');
+    btn.addEventListener('click', gpChoosePhoto);
+    // Already have one? Show it rather than inviting them to add what they have.
+    if (meId) {
+      fetch(GS_URL + '?action=lookupProfile&appearId=' + encodeURIComponent(meId))
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if (d && d.photo) gpPhotoShow(d.photo); })
+        .catch(function(){});
+    }
+    return wrap;
+  }
+
+  function gpChoosePhoto(){
+    if (!meId) { gpPhotoStat('This device does not know who you are yet.'); return; }
+    if (!gpToken()) { gpPhotoStat('Sign in again and your photo will go straight up.'); return; }
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = function(){ var f = inp.files && inp.files[0]; if (f) gpShrinkPhoto(f); };
+    inp.click();
+  }
+
+  // Shrunk here, in the browser, so a photo straight off a phone camera never crosses the wire
+  // at full size. An 8.4MB source came out at 6KB in testing.
+  function gpShrinkPhoto(file){
+    gpPhotoStat('Getting it ready\u2026');
+    var img = new Image();
+    img.onload = function(){
+      try {
+        var side = Math.min(img.width, img.height);
+        var c = document.createElement('canvas'); c.width = 600; c.height = 600;
+        c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 600, 600);
+        c.toBlob(function(blob){
+          if (!blob) { gpPhotoStat('That picture could not be read.'); return; }
+          gpSendPhoto(blob);
+        }, 'image/jpeg', 0.85);
+      } catch (e) { gpPhotoStat('That picture could not be read.'); }
+      finally { try { URL.revokeObjectURL(img.src); } catch (e) {} }
+    };
+    img.onerror = function(){ gpPhotoStat('That picture could not be read.'); };
+    img.src = URL.createObjectURL(file);
+  }
+
+  function gpSendPhoto(blob){
+    gpPhotoStat('Sending\u2026');
+    fetch(PHOTO_URL + '/upload?id=' + encodeURIComponent(meId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg', 'x-cw-token': gpToken() },
+      body: blob
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (!d || d.status !== 'ok' || !d.url) { gpPhotoStat((d && d.message) || 'That did not go through.'); return; }
+      gpPhotoShow(d.url + '?v=' + Date.now());
+      gpPhotoStat('');
+      // Only photoURL is sent, and saveIntake leaves alone anything it was not given, so this
+      // cannot touch an answer somebody has already written.
+      fetch(GS_URL + '?action=saveIntake&appearId=' + encodeURIComponent(meId)
+            + '&secure=1&editToken=' + encodeURIComponent(gpToken())
+            + '&photoURL=' + encodeURIComponent(d.url)).catch(function(){});
+    }).catch(function(){ gpPhotoStat('That did not go through.'); });
+  }
+
   function gpRenderIntro(prefill){
     var box = document.getElementById('gp-intro-qs');
     if (!box) return;
@@ -387,6 +499,7 @@
         + 'can wait. You can change any of it later.';
     }
     box.innerHTML = '';
+    box.appendChild(gpPhotoBlock());
     GP_INTRO_Q.forEach(function(q, i){
       var wrap = document.createElement('div');
       wrap.style.cssText = 'padding:18px 0;' + (i ? 'border-top:1px solid #f0f1f5;' : 'padding-top:0;');
