@@ -415,13 +415,26 @@
       }).sort(function(a,b){ return _evDate(a) - _evDate(b); });
 
       if (!mine.length) {
-        el.innerHTML = '<div class="evhead">What is on</div>'
+        el.innerHTML = '<div class="evhead">Upcoming events</div>'
           + '<div style="font-size:13.5px;color:var(--muted);">Nothing on the calendar yet.</div>';
         return;
       }
+      // A time-only cell in a sheet comes back as a whole date sitting on 30 December 1899,
+      // which is the day spreadsheets count from. Shown raw it read as
+      // "1899-12-30T10:00:00.000Z", which is ten o'clock said in the least useful way possible.
+      function _evClock(raw){
+        var v = String(raw || '').trim();
+        if (!v) return '';
+        var m = v.match(/^\d{4}-\d{2}-\d{2}T(\d{2}):(\d{2})/);
+        if (!m) return v;
+        var h = parseInt(m[1], 10), mins = m[2];
+        var ampm = h < 12 ? 'am' : 'pm';
+        var h12 = (h % 12) || 12;
+        return h12 + (mins === '00' ? '' : ':' + mins) + ampm;
+      }
       var rows = mine.slice(0, EV_SHOWN).map(function(e){
         var when = _evDayLabel(e);
-        var time = String(e.startTime || '').trim();
+        var time = _evClock(e.startTime);
         var where = String(e.venue || e.location || '').trim();
         var sub = [time, where].filter(Boolean).join(' · ');
         var url = 'https://2gather.network/events/?event=' + encodeURIComponent(e.id || '');
@@ -433,12 +446,14 @@
       }).join('');
 
       var more = mine.length - EV_SHOWN;
+      // See more goes to the events board showing this group's events, rather than back to the
+      // group page somebody is already standing on.
       var tail = more > 0
-        ? '<a class="evmore" role="link" tabindex="0" data-nav="' + esc(groupUrl(g,'group'))
-          + '" onclick="return _safeNavGo(this)">View the other ' + more
-          + (more === 1 ? ' event' : ' events') + '</a>'
+        ? '<a class="evmore" role="link" tabindex="0" data-nav="'
+          + esc('https://2gather.network/events/?groupId=' + encodeURIComponent(g.groupId || ''))
+          + '" onclick="return _safeNavGo(this)">See more</a>'
         : '';
-      el.innerHTML = '<div class="evhead">What is on</div>' + rows + tail;
+      el.innerHTML = '<div class="evhead">Upcoming events</div>' + rows + tail;
     });
   }
 
