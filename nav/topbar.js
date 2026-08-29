@@ -642,16 +642,24 @@
     var bar = d.createElement('div');
     bar.id = 'cw-viewas';
     bar.style.cssText = 'position:sticky;top:0;z-index:99999;display:flex;align-items:center;gap:10px;'
-      + 'flex-wrap:wrap;padding:7px 14px;font:600 13px/1.4 "DM Sans",system-ui,sans-serif;'
+      + 'flex-wrap:wrap;gap:10px 16px;padding:7px 14px;font:600 13px/1.4 "DM Sans",system-ui,sans-serif;'
       + 'background:#fff;color:#1A2E42;border-bottom:1px solid #E3EAF0;'
       // White throughout, as asked. Standing in somebody else's shoes still has to be
       // impossible to miss, so that state keeps an amber edge and an amber name.
       + (seen ? 'box-shadow:inset 4px 0 0 #B8862F;' : '');
 
+    // Two clusters: who you are looking as on the left, the things you run on the right.
+    // Without this they queued up in one row and the bar read as a pile rather than a strip.
+    var left = d.createElement('div');
+    left.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;';
+    var right = d.createElement('div');
+    right.style.cssText = 'display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-left:auto;';
+    bar.appendChild(left); bar.appendChild(right);
+
     var says = d.createElement('span');
     says.textContent = seen ? ('Viewing as ' + (name || seen)) : 'Viewing as yourself';
     if (seen) { says.style.color = '#8A6220'; }
-    bar.appendChild(says);
+    left.appendChild(says);
 
     var pick = d.createElement('button');
     pick.type = 'button';
@@ -659,7 +667,7 @@
     pick.style.cssText = 'font:inherit;padding:4px 12px;border-radius:14px;cursor:pointer;'
       + 'border:1px solid #C3D0DB;background:transparent;color:#1A2E42;';
     pick.onclick = function () { open(bar); };
-    bar.appendChild(pick);
+    left.appendChild(pick);
 
     if (seen) {
       var stop = d.createElement('button');
@@ -668,13 +676,70 @@
       stop.style.cssText = 'font:inherit;padding:4px 12px;border-radius:14px;cursor:pointer;'
         + 'border:0;background:#1A2E42;color:#fff;font-weight:800;';
       stop.onclick = function () { w.CW.stopViewing(); w.location.reload(); };
-      bar.appendChild(stop);
+      left.appendChild(stop);
     }
+
+    // The things only the people who run this see. Same line, because they are the same kind
+    // of thing and a second strip would cost another row on every page.
+    function adminLink(label, href, strong) {
+      var a = d.createElement('a');
+      a.href = href;
+      a.textContent = label;
+      a.style.cssText = 'font:inherit;font-size:13px;text-decoration:none;cursor:pointer;'
+        + (strong ? 'font-weight:800;color:#1F699E;' : 'font-weight:700;color:#4B5A6D;');
+      right.appendChild(a);
+      return a;
+    }
+
+    var waiting = ls(function () { return parseInt(w.localStorage.getItem('cw-tickets') || '', 10); }, NaN);
+    adminLink((waiting > 0)
+      ? (waiting + ' support ticket' + (waiting === 1 ? '' : 's') + ' waiting')
+      : 'Support', 'https://2gather.network/support/', waiting > 0);
+
+    // Hiding it during a demo has to survive walking to another page, so the choice is kept on
+    // the device rather than in this page. A word rather than a symbol, so the way back reads.
+    var fold = d.createElement('button');
+    fold.type = 'button';
+    fold.textContent = 'Hide';
+    fold.style.cssText = 'font:inherit;font-size:12.5px;padding:4px 11px;border-radius:14px;'
+      + 'cursor:pointer;border:1px solid #C3D0DB;background:transparent;color:#4B5A6D;';
+    fold.onclick = function () { setFolded(true); };
+    right.appendChild(fold);
 
     // Back at the very top, above the bar, which is where Jessie wants it: it is a warning
     // about the whole page, so it sits over the whole page rather than inside it.
     d.body.insertBefore(bar, d.body.firstChild);
   }
+
+  var FOLD_KEY = 'cw-admin-folded';
+  function folded() { return ls(function () { return w.localStorage.getItem(FOLD_KEY) === '1'; }, false); }
+  function setFolded(v) {
+    ls(function () {
+      if (v) { w.localStorage.setItem(FOLD_KEY, '1'); } else { w.localStorage.removeItem(FOLD_KEY); }
+    });
+    drawAdminBar();
+  }
+
+  // Folded away, one small word is left so it can be brought back. Nothing at all would mean
+  // hiding it during a demo hid it for good.
+  function paintFolded() {
+    var old = d.getElementById('cw-viewas'); if (old) { old.remove(); }
+    var tab = d.createElement('div');
+    tab.id = 'cw-viewas';
+    tab.style.cssText = 'position:sticky;top:0;z-index:99999;display:flex;justify-content:flex-end;'
+      + 'padding:2px 10px;background:transparent;pointer-events:none;';
+    var b = d.createElement('button');
+    b.type = 'button';
+    b.textContent = 'Admin';
+    b.style.cssText = 'font:700 11.5px/1 "DM Sans",system-ui,sans-serif;padding:4px 9px;'
+      + 'border-radius:0 0 8px 8px;cursor:pointer;border:1px solid #E3EAF0;border-top:0;'
+      + 'background:#fff;color:#4B5A6D;pointer-events:auto;';
+    b.onclick = function () { setFolded(false); };
+    tab.appendChild(b);
+    d.body.insertBefore(tab, d.body.firstChild);
+  }
+
+  function drawAdminBar() { if (folded()) { paintFolded(); } else { paint(); } }
 
   function open(bar) {
     var old = d.getElementById('cw-viewas-pick'); if (old) { old.remove(); return; }
@@ -730,14 +795,14 @@
   // Asked once and remembered, because the answer does not change between pages and the
   // backend takes its time. A wrong yes shows a bar that the backend still refuses to serve.
   var known = ls(function () { return w.localStorage.getItem('cw-super'); }, null);
-  if (known === 'yes') { paint(); return; }
+  if (known === 'yes') { drawAdminBar(); return; }
   if (known === 'no') { return; }
   fetch(GS + '?action=amISuper&appearId=' + encodeURIComponent(me.id))
     .then(function (r) { return r.json(); })
     .then(function (dd) {
       var yes = !!(dd && dd.status === 'ok' && dd.isSuper);
       ls(function () { w.localStorage.setItem('cw-super', yes ? 'yes' : 'no'); });
-      if (yes) { paint(); }
+      if (yes) { drawAdminBar(); }
     })
     .catch(function () {});
 })(window, document);
