@@ -641,7 +641,7 @@
 
     var bar = d.createElement('div');
     bar.id = 'cw-viewas';
-    bar.style.cssText = 'position:relative;z-index:4;display:flex;align-items:center;gap:10px;'
+    bar.style.cssText = 'position:sticky;top:0;z-index:99999;display:flex;align-items:center;gap:10px;'
       + 'flex-wrap:wrap;padding:7px 14px;font:600 13px/1.4 "DM Sans",system-ui,sans-serif;'
       + 'background:#fff;color:#1A2E42;border-bottom:1px solid #E3EAF0;'
       // White throughout, as asked. Standing in somebody else's shoes still has to be
@@ -671,18 +671,16 @@
       bar.appendChild(stop);
     }
 
-    // Under the nav, not over it. It used to go in at the very top of the page, which put it
-    // above the bar and pushed the whole site down by its height.
-    var nav = d.getElementById('cw-topbar');
-    if (nav && nav.parentNode) { nav.parentNode.insertBefore(bar, nav.nextSibling); }
-    else { d.body.insertBefore(bar, d.body.firstChild); }
+    // Back at the very top, above the bar, which is where Jessie wants it: it is a warning
+    // about the whole page, so it sits over the whole page rather than inside it.
+    d.body.insertBefore(bar, d.body.firstChild);
   }
 
   function open(bar) {
     var old = d.getElementById('cw-viewas-pick'); if (old) { old.remove(); return; }
     var panel = d.createElement('div');
     panel.id = 'cw-viewas-pick';
-    panel.style.cssText = 'position:relative;z-index:4;background:#fff;color:#1A2E42;'
+    panel.style.cssText = 'position:sticky;top:34px;z-index:99999;background:#fff;color:#1A2E42;'
       + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "DM Sans",system-ui,sans-serif;';
 
     var inp = d.createElement('input');
