@@ -46,9 +46,20 @@
      so it looks like a statement: no border, no fill, nothing that invites a tap. */
   /* Subtle on purpose. These are things somebody can ask for, not work to do now, so they sit
      quietly under the form rather than competing with it. Each one writes to us. */
-  .lock-row{display:block;font-size:13px;font-weight:600;color:var(--muted,#6B7A8D);
-    line-height:1.5;margin-bottom:5px;text-decoration:none;}
-  .lock-row:hover{color:var(--brand,#1F699E);text-decoration:underline;}
+  /* Subtle on purpose. These are things somebody can ask for, not work to do now. Not bold:
+     weight is emphasis, and emphasis is the opposite of what these need. */
+  .lock-row{display:block;font-size:13px;font-weight:400;color:var(--muted,#6B7A8D);
+    line-height:1.5;margin-bottom:5px;text-decoration:none;cursor:pointer;background:none;
+    border:0;padding:0;text-align:left;font-family:inherit;}
+  .lock-row:hover{color:var(--brand,#1F699E);}
+  /* A mail client is not always there and is never where somebody already is. An address they
+     can copy works everywhere. */
+  .lock-ask{display:none;margin:6px 0 10px;padding:10px 12px;border:1px solid var(--line,#DDE3EA);
+    border-radius:10px;background:var(--pill,#F7FBFF);font-size:13px;color:var(--ink,#1A2E42);}
+  .lock-ask b{font-weight:700;}
+  .lock-copy{margin-left:8px;font:inherit;font-size:12.5px;font-weight:700;padding:5px 12px;
+    border-radius:16px;border:1.5px solid var(--brand,#1F699E);background:#fff;
+    color:var(--brand,#1F699E);cursor:pointer;}
   .lock-block{border-top:1px solid var(--line,#DDE3EA);margin-top:26px;padding-top:18px;}
   .lock-title{font-size:11.5px;font-weight:800;color:var(--muted,#6B7A8D);letter-spacing:.06em;
     text-transform:uppercase;margin-bottom:8px;}
@@ -118,11 +129,13 @@
     <div class="q">Description:</div>
     <textarea id="f-description" placeholder="Example: Connecting the dots for creating affordable housing in Seattle." maxlength="400"></textarea>
 
-    <div class="q">Group image link:</div>
+    <div class="q">Group image:</div>
     <div class="imgbox" style="padding:8px 10px;gap:10px;">
-      <div class="thumb" id="img-thumb" style="width:44px;height:44px;font-size:18px;">🖼️</div>
-      <input type="url" id="f-image" placeholder="Paste image URL here" style="flex:1;min-width:0;border:1.5px solid transparent;background:transparent;padding:8px 4px;">
+      <div class="thumb" id="img-thumb" style="width:44px;height:44px;font-size:18px;overflow:hidden;">🖼️</div>
+      <input type="url" id="f-image" placeholder="Paste an image link, or upload one" style="flex:1;min-width:0;border:1.5px solid transparent;background:transparent;padding:8px 4px;">
+      <button type="button" class="btn ghost" id="img-upload" style="font-size:13px;padding:8px 14px;white-space:nowrap;">Upload</button>
     </div>
+    <div class="help" id="img-note" style="margin:6px 0 0;"></div>
 
     <div class="q">Group passcode (10 characters or less):</div>
     <input type="text" id="f-passcode" maxlength="10" placeholder="Example: SEAHOUSE">
@@ -135,7 +148,7 @@
     </div>
 
     <div class="q">Group agreements:</div>
-    <textarea id="f-agreements">We show up curious.
+    <textarea id="f-agreements" rows="5" style="min-height:132px;">We show up curious.
 We ask before we advise.
 We are inclusive.
 We translate self-promotion to collaboration.</textarea>
@@ -165,9 +178,13 @@ We translate self-promotion to collaboration.</textarea>
          at the end, out of the way of the work and easy to read as a group. -->
     <div class="lock-block">
       <div class="lock-title">Optional</div>
-      <a class="lock-row" href="mailto:hello@creating.works?subject=Group%20options">🔒 Set different permission levels per host</a>
-      <a class="lock-row" href="mailto:hello@creating.works?subject=Group%20options">🔒 Associate this group with your other groups</a>
-      <a class="lock-row" href="mailto:hello@creating.works?subject=Group%20options">🔒 Request people to answer questions first</a>
+      <button type="button" class="lock-row">🔒 Set different permission levels per host</button>
+      <button type="button" class="lock-row">🔒 Associate this group with your other groups</button>
+      <button type="button" class="lock-row">🔒 Request people to answer questions first</button>
+      <div class="lock-ask" id="lock-ask">
+        Ask about this at <b id="lock-email">hello@creating.works</b>
+        <button type="button" class="lock-copy" id="lock-copy">Copy</button>
+      </div>
     </div>
 
     <div id="save-status" class="status"></div>
@@ -242,6 +259,86 @@ We translate self-promotion to collaboration.</textarea>
       thumb.innerHTML = '🖼️';
     }
   });
+
+  // ── The group's picture, 2026-08-30 ──────────────────────────────────────
+  // Same chain a person's photo uses: shrunk here so a phone camera never crosses the wire at full
+  // size, stored on the photo Worker, and only the URL kept on the sheet.
+  //
+  // A group has no id until it exists, so the file waits here and goes up straight after the group
+  // is created. Somebody who pastes a link instead is untouched by any of this.
+  var _groupPhotoBlob = null;
+  (function(){
+    var btn = document.getElementById('img-upload');
+    var note = document.getElementById('img-note');
+    var thumb = document.getElementById('img-thumb');
+    if (!btn) return;
+    var say = function(t){ if (note) note.textContent = t || ''; };
+    btn.addEventListener('click', function(){
+      var inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = function(){
+        var file = inp.files && inp.files[0];
+        if (!file) return;
+        say('Getting it ready\u2026');
+        var img = new Image();
+        img.onload = function(){
+          try {
+            var side = Math.min(img.width, img.height);
+            var c = document.createElement('canvas'); c.width = 600; c.height = 600;
+            c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2,
+                                         side, side, 0, 0, 600, 600);
+            c.toBlob(function(blob){
+              if (!blob) { say('That picture could not be read.'); return; }
+              _groupPhotoBlob = blob;
+              if (thumb) thumb.innerHTML = '<img src="' + URL.createObjectURL(blob) +
+                '" alt="" style="width:100%;height:100%;object-fit:cover;">';
+              say('Ready. It goes up when you start the group.');
+            }, 'image/jpeg', 0.85);
+          } catch (e) { say('That picture could not be read.'); }
+        };
+        img.onerror = function(){ say('That picture could not be read.'); };
+        img.src = URL.createObjectURL(file);
+      };
+      inp.click();
+    });
+  })();
+
+  // The token this device holds, so the Worker can tell it is really the host asking.
+  function _groupToken(){
+    try {
+      var norm = String(meId || '').split('.').join('').toLowerCase();
+      var raw = localStorage.getItem('cw-edit-' + norm);
+      if (raw) { var o = JSON.parse(raw); if (o && o.t) return o.t; }
+      return localStorage.getItem('cw-token') || '';
+    } catch (e) { return ''; }
+  }
+
+  // Any of the optional lines reveals one address, and copying it says so. No mail client, which
+  // is not always installed and is never where somebody already is.
+  (function(){
+    var ask = document.getElementById('lock-ask');
+    var copy = document.getElementById('lock-copy');
+    if (!ask || !copy) return;
+    Array.prototype.forEach.call(document.querySelectorAll('.lock-row'), function(b){
+      b.addEventListener('click', function(){ ask.style.display = 'block'; });
+    });
+    copy.addEventListener('click', function(){
+      var addr = (document.getElementById('lock-email') || {}).textContent || '';
+      var done = function(){
+        copy.textContent = 'Copied!';
+        setTimeout(function(){ copy.textContent = 'Copy'; }, 1800);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(addr.trim()).then(done).catch(function(){ done(); });
+      } else {
+        // Older browsers, and any page served without a secure context.
+        var t = document.createElement('textarea');
+        t.value = addr.trim(); document.body.appendChild(t); t.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(t); done();
+      }
+    });
+  })();
 
   // 2026-08-30. Every group joins by passcode. The chips that offered screening, and the questions
   // under them, were removed, and asking for screening is now one of the optional lines at the end.
@@ -449,8 +546,30 @@ We translate self-promotion to collaboration.</textarea>
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (d && d.status === 'ok' && d.groupId) {
-          // Land on the invite page, then the new group's page
           var nextUrl = 'https://2gather.network/groups/invite?id=' + encodeURIComponent(d.groupId) + '&CWid=' + encodeURIComponent(meId);
+          // The group exists now, so it has an id to file a picture under. If the upload fails the
+          // group is still made and still fine; a picture is not worth losing the group over.
+          if (_groupPhotoBlob) {
+            showStatus('ok', 'Group made. Sending the picture\u2026');
+            fetch('https://cw-photos.jessieupp.workers.dev/upload-group?id='
+                  + encodeURIComponent(d.groupId) + '&host=' + encodeURIComponent(meId), {
+              method: 'POST',
+              headers: { 'Content-Type': 'image/jpeg', 'x-cw-token': _groupToken() },
+              body: _groupPhotoBlob
+            })
+              .then(function(r){ return r.json(); })
+              .then(function(p){
+                if (p && p.status === 'ok' && p.url) {
+                  return fetch(GS_URL + '?action=updateGroup&groupId=' + encodeURIComponent(d.groupId)
+                    + '&hostAppearId=' + encodeURIComponent(meId)
+                    + '&image=' + encodeURIComponent(p.url)
+                    + '&imageLink=' + encodeURIComponent(p.url));
+                }
+              })
+              .catch(function(){})
+              .then(function(){ window.location.href = nextUrl; });
+            return;
+          }
           window.location.href = nextUrl;
         } else {
           submitBtn.disabled = false;
