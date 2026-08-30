@@ -733,10 +733,13 @@
     box.appendChild(otherBox);
 
     other.addEventListener('click', function(){
-      // On the joy screen Other is what the search is behind, so it comes out with the box.
+      // Other opens the search and nothing else. The search now offers "Add this to my list"
+      // when it finds nothing, so a second box asking for the same words was the same question
+      // twice on one screen.
       if (_bare) {
         searchWrap.style.display = 'block';
         try { search.focus(); } catch (e) {}
+        return;
       }
       otherBox.style.display = otherBox.style.display === 'none' ? 'block' : 'none';
       if (otherBox.style.display === 'none') { otherBox.innerHTML = ''; return; }
@@ -803,6 +806,42 @@
       otherBox.insertBefore(add, ask);
     });
 
+    // Nothing matched, so the search becomes the way in rather than a dead end pointing at
+    // another button. A word nobody has used before still has to be filed, which is the one
+    // question Other asks, and it is asked right here instead.
+    function gpTagOptions(){
+      if (cfg.tagOpts) return cfg.tagOpts;
+      var seen = {}, opts = [];
+      corpus.forEach(function(c){ if (c.cat && !seen[c.cat]) { seen[c.cat] = 1; opts.push(c.cat); } });
+      return opts;
+    }
+    function gpAddNew(word, mount, done){
+      word = String(word || '').trim(); if (!word) return;
+      // Typed something the sheet already knows? Then it is not new and it keeps that category.
+      for (var i = 0; i < corpus.length; i++) {
+        if (corpus[i].word.toLowerCase() === word.toLowerCase()) {
+          gpAddWord(key, corpus[i].word, corpus[i].cat, ta); repaint(); if (done) done(); return;
+        }
+      }
+      if (!cfg.tagQ) { gpAddWord(key, word, '', ta); repaint(); if (done) done(); return; }
+      mount.innerHTML = '';
+      var q = document.createElement('div');
+      q.style.cssText = 'font-size:13px;color:#6B7A8D;margin:10px 0 8px;';
+      q.textContent = cfg.tagQ;
+      mount.appendChild(q);
+      var orow = document.createElement('div');
+      orow.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+      gpTagOptions().forEach(function(o){
+        var ob = gpPill(o, false);
+        ob.addEventListener('click', function(){
+          gpAddWord(key, word, o.replace(/^[^A-Za-z0-9]+/, '').trim(), ta);
+          repaint(); mount.innerHTML = ''; if (done) done();
+        });
+        orow.appendChild(ob);
+      });
+      mount.appendChild(orow);
+    }
+
     // Search. Filters as you type, because pressing a button to search reads as broken.
     search.addEventListener('input', function(){
       var t = String(search.value || '').trim().toLowerCase();
@@ -825,10 +864,25 @@
         results.appendChild(r);
       });
       if (!hits.length) {
-        var none = document.createElement('div');
-        none.style.cssText = 'font-size:13px;color:#6B7A8D;margin-top:6px;';
-        none.textContent = 'Nothing matches. Use + Other to add it in your own words.';
-        results.appendChild(none);
+        var typed = String(search.value || '').trim();
+        var r = document.createElement('div');
+        r.setAttribute('role', 'button');
+        r.tabIndex = 0;
+        r.style.cssText = 'border:1px solid #C9DFF3;border-radius:10px;padding:10px 12px;margin-top:6px;'
+          + 'cursor:pointer;background:#F7FBFF;';
+        var rt = document.createElement('div');
+        rt.style.cssText = 'font-size:14.5px;font-weight:700;color:#1F699E;';
+        rt.textContent = 'Add this to my list';
+        var rw = document.createElement('div');
+        rw.style.cssText = 'font-size:13px;color:#6B7A8D;';
+        rw.textContent = typed;
+        r.appendChild(rt); r.appendChild(rw);
+        var ask = document.createElement('div');
+        r.addEventListener('click', function(){
+          gpAddNew(typed, ask, function(){ search.value = ''; results.innerHTML = ''; });
+        });
+        results.appendChild(r);
+        results.appendChild(ask);
       }
     });
 
