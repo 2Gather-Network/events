@@ -489,11 +489,13 @@
     }
     parts.push(word);
     ta.value = parts.join(', ');
+    if (typeof gpStepPaint === 'function') gpStepPaint();
   }
   function gpDropWord(key, word, ta){
     if (_gpTags[key]) delete _gpTags[key][word];
     var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
     ta.value = parts.filter(function(p){ return p.toLowerCase() !== String(word).toLowerCase(); }).join(', ');
+    if (typeof gpStepPaint === 'function') gpStepPaint();
   }
   function gpHasWord(key, word){
     return !!(_gpTags[key] && _gpTags[key][word] !== undefined);
@@ -556,34 +558,48 @@
     return alpha(node.subs[path[1]] || []).map(function(i){ return { name:i, drill:false }; });
   }
 
+  // The joy screen, reshaped 2026-08-30. Five examples and Other, nothing else, because a
+  // search box beside five buttons asks a question nobody had yet. Other opens the search.
+  var GP_BARE_KEYS = { introEnjoy:1, introSkills:1, introValues:1, introNeed:1 };
+  // Where the card heading already asks the question, the second copy comes off. Needs and
+  // haves keeps its headings, because two questions share that screen and they have to be
+  // told apart.
+  var GP_BARE_HEAD = { introEnjoy:1, introSkills:1, introValues:1 };
+  function gpBareKey(key){ return GP_BROWSE && !!GP_BARE_KEYS[key]; }
+
   function gpPicker(key, ta){
     var cfg = GP_PICK[key];
     if (!GP_CHIPS_ON || !cfg) return null;
+    var _bare = gpBareKey(key);
     var box = document.createElement('div');
     box.style.cssText = 'margin-top:12px;';
 
-    var lead = document.createElement('div');
-    lead.style.cssText = 'font-size:13px;color:#6B7A8D;margin-bottom:8px;';
-    lead.textContent = 'Search for something, or tap one below.';
-    box.appendChild(lead);
+    if (!_bare) {
+      var lead = document.createElement('div');
+      lead.style.cssText = 'font-size:13px;color:#6B7A8D;margin-bottom:8px;';
+      lead.textContent = 'Search for something, or tap one below.';
+      box.appendChild(lead);
+    }
 
     var search = document.createElement('input');
     search.type = 'text';
     search.placeholder = 'Search';
     search.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
       + 'padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
-    box.appendChild(search);
-
+    var searchWrap = document.createElement('div');
+    if (_bare) searchWrap.style.cssText = 'display:none;margin-bottom:10px;';
+    searchWrap.appendChild(search);
     var results = document.createElement('div');
     results.style.cssText = 'margin-top:6px;';
-    box.appendChild(results);
+    searchWrap.appendChild(results);
+    box.appendChild(searchWrap);
 
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;';
     box.appendChild(row);
 
     var corpus = [];
-    var _browseOn = GP_BROWSE && !!GP_BROWSE_KEYS[key];
+    var _browseOn = GP_BROWSE && !!GP_BROWSE_KEYS[key] && !_bare;
     var browseWrap = document.createElement('div');
     browseWrap.style.cssText = 'margin-top:14px;';
     if (_browseOn) {
@@ -717,6 +733,11 @@
     box.appendChild(otherBox);
 
     other.addEventListener('click', function(){
+      // On the joy screen Other is what the search is behind, so it comes out with the box.
+      if (_bare) {
+        searchWrap.style.display = 'block';
+        try { search.focus(); } catch (e) {}
+      }
       otherBox.style.display = otherBox.style.display === 'none' ? 'block' : 'none';
       if (otherBox.style.display === 'none') { otherBox.innerHTML = ''; return; }
       otherBox.innerHTML = '';
@@ -1059,8 +1080,10 @@
   // asked properly and can be left, because the gate that matters is joining a group.
   var GP_STEP_TITLES = [
     'First, so people can recognise you',
-    'What do you enjoy?',
-    'What skills pay the bills?',
+    (typeof GP_BROWSE !== 'undefined' && GP_BROWSE) ? 'What brings you joy?' : 'What do you enjoy?',
+    (typeof GP_BROWSE !== 'undefined' && GP_BROWSE)
+      ? 'What skills pay the bills and how do you like helping others?'
+      : 'What skills pay the bills?',
     'What do you care about?',
     'Anything you need, or have to offer?',
     'How do you like to be thanked?',
@@ -1073,7 +1096,19 @@
   // Needs and haves, and how you like to be thanked. The two nobody has to answer.
   var GP_OPTIONAL_STEPS = { 4:1, 5:1 };
 
+  // What counts as an answer: a tapped word, or something typed. Either half is an answer,
+  // so somebody who wrote in prose is never told they have answered nothing.
+  var GP_REQUIRED_STEPS = { 1:{ key:'introEnjoy',  miss:'one thing you enjoy' },
+                            2:{ key:'introSkills', miss:'one skill' },
+                            3:{ key:'introValues', miss:'one thing you care about' } };
+  function gpAnswered(key){
+    var tags = (_gpTags && _gpTags[key]) ? Object.keys(_gpTags[key]).length : 0;
+    if (tags) return true;
+    var el = document.getElementById('gp-intro-' + key);
+    return !!(el && String(el.value || '').trim());
+  }
   function gpStepOK(n){
+    if (GP_BROWSE && GP_REQUIRED_STEPS[n]) return gpAnswered(GP_REQUIRED_STEPS[n].key);
     if (n !== 0) return true;
     // The three that step 0 asks for. The photo is the strongest ask on the site and it is made
     // here, once, while somebody is still arriving.
@@ -1111,15 +1146,23 @@
     next.style.cursor = next.disabled ? 'default' : 'pointer';
     if (note) {
       var miss = (_gpStep === 0) ? gpStepMissing() : [];
+      var _req = GP_BROWSE ? GP_REQUIRED_STEPS[_gpStep] : null;
+      if (_req && !gpAnswered(_req.key)) miss = [_req.miss];
       note.textContent = miss.length ? ('Still to add: ' + miss.join(', ') + '.') : '';
       // 6. What is left to add is a reminder, not a telling-off, so it is grey like the count.
       if (GP_BROWSE) note.style.color = '#6B7A8D';
     }
     if (GP_BROWSE) {
+      // The welcome is said once, on the way in. On a question screen the question is the
+      // whole of it, and the only thing worth adding is on the two nobody has to answer.
       var lede = document.getElementById('gp-intro-lede');
-      if (lede) lede.innerHTML = GP_OPTIONAL_STEPS[_gpStep]
-        ? (GP_LEDE_BASE + ' Answer what you like now and add the rest whenever.')
-        : GP_LEDE_BASE;
+      if (lede) {
+        if (_gpStep === 0) { lede.style.display = ''; lede.innerHTML = GP_LEDE_BASE; }
+        else if (GP_OPTIONAL_STEPS[_gpStep]) {
+          lede.style.display = '';
+          lede.innerHTML = 'Answer what you like now and add the rest whenever.';
+        } else { lede.style.display = 'none'; lede.innerHTML = ''; }
+      }
     }
   }
 
@@ -1221,7 +1264,17 @@
       ta.className = 'cw-intro-box';
       ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
         + 'padding:12px 14px;font:inherit;font-size:14.5px;color:#1A2E42;line-height:1.5;resize:vertical;';
-      wrap.appendChild(t); wrap.appendChild(h); wrap.appendChild(ta);
+      // On the joy screen the card heading already asks the question, so asking it again two
+      // lines down was the same words twice. The box goes with it: what somebody picks is what
+      // gets saved, and the box stays in the page, unseen, as the thing that holds it.
+      var _bare = gpBareKey(q.key);
+      if (_bare) {
+        ta.style.display = 'none';
+        if (!GP_BARE_HEAD[q.key]) { wrap.appendChild(t); wrap.appendChild(h); }
+        wrap.appendChild(ta);
+      } else {
+        wrap.appendChild(t); wrap.appendChild(h); wrap.appendChild(ta);
+      }
       var chipRow = gpPicker(q.key, ta) || gpChipRow(q.key, ta);
       if (chipRow) wrap.appendChild(chipRow);
       // Enjoy, skills, values each get a screen. Needs and haves share the last question screen,
