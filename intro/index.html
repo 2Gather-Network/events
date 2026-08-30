@@ -193,7 +193,116 @@
     return w;
   }
 
+  // The search is for the long tail. It is not on screen until somebody has asked for more
+  // than the eight in front of them, because a search box beside eight buttons is a question
+  // nobody was asking. Picking a language out of the search lights the button that is already
+  // there rather than adding a second one that says the same word.
+  function gpLanguagesBlockBrowse(){
+    var wrap = document.createElement('div');
+    var btns = {};
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+
+    function paint(word){
+      var b = btns[word]; if (!b) return;
+      b.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
+        + (_gpLangPicked[word]
+            ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;'
+            : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;');
+    }
+    function chip(word){
+      if (btns[word]) return btns[word];
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = word;
+      btns[word] = b;
+      b.addEventListener('click', function(){
+        _gpLangPicked[word] = !_gpLangPicked[word];
+        paint(word);
+        if (typeof gpStepPaint === 'function') gpStepPaint();
+      });
+      paint(word);
+      return b;
+    }
+    function turnOn(word){
+      _gpLangPicked[word] = true;
+      if (!btns[word]) row.appendChild(chip(word));
+      paint(word);
+      if (typeof gpStepPaint === 'function') gpStepPaint();
+    }
+
+    // The search, above the chips, and not on screen until More is pressed.
+    var searchWrap = document.createElement('div');
+    searchWrap.style.cssText = 'display:none;margin-bottom:10px;';
+    var line = document.createElement('div');
+    line.style.cssText = 'display:flex;gap:8px;';
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = 'Search languages';
+    inp.style.cssText = 'flex:1;min-width:0;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;'
+      + 'padding:9px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
+    var add = document.createElement('button');
+    add.type = 'button';
+    add.textContent = 'Add';
+    add.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:9px 18px;border-radius:20px;'
+      + 'border:0;background:#1F699E;color:#fff;cursor:pointer;';
+    line.appendChild(inp); line.appendChild(add);
+    var hits = document.createElement('div');
+    hits.style.cssText = 'margin-top:6px;';
+    searchWrap.appendChild(line); searchWrap.appendChild(hits);
+
+    function clearSearch(){ inp.value = ''; hits.innerHTML = ''; }
+    inp.addEventListener('input', function(){
+      var t = String(inp.value || '').trim().toLowerCase();
+      hits.innerHTML = '';
+      if (t.length < 2) return;
+      GP_LANGS.filter(function(w){ return w.toLowerCase().indexOf(t) > -1; }).slice(0, 6)
+        .forEach(function(w){
+          var r = document.createElement('div');
+          r.setAttribute('role', 'button');
+          r.tabIndex = 0;
+          r.style.cssText = 'border:1px solid #DDE3EA;border-radius:10px;padding:9px 12px;margin-top:6px;'
+            + 'cursor:pointer;background:#fff;font-size:14.5px;font-weight:700;color:#1A2E42;';
+          r.textContent = w;
+          r.addEventListener('click', function(){
+            turnOn(w);
+            clearSearch();
+            try { btns[w].scrollIntoView({ behavior:'smooth', block:'nearest' }); } catch (e) {}
+          });
+          hits.appendChild(r);
+        });
+    });
+    function commit(){
+      var v = inp.value.trim(); if (!v) return;
+      // Typed a language that is already a button? Light that one instead of making a twin.
+      var known = null;
+      for (var i = 0; i < GP_LANGS.length; i++) {
+        if (GP_LANGS[i].toLowerCase() === v.toLowerCase()) { known = GP_LANGS[i]; break; }
+      }
+      turnOn(known || v);
+      clearSearch();
+      inp.focus();
+    }
+    add.addEventListener('click', commit);
+    inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); commit(); } });
+
+    var first = GP_LANGS.filter(function(w, i){ return i < 8 || _gpLangPicked[w]; });
+    var rest  = GP_LANGS.filter(function(w){ return first.indexOf(w) === -1; });
+    first.forEach(function(w){ row.appendChild(chip(w)); });
+    if (rest.length) {
+      row.appendChild(gpMoreBtn('More', function(){
+        rest.forEach(function(w){ row.appendChild(chip(w)); });
+        searchWrap.style.display = 'block';
+        inp.focus();
+      }));
+    }
+    wrap.appendChild(searchWrap);
+    wrap.appendChild(row);
+    return gpBlock('Which languages do you speak?', 'So people know they can talk to you in theirs.', wrap);
+  }
+
   function gpLanguagesBlock(){
+    if (GP_BROWSE) return gpLanguagesBlockBrowse();
     var picker = gpPickRow(GP_LANGS, _gpLangPicked, 8);
     var wrap = document.createElement('div');
     wrap.appendChild(picker.row);
@@ -875,7 +984,8 @@
       + '<div style="min-width:0;">'
       + '<div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;">Your photo</div>'
       + '<div style="font-size:13.5px;color:#6B7A8D;line-height:1.5;margin-bottom:8px;">'
-      + 'A professional photo helps people recognize you when you show up.</div>'
+      + (GP_BROWSE ? 'A professional photo helps members recognize you when you show up.</div>'
+                   : 'A professional photo helps people recognize you when you show up.</div>')
       + '<button type="button" id="gp-photo-btn" style="font:inherit;font-size:13.5px;font-weight:700;'
       + 'padding:8px 16px;border-radius:20px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;'
       + 'cursor:pointer;">Add a photo</button>'
@@ -958,6 +1068,10 @@
   ];
   var _gpStep = 0;
   var GP_LAST = GP_STEP_TITLES.length - 1;
+  var GP_LEDE_BASE = 'Other group members would like to get to know you! Your answers help others '
+    + 'find you and puts the right people in front of you.';
+  // Needs and haves, and how you like to be thanked. The two nobody has to answer.
+  var GP_OPTIONAL_STEPS = { 4:1, 5:1 };
 
   function gpStepOK(n){
     if (n !== 0) return true;
@@ -998,6 +1112,14 @@
     if (note) {
       var miss = (_gpStep === 0) ? gpStepMissing() : [];
       note.textContent = miss.length ? ('Still to add: ' + miss.join(', ') + '.') : '';
+      // 6. What is left to add is a reminder, not a telling-off, so it is grey like the count.
+      if (GP_BROWSE) note.style.color = '#6B7A8D';
+    }
+    if (GP_BROWSE) {
+      var lede = document.getElementById('gp-intro-lede');
+      if (lede) lede.innerHTML = GP_OPTIONAL_STEPS[_gpStep]
+        ? (GP_LEDE_BASE + ' Answer what you like now and add the rest whenever.')
+        : GP_LEDE_BASE;
     }
   }
 
@@ -1035,7 +1157,11 @@
         })
         .catch(function(){});
     }
-    if (_l0) _l0.innerHTML = window._gpAlreadyIn
+    // Somebody arriving here is on their way into a group, so the reason is the group. The
+    // "answer what you like" line is not said here, because it is only true of the optional
+    // questions and gpStepPaint adds it on those screens.
+    if (_l0 && GP_BROWSE) _l0.innerHTML = GP_LEDE_BASE;
+    else if (_l0) _l0.innerHTML = window._gpAlreadyIn
       ? 'Nothing changes about your place here. These answers are what let people find you and '
         + 'what puts the right people in front of you, and we never asked for them. Answer what '
         + 'you like now and add the rest whenever.'
@@ -1051,7 +1177,7 @@
     _pn.style.cssText = 'font-size:13px;color:#6B7A8D;margin:-6px 0 0;max-width:60ch;line-height:1.5;';
     _pn.textContent = 'Your photo is only shown inside groups you join or start. It is not on the open web '
       + 'and it is not shown to people outside your groups.';
-    _s0.appendChild(_pn);
+    if (!GP_BROWSE) _s0.appendChild(_pn);
     _s0.appendChild(gpLanguagesBlock());
     _s0.appendChild(gpLocationBlock());
     box.appendChild(_s0);
