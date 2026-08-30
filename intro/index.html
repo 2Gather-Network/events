@@ -1083,7 +1083,7 @@
       + 'justify-content:center;font-size:26px;">\u{1F331}</div>'
       + '<div style="min-width:0;">'
       + '<div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;">Your photo</div>'
-      + '<div style="font-size:13.5px;color:#6B7A8D;line-height:1.5;margin-bottom:8px;">'
+      + '<div id="gp-photo-hint" style="font-size:13.5px;color:#6B7A8D;line-height:1.5;margin-bottom:8px;">'
       + (GP_BROWSE ? 'A professional photo helps members recognize you when you show up.</div>'
                    : 'A professional photo helps people recognize you when you show up.</div>')
       + '<button type="button" id="gp-photo-btn" style="font:inherit;font-size:13.5px;font-weight:700;'
@@ -1094,7 +1094,64 @@
     var btn = wrap.querySelector('#gp-photo-btn');
     btn.addEventListener('click', gpChoosePhoto);
     // Already have one? Show it rather than inviting them to add what they have.
-    if (meId) {
+    //
+    // "Add a photo" beside an empty circle is a claim that somebody has no photo, and until the
+    // lookup lands that claim is a guess. lookupProfile has been measured at 39 seconds, so the
+    // guess was on screen for most of a minute and it was wrong for anybody who has one.
+    //
+    // Three things now happen instead. The face the photo Worker holds is asked for first,
+    // because it answers in about a tenth of a second with no backend in the way. The slow
+    // lookup still runs, for a photo stored somewhere other than R2. And until one of them
+    // answers, the button says nothing at all.
+    if (GP_BROWSE && meId) {
+      var _face = wrap.querySelector('#gp-photo-face');
+      var _btn2 = wrap.querySelector('#gp-photo-btn');
+      var _hint = wrap.querySelector('#gp-photo-hint');
+      _face.innerHTML = '';
+      _btn2.style.display = 'none';
+      if (_hint) _hint.textContent = 'Looking for your photo\u2026';
+      var _settled = false;
+      // A photo that lands after we have given up still gets shown. Saying "add a photo" and
+      // then quietly showing the one they have is better than never showing it.
+      var _late = function(url){
+        if (!url) return;
+        try { localStorage.setItem('cw-photo-' + meId, url); } catch (e) {}
+        gpPhotoShow(url);
+      };
+      var _settle = function(url){
+        if (_settled) { _late(url); return; }
+        _settled = true;
+        _btn2.style.display = '';
+        if (_hint) _hint.textContent = 'A professional photo helps members recognize you when you show up.';
+        window._gpPhotoKnown = true;
+        if (url) {
+          try { localStorage.setItem('cw-photo-' + meId, url); } catch (e) {}
+          gpPhotoShow(url);
+        } else {
+          _face.innerHTML = '\u{1F331}';
+          if (typeof gpStepPaint === 'function') gpStepPaint();
+        }
+      };
+      // A photo seen before paints at once, so a return visit never waits at all.
+      var _seen = '';
+      try { _seen = localStorage.getItem('cw-photo-' + meId) || ''; } catch (e) {}
+      if (_seen) _settle(_seen);
+
+      var _direct = PHOTO_URL + '/p/' + encodeURIComponent(meId) + '?v=' + Date.now();
+      var _probe = new Image();
+      _probe.onload  = function(){ _settle(_direct); };
+      _probe.onerror = function(){
+        // Not in R2. The slow lookup is the only thing left that could know, so wait for it.
+        fetch(GS_URL + '?action=lookupProfile&appearId=' + encodeURIComponent(meId))
+          .then(function(r){ return r.json(); })
+          .then(function(d){ _settle((d && d.photo) || ''); })
+          .catch(function(){ _settle(''); });
+      };
+      _probe.src = _direct;
+      // Nobody waits forever. After eight seconds we say we do not have one, which is at worst
+      // an invitation to add a photo they already have.
+      setTimeout(function(){ _settle(''); }, 6000);
+    } else if (meId) {
       fetch(GS_URL + '?action=lookupProfile&appearId=' + encodeURIComponent(meId))
         .then(function(r){ return r.json(); })
         .then(function(d){ if (d && d.photo) gpPhotoShow(d.photo); })
@@ -1225,6 +1282,11 @@
     next.style.cursor = next.disabled ? 'default' : 'pointer';
     if (note) {
       var miss = (_gpStep === 0) ? gpStepMissing() : [];
+      // Do not list a photo as missing before we have looked for one.
+      if (GP_BROWSE && _gpStep === 0 && !window._gpPhotoKnown && !window._gpPhotoUp) {
+        miss = miss.filter(function(m){ return m !== 'a photo'; });
+        miss.unshift('looking for your photo');
+      }
       var _req = GP_BROWSE ? GP_REQUIRED_STEPS[_gpStep] : null;
       if (_req && !gpAnswered(_req.key)) miss = [_req.miss];
       note.textContent = miss.length ? ('Still to add: ' + miss.join(', ') + '.') : '';
