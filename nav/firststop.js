@@ -1,5 +1,5 @@
 /* Where a person belongs the moment we know who they are.
-   Version: V1.00 | Date: 2026-08-27
+   Version: V2.00 | Date: 2026-08-30
 
    Somebody signing in for the first time and somebody signing in for the hundredth are the
    same request as far as the code is concerned, so the difference has to be read from what
@@ -38,13 +38,16 @@
         clearTimeout(timer);
         var row = (d && d.data) || {};
         var spoken = SAID.some(function (k) { return !blank(row[k]); });
-        // Somebody who has just written five sentences about themselves should land on the page
-        // that shows them, not on an empty list of groups, which is where the questions go by
-        // default.
-        // Finishing the questions lands on a choice of doors rather than on the profile, because
-        // somebody who came to start a group should not be marched through their profile first.
-        finish(spoken ? next : '/intro/?first=1&next=' +
-               encodeURIComponent('https://2gather.network/welcome/'));
+        // 2026-08-30. This used to send anybody who had said nothing to the questions. Two
+        // things were wrong with that. It measured "said nothing" on ikigai, a tab fifteen of
+        // six hundred and ninety five people are on, so it marched almost everybody through a
+        // form that already had their answers. And the questions are for somebody joining or
+        // starting a group, where an empty profile costs the other people in the room
+        // something. Arriving is not that moment.
+        //
+        // A new person lands on the doors instead and picks. Join a group and Start a group are
+        // two of them, and that path asks the questions when it needs to.
+        finish(spoken ? next : 'https://2gather.network/welcome/');
       })
       .catch(function () { clearTimeout(timer); finish(next); });
   };
