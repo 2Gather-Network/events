@@ -3,7 +3,7 @@
   Copyright 2026 DayBalancer LLC. All rights reserved.
   hello@creating.works
 -->
-<!-- Version: V1.45 | Date: 2026-08-30 | LAST CHANGE: one question at a time, a photo language and place to get in, and your profile at the end -->
+<!-- Version: V1.46 | Date: 2026-08-30 | LAST CHANGE: browse the categories one level at a time behind ?browse=1, built from the reference sheet -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -111,6 +111,10 @@
   // Published 2026-08-26. Everybody gets the chips. ?chips=0 turns them off, which is only
   // there so the two versions can be put side by side.
   var GP_CHIPS_ON = (params.get('chips') || '') !== '0';
+  // Browse by category, behind ?browse=1 while Jessie looks at it. Off by default, so the live
+  // page is untouched for everybody else.
+  var GP_BROWSE = (params.get('browse') || '') === '1';
+  var GP_BROWSE_KEYS = { introEnjoy:1, introSkills:1, introValues:1 };
   var GP_CHIPS = {
     introEnjoy:  { words: ['Sports', 'Outdoor & Nature', 'Making & Collecting', 'Movement & Performance', 'Games & Strategy'] },
     introSkills: { lead: 'And/or tap any category below...',
@@ -396,6 +400,53 @@
     return b;
   }
 
+  // ── Browse by category ─────────────────────────────────────────────────
+  // The walk-down list the profile editor has, built here from getReferenceData rather than
+  // typed into the page, and drawn in the intro's own colours. One level on screen at a time:
+  // tapping a category replaces what is showing instead of expanding underneath it.
+  function gpBuildTree(source, rd){
+    var tree = {}, seen = {};
+    var add = function(top, sub, item){
+      top = String(top || '').trim(); sub = String(sub || '').trim(); item = String(item || '').trim();
+      if (!top || !item) return;
+      var k = (top + '|' + sub + '|' + item).toLowerCase();
+      if (seen[k]) return; seen[k] = 1;
+      if (!tree[top]) tree[top] = { subs:{}, items:[] };
+      if (sub) { if (!tree[top].subs[sub]) tree[top].subs[sub] = []; tree[top].subs[sub].push(item); }
+      else tree[top].items.push(item);
+    };
+    if (source === 'recreation') {
+      (rd.recreation || []).forEach(function(r){ add(r.recType, r.category, r.item); });
+    } else if (source === 'skills') {
+      (rd.skills || []).forEach(function(s){ add(s.category, '', s.item); });
+    } else if (source === 'values') {
+      var vs = (rd.values || []).filter(function(v){ return v && v.item; });
+      if (vs.length) {
+        // The sheet carries the category once the backend reads Eco Social Value beside
+        // Eco Social Category. Then this is the whole list and the page holds none of it.
+        vs.forEach(function(v){ add(v.category || 'Values', '', v.item); });
+      } else {
+        // Until that one line ships, the two lenses already on this page are the list.
+        ((GP_CHIPS.introValues && GP_CHIPS.introValues.lenses) || []).forEach(function(l){
+          (l.words || []).forEach(function(w){ add(l.label, '', w); });
+          (l.more  || []).forEach(function(w){ add(l.label, '', w); });
+        });
+      }
+    }
+    return tree;
+  }
+  function gpLevel(tree, path){
+    var alpha = function(x){ return x.slice().sort(function(a,b){ return a.localeCompare(b); }); };
+    if (!path.length) return alpha(Object.keys(tree)).map(function(k){ return { name:k, drill:true }; });
+    var node = tree[path[0]] || { subs:{}, items:[] };
+    if (path.length === 1) {
+      var out = alpha(Object.keys(node.subs)).map(function(k){ return { name:k, drill:true }; });
+      alpha(node.items).forEach(function(i){ out.push({ name:i, drill:false }); });
+      return out;
+    }
+    return alpha(node.subs[path[1]] || []).map(function(i){ return { name:i, drill:false }; });
+  }
+
   function gpPicker(key, ta){
     var cfg = GP_PICK[key];
     if (!GP_CHIPS_ON || !cfg) return null;
@@ -423,7 +474,81 @@
     box.appendChild(row);
 
     var corpus = [];
-    gpRefOnce().then(function(rd){ corpus = gpCorpus(cfg.source, rd); });
+    var _browseOn = GP_BROWSE && !!GP_BROWSE_KEYS[key];
+    var browseWrap = document.createElement('div');
+    browseWrap.style.cssText = 'margin-top:14px;';
+    if (_browseOn) {
+      box.appendChild(browseWrap);
+      // The list has not arrived yet, so say that rather than draw an empty row somebody
+      // will read as "there is nothing here".
+      var _wait = document.createElement('div');
+      _wait.style.cssText = 'font-size:13px;color:#6B7A8D;';
+      _wait.textContent = 'Looking up the list\u2026';
+      browseWrap.appendChild(_wait);
+    }
+    gpRefOnce().then(function(rd){
+      corpus = gpCorpus(cfg.source, rd);
+      if (_browseOn) gpRenderBrowse(gpBuildTree(cfg.source, rd), []);
+    });
+
+    // The examples show at the top level and step aside once somebody is inside a category,
+    // so there is one list on the screen rather than two.
+    function gpRenderBrowse(tree, path){
+      browseWrap.innerHTML = '';
+      var atTop = !path.length;
+      row.style.display = atTop ? 'flex' : 'none';
+      if (atTop) {
+        var lead2 = document.createElement('div');
+        lead2.style.cssText = 'font-size:13px;color:#6B7A8D;margin-bottom:8px;';
+        lead2.textContent = 'Or browse by category.';
+        browseWrap.appendChild(lead2);
+      } else {
+        var trail = document.createElement('div');
+        trail.style.cssText = 'font-size:13.5px;font-weight:700;color:#1A2E42;margin-bottom:10px;';
+        var mkLink = function(text, to){
+          var a = document.createElement('a');
+          a.href = '#'; a.textContent = text;
+          a.style.cssText = 'color:#1F699E;text-decoration:underline;cursor:pointer;';
+          a.addEventListener('click', function(e){ e.preventDefault(); gpRenderBrowse(tree, to); });
+          return a;
+        };
+        trail.appendChild(mkLink('All categories', []));
+        path.forEach(function(seg, idx){
+          var sep = document.createElement('span');
+          sep.style.cssText = 'color:#6B7A8D;margin:0 6px;font-weight:400;';
+          sep.textContent = '\u203A';
+          trail.appendChild(sep);
+          if (idx === path.length - 1) {
+            var cur = document.createElement('span');
+            cur.textContent = seg;
+            trail.appendChild(cur);
+          } else {
+            trail.appendChild(mkLink(seg, path.slice(0, idx + 1)));
+          }
+        });
+        browseWrap.appendChild(trail);
+      }
+      var lrow = document.createElement('div');
+      lrow.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+      gpLevel(tree, path).forEach(function(it){
+        if (it.drill) {
+          var d = gpPill(it.name + ' \u203A', false);
+          d.addEventListener('click', function(){ gpRenderBrowse(tree, path.concat(it.name)); });
+          lrow.appendChild(d);
+          return;
+        }
+        // The top of the path IS the tag, because the tree already knows where the word lives.
+        var b = gpPill(it.name, gpHasWord(key, it.name));
+        b.addEventListener('click', function(){
+          if (gpHasWord(key, it.name)) gpDropWord(key, it.name, ta);
+          else gpAddWord(key, it.name, path[0] || '', ta);
+          gpRenderBrowse(tree, path);
+          repaint();
+        });
+        lrow.appendChild(b);
+      });
+      browseWrap.appendChild(lrow);
+    }
 
     function repaint(){
       Array.prototype.forEach.call(row.querySelectorAll('button[data-word]'), function(b){
@@ -462,7 +587,15 @@
     other.textContent = '+ Other';
     other.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
       + 'background:#EEF1F5;border:1px dashed #C4CDD8;color:#6B7A8D;font-weight:600;';
-    row.appendChild(other);
+    if (_browseOn) {
+      // Its own row, below the browse, so it is still there when the examples have stepped aside.
+      var otherRow = document.createElement('div');
+      otherRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;margin-top:12px;';
+      otherRow.appendChild(other);
+      box.appendChild(otherRow);
+    } else {
+      row.appendChild(other);
+    }
 
     var otherBox = document.createElement('div');
     otherBox.style.cssText = 'display:none;margin-top:10px;';
