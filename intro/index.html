@@ -413,7 +413,9 @@
   // & Performance. Only a genuinely new word has to be asked about, which is what Other does.
   var GP_PICK = {
     introNeed: {
-      examples: ['A massage therapist', 'A hairstylist', 'A plumber', 'A mechanic', 'A career mentor'],
+      // No article. "A massage therapist" matches nothing on the reference sheet, so it went in
+      // untagged; "Massage therapist" is the word the sheet actually holds.
+      examples: ['Massage therapist', 'Hairstylist', 'Plumber', 'Mechanic', 'Career mentor'],
       tagQ: 'Is that a person, a place or a thing?',
       tagOpts: ['Person', 'Place', 'Thing'], source: 'need'
     },
@@ -426,6 +428,12 @@
     introSkills: {
       examples: ['Massage therapist', 'Hairstylist', 'Accountant', 'Nurse', 'AI specialist'],
       tagQ: 'Which category does it belong to?', tagOpts: null, source: 'skills'
+    },
+    // The three kinds of thing somebody can offer, the same three the reference sheet holds
+    // under offeringTypes.
+    introOffer: {
+      examples: ['A skill', 'A thing', 'A space'],
+      tagQ: '', tagOpts: null, source: 'resources'
     },
     introValues: {
       examples: ['\u{1F3D8}️ Housing and Shelter', '\u{1F372} Food Security', '\u{1F4A7} Clean Water',
@@ -566,7 +574,7 @@
 
   // The joy screen, reshaped 2026-08-30. Five examples and Other, nothing else, because a
   // search box beside five buttons asks a question nobody had yet. Other opens the search.
-  var GP_BARE_KEYS = { introEnjoy:1, introSkills:1, introValues:1, introNeed:1 };
+  var GP_BARE_KEYS = { introEnjoy:1, introSkills:1, introValues:1, introNeed:1, introOffer:1 };
   // Where the card heading already asks the question, the second copy comes off. Needs and
   // haves keeps its headings, because two questions share that screen and they have to be
   // told apart.
@@ -1268,14 +1276,16 @@
       ? 'What skills pay the bills and how do you like helping others?'
       : 'What skills pay the bills?',
     'What do you care about?',
-    'Anything you need, or have to offer?',
-    'How do you like to be thanked?',
-    'This is your profile'
-  ];
+    'Anything you need, or have to offer?'
+  ].concat((typeof GP_BROWSE !== 'undefined' && GP_BROWSE)
+    // How do you like to be thanked has moved, so it is not a screen here any more and the
+    // profile is what comes after the last question.
+    ? ['This is your profile']
+    : ['How do you like to be thanked?', 'This is your profile']);
   var _gpStep = 0;
   var GP_LAST = GP_STEP_TITLES.length - 1;
   var GP_LEDE_BASE = 'Other group members would like to get to know you! Your answers help others '
-    + 'find you and puts the right people in front of you.';
+    + 'find you and puts the right people in front of you. Everything saves as you go.';
   // Needs and haves, and how you like to be thanked. The two nobody has to answer.
   var GP_OPTIONAL_STEPS = { 4:1, 5:1 };
 
@@ -1314,7 +1324,11 @@
     var note = document.getElementById('gp-step-note');
     var count = document.getElementById('gp-step-count');
     var title = document.getElementById('gp-intro-title');
-    if (title && _gpStep > 0) title.textContent = GP_STEP_TITLES[_gpStep];
+    // Coming back to the first screen used to leave the last question's heading up there, so
+    // the photo screen introduced itself as whatever somebody had just answered.
+    if (title) title.textContent = (_gpStep > 0)
+      ? GP_STEP_TITLES[_gpStep]
+      : (window._gpWelcome || GP_STEP_TITLES[0]);
     if (count) count.textContent = (_gpStep < GP_LAST) ? ((_gpStep + 1) + ' of ' + GP_LAST) : '';
     if (back) back.style.display = _gpStep === 0 ? 'none' : '';
     var skip = document.getElementById('gp-step-skip');
@@ -1323,7 +1337,10 @@
     if (skip) skip.style.display = (_gpStep === 4) ? '' : 'none';
     if (!next) return;
     if (_gpStep === GP_LAST) { next.textContent = 'Go in'; next.disabled = false; }
-    else if (_gpStep === GP_LAST - 1) { next.textContent = 'Save and see my profile'; next.disabled = false; }
+    else if (_gpStep === GP_LAST - 1) {
+      next.textContent = GP_BROWSE ? 'View my profile' : 'Save and see my profile';
+      next.disabled = false;
+    }
     else { next.textContent = 'Next'; next.disabled = !gpStepOK(_gpStep); }
     next.style.opacity = next.disabled ? '.55' : '1';
     next.style.cursor = next.disabled ? 'default' : 'pointer';
@@ -1353,19 +1370,13 @@
       };
       // Step 0 shows all three at once. Chaining them there was mine and not asked for.
       reveal('gp-methods-block', gpAnswered('introSkills'));
-      // Appreciation waits on what comes most naturally. Somebody who got all the way here
-      // without answering that still sees it, because an empty screen is worse.
-      reveal('gp-thanks-block',  _picked(_gpMethodPicked) || _gpStep === 5);
 
       // The welcome is said once, on the way in. On a question screen the question is the
       // whole of it, and the only thing worth adding is on the two nobody has to answer.
       var lede = document.getElementById('gp-intro-lede');
       if (lede) {
         if (_gpStep === 0) { lede.style.display = ''; lede.innerHTML = GP_LEDE_BASE; }
-        else if (GP_OPTIONAL_STEPS[_gpStep]) {
-          lede.style.display = '';
-          lede.innerHTML = 'Answer what you like now and add the rest whenever.';
-        } else { lede.style.display = 'none'; lede.innerHTML = ''; }
+        else { lede.style.display = 'none'; lede.innerHTML = ''; }
       }
     }
   }
@@ -1389,7 +1400,8 @@
     var _l0 = document.getElementById('gp-intro-lede');
     var _who = '';
     try { _who = String(localStorage.getItem('cw-first') || '').trim(); } catch (err) {}
-    if (_t0) _t0.textContent = _who ? ('Welcome, ' + _who + ' \u{1F389}') : 'Welcome \u{1F389}';
+    window._gpWelcome = _who ? ('Welcome, ' + _who + ' \u{1F389}') : 'Welcome \u{1F389}';
+    if (_t0) _t0.textContent = window._gpWelcome;
     // A device that does not hold a name asks for one and drops it in when it lands. The
     // heading is already on screen either way, so nobody waits on this.
     if (!_who && meId) {
@@ -1399,8 +1411,9 @@
           var nm = String((d && d.name) || '').trim().split(' ')[0];
           if (!nm) return;
           try { localStorage.setItem('cw-first', nm); } catch (err) {}
+          window._gpWelcome = 'Welcome, ' + nm + ' \u{1F389}';
           var el = document.getElementById('gp-intro-title');
-          if (el) el.textContent = 'Welcome, ' + nm + ' \u{1F389}';
+          if (el && _gpStep === 0) el.textContent = window._gpWelcome;
         })
         .catch(function(){});
     }
@@ -1495,12 +1508,14 @@
       }
     });
     // Appreciation last, then the profile as everybody else sees it.
-    var _th = gpThanksBlock();
-    _th.id = 'gp-thanks-block';
-    _th.setAttribute('data-gp-step', '5');
-    box.appendChild(_th);
+    if (!GP_BROWSE) {
+      var _th = gpThanksBlock();
+      _th.id = 'gp-thanks-block';
+      _th.setAttribute('data-gp-step', '5');
+      box.appendChild(_th);
+    }
     var _pv = document.createElement('div');
-    _pv.setAttribute('data-gp-step', '6');
+    _pv.setAttribute('data-gp-step', GP_BROWSE ? '5' : '6');
     _pv.id = 'gp-preview';
     box.appendChild(_pv);
     gpShowStep(0);
@@ -1628,14 +1643,36 @@
 
   // Next does one of three things: move on, save, or leave. Back never saves, because going
   // back to look at something should not write anything.
+  // Every move forward writes what is on the screen. Nobody should be able to answer four
+  // questions, close the tab, and find out none of it was kept because they never reached a
+  // button at the end. Quiet on purpose: it takes nothing over and says nothing unless it fails.
+  function gpQuietSave(){
+    if (!GP_BROWSE || !meId) return;
+    var val = function(k){ var el = document.getElementById('gp-intro-' + k); return el ? String(el.value || '').trim() : ''; };
+    var picked = function(map, sep){ return Object.keys(map).filter(function(k){ return map[k]; }).join(sep); };
+    var tagFor = function(k){ return Object.keys(_gpTags[k] || {}).join('|'); };
+    var qs = 'action=saveIntro&appearId=' + encodeURIComponent(meId)
+      + '&appreciation=' + encodeURIComponent(picked(_gpThanksPicked, '|'))
+      + '&languages='    + encodeURIComponent(picked(_gpLangPicked, ', '))
+      + '&methods='      + encodeURIComponent(picked(_gpMethodPicked, '|'));
+    GP_INTRO_Q.forEach(function(q){ qs += '&' + q.key + '=' + encodeURIComponent(val(q.key)); });
+    qs += '&needsTags='     + encodeURIComponent(tagFor('introNeed'))
+        + '&interestsTags=' + encodeURIComponent(tagFor('introEnjoy'))
+        + '&skillsTags='    + encodeURIComponent(tagFor('introSkills'))
+        + '&valuesTags='    + encodeURIComponent(tagFor('introValues'))
+        + '&location='      + encodeURIComponent(gpLocString(_gpLoc));
+    fetch(GS_URL + '?' + qs).catch(function(){});
+  }
+
   document.getElementById('gp-step-next').addEventListener('click', function(){
     if (_gpStep === GP_LAST) { window.location.href = _next; return; }
     if (_gpStep === GP_LAST - 1) { gpSaveIntro(); return; }
     if (!gpStepOK(_gpStep)) { gpStepPaint(); return; }
+    gpQuietSave();
     gpShowStep(_gpStep + 1);
   });
   document.getElementById('gp-step-back').addEventListener('click', function(){ gpShowStep(_gpStep - 1); });
-  document.getElementById('gp-step-skip').addEventListener('click', function(){ gpShowStep(_gpStep + 1); });
+  document.getElementById('gp-step-skip').addEventListener('click', function(){ gpQuietSave(); gpShowStep(_gpStep + 1); });
   // Show somebody what they already said before asking them to say it again.
   // saveIntro writes whatever is in a box, blank included, so a page that opens
   // empty quietly erases the answers of anybody who has been here before. Only
@@ -1662,23 +1699,26 @@
         var have = (d && d.data) || {};
         var use = {}, any = false;
         GP_INTRO_Q.forEach(function(q){
-          var v = String(have[q.key] || '').trim();
-          // The older columns hold tags, not sentences: items split by | and each one
+          // The real column holds tags, not sentences: items split by | and each one
           // carrying its type and level after a colon, as in "Ping Pong:Participant".
-          // Shown raw that reads as gibberish, and saving would write the machine's
-          // shorthand back as though the person had typed it. Keep the names only.
-          if (!v) {
-            var raw = String(have[GP_OLDER[q.key]] || '').trim();
-            if (raw) {
-              v = raw.split('|').map(function(part){
-                var name = String(part).split(':')[0].trim();
-                // An older picker stored the emoji along with the word, so some saved items
-                // read "\u{1F3AD} Arts & Culture". The picture was always decoration, and it is
-                // dropped here so nobody has to look at it or type around it.
-                return name.replace(/^[^\p{L}\p{N}]+/u, '').trim();
-              }).filter(function(name){ return name; }).join(', ');
-            }
-          }
+          // Shown raw that reads as gibberish, so keep the names only. An older picker also
+          // stored the emoji with the word, and the picture was always decoration.
+          var clean = function(part){
+            var name = String(part).split(':')[0].trim();
+            return name.replace(/^[^\p{L}\p{N}]+/u, '').trim();
+          };
+          // Both, not one or the other. This used to fall back to the real column only when the
+          // intro's own field was empty, so a single word typed here hid a list somebody had
+          // spent months building. Nobody loses what they already said.
+          var seenW = {}, all = [];
+          [String(have[GP_OLDER[q.key]] || ''), String(have[q.key] || '')].forEach(function(src){
+            src.split(/[|,]/).map(clean).forEach(function(w){
+              if (!w) return;
+              var kw = w.toLowerCase(); if (seenW[kw]) return;
+              seenW[kw] = 1; all.push(w);
+            });
+          });
+          var v = all.join(', ');
           if (v) { use[q.key] = v; any = true; }
         });
         // Anything already chosen shows as chosen, so nobody picks their own languages twice.
