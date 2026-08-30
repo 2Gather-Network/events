@@ -3,7 +3,7 @@
   Copyright 2026 DayBalancer LLC. All rights reserved.
   hello@creating.works
 -->
-<!-- Version: V1.44 | Date: 2026-08-30 | LAST CHANGE: five examples, a keyword search and Other on every question, and a tap now files a tag -->
+<!-- Version: V1.45 | Date: 2026-08-30 | LAST CHANGE: one question at a time, a photo language and place to get in, and your profile at the end -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -38,9 +38,14 @@
       Your answers below help others get to know you and will generate matches to the right people
       over time. Answer what you like now and add the rest whenever.</p>
     <div id="gp-intro-qs"></div>
-    <div style="display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:22px;padding-top:18px;border-top:1px solid #f0f1f5;flex-wrap:wrap;">
+    <div style="display:flex;gap:12px;align-items:center;margin-top:22px;padding-top:18px;border-top:1px solid #f0f1f5;flex-wrap:wrap;">
+      <button type="button" id="gp-step-back" style="display:none;font:inherit;font-size:14px;font-weight:700;padding:10px 18px;border-radius:24px;border:1.5px solid #C9DFF3;background:#fff;color:#1F699E;cursor:pointer;">Back</button>
+      <span id="gp-step-count" style="font-size:13px;color:#6B7A8D;"></span>
+      <span id="gp-step-note" style="font-size:13px;color:#7A2410;"></span>
+      <span style="flex:1;"></span>
       <span id="gp-intro-status" style="font-size:13px;color:#6B7A8D;"></span>
-      <button class="btn" id="gp-intro-go">Save and go in</button>
+      <button type="button" id="gp-step-skip" style="display:none;font:inherit;font-size:14px;font-weight:600;padding:10px 16px;border-radius:24px;border:0;background:transparent;color:#6B7A8D;cursor:pointer;text-decoration:underline;">Skip this</button>
+      <button class="btn" id="gp-step-next">Next</button>
     </div>
   </div>
 </div>
@@ -153,7 +158,11 @@
               : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;');
       };
       paint();
-      b.addEventListener('click', function(){ picked[word] = !picked[word]; paint(); });
+      b.addEventListener('click', function(){
+        picked[word] = !picked[word]; paint();
+        // A language chosen here is what unlocks step 0, so the footer is told.
+        if (typeof gpStepPaint === 'function') gpStepPaint();
+      });
       return b;
     }
     var shown = all.filter(function(w, i){ return !firstN || i < firstN || picked[w]; });
@@ -655,6 +664,66 @@
     var f = document.getElementById('gp-photo-face'); if (!f) return;
     f.innerHTML = '<img src="' + url + '" alt="" style="width:100%;height:100%;object-fit:cover;">';
     var b = document.getElementById('gp-photo-btn'); if (b) b.textContent = 'Change photo';
+    // Step 0 will not let anybody past without one, so the moment a face lands the door opens.
+    window._gpPhotoUp = true;
+    if (typeof gpStepPaint === 'function') gpStepPaint();
+  }
+
+  // ── Location, 2026-08-30 ──────────────────────────────────────────────────
+  // Ported from My account rather than invented again, so somebody meets the same picker in both
+  // places and a stored value reads the same way. Held as one plain string, "Washington, United
+  // States", so anything showing a profile can print it without knowing the three levels.
+  var GP_REGIONS = ['North America','South America','Europe','Asia','Africa','Oceania','Antarctica'];
+  var GP_NA = ['United States','Canada','Mexico'];
+  var GP_US = ["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming","Washington D.C."];
+  var _gpLoc = { region:'', country:'', state:'' };
+  // A part-made choice stores nothing. "North America" on its own says less than a blank does.
+  function gpLocString(l){
+    if (l.state) return l.state + ', United States';
+    if (l.country && l.country !== 'United States') return l.country;
+    if (l.region && l.region !== 'North America') return l.region;
+    return '';
+  }
+  function gpLocationBlock(){
+    var wrap = document.createElement('div');
+    wrap.setAttribute('data-gp-loc','1');
+    wrap.style.cssText = 'padding:18px 0 0;border-top:1px solid #f0f1f5;margin-top:18px;';
+    var t = document.createElement('div');
+    t.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;';
+    t.textContent = 'Where are you?';
+    var h = document.createElement('div');
+    h.style.cssText = 'font-size:13.5px;color:#6B7A8D;margin-bottom:12px;';
+    h.textContent = 'So the people and events near you can reach you.';
+    var box = document.createElement('div');
+    box.id = 'gp-loc-box';
+    box.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
+    wrap.appendChild(t); wrap.appendChild(h); wrap.appendChild(box);
+    gpRenderLoc();
+    return wrap;
+  }
+  function gpRenderLoc(){
+    var box = document.getElementById('gp-loc-box');
+    if (!box) { setTimeout(gpRenderLoc, 0); return; }
+    var l = _gpLoc, ss = 'font:inherit;font-size:14px;padding:10px 12px;border:1.5px solid #DDE3EA;border-radius:10px;background:#F7FBFF;color:#1A2E42;';
+    var sel = function(id, list, val, ph){
+      var h = '<select id="' + id + '" style="' + ss + '"><option value="">' + ph + '</option>';
+      list.forEach(function(x){ h += '<option' + (x === val ? ' selected' : '') + '>' + x + '</option>'; });
+      return h + '</select>';
+    };
+    var html = sel('gp-loc-region', GP_REGIONS, l.region, 'Select region…');
+    if (l.region === 'North America') html += sel('gp-loc-country', GP_NA, l.country, 'Select country…');
+    if (l.region === 'North America' && l.country === 'United States') html += sel('gp-loc-state', GP_US, l.state, 'Select state…');
+    box.innerHTML = html;
+    var rg = box.querySelector('#gp-loc-region');
+    if (rg) rg.onchange = function(){
+      _gpLoc = { region: rg.value, country: '', state: '' };
+      if (rg.value === 'North America') _gpLoc.country = 'United States';
+      gpRenderLoc(); gpStepPaint();
+    };
+    var ct = box.querySelector('#gp-loc-country');
+    if (ct) ct.onchange = function(){ _gpLoc.country = ct.value; _gpLoc.state = ''; gpRenderLoc(); gpStepPaint(); };
+    var st = box.querySelector('#gp-loc-state');
+    if (st) st.onchange = function(){ _gpLoc.state = st.value; gpRenderLoc(); gpStepPaint(); };
   }
 
   function gpPhotoBlock(){
@@ -733,6 +802,76 @@
     }).catch(function(){ gpPhotoStat('That did not go through.'); });
   }
 
+  // ── One thing at a time, 2026-08-30 ───────────────────────────────────────
+  // Five questions in a column is a form. One question on a screen is a conversation, and it is
+  // the difference between somebody answering three of them and answering all of them.
+  //
+  // Step 0 is the only wall on the site: a photo, a language and a place. Everything after it is
+  // asked properly and can be left, because the gate that matters is joining a group.
+  var GP_STEP_TITLES = [
+    'First, so people can recognise you',
+    'What do you enjoy?',
+    'What skills pay the bills?',
+    'What do you care about?',
+    'Anything you need, or have to offer?',
+    'How do you like to be thanked?',
+    'This is your profile'
+  ];
+  var _gpStep = 0;
+  var GP_LAST = GP_STEP_TITLES.length - 1;
+
+  function gpStepOK(n){
+    if (n !== 0) return true;
+    // The three that step 0 asks for. The photo is the strongest ask on the site and it is made
+    // here, once, while somebody is still arriving.
+    var hasPhoto = !!(window._gpPhotoUp || document.querySelector('#gp-photo-face img'));
+    var hasLang  = Object.keys(_gpLangPicked || {}).some(function(k){ return _gpLangPicked[k]; });
+    var hasLoc   = !!gpLocString(_gpLoc);
+    return hasPhoto && hasLang && hasLoc;
+  }
+  function gpStepMissing(){
+    var out = [];
+    if (!(window._gpPhotoUp || document.querySelector('#gp-photo-face img'))) out.push('a photo');
+    if (!Object.keys(_gpLangPicked || {}).some(function(k){ return _gpLangPicked[k]; })) out.push('a language');
+    if (!gpLocString(_gpLoc)) out.push('where you are');
+    return out;
+  }
+
+  function gpStepPaint(){
+    var next = document.getElementById('gp-step-next');
+    var back = document.getElementById('gp-step-back');
+    var note = document.getElementById('gp-step-note');
+    var count = document.getElementById('gp-step-count');
+    var title = document.getElementById('gp-intro-title');
+    if (title && _gpStep > 0) title.textContent = GP_STEP_TITLES[_gpStep];
+    if (count) count.textContent = (_gpStep < GP_LAST) ? ((_gpStep + 1) + ' of ' + GP_LAST) : '';
+    if (back) back.style.display = _gpStep === 0 ? 'none' : '';
+    var skip = document.getElementById('gp-step-skip');
+    // Skipping needs and haves is a choice somebody makes, not a thing they miss, so it is a
+    // control on the screen rather than an absence of one.
+    if (skip) skip.style.display = (_gpStep === 4) ? '' : 'none';
+    if (!next) return;
+    if (_gpStep === GP_LAST) { next.textContent = 'Go in'; next.disabled = false; }
+    else if (_gpStep === GP_LAST - 1) { next.textContent = 'Save and see my profile'; next.disabled = false; }
+    else { next.textContent = 'Next'; next.disabled = !gpStepOK(_gpStep); }
+    next.style.opacity = next.disabled ? '.55' : '1';
+    next.style.cursor = next.disabled ? 'default' : 'pointer';
+    if (note) {
+      var miss = (_gpStep === 0) ? gpStepMissing() : [];
+      note.textContent = miss.length ? ('Still to add: ' + miss.join(', ') + '.') : '';
+    }
+  }
+
+  function gpShowStep(n){
+    _gpStep = Math.max(0, Math.min(GP_LAST, n));
+    var all = document.querySelectorAll('[data-gp-step]');
+    Array.prototype.forEach.call(all, function(el){
+      el.style.display = (String(el.getAttribute('data-gp-step')) === String(_gpStep)) ? '' : 'none';
+    });
+    gpStepPaint();
+    try { window.scrollTo(0, 0); } catch (e) {}
+  }
+
   function gpRenderIntro(prefill){
     var box = document.getElementById('gp-intro-qs');
     if (!box) return;
@@ -765,7 +904,18 @@
         + 'people find you and what puts the right people in front of you. Answer what you like '
         + 'now and add the rest whenever.';
     box.innerHTML = '';
-    box.appendChild(gpPhotoBlock());
+    // Step 0. The photo, and the promise that goes with asking for it.
+    var _s0 = document.createElement('div');
+    _s0.setAttribute('data-gp-step', '0');
+    _s0.appendChild(gpPhotoBlock());
+    var _pn = document.createElement('div');
+    _pn.style.cssText = 'font-size:13px;color:#6B7A8D;margin:-6px 0 0;max-width:60ch;line-height:1.5;';
+    _pn.textContent = 'Your photo is only shown inside groups you join or start. It is not on the open web '
+      + 'and it is not shown to people outside your groups.';
+    _s0.appendChild(_pn);
+    _s0.appendChild(gpLanguagesBlock());
+    _s0.appendChild(gpLocationBlock());
+    box.appendChild(_s0);
     GP_INTRO_Q.forEach(function(q, i){
       var wrap = document.createElement('div');
       wrap.style.cssText = 'padding:18px 0;' + (i ? 'border-top:1px solid #f0f1f5;' : 'padding-top:0;');
@@ -809,13 +959,27 @@
       wrap.appendChild(t); wrap.appendChild(h); wrap.appendChild(ta);
       var chipRow = gpPicker(q.key, ta) || gpChipRow(q.key, ta);
       if (chipRow) wrap.appendChild(chipRow);
+      // Enjoy, skills, values each get a screen. Needs and haves share the last question screen,
+      // because they are two halves of one thought and neither is required.
+      var _map = { introEnjoy:'1', introSkills:'2', introValues:'3', introNeed:'4', introOffer:'4' };
+      wrap.setAttribute('data-gp-step', _map[q.key] || '4');
       box.appendChild(wrap);
       if (q.key === 'introSkills') {
-        box.appendChild(gpLanguagesBlock());
-        box.appendChild(gpMethodsBlock());
-        box.appendChild(gpThanksBlock());
+        // What comes most naturally to you sits with the skills, which is what it is about.
+        var _m = gpMethodsBlock();
+        _m.setAttribute('data-gp-step', '2');
+        box.appendChild(_m);
       }
     });
+    // Appreciation last, then the profile as everybody else sees it.
+    var _th = gpThanksBlock();
+    _th.setAttribute('data-gp-step', '5');
+    box.appendChild(_th);
+    var _pv = document.createElement('div');
+    _pv.setAttribute('data-gp-step', '6');
+    _pv.id = 'gp-preview';
+    box.appendChild(_pv);
+    gpShowStep(0);
   }
 
   function gpThanksBlock(){
@@ -872,7 +1036,8 @@
     qs += '&needsTags='     + encodeURIComponent(tagFor('introNeed'))
         + '&interestsTags=' + encodeURIComponent(tagFor('introEnjoy'))
         + '&skillsTags='    + encodeURIComponent(tagFor('introSkills'))
-        + '&valuesTags='    + encodeURIComponent(tagFor('introValues'));
+        + '&valuesTags='    + encodeURIComponent(tagFor('introValues'))
+        + '&location='      + encodeURIComponent(gpLocString(_gpLoc));
     fetch(GS_URL + '?' + qs)
       .then(function(r){ return r.json(); })
       .then(function(d){
@@ -882,7 +1047,8 @@
           stat.textContent = (d && d.message) || 'Could not save just now. Try again in a moment.';
           return;
         }
-        _introDone();
+        gpBuildPreview();
+        gpShowStep(GP_LAST);
       })
       .catch(function(){
         btn.disabled = false;
@@ -893,7 +1059,56 @@
 
 
   document.getElementById('intro-back').addEventListener('click', function(){ window.location.href = _next; });
-  document.getElementById('gp-intro-go').addEventListener('click', gpSaveIntro);
+  // The last screen. Somebody has just answered six questions and has never once seen what any
+  // of it looks like from the outside, which is the only view that matters to anybody else.
+  function gpBuildPreview(){
+    var el = document.getElementById('gp-preview');
+    if (!el) return;
+    var who = '';
+    try { who = String(localStorage.getItem('cw-first') || '').trim(); } catch (e) {}
+    var photo = '';
+    var img = document.querySelector('#gp-photo-face img');
+    if (img) photo = img.getAttribute('src') || '';
+    var val = function(k){ var t = document.getElementById('gp-intro-' + k); return t ? String(t.value || '').trim() : ''; };
+    var esc = function(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    var row = function(label, text){
+      if (!text) return '';
+      return '<div style="padding:14px 0;border-top:1px solid #f0f1f5;">'
+        + '<div style="font-size:12px;font-weight:800;color:#6B7A8D;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">' + label + '</div>'
+        + '<div style="font-size:14.5px;color:#1A2E42;line-height:1.55;">' + esc(text) + '</div></div>';
+    };
+    var langs = Object.keys(_gpLangPicked || {}).filter(function(k){ return _gpLangPicked[k]; }).join(', ');
+    el.innerHTML =
+      '<div style="font-size:13.5px;color:#6B7A8D;margin-bottom:16px;max-width:60ch;line-height:1.55;">'
+      + 'This is how you look to somebody in a group you join. You can change any of it later from '
+      + 'your profile.</div>'
+      + '<div style="display:flex;align-items:center;gap:16px;">'
+      + (photo
+          ? '<img src="' + photo + '" alt="" style="width:76px;height:76px;border-radius:50%;object-fit:cover;border:1.5px solid #DDE3EA;">'
+          : '<div style="width:76px;height:76px;border-radius:50%;background:#EDF3F9;border:1.5px solid #DDE3EA;"></div>')
+      + '<div><div style="font-size:22px;font-weight:800;color:#1A2E42;">' + esc(who || 'You') + '</div>'
+      + (gpLocString(_gpLoc) ? '<div style="font-size:14px;color:#6B7A8D;">' + esc(gpLocString(_gpLoc)) + '</div>' : '')
+      + '</div></div>'
+      + '<div style="margin-top:14px;">'
+      + row('Enjoys', val('introEnjoy'))
+      + row('Skills', val('introSkills'))
+      + row('Cares about', val('introValues'))
+      + row('Needs', val('introNeed'))
+      + row('Has to offer', val('introOffer'))
+      + row('Speaks', langs)
+      + '</div>';
+  }
+
+  // Next does one of three things: move on, save, or leave. Back never saves, because going
+  // back to look at something should not write anything.
+  document.getElementById('gp-step-next').addEventListener('click', function(){
+    if (_gpStep === GP_LAST) { window.location.href = _next; return; }
+    if (_gpStep === GP_LAST - 1) { gpSaveIntro(); return; }
+    if (!gpStepOK(_gpStep)) { gpStepPaint(); return; }
+    gpShowStep(_gpStep + 1);
+  });
+  document.getElementById('gp-step-back').addEventListener('click', function(){ gpShowStep(_gpStep - 1); });
+  document.getElementById('gp-step-skip').addEventListener('click', function(){ gpShowStep(_gpStep + 1); });
   // Show somebody what they already said before asking them to say it again.
   // saveIntro writes whatever is in a box, blank included, so a page that opens
   // empty quietly erases the answers of anybody who has been here before. Only
