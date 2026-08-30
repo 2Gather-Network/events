@@ -64,6 +64,14 @@
     } catch(err){}
     return 'https://2gather.network/mygroups' + (meId ? '?CWid=' + encodeURIComponent(meId) : '');
   })();
+  // Somebody arriving on their way into a group is told about the group, and somebody on
+  // their way to an event is told about the event. The link can say which with ?for=event,
+  // and when it does not, where it is sending them says it instead.
+  var GP_FOR = (function(){
+    var said = String(params.get('for') || '').trim().toLowerCase();
+    if (said === 'event' || said === 'group') return said;
+    return /\/(events?|e)\//.test(_next) ? 'event' : 'group';
+  })();
   window._gpAlreadyIn = (params.get('already') || '') === '1';
   window._gpFirstTime = (params.get('first') || '') === '1';
   // The group bundle is cached for a minute, and the answer just changed. Without this the
@@ -1083,6 +1091,19 @@
   var GP_NA = ['United States','Canada','Mexico'];
   var GP_US = ["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming","Washington D.C."];
   var _gpLoc = { region:'', country:'', state:'' };
+  // The place is held as one plain string, so it has to be read back into the three levels the
+  // picker draws. Without this it was saved on every visit and asked for on every visit.
+  function gpLocFrom(str){
+    var v = String(str || '').trim();
+    if (!v) return;
+    var parts = v.split(',').map(function(x){ return x.trim(); });
+    if (parts.length > 1 && parts[parts.length - 1] === 'United States') {
+      var st = parts[0];
+      if (GP_US.indexOf(st) > -1) { _gpLoc = { region:'North America', country:'United States', state:st }; return; }
+    }
+    if (GP_NA.indexOf(v) > -1) { _gpLoc = { region:'North America', country:v, state:'' }; return; }
+    if (GP_REGIONS.indexOf(v) > -1) { _gpLoc = { region:v, country:'', state:'' }; return; }
+  }
   // A part-made choice stores nothing. "North America" on its own says less than a blank does.
   function gpLocString(l){
     if (l.state) return l.state + ', United States';
@@ -1144,6 +1165,13 @@
       + '<div id="gp-photo-hint" style="font-size:13.5px;color:#6B7A8D;line-height:1.5;margin-bottom:8px;">'
       + (GP_BROWSE ? 'A professional photo helps members recognize you when you show up.</div>'
                    : 'A professional photo helps people recognize you when you show up.</div>')
+      + (GP_BROWSE
+          ? '<div style="font-size:13.5px;color:#6B7A8D;line-height:1.5;margin-bottom:8px;">'
+            + (GP_FOR === 'event'
+                ? 'Your photo is needed to register for an event that has a bulletin board.'
+                : 'Your photo is needed to join a group.')
+            + '</div>'
+          : '')
       + '<button type="button" id="gp-photo-btn" style="font:inherit;font-size:13.5px;font-weight:700;'
       + 'padding:8px 16px;border-radius:20px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;'
       + 'cursor:pointer;">Add a photo</button>'
@@ -1289,8 +1317,9 @@
     : ['How do you like to be thanked?', 'This is your profile']);
   var _gpStep = 0;
   var GP_LAST = GP_STEP_TITLES.length - 1;
-  var GP_LEDE_BASE = 'Other group members would like to get to know you! Your answers help others '
-    + 'find you and puts the right people in front of you. Everything saves as you go.';
+  var GP_LEDE_BASE = 'Other ' + (GP_FOR === 'event' ? 'event attendees' : 'group members')
+    + ' would like to get to know you! Your answers help others find you and puts the right '
+    + 'people in front of you. Everything saves as you go.';
   // Needs and haves, and how you like to be thanked. The two nobody has to answer.
   var GP_OPTIONAL_STEPS = { 4:1, 5:1 };
 
@@ -1752,6 +1781,8 @@
           var typed = el ? String(el.value || '').trim() : '';
           if (typed) { use[q.key] = typed; any = true; }
         });
+        gpLocFrom(have.location);
+        if (gpLocString(_gpLoc)) any = true;
         window._gpLoaded = true;
         if (any) { gpRenderIntro(use); }
       })
