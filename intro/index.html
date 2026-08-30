@@ -433,12 +433,12 @@
     // under offeringTypes.
     introOffer: {
       examples: ['A skill', 'A thing', 'A space'],
-      tagQ: '', tagOpts: null, source: 'resources'
+      tagQ: 'Tag this to which categories?', tagOpts: null, source: 'resources'
     },
     introValues: {
       examples: ['\u{1F3D8}️ Housing and Shelter', '\u{1F372} Food Security', '\u{1F4A7} Clean Water',
                  '\u{1F32C}️ Clean Air', '⚡ Clean Energy', '\u{1F43F}️ Animal Welfare'],
-      tagQ: '', tagOpts: null, source: 'values'
+      tagQ: 'Tag this to which categories?', tagOpts: null, source: 'values'
     }
   };
   // word -> the category it was filed under. Sent to the backend beside the sentence.
@@ -484,6 +484,11 @@
         (l.words || []).forEach(function(w){ push(w, l.label, ''); });
         (l.more  || []).forEach(function(w){ push(w, l.label, ''); });
       });
+    } else if (source === 'resources') {
+      // Things and spaces people can share. Without this branch the offer question had no words
+      // at all, so its search found nothing and every answer went in untagged.
+      (rd.resources || []).forEach(function(r){ push(r.item, r.category, r.associations); });
+      (rd.offeringTypes || []).forEach(function(t){ push(t, 'Kind', ''); });
     } else if (source === 'need') {
       (rd.skills || []).forEach(function(s){ push(s.item, s.category, s.associations); });
       (rd.recreation || []).forEach(function(r){ push(r.item, r.recType, r.associations); });
@@ -1566,6 +1571,9 @@
     stat.textContent = 'Loading your profile…';
     var picked = function(map, sep){ return Object.keys(map).filter(function(k){ return map[k]; }).join(sep); };
     var qs = 'action=saveIntro&appearId=' + encodeURIComponent(meId)
+      // Taking a word off with the cross has to take it off the sheet too, and it only can when
+      // the page is holding the whole list. It says so here, and only after a load that worked.
+      + (window._gpLoaded ? '&tagsMode=replace' : '')
       + '&appreciation=' + encodeURIComponent(picked(_gpThanksPicked, '|'))
       + '&languages=' + encodeURIComponent(picked(_gpLangPicked, ', '))
       + '&methods=' + encodeURIComponent(picked(_gpMethodPicked, '|'));
@@ -1573,7 +1581,13 @@
     // The tags, beside the sentence rather than instead of it. Without these somebody can answer
     // every question and stay invisible to matching, because matching reads these columns and
     // never reads the sentence. Pipe separated, which is how every other list on ikigai is held.
-    var tagFor = function(k){ return Object.keys(_gpTags[k] || {}).join('|'); };
+    // Everything showing on the screen, not only what was tapped in this visit. A word loaded
+    // from the sheet and left alone has to come back, or replacing would drop it.
+    var tagFor = function(k){
+      var el = document.getElementById('gp-intro-' + k);
+      return String((el && el.value) || '').split(',').map(function(x){ return x.trim(); })
+        .filter(Boolean).join('|');
+    };
     qs += '&needsTags='     + encodeURIComponent(tagFor('introNeed'))
         + '&interestsTags=' + encodeURIComponent(tagFor('introEnjoy'))
         + '&skillsTags='    + encodeURIComponent(tagFor('introSkills'))
@@ -1650,8 +1664,13 @@
     if (!GP_BROWSE || !meId) return;
     var val = function(k){ var el = document.getElementById('gp-intro-' + k); return el ? String(el.value || '').trim() : ''; };
     var picked = function(map, sep){ return Object.keys(map).filter(function(k){ return map[k]; }).join(sep); };
-    var tagFor = function(k){ return Object.keys(_gpTags[k] || {}).join('|'); };
+    var tagFor = function(k){
+      var el = document.getElementById('gp-intro-' + k);
+      return String((el && el.value) || '').split(',').map(function(x){ return x.trim(); })
+        .filter(Boolean).join('|');
+    };
     var qs = 'action=saveIntro&appearId=' + encodeURIComponent(meId)
+      + (window._gpLoaded ? '&tagsMode=replace' : '')
       + '&appreciation=' + encodeURIComponent(picked(_gpThanksPicked, '|'))
       + '&languages='    + encodeURIComponent(picked(_gpLangPicked, ', '))
       + '&methods='      + encodeURIComponent(picked(_gpMethodPicked, '|'));
@@ -1733,6 +1752,7 @@
           var typed = el ? String(el.value || '').trim() : '';
           if (typed) { use[q.key] = typed; any = true; }
         });
+        window._gpLoaded = true;
         if (any) { gpRenderIntro(use); }
       })
       .catch(function(){});
