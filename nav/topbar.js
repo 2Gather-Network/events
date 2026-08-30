@@ -81,7 +81,10 @@
     ]},
     { key: 'more', label: 'More', items: [
       { label: 'Where do I start?',  url: 'https://2gather.network/welcome/' },
-      { label: 'Find a Time (Beta)', url: FINDTIME },
+      // Find a Time came off the More menu 2026-08-30. Its home is a Tools tab on the profile,
+      // beside Appear and DayBalancer, which is not built yet. The page still works at its own
+      // address; it is only the menu entry that has gone.
+      // { label: 'Find a Time (Beta)', url: FINDTIME },
       { label: 'My profile',         url: PROFILE, carry: 'CWid' },
       { label: 'About',              url: ABOUT },
       { label: 'Support',            url: SUPPORT },
