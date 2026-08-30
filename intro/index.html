@@ -3,7 +3,7 @@
   Copyright 2026 DayBalancer LLC. All rights reserved.
   hello@creating.works
 -->
-<!-- Version: V1.43 | Date: 2026-08-30 | LAST CHANGE: it greets you by name and invites instead of gating -->
+<!-- Version: V1.44 | Date: 2026-08-30 | LAST CHANGE: five examples, a keyword search and Other on every question, and a tap now files a tag -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -282,6 +282,273 @@
     return b;
   }
 
+  // ── The picker, 2026-08-30 ────────────────────────────────────────────────
+  // Five concrete examples, a keyword search over the reference sheet, and Other for a word
+  // nobody has thought of. The same shape as /profile-edit/, reading the same getReferenceData,
+  // so there is one list of words on this site rather than two that drift.
+  //
+  // Choosing from the search IS the tag: the reference tree already knows that yoga is Movement
+  // & Performance. Only a genuinely new word has to be asked about, which is what Other does.
+  var GP_PICK = {
+    introNeed: {
+      examples: ['A massage therapist', 'A hairstylist', 'A plumber', 'A mechanic', 'A career mentor'],
+      tagQ: 'Is that a person, a place or a thing?',
+      tagOpts: ['Person', 'Place', 'Thing'], source: 'need'
+    },
+    introEnjoy: {
+      examples: ['Pickleball', 'Karaoke', 'Gundam model kits', 'Walking', 'Board games'],
+      tagQ: 'Which of these is it?',
+      tagOpts: ['⚽ Sports', '\u{1F332} Outdoor & Nature', '\u{1F9F6} Making & Collecting',
+                '\u{1F3AD} Movement & Performance', '\u{1F3B2} Games & Strategy'], source: 'recreation'
+    },
+    introSkills: {
+      examples: ['Massage therapist', 'Hairstylist', 'Accountant', 'Nurse', 'AI specialist'],
+      tagQ: 'Which category does it belong to?', tagOpts: null, source: 'skills'
+    },
+    introValues: {
+      examples: ['\u{1F3D8}️ Housing and Shelter', '\u{1F372} Food Security', '\u{1F4A7} Clean Water',
+                 '\u{1F32C}️ Clean Air', '⚡ Clean Energy', '\u{1F43F}️ Animal Welfare'],
+      tagQ: '', tagOpts: null, source: 'values'
+    }
+  };
+  // word -> the category it was filed under. Sent to the backend beside the sentence.
+  var _gpTags = {};
+
+  var _gpRefP = null;
+  function gpRefOnce(){
+    if (_gpRefP) return _gpRefP;
+    _gpRefP = fetch(GS_URL + '?action=getReferenceData')
+      .then(function(r){ return r.json(); })
+      .catch(function(){ return {}; });
+    return _gpRefP;
+  }
+
+  // One flat list of {word, cat} per question, which is all the search needs.
+  function gpCorpus(source, rd){
+    var out = [], seen = {};
+    // The reference sheet carries an `associations` column of everyday words, so searching
+    // "doctor" finds Physician. Without it the search only matches the formal name, which is
+    // the one thing somebody looking for help does not know.
+    var push = function(w, c, a){
+      w = String(w || '').trim(); if (!w) return;
+      var k = w.toLowerCase(); if (seen[k]) return;
+      seen[k] = 1; out.push({ word: w, cat: String(c || '').trim(), assoc: String(a || '').toLowerCase() });
+    };
+    if (source === 'recreation') {
+      (rd.recreation || []).forEach(function(r){ push(r.item, r.recType, r.associations); });
+    } else if (source === 'skills') {
+      (rd.skills || []).forEach(function(s){ push(s.item, s.category, s.associations); });
+    } else if (source === 'values') {
+      (rd.values || []).forEach(function(v){ push((v && v.item !== undefined) ? v.item : v, 'Values', v && v.associations); });
+      (rd.domains || []).forEach(function(v){ push((v && v.item !== undefined) ? v.item : v, 'Domains', v && v.associations); });
+      // The values list on the reference sheet is empty today, so the two lenses that have been
+      // on this page since August are the corpus. Without this the search finds nothing at all.
+      var lens = (GP_CHIPS.introValues && GP_CHIPS.introValues.lenses) || [];
+      lens.forEach(function(l){
+        (l.words || []).forEach(function(w){ push(w, l.label, ''); });
+        (l.more  || []).forEach(function(w){ push(w, l.label, ''); });
+      });
+    } else if (source === 'need') {
+      (rd.skills || []).forEach(function(s){ push(s.item, s.category, s.associations); });
+      (rd.recreation || []).forEach(function(r){ push(r.item, r.recType, r.associations); });
+    }
+    return out;
+  }
+
+  // Adding a word writes it into the box, so somebody sees the answer they just gave and can
+  // keep typing after it, and files the tag beside it.
+  function gpAddWord(key, word, cat, ta){
+    word = String(word || '').trim(); if (!word) return;
+    if (!_gpTags[key]) _gpTags[key] = {};
+    _gpTags[key][word] = cat || '';
+    var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].toLowerCase() === word.toLowerCase()) return;
+    }
+    parts.push(word);
+    ta.value = parts.join(', ');
+  }
+  function gpDropWord(key, word, ta){
+    if (_gpTags[key]) delete _gpTags[key][word];
+    var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+    ta.value = parts.filter(function(p){ return p.toLowerCase() !== String(word).toLowerCase(); }).join(', ');
+  }
+  function gpHasWord(key, word){
+    return !!(_gpTags[key] && _gpTags[key][word] !== undefined);
+  }
+
+  function gpPill(label, on){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
+      + (on ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;'
+            : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;');
+    return b;
+  }
+
+  function gpPicker(key, ta){
+    var cfg = GP_PICK[key];
+    if (!GP_CHIPS_ON || !cfg) return null;
+    var box = document.createElement('div');
+    box.style.cssText = 'margin-top:12px;';
+
+    var lead = document.createElement('div');
+    lead.style.cssText = 'font-size:13px;color:#6B7A8D;margin-bottom:8px;';
+    lead.textContent = 'Search for something, or tap one below.';
+    box.appendChild(lead);
+
+    var search = document.createElement('input');
+    search.type = 'text';
+    search.placeholder = 'Search';
+    search.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
+      + 'padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
+    box.appendChild(search);
+
+    var results = document.createElement('div');
+    results.style.cssText = 'margin-top:6px;';
+    box.appendChild(results);
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;';
+    box.appendChild(row);
+
+    var corpus = [];
+    gpRefOnce().then(function(rd){ corpus = gpCorpus(cfg.source, rd); });
+
+    function repaint(){
+      Array.prototype.forEach.call(row.querySelectorAll('button[data-word]'), function(b){
+        var on = gpHasWord(key, b.getAttribute('data-word'));
+        b.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
+          + (on ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;'
+                : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;');
+      });
+    }
+
+    // The five examples. Emoji stay on screen and come off the stored word, so a tag matches
+    // what the reference sheet holds rather than a decorated version of it.
+    cfg.examples.forEach(function(label){
+      var word = label.replace(/^[^A-Za-z0-9]+/, '').trim();
+      var b = gpPill(label, gpHasWord(key, word));
+      b.setAttribute('data-word', word);
+      b.addEventListener('click', function(){
+        if (gpHasWord(key, word)) { gpDropWord(key, word, ta); }
+        else { gpAddWord(key, word, '', ta); }
+        repaint();
+      });
+      row.appendChild(b);
+    });
+
+    // Other, and the one question a genuinely new word has to answer.
+    var other = document.createElement('button');
+    other.type = 'button';
+    other.textContent = '+ Other';
+    other.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
+      + 'background:#EEF1F5;border:1px dashed #C4CDD8;color:#6B7A8D;font-weight:600;';
+    row.appendChild(other);
+
+    var otherBox = document.createElement('div');
+    otherBox.style.cssText = 'display:none;margin-top:10px;';
+    box.appendChild(otherBox);
+
+    other.addEventListener('click', function(){
+      otherBox.style.display = otherBox.style.display === 'none' ? 'block' : 'none';
+      if (otherBox.style.display === 'none') { otherBox.innerHTML = ''; return; }
+      otherBox.innerHTML = '';
+      var inp = document.createElement('input');
+      inp.type = 'text';
+      inp.placeholder = 'In your own words';
+      inp.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;'
+        + 'padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
+      otherBox.appendChild(inp);
+      var ask = document.createElement('div');
+      ask.style.cssText = 'margin-top:8px;';
+      otherBox.appendChild(ask);
+      inp.focus();
+
+      var commit = function(){
+        var word = String(inp.value || '').trim();
+        if (!word) return;
+        // Already in the reference sheet? Then it is not new and it keeps that sheet's category.
+        var hit = null;
+        for (var i = 0; i < corpus.length; i++) {
+          if (corpus[i].word.toLowerCase() === word.toLowerCase()) { hit = corpus[i]; break; }
+        }
+        if (hit) {
+          gpAddWord(key, hit.word, hit.cat, ta);
+          otherBox.style.display = 'none'; otherBox.innerHTML = '';
+          return;
+        }
+        if (!cfg.tagQ) {
+          gpAddWord(key, word, '', ta);
+          otherBox.style.display = 'none'; otherBox.innerHTML = '';
+          return;
+        }
+        ask.innerHTML = '';
+        var q = document.createElement('div');
+        q.style.cssText = 'font-size:13px;color:#6B7A8D;margin-bottom:8px;';
+        q.textContent = cfg.tagQ;
+        ask.appendChild(q);
+        var opts = cfg.tagOpts;
+        if (!opts) {
+          // Skills and values take their categories from the reference sheet itself.
+          var seen = {}; opts = [];
+          corpus.forEach(function(c){ if (c.cat && !seen[c.cat]) { seen[c.cat] = 1; opts.push(c.cat); } });
+        }
+        var orow = document.createElement('div');
+        orow.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+        opts.forEach(function(o){
+          var ob = gpPill(o, false);
+          ob.addEventListener('click', function(){
+            gpAddWord(key, word, o.replace(/^[^A-Za-z0-9]+/, '').trim(), ta);
+            otherBox.style.display = 'none'; otherBox.innerHTML = '';
+          });
+          orow.appendChild(ob);
+        });
+        ask.appendChild(orow);
+      };
+      inp.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') { ev.preventDefault(); commit(); } });
+      var add = document.createElement('button');
+      add.type = 'button';
+      add.textContent = 'Add';
+      add.style.cssText = 'margin-top:8px;font:inherit;font-size:13.5px;font-weight:700;padding:8px 16px;'
+        + 'border-radius:20px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;';
+      add.addEventListener('click', commit);
+      otherBox.insertBefore(add, ask);
+    });
+
+    // Search. Filters as you type, because pressing a button to search reads as broken.
+    search.addEventListener('input', function(){
+      var t = String(search.value || '').trim().toLowerCase();
+      results.innerHTML = '';
+      if (t.length < 2) return;
+      var hits = corpus.filter(function(c){
+        return c.word.toLowerCase().indexOf(t) > -1 || (c.assoc && c.assoc.indexOf(t) > -1);
+      }).slice(0, 6);
+      hits.forEach(function(h){
+        var r = document.createElement('div');
+        r.setAttribute('role', 'button');
+        r.tabIndex = 0;
+        r.style.cssText = 'border:1px solid #DDE3EA;border-radius:10px;padding:10px 12px;margin-top:6px;cursor:pointer;background:#fff;';
+        r.innerHTML = '<div style="font-size:14.5px;font-weight:700;color:#1A2E42;">' + h.word + '</div>'
+          + (h.cat ? '<div style="font-size:13px;color:#6B7A8D;">' + h.cat + '</div>' : '');
+        r.addEventListener('click', function(){
+          gpAddWord(key, h.word, h.cat, ta);
+          search.value = ''; results.innerHTML = ''; repaint();
+        });
+        results.appendChild(r);
+      });
+      if (!hits.length) {
+        var none = document.createElement('div');
+        none.style.cssText = 'font-size:13px;color:#6B7A8D;margin-top:6px;';
+        none.textContent = 'Nothing matches. Use + Other to add it in your own words.';
+        results.appendChild(none);
+      }
+    });
+
+    return box;
+  }
+
   function gpChipRow(key, ta){
     var cfg = GP_CHIPS[key];
     if (!GP_CHIPS_ON || !cfg) return null;
@@ -532,7 +799,7 @@
       ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
         + 'padding:12px 14px;font:inherit;font-size:14.5px;color:#1A2E42;line-height:1.5;resize:vertical;';
       wrap.appendChild(t); wrap.appendChild(h); wrap.appendChild(ta);
-      var chipRow = gpChipRow(q.key, ta);
+      var chipRow = gpPicker(q.key, ta) || gpChipRow(q.key, ta);
       if (chipRow) wrap.appendChild(chipRow);
       box.appendChild(wrap);
       if (q.key === 'introSkills') {
@@ -590,6 +857,14 @@
       + '&languages=' + encodeURIComponent(picked(_gpLangPicked, ', '))
       + '&methods=' + encodeURIComponent(picked(_gpMethodPicked, '|'));
     GP_INTRO_Q.forEach(function(q){ qs += '&' + q.key + '=' + encodeURIComponent(val(q.key)); });
+    // The tags, beside the sentence rather than instead of it. Without these somebody can answer
+    // every question and stay invisible to matching, because matching reads these columns and
+    // never reads the sentence. Pipe separated, which is how every other list on ikigai is held.
+    var tagFor = function(k){ return Object.keys(_gpTags[k] || {}).join('|'); };
+    qs += '&needsTags='     + encodeURIComponent(tagFor('introNeed'))
+        + '&interestsTags=' + encodeURIComponent(tagFor('introEnjoy'))
+        + '&skillsTags='    + encodeURIComponent(tagFor('introSkills'))
+        + '&valuesTags='    + encodeURIComponent(tagFor('introValues'));
     fetch(GS_URL + '?' + qs)
       .then(function(r){ return r.json(); })
       .then(function(d){
