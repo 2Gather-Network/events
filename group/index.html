@@ -314,7 +314,7 @@
           <div id="gp-onboard-title" style="font-size:22px;font-weight:800;color:#1A2E42;line-height:1.25;">Group</div>
           <img id="gp-onboard-cover" alt="" style="width:100%;height:160px;object-fit:cover;border-radius:12px;margin-top:16px;display:none;">
           <div id="gp-intro-copy" style="font-size:15px;color:#4B5A6D;margin-top:14px;line-height:1.55;">This is a group for people who share this focus. Take a minute to get located, then come back to see what's here for you.</div>
-          <div id="gp-hosts-label" style="font-size:12px;font-weight:800;color:#6B7A8D;letter-spacing:.06em;text-transform:uppercase;margin-top:22px;margin-bottom:8px;">Hosts</div>
+          <div id="gp-hosts-label" style="display:none;font-size:12px;font-weight:800;color:#6B7A8D;letter-spacing:.06em;text-transform:uppercase;margin-top:22px;margin-bottom:8px;">Hosts</div>
           <div id="gp-host-list" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
           <div id="gp-agree-label" style="display:none;font-size:12px;font-weight:800;color:#6B7A8D;letter-spacing:.06em;text-transform:uppercase;margin-top:22px;margin-bottom:8px;">How we relate here</div>
           <div id="gp-agreements" style="display:none;font-size:14px;color:#4B5A6D;line-height:1.55;"></div>
@@ -1517,8 +1517,14 @@ function pick(el, key){
             var _hostSet = {};
             d.group.hostIds.forEach(function(h){ _hostSet[_hostNrm(h)] = true; });
             var _hosts = attendees.filter(function(a){ return _hostSet[_hostNrm(a.appearId)]; });
+            // 2026-08-30. The heading printed itself whether or not there was a host under it,
+            // which is a label asserting something before it knows. It starts hidden now and only
+            // appears once there is somebody to put beneath it.
             var _hLabel = document.getElementById('gp-hosts-label');
-            if (_hLabel) _hLabel.textContent = (_hosts.length === 1) ? 'Host' : 'Hosts';
+            if (_hLabel) {
+              _hLabel.textContent = (_hosts.length === 1) ? 'Host' : 'Hosts';
+              _hLabel.style.display = _hosts.length ? '' : 'none';
+            }
             hostListEl.innerHTML = '';
             _hosts.forEach(function(h){
               // Host chip navigates to their profile. Hrefless (data-nav + _safeNavGo) so the URL
@@ -1589,8 +1595,18 @@ function pick(el, key){
       var statsHTML = '<b style="color:#1A2E42;">'+_plu(st.offers,'offer','offers')+'</b> and <b style="color:#1A2E42;">'+_plu(st.needs,'need','needs')+'</b> across <b style="color:#1A2E42;">'+_plu(st.count,'person','people')+'</b>';
       // Signed out, the feed carries no profile data, so the tally would read 0 offers and
       // 0 needs and look broken. Hide it, the full member list, and the profile pill instead.
+      // 2026-08-30. This asked "is somebody signed in" and printed the tally either way. The
+      // backend sends four bare fields to a viewer it does not know as a member, correctly, so a
+      // signed-in non-member was told "0 offers and 0 needs across 9 people" about a room full of
+      // people who have plenty. Ask whether any profile data arrived, not whether somebody is here.
+      var _anyProfile = attendees.some(function(p){
+        return (p.skills || p.interests || p.values || p.needs);
+      });
       var sline = document.getElementById('gp-stats-line');
-      if (sline) { if (meId) { sline.innerHTML = statsHTML; sline.style.display = ''; } else { sline.style.display = 'none'; } }
+      if (sline) {
+        if (meId && _anyProfile) { sline.innerHTML = statsHTML; sline.style.display = ''; }
+        else { sline.style.display = 'none'; }
+      }
       if (!meId) {
         var _viewAllBtn = document.querySelector('button[onclick="gpShow(\'members\')"]');
         if (_viewAllBtn) _viewAllBtn.style.display = 'none';
@@ -1776,7 +1792,7 @@ var myPill = document.getElementById('gp-myprofile-pill');
     .catch(function(){});
 })();
 </script>
-<script src="/nav/topbar.js?v=5.60" defer></script>
+<script src="/nav/topbar.js?v=5.61" defer></script>
 </body>
 <!--
   Copyright 2026 DayBalancer LLC. All rights reserved.

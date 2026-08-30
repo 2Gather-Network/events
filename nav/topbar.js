@@ -663,7 +663,9 @@
     bar.appendChild(left); bar.appendChild(right);
 
     var says = d.createElement('span');
-    says.textContent = seen ? ('Viewing as ' + (name || seen)) : 'Viewing as yourself';
+    // 2026-08-30. "Viewing as yourself" pushed the strip onto two rows on a phone, with Support
+    // and Hide wrapping underneath. Shorter, so the whole strip sits on one line.
+    says.textContent = seen ? ('Viewing as ' + (name || seen)) : 'View as self';
     if (seen) { says.style.color = '#8A6220'; }
     left.appendChild(says);
 
