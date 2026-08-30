@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V1.00 | Date: 2026-08-28 | LAST CHANGE: Finishing the questions is an arrival, not a hand-off. -->
+<!-- Version: V1.01 | Date: 2026-08-30 | LAST CHANGE: A gift list is offered once somebody has answered the questions. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -83,7 +83,7 @@
         <span class="sub">Read what other people put up. Take your time.</span></span>
     </button>
 
-    <button class="door" data-go="/giving/">
+    <button class="door" id="door-gift" style="display:none;" data-go="/giving/">
       <span class="face">&#127873;</span>
       <span class="say"><span class="top">Make a gift list<span class="beta">BETA</span></span>
         <span class="sub">What you would like, so somebody who wants to give you something knows what.</span></span>
@@ -101,6 +101,33 @@
     var who = String(localStorage.getItem('cw-first') || '').trim();
     if (who) { document.getElementById('hello').textContent = 'You are in, ' + who; }
   } catch (e) {}
+
+  // A gift list is for somebody people already know something about. Offered to a person who
+  // has not said anything yet it is the wrong first thing to ask for, so it stays off the page
+  // until they have answered.
+  //
+  // Hidden until we know, never shown and taken away. The lookup is slow enough that a door
+  // appearing and then vanishing would be worse than one arriving a moment late.
+  (function () {
+    var GS = 'https://cw-api-gate.jessieupp.workers.dev';
+    var id = '';
+    try { id = String((window.CW && CW.me && CW.me().id) || localStorage.getItem('cw-id') || '').trim(); } catch (e) {}
+    if (!id) return;
+    var said = function (v) { return !!String(v == null ? '' : v).trim(); };
+    fetch(GS + '?action=getIntake&appearId=' + encodeURIComponent(id))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var row = (d && d.data) || {};
+        // The same three a group asks for, and either half counts: the words somebody tapped or
+        // the sentence they wrote. Blocking the thoughtful answer would punish the better one.
+        var done = (said(row.interests) || said(row.introEnjoy))
+                && (said(row.skills)    || said(row.introSkills))
+                && (said(row.values)    || said(row.introValues));
+        var el = document.getElementById('door-gift');
+        if (done && el) el.style.display = '';
+      })
+      .catch(function () {});
+  })();
 
   // Every door is a plain navigation. No ids travel in the address: the device already knows
   // who this is, and an id in a link is a credential.
