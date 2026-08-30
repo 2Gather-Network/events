@@ -462,6 +462,8 @@
     if (_gpRefP) return _gpRefP;
     _gpRefP = fetch(GS_URL + '?action=getReferenceData')
       .then(function(r){ return r.json(); })
+      // Kept where the tag options can read it, so a question can be tagged along its own axis.
+      .then(function(rd){ window._gpRd = rd; return rd; })
       .catch(function(){ return {}; });
     return _gpRefP;
   }
@@ -501,7 +503,6 @@
       // Things and spaces people can share. Without this branch the offer question had no words
       // at all, so its search found nothing and every answer went in untagged.
       (rd.resources || []).forEach(function(r){ push(r.item, r.category, r.associations); });
-      (rd.offeringTypes || []).forEach(function(t){ push(t, 'Kind', ''); });
     } else if (source === 'need') {
       (rd.skills || []).forEach(function(s){ push(s.item, s.category, s.associations); });
       (rd.recreation || []).forEach(function(r){ push(r.item, r.recType, r.associations); });
@@ -868,8 +869,30 @@
     // Nothing matched, so the search becomes the way in rather than a dead end pointing at
     // another button. A word nobody has used before still has to be filed, which is the one
     // question Other asks, and it is asked right here instead.
+    // A question is tagged along its own axis. Taking the options from whatever the search
+    // happens to hold gave the offer question eleven resource categories and a stray "Kind",
+    // and gave the values question "Domain", which is a different lens entirely.
     function gpTagOptions(){
       if (cfg.tagOpts) return cfg.tagOpts;
+      var rd = window._gpRd || {};
+      var uniq = function(list){
+        var seen = {}, out = [];
+        (list || []).forEach(function(v){
+          v = String(v || '').trim(); if (!v) return;
+          var k = v.toLowerCase(); if (seen[k]) return;
+          seen[k] = 1; out.push(v);
+        });
+        return out;
+      };
+      if (key === 'introOffer') {
+        // A skill, a thing or a space, the same three the reference sheet holds.
+        return uniq((rd.offeringTypes || []).map(function(t){
+          t = String(t || '').trim();
+          return t ? ('A ' + t.charAt(0).toLowerCase() + t.slice(1)) : '';
+        }));
+      }
+      if (key === 'introValues') return uniq((rd.values || []).map(function(v){ return v && v.category; }));
+      if (key === 'introSkills') return uniq((rd.skills || []).map(function(v){ return v && v.category; }));
       var seen = {}, opts = [];
       corpus.forEach(function(c){ if (c.cat && !seen[c.cat]) { seen[c.cat] = 1; opts.push(c.cat); } });
       return opts;
