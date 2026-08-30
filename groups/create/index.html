@@ -251,7 +251,37 @@ We translate self-promotion to collaboration.</textarea>
 
   // Resources: add rows dynamically, first row exists on load
   var resList = document.getElementById('resources-list');
-  var RES_TYPES = ['Website','Calendar','Slack','Email list','LinkedIn','Zoom','Shared doc','Other'];
+  // 2026-08-30. Kinds come from the reference sheet now, not from here, and they are kinds rather
+  // than brands: Slack and Discord are both collaboration, Zoom and Meet are both a virtual
+  // meeting, Signal is chat, LinkedIn is promotion. This list is only what to show if the fetch
+  // fails, so somebody is never left with an empty dropdown.
+  var RES_TYPES = ['Website','Calendar','Collaboration','Chat','Virtual meeting','Email list','Promotion','Shared doc','Other'];
+  var RES_TOOLS = [];
+  fetch(GS_URL + '?action=getReferenceData')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d && d.resourceTypes && d.resourceTypes.length) RES_TYPES = d.resourceTypes;
+      if (d && d.resourceTools) RES_TOOLS = d.resourceTools;
+      if (typeof renderResources === 'function') renderResources();
+    })
+    .catch(function(){});
+
+  // The domain out of whatever somebody pasted, so meet.google.com and a long meeting URL are the
+  // same thing to us.
+  function _resDomain(url){
+    return String(url || '').trim().toLowerCase()
+      .replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].split('?')[0];
+  }
+  // A guess, never a decision. Whatever somebody chooses afterwards stays chosen.
+  function _resKindFor(url){
+    var d = _resDomain(url);
+    if (!d) return '';
+    for (var i = 0; i < RES_TOOLS.length; i++) {
+      var t = String(RES_TOOLS[i].domain || '').toLowerCase();
+      if (t && (d === t || d.endsWith('.' + t))) return RES_TOOLS[i].kind;
+    }
+    return '';
+  }
   function refreshResourceXs(){
     // X only appears when 2+ rows exist. On the sole row you leave the URL blank if you
     // don't want a resource — saveGroup skips blank rows.
@@ -273,6 +303,18 @@ We translate self-promotion to collaboration.</textarea>
     var url = document.createElement('input');
     url.type = 'url'; url.className = 'res-url';
     url.placeholder = 'Example: https://calendar.google.com/...';
+    // 2026-08-30. Paste a link and the kind picks itself, quietly, and says so. It is a guess and
+    // it behaves like one: the moment somebody touches the dropdown it stops guessing for that row.
+    var hint = document.createElement('div');
+    hint.style.cssText = 'flex:1 0 100%;font-size:12.5px;color:var(--muted,#6B7A8D);margin-top:2px;';
+    sel.addEventListener('change', function(){ sel.dataset.chosen = '1'; hint.textContent = ''; });
+    url.addEventListener('input', function(){
+      if (sel.dataset.chosen === '1') return;
+      var kind = _resKindFor(url.value);
+      if (!kind) { hint.textContent = ''; return; }
+      sel.value = kind;
+      hint.textContent = 'Looks like ' + kind.toLowerCase() + '. Change it if not.';
+    });
     var x = document.createElement('button');
     x.type = 'button'; x.className = 'res-x';
     x.setAttribute('style','flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1.5px solid var(--line);background:#fff;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .12s;');
@@ -282,7 +324,7 @@ We translate self-promotion to collaboration.</textarea>
     x.addEventListener('mouseenter', function(){ x.style.borderColor = '#c0392b'; x.style.color = '#c0392b'; });
     x.addEventListener('mouseleave', function(){ x.style.borderColor = 'var(--line)'; x.style.color = 'var(--muted)'; });
     x.addEventListener('click', function(){ row.remove(); refreshResourceXs(); });
-    row.appendChild(sel); row.appendChild(url); row.appendChild(x);
+    row.appendChild(sel); row.appendChild(url); row.appendChild(x); row.appendChild(hint);
     resList.appendChild(row);
     refreshResourceXs();
   }
