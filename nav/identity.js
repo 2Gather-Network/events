@@ -97,16 +97,30 @@
      redirects, so the id it carries matches. A link naming somebody else is dropped, and taken
      out of the address either way, because an id in an address is a credential and does not
      belong on screen. Signing out first is how you become somebody else on purpose. */
+  /* 2026-08-31. Closed the rest of the way, after it happened to a real person.
+
+     Somebody opened a link carrying Jessie's id on a device that held nobody. The rule below
+     used to believe the address when there was nobody to contradict it, so he became her: her
+     name and her face in the corner, her profile with the edit buttons on it. He was never
+     asked for a code, because he never signed in. Nothing had gone wrong; that was the rule.
+
+     An id in an address is now never believed on its own. It is stripped and ignored. The only
+     thing that makes somebody signed in is signing in, which writes the id to this device
+     directly and does not go near the address bar. A link that names the person already here
+     still matches, so returning by one of our own links is unchanged. */
   var stored = fromDevice();
   var fromLink = fromUrl();
   var found = '';
-  if (fromLink && (!stored || normalise(fromLink) === normalise(stored))) {
+  if (fromLink && stored && normalise(fromLink) === normalise(stored)) {
     found = remember(fromLink);
     strip();
   } else if (stored) {
     found = stored;
     w.CW_ID = stored;
     if (fromLink) { strip(); }
+  } else if (fromLink) {
+    /* Nobody here, and the address names somebody. Take it out and stay signed out. */
+    strip();
   }
 
   function viewingAs() {
