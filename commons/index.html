@@ -110,9 +110,8 @@
 
 <div class="stage">
   <div id="room-closed" style="flex:1;min-height:520px;display:flex;align-items:center;justify-content:center;padding:28px;text-align:center;">
-    <div style="max-width:420px;">
-      <div style="font-size:19px;font-weight:800;color:#1A2E42;line-height:1.35;">The room opens when you say you are here</div>
-      <div style="margin-top:10px;font-size:15px;color:#4B5A6D;line-height:1.55;">Everybody in the commons is somebody who said they were available. Turn yourself on above and you are in.</div>
+    <div style="max-width:460px;">
+      <div style="font-size:15px;color:#4B5A6D;line-height:1.55;">No need to login - just share your name 🎯 Unmute your mic below. Collapse the white bar anytime.</div>
     </div>
   </div>
   <iframe id="room"
@@ -264,10 +263,24 @@ window._safeNavGo = window._safeNavGo || function (el) {
     fetch(GS_URL + '?action=setPresence&userID=' + encodeURIComponent(who) +
           '&groupId=' + encodeURIComponent(ROOM) + '&available=' + (on ? 'true' : 'false') +
           '&editToken=' + encodeURIComponent(TOKEN))
-      // Only ask who is here when somebody is looking. The heartbeat used to chain a read on
-      // every beat, so a hidden tab fetched an answer nobody would see, at twice the cost.
-      .then(function () { if (!document.hidden) { load(); } })
-      .catch(function () {});
+      // Read the answer. Being listed in a room publishes a name and a photo, so the backend
+      // asks for a signed-in session and refuses without one. This used to ignore that, so a
+      // refusal looked exactly like success: the room opened, then the next read found nobody
+      // and quietly switched the toggle off. Jessie saw it happen. Say it instead.
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.status === 'ok') { if (!document.hidden) { load(); } return; }
+        if (beat) { clearInterval(beat); beat = null; }
+        t.className = 'toggle';
+        t.setAttribute('aria-checked', 'false');
+        showRoom(false);
+        var c = document.getElementById('count');
+        if (c) { c.textContent = (d && d.message) ? d.message : 'Could not show you as available.'; }
+      })
+      .catch(function () {
+        var c = document.getElementById('count');
+        if (c) { c.textContent = 'Could not reach the server. Try again in a moment.'; }
+      });
   }
 
   function load() {
