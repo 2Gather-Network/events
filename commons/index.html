@@ -328,6 +328,16 @@ window._safeNavGo = window._safeNavGo || function (el) {
   });
 
   function foldToggle() {
+    // The room is for people who are in it. Jessie, 2026-08-31: nobody sees who is here until
+    // they have said they are here themselves. It also means an idle page is not quietly asking
+    // every minute on behalf of somebody who only wanted a look.
+    var available = t.className.indexOf('on') > -1;
+    if (!available && here.className.indexOf('open') === -1) {
+      var c = document.getElementById('count');
+      if (c) { c.textContent = 'Say you are available to see who is here'; }
+      setTimeout(function () { say(known); }, 2600);
+      return;
+    }
     var open = here.className.indexOf('open') === -1;
     here.className = open ? 'here open' : 'here';
     var f = document.getElementById('fold');
@@ -343,8 +353,32 @@ window._safeNavGo = window._safeNavGo || function (el) {
     if (!isNaN(last)) { say(last); }
   } catch (e) {}
 
+  // A tab nobody is looking at stops ASKING who else is here. Added 2026-08-31 after an
+  // execution log showed about 115 calls an hour from one browser tab left open with nobody at it.
+  //
+  // It keeps SAYING it is here, and that distinction is the whole point. Somebody on another tab
+  // listening to people talk is still in the room, and stopping the heartbeat would have made
+  // them vanish from it after five minutes and turned their own toggle off in front of them.
+  // Jessie caught that. A closed laptop still ages out, because closing it stops the saying too.
+  var poll = null;
+  function startPolling() {
+    if (poll) return;
+    poll = setInterval(load, 60000);
+  }
+  function stopPolling() {
+    if (poll) { clearInterval(poll); poll = null; }
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { stopPolling(); return; }   // the heartbeat deliberately keeps running
+    load();
+    startPolling();
+    if (t.className.indexOf('on') > -1 && !beat) {
+      beat = setInterval(function () { tell(true); }, 120000);
+    }
+  });
+
   load();
-  setInterval(load, 60000);
+  if (!document.hidden) { startPolling(); }
 })();
 </script>
 <script src="https://2gather.network/nav/topbar.js?v=5.62" defer></script>
