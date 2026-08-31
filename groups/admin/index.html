@@ -481,21 +481,60 @@
   // ── REQUESTS ──
   function loadRequests(){
     var list = document.getElementById('req-list');
-    fetch(GS_URL + '?action=getJoinRequests&groupId=' + encodeURIComponent(groupId))
+    // 2026-08-31: these are not people asking to join. Joining is settled by the passcode.
+    // These are people who were asked for it and could not remember it.
+    var tok0 = getToken() || '';
+    fetch(GS_URL + '?action=getGroupPasscodeRequests&groupId=' + encodeURIComponent(groupId)
+          + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok0)
+          + '&nocache=1')
       .then(function(r){ return r.json(); })
       .then(function(d){
-        var reqs = (d && d.requests) || (Array.isArray(d) ? d : []);
+        var reqs = (d && d.requests) || [];
         document.getElementById('tab-req-count').textContent = reqs.length;
-        document.getElementById('req-heading').textContent = reqs.length ? (reqs.length + ' asked to join') : 'No pending requests';
+        document.getElementById('req-heading').textContent = reqs.length
+          ? (reqs.length + (reqs.length === 1 ? ' person needs the passcode' : ' people need the passcode'))
+          : 'Nobody is waiting';
         list.innerHTML = '';
-        reqs.forEach(function(rq){
-          list.appendChild(renderRequestCard(rq));
-        });
+        reqs.forEach(function(rq){ list.appendChild(renderRequestCard(rq)); });
+        renderJoined((d && d.joined) || []);
       })
       .catch(function(){
-        document.getElementById('req-heading').textContent = 'Requests unavailable';
-        list.innerHTML = '<p class="lede">Backend not wired yet — Jessie needs to paste getJoinRequests + approve/decline actions.</p>';
+        document.getElementById('req-heading').textContent = 'Could not load this just now';
+        list.innerHTML = '<p class="lede">Could not reach the server. Try again in a moment.</p>';
       });
+  }
+
+  // Who is in, and when they arrived. It arrives on the same call, so it costs no extra wait.
+  function renderJoined(rows){
+    var host = document.getElementById('req-list');
+    if (!host || !rows.length) return;
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-top:26px;';
+    var h = document.createElement('h2');
+    h.textContent = rows.length + (rows.length === 1 ? ' person has joined' : ' people have joined');
+    wrap.appendChild(h);
+    rows.slice().sort(function(a, b){
+      return String(b.dateJoined || '').localeCompare(String(a.dateJoined || ''));
+    }).forEach(function(m){
+      var row = document.createElement('div');
+      row.className = 'row';
+      var who = document.createElement('div'); who.className = 'who';
+      var nm = document.createElement('div'); nm.className = 'name';
+      var a = document.createElement('a');
+      a.setAttribute('role', 'link'); a.tabIndex = 0;
+      a.textContent = m.name || m.appearId;
+      a.style.cssText = 'color:inherit;text-decoration:none;cursor:pointer;';
+      a.setAttribute('data-nav', m.profileUrl || '');
+      a.setAttribute('onclick', 'return _safeNavGo(this)');
+      nm.appendChild(a);
+      var sub = document.createElement('div'); sub.className = 'sub';
+      // A blank date is a migrated row, not somebody who arrived without one. Say which.
+      sub.textContent = m.dateJoined ? ('Joined ' + String(m.dateJoined).slice(0, 10)) : 'Joined before we recorded dates';
+      who.appendChild(nm); who.appendChild(sub);
+      row.appendChild(who);
+      wrap.appendChild(row);
+    });
+    host.appendChild(wrap);
   }
 
   function renderRequestCard(rq){
@@ -510,7 +549,7 @@
     sub.textContent = (rq.role ? rq.role + ' · ' : '') + 'asked ' + (rq.submittedAt || '');
     who.appendChild(nm); who.appendChild(sub);
     var acts = document.createElement('div'); acts.className = 'actions-row';
-    var approve = document.createElement('button'); approve.className = 'btn sm'; approve.textContent = 'Approve';
+    var approve = document.createElement('button'); approve.className = 'btn sm'; approve.textContent = 'Send passcode';
     var decline = document.createElement('button'); decline.className = 'btn danger sm'; decline.textContent = 'Decline';
     acts.appendChild(approve); acts.appendChild(decline);
     row.appendChild(av); row.appendChild(who); row.appendChild(acts);
@@ -535,29 +574,51 @@
       approve.disabled = true; decline.disabled = true;
       actionStatus.className = 'status ok'; actionStatus.textContent = 'Approving…';
       var tok = getToken() || '';
-      fetch(GS_URL + '?action=approveJoinRequest&requestId=' + encodeURIComponent(rq.requestId) + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok))
+      fetch(GS_URL + '?action=sendGroupPasscode&requestId=' + encodeURIComponent(rq.requestId)
+            + '&groupId=' + encodeURIComponent(groupId)
+            + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok))
         .then(function(r){ return r.json(); })
         .then(function(d){
           if (d && d.status === 'ok') {
-            actionStatus.textContent = 'Approved. They\'ve been emailed the group link.';
-            setTimeout(function(){ card.remove(); loadRequests(); }, 600);
+            // Nothing is sent by us. The host copies this into their own email, which is the
+            // decision made 2026-08-31: nothing leaves the system until a person sends it.
+            actionStatus.textContent = '';
+            var give = document.createElement('div');
+            give.style.cssText = 'margin-top:10px;';
+            var to = document.createElement('div');
+            to.style.cssText = 'font-size:13px;color:#6B7A8D;margin-bottom:6px;';
+            to.textContent = d.to ? ('Send this to ' + d.to) : 'Send this to them';
+            var ta = document.createElement('textarea');
+            ta.readOnly = true;
+            ta.value = d.message || '';
+            ta.style.cssText = 'width:100%;min-height:110px;border:1.5px solid #DDE3EA;border-radius:10px;'
+              + 'padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;background:#fff;';
+            var copy = document.createElement('button');
+            copy.className = 'btn sm'; copy.type = 'button'; copy.textContent = 'Copy';
+            copy.style.cssText = 'margin-top:8px;';
+            copy.addEventListener('click', function(){
+              ta.select();
+              try { document.execCommand('copy'); copy.textContent = 'Copied'; } catch (e) {}
+            });
+            give.appendChild(to); give.appendChild(ta); give.appendChild(copy);
+            card.appendChild(give);
           } else {
             approve.disabled = false; decline.disabled = false;
             actionStatus.className = 'status err';
-            actionStatus.textContent = (d && d.message) ? d.message : 'Backend not wired yet.';
+            actionStatus.textContent = (d && d.message) ? d.message : 'That did not go through.';
           }
         })
         .catch(function(){
           approve.disabled = false; decline.disabled = false;
           actionStatus.className = 'status err';
-          actionStatus.textContent = 'Backend not wired yet — Jessie needs to paste the approveJoinRequest action.';
+          actionStatus.textContent = 'Could not reach the server. Try again in a moment.';
         });
     });
 
     decline.addEventListener('click', function(){
       if (card.querySelector('.decline-panel')) return;
       var panel = document.createElement('div'); panel.className = 'decline-panel';
-      panel.innerHTML = '<div style="font-weight:800;margin-bottom:8px;">Why is this not a fit?</div>'
+      panel.innerHTML = '<div style="font-weight:800;margin-bottom:8px;">Why not send it?</div>'
         + '<label><input type="radio" name="r_' + rq.requestId + '" value="focus"><span><b>Different focus than this group.</b> Scoped narrower, broader, or a different topic.</span></label>'
         + '<label><input type="radio" name="r_' + rq.requestId + '" value="timing"><span><b>Not the right time.</b> Capacity, host bandwidth, group pausing.</span></label>'
         + '<label><input type="radio" name="r_' + rq.requestId + '" value="need-info"><span><b>Need more information first.</b> Sends them a "message me" link with your note.</span></label>'
@@ -578,22 +639,25 @@
         var tok = getToken() || '';
         panel.querySelector('.send-decline').disabled = true;
         actionStatus.className = 'status ok'; actionStatus.textContent = 'Sending decline…';
-        fetch(GS_URL + '?action=declineJoinRequest&requestId=' + encodeURIComponent(rq.requestId) + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok) + '&reason=' + encodeURIComponent(reason) + '&note=' + encodeURIComponent(note))
+        fetch(GS_URL + '?action=declineGroupPasscodeWithReason&requestId=' + encodeURIComponent(rq.requestId)
+              + '&groupId=' + encodeURIComponent(groupId)
+              + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok)
+              + '&reason=' + encodeURIComponent(reason) + '&note=' + encodeURIComponent(note))
           .then(function(r){ return r.json(); })
           .then(function(d){
             if (d && d.status === 'ok') {
-              actionStatus.textContent = 'Declined. They\'ve been emailed your note.';
+              actionStatus.textContent = 'Declined, and your reason is recorded.';
               setTimeout(function(){ card.remove(); loadRequests(); }, 600);
             } else {
               panel.querySelector('.send-decline').disabled = false;
               actionStatus.className = 'status err';
-              actionStatus.textContent = (d && d.message) ? d.message : 'Backend not wired yet.';
+              actionStatus.textContent = (d && d.message) ? d.message : 'That did not go through.';
             }
           })
           .catch(function(){
             panel.querySelector('.send-decline').disabled = false;
             actionStatus.className = 'status err';
-            actionStatus.textContent = 'Backend not wired yet — Jessie needs to paste the declineJoinRequest action.';
+            actionStatus.textContent = 'Could not reach the server. Try again in a moment.';
           });
       });
     });
@@ -726,7 +790,7 @@
           if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else {
           showStatus('save-info-status-top', 'ok', '');
-          showStatus('save-info-status', 'err', (d && d.message) ? d.message : 'Backend not wired yet.');
+          showStatus('save-info-status', 'err', (d && d.message) ? d.message : 'That did not go through.');
         }
       })
       .catch(function(){
