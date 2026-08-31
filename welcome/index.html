@@ -109,6 +109,40 @@
   // appearing and then vanishing would be worse than one arriving a moment late.
   (function () {
     var GS = 'https://cw-api-gate.jessieupp.workers.dev';
+
+// Your own record is never served from cache. Added 2026-08-31, after a profile showed the
+// answers from before a save for up to six hours. The gate caches getIntake, getProfile,
+// lookupProfile, getAccount, getMyGroups, getBookmarks and getRegistrations, and a write clears
+// none of them: its purge only ever touches the events feed. `nocache` is a switch the gate
+// already has, so this asks for a fresh answer rather than changing how the cache works.
+//
+// Somebody else's record stays cached and stays fast. Only a read about YOU skips it, which is
+// the only case where a stale answer is ever wrong.
+(function () {
+  var _base = GS;
+  var _f = window.fetch;
+  window.fetch = function (input, init) {
+    try {
+      var u = (typeof input === 'string') ? input : (input && input.url) || '';
+      if (u.indexOf(_base) === 0 && u.indexOf('nocache=') === -1) {
+        var me = (window.CW && CW.me && CW.me().key) || '';
+        if (me) {
+          var norm = function (s) { return String(s || '').split('.').join('').toLowerCase(); };
+          var carries = false;
+          (u.split('?')[1] || '').split('&').forEach(function (pair) {
+            var bits = pair.split('=');
+            var k = bits[0];
+            if (k !== 'appearId' && k !== 'id' && k !== 'me' && k !== 'CWid' && k !== 'from' && k !== 'memberCard') return;
+            if (norm(decodeURIComponent(bits[1] || '')) === norm(me)) carries = true;
+          });
+          if (carries) { input = (typeof input === 'string') ? (u + '&nocache=1') : new Request(u + '&nocache=1', input); }
+        }
+      }
+    } catch (e) {}
+    return _f.call(this, input, init);
+  };
+})();
+
     var id = '';
     try { id = String((window.CW && CW.me && CW.me().id) || localStorage.getItem('cw-id') || '').trim(); } catch (e) {}
     if (!id) return;

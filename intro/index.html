@@ -51,6 +51,40 @@
 </div>
 <script>
   var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
+
+// Your own record is never served from cache. Added 2026-08-31, after a profile showed the
+// answers from before a save for up to six hours. The gate caches getIntake, getProfile,
+// lookupProfile, getAccount, getMyGroups, getBookmarks and getRegistrations, and a write clears
+// none of them: its purge only ever touches the events feed. `nocache` is a switch the gate
+// already has, so this asks for a fresh answer rather than changing how the cache works.
+//
+// Somebody else's record stays cached and stays fast. Only a read about YOU skips it, which is
+// the only case where a stale answer is ever wrong.
+(function () {
+  var _base = GS_URL;
+  var _f = window.fetch;
+  window.fetch = function (input, init) {
+    try {
+      var u = (typeof input === 'string') ? input : (input && input.url) || '';
+      if (u.indexOf(_base) === 0 && u.indexOf('nocache=') === -1) {
+        var me = (window.CW && CW.me && CW.me().key) || '';
+        if (me) {
+          var norm = function (s) { return String(s || '').split('.').join('').toLowerCase(); };
+          var carries = false;
+          (u.split('?')[1] || '').split('&').forEach(function (pair) {
+            var bits = pair.split('=');
+            var k = bits[0];
+            if (k !== 'appearId' && k !== 'id' && k !== 'me' && k !== 'CWid' && k !== 'from' && k !== 'memberCard') return;
+            if (norm(decodeURIComponent(bits[1] || '')) === norm(me)) carries = true;
+          });
+          if (carries) { input = (typeof input === 'string') ? (u + '&nocache=1') : new Request(u + '&nocache=1', input); }
+        }
+      }
+    } catch (e) {}
+    return _f.call(this, input, init);
+  };
+})();
+
   var params = new URLSearchParams(window.location.search);
   var meId = CW.me().id;
   // Where to send somebody once they are through. Only our own two hosts are accepted, so a
@@ -1337,7 +1371,9 @@
     // control on the screen rather than an absence of one.
     if (skip) skip.style.display = (_gpStep === 4) ? '' : 'none';
     if (!next) return;
-    if (_gpStep === GP_LAST) { next.textContent = 'Go in'; next.disabled = false; }
+    // "Go in" said nothing about where. It goes back to the group somebody was joining, so it
+    // says so. Jessie, 2026-08-31.
+    if (_gpStep === GP_LAST) { next.textContent = /\/group/.test(_next) ? 'View group' : 'Go in'; next.disabled = false; }
     else if (_gpStep === GP_LAST - 1) {
       next.textContent = GP_BROWSE ? 'View my profile' : 'Save and see my profile';
       next.disabled = false;
