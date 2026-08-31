@@ -109,10 +109,17 @@
 </div>
 
 <div class="stage">
+  <div id="room-closed" style="flex:1;min-height:520px;display:flex;align-items:center;justify-content:center;padding:28px;text-align:center;">
+    <div style="max-width:420px;">
+      <div style="font-size:19px;font-weight:800;color:#1A2E42;line-height:1.35;">The room opens when you say you are here</div>
+      <div style="margin-top:10px;font-size:15px;color:#4B5A6D;line-height:1.55;">Everybody in the commons is somebody who said they were available. Turn yourself on above and you are in.</div>
+    </div>
+  </div>
   <iframe id="room"
           title="The Commons"
           allow="camera; microphone; display-capture; autoplay; fullscreen"
           allowfullscreen
+          style="display:none;"
           data-src="https://events.2gather.network/events/yvrgej/zkxbzq"></iframe>
 </div>
 
@@ -184,8 +191,28 @@ window._safeNavGo = window._safeNavGo || function (el) {
     return;
   }
 
+  // The room is people, so it waits behind the same door the faces do. Jessie, 2026-08-31.
+  // It also happens to be the expensive thing on this page: it opens a live audio and video
+  // session and holds a connection, which is not something to do for somebody who is browsing.
   var room = document.getElementById('room');
-  if (room) { room.src = room.getAttribute('data-src'); }
+  var roomClosed = document.getElementById('room-closed');
+  var roomOpen = false;
+  function showRoom(on) {
+    if (!room) return;
+    if (on && !roomOpen) {
+      room.src = room.getAttribute('data-src');
+      room.style.display = 'block';
+      if (roomClosed) { roomClosed.style.display = 'none'; }
+      roomOpen = true;
+    } else if (!on && roomOpen) {
+      // Emptying the src ends the call. Somebody who says they are not available should not
+      // still be sitting in the room, listening.
+      room.src = 'about:blank';
+      room.style.display = 'none';
+      if (roomClosed) { roomClosed.style.display = 'flex'; }
+      roomOpen = false;
+    }
+  }
 
   var t = document.getElementById('avail');
   var count = document.getElementById('count');
@@ -268,11 +295,16 @@ window._safeNavGo = window._safeNavGo || function (el) {
           if (mineHere && !showing) {
             t.className = 'toggle on';
             t.setAttribute('aria-checked', 'true');
+            showRoom(true);
             if (!beat) { beat = setInterval(function () { tell(true); }, 120000); }
           } else if (!mineHere && showing) {
             t.className = 'toggle';
             t.setAttribute('aria-checked', 'false');
+            showRoom(false);
             if (beat) { clearInterval(beat); beat = null; }
+          } else if (mineHere) {
+            // A reload does not make somebody say it twice: the room already holds them.
+            showRoom(true);
           }
         }
         for (var i = 0; i < list.length; i++) { html += faceHtml(list[i], viewer); }
@@ -317,6 +349,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
     }
     say(next);
     known = next;
+    showRoom(on);
     tell(on);
     // While somebody says they are available we say so every two minutes, so a closed
     // tab drops off by itself rather than leaving a ghost in the room.
