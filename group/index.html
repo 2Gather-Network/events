@@ -1775,42 +1775,116 @@ var myPill = document.getElementById('gp-myprofile-pill');
           });
           if (stat) { stat.style.display = 'none'; stat.textContent = ''; }
         } else if (!_viewerInGroup) {
+          // The passcode comes first. Decided 2026-08-30: a passcode is what settles joining, so
+          // it is asked before the questions and before anything is written. Inline rather than a
+          // dialog, because a dialog on this stack looks wrong.
           var b = document.createElement('button');
           b.className = 'btn';
           b.textContent = 'Join this group';
-          b.addEventListener('click', function(){
-            b.disabled = true;
-            if (stat) { stat.style.display = 'block'; stat.textContent = 'Sending your request…'; }
-            var joinMode = (d.group && d.group.joinMode) || 'open';
-            if (joinMode === 'screen') {
-              window.location.href = 'https://2gather.network/groups/request?id=' + encodeURIComponent(groupId) + '&CWid=' + encodeURIComponent(meId);
-              return;
-            }
-            fetch(GS_URL + '?action=saveJoinRequest&groupId=' + encodeURIComponent(groupId) + '&appearId=' + encodeURIComponent(meId))
+          b.addEventListener('click', function(){ askPasscode(); });
+          box.appendChild(b);
+
+          function say(msg, bad){
+            if (!stat) return;
+            stat.style.display = 'block';
+            stat.style.color = bad ? '#7A2410' : '#4B5A6D';
+            stat.textContent = msg;
+          }
+
+          function askPasscode(){
+            box.innerHTML = '';
+            var q = document.createElement('div');
+            q.style.cssText = 'font-size:15px;color:#4B5A6D;margin-bottom:10px;line-height:1.55;';
+            q.textContent = 'What is the passcode for this group?';
+            box.appendChild(q);
+
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;align-items:center;';
+            var inp = document.createElement('input');
+            inp.type = 'text';
+            inp.autocapitalize = 'off';
+            inp.setAttribute('autocomplete', 'off');
+            inp.placeholder = 'Passcode';
+            inp.style.cssText = 'flex:1;min-width:160px;border:1.5px solid #DDE3EA;background:#fff;'
+              + 'border-radius:10px;padding:11px 13px;font:inherit;font-size:15px;color:#1A2E42;outline:none;';
+            var go = document.createElement('button');
+            go.className = 'btn';
+            go.type = 'button';
+            go.textContent = 'Join';
+            row.appendChild(inp); row.appendChild(go);
+            box.appendChild(row);
+
+            // Quiet, and second, because most people have the passcode in the invitation.
+            var lost = document.createElement('div');
+            lost.style.cssText = 'margin-top:12px;font-size:14px;';
+            var lostLink = document.createElement('a');
+            lostLink.setAttribute('role', 'link');
+            lostLink.tabIndex = 0;
+            lostLink.textContent = 'I do not know the passcode';
+            lostLink.style.cssText = 'color:#1F699E;font-weight:700;cursor:pointer;';
+            lostLink.addEventListener('click', askHost);
+            lost.appendChild(lostLink);
+            box.appendChild(lost);
+
+            go.addEventListener('click', function(){ tryJoin(inp.value, go); });
+            inp.addEventListener('keydown', function(e){
+              if (e.key === 'Enter') { e.preventDefault(); tryJoin(inp.value, go); }
+            });
+            inp.focus();
+          }
+
+          function tryJoin(code, go){
+            code = String(code || '').trim();
+            if (!code) { say('Type the passcode, or say you do not know it.', true); return; }
+            go.disabled = true;
+            say('Checking...');
+            fetch(GS_URL + '?action=saveJoinRequest&groupId=' + encodeURIComponent(groupId)
+                  + '&appearId=' + encodeURIComponent(meId)
+                  + '&passcode=' + encodeURIComponent(code))
               .then(function(r){ return r.json(); })
               .then(function(res){
                 if (res && res.status === 'ok') {
-                  if (stat) stat.textContent = res.joined ? 'You\'re in. Reloading…' : 'Request sent. The host will get back to you.';
+                  say(res.joined ? 'You are in. Reloading...' : 'Request sent. The host will get back to you.');
                   if (res.joined) { setTimeout(function(){ window.location.reload(); }, 700); }
-                } else if (res && res.code === 'profile-incomplete') {
-                  // Go, do not explain. The intro opens by saying why it is asking, so a
-                  // paragraph here saying the same thing is the same sentence twice and a
-                  // second thing to press. Jessie, 2026-08-30.
-                  if (stat) { stat.style.display = 'block'; stat.textContent = 'Taking you to a few questions...'; }
+                  return;
+                }
+                if (res && (res.code === 'passcode-wrong' || res.code === 'passcode-needed')) {
+                  go.disabled = false;
+                  say('That passcode does not match. Try again, or ask the host to remind you.', true);
+                  return;
+                }
+                if (res && res.code === 'profile-incomplete') {
+                  // The passcode was right. Straight to the questions, no paragraph.
+                  say('Taking you to a few questions...');
                   window.location.href = 'https://2gather.network/intro/?next='
                     + encodeURIComponent(window.location.href);
                   return;
-                } else {
-                  b.disabled = false;
-                  if (stat) stat.textContent = (res && res.message) ? res.message : 'That did not go through. Try again in a moment.';
                 }
+                go.disabled = false;
+                say((res && res.message) ? res.message : 'That did not go through. Try again in a moment.', true);
               })
               .catch(function(){
-                b.disabled = false;
-                if (stat) stat.textContent = 'Could not reach the server. Try again in a moment.';
+                go.disabled = false;
+                say('Could not reach the server. Try again in a moment.', true);
               });
-          });
-          box.appendChild(b);
+          }
+
+          function askHost(){
+            box.innerHTML = '';
+            say('Asking the host...');
+            fetch(GS_URL + '?action=saveGroupPasscodeRequest&groupId=' + encodeURIComponent(groupId)
+                  + '&appearId=' + encodeURIComponent(meId))
+              .then(function(r){ return r.json(); })
+              .then(function(res){
+                if (res && res.status === 'ok') {
+                  say('The host has been asked. They will send you the passcode.');
+                } else {
+                  say((res && res.message) ? res.message : 'That did not go through. Try again in a moment.', true);
+                }
+              })
+              .catch(function(){ say('Could not reach the server. Try again in a moment.', true); });
+          }
+
         } else {
           var t = document.createElement('button');
           t.className = 'btn';
