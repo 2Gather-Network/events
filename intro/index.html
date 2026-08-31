@@ -72,6 +72,14 @@
     if (said === 'event' || said === 'group') return said;
     return /\/(events?|e)\//.test(_next) ? 'event' : 'group';
   })();
+  // Nothing here can be saved by somebody the site does not know, so nobody is left filling in
+  // a form that will quietly throw their answers away. They are sent to sign in and brought
+  // straight back to this exact address. Jessie's rule, 2026-08-30: any page that writes sends a
+  // signed-out person to sign in first.
+  if (!meId) {
+    var _here = encodeURIComponent(location.pathname + location.search);
+    window.location.replace('/signin/?next=' + _here);
+  }
   window._gpAlreadyIn = (params.get('already') || '') === '1';
   window._gpFirstTime = (params.get('first') || '') === '1';
   // The group bundle is cached for a minute, and the answer just changed. Without this the
@@ -869,34 +877,6 @@
     // Nothing matched, so the search becomes the way in rather than a dead end pointing at
     // another button. A word nobody has used before still has to be filed, which is the one
     // question Other asks, and it is asked right here instead.
-    // A question is tagged along its own axis. Taking the options from whatever the search
-    // happens to hold gave the offer question eleven resource categories and a stray "Kind",
-    // and gave the values question "Domain", which is a different lens entirely.
-    function gpTagOptions(){
-      if (cfg.tagOpts) return cfg.tagOpts;
-      var rd = window._gpRd || {};
-      var uniq = function(list){
-        var seen = {}, out = [];
-        (list || []).forEach(function(v){
-          v = String(v || '').trim(); if (!v) return;
-          var k = v.toLowerCase(); if (seen[k]) return;
-          seen[k] = 1; out.push(v);
-        });
-        return out;
-      };
-      if (key === 'introOffer') {
-        // A skill, a thing or a space, the same three the reference sheet holds.
-        return uniq((rd.offeringTypes || []).map(function(t){
-          t = String(t || '').trim();
-          return t ? ('A ' + t.charAt(0).toLowerCase() + t.slice(1)) : '';
-        }));
-      }
-      if (key === 'introValues') return uniq((rd.values || []).map(function(v){ return v && v.category; }));
-      if (key === 'introSkills') return uniq((rd.skills || []).map(function(v){ return v && v.category; }));
-      var seen = {}, opts = [];
-      corpus.forEach(function(c){ if (c.cat && !seen[c.cat]) { seen[c.cat] = 1; opts.push(c.cat); } });
-      return opts;
-    }
     function gpAddNew(word, mount, done){
       word = String(word || '').trim(); if (!word) return;
       // Typed something the sheet already knows? Then it is not new and it keeps that category.
@@ -905,58 +885,15 @@
           gpAddWord(key, corpus[i].word, corpus[i].cat, ta); repaint(); if (done) done(); return;
         }
       }
-      if (!cfg.tagQ) { gpAddWord(key, word, '', ta); repaint(); if (done) done(); return; }
-      // Tagging takes the screen. The examples step aside, because the only choice being asked
-      // for is which categories this belongs to, and more than one can be true.
-      row.style.display = 'none';
-      mount.innerHTML = '';
-      var q = document.createElement('div');
-      q.style.cssText = 'font-size:13px;color:#6B7A8D;margin:10px 0 8px;';
-      // Person, place or thing is a different question from a category, so that one keeps its
-      // own words.
-      q.textContent = (key === 'introNeed') ? cfg.tagQ : 'Tag this to which categories?';
-      mount.appendChild(q);
-      var picked = {};
-      var orow = document.createElement('div');
-      orow.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
-      gpTagOptions().forEach(function(o){
-        var clean = o.replace(/^[^A-Za-z0-9]+/, '').trim();
-        var ob = gpPill(o, false);
-        ob.addEventListener('click', function(){
-          if (picked[clean]) delete picked[clean]; else picked[clean] = 1;
-          ob.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
-            + (picked[clean] ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;'
-                             : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;');
-        });
-        orow.appendChild(ob);
-      });
-      mount.appendChild(orow);
-      // Done rather than a tap that ends it, so picking a second category is possible. It puts
-      // the screen back the way it started, ready for the next thing.
-      var dn = document.createElement('button');
-      dn.type = 'button';
-      dn.textContent = 'Done';
-      dn.style.cssText = 'margin-top:12px;font:inherit;font-size:14px;font-weight:700;padding:9px 22px;'
-        + 'border-radius:22px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
-      dn.addEventListener('click', function(){
-        var cats = Object.keys(picked);
-        gpAddWord(key, word, cats.join(', '), ta);
-        // The word joins the shared list, so the next person who types it finds it instead of
-        // being asked the same question again. Person, place or thing is not a category of any
-        // list, so that one is not written anywhere.
-        if (cats.length && ['recreation', 'skills', 'values'].indexOf(cfg.source) > -1) {
-          fetch(GS_URL + '?action=addCustomTerm'
-            + '&list='     + encodeURIComponent(cfg.source)
-            + '&word='     + encodeURIComponent(word)
-            + '&category=' + encodeURIComponent(cats.join(','))).catch(function(){});
-        }
-        repaint();
-        mount.innerHTML = '';
-        row.style.display = 'flex';
-        if (done) done();
-        if (typeof gpStepPaint === 'function') gpStepPaint();
-      });
-      mount.appendChild(dn);
+      // 2026-08-30. The tag question is gone. It asked somebody to do taxonomy work that was
+      // unwanted and modelled the wrong thing, and it only ever fired on a word nobody had used
+      // before, which is exactly where a person's guess is worst. A word the sheet already knows
+      // still arrives with its category, because the sheet knows it. A new word is saved as it
+      // was typed. See design/data-direction-edges-not-categories.md.
+      gpAddWord(key, word, '', ta);
+      repaint();
+      if (done) done();
+      if (typeof gpStepPaint === 'function') gpStepPaint();
     }
 
     // Search. Filters as you type, because pressing a button to search reads as broken.
