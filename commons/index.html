@@ -227,18 +227,40 @@ window._safeNavGo = window._safeNavGo || function (el) {
       box.appendChild(row);
     });
     document.body.insertBefore(box, document.body.firstChild);
+    // It sat on "asking..." for ever, which means the call neither answered nor failed. So this
+    // now gives up out loud: a 60 second stop, the HTTP status, and the first of whatever came
+    // back even when it is not the JSON we expected. A line that never changes tells us nothing.
     var last = box.lastChild;
+    var t0 = Date.now();
+    var say = function(txt){ last.textContent = 'What the server says (' +
+      Math.round((Date.now() - t0) / 1000) + 's): ' + txt; };
+    var ctl = ('AbortController' in window) ? new AbortController() : null;
+    var giveUp = setTimeout(function(){
+      if (ctl) { try { ctl.abort(); } catch (e) {} }
+      say('nothing after 60 seconds. The call never came back at all.');
+    }, 60000);
+    var opts = ctl ? { signal: ctl.signal } : {};
     fetch(GS_URL + '?action=setPresence&userID=' + encodeURIComponent(me()) +
           '&groupId=' + encodeURIComponent(ROOM) + '&available=false' +
-          '&editToken=' + encodeURIComponent(TOKEN) + '&nocache=1')
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        last.textContent = 'What the server says: ' + (d && d.status === 'ok'
-          ? 'ok, it accepted the session. The refusal is not the sign-in.'
-          : ((d && d.message) || 'no answer'));
+          '&editToken=' + encodeURIComponent(TOKEN) + '&nocache=1', opts)
+      .then(function(r){
+        return r.text().then(function(txt){ return { code: r.status, body: txt }; });
+      })
+      .then(function(res){
+        clearTimeout(giveUp);
+        var d = null;
+        try { d = JSON.parse(res.body); } catch (e) {}
+        if (d && d.status === 'ok') {
+          say('ok, it accepted the session. The refusal is not the sign-in.');
+        } else if (d && d.message) {
+          say('HTTP ' + res.code + '. ' + d.message);
+        } else {
+          say('HTTP ' + res.code + '. Not JSON: ' + String(res.body).slice(0, 160));
+        }
       })
       .catch(function(err){
-        last.textContent = 'What the server says: could not reach it. ' + err;
+        clearTimeout(giveUp);
+        say('the call failed. ' + err);
       });
   }
   if (!TOKEN) {
