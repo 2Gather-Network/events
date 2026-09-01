@@ -123,6 +123,38 @@
     strip();
   }
 
+  /* ONE PERSON, ONE ID.
+     Somebody who came from Appear has carried a short id in this browser ever since; everybody
+     who signs up here gets a long one. Both work, because every reader now matches on either.
+     But an old member keeps writing their short id into anything new they make, so the mix never
+     resolves on its own. Once per browser, ask the server which id this person should carry and
+     keep that instead.
+
+     It only ever swaps for an id the server says belongs to the same person, and any failure
+     leaves what is already here alone. Nothing is asked of anybody and nothing is lost: the old
+     id keeps working everywhere, because matching on any id is what made this safe to do.
+     Jessie's call, 2026-09-01. */
+  (function swapToOneId() {
+    if (!found) { return; }
+    var MARK = 'cw-id-checked';
+    ls(function () {
+      if (String(w.localStorage.getItem(MARK) || '') === normalise(found)) { return; }
+      var url = 'https://cw-api-gate.jessieupp.workers.dev?action=canonicalId&appearId='
+              + encodeURIComponent(found) + '&t=' + Date.now();
+      w.fetch(url)
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || d.status !== 'ok' || !d.known) { return; }   // unknown: keep what we have
+          ls(function () { w.localStorage.setItem(MARK, normalise(found)); });
+          var next = String(d.id || '').trim();
+          if (!next || normalise(next) === normalise(found)) { return; }
+          remember(next);
+          ls(function () { w.localStorage.setItem(MARK, normalise(next)); });
+        })
+        .catch(function () {});
+    });
+  })();
+
   function viewingAs() {
     return ls(function () { return String(w.localStorage.getItem(VIEW_KEY) || '').trim(); }, '');
   }
