@@ -1750,11 +1750,15 @@ var myPill = document.getElementById('gp-myprofile-pill');
       //   member → "Take me to the group" (concierge)
       var _viewerInGroup = false;
       var _viewerIsHost = false;
+      var _reallyAMember = false;
       if (meId) {
         var _vNrm = String(meId).split('.').join('').toLowerCase();
         _viewerInGroup = attendees.some(function(a){
           return String(a.appearId||'').split('.').join('').toLowerCase() === _vNrm;
         });
+        // Kept before hosting and being an operator widen it, because leaving is only offered to
+        // somebody who is genuinely a member. An operator is shown the group, not enrolled in it.
+        _reallyAMember = _viewerInGroup;
         var _hostIds = (d.group && d.group.hostIds) || [];
         _viewerIsHost = _hostIds.some(function(h){ return String(h||'').split('.').join('').toLowerCase() === _vNrm; });
         // Hosting is belonging. Without this a host of a group with an empty member list is
@@ -1763,6 +1767,55 @@ var myPill = document.getElementById('gp-myprofile-pill');
         // A super admin is not a stranger at the door. The server decides this and says so; the
         // page only obeys, and being an operator never puts anybody in the member list.
         if (d.meIsOperator) _viewerInGroup = true;
+      }
+
+      // Somebody who joins has to be able to go. Quiet, at the foot of the page, because leaving
+      // is not something to nudge anybody towards. A host does not see it: they hand the group
+      // over first, and the backend refuses them anyway. Built 2026-09-01, after finding there
+      // was no way to leave a group at all.
+      if (_reallyAMember && !_viewerIsHost) {
+        var _leaveWrap = document.createElement('div');
+        _leaveWrap.setAttribute('style', 'max-width:1040px;margin:26px auto 0;text-align:right;');
+        var _leave = document.createElement('button');
+        _leave.type = 'button';
+        _leave.textContent = 'Leave this group';
+        _leave.setAttribute('style', 'background:none;border:0;font-family:inherit;font-size:13px;'
+          + 'color:rgba(255,255,255,.6);cursor:pointer;padding:4px 6px;');
+        var _leaveSay = document.createElement('div');
+        _leaveSay.setAttribute('style', 'font-size:13px;color:rgba(255,255,255,.75);margin-top:8px;');
+        var _confirming = false;
+        _leave.addEventListener('click', function(){
+          if (!_confirming) {
+            // Asked once, inline. A dialog on this stack looks wrong.
+            _confirming = true;
+            _leave.textContent = 'Yes, leave this group';
+            _leave.style.color = '#FFD9C9';
+            _leaveSay.textContent = 'You can come back with the passcode. Press again to leave.';
+            return;
+          }
+          _leave.disabled = true;
+          _leaveSay.textContent = 'Leaving...';
+          fetch(GS_URL + '?action=leaveGroup&groupId=' + encodeURIComponent(groupId)
+                + '&appearId=' + encodeURIComponent(meId) + '&t=' + Date.now())
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+              if (!res || res.status !== 'ok') {
+                _leave.disabled = false;
+                _leaveSay.textContent = (res && res.message) ? res.message : 'That did not go through.';
+                return;
+              }
+              _leaveSay.textContent = 'You have left. Taking you to My groups...';
+              setTimeout(function(){ window.location.href = 'https://2gather.network/mygroups/?nocache=1'; }, 1100);
+            })
+            .catch(function(){
+              _leave.disabled = false;
+              _leaveSay.textContent = 'Could not reach the server. Try again in a moment.';
+            });
+        });
+        _leaveWrap.appendChild(_leave);
+        _leaveWrap.appendChild(_leaveSay);
+        var _lh = document.querySelector('.wrap') || document.body;
+        _lh.appendChild(_leaveWrap);
       }
       // Say plainly which way the viewer belongs here. Standing in a group without being told
       // whether you run it or attend it was the same screen either way.
