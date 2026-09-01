@@ -381,14 +381,13 @@
           // Only a host or a super admin gets past the PIN, so not-a-host means super admin.
           _role = _amHost ? 'host' : 'superadmin';
 
-          // Unless they are simply a member. Somebody in the group who does not run it and is not
-          // an operator is shown their own things rather than asked for a code they will never
-          // have. Built 2026-09-01.
-          if (!_amHost && !d.meIsOperator) {
-            var _inGroup = (d.attendees || []).some(function(a){
-              return String(a.appearId || '').split('.').join('').toLowerCase() === _meN;
-            });
-            if (_inGroup) { showMemberScreen(d); return; }
+          // Manage means your own things unless you actually run this group. Being a super admin
+          // is not a reason to be asked for a code on a group you merely belong to, and it is why
+          // Jessie kept landing on the host screen: she is an operator everywhere. An operator
+          // who does want the host screen gets a quiet link to it. 2026-09-01.
+          if (!_amHost) {
+            showMemberScreen(d, !!d.meIsOperator);
+            return;
           }
         }
         var _rc = ROLE_COPY[_role];
@@ -543,13 +542,34 @@
 
   /* Somebody who is in the group but does not run it is shown their own things instead of being
      asked for a code they will never have. Decided from the group itself, before the code step. */
-  function showMemberScreen(d){
+  function showMemberScreen(d, isOperator){
     var g = (d && d.group) || {};
     document.getElementById('stage-pin').classList.add('hidden');
     document.getElementById('stage-member').classList.remove('hidden');
     document.getElementById('mem-title').textContent = (g.name || 'This group') + ' · Manage';
     document.getElementById('mem-groupname').textContent = g.name || 'This group';
     document.getElementById('mtab-bookmarks').classList.remove('hidden');
+
+    // An operator can still open the group's own admin, but is not made to.
+    if (isOperator) {
+      var _op = document.createElement('p');
+      _op.className = 'lede';
+      _op.style.cssText = 'font-size:13px;margin-top:14px;';
+      var _a = document.createElement('a');
+      _a.href = '#';
+      _a.textContent = 'Open the group admin instead';
+      _a.style.color = 'var(--brand)';
+      _a.addEventListener('click', function(ev){
+        ev.preventDefault();
+        document.getElementById('stage-member').classList.add('hidden');
+        document.getElementById('mtab-bookmarks').classList.add('hidden');
+        document.getElementById('mtab-connections').classList.add('hidden');
+        document.getElementById('mtab-thisgroup').classList.add('hidden');
+        document.getElementById('stage-pin').classList.remove('hidden');
+      });
+      _op.appendChild(_a);
+      document.getElementById('stage-member').appendChild(_op);
+    }
 
     document.querySelectorAll('#mem-tabs .tab').forEach(function(t){
       t.addEventListener('click', function(){
