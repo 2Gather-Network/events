@@ -404,6 +404,10 @@
             <button class="btn" onclick="gpTileSearch()">Search</button>
             <button class="btn ghost" id="gp-search-clear" style="display:none;" onclick="gpSearchClear()">Clear</button>
           </div>
+          <!-- Who runs this group, named and reachable, so a member does not have to work it out
+               from the member list. Drawn only when the server has said who they are. -->
+          <div id="gp-allhosts" style="display:none;margin-bottom:18px;"></div>
+
           <!-- Search results block — hidden until there's a query. -->
           <div id="gp-search-block" style="display:none;">
             <div style="font-size:13px;color:#6B7A8D;margin-bottom:10px;"><b style="color:#1A2E42;" id="gp-search-count">0 matches</b> <span id="gp-search-query" style="color:#6B7A8D;"></span></div>
@@ -1778,6 +1782,54 @@ var myPill = document.getElementById('gp-myprofile-pill');
         // page only obeys, and being an operator never puts anybody in the member list.
         if (d.meIsOperator) _viewerInGroup = true;
       }
+
+      // The host, by name, under the search on All members. A photo in a strip does not tell
+       // anybody who to ask, and a member should not have to guess. Jessie, 2026-09-01.
+      (function(){
+        var box = document.getElementById('gp-allhosts');
+        if (!box) return;
+        var ids = ((d.group && d.group.hostIds) || []).concat((d.group && d.group.coHostIds) || [])
+                    .map(function(x){ return String(x || '').trim(); }).filter(Boolean);
+        if (!ids.length) return;
+        var byId = {};
+        attendees.forEach(function(a){
+          byId[String(a.appearId || '').split('.').join('').toLowerCase()] = a;
+        });
+        var made = 0;
+        var lab = document.createElement('div');
+        lab.setAttribute('style', 'font-size:12px;font-weight:800;letter-spacing:.05em;'
+          + 'text-transform:uppercase;color:#6B7A8D;margin-bottom:8px;');
+        lab.textContent = ids.length > 1 ? 'Hosts' : 'Host';
+        box.appendChild(lab);
+        var row = document.createElement('div');
+        row.setAttribute('style', 'display:flex;gap:8px;flex-wrap:wrap;');
+        ids.forEach(function(id){
+          var who = byId[String(id).split('.').join('').toLowerCase()];
+          var name = (who && (who.name || who.first)) || '';
+          if (!name) return;                                  // never a bare id on screen
+          var chip = document.createElement('a');
+          chip.setAttribute('role', 'link');
+          chip.setAttribute('tabindex', '0');
+          chip.setAttribute('data-nav', 'https://2gather.network/profile/?show=' + encodeURIComponent(id));
+          chip.setAttribute('onclick', 'return _safeNavGo(this)');
+          chip.setAttribute('style', 'display:flex;align-items:center;gap:8px;background:#F7F9FC;'
+            + 'border:1.5px solid #DDE4EE;border-radius:22px;padding:4px 14px 4px 4px;'
+            + 'text-decoration:none;color:#1A2E42;font-size:14px;font-weight:700;cursor:pointer;');
+          if (who && who.photo) {
+            var img = document.createElement('img');
+            img.src = who.photo;
+            img.alt = '';
+            img.setAttribute('style', 'width:28px;height:28px;border-radius:50%;object-fit:cover;');
+            chip.appendChild(img);
+          }
+          chip.appendChild(document.createTextNode(name));
+          row.appendChild(chip);
+          made++;
+        });
+        if (!made) { box.innerHTML = ''; return; }
+        box.appendChild(row);
+        box.style.display = 'block';
+      })();
 
       // Manage belongs to anybody who is in the group, whichever way they belong.
       if (_viewerInGroup) {
