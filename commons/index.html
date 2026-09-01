@@ -163,11 +163,24 @@ window._safeNavGo = window._safeNavGo || function (el) {
     try {
       var tok = localStorage.getItem('cw-token') || '';
       if (!tok) {
+        // A token is kept under whichever id this browser was carrying when it was minted, and
+        // that id can change. Look under every cw-edit- key rather than only today's spelling.
+        // Jessie's commons refused her own session for exactly this. 2026-09-01.
         var who = String(localStorage.getItem('cw-id') || localStorage.getItem('appear-id') || '')
                     .split('.').join('').toLowerCase();
         if (who) {
           var kept = JSON.parse(localStorage.getItem('cw-edit-' + who) || 'null');
           if (kept && kept.t) tok = kept.t;
+        }
+        if (!tok) {
+          for (var ki = 0; ki < localStorage.length; ki++) {
+            var key = localStorage.key(ki);
+            if (!key || key.indexOf('cw-edit-') !== 0) continue;
+            try {
+              var any = JSON.parse(localStorage.getItem(key) || 'null');
+              if (any && any.t) { tok = any.t; break; }
+            } catch (e) {}
+          }
         }
       }
       if (!tok) return '';
@@ -298,7 +311,20 @@ window._safeNavGo = window._safeNavGo || function (el) {
         t.setAttribute('aria-checked', 'false');
         showRoom(false);
         var c = document.getElementById('count');
-        if (c) { c.textContent = (d && d.message) ? d.message : 'Could not show you as available.'; }
+        if (c) {
+          c.innerHTML = '';
+          c.appendChild(document.createTextNode((d && d.message) ? d.message : 'Could not show you as available.'));
+          // A dead end is not an answer. Offer the way through.
+          c.appendChild(document.createTextNode(' '));
+          var fix = document.createElement('a');
+          fix.setAttribute('role', 'link');
+          fix.setAttribute('tabindex', '0');
+          fix.setAttribute('data-nav', 'https://2gather.network/account/?next=/commons/');
+          fix.setAttribute('onclick', 'return _safeNavGo(this)');
+          fix.setAttribute('style', 'color:var(--brand);font-weight:700;cursor:pointer;');
+          fix.textContent = 'Verify it is you';
+          c.appendChild(fix);
+        }
       })
       .catch(function () {
         var c = document.getElementById('count');
