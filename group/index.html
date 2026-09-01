@@ -436,7 +436,7 @@
         <div id="gp-members-heading" style="font-size:15px;font-weight:800;color:#1A2E42;margin-bottom:12px;">Members</div>
         <div id="gp-here-strip" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
         <div id="gp-viewall-wrap" style="display:none;justify-content:flex-end;margin-top:10px;">
-          <button class="btn" onclick="gpShow('members')">View all</button>
+          <button class="btn" id="gp-viewall-btn" onclick="gpShow('members')">View all</button>
         </div>
         <div id="gp-stats-line" style="font-size:13px;color:#6B7A8D;margin-top:14px;padding-top:12px;border-top:1px solid #f0f1f5;"></div>
         <!-- Host-only: manage/edit this group. Shown only when the viewer is in the group's hostIds. -->
@@ -862,8 +862,28 @@ function pick(el, key){
   // so no button anywhere can get round it.
   var GP_MEMBERS_ONLY = { concierge:1, feed:1, messages:1, invites:1, events:1, search:1, members:1, intro:1 };
 
+  function gpSyncManage(view){
+    var btn = document.getElementById('gp-viewall-btn');
+    var pill = document.getElementById('gp-manage-btn');
+    if (!btn) return;
+    if (view === 'members' && btn.getAttribute('data-manage')) {
+      btn.textContent = 'Manage';
+      btn.className = 'btn ghost';
+      btn.setAttribute('onclick', "window.location.href=this.getAttribute('data-manage')");
+      if (pill) pill.style.display = 'none';
+    } else {
+      btn.textContent = 'View all';
+      btn.className = 'btn';
+      btn.setAttribute('onclick', "gpShow('members')");
+      if (pill && pill.getAttribute('href') && pill.getAttribute('href') !== '#') {
+        pill.style.display = 'inline-flex';
+      }
+    }
+  }
+
   window.gpShow = function(view){
     if (GP_MEMBERS_ONLY[view] && !window._gpAlreadyIn) { view = 'onboard'; }
+    try { gpSyncManage(view); } catch (err) {}
     var ids = ['gp-concierge','gp-onboard','gp-feed','gp-messages','gp-invites','gp-events','gp-search','gp-members','gp-intro'];
     ids.forEach(function(i){ var el = document.getElementById(i); if (el) el.style.display = 'none'; });
     var map = { concierge:'gp-concierge', onboard:'gp-onboard', feed:'gp-feed', messages:'gp-messages', invites:'gp-invites', events:'gp-events', search:'gp-search', members:'gp-members', intro:'gp-intro' };
@@ -1781,39 +1801,31 @@ var myPill = document.getElementById('gp-myprofile-pill');
         attendees.forEach(function(a){
           byId[String(a.appearId || '').split('.').join('').toLowerCase()] = a;
         });
-        var made = 0;
-        var lab = document.createElement('div');
-        lab.setAttribute('style', 'font-size:12px;font-weight:800;letter-spacing:.05em;'
-          + 'text-transform:uppercase;color:#6B7A8D;margin-bottom:8px;');
-        lab.textContent = ids.length > 1 ? 'Hosts' : 'Host';
-        box.appendChild(lab);
-        var row = document.createElement('div');
-        row.setAttribute('style', 'display:flex;gap:8px;flex-wrap:wrap;');
+        var names = [];
         ids.forEach(function(id){
           var who = byId[String(id).split('.').join('').toLowerCase()];
           var name = (who && (who.name || who.first)) || '';
-          if (!name) return;                                  // never a bare id on screen
-          var chip = document.createElement('a');
-          chip.setAttribute('role', 'link');
-          chip.setAttribute('tabindex', '0');
-          chip.setAttribute('data-nav', 'https://2gather.network/profile/?show=' + encodeURIComponent(id));
-          chip.setAttribute('onclick', 'return _safeNavGo(this)');
-          chip.setAttribute('style', 'display:flex;align-items:center;gap:8px;background:#F7F9FC;'
-            + 'border:1.5px solid #DDE4EE;border-radius:22px;padding:4px 14px 4px 4px;'
-            + 'text-decoration:none;color:#1A2E42;font-size:14px;font-weight:700;cursor:pointer;');
-          if (who && who.photo) {
-            var img = document.createElement('img');
-            img.src = who.photo;
-            img.alt = '';
-            img.setAttribute('style', 'width:28px;height:28px;border-radius:50%;object-fit:cover;');
-            chip.appendChild(img);
-          }
-          chip.appendChild(document.createTextNode(name));
-          row.appendChild(chip);
-          made++;
+          if (name) names.push({ id: id, name: name });        // never a bare id on screen
         });
-        if (!made) { box.innerHTML = ''; return; }
-        box.appendChild(row);
+        if (!names.length) { return; }
+        var line = document.createElement('div');
+        line.setAttribute('style', 'font-size:14px;color:#1A2E42;');
+        var lead = document.createElement('span');
+        lead.setAttribute('style', 'font-weight:800;color:#6B7A8D;');
+        lead.textContent = (names.length > 1 ? 'Hosts: ' : 'Host: ');
+        line.appendChild(lead);
+        names.forEach(function(h, i){
+          if (i) line.appendChild(document.createTextNode(', '));
+          var a = document.createElement('a');
+          a.setAttribute('role', 'link');
+          a.setAttribute('tabindex', '0');
+          a.setAttribute('data-nav', 'https://2gather.network/profile/?show=' + encodeURIComponent(h.id));
+          a.setAttribute('onclick', 'return _safeNavGo(this)');
+          a.setAttribute('style', 'color:#1F699E;font-weight:700;text-decoration:none;cursor:pointer;');
+          a.textContent = h.name;
+          line.appendChild(a);
+        });
+        box.appendChild(line);
         box.style.display = 'block';
       })();
 
@@ -1826,6 +1838,8 @@ var myPill = document.getElementById('gp-myprofile-pill');
             + encodeURIComponent(groupId) + '&CWid=' + encodeURIComponent(meId)
             + '&name=' + encodeURIComponent((d.group && d.group.name) || ''));
           _mb.style.display = 'inline-flex';
+          var _vb = document.getElementById('gp-viewall-btn');
+          if (_vb) _vb.setAttribute('data-manage', _mb.getAttribute('href'));
         }
       }
 
