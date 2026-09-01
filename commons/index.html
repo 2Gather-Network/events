@@ -772,13 +772,19 @@ window._safeNavGo = window._safeNavGo || function (el) {
   var lastSeenYou = Date.now();
   var awayWatch = null;
 
-  function stillThere() { lastSeenYou = Date.now(); }
+  // What last told the page you were there. Named, because "it didn't do anything" cannot say
+  // whether the clock never started, or started and kept being reset by a passing mouse.
+  var lastSignal = 'page load';
+  function stillThere(ev) {
+    lastSeenYou = Date.now();
+    if (ev && ev.type) lastSignal = ev.type;
+  }
   ['keydown', 'mousemove', 'mousedown', 'wheel', 'touchstart', 'scroll'].forEach(function (ev) {
-    document.addEventListener(ev, stillThere, { passive: true });
+    document.addEventListener(ev, function (e) { stillThere(e); }, { passive: true });
   });
   // Coming back to the tab is being there. Leaving it is not, and the clock keeps running.
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) stillThere();
+    if (!document.hidden) stillThere({ type: 'came back to the tab' });
   });
 
   function watchForAway() {
@@ -799,6 +805,37 @@ window._safeNavGo = window._safeNavGo || function (el) {
   }
   function stopWatchingForAway() {
     if (awayWatch) { clearInterval(awayWatch); awayWatch = null; }
+  }
+
+  // ?away=1 shows the clock rather than describing it. Every number that decides whether you are
+  // taken out of the room is on the screen, updating twice a second, so a run that does nothing
+  // says which of the four reasons it was. Built after Jessie waited out forty seconds, saw
+  // nothing happen, and rightly asked for indicators instead of another guess. 2026-09-01.
+  if (new URLSearchParams(location.search).get('away') === '1') {
+    var awayBox = document.createElement('div');
+    awayBox.setAttribute('style', 'position:fixed;right:12px;bottom:12px;z-index:99999;'
+      + 'background:#fff;border:2px solid #1F699E;border-radius:10px;padding:12px 14px;'
+      + 'font:13px/1.7 ui-monospace,Menlo,monospace;color:#1A2E42;min-width:300px;');
+    document.body.appendChild(awayBox);
+    setInterval(function () {
+      var idle = Math.round((Date.now() - lastSeenYou) / 1000);
+      var left = Math.max(0, Math.round((AWAY_AFTER - (Date.now() - lastSeenYou)) / 1000));
+      var on = t.className.indexOf('on') > -1;
+      awayBox.textContent = '';
+      [
+        'toggle is ' + (on ? 'ON' : 'off'),
+        'clock is ' + (awayWatch ? 'RUNNING' : 'not running'),
+        'idle for ' + idle + 's',
+        'taken out in ' + left + 's',
+        'last signal: ' + lastSignal,
+        on && awayWatch ? '' : 'nothing will happen until both of the first two are on'
+      ].forEach(function (line) {
+        if (!line) return;
+        var d = document.createElement('div');
+        d.textContent = line;
+        awayBox.appendChild(d);
+      });
+    }, 500);
   }
 
   load();
