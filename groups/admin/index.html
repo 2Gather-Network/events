@@ -76,6 +76,48 @@
   <div class="breadcrumb"><a role="link" tabindex="0" id="crumb-mygroups" onclick="return _safeNavGo(this)" style="cursor:pointer;color:#fff;text-decoration:none;">‹ My groups</a> / <a role="link" tabindex="0" id="crumb-back" onclick="return _safeNavGo(this)" style="cursor:pointer;color:#fff;text-decoration:none;">Group</a> / <span class="now">Admin</span></div>
 
   <!-- PIN GATE (default) -->
+  <!-- Manage, for somebody who is IN the group rather than running it. No code is asked for:
+       everything here is their own, and the group's own business stays on the host screen.
+       Built 2026-09-01. -->
+  <div id="stage-member" class="card hidden">
+    <h1 id="mem-title">Manage</h1>
+    <p class="lede" id="mem-lede">What you have kept, who you know, and this group.</p>
+
+    <div class="tabs" id="mem-tabs">
+      <div class="tab on" data-mtab="bookmarks">My bookmarks</div>
+      <div class="tab" data-mtab="connections">My connections</div>
+      <div class="tab" data-mtab="thisgroup">This group</div>
+    </div>
+  </div>
+
+  <div id="mtab-bookmarks" class="card hidden">
+    <h2>People you kept</h2>
+    <p class="lede">Everybody you have bookmarked, across every group.</p>
+    <div id="mem-bookmarks"><p class="lede">Looking...</p></div>
+  </div>
+
+  <div id="mtab-connections" class="card hidden">
+    <h2>People you have connected with</h2>
+    <p class="lede">Your connections from Appear. Not brought across yet, so this is empty on
+       purpose rather than because you have none.</p>
+  </div>
+
+  <div id="mtab-thisgroup" class="card hidden">
+    <h2 id="mem-groupname">This group</h2>
+
+    <div class="q">Message the host</div>
+    <p class="lede" style="font-size:13.5px;">Not built yet. When it is, this sends a message that
+       lands in their inbox and says it came from this group.</p>
+
+    <div style="margin-top:26px;border-top:1px solid var(--line);padding-top:22px;">
+      <div class="q">Leave this group</div>
+      <p class="lede" style="font-size:13.5px;">Your profile, your answers and your other groups are
+         untouched. You can come back with the passcode.</p>
+      <button class="btn danger sm" id="mem-leave">Leave this group</button>
+      <div id="mem-leave-status" class="status" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
   <div id="stage-pin" class="card">
     <h1 id="pin-title">Group admin</h1>
     <p class="lede" id="pin-lede">To manage this group, please verify it's you. You'll receive a one-time 6-digit code via email. It expires in 15 minutes and can only be used once.</p>
@@ -338,6 +380,16 @@
           var _amHost = _hIds.some(function(h){ return String(h||'').split('.').join('').toLowerCase() === _meN; });
           // Only a host or a super admin gets past the PIN, so not-a-host means super admin.
           _role = _amHost ? 'host' : 'superadmin';
+
+          // Unless they are simply a member. Somebody in the group who does not run it and is not
+          // an operator is shown their own things rather than asked for a code they will never
+          // have. Built 2026-09-01.
+          if (!_amHost && !d.meIsOperator) {
+            var _inGroup = (d.attendees || []).some(function(a){
+              return String(a.appearId || '').split('.').join('').toLowerCase() === _meN;
+            });
+            if (_inGroup) { showMemberScreen(d); return; }
+          }
         }
         var _rc = ROLE_COPY[_role];
         var _nm = g.name || _roleGroupName || 'This group';
@@ -487,6 +539,90 @@
     var user = e.slice(0, at), dom = e.slice(at + 1);
     var head = user.slice(0, 1), tail = user.length > 2 ? user.slice(-1) : '';
     return head + '\u2022\u2022\u2022' + tail + '@' + dom;
+  }
+
+  /* Somebody who is in the group but does not run it is shown their own things instead of being
+     asked for a code they will never have. Decided from the group itself, before the code step. */
+  function showMemberScreen(d){
+    var g = (d && d.group) || {};
+    document.getElementById('stage-pin').classList.add('hidden');
+    document.getElementById('stage-member').classList.remove('hidden');
+    document.getElementById('mem-title').textContent = (g.name || 'This group') + ' · Manage';
+    document.getElementById('mem-groupname').textContent = g.name || 'This group';
+    document.getElementById('mtab-bookmarks').classList.remove('hidden');
+
+    document.querySelectorAll('#mem-tabs .tab').forEach(function(t){
+      t.addEventListener('click', function(){
+        document.querySelectorAll('#mem-tabs .tab').forEach(function(x){ x.classList.remove('on'); });
+        t.classList.add('on');
+        var name = t.getAttribute('data-mtab');
+        document.querySelectorAll('#mem-tabs .tab').forEach(function(x){
+          var n = x.getAttribute('data-mtab');
+          var panel = document.getElementById('mtab-' + n);
+          if (panel) panel.classList.toggle('hidden', n !== name);
+        });
+      });
+    });
+
+    // Nothing is claimed before it is known: no "none yet" until the server has answered.
+    fetch(GS_URL + '?action=getBookmarks&appearId=' + encodeURIComponent(meId) + '&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(b){
+        var list = (b && (b.bookmarks || b.people || b.saved)) || [];
+        var box = document.getElementById('mem-bookmarks');
+        box.innerHTML = '';
+        if (!list.length) {
+          var none = document.createElement('p');
+          none.className = 'lede';
+          none.textContent = 'Nobody kept yet. Bookmark somebody from a group and they appear here.';
+          box.appendChild(none);
+          return;
+        }
+        list.forEach(function(p){
+          var row = document.createElement('div');
+          row.className = 'row';
+          var who = document.createElement('div');
+          who.className = 'who';
+          var nm = document.createElement('div');
+          nm.className = 'name';
+          nm.textContent = p.name || p.first || 'Somebody';
+          who.appendChild(nm);
+          row.appendChild(who);
+          box.appendChild(row);
+        });
+      })
+      .catch(function(){
+        document.getElementById('mem-bookmarks').innerHTML =
+          '<p class="lede">Could not reach the server.</p>';
+      });
+
+    document.getElementById('mem-leave').addEventListener('click', function(){
+      var btn = document.getElementById('mem-leave');
+      if (btn.getAttribute('data-armed') !== '1') {
+        btn.setAttribute('data-armed', '1');
+        btn.textContent = 'Yes, leave this group';
+        showStatus('mem-leave-status', 'ok', 'Press again to leave. You can come back with the passcode.');
+        return;
+      }
+      btn.disabled = true;
+      showStatus('mem-leave-status', 'ok', 'Leaving...');
+      fetch(GS_URL + '?action=leaveGroup&groupId=' + encodeURIComponent(groupId)
+            + '&appearId=' + encodeURIComponent(meId) + '&t=' + Date.now())
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          if (!res || res.status !== 'ok') {
+            btn.disabled = false;
+            showStatus('mem-leave-status', 'err', (res && res.message) || 'That did not go through.');
+            return;
+          }
+          showStatus('mem-leave-status', 'ok', 'You have left. Taking you to My groups...');
+          setTimeout(function(){ window.location.href = 'https://2gather.network/mygroups/?nocache=1'; }, 1100);
+        })
+        .catch(function(){
+          btn.disabled = false;
+          showStatus('mem-leave-status', 'err', 'Could not reach the server.');
+        });
+    });
   }
 
   function unlockDashboard(){
