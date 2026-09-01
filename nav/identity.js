@@ -143,7 +143,12 @@
        It is back on for the ids named below and nobody else. Jessie is the one name on it,
        because she is the person who will notice within a minute if anything is wrong. Add an id
        here to widen it; empty the list to stop it entirely. */
-    var SWAP_ONLY = ['w.hss'];
+    /* EMPTY, AND IT HAS TO BE. canonicalId became operators only on 2026-09-01, because handing
+       back "is this a real person" for a five-character id is an enumeration oracle and an id is
+       a password here. A page cannot call it any more, so this list would silently do nothing.
+       When the swap widens, it moves to a job that runs on the server against the sheet, not to
+       a page asking on somebody's behalf. */
+    var SWAP_ONLY = [];
     if (!found) { return; }
     var allowed = false;
     for (var si = 0; si < SWAP_ONLY.length; si++) {
