@@ -24,7 +24,10 @@
 <style>
   :root{--brand:#1F699E;--ink:#1A2E42;--soft:#6B7A8D;--line:#DDE3EA;--panel:#F7FBFF;--panel-line:#C9DFF3;}
   *{box-sizing:border-box;}
-  html,body{margin:0;height:100%;}
+  /* dvh, not %, so the phone's own bars are counted. A page sized to the full window sits under
+     the browser's chrome on a phone, and the bottom of the room embed disappears behind it.
+     The fallback keeps older browsers where they were. Jessie, 2026-09-01. */
+  html,body{margin:0;height:100%;height:100dvh;}
   body{background:var(--brand);color:#fff;display:flex;flex-direction:column;
        font-family:'DM Sans','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;}
 
@@ -69,8 +72,10 @@
   .stage{flex:1;min-height:0;background:#fff;display:flex;flex-direction:column;}
   iframe{flex:1;width:100%;border:0;min-height:520px;display:block;}
 
+  /* In the flow, never over the embed, and clear of the phone's home bar. */
   .foot{background:#fff;border-top:1px solid var(--line);padding:11px 20px;color:var(--soft);
-        font-size:13px;line-height:1.55;}
+        font-size:13px;line-height:1.55;flex:0 0 auto;position:relative;z-index:2;
+        padding-bottom:calc(11px + env(safe-area-inset-bottom));}
   .foot a{color:var(--brand);font-weight:700;cursor:pointer;text-decoration:none;}
   /* The signed-out screen. In the page rather than over it, so nothing sits on top. */
   .ask{flex:1;padding:44px 22px 60px;text-align:center;}
@@ -123,9 +128,9 @@
 </div>
 
 <div class="foot">
-  Needs support?
+  Something not working?
   <a role="link" tabindex="0" data-nav="https://2gather.network/support"
-     onclick="return _safeNavGo(this)">Tell us here</a>
+     onclick="return _safeNavGo(this)">Tell us</a>
 </div>
 
 <script>
@@ -257,9 +262,13 @@ window._safeNavGo = window._safeNavGo || function (el) {
     }
   }
 
+  // True for a few seconds after somebody presses the toggle on, so a slow or cached read cannot
+  // contradict them in the meantime.
+  var justSaid = false;
   function tell(on) {
     var who = me();
     if (!who) return;
+    if (on) { justSaid = true; setTimeout(function(){ justSaid = false; }, 20000); }
     fetch(GS_URL + '?action=setPresence&userID=' + encodeURIComponent(who) +
           '&groupId=' + encodeURIComponent(ROOM) + '&available=' + (on ? 'true' : 'false') +
           '&editToken=' + encodeURIComponent(TOKEN))
@@ -269,7 +278,17 @@ window._safeNavGo = window._safeNavGo || function (el) {
       // and quietly switched the toggle off. Jessie saw it happen. Say it instead.
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d && d.status === 'ok') { if (!document.hidden) { load(); } return; }
+        if (d && d.status === 'ok') {
+          // Show the answer immediately. Waiting for a slow read before the screen agrees with
+          // what somebody just pressed is what made this feel broken.
+          if (on) {
+            t.className = 'toggle on';
+            t.setAttribute('aria-checked', 'true');
+            showRoom(true);
+          }
+          if (!document.hidden) { load(true); }
+          return;
+        }
         if (beat) { clearInterval(beat); beat = null; }
         t.className = 'toggle';
         t.setAttribute('aria-checked', 'false');
@@ -283,8 +302,13 @@ window._safeNavGo = window._safeNavGo || function (el) {
       });
   }
 
-  function load() {
-    fetch(GS_URL + '?action=getPresence&groupId=' + encodeURIComponent(ROOM))
+  function load(fresh) {
+    // A read straight after saying you are here has to bypass the cache, or it comes back with
+    // the list from before you arrived: you are not in it, and the toggle switches itself off.
+    // That is the fifteen-second wait and the toggle turning off, and they are one fault.
+    // Jessie, 2026-09-01.
+    fetch(GS_URL + '?action=getPresence&groupId=' + encodeURIComponent(ROOM)
+          + (fresh ? '&nocache=1&t=' + Date.now() : ''))
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var list = (d && d.people) || [];
@@ -310,7 +334,8 @@ window._safeNavGo = window._safeNavGo || function (el) {
             t.setAttribute('aria-checked', 'true');
             showRoom(true);
             if (!beat) { beat = setInterval(function () { tell(true); }, 120000); }
-          } else if (!mineHere && showing) {
+          } else if (!mineHere && showing && !justSaid) {
+            // Only a read that is not racing a just-pressed toggle may switch somebody off.
             t.className = 'toggle';
             t.setAttribute('aria-checked', 'false');
             showRoom(false);
