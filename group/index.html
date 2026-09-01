@@ -1459,6 +1459,64 @@ function pick(el, key){
   // Straight after joining, ask for a fresh copy. The gate caches this call and its purge only
   // clears the events feed, so a reload right after a join read a group from before the join and
   // showed somebody the door they had just come through. Jessie hit exactly that.
+  // Somebody offered this group has to be told, on the group itself, not by email alone.
+  // Nothing is claimed until the server answers: no banner, no wording, until there is an offer.
+  (function(){
+    if (!meId) return;
+    fetch(GS_URL + '?action=getHostOffers&appearId=' + encodeURIComponent(meId) + '&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || d.status !== 'ok' || !(d.offers || []).length) return;
+        var mine = d.offers.filter(function(o){ return String(o.groupId) === String(groupId); });
+        if (!mine.length) return;
+        var o = mine[0];
+        var bar = document.createElement('div');
+        bar.setAttribute('style', 'background:#FFF6E5;border:1px solid #E8C98A;border-radius:12px;'
+          + 'padding:16px 18px;margin:0 0 18px;font-size:15px;line-height:1.6;color:#4B3A16;');
+        var line = document.createElement('div');
+        line.textContent = (o.fromName ? (o.fromName + ' has offered you hosting of ') : 'You have been offered hosting of ')
+                         + (o.groupName || 'this group') + '.';
+        line.style.marginBottom = '12px';
+        bar.appendChild(line);
+        var row = document.createElement('div');
+        row.setAttribute('style', 'display:flex;gap:10px;flex-wrap:wrap;align-items:center;');
+        var say = document.createElement('span');
+        say.style.cssText = 'font-size:14px;color:#6B5A2E;';
+        var answer = function(ans){
+          yes.disabled = no.disabled = true;
+          say.textContent = 'Saving...';
+          fetch(GS_URL + '?action=respondHostTransfer&groupId=' + encodeURIComponent(groupId)
+                + '&appearId=' + encodeURIComponent(meId) + '&answer=' + ans + '&t=' + Date.now())
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+              if (!res || res.status !== 'ok') {
+                yes.disabled = no.disabled = false;
+                say.textContent = (res && res.message) ? res.message : 'That did not go through.';
+                return;
+              }
+              bar.textContent = res.accepted
+                ? 'You now host ' + (o.groupName || 'this group') + '. Reloading...'
+                : 'Declined. Nothing has changed.';
+              if (res.accepted) { setTimeout(function(){ location.reload(); }, 1200); }
+            })
+            .catch(function(){ yes.disabled = no.disabled = false; say.textContent = 'Could not reach the server.'; });
+        };
+        var yes = document.createElement('button');
+        yes.className = 'btn'; yes.type = 'button'; yes.textContent = 'Accept hosting';
+        yes.addEventListener('click', function(){ answer('accept'); });
+        var no = document.createElement('button');
+        no.className = 'btn'; no.type = 'button'; no.textContent = 'No thank you';
+        no.setAttribute('style', 'background:#fff;color:#4B3A16;border:1.5px solid #C7A martin;');
+        no.setAttribute('style', 'background:#fff;color:#4B3A16;border:1.5px solid #C7A65B;');
+        no.addEventListener('click', function(){ answer('decline'); });
+        row.appendChild(yes); row.appendChild(no); row.appendChild(say);
+        bar.appendChild(row);
+        var host = document.querySelector('.wrap') || document.body;
+        host.insertBefore(bar, host.firstChild);
+      })
+      .catch(function(){});
+  })();
+
   var _justJoined = /[?&]joined=1/.test(location.search);
   fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId)
         + (meId ? '&me=' + encodeURIComponent(meId) : '')

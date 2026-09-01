@@ -78,8 +78,8 @@
   <!-- PIN GATE (default) -->
   <div id="stage-pin" class="card">
     <h1 id="pin-title">Group admin</h1>
-    <p class="lede" id="pin-lede">Verify it is you to manage this group. Once you are in you can manage people, review join requests, or edit group info.</p>
-    <p class="lede" id="pin-code-note" style="font-size:13.5px;">We will email you a one-time 6-digit code. It expires in 15 minutes and can only be used once.</p>
+    <p class="lede" id="pin-lede">To manage this group, please verify it's you. You'll receive a one-time 6-digit code via email. It expires in 15 minutes and can only be used once.</p>
+    <p class="lede hidden" id="pin-code-note" style="font-size:13.5px;"></p>
     <input type="text" id="pin-input" inputmode="numeric" pattern="[0-9]*" placeholder="Example: 428091" style="max-width:220px;font-size:18px;letter-spacing:.2em;text-align:center;display:none;">
     <div style="display:flex;gap:10px;margin-top:16px;">
       <a class="btn ghost" id="pin-cancel" role="link" tabindex="0" onclick="return _safeNavGo(this)">Cancel</a>
@@ -190,7 +190,12 @@
       <div class="row" style="align-items:flex-start;flex-wrap:wrap;">
         <div class="who">
           <div class="name">Transfer host</div>
-          <div class="sub">Hand this group over to another member. You become a regular member.</div>
+          <div class="sub">Offer this group to another member. Nothing changes until they accept. You stay a member.</div>
+          <div id="transfer-ask" style="display:none;margin-top:12px;">
+            <input type="email" id="transfer-to" placeholder="their email address"
+                   style="max-width:280px;margin-bottom:10px;">
+            <div><button class="btn danger sm" id="transfer-send">Ask them</button></div>
+          </div>
         </div>
         <button class="btn danger sm" id="danger-transfer">Transfer host</button>
       </div>
@@ -820,7 +825,34 @@
       });
   }
   document.getElementById('danger-reset').addEventListener('click', function(){ dangerAction('resetGroupPasscode', 'Reset passcode', 'Anyone holding the old passcode will need the new one. You can set another passcode at any time.'); });
-  document.getElementById('danger-transfer').addEventListener('click', function(){ dangerAction('transferGroupHost', 'Transfer host'); });
+  // Handing a group over is an offer, not an act. The new host is asked, and the group moves only
+  // when they accept. Inline rather than a dialog, because a dialog on this stack looks wrong.
+  document.getElementById('danger-transfer').addEventListener('click', function(){
+    var box = document.getElementById('transfer-ask');
+    if (box) { box.style.display = box.style.display === 'none' ? 'block' : 'none';
+               if (box.style.display === 'block') document.getElementById('transfer-to').focus(); }
+  });
+  document.getElementById('transfer-send').addEventListener('click', function(){
+    var to = (document.getElementById('transfer-to').value || '').trim();
+    if (!to) { showStatus('danger-status', 'err', 'Type the email address of the member you are handing it to.'); return; }
+    var tok = getToken() || '';
+    showStatus('danger-status', 'ok', 'Asking them…');
+    fetch(GS_URL + '?action=offerHostTransfer&groupId=' + encodeURIComponent(groupId)
+          + '&hostAppearId=' + encodeURIComponent(meId)
+          + '&sessionToken=' + encodeURIComponent(tok)
+          + '&toEmail=' + encodeURIComponent(to))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.status === 'ok') {
+          showStatus('danger-status', 'ok', (d.offeredTo || 'They') + ' has been asked. The group stays yours until they accept.');
+          document.getElementById('transfer-ask').style.display = 'none';
+          document.getElementById('transfer-to').value = '';
+        } else {
+          showStatus('danger-status', 'err', (d && d.message) ? d.message : 'That did not go through.');
+        }
+      })
+      .catch(function(){ showStatus('danger-status', 'err', 'Could not reach the server. Try again in a moment.'); });
+  });
   document.getElementById('danger-archive').addEventListener('click', function(){ dangerAction('archiveGroup', 'Archive group'); });
 
 })();
