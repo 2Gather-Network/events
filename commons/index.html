@@ -148,6 +148,20 @@ window._safeNavGo = window._safeNavGo || function (el) {
   var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
   var ROOM = 'commons';
 
+  // Standing in a room is something only the person actually signed in can do. Viewing as
+  // somebody else is for looking at pages, and it must never be able to put that person in a
+  // room, say they are available, or answer for them. Jessie went into the commons while viewing
+  // as Karin Bigelow and the page tried to write Karin into it with Jessie's session, which the
+  // backend refused, which is what threw her straight out again. 2026-09-01.
+  function viewingSomebodyElse() {
+    try { return !!(window.CW && CW.me && CW.me().viewing); } catch (e) { return false; }
+  }
+  function realMe() {
+    try {
+      if (window.CW && CW.realMe) { return String(CW.realMe().id || '').trim(); }
+    } catch (e) {}
+    return me();
+  }
   function me() {
     try {
       var p = new URLSearchParams(location.search);
@@ -393,7 +407,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
   var inFlight = 0;
   var saidAt = 0;
   function tell(on) {
-    var who = me();
+    var who = realMe();
     if (!who) return;
     if (on) {
       justSaid = true;
@@ -467,14 +481,14 @@ window._safeNavGo = window._safeNavGo || function (el) {
     // to contradict the newer one no matter how late it arrives.
     var startedAt = Date.now();
     fetch(GS_URL + '?action=getPresence&groupId=' + encodeURIComponent(ROOM)
-          + '&me=' + encodeURIComponent(me() || '')
+          + '&me=' + encodeURIComponent(realMe() || '')
           + (fresh ? '&nocache=1&t=' + Date.now() : ''))
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var list = (d && d.people) || [];
         known = list.length;
         say(known);
-        var html = '', viewer = me();
+        var html = '', viewer = realMe();
 
         // The toggle shows the truth rather than starting off every time. If the room
         // already has you in it, it comes up on, and the heartbeat picks up where it left off.
@@ -529,9 +543,17 @@ window._safeNavGo = window._safeNavGo || function (el) {
   }
 
   function flip() {
+    if (viewingSomebodyElse()) {
+      count.style.display = 'inline';
+      count.textContent = 'You are looking at the site as somebody else. Go back to yourself to '
+                        + 'join the commons.';
+      t.className = 'toggle';
+      t.setAttribute('aria-checked', 'false');
+      return;
+    }
     // Turning yourself on when nobody knows who you are writes nothing, so it must not
     // look like it worked.
-    if (!me()) {
+    if (!realMe()) {
       count.style.display = 'inline';
       count.textContent = 'Sign in first, then you can show up as available.';
       t.className = 'toggle';
