@@ -135,13 +135,21 @@
      id keeps working everywhere, because matching on any id is what made this safe to do.
      Jessie's call, 2026-09-01. */
   (function swapToOneId() {
-    /* TURNED OFF 2026-09-01, within minutes of shipping it. Moving Jessie onto her long id made
-       getMyGroups return nothing and lose all 22 groups she hosts, because that read matches the
-       id exactly rather than any id the person answers to. The swap is only safe once EVERY
-       reader matches on any id. Do not turn this back on until that audit is done. */
-    return;
-    /* eslint-disable no-unreachable */
+    /* ONE PERSON AT A TIME, 2026-09-01.
+       This was on for everybody for a few minutes and it moved Jessie onto her long id while
+       getMyGroups still matched one id exactly, so she lost all 22 groups she hosts. Fourteen
+       reads and writes matched exactly; all fourteen were fixed by audit that evening.
+
+       It is back on for the ids named below and nobody else. Jessie is the one name on it,
+       because she is the person who will notice within a minute if anything is wrong. Add an id
+       here to widen it; empty the list to stop it entirely. */
+    var SWAP_ONLY = ['w.hss'];
     if (!found) { return; }
+    var allowed = false;
+    for (var si = 0; si < SWAP_ONLY.length; si++) {
+      if (normalise(SWAP_ONLY[si]) === normalise(found)) { allowed = true; break; }
+    }
+    if (!allowed) { return; }
     var MARK = 'cw-id-checked';
     ls(function () {
       if (String(w.localStorage.getItem(MARK) || '') === normalise(found)) { return; }
