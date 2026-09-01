@@ -666,6 +666,27 @@ window._safeNavGo = window._safeNavGo || function (el) {
         var mine1 = p1.filter(function (x) { return x.isMe; }).length;
         step(4, !!(r1.json && r1.json.meHere), 'three seconds later the room says meHere='
              + (r1.json ? r1.json.meHere : '?') + ', with ' + p1.length + ' present');
+
+        // When the room cannot see you, ask it why. It answers about your own rows only.
+        if (!(r1.json && r1.json.meHere)) {
+          var ex = await call(GS_URL + '?action=getPresence&groupId=' + encodeURIComponent(ROOM)
+                   + '&me=' + encodeURIComponent(who) + '&minutes=1440&explain=1'
+                   + '&editToken=' + encodeURIComponent(TOKEN) + '&nocache=1&t=' + Date.now());
+          var ee = ex.json && ex.json.explain;
+          if (!ee) {
+            line('      the room would not explain itself: '
+                 + String((ex.json && ex.json.message) || ex.err || ex.body || '').slice(0, 120));
+          } else if (!ee.yourRows.length) {
+            line('      it holds NO row for you at all, so the write did not land.');
+          } else {
+            line('      the server thinks it is ' + ee.serverNow);
+            ee.yourRows.forEach(function (row) {
+              line('      row ' + row.row + '  group="' + row.group + '"  available="'
+                   + row.available + '"  when=' + row.when + '  (' + row.minutesAgo
+                   + ' min ago)  ' + row.verdict);
+            });
+          }
+        }
         step(5, mine1 === 1, mine1 + ' of those rows are you, and it should be exactly one');
 
         line('Waiting thirty seconds to see whether you stay...');
