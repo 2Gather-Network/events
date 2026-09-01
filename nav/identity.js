@@ -135,6 +135,12 @@
      id keeps working everywhere, because matching on any id is what made this safe to do.
      Jessie's call, 2026-09-01. */
   (function swapToOneId() {
+    /* TURNED OFF 2026-09-01, within minutes of shipping it. Moving Jessie onto her long id made
+       getMyGroups return nothing and lose all 22 groups she hosts, because that read matches the
+       id exactly rather than any id the person answers to. The swap is only safe once EVERY
+       reader matches on any id. Do not turn this back on until that audit is done. */
+    return;
+    /* eslint-disable no-unreachable */
     if (!found) { return; }
     var MARK = 'cw-id-checked';
     ls(function () {
