@@ -367,13 +367,33 @@ window._safeNavGo = window._safeNavGo || function (el) {
     }
   }
 
-  // True for a few seconds after somebody presses the toggle on, so a slow or cached read cannot
-  // contradict them in the meantime.
+  // Two guards, and the second one is the whole bug. 2026-09-01.
+  //
+  // Saying you are available is a write, and the backend takes anywhere from two to twenty-five
+  // seconds to finish one. The read that follows takes its own several seconds. So a read could
+  // easily START before the write had LANDED, come back saying the room is empty, and switch
+  // somebody off in front of themselves. The old guard held for twenty seconds, which is roughly
+  // how long the write itself takes, so it expired at exactly the wrong moment. Jessie watched
+  // this happen over and over and the executions log shows every one of those writes completing:
+  // nothing was failing, the page was just believing an answer that predated the question.
+  //
+  // justSaid  — a plain clock, now generous rather than exactly as long as the problem.
+  // inFlight  — how many writes are still out. A read can never turn the toggle off while one is.
+  // saidAt    — when the last "I am available" went out. Any read that STARTED before that moment
+  //             is answering an older question and is not allowed to contradict it.
   var justSaid = false;
+  var inFlight = 0;
+  var saidAt = 0;
   function tell(on) {
     var who = me();
     if (!who) return;
-    if (on) { justSaid = true; setTimeout(function(){ justSaid = false; }, 20000); }
+    if (on) {
+      justSaid = true;
+      saidAt = Date.now();
+      setTimeout(function(){ justSaid = false; }, 90000);
+    }
+    inFlight++;
+    var done = function(){ if (inFlight > 0) inFlight--; };
     fetch(GS_URL + '?action=setPresence&userID=' + encodeURIComponent(who) +
           '&groupId=' + encodeURIComponent(ROOM) + '&available=' + (on ? 'true' : 'false') +
           '&editToken=' + encodeURIComponent(TOKEN))
@@ -383,6 +403,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
       // and quietly switched the toggle off. Jessie saw it happen. Say it instead.
       .then(function (r) { return r.json(); })
       .then(function (d) {
+        done();
         if (d && d.status === 'ok') {
           // Show the answer immediately. Waiting for a slow read before the screen agrees with
           // what somebody just pressed is what made this feel broken.
@@ -415,6 +436,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
         }
       })
       .catch(function () {
+        done();
         var c = document.getElementById('count');
         if (c) { c.textContent = 'Could not reach the server. Try again in a moment.'; }
       });
@@ -425,6 +447,11 @@ window._safeNavGo = window._safeNavGo || function (el) {
     // the list from before you arrived: you are not in it, and the toggle switches itself off.
     // That is the fifteen-second wait and the toggle turning off, and they are one fault.
     // Jessie, 2026-09-01.
+    //
+    // Stamped with the moment it LEFT, not the moment it came back. A read that set off before
+    // the last "I am available" was written is answering an older question, and is not allowed
+    // to contradict the newer one no matter how late it arrives.
+    var startedAt = Date.now();
     fetch(GS_URL + '?action=getPresence&groupId=' + encodeURIComponent(ROOM)
           + (fresh ? '&nocache=1&t=' + Date.now() : ''))
       .then(function (r) { return r.json(); })
@@ -452,8 +479,12 @@ window._safeNavGo = window._safeNavGo || function (el) {
             t.setAttribute('aria-checked', 'true');
             showRoom(true);
             if (!beat) { beat = setInterval(function () { tell(true); }, 120000); }
-          } else if (!mineHere && showing && !justSaid) {
-            // Only a read that is not racing a just-pressed toggle may switch somebody off.
+          } else if (!mineHere && showing && !justSaid && !inFlight && startedAt > saidAt) {
+            // Every one of these four has to hold before anybody is switched off in front of
+            // themselves. Not in the room, the screen says they are, the clock guard has run
+            // out, no write is still travelling, and this read set off after the last one. The
+            // last two are what was missing: the write takes up to twenty-five seconds and the
+            // guard only held for twenty, so the read that overtook it won.
             t.className = 'toggle';
             t.setAttribute('aria-checked', 'false');
             showRoom(false);
