@@ -609,6 +609,92 @@ window._safeNavGo = window._safeNavGo || function (el) {
     }
   });
 
+
+  // Fifteen attempts at this went: I change something, Jessie tries it, she tells me what she
+  // saw, I guess again. Each round trip cost her ten minutes and cost me the truth, because
+  // "it doesn't work" cannot say WHICH step failed. This runs the whole sequence on its own and
+  // prints a verdict per step, so one click answers what fifteen messages could not.
+  // Add ?selftest=1 to the address. It turns you on, which is a real write, then off at the end.
+  if (new URLSearchParams(location.search).get('selftest') === '1') {
+    (function () {
+      var panel = document.createElement('div');
+      panel.setAttribute('style', 'position:fixed;left:12px;right:12px;top:12px;z-index:99999;'
+        + 'background:#fff;border:2px solid #1F699E;border-radius:12px;padding:16px 18px;'
+        + 'font:14px/1.7 inherit;color:#1A2E42;max-height:70vh;overflow:auto;');
+      var head = document.createElement('b');
+      head.textContent = 'Commons self test';
+      panel.appendChild(head);
+      document.body.appendChild(panel);
+      var line = function (txt) {
+        var d = document.createElement('div');
+        d.textContent = txt;
+        panel.appendChild(d);
+        return d;
+      };
+      var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+      var call = function (url) {
+        var t0 = Date.now();
+        return fetch(url).then(function (r) { return r.text(); }).then(function (t) {
+          var d = null; try { d = JSON.parse(t); } catch (e) {}
+          return { secs: Math.round((Date.now() - t0) / 1000), body: t, json: d };
+        }).catch(function (e) { return { secs: Math.round((Date.now() - t0) / 1000), err: String(e) }; });
+      };
+      var who = me();
+      var fails = 0;
+      var step = function (n, ok, said) {
+        if (!ok) fails++;
+        line((ok ? 'PASS  ' : 'FAIL  ') + n + ' - ' + said);
+      };
+
+      (async function () {
+        line('Running. This takes about a minute, so leave the tab in front.');
+        step(1, !!who, 'the browser calls you ' + (who || 'nobody'));
+        step(2, !!TOKEN, TOKEN ? 'a session was found' : 'no session, so nothing else can pass');
+
+        var on = await call(GS_URL + '?action=setPresence&userID=' + encodeURIComponent(who)
+                 + '&groupId=' + encodeURIComponent(ROOM) + '&available=true'
+                 + '&editToken=' + encodeURIComponent(TOKEN) + '&nocache=1');
+        step(3, !!(on.json && on.json.status === 'ok'),
+             'saying you are available took ' + on.secs + 's and answered '
+             + (on.json ? (on.json.status + (on.json.message ? ': ' + on.json.message : ''))
+                        : String(on.err || on.body || 'nothing').slice(0, 90)));
+
+        await wait(3000);
+        var r1 = await call(GS_URL + '?action=getPresence&groupId=' + encodeURIComponent(ROOM)
+                 + '&me=' + encodeURIComponent(who) + '&nocache=1&t=' + Date.now());
+        var p1 = (r1.json && r1.json.people) || [];
+        var mine1 = p1.filter(function (x) { return x.isMe; }).length;
+        step(4, !!(r1.json && r1.json.meHere), 'three seconds later the room says meHere='
+             + (r1.json ? r1.json.meHere : '?') + ', with ' + p1.length + ' present');
+        step(5, mine1 === 1, mine1 + ' of those rows are you, and it should be exactly one');
+
+        line('Waiting thirty seconds to see whether you stay...');
+        await wait(30000);
+        var r2 = await call(GS_URL + '?action=getPresence&groupId=' + encodeURIComponent(ROOM)
+                 + '&me=' + encodeURIComponent(who) + '&nocache=1&t=' + Date.now());
+        step(6, !!(r2.json && r2.json.meHere), 'after thirty seconds meHere='
+             + (r2.json ? r2.json.meHere : '?'));
+
+        var tg = document.getElementById('avail');
+        var rm = document.getElementById('room');
+        var src = rm ? String(rm.getAttribute('src') || '') : '';
+        step(7, !!(tg && tg.className.indexOf('on') > -1), 'the toggle on screen is '
+             + (tg && tg.className.indexOf('on') > -1 ? 'on' : 'off'));
+        step(8, !!(src && src !== 'about:blank'), 'the room embed is '
+             + (src && src !== 'about:blank' ? 'loaded' : 'empty'));
+
+        await call(GS_URL + '?action=setPresence&userID=' + encodeURIComponent(who)
+                 + '&groupId=' + encodeURIComponent(ROOM) + '&available=false'
+                 + '&editToken=' + encodeURIComponent(TOKEN) + '&nocache=1');
+        var v = line('');
+        v.setAttribute('style', 'margin-top:12px;font-weight:800;font-size:16px;color:'
+                     + (fails ? '#7A2410' : '#1E6B3A'));
+        v.textContent = fails ? (fails + ' of 8 failed. Send me this panel.')
+                              : 'All 8 passed. You have been turned off again.';
+      })();
+    })();
+  }
+
   load();
   if (!document.hidden) { startPolling(); }
 })();
