@@ -453,6 +453,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
     // to contradict the newer one no matter how late it arrives.
     var startedAt = Date.now();
     fetch(GS_URL + '?action=getPresence&groupId=' + encodeURIComponent(ROOM)
+          + '&me=' + encodeURIComponent(me() || '')
           + (fresh ? '&nocache=1&t=' + Date.now() : ''))
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -464,15 +465,24 @@ window._safeNavGo = window._safeNavGo || function (el) {
         // The toggle shows the truth rather than starting off every time. If the room
         // already has you in it, it comes up on, and the heartbeat picks up where it left off.
         if (viewer) {
+          // The server says which face is yours, because only it knows every id you answer to.
+          // Jessie stood in this room with her own photo on the screen and the toggle stayed off,
+          // because the page was comparing the id the browser carries against the id in the row
+          // and they are two spellings of the same person. The comparison below is kept only for
+          // an older answer that carries no verdict. 2026-09-01.
           var mineHere = false, vn = String(viewer).split('.').join('').toLowerCase();
+          var toldMe = (d && typeof d.meHere === 'boolean');
           for (var k = 0; k < list.length; k++) {
-            if (String(list[k].appearId).split('.').join('').toLowerCase() === vn) {
+            var isMine = toldMe ? !!list[k].isMe
+                       : String(list[k].appearId).split('.').join('').toLowerCase() === vn;
+            if (isMine) {
               mineHere = true;
               myFace = list[k];
               try { localStorage.setItem('cw-commons-me', JSON.stringify(list[k])); } catch (e) {}
               break;
             }
           }
+          if (toldMe) mineHere = d.meHere;
           var showing = t.className.indexOf('on') > -1;
           if (mineHere && !showing) {
             t.className = 'toggle on';
