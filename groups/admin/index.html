@@ -259,7 +259,7 @@
       <div class="row" style="align-items:flex-start;flex-wrap:wrap;">
         <div class="who">
           <div class="name">Archive group</div>
-          <div class="sub">Members lose access. Data stays in the sheet for six months, then deletes.</div>
+          <div class="sub">The group stops being somewhere anybody can join or gather. Its people keep their own profiles and their history.</div>
         </div>
         <button class="btn danger sm" id="danger-archive">Archive group</button>
       </div>
@@ -1077,7 +1077,24 @@
         showStatus('danger-status', 'err', 'That is not built yet.');
       });
   }
-  document.getElementById('danger-reset').addEventListener('click', function(){ dangerAction('resetGroupPasscode', 'Reset passcode', 'Anyone holding the old passcode will need the new one. You can set another passcode at any time.'); });
+  document.getElementById('danger-reset').addEventListener('click', function(){
+    if (!confirm('Reset the passcode? Anybody holding the old one can no longer join. The new one is emailed to you.')) return;
+    var tok = getToken() || '';
+    showStatus('danger-status', 'ok', 'Making a new passcode…');
+    fetch(GS_URL + '?action=resetGroupPasscode&groupId=' + encodeURIComponent(groupId)
+          + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.status === 'ok') {
+          showStatus('danger-status', 'ok', d.emailed
+            ? ('Done. The new passcode is on its way to ' + (d.sentTo || 'your email') + '.')
+            : 'Done, but we have no address to send it to. Ask for it another way.');
+        } else {
+          showStatus('danger-status', 'err', (d && d.message) ? d.message : 'That did not go through.');
+        }
+      })
+      .catch(function(){ showStatus('danger-status', 'err', 'Could not reach the server.'); });
+  });
   // Handing a group over is an offer, not an act. The new host is asked, and the group moves only
   // when they accept. Inline rather than a dialog, because a dialog on this stack looks wrong.
   document.getElementById('danger-transfer').addEventListener('click', function(){
@@ -1136,7 +1153,22 @@
       })
       .catch(function(){ showStatus('transfer-status', 'err', 'Could not reach the server. Try again in a moment.'); });
   });
-  document.getElementById('danger-archive').addEventListener('click', function(){ dangerAction('archiveGroup', 'Archive group'); });
+  document.getElementById('danger-archive').addEventListener('click', function(){
+    if (!confirm('Archive this group? Its people stay on their own profiles, and the group stops being somewhere anybody can join or gather. This cannot be undone from here.')) return;
+    var tok2 = getToken() || '';
+    showStatus('danger-status', 'ok', 'Archiving…');
+    fetch(GS_URL + '?action=archiveGroup&groupId=' + encodeURIComponent(groupId)
+          + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok2))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.status === 'ok') {
+          showStatus('danger-status', 'ok', (d.groupName || 'The group') + ' is archived.');
+        } else {
+          showStatus('danger-status', 'err', (d && d.message) ? d.message : 'That did not go through.');
+        }
+      })
+      .catch(function(){ showStatus('danger-status', 'err', 'Could not reach the server.'); });
+  });
 
 })();
 </script>
