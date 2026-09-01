@@ -415,6 +415,10 @@ window._safeNavGo = window._safeNavGo || function (el) {
             t.className = 'toggle on';
             t.setAttribute('aria-checked', 'true');
             showRoom(true);
+            stillThere();
+            watchForAway();
+          } else {
+            stopWatchingForAway();
           }
           if (!document.hidden) { load(true); }
           return;
@@ -493,6 +497,8 @@ window._safeNavGo = window._safeNavGo || function (el) {
             t.setAttribute('aria-checked', 'true');
             showRoom(true);
             if (!beat) { beat = setInterval(function () { tell(true); }, 120000); }
+            stillThere();
+            watchForAway();
           } else if (!mineHere && showing && !justSaid && !inFlight && startedAt > saidAt) {
             // Every one of these four has to hold before anybody is switched off in front of
             // themselves. Not in the room, the screen says they are, the clock guard has run
@@ -718,6 +724,49 @@ window._safeNavGo = window._safeNavGo || function (el) {
                               : 'All 8 passed. You have been turned off again.';
       })();
     })();
+  }
+
+
+  // ── Away for fifteen minutes ────────────────────────────────────────────────
+  // The heartbeat says "still here" every two minutes and keeps beating while the tab is hidden,
+  // on purpose, so switching tabs does not drop anybody. The cost is that a tab left open at
+  // lunchtime keeps saying you are available to talk when you are not there. Being listed as
+  // available is a promise to another person, and the page should not make it on your behalf.
+  //
+  // Anything you do on the page counts as being there. Fifteen minutes with none of it and you
+  // are taken out of the room, exactly as though you had pressed the toggle yourself. Jessie set
+  // the number, 2026-09-01.
+  var AWAY_AFTER = 15 * 60 * 1000;
+  var lastSeenYou = Date.now();
+  var awayWatch = null;
+
+  function stillThere() { lastSeenYou = Date.now(); }
+  ['keydown', 'mousemove', 'mousedown', 'wheel', 'touchstart', 'scroll'].forEach(function (ev) {
+    document.addEventListener(ev, stillThere, { passive: true });
+  });
+  // Coming back to the tab is being there. Leaving it is not, and the clock keeps running.
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) stillThere();
+  });
+
+  function watchForAway() {
+    if (awayWatch) return;
+    awayWatch = setInterval(function () {
+      if (t.className.indexOf('on') === -1) { stopWatchingForAway(); return; }
+      if (Date.now() - lastSeenYou < AWAY_AFTER) return;
+      stopWatchingForAway();
+      if (beat) { clearInterval(beat); beat = null; }
+      // The same way out the toggle uses, so there is one path out of the room and not two.
+      tell(false);
+      t.className = 'toggle';
+      t.setAttribute('aria-checked', 'false');
+      showRoom(false);
+      var c = document.getElementById('count');
+      if (c) { c.textContent = 'You were away, so you were taken out of the room.'; }
+    }, 30000);
+  }
+  function stopWatchingForAway() {
+    if (awayWatch) { clearInterval(awayWatch); awayWatch = null; }
   }
 
   load();
