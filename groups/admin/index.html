@@ -82,11 +82,10 @@
   <div id="stage-member" class="card hidden">
     <h1 id="mem-title" style="display:none;"></h1>
 
-    <div class="q">Message the host</div>
-    <p class="lede" style="font-size:13.5px;">Coming soon!</p>
+    <div id="mem-hosts"></div>
 
     <div style="margin-top:26px;border-top:1px solid var(--line);padding-top:22px;">
-      <div class="q">Leave this group</div>
+      <div class="q" id="mem-leave-q">Leave this group</div>
       <p class="lede" style="font-size:13.5px;">Your profile, your answers, and your other groups
          are untouched.</p>
       <button class="btn danger sm" id="mem-leave">Leave this group</button>
@@ -525,6 +524,59 @@
     document.getElementById('stage-member').classList.remove('hidden');
     document.getElementById('mem-title').textContent = (g.name || 'This group') + ' · Manage';
     document.getElementById('mem-groupname').textContent = g.name || 'This group';
+
+    // Name the hosts, with their faces, so somebody can see who they would be writing to rather
+    // than being told there is "a host" somewhere. Jessie, 2026-09-01.
+    (function(){
+      var box = document.getElementById('mem-hosts');
+      if (!box) return;
+      var ids = ((g.hostIds || []).concat(g.coHostIds || []))
+                  .map(function(x){ return String(x || '').trim(); }).filter(Boolean);
+      var byId = {};
+      (d.attendees || []).forEach(function(a){
+        byId[String(a.appearId || '').split('.').join('').toLowerCase()] = a;
+      });
+      var made = 0;
+      ids.forEach(function(id){
+        var who = byId[String(id).split('.').join('').toLowerCase()];
+        var name = (who && (who.name || who.first)) || '';
+        if (!name) return;                                   // never "Message sdfsd"
+        var row = document.createElement('div');
+        row.setAttribute('style', 'display:flex;align-items:center;gap:10px;margin-bottom:10px;');
+        if (who.photo) {
+          var img = document.createElement('img');
+          img.src = who.photo; img.alt = '';
+          img.setAttribute('style', 'width:34px;height:34px;border-radius:50%;object-fit:cover;flex:0 0 34px;');
+          row.appendChild(img);
+        }
+        var q = document.createElement('div');
+        q.className = 'q';
+        q.style.margin = '0';
+        q.textContent = 'Message ' + name;
+        row.appendChild(q);
+        box.appendChild(row);
+        made++;
+      });
+      if (!made) {
+        var none = document.createElement('div');
+        none.className = 'q';
+        none.textContent = 'Message the host';
+        box.appendChild(none);
+      }
+      var soon = document.createElement('p');
+      soon.className = 'lede';
+      soon.style.cssText = 'font-size:13.5px;';
+      soon.textContent = 'Coming soon!';
+      box.appendChild(soon);
+    })();
+
+    // The button says which group, so nobody leaves the wrong one.
+    var _lq = document.getElementById('mem-leave-q');
+    var _lb = document.getElementById('mem-leave');
+    if (g.name) {
+      if (_lq) _lq.textContent = 'Leave ' + g.name;
+      if (_lb) _lb.textContent = 'Leave ' + g.name;
+    }
     // An operator can still open the group's own admin, but is not made to.
     if (isOperator) {
       var _op = document.createElement('p');
@@ -550,7 +602,7 @@
       var btn = document.getElementById('mem-leave');
       if (btn.getAttribute('data-armed') !== '1') {
         btn.setAttribute('data-armed', '1');
-        btn.textContent = 'Yes, leave this group';
+        btn.textContent = 'Yes, leave ' + ((d && d.group && d.group.name) || 'this group');
         showStatus('mem-leave-status', 'ok', 'Press again to leave. You can come back with the passcode.');
         return;
       }
