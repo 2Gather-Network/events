@@ -650,7 +650,9 @@
 
     var bar = d.createElement('div');
     bar.id = 'cw-viewas';
-    bar.style.cssText = 'position:sticky;top:0;z-index:99999;display:flex;align-items:center;gap:10px;'
+    // fixed, not sticky: sticky is in the flow, so the strip pushed the whole page down and the
+    // group's own header slid under it. Over the page, not shoving it. Jessie, 2026-09-01.
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;display:flex;align-items:center;gap:10px;'
       + 'flex-wrap:wrap;gap:10px 16px;padding:7px 14px;font:600 13px/1.4 "DM Sans",system-ui,sans-serif;'
       + 'background:#fff;color:#1A2E42;border-bottom:1px solid #E3EAF0;'
       // White throughout, as asked. Standing in somebody else's shoes still has to be
@@ -664,6 +666,14 @@
     var right = d.createElement('div');
     right.style.cssText = 'display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-left:auto;';
     bar.appendChild(left); bar.appendChild(right);
+    // Being fixed takes it out of the flow, so the page must be told to leave room for it.
+    // Measured after it is on screen, because its height depends on how the words wrap.
+    setTimeout(function(){
+      try {
+        var h = bar.getBoundingClientRect().height;
+        if (h) { document.body.style.paddingTop = h + 'px'; }
+      } catch (e) {}
+    }, 0);
 
     var says = d.createElement('span');
     // 2026-08-30. "Viewing as yourself" pushed the strip onto two rows on a phone, with Support
