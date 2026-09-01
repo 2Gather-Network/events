@@ -159,9 +159,13 @@ window._safeNavGo = window._safeNavGo || function (el) {
 
   // Being listed in the commons publishes a name and a photo, so the page asks for a real
   // sign-in rather than an id the device happens to remember. An id is only a claim.
+  // Which key the session came out of. Named so ?why=1 can say where, without ever showing
+  // the token itself, which is a bearer token.
+  var _tokFrom = '';
   function session() {
     try {
       var tok = localStorage.getItem('cw-token') || '';
+      if (tok) _tokFrom = 'cw-token';
       if (!tok) {
         // A token is kept under whichever id this browser was carrying when it was minted, and
         // that id can change. Look under every cw-edit- key rather than only today's spelling.
@@ -170,7 +174,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
                     .split('.').join('').toLowerCase();
         if (who) {
           var kept = JSON.parse(localStorage.getItem('cw-edit-' + who) || 'null');
-          if (kept && kept.t) tok = kept.t;
+          if (kept && kept.t) { tok = kept.t; _tokFrom = 'cw-edit-' + who; }
         }
         if (!tok) {
           for (var ki = 0; ki < localStorage.length; ki++) {
@@ -178,7 +182,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
             if (!key || key.indexOf('cw-edit-') !== 0) continue;
             try {
               var any = JSON.parse(localStorage.getItem(key) || 'null');
-              if (any && any.t) { tok = any.t; break; }
+              if (any && any.t) { tok = any.t; _tokFrom = key; break; }
             } catch (e) {}
           }
         }
@@ -191,6 +195,52 @@ window._safeNavGo = window._safeNavGo || function (el) {
   }
 
   var TOKEN = session();
+
+  // 2026-09-01. This has been called fixed twice and was not, so stop guessing at it. Adding
+  // ?why=1 to the address makes the page say what it is actually working with and what the
+  // server actually answers, instead of a toggle that flicks itself off with no reason given.
+  // Never prints the token, which is a bearer token: only which key it came from and when it
+  // expires. The test call says available=false, so it publishes nobody.
+  if (new URLSearchParams(location.search).get('why') === '1') {
+    var wRaw = localStorage.getItem('cw-token') || '';
+    var wKeys = [];
+    for (var wi = 0; wi < localStorage.length; wi++) {
+      var wk = localStorage.key(wi);
+      if (wk && wk.indexOf('cw-edit-') === 0) wKeys.push(wk);
+    }
+    var wExp = TOKEN ? parseInt(String(TOKEN).split('.')[1], 10) : 0;
+    var box = document.createElement('div');
+    box.setAttribute('style', 'margin:16px auto;max-width:640px;background:#FFFBEA;border:1px solid #E7D9A6;'
+      + 'border-radius:12px;padding:16px 18px;font:14.5px/1.65 inherit;color:#3B3B3B;');
+    var lines = [
+      'Who this browser thinks you are: ' + (me() || 'nobody'),
+      'A session was found: ' + (TOKEN ? 'yes, under ' + _tokFrom : 'no'),
+      'It expires: ' + (wExp ? new Date(wExp).toLocaleString() : 'no expiry readable'),
+      'Expired already: ' + (wExp && wExp < Date.now() ? 'YES, this is the problem' : 'no'),
+      'cw-token exists: ' + (wRaw ? 'yes' : 'no'),
+      'Other saved sessions on this browser: ' + (wKeys.length ? wKeys.join(', ') : 'none'),
+      'What the server says: asking...'
+    ];
+    lines.forEach(function(txt){
+      var row = document.createElement('div');
+      row.textContent = txt;
+      box.appendChild(row);
+    });
+    document.body.insertBefore(box, document.body.firstChild);
+    var last = box.lastChild;
+    fetch(GS_URL + '?action=setPresence&userID=' + encodeURIComponent(me()) +
+          '&groupId=' + encodeURIComponent(ROOM) + '&available=false' +
+          '&editToken=' + encodeURIComponent(TOKEN) + '&nocache=1')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        last.textContent = 'What the server says: ' + (d && d.status === 'ok'
+          ? 'ok, it accepted the session. The refusal is not the sign-in.'
+          : ((d && d.message) || 'no answer'));
+      })
+      .catch(function(err){
+        last.textContent = 'What the server says: could not reach it. ' + err;
+      });
+  }
   if (!TOKEN) {
     // The room is never fetched, so nobody who has not signed in loads it at all.
     ['.head', '.fold', '.here', '.stage'].forEach(function (sel) {

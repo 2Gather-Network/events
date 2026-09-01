@@ -355,6 +355,27 @@
 
   var groupData = null;
 
+  // Ten seconds of an empty blue field, because the real call carries `me` and so is cached per
+  // person and misses on the first visit. The same call WITHOUT `me` is the same for everybody,
+  // sits in the edge cache and comes back in under a tenth of a second. Ask for it too, purely to
+  // put the group's name on the screen while the slow one is still out. It paints nothing that
+  // depends on who is looking. Jessie, 2026-09-01: "15 second lag".
+  function nameTheGroupFast(){
+    fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var nm = ((d && d.group) || {}).name || '';
+        if (!nm) return;
+        var lk = document.getElementById('stage-looking');
+        // Only while it is still the waiting message. The real load may already have won.
+        if (!lk || lk.style.display === 'none') return;
+        lk.textContent = 'Opening ' + nm + '...';
+        var cb = document.getElementById('crumb-back');
+        if (cb) cb.textContent = nm;
+      })
+      .catch(function(){});
+  }
+
   function loadGroup(){
     return fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId) + '&me=' + encodeURIComponent(meId))
       .then(function(r){ return r.json(); })
@@ -365,9 +386,15 @@
         // "You're host of this group" regardless. The group's own hostIds decide it,
         // so a group with no hosts at all can no longer name you as one.
         if (!_role) {
+          // The server says whether you host this group, because only it knows every id you
+          // answer to. This used to compare one spelling of your id against the hostIds list
+          // right here, so a person whose id had changed spelling stopped being their own host
+          // and was shown the member screen. Jessie hit it on a group she made. 2026-09-01.
           var _hIds = (g.hostIds || []).concat(g.coHostIds || []);
           var _meN = String(meId).split('.').join('').toLowerCase();
-          var _amHost = _hIds.some(function(h){ return String(h||'').split('.').join('').toLowerCase() === _meN; });
+          var _amHost = (typeof d.meIsHost === 'boolean')
+            ? d.meIsHost
+            : _hIds.some(function(h){ return String(h||'').split('.').join('').toLowerCase() === _meN; });
           // Only a host or a super admin gets past the PIN, so not-a-host means super admin.
           _role = _amHost ? 'host' : 'superadmin';
 
@@ -713,6 +740,7 @@
     // made after one, so a member was asked to verify themselves before the page had any idea
     // whether they were a host. Nothing host-shaped is shown by it: the dashboard stays hidden,
     // and the server strips a group's private parts for anybody who is not in it. 2026-09-01.
+    nameTheGroupFast();
     loadGroup();
   }
   // Landing here never sends a code. Opening Manage is not the same as asking for mail, and a
