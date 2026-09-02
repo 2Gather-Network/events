@@ -200,36 +200,35 @@ window._safeNavGo = window._safeNavGo || function (el) {
       + '&appearId=' + encodeURIComponent(who)
       + '&page=' + encodeURIComponent(document.referrer || '');
 
-    // An action the script does not know falls through to the events feed, which is
-    // 364KB and about ten seconds. So say something at eight rather than sit on
-    // "Sending" while a feed nobody asked for arrives.
+    // Apps Script measures anywhere from two to forty seconds, so a page that gives up at eight
+    // is not reporting a failure, it is reporting its own impatience. This used to give up and
+    // name a missing action and a missing tab as the cause. That was true until 30 August and a
+    // confident lie afterwards: the ticket was saving while the person was told to email
+    // somebody instead, and the page then ignored the reply when it finally came.
+    //
+    // It says what it knows now. Waiting is waiting, and only the answer decides. Jessie,
+    // 2026-09-02.
     var answered = false;
-    var giveUp = setTimeout(function () {
-      if (answered) return;
-      answered = true;
-      btn.disabled = false;
-      tell('This is not saving yet. The helpdesk tab and the saveSupportTicket action are not in the script. Email hello@creating.works and it will reach the same person.', false);
+    var slow = setTimeout(function () {
+      if (answered) { return; }
+      tell('Still sending. This can take up to a minute.', true);
     }, 8000);
 
     fetch(url).then(function (r) { return r.text(); }).then(function (t) {
-      if (answered) return;
       answered = true;
-      clearTimeout(giveUp);
+      clearTimeout(slow);
       btn.disabled = false;
       var parsed = null;
       try { parsed = JSON.parse(t); } catch (e) {}
       if (parsed && parsed.status === 'ok') {
         document.getElementById('msg').value = '';
         tell('Sent. Thank you, somebody will read this and answer you.', true);
-      } else if (parsed && parsed.events) {
-        tell('This is not saving yet. The saveSupportTicket action is not in the script. Email hello@creating.works and it will reach the same person.', false);
       } else {
         tell('That did not save. ' + ((parsed && parsed.message) || 'The backend refused it.'), false);
       }
     }).catch(function () {
-      if (answered) return;
       answered = true;
-      clearTimeout(giveUp);
+      clearTimeout(slow);
       btn.disabled = false;
       tell('That did not send. Check your connection and try once more.', false);
     });
