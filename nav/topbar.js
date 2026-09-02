@@ -61,6 +61,7 @@
                                                                           // reachable from a group's Gather button
   var PROFILE  = 'https://2gather.network/profile';
   var EDITME   = 'https://2gather.network/profile-edit';
+  var ACCOUNT  = 'https://2gather.network/account';
   var ABOUT    = 'https://2gather.network/about';
   var SUPPORT  = 'https://2gather.network/support';
 
@@ -85,7 +86,11 @@
       // beside Appear and DayBalancer, which is not built yet. The page still works at its own
       // address; it is only the menu entry that has gone.
       // { label: 'Find a Time (Beta)', url: FINDTIME },
-      { label: 'My profile',         url: PROFILE, carry: 'CWid' },
+      // My account replaced My profile here on 2026-09-02. The profile is reached from the
+      // account page's own tabs, so the menu was offering a second door to a room you walk
+      // through anyway. No carry: the account page asks CW who is looking rather than reading
+      // the address, so nothing needs an id in it.
+      { label: 'My account',         url: ACCOUNT },
       { label: 'About',              url: ABOUT },
       { label: 'Support',            url: SUPPORT },
       { label: 'Sign out',           signOut: true }
