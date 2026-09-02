@@ -1954,7 +1954,7 @@
   (function(){ var em=document.getElementById('edit-mode'); if(em){ var s=document.createElement('div'); s.id='da-savestat'; s.style.cssText='font-size:13px;color:var(--muted);font-weight:600;text-align:right;min-height:16px;margin-bottom:6px;'; em.insertBefore(s, em.firstChild); } })();
 
   var _pRef=fetch(GS_URL+'?action=getReferenceData').then(function(r){return r.json();}).then(function(rd){ buildTreesFromRefData(rd); }).catch(function(){});
-  var _pProf=_id ? fetch(GS_URL+'?action=getProfile&appearId='+encodeURIComponent(_id)).then(function(r){return r.json();}).then(function(resp){ if(resp&&resp.found&&resp.data){ _profilePhoto=resp.photo||''; _profileName=resp.name||''; _pageLink=resp.pageLink||''; loadProfile(resp.data); } }).catch(function(){}) : Promise.resolve();
+  var _pProf=_id ? fetch(GS_URL+'?action=getProfile&appearId='+encodeURIComponent(_id)).then(function(r){return r.json();}).then(function(resp){ if(resp&&resp.found&&resp.data){ _profilePhoto=resp.photo||''; _profileName=resp.name||''; _pageLink=resp.pageLink||''; loadProfile(resp.data); } }).catch(function(e){ window._profFetchFailed = String(e && e.message || e); }) : Promise.resolve();
   var _manageParam=_param('manage');
   // Concept A: your OWN page lands on the hub (welcome + tabs). The "This is me" card is the
   // quick view of SOMEONE ELSE, the way it appears from a bulletin board (?show=them&me=you).
@@ -1984,13 +1984,23 @@
   _bootNote.id = 'pe-booting';
   // White. It sits on the blue, and the grey it used to be was all but unreadable there.
   _bootNote.style.cssText = 'padding:56px 20px;text-align:center;color:#fff;font-size:15px;';
-  _bootNote.textContent = 'Loading your profile…';
+  _bootNote.textContent = 'Loading your information…';
   (document.getElementById('pe-shell') || document.body).appendChild(_bootNote);
   function _bootDone(){
     var n = document.getElementById('pe-booting');
     if (n && n.parentNode) { n.parentNode.removeChild(n); }
   }
   Promise.all([_pRef,_pProf]).then(function(){
+    // A call that failed used to be swallowed by an empty catch, so the page drew a card with
+    // nothing in it. An empty profile and a profile that did not load look identical on screen
+    // and mean opposite things, and Apps Script answers with an HTML error page often enough
+    // that this is not rare. Say it instead of drawing a blank. Jessie, 2026-09-02, whose page
+    // came up empty after fifteen seconds and was fine on a reload.
+    if (window._profFetchFailed) {
+      var n = document.getElementById('pe-booting');
+      if (n) { n.textContent = 'Your information did not load. Reload the page to try again.'; }
+      return;
+    }
     _bootDone();
     if(_manageParam){ var _mk=(['groups','events','permissions','data'].indexOf(_manageParam)>-1)?_manageParam:'data'; showManage(_mk); }
     // One page reads a profile and one page changes it. This is the one that changes it, so it
