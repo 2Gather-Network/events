@@ -183,9 +183,10 @@
   .pv-edit:hover{filter:brightness(1.08);}
   .pv-tags{display:flex;flex-wrap:wrap;gap:8px;}
   .pv-tag{background:#fff;border:1.5px solid var(--panel-line);border-radius:14px;padding:8px 15px;font-size:15px;font-weight:600;color:var(--brand);}
-  .pv-tag .lv{color:var(--muted);font-weight:500;font-size:13px;margin-left:6px;}
-  .pv-tag .sub{display:block;color:var(--soft);font-weight:500;font-size:12px;margin-top:1px;}
-  .pv-tag.m{background:var(--panel);border-color:var(--line);color:var(--ink);font-size:13px;}
+  /* One rule for the second line, whatever it says. Two rules drew the same thing two ways, so
+     "Resource provider" put "Home & Construction" underneath while "Photography" ran straight
+     into "Fan, Participant, Coach" on one line. Jessie, 2026-09-02. */
+  .pv-tag .lv,.pv-tag .sub{display:block;color:var(--soft);font-weight:500;font-size:12px;margin-top:1px;}
   .pv-sub-h{font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin:14px 0 8px;}
   .pv-sub-h:first-child{margin-top:0;}
   .pv-some{margin-top:10px;text-align:right;font-size:13px;color:var(--soft);}
@@ -1304,6 +1305,14 @@
   }
 
   // ── Shared profile view ("This is me") — the main screen others see ──
+  // A HEADING, rather than a thing somebody does. The list is built from the reference data at
+  // load rather than typed here, so it follows the sheet instead of becoming a second list to
+  // keep in step with it. Compared with the emoji and the punctuation taken off, so
+  // "\u{1F332} Nature & Outdoors" and "Nature & Outdoors" are one name. Jessie, 2026-09-02.
+  var CAT_NAMES = {};
+  function _catKey(s){ return String(s==null?'':s).replace(/[^\p{L}\p{N}]+/gu,' ').trim().toLowerCase(); }
+  function _isCat(s){ var k=_catKey(s); return !!(k && CAT_NAMES[k]); }
+  function _noCats(list, get){ return (list||[]).filter(function(x){ return !_isCat(get(x)); }); }
   function pvTag(name, opts){
     opts=opts||{};
     var lv=opts.level?'<span class="lv">'+esc(opts.level)+'</span>':'';
@@ -1372,15 +1381,20 @@
     paintShellHeader();
     var pv=document.getElementById('profile-view');
     var seeking=NEEDS_ADDED.map(function(n){ return pvTag((n.local?'📍 ':'')+n.item, {sub:n.category||''}); }).join('');
-    var enjoy=ENJOY_ADDED.map(function(it){ return pvTag(it.t, {level:(it.sel||[]).join(', ')}); }).join('');
+    var enjoy=_noCats(ENJOY_ADDED,function(x){return x.t;}).map(function(it){ return pvTag(it.t, {level:(it.sel||[]).join(', ')}); }).join('');
     var _ex=EXPRESSION_ADDED.filter(Boolean);
     var expr=_ex.length?'<div class="pv-some"><b>Other:</b> '+esc(_ex.join(', '))+'</div>':'';
-    var methods='<div class="pv-tags" style="margin-bottom:10px;">'+SKILL_METHODS_ON.map(function(m){ return pvTag(m, {cls:'m'}); }).join('')+'</div>';
+    // Making and designing, Repairing and fixing, Consulting and advising. These were drawn small
+    // and grey while everything beside them was a full pill, so they read as a caption on the
+    // section rather than as three of somebody's answers. Same pill now. Jessie, 2026-09-02.
+    var methods='<div class="pv-tags" style="margin-bottom:10px;">'+SKILL_METHODS_ON.map(function(m){ return pvTag(m); }).join('')+'</div>';
     var _langs=String((_loaded&&_loaded.languages)||'').split(/[|,]/).map(function(x){ return x.trim(); }).filter(Boolean);
-    var skills='<div class="pv-tags">'+SKILLS_ADDED.map(function(s){ return pvTag(s.t, {level:s.level}); }).join('')
-      +_langs.map(function(l){ return pvTag(l,{cls:'m'}); }).join('')+'</div>';
-    var vals='<div class="pv-sub-h">Values</div><div class="pv-tags">'+VALUES_ADDED.map(function(v){ return pvTag(v.t,{level:v.lvl}); }).join('')+'</div>';
-    var doms='<div class="pv-sub-h">Domains</div><div class="pv-tags">'+DOMAINS_ADDED.map(function(v){ return pvTag(v.t,{level:v.lvl}); }).join('')+'</div>';
+    var skills='<div class="pv-tags">'+_noCats(SKILLS_ADDED,function(x){return x.t;}).map(function(s){ return pvTag(s.t, {level:s.level}); }).join('')
+      +_langs.map(function(l){ return pvTag(l); }).join('')+'</div>';
+    var vals='<div class="pv-sub-h">Values</div><div class="pv-tags">'+_noCats(VALUES_ADDED,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl}); }).join('')+'</div>';
+    // Sectors on the screen. The stored column is still called domains and is not touched here,
+    // so this is a heading change and nothing else. Jessie, 2026-09-02.
+    var doms='<div class="pv-sub-h">Sectors</div><div class="pv-tags">'+_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl}); }).join('')+'</div>';
     var haves=SECTIONS[4].data.map(function(h){ return pvTag(h.text||'A have', {sub:(h.cats&&h.cats[0])||''}); }).join('');
     pv.innerHTML='<div class="pv-card">'
       // The whole name, and nothing to press. This is the page somebody else sees, so there is no
@@ -1700,6 +1714,13 @@
       if(md.length) METHODS=md;
       var pt=(rd.personTypes||[]).map(function(p){return String(p||'').trim();}).filter(function(p){return p && p.toLowerCase()!=='other';});
       if(pt.length) PERSON_SUBS=pt;
+      // Every name the sheet uses as a heading, gathered in one place so the profile can leave
+      // them off. Jessie asked for the top level categories off this page, 2026-09-02.
+      function _mark(v){ var k=_catKey(v); if(k) CAT_NAMES[k]=1; }
+      (rd.skills||[]).forEach(function(x){ if(x&&x.category) _mark(x.category); });
+      (rd.resources||[]).forEach(function(x){ if(x&&x.category) _mark(x.category); });
+      (rd.recreation||[]).forEach(function(x){ if(x){ if(x.recType) _mark(x.recType); if(x.category) _mark(x.category); } });
+      CORE_CATS.concat(MORE_CATS).forEach(_mark);
     }catch(e){ /* keep the hardcoded fallback */ }
   }
   // ── Phase 3.3b: SAVE gated by an emailed one-time PIN. ──
