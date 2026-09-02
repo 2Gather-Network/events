@@ -283,7 +283,14 @@
     host.style.width     = 'auto';
     host.style.marginLeft  = '-' + (parseFloat(cs.paddingLeft) || 0) + 'px';
     host.style.marginRight = '-' + (parseFloat(cs.paddingRight) || 0) + 'px';
-    host.style.marginTop   = '-' + (parseFloat(cs.paddingTop) || 0) + 'px';
+    // Only the page's OWN top spacing is cancelled. The admin strip floats above everything and
+    // adds its height to that same spacing to make room for itself, and this line used to
+    // cancel the lot, so the blue menu slid back up underneath the white strip and the two
+    // shared one band of screen. Take the strip's share off first. Jessie, 2026-09-02.
+    var reserved = parseFloat(
+      w.getComputedStyle(d.documentElement).getPropertyValue('--cw-adminbar')
+    ) || 0;
+    host.style.marginTop   = '-' + Math.max(0, (parseFloat(cs.paddingTop) || 0) - reserved) + 'px';
     host.style.marginBottom = '18px';
     var bar = host.querySelector('.cwtb-bar');
     if (bar) bar.style.boxShadow = 'none';
@@ -667,13 +674,29 @@
     right.style.cssText = 'display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-left:auto;';
     bar.appendChild(left); bar.appendChild(right);
     // Being fixed takes it out of the flow, so the page must be told to leave room for it.
-    // Measured after it is on screen, because its height depends on how the words wrap.
-    setTimeout(function(){
+    // Measured after it is on screen, because its height depends on how the words wrap, and
+    // measured AGAIN on every resize: on a phone this strip wraps onto two rows, and a single
+    // measurement taken before the font loaded left the page short by a row. Jessie, 2026-09-02.
+    //
+    // The number is published as --cw-adminbar as well as applied, because the blue menu below
+    // pulls itself up by the page's top spacing to run edge to edge, and it was cancelling
+    // exactly this. One number, written once, read by both, so they cannot disagree.
+    function reserve() {
       try {
         var h = bar.getBoundingClientRect().height;
-        if (h) { document.body.style.paddingTop = h + 'px'; }
+        if (!h) { return; }
+        d.documentElement.style.setProperty('--cw-adminbar', h + 'px');
+        d.body.style.paddingTop = h + 'px';
+        // The blue menu works its offset out when it draws and on resize, so this is how it is
+        // told the strip has landed. Its own listener does the rest.
+        w.dispatchEvent(new Event('resize'));
       } catch (e) {}
-    }, 0);
+    }
+    setTimeout(reserve, 0);
+    // Fonts arriving late change how the words wrap, which changes the height.
+    try { if (d.fonts && d.fonts.ready) { d.fonts.ready.then(reserve); } } catch (e) {}
+    w.addEventListener('resize', reserve);
+    w.addEventListener('orientationchange', reserve);
 
     var says = d.createElement('span');
     // 2026-08-30. "Viewing as yourself" pushed the strip onto two rows on a phone, with Support
@@ -745,6 +768,13 @@
   // hiding it during a demo hid it for good.
   function paintFolded() {
     var old = d.getElementById('cw-viewas'); if (old) { old.remove(); }
+    // Pressing Hide took the strip away and left the gap it had asked for, so the page kept a
+    // band of empty white at the top with nothing in it. Give the room back. Jessie, 2026-09-02.
+    try {
+      d.documentElement.style.setProperty('--cw-adminbar', '0px');
+      d.body.style.paddingTop = '';
+      w.dispatchEvent(new Event('resize'));
+    } catch (e) {}
     var tab = d.createElement('div');
     tab.id = 'cw-viewas';
     tab.style.cssText = 'position:sticky;top:0;z-index:99999;display:flex;justify-content:flex-end;'
@@ -766,7 +796,9 @@
     var old = d.getElementById('cw-viewas-pick'); if (old) { old.remove(); return; }
     var panel = d.createElement('div');
     panel.id = 'cw-viewas-pick';
-    panel.style.cssText = 'position:sticky;top:34px;z-index:99999;background:#fff;color:#1A2E42;'
+    // 34px was the strip's height on a desktop. On a phone it wraps onto two rows and the
+    // picker opened behind it. The measured height, or 34 if nothing has measured yet.
+    panel.style.cssText = 'position:sticky;top:calc(var(--cw-adminbar, 34px));z-index:99999;background:#fff;color:#1A2E42;'
       + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "DM Sans",system-ui,sans-serif;';
 
     var inp = d.createElement('input');
