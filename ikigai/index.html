@@ -321,12 +321,20 @@
   // ── Phase 3.3a: load a real profile (read-only). Escaping + intake's exact parsers. ──
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function _param(k){ try{ return new URLSearchParams(location.search).get(k)||''; }catch(e){ return ''; } }
-  var _id = _param('id')||_param('show')||_param('CWid')||_param('me')||_param('memberCard')||_param('appearId')||'';
+  // Six parameters open somebody's profile, and every one of them has to count as "not mine"
+  // when deciding whether to offer Edit. Keeping WHETHER the address named anybody is what
+  // makes that decision safe: with no parameter at all the id came off this device, so it is
+  // this device's person whichever key happens to hold it. Jessie, 2026-09-02.
+  var _idFromUrl = _param('id')||_param('show')||_param('CWid')||_param('me')||_param('memberCard')||_param('appearId')||'';
+  var _id = _idFromUrl;
   // Ids are stripped from the address now, so arriving with a clean one is normal rather than
   // exceptional. profile/ has always fallen back to what the device remembers and this page
   // never did, which is why a clean address landed on the placeholder content built into this
   // file instead of on somebody's own profile.
-  if(!_id){ try{ _id = String(localStorage.getItem('appear-id')||localStorage.getItem('cw-id')||'').trim(); }catch(e){ _id=''; } }
+  // Asked of CW rather than read out of storage here. This page read appear-id first and
+  // identity.js reads cw-id first, so a device holding both could answer two different people
+  // depending on which file was asking. One source now, and identity.js owns it.
+  if(!_id){ try{ _id = (window.CW && CW.realMe) ? String(CW.realMe().id||'').trim() : String(localStorage.getItem('cw-id')||localStorage.getItem('appear-id')||'').trim(); }catch(e){ _id=''; } }
   // Somebody running the site can stand in another person's shoes to see what they see. It is
   // a look and never a write: nothing on this page saves while it is on.
   var _viewing = false;
@@ -1459,18 +1467,10 @@
   function paintShellHeader(){
     var host = document.getElementById('pe-shell');
     if (!host) return;
-    var nm = String(_profileName || '').trim();
-    var q = encodeURIComponent(_id);
-    var ON = 'text-decoration:none;background:#fff;color:#1F699E;font-size:15px;font-weight:700;padding:9px 20px;border-radius:24px;display:inline-block;';
-    var OFF = 'text-decoration:none;background:rgba(255,255,255,.16);color:#fff;font-size:15px;font-weight:700;padding:9px 20px;border-radius:24px;display:inline-block;cursor:pointer;';
-    var pill = function(label, url, on){
-      return '<a role="link" tabindex="0" data-nav="' + url + '" onclick="return _peNav(this)" style="' + (on?ON:OFF) + '">' + label + '</a>';
-    };
-    // Name only. The four tabs, My profile, My groups, My events and My account, belong to the
-    // signed-in owner of a profile, and this page is what somebody else sees. Jessie, 2026-09-02.
-    host.innerHTML =
-      '<h1 style="font-size:28px;font-weight:400;color:#fff;margin:0 0 16px;letter-spacing:-.01em;">'
-      + (nm ? (nm + ' \u{1F331}') : '') + '</h1>';
+    // Nothing. The name was printed here in white on the blue AND again inside the white card
+    // below as "This is ...", so the page announced whose it was twice, one line apart. The
+    // card keeps it. Jessie, 2026-09-02.
+    host.innerHTML = '';
   }
   // Same-tab, and the id never shows on hover.
   window._peNav = function(el){
@@ -1930,13 +1930,23 @@
   // Concept A: your OWN page lands on the hub (welcome + tabs). The "This is me" card is the
   // quick view of SOMEONE ELSE, the way it appears from a bulletin board (?show=them&me=you).
   var _stepParam=(function(){ var v=parseInt(_param('step'),10); return (v>=0 && v<=4) ? v : 0; })();
-  var _meParam=(_param('me')||_param('CWid')||_param('memberCard')||'').replace(/\./g,'').toLowerCase();
   var _showParam=(_param('show')||'').replace(/\./g,'').toLowerCase();
-  // Somebody else's profile is read-only, and it used to need BOTH show and me in the address to
-  // know that. A link with only show on it therefore opened their profile with live Edit buttons.
-  // The device already knows who is looking, so it is asked rather than the address.
-  var _meNow = (function(){ try { return (window.CW && CW.me) ? String(CW.me().id||'').replace(/\./g,'').toLowerCase() : ''; } catch(e){ return ''; } })();
-  var _viewingSomeoneElse = !!(_showParam && _showParam !== (_meNow || _meParam));
+  // ONE flag, where there used to be two. The page worked out that somebody was standing in
+  // another person's shoes and then never looked at that answer again: what actually hid Edit
+  // was a separate test that only fired when the address carried ?show=. Viewing as somebody
+  // through the admin strip carries no parameter at all, so the button stayed, and it stayed
+  // for ?id= and the four other parameters that open a profile just as well. Six ways in and
+  // one of them checked. Jessie caught it viewing as Karin, 2026-09-02.
+  //
+  // Edit now appears only when the profile on screen belongs to the person this device is
+  // actually signed in as, and never while View as is on. realMe, not me: me() answers with
+  // whoever is being viewed, so asking it while standing in Karin's shoes says you are Karin.
+  var _realMeId = (function(){ try { return (window.CW && CW.realMe) ? String(CW.realMe().id||'').replace(/\./g,'').toLowerCase() : ''; } catch(e){ return ''; } })();
+  var _onScreenId = String(_id||'').replace(/\./g,'').toLowerCase();
+  // No parameter means the id came off this device, so it is mine without comparing anything,
+  // which is what keeps a person who answers to two ids from being locked out of their own Edit.
+  var _isMine = _idFromUrl ? !!(_realMeId && _onScreenId === _realMeId) : !!_onScreenId;
+  var _viewingSomeoneElse = _viewing || !_isMine;
   // Nothing at all was drawn until both calls came back, and those calls are slow: measured on
   // 2026-08-29 at 9 seconds for the reference data and 39 for the profile. So this page sat
   // completely blank for the best part of a minute and read as broken rather than as loading.
