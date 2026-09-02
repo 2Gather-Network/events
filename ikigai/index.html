@@ -1377,7 +1377,11 @@
     pv.innerHTML='<div class="pv-card">'
       // The whole name, and nothing to press. This is the page somebody else sees, so there is no
       // photo to change, nothing to bookmark and no controls of any kind. Jessie, 2026-09-02.
-      +'<div class="pv-head"><h2 class="pv-title">'+(_profileName?('This is '+esc(String(_profileName).trim())):'This is me')+' 🌱</h2></div>'
+      +'<div class="pv-head"><h2 class="pv-title">'+(_profileName?('This is '+esc(String(_profileName).trim())):'This is me')+' 🌱</h2>'
+      // One Edit, and only for the person whose profile this is. A visitor sees a page with
+      // nothing to press; the owner sees the way in. Jessie, 2026-09-02.
+      +(_viewingSomeoneElse?'':'<button class="pv-edit" id="pv-edit-mine">✏️ Edit</button>')
+      +'</div>'
 
       +pvSection("What I'm seeking",0,seeking,pvSaid('need'))
       +pvSection('What I enjoy',1,enjoy,pvSaid('enjoy')+expr)
@@ -1385,7 +1389,9 @@
       +pvSection('What I care about',3,'',vals+doms+pvSaid('values'))
       +pvSection('My haves',4,haves,pvSaid('offer'))
       +'</div>';
-    pv.querySelectorAll('.pv-edit').forEach(function(b){ if(b.id==='pv-photo-btn'||b.id==='pv-bookmark') return; b.onclick=function(){ requestEdit(parseInt(b.getAttribute('data-step'),10)); }; });
+    pv.querySelectorAll('.pv-edit').forEach(function(b){ if(b.id==='pv-photo-btn'||b.id==='pv-bookmark'||b.id==='pv-edit-mine') return; b.onclick=function(){ requestEdit(parseInt(b.getAttribute('data-step'),10)); }; });
+    var _em=document.getElementById('pv-edit-mine');
+    if(_em) _em.onclick=function(){ window.location.href='https://2gather.network/ikigai/?edit=1'; };
     var _bm=document.getElementById('pv-bookmark');
     if(_bm) _bm.onclick=function(){
       var mine=''; try{ mine=(window.CW&&CW.realMe)?String(CW.realMe().id||''):''; }catch(e){}
@@ -1401,11 +1407,52 @@
     var _pm=document.getElementById('pv-manage'); if(_pm) _pm.onclick=function(){ window.location.href='https://creating.works/profile'+(_id?'?CWid='+encodeURIComponent(_id):''); };
     var _pg=document.getElementById('pv-groups'); if(_pg) _pg.onclick=function(){ showManage('groups'); };
   }
+  // Where you came from, named, so the way back is the way you arrived rather than a guess.
+  // Only our own pages are offered: a referrer from anywhere else is ignored rather than turned
+  // into a link somebody did not ask for. Jessie, 2026-09-02.
+  function cameFrom(){
+    var r = '';
+    try { r = String(document.referrer || ''); } catch (e) { return null; }
+    if (!r) return null;
+    var ours = ['https://2gather.network', 'https://creating.works', 'https://gather.2gather.network'];
+    if (!ours.some(function (o) { return r.indexOf(o) === 0; })) return null;
+    var path = '';
+    try { path = new URL(r).pathname.replace(/\/+$/, '') || '/'; } catch (e) { return null; }
+    var NAMES = {
+      '/mygroups': 'My groups', '/myevents': 'My events', '/group': 'the group',
+      '/groups/admin': 'Manage', '/commons': 'the Commons', '/events': 'Events',
+      '/event': 'the event', '/welcome': 'Welcome', '/account': 'My account',
+      '/profile-edit': 'Edit my profile', '/ikigai': null, '/': 'Home'
+    };
+    if (Object.prototype.hasOwnProperty.call(NAMES, path)) {
+      if (NAMES[path] === null) return null;          // came from here, so no crumb
+      return { label: NAMES[path], url: r };
+    }
+    return null;
+  }
+
   function setBreadcrumb(mode){
     var bc=document.getElementById('breadcrumb');
-    if(mode==='edit'){ bc.innerHTML='‹ <span class="crumb-link" id="crumb-home">My profile</span> / Edit'; var h=document.getElementById('crumb-home'); if(h) h.onclick=goHome; }
-    else if(mode==='manage'){ bc.innerHTML=''; }
-    else { bc.innerHTML=''; }
+    if(!bc) return;
+    bc.innerHTML='';
+    var back = cameFrom();
+    var crumb = function(label, onClick){
+      var a=document.createElement('span'); a.className='crumb-link'; a.textContent=label;
+      a.setAttribute('role','link'); a.setAttribute('tabindex','0');
+      a.onclick=onClick; bc.appendChild(a);
+    };
+    var sep = function(t){ bc.appendChild(document.createTextNode(t)); };
+    if(mode==='manage'){ return; }
+    if(mode==='edit'){
+      sep('‹ ');
+      crumb('My ikigai', function(){ window.location.href = 'https://2gather.network/ikigai/'; });
+      sep(' / Edit');
+      return;
+    }
+    if(back){
+      sep('‹ ');
+      crumb('Back to ' + back.label, function(){ window.location.href = back.url; });
+    }
   }
   // The shell every page shares: the person's name, then the four places they can go. Painted
   // above the card so it reads as the page's own header rather than part of the profile.
