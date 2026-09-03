@@ -708,14 +708,28 @@
         if (!h) { return; }
         d.documentElement.style.setProperty('--cw-adminbar', h + 'px');
         d.body.style.paddingTop = h + 'px';
-        // The blue menu works its offset out when it draws and on resize, so this is how it is
-        // told the strip has landed. Its own listener does the rest.
+        // Told DIRECTLY, not through a resize event and a listener. 2026-09-03.
+        //
+        // The blue menu cancels the page's own top spacing to run edge to edge, and it takes the
+        // strip's share off first so it does not slide up underneath. That arithmetic is only
+        // right if it runs AFTER --cw-adminbar is set. Going through an event left the order to
+        // chance: if the menu recalculated while the variable still read zero, it pulled itself
+        // up by the strip's whole height and sat under it, which clips the logo row.
+        //
+        // Jessie caught it on a phone on 2026-09-03 and I could not reproduce it on the same
+        // width, which is what a race looks like. Calling fullBleed by name removes the ordering
+        // question rather than making the odds better. The resize event still goes out, because
+        // other things listen for it.
+        try { fullBleed(); } catch (e2) {}
         w.dispatchEvent(new Event('resize'));
       } catch (e) {}
     }
     setTimeout(reserve, 0);
     // Fonts arriving late change how the words wrap, which changes the height.
     try { if (d.fonts && d.fonts.ready) { d.fonts.ready.then(reserve); } } catch (e) {}
+    // And once more after everything has settled, because a height measured while the page was
+    // still laying itself out is the other way this ends up wrong.
+    setTimeout(reserve, 400);
     w.addEventListener('resize', reserve);
     w.addEventListener('orientationchange', reserve);
 
