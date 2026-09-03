@@ -120,16 +120,25 @@
      three lines on the giving page. Those now write both, and this reconciles whatever a device
      is already carrying before any page asks.
 
-     `appear-id` wins, deliberately. Every page that works today reads it first, and the rule
-     written into start-here after that day is: never change the page that works to match the
-     page that is broken. */
+     `cw-id` WINS, and the first version of this got it backwards.
+
+     It made appear-id win, on the reasoning that /ikigai/ and /profile-edit/ read that key first.
+     But THIS file reads cw-id first, in KEEP above, and CW_ID is what the top bar, the group
+     pages and the operations page all ask. So on any device where the two disagreed, the person
+     the whole site thought you were changed, and Jessie's operations page stopped recognising her
+     as an operator within the hour: "shows no data. this worked fine before".
+
+     Which value is chosen barely matters once both keys hold it, because every reader matches on
+     any id a person answers to. What matters is that the choice does not move anybody. cw-id is
+     what CW_ID already answered, so nobody moves. Exactly the rule I broke to get here: never
+     change the page that works to match the page that is broken. 2026-09-03. */
   (function oneAnswer() {
     ls(function () {
       var a = String(w.localStorage.getItem('appear-id') || '').trim();
       var c = String(w.localStorage.getItem('cw-id') || '').trim();
       if (!a || !c) { return; }                       // one of them, or neither: nothing to settle
       if (normalise(a) === normalise(c)) { return; }  // the same person spelled two ways is fine
-      w.localStorage.setItem('cw-id', a);
+      w.localStorage.setItem('appear-id', c);
     });
   })();
 
