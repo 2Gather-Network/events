@@ -702,7 +702,15 @@
     // The number is published as --cw-adminbar as well as applied, because the blue menu below
     // pulls itself up by the page's top spacing to run edge to edge, and it was cancelling
     // exactly this. One number, written once, read by both, so they cannot disagree.
+    // reserve is a resize listener AND it fires a resize below, so it called itself until the
+    // browser gave up: "Maximum call stack size exceeded", four times over, on every page.
+    // Found on 2026-09-03 by opening the profile and reading the console after an unrelated
+    // change. The dispatch stays, because other things on the page listen for it. This flag
+    // stops reserve acting on its own event, which is the only part that was wrong.
+    var reserving = false;
     function reserve() {
+      if (reserving) { return; }
+      reserving = true;
       try {
         var h = bar.getBoundingClientRect().height;
         if (!h) { return; }
@@ -722,7 +730,13 @@
         // other things listen for it.
         try { fullBleed(); } catch (e2) {}
         w.dispatchEvent(new Event('resize'));
-      } catch (e) {}
+      } catch (e) {
+      } finally {
+        // finally, not a line after the catch. There is a `return` inside the try for the case
+        // where the bar has no height yet, and reaching it any other way would leave this flag
+        // stuck on and the handler dead for the life of the page.
+        reserving = false;
+      }
     }
     setTimeout(reserve, 0);
     // Fonts arriving late change how the words wrap, which changes the height.
