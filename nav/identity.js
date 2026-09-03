@@ -108,6 +108,31 @@
      thing that makes somebody signed in is signing in, which writes the id to this device
      directly and does not go near the address bar. A link that names the person already here
      still matches, so returning by one of our own links is unchanged. */
+  /* ONE DEVICE, ONE ANSWER. 2026-09-03.
+
+     localStorage can hold `appear-id` and `cw-id` with DIFFERENT ids for one person, and which
+     page finds you depends on which key it reads first. That is not theoretical: on 2026-09-02
+     /ikigai/ was changed to read cw-id first and stopped finding Jessie while /profile-edit/,
+     which reads appear-id, found her instantly. It was reverted, and the revert made the two
+     pages agree without fixing why they could disagree.
+
+     They drift because four places wrote ONE key and left the other behind: the events page and
+     three lines on the giving page. Those now write both, and this reconciles whatever a device
+     is already carrying before any page asks.
+
+     `appear-id` wins, deliberately. Every page that works today reads it first, and the rule
+     written into start-here after that day is: never change the page that works to match the
+     page that is broken. */
+  (function oneAnswer() {
+    ls(function () {
+      var a = String(w.localStorage.getItem('appear-id') || '').trim();
+      var c = String(w.localStorage.getItem('cw-id') || '').trim();
+      if (!a || !c) { return; }                       // one of them, or neither: nothing to settle
+      if (normalise(a) === normalise(c)) { return; }  // the same person spelled two ways is fine
+      w.localStorage.setItem('cw-id', a);
+    });
+  })();
+
   var stored = fromDevice();
   var fromLink = fromUrl();
   var found = '';
