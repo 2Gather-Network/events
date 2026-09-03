@@ -324,7 +324,11 @@
         'align-items:center;justify-content:center;}' +
       '.cwtb-glyph img{width:30px;height:30px;object-fit:contain;display:block;}' +
       '.cwtb-word{color:rgba(255,255,255,.85);font-size:13px;font-weight:400;}' +
-      '.cwtb-tabs{display:flex;align-items:center;gap:4px;margin-left:auto;margin-right:6px;' +
+      // min-width:0 is what makes the overflow-x above actually work. Without it a flex item
+      // refuses to shrink below its content, so on a narrow screen the tabs did not scroll and
+      // did not wrap, they simply sat underneath the sign-in buttons. Jessie, 2026-09-02:
+      // "Top menu bar not functional for mobile users." 2026-09-03.
+      '.cwtb-tabs{display:flex;align-items:center;gap:4px;margin-left:auto;margin-right:6px;min-width:0;' +
         'overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;}' +
       '.cwtb-tabs::-webkit-scrollbar{display:none;}' +
       '.cwtb-tab{color:#fff;font-size:14px;font-weight:500;letter-spacing:.6px;text-transform:uppercase;' +
@@ -364,7 +368,19 @@
       '#cw-topbar.cwtb-menuing .cwtb-tab.cwtb-on:not(.cwtb-lit){background:transparent;box-shadow:none;}' +
       '@media(max-width:700px){.cwtb-bar{gap:8px;padding:0 10px;height:54px;}' +
         '.cwtb-word{display:none;}.cwtb-tabs{margin-left:auto;}' +
-        '.cwtb-tab{padding:8px 10px;font-size:13px;letter-spacing:.3px;}}';
+        '.cwtb-tab{padding:8px 10px;font-size:13px;letter-spacing:.3px;}}' +
+      // A PHONE GETS TWO ROWS. On an iPhone the bar held a logo, three tabs and two buttons in
+      // 375 pixels: GROUPS was cut in half, MORE was gone entirely, and the sign-in buttons were
+      // drawn on top of both, so Groups and More could not be reached at all. Squeezing them
+      // further would have made every one of them too small to hit. So the logo and the sign-in
+      // buttons keep the first row and the three tabs get the second, spread across the width.
+      // Nothing is hidden and nothing new is built. 2026-09-03.
+      '@media(max-width:560px){' +
+        '.cwtb-bar{flex-wrap:wrap;height:auto;min-height:54px;padding:6px 10px 8px;row-gap:4px;}' +
+        '.cwtb-mark{margin-right:auto;}' +
+        '.cwtb-tabs{order:3;width:100%;margin:0;justify-content:space-between;overflow-x:visible;}' +
+        '.cwtb-tab{padding:8px 12px;font-size:13.5px;letter-spacing:.4px;}' +
+      '}';
     var s = document.createElement('style');
     s.id = 'cw-topbar-style';
     s.textContent = css;
