@@ -985,8 +985,15 @@
   // Values section — mirrors the current intake "What do you care about deeply?"
   // A Values | Domains toggle picks which pool of ideas to browse; adds land in two
   // separate lists (Added values / Added domains). Ideas pulled from reference-data.
-  var VALUE_IDEAS = ['Clean Air','Clean Water','Clean Soil','Clean Food','Clean Energy','Biodiversity','Climate Stability','Animal Welfare','Water Security','Food Security','Safety and Peace','Housing and Shelter','Urgent Medical Care','Clothing and Supplies','Physical Wellbeing','Mental Wellbeing','Empowerment and Resilience','Freedom and Autonomy','Personal Expression','Economic Opportunity','Local Economic Vitality','Eco Values','Wealth Equity','Quality Goods and Services','Information Access','Social and Civic Engagement','Community Health','Cultural Vitality','Shared Community Resources','Transportation Access','Reliable Utilities','Digital Connectivity','Land Security'];
-  var DOMAIN_IDEAS = ['Aerospace','Agriculture and Food','Arts and Entertainment','Building and Construction','Ecology and Nature','Education and Learning','Energy and Utilities','Financial','Government and Policy','Hospitality','Manufacturing','Media','Medical','Real Estate','Retail','Security and Defense','Technology','Telecommunications','Transportation','Wellness and Fitness'];
+  // The careAbout and sector lists live on cw.reference-data and NOWHERE ELSE. Jessie,
+  // 2026-09-04: "One home on reference-data only. We don't do hard coded values."
+  //
+  // They start empty on purpose. buildTreesFromRefData fills them from getReferenceData, which
+  // this page already calls on load, so there is no extra round trip. If that call fails the
+  // picker says it is loading rather than offering a stale list somebody would have to be told
+  // about: a default written into the page is a claim, and a wrong claim is worse than a wait.
+  var VALUE_IDEAS = [];
+  var DOMAIN_IDEAS = [];
   var VALUES_ADDED = [];
   var DOMAINS_ADDED = [];
 
@@ -1067,7 +1074,10 @@
     function renderIdeas(){
       ideasZone.innerHTML='';
       if (!mode){ return; }
-      var idea=document.createElement('div'); idea.className='ideas'; idea.textContent='Here are some ideas to get you started.'; ideasZone.appendChild(idea);
+      var pool = (mode==='values'?VALUE_IDEAS:DOMAIN_IDEAS);
+      var idea=document.createElement('div'); idea.className='ideas';
+      idea.textContent = pool.length ? 'Here are some ideas to get you started.' : 'Looking up the list\u2026';
+      ideasZone.appendChild(idea);
       var row=document.createElement('div'); row.className='cat-row';
       (mode==='values'?VALUE_IDEAS:DOMAIN_IDEAS).forEach(function(name){
         var el=chip(name, !!VAL_ON[String(name).trim().toLowerCase()]);
@@ -1080,6 +1090,10 @@
     var vChip=chip('Values',false); vChip.addEventListener('click', function(){ mode='values'; toggle.querySelectorAll('.cat').forEach(function(x){x.classList.remove('on');}); vChip.classList.add('on'); renderIdeas(); });
     var dChip=chip('Domains',false); dChip.addEventListener('click', function(){ mode='domains'; toggle.querySelectorAll('.cat').forEach(function(x){x.classList.remove('on');}); dChip.classList.add('on'); renderIdeas(); });
     toggle.appendChild(vChip); toggle.appendChild(dChip);
+    // The sheet answers after this has drawn, so buildTreesFromRefData calls this to draw the
+    // chips the moment the words arrive. Without it somebody who opened the section early would
+    // sit looking at "Looking up the list" forever.
+    window._valRenderIdeas = renderIdeas;
     renderIdeas();
   }
 
@@ -1809,6 +1823,8 @@
       var di=(rd.domains||[]).map(function(v){return String((v&&v.item!==undefined)?v.item:v||'').trim();}).filter(Boolean);
       if(vi.length) VALUE_IDEAS=vi;
       if(di.length) DOMAIN_IDEAS=di;
+      // Draw them, in case the values section was opened before the sheet answered.
+      try{ if((vi.length||di.length) && window._valRenderIdeas) window._valRenderIdeas(); }catch(e){}
       // Methods (display strings) and Person sub-types
       var md=(rd.methodsDisplay||[]).map(function(m){return String(m||'').trim();}).filter(Boolean);
       if(md.length) METHODS=md;
