@@ -86,11 +86,15 @@
       // beside Appear and DayBalancer, which is not built yet. The page still works at its own
       // address; it is only the menu entry that has gone.
       // { label: 'Find a Time (Beta)', url: FINDTIME },
-      // My account replaced My profile here on 2026-09-02. The profile is reached from the
-      // account page's own tabs, so the menu was offering a second door to a room you walk
-      // through anyway. No carry: the account page asks CW who is looking rather than reading
-      // the address, so nothing needs an id in it.
-      { label: 'My account',         url: ACCOUNT },
+      // My profile went back here on 2026-09-04 at Jessie's word, replacing My account, which
+      // had replaced it on 2026-09-02 on the reasoning that the account page's own tabs already
+      // reach the profile. The traffic goes the other way: the profile is the room people want
+      // and the account is the settings behind it.
+      //
+      // The account page keeps its doors from the commons and from the editor, but it no longer
+      // has one on the top bar. Flagged to Jessie the same day rather than fixed here, because
+      // adding one is a second change nobody asked for.
+      { label: 'My profile',         url: PROFILE,  carry: 'CWid' },
       { label: 'About',              url: ABOUT },
       { label: 'Support',            url: SUPPORT },
       { label: 'Sign out',           signOut: true }
