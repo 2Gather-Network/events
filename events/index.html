@@ -2484,22 +2484,35 @@ function _cancelLine(ev) {
   return d;
 }
 
-function _cancelHeadingRow(key, ev, n) {
-  var d = document.createElement("div");
-  // A white card like every other card on the page, so a cancellation reads as part of the day
-  // rather than as a strip of chrome. Jessie, 2026-09-05.
-  d.className = "event-card";
-  d.style.cssText = "display:flex;gap:10px;align-items:center;padding:14px 18px;font-size:13.5px;color:var(--dark);font-weight:700;";
-  var day = ev.date;
-  try { day = new Date(ev.date + "T00:00:00").toLocaleDateString("en-US", {weekday:"long", month:"long", day:"numeric"}); } catch (e) {}
-  // The venue is on the row because a whole venue cancelling one day is a closure, and the reader
-  // can only see that if the row says whose it is.
-  var where = ev.venue ? ' \u00b7 \ud83d\udccd ' + esc(ev.venue) : '';
-  var open = !!CANCEL_OPEN_DATES[key];
-  d.innerHTML = '<span>' + n + ' events cancelled \u00b7 ' + esc(day) + where + '</span>'
-    + '<button type="button" class="btn btn-sm btn-outline" style="margin-left:auto;">' + (open ? "Hide" : "Show") + '</button>';
-  d.onclick = function () { CANCEL_OPEN_DATES[key] = !CANCEL_OPEN_DATES[key]; renderEvents(); };
-  return d;
+function _cancelGroup(key, ev, n) {
+  var wrap = document.createElement("div");
+  // Full width of the grid, so nothing else can ever sit inside or beside this block.
+  wrap.style.cssText = "grid-column:1 / -1;display:flex;flex-direction:column;gap:8px;";
+
+  var body = document.createElement("div");
+  body.style.cssText = "display:flex;flex-direction:column;gap:8px;";
+
+  if (n >= CANCEL_COLLAPSE_AT) {
+    var head = document.createElement("div");
+    // A white card like every other card on the page. Jessie, 2026-09-05.
+    head.className = "event-card";
+    head.style.cssText = "display:flex;gap:10px;align-items:center;padding:14px 18px;font-size:13.5px;color:var(--dark);font-weight:700;";
+    var day = ev.date;
+    try { day = new Date(ev.date + "T00:00:00").toLocaleDateString("en-US", {weekday:"long", month:"long", day:"numeric"}); } catch (e) {}
+    // The venue is on the row because a whole venue cancelling one day is a closure, and the
+    // reader can only see that if the row says whose it is.
+    var where = ev.venue ? ' \u00b7 \ud83d\udccd ' + esc(ev.venue) : '';
+    var open = !!CANCEL_OPEN_DATES[key];
+    head.innerHTML = '<span>' + n + ' events cancelled \u00b7 ' + esc(day) + where + '</span>'
+      + '<button type="button" class="btn btn-sm btn-outline" style="margin-left:auto;">' + (open ? "Hide" : "Show") + '</button>';
+    head.onclick = function () { CANCEL_OPEN_DATES[key] = !CANCEL_OPEN_DATES[key]; renderEvents(); };
+    wrap.appendChild(head);
+    if (!open) body.style.display = "none";
+  }
+
+  wrap.appendChild(body);
+  wrap._body = body;
+  return wrap;
 }
 
 function renderEvents() {
@@ -2559,19 +2572,22 @@ function renderEvents() {
   // gets its own venue."
   var _cancelCount = {};
   list.forEach(function (e) { if (_isCancelledEvent(e)) _cancelCount[_cancelKey(e)] = (_cancelCount[_cancelKey(e)] || 0) + 1; });
-  var _cancelHeadingDrawn = {};
+  var _cancelGroupEl = {};
 
   list.forEach(ev => {
     if (_isCancelledEvent(ev)) {
+      // Every cancellation for one date and venue goes INSIDE one full-width block. Before this
+      // they were loose grid items, so the next day's real events flowed in beside them and
+      // opening the group looked like it had revealed live events too. Jessie saw exactly that on
+      // 2026-09-05: "it does show some events still on Tuesday, and it only should show
+      // cancellations."
       var _k = _cancelKey(ev);
-      var _many = (_cancelCount[_k] || 0) >= CANCEL_COLLAPSE_AT;
-      if (_many && !_cancelHeadingDrawn[_k]) {
-        _cancelHeadingDrawn[_k] = true;
-        grid.appendChild(_cancelHeadingRow(_k, ev, _cancelCount[_k]));
+      var _grp = _cancelGroupEl[_k];
+      if (!_grp) {
+        _grp = _cancelGroupEl[_k] = _cancelGroup(_k, ev, _cancelCount[_k] || 0);
+        grid.appendChild(_grp);
       }
-      var _row = _cancelLine(ev);
-      if (_many && !CANCEL_OPEN_DATES[_k]) _row.style.display = "none";
-      grid.appendChild(_row);
+      _grp._body.appendChild(_cancelLine(ev));
       return;
     }
     let cats = Array.isArray(ev.categories) ? ev.categories : [ev.category].filter(Boolean);
