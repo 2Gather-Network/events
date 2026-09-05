@@ -2459,17 +2459,20 @@ function _applyChipDims(baseListForCat, baseListForMood) {
 // A cancellation is a fact about a date, not an event worth a card. Three or more on one date is
 // almost always a holiday, so they collapse under one row rather than filling the day.
 var CANCEL_COLLAPSE_AT = 3;
-var CANCEL_OPEN_DATES = {};
+var CANCEL_OPEN_DATES = {};   // keyed by date + venue
 
 function _isCancelledEvent(ev) {
   return !!(ev.cancelled || cancelledOccurrences.has(ev.id));
 }
 
+function _cancelKey(ev) { return (ev.date || "") + "|" + (ev.venue || ""); }
+
 function _cancelLine(ev) {
   var d = document.createElement("div");
   d.className = "event-cancel-line";
-  d.style.cssText = "display:flex;gap:8px;align-items:baseline;padding:9px 15px;border-bottom:1px solid #EEF1F5;"
-    + "font-size:13px;color:#8A94A3;cursor:pointer;background:#fff;";
+  d.style.cssText = "display:flex;gap:8px;align-items:baseline;padding:11px 18px;background:var(--white);"
+    + "border:1px solid var(--border);border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,.05);"
+    + "font-size:13px;color:#8A94A3;cursor:pointer;";
   var t = "";
   try {
     if (ev.time) t = new Date(ev.date + "T" + ev.time).toLocaleTimeString("en-US", {hour:"numeric", minute:"2-digit"});
@@ -2481,20 +2484,21 @@ function _cancelLine(ev) {
   return d;
 }
 
-function _cancelHeadingRow(date, n, venues) {
+function _cancelHeadingRow(key, ev, n) {
   var d = document.createElement("div");
-  d.style.cssText = "display:flex;gap:8px;align-items:center;padding:11px 15px;border-bottom:1px solid #EEF1F5;"
-    + "font-size:13px;color:#6B7A8D;cursor:pointer;background:#F7F8FA;font-weight:700;";
-  var day = date;
-  try { day = new Date(date + "T00:00:00").toLocaleDateString("en-US", {weekday:"long", month:"long", day:"numeric"}); } catch (e) {}
-  // Every one of them at the same venue is worth saying, because that is what a holiday closure
-  // looks like from the outside.
-  var one = (venues || []).filter(function (v) { return v; });
-  var where = ((venues || []).length === 1 && one.length === 1) ? " at " + esc(one[0]) : "";
-  var open = !!CANCEL_OPEN_DATES[date];
-  d.innerHTML = '<span>' + n + ' events cancelled' + where + ' \u00b7 ' + esc(day) + '</span>'
-    + '<span style="margin-left:auto;font-weight:700;color:var(--primary);">' + (open ? "Hide" : "Show") + '</span>';
-  d.onclick = function () { CANCEL_OPEN_DATES[date] = !CANCEL_OPEN_DATES[date]; renderEvents(); };
+  // A white card like every other card on the page, so a cancellation reads as part of the day
+  // rather than as a strip of chrome. Jessie, 2026-09-05.
+  d.className = "event-card";
+  d.style.cssText = "display:flex;gap:10px;align-items:center;padding:14px 18px;font-size:13.5px;color:var(--dark);font-weight:700;";
+  var day = ev.date;
+  try { day = new Date(ev.date + "T00:00:00").toLocaleDateString("en-US", {weekday:"long", month:"long", day:"numeric"}); } catch (e) {}
+  // The venue is on the row because a whole venue cancelling one day is a closure, and the reader
+  // can only see that if the row says whose it is.
+  var where = ev.venue ? ' \u00b7 \ud83d\udccd ' + esc(ev.venue) : '';
+  var open = !!CANCEL_OPEN_DATES[key];
+  d.innerHTML = '<span>' + n + ' events cancelled \u00b7 ' + esc(day) + where + '</span>'
+    + '<button type="button" class="btn btn-sm btn-outline" style="margin-left:auto;">' + (open ? "Hide" : "Show") + '</button>';
+  d.onclick = function () { CANCEL_OPEN_DATES[key] = !CANCEL_OPEN_DATES[key]; renderEvents(); };
   return d;
 }
 
@@ -2550,26 +2554,23 @@ function renderEvents() {
   // as full cards read as an outage rather than as a holiday. Jessie, 2026-09-05, on the threshold:
   // "if there are 3 more - make this a rule". Counted on the capped list, so the number on the row
   // is the number this page would actually draw.
-  var _cancelCount = {}, _cancelVenues = {};
-  list.forEach(function (e) {
-    if (!_isCancelledEvent(e)) return;
-    _cancelCount[e.date] = (_cancelCount[e.date] || 0) + 1;
-    (_cancelVenues[e.date] = _cancelVenues[e.date] || {})[e.venue || ""] = 1;
-  });
+  // Grouped by date AND venue, because two venues cancelling on one day are two different facts
+  // and each deserves to say whose it is. Jessie, 2026-09-05: "if there are two venues, every card
+  // gets its own venue."
+  var _cancelCount = {};
+  list.forEach(function (e) { if (_isCancelledEvent(e)) _cancelCount[_cancelKey(e)] = (_cancelCount[_cancelKey(e)] || 0) + 1; });
   var _cancelHeadingDrawn = {};
 
   list.forEach(ev => {
     if (_isCancelledEvent(ev)) {
-      var _many = (_cancelCount[ev.date] || 0) >= CANCEL_COLLAPSE_AT;
-      if (_many && !_cancelHeadingDrawn[ev.date]) {
-        _cancelHeadingDrawn[ev.date] = true;
-        grid.appendChild(_cancelHeadingRow(ev.date, _cancelCount[ev.date], Object.keys(_cancelVenues[ev.date] || {})));
+      var _k = _cancelKey(ev);
+      var _many = (_cancelCount[_k] || 0) >= CANCEL_COLLAPSE_AT;
+      if (_many && !_cancelHeadingDrawn[_k]) {
+        _cancelHeadingDrawn[_k] = true;
+        grid.appendChild(_cancelHeadingRow(_k, ev, _cancelCount[_k]));
       }
       var _row = _cancelLine(ev);
-      if (_many) {
-        _row.dataset.cancelDate = ev.date;
-        if (!CANCEL_OPEN_DATES[ev.date]) _row.style.display = "none";
-      }
+      if (_many && !CANCEL_OPEN_DATES[_k]) _row.style.display = "none";
       grid.appendChild(_row);
       return;
     }
