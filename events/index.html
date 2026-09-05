@@ -2455,6 +2455,49 @@ function _applyChipDims(baseListForCat, baseListForMood) {
   });
 }
 
+// ── Cancelled events on the calendar ─────────────────────────────────────────
+// A cancellation is a fact about a date, not an event worth a card. Three or more on one date is
+// almost always a holiday, so they collapse under one row rather than filling the day.
+var CANCEL_COLLAPSE_AT = 3;
+var CANCEL_OPEN_DATES = {};
+
+function _isCancelledEvent(ev) {
+  return !!(ev.cancelled || cancelledOccurrences.has(ev.id));
+}
+
+function _cancelLine(ev) {
+  var d = document.createElement("div");
+  d.className = "event-cancel-line";
+  d.style.cssText = "display:flex;gap:8px;align-items:baseline;padding:9px 15px;border-bottom:1px solid #EEF1F5;"
+    + "font-size:13px;color:#8A94A3;cursor:pointer;background:#fff;";
+  var t = "";
+  try {
+    if (ev.time) t = new Date(ev.date + "T" + ev.time).toLocaleTimeString("en-US", {hour:"numeric", minute:"2-digit"});
+  } catch (e) {}
+  d.innerHTML = '<span style="text-decoration:line-through;">' + esc(ev.title) + '</span>'
+    + (t ? '<span>\u00b7 ' + esc(t) + '</span>' : '')
+    + '<span style="margin-left:auto;font-weight:700;white-space:nowrap;">Cancelled</span>';
+  d.onclick = function () { openEventView(ev.id); };
+  return d;
+}
+
+function _cancelHeadingRow(date, n, venues) {
+  var d = document.createElement("div");
+  d.style.cssText = "display:flex;gap:8px;align-items:center;padding:11px 15px;border-bottom:1px solid #EEF1F5;"
+    + "font-size:13px;color:#6B7A8D;cursor:pointer;background:#F7F8FA;font-weight:700;";
+  var day = date;
+  try { day = new Date(date + "T00:00:00").toLocaleDateString("en-US", {weekday:"long", month:"long", day:"numeric"}); } catch (e) {}
+  // Every one of them at the same venue is worth saying, because that is what a holiday closure
+  // looks like from the outside.
+  var one = (venues || []).filter(function (v) { return v; });
+  var where = ((venues || []).length === 1 && one.length === 1) ? " at " + esc(one[0]) : "";
+  var open = !!CANCEL_OPEN_DATES[date];
+  d.innerHTML = '<span>' + n + ' events cancelled' + where + ' \u00b7 ' + esc(day) + '</span>'
+    + '<span style="margin-left:auto;font-weight:700;color:var(--primary);">' + (open ? "Hide" : "Show") + '</span>';
+  d.onclick = function () { CANCEL_OPEN_DATES[date] = !CANCEL_OPEN_DATES[date]; renderEvents(); };
+  return d;
+}
+
 function renderEvents() {
   updateLocalBanner();   // re-evaluate whenever filters change, including the state select
   const evPageBase = window.location.href.replace(/\/[^/]*(\?.*)?$/, "/");
@@ -2502,7 +2545,34 @@ function renderEvents() {
   list = applyPageCap(list);
   renderLoadMore(_totalMatches, list.length);
 
+  // A cancelled event stops drawing as a card. One quiet line each, and where THREE OR MORE fall
+  // on the same date they collapse behind a single row that opens. Twenty-six cancellations drawn
+  // as full cards read as an outage rather than as a holiday. Jessie, 2026-09-05, on the threshold:
+  // "if there are 3 more - make this a rule". Counted on the capped list, so the number on the row
+  // is the number this page would actually draw.
+  var _cancelCount = {}, _cancelVenues = {};
+  list.forEach(function (e) {
+    if (!_isCancelledEvent(e)) return;
+    _cancelCount[e.date] = (_cancelCount[e.date] || 0) + 1;
+    (_cancelVenues[e.date] = _cancelVenues[e.date] || {})[e.venue || ""] = 1;
+  });
+  var _cancelHeadingDrawn = {};
+
   list.forEach(ev => {
+    if (_isCancelledEvent(ev)) {
+      var _many = (_cancelCount[ev.date] || 0) >= CANCEL_COLLAPSE_AT;
+      if (_many && !_cancelHeadingDrawn[ev.date]) {
+        _cancelHeadingDrawn[ev.date] = true;
+        grid.appendChild(_cancelHeadingRow(ev.date, _cancelCount[ev.date], Object.keys(_cancelVenues[ev.date] || {})));
+      }
+      var _row = _cancelLine(ev);
+      if (_many) {
+        _row.dataset.cancelDate = ev.date;
+        if (!CANCEL_OPEN_DATES[ev.date]) _row.style.display = "none";
+      }
+      grid.appendChild(_row);
+      return;
+    }
     let cats = Array.isArray(ev.categories) ? ev.categories : [ev.category].filter(Boolean);
     const catObjs = cats.map(function(c) { return resolveCategory(c); }).filter(Boolean);
     // Deduplicate by label
