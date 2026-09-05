@@ -169,6 +169,11 @@ window._safeNavGo = window._safeNavGo || function (el) {
     }
   })();
 
+  // Off by default. Jessie opens ?sent=1 on her phone, sends one, and it becomes the default in
+  // the next push, with this flag and the old branch both deleted. The rule is in
+  // design/start-here.md, "Jessie tests it before it becomes what everybody sees".
+  var SENT_UI = params.get('sent') === '1';
+
   var say = document.getElementById('say');
   function tell(msg, good) {
     say.style.display = 'block';
@@ -217,13 +222,23 @@ window._safeNavGo = window._safeNavGo || function (el) {
     fetch(url).then(function (r) { return r.text(); }).then(function (t) {
       answered = true;
       clearTimeout(slow);
-      btn.disabled = false;
       var parsed = null;
       try { parsed = JSON.parse(t); } catch (e) {}
       if (parsed && parsed.status === 'ok') {
         document.getElementById('msg').value = '';
-        tell('Sent and thank you. Somebody will read this and answer you.', true);
+        if (SENT_UI) {
+          // The button says what happened and stays down, so a second press cannot send the same
+          // message twice, and the answer names the address it is going to rather than leaving
+          // somebody to wonder which one we hold. Jessie, 2026-09-05.
+          btn.textContent = 'Sent!';
+          btn.disabled = true;
+          tell('Sent and thank you. Somebody will read this and answer you at ' + email + '.', true);
+        } else {
+          btn.disabled = false;
+          tell('Sent and thank you. Somebody will read this and answer you.', true);
+        }
       } else {
+        btn.disabled = false;
         tell('That did not save. ' + ((parsed && parsed.message) || 'The backend refused it.'), false);
       }
     }).catch(function () {
