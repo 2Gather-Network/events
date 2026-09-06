@@ -286,7 +286,13 @@
        render badly inside Glide and that is a standing rule.
   -->
   <div id="fbar" style="display:none;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:14px;">
-    <div id="fbar-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
+    <!-- TWO children on purpose. The buttons are rebuilt with innerHTML on every draw, and the
+         search, venue and host boxes are REAL elements moved in from elsewhere. Putting them in one
+         container destroyed them on the second draw. 2026-09-06. -->
+    <div id="fbar-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      <div id="fbar-controls" style="display:contents;"></div>
+      <div id="fbar-inputs" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1;min-width:200px;"></div>
+    </div>
     <div id="fbar-panel-interests" class="fbar-panel" style="display:none;"></div>
     <div id="fbar-panel-categories" class="fbar-panel" style="display:none;"></div>
     <div id="fbar-panel-location" class="fbar-panel" style="display:none;"></div>
@@ -2742,9 +2748,13 @@ function renderEvents() {
   // One count for the whole page, under the bar, replacing the per-block ones.
   if (FBAR) {
     var _fc = document.getElementById("fbar-count");
-    if (_fc) { _fc.textContent = (_totalMatches === list.length)
-      ? _totalMatches + (_totalMatches === 1 ? " event" : " events")
-      : list.length + " of " + _totalMatches + " events"; }
+    // WHAT THE FILTERS DID, not what the page cap did. _totalMatches is after filtering and before
+    // the 30-at-a-time cap; comparing it to the capped list said "30 of 669" on an unfiltered page,
+    // which reads as though filters had hidden 639. 2026-09-06.
+    var _all = _prefiltered.length;
+    if (_fc) { _fc.textContent = (_totalMatches === _all)
+      ? _all + (_all === 1 ? " event" : " events")
+      : _totalMatches + " of " + _all + " events"; }
   }
 
   var _catBase  = _prefiltered.filter(function(e) { return _passesEventFilters(e, {skipCat:true}); });
@@ -5129,7 +5139,7 @@ function fbarClear(key) {
 
 function fbarDraw() {
   if (!FBAR) return;
-  var row = document.getElementById("fbar-row");
+  var row = document.getElementById("fbar-controls");
   if (!row) return;
 
   row.innerHTML = FBAR_CONTROLS.map(function (c) {
@@ -5146,11 +5156,20 @@ function fbarDraw() {
     panel.style.display = (_fbarOpen === c.key) ? "block" : "none";
   });
 
-  // The bar owns the venue, host and search boxes; they sit after the controls.
-  ["venue-filter", "host-filter", "search-input"].forEach(function (id) {
-    var el = document.getElementById(id);
-    if (el && el.parentElement !== row) { row.insertBefore(el, document.getElementById("fbar-reset")); }
-  });
+  // The bar owns the venue, host and search boxes. Moved ONCE, into their own container, so the
+  // button rebuild above cannot take them with it.
+  var box = document.getElementById("fbar-inputs");
+  if (box) {
+    ["venue-filter", "host-filter", "search-input"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && el.parentElement !== box) {
+        el.style.display = "";
+        el.style.flex = (id === "search-input") ? "1" : "";
+        el.style.minWidth = (id === "search-input") ? "180px" : "120px";
+        box.appendChild(el);
+      }
+    });
+  }
 }
 
 function toggleRecWhy() {
