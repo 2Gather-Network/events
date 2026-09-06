@@ -369,6 +369,27 @@
   // Same shape the backend uses, so a group id written one way still matches one written another.
   function _norm(x){ return String(x||'').split('.').join('').toLowerCase(); }
 
+  // "Synthesizing group stats..." sat there long enough to read as frozen, and Jessie reported it
+  // as broken before adding "oh it finally did". It was never stuck: the number arrives, it is
+  // just slower than anybody will wait in silence. So the line says what it is doing in words a
+  // person uses, and if it is still going after eight seconds it says THAT too, rather than
+  // holding one sentence and hoping. Same shape as the support page, which stopped calling a slow
+  // answer a failure on 2026-09-02.
+  var COUNTS_UI = /[?&]counts=1(&|$)/.test(location.search);
+  var COUNTS_WAIT = COUNTS_UI ? 'Counting people, offers and needs\u2026' : 'Synthesizing group stats\u2026';
+  var COUNTS_SLOW = 'Still counting. A big group takes a moment.';
+  var _countsSlowTimer = null;
+  function _countsWatch(seq){
+    if (!COUNTS_UI) return;
+    clearTimeout(_countsSlowTimer);
+    _countsSlowTimer = setTimeout(function(){
+      if (seq !== _countSeq) return;
+      var el = document.getElementById('detail-counts');
+      // Only if it is still the waiting sentence. Never paint over a real answer.
+      if (el && el.textContent === COUNTS_WAIT) { el.textContent = COUNTS_SLOW; }
+    }, 8000);
+  }
+
   function groupUrl(g, page){
     var base = 'https://2gather.network/';
     if (page === 'group') return base + 'group.html?id=' + encodeURIComponent(g.groupId) + '&CWid=' + encodeURIComponent(meId);
@@ -386,7 +407,7 @@
     // Most group pictures are square, and a 16:5 band cuts a square photo's head off.
     var _badge = '<span class="badge ' + (_r === 'cohost' ? 'cohost' : (_r === 'host' ? 'host' : 'member')) + '">' + roleLabel + '</span>';
     var _stats = '<div class="stats">' + esc(g.intro || '') + (g.intro ? '<br>' : '')
-      + '<span id="detail-counts">Synthesizing group stats…</span>'
+      + '<span id="detail-counts">' + COUNTS_WAIT + '</span>'
       + (pending ? ' · <b style="color:var(--brand);">' + pending + ' pending requests</b>' : '') + '</div>';
 
     if (_coverStyle === 'tile') {
@@ -416,6 +437,7 @@
     if (_showEvents) html += '<div id="detail-events" style="margin-top:18px;"></div>';
     detail.innerHTML = html;
     _countSeq++;
+    _countsWatch(_countSeq);
     loadCounts(g, _countSeq);
     if (_showEvents) loadGroupEvents(g, _countSeq);
   }
@@ -556,6 +578,7 @@
     // Another group may have been clicked while this was in flight, so a late answer is dropped
     // rather than painted over the group now on screen.
     if (seq !== _countSeq) return;
+    clearTimeout(_countsSlowTimer);
     var el = document.getElementById('detail-counts');
     if (!el) return;
     var c = _counts[g.groupId];
