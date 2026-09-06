@@ -737,9 +737,38 @@
   try {
     if (sessionStorage.getItem('cw-just-joined')) { _fresh = '&nocache=1'; sessionStorage.removeItem('cw-just-joined'); }
   } catch(err){}
+  // THE LIST YOU SAW LAST TIME, drawn immediately. getMyGroups measures about five seconds and
+  // the whole page sat on one unchanging sentence for all of it, which reads as broken. Jessie,
+  // 2026-09-05: "takes 10 seconds to load". The cache is per person, per browser session, and is
+  // ALWAYS replaced by the fresh answer a moment later, so it can be stale for five seconds and
+  // never longer. Nothing is written from it: it only decides what is on screen while we wait.
+  var _listKey = 'cw-mygroups-' + meId;
+  var _drewCached = false;
+  try {
+    var _cached = JSON.parse(sessionStorage.getItem(_listKey) || 'null');
+    if (_cached && _cached.length) { _groups = _cached; renderRail(); _drewCached = true; }
+  } catch (err) {}
+
+  // A wait that says the same thing for ten seconds is indistinguishable from a page that has
+  // given up. This one changes, and says where the delay actually is.
+  if (!_drewCached) {
+    var _waitStep = 0;
+    var _waitSay = function (t) {
+      var el = detail.querySelector('.status.info');
+      if (el && /Loading your groups|Still looking/.test(el.textContent)) { el.textContent = t; }
+    };
+    var _waitTimer = setInterval(function () {
+      _waitStep++;
+      if (_waitStep === 1) { _waitSay('Still looking. Your groups come from the spreadsheet, which takes a few seconds.'); }
+      if (_waitStep >= 3) { clearInterval(_waitTimer); }
+    }, 4000);
+    var _stopWait = function () { clearInterval(_waitTimer); };
+  } else { var _stopWait = function () {}; }
+
   fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(meId) + _fresh)
     .then(function(r){ return r.json(); })
     .then(function(d){
+      _stopWait();
       // A deployed getMyGroups always returns a `groups` array (possibly empty).
       // No `groups` key at all = the action isn't live yet.
       if (!d || !Array.isArray(d.groups)) {
@@ -747,6 +776,7 @@
         return;
       }
       if (!d.groups.length) {
+        try { sessionStorage.removeItem(_listKey); } catch (err) {}
         detail.innerHTML = '<div class="status info">'
           + (_pane === 'member'
                ? "You don't belong to any groups yet."
@@ -755,9 +785,14 @@
         return;
       }
       _groups = d.groups;
+      try { sessionStorage.setItem(_listKey, JSON.stringify(d.groups)); } catch (err) {}
       renderRail();
     })
     .catch(function(){
+      _stopWait();
+      // A cached list already on screen is better than replacing it with an error about a call
+      // that failed AFTER it drew. Say nothing and leave what is there.
+      if (_drewCached) return;
       detail.innerHTML = '<div class="status err">Backend not live yet — this page needs the <b>getMyGroups</b> action pasted into the Gather Events script. Once it\'s deployed, your hosted groups appear here.</div>';
     });
 })();
