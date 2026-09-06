@@ -228,10 +228,14 @@
   .fbar-btn b{color:var(--dark);font-weight:600;}
   .fbar-btn.on{background:#EBF5FB;border-color:#AED6F1;color:#154F74;}
   .fbar-btn.on b{color:#154F74;}
-  .fbar-panel{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
-  .fbar-tools{display:flex;align-items:center;gap:12px;margin-bottom:8px;font-size:13px;}
-  .fbar-tools button{background:none;border:none;color:var(--primary);font-family:inherit;
-    font-size:13px;font-weight:700;cursor:pointer;padding:0;}
+  .fbar-panel{margin-top:12px;}   /* no rules. Jessie, 2026-09-06: remove all horizontal lines */
+  .fbar-tools{display:flex;justify-content:flex-end;margin-bottom:6px;font-size:13px;}
+  .fbar-tools button{background:#fff;border:1.5px solid var(--border);color:var(--muted);
+    font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;padding:4px 12px;border-radius:20px;}
+  .fbar-tools button:hover{border-color:var(--primary);color:var(--primary);}
+  /* One caret, turned over when open, so the open and closed states are the same size. */
+  .fbar-car{display:inline-block;transition:transform .12s;}
+  .fbar-car.up{transform:rotate(180deg);}
   .fbar-sep{color:var(--border);}
   #fbar-reset{margin-left:auto;}
 </style>
@@ -303,6 +307,8 @@
     <div id="fbar-panel-format" class="fbar-panel" style="display:none;"></div>
     <div id="fbar-panel-date" class="fbar-panel" style="display:none;"></div>
     <div id="fbar-panel-advanced" class="fbar-panel" style="display:none;"></div>
+    <!-- The i sits under the bar, left, rather than crowding the search box. -->
+    <div id="fbar-under" style="display:flex;justify-content:flex-start;margin-top:8px;"></div>
     <!-- In place, never an overlay. -->
     <div id="fbar-help" style="display:none;font-size:13px;color:var(--muted);background:#F7FBFF;border:1px solid #C9DFF3;border-radius:8px;padding:10px 12px;margin-top:10px;line-height:1.6;">
       <button onclick="toggleBarHelp()" aria-label="Close" style="background:none;border:none;color:var(--muted);float:right;font-size:15px;cursor:pointer;padding:0 2px;line-height:1;">&times;</button>
@@ -1212,6 +1218,11 @@ let RECURRING_EVENTS = [];
 let events = [];
 let isLoadingData = true;
 let activeFilter = "all";
+// MULTI-SELECT. activeFilter held one category and "all" meant none; a set holds any number and
+// empty means none, so "Show all categories" has nothing left to do and comes off. Jessie,
+// 2026-09-06: "make all chips multi select". activeFilter stays only so the saved value from
+// before this change still reads.
+var activeCats = new Set();
 // Mood filter — subset of ["connected","expressed","nourished","energized","playful","rested"].
 // Empty = no filter, all moods. Any picked = OR match against event.experience (comma-separated).
 var _selectedMoods = new Set();
@@ -2074,17 +2085,12 @@ function updateRoomPreview() {
 function renderPills() {
   var c = document.getElementById("cat-pills");
   c.innerHTML = "";
-  var allBtn = makeFilterBtn("Show all categories", activeFilter === "all", function() { setFilter("all"); });
-  allBtn.style.background = "#154F74"; allBtn.style.borderColor = "#154F74"; allBtn.style.color = "#fff";
-  allBtn.setAttribute("data-cat-label", "all");   // V12.80: skip this pill when dimming
-  c.appendChild(allBtn);
+  // "Show all categories" is gone. With multi-select, none chosen already means all, so the pill
+  // did nothing and said something confusing. Jessie, 2026-09-06.
   CATEGORIES.forEach(function(cat) {
-    var isActive = activeFilter === cat.label;
+    var isActive = activeCats.has(cat.label);
     // V12.80: tapping the active pill deselects the filter (resets to All). Otherwise picking it filters as before.
-    var btn = makeFilterBtn(cat.emoji + " " + cat.label, isActive, function() {
-      if (activeFilter === cat.label) setFilter("all");
-      else setFilter(cat.label);
-    });
+    var btn = makeFilterBtn(cat.emoji + " " + cat.label, isActive, function() { setFilter(cat.label); });
     btn.setAttribute("data-cat-label", cat.label);
     c.appendChild(btn);
   });
@@ -2142,7 +2148,14 @@ function resetFilters() {
   _resetWhereRow();   // V12.53: clear the always-visible picker too
 }
 
-function setFilter(id) { activeFilter = id; localStorage.setItem("db-filter", id); renderPills(); renderEvents(); }
+function setFilter(id) {
+  if (!id || id === "all") { activeCats.clear(); }
+  else if (activeCats.has(id)) { activeCats.delete(id); }
+  else { activeCats.add(id); }
+  activeFilter = activeCats.size ? "multi" : "all";
+  try { localStorage.setItem("db-cats", JSON.stringify([].slice.call(activeCats))); } catch (e) {}
+  renderPills(); renderEvents();
+}
 
 function expandCats(evId) {
   const allEv = [...events, ...(typeof getAllRecurring === "function" ? getAllRecurring(2) : [])];
@@ -2464,7 +2477,9 @@ function _passesEventFilters(e, opts) {
   const MS_QUARTER = 91*24*60*60*1000;
   let cats = Array.isArray(e.categories) ? e.categories : [e.category].filter(Boolean);
   cats = cats.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; });
-  const matchCat  = opts.skipCat || activeFilter === "all" || cats.includes(activeFilter);
+  // ANY of the chosen categories, not all of them. Choosing two shows events in either.
+  const matchCat  = opts.skipCat || !activeCats.size
+    || cats.some(function (c) { var r = resolveCategory(c); return activeCats.has(r ? r.label : c); });
   const matchQ    = matchesQuery(e, q);
   const evEndMs   = e.endtime ? new Date(e.date + "T" + e.endtime).getTime() : new Date(e.date + "T" + (e.time||"00:00")).getTime() + 60*60*1000;
   const evStartMs = new Date(e.date + "T" + (e.time||"00:00")).getTime();
@@ -2482,7 +2497,7 @@ function _passesEventFilters(e, opts) {
   const isInPerson = e.format === "inperson" || e.format === "both" || !e.format;
   const matchMode  = q ? true : activeMode === "all" ? true : activeMode === "virtual" ? isVirtual : isInPerson;
   let matchLocation = true;
-  if (activeMode === "inperson") {
+  if (activeMode === "inperson" && !opts.skipLoc) {
     const state = document.getElementById("filter-state")?.value || "";
     const loc   = (e.location || "").toLowerCase();
     if (state) {
@@ -2507,7 +2522,7 @@ function _passesEventFilters(e, opts) {
       || (e.location||"").toLowerCase().includes("online") || (e.location||"").toLowerCase().includes("zoom")));
   const matchFormat = fmt === "all" || (fmt === "virtual" && _fmtIsVirtual) || (fmt === "inperson" && !_fmtIsVirtual);
   var locWhereOK = true;
-  if (_whereApplied) {   // V12.56: all virtual + only in-person in the set place (vague kept)
+  if (_whereApplied && !opts.skipLoc) {   // V12.56: all virtual + only in-person in the set place (vague kept)
     var _isV = (e.format === "virtual" || e.format === "both" || !e.format);
     locWhereOK = _isV ? true : _eventMatchesWhere(e);
   }
@@ -2523,6 +2538,57 @@ function _passesEventFilters(e, opts) {
 // V12.80: dim category pills and mood chips that would return zero events under the current
 // filter chain. Called at the end of renderEvents so counts stay in sync with what is shown.
 // Each pill's own filter is excluded so an active category does not zero out every other pill.
+// WHICH STATE AN EVENT IS IN, worked out once per event and kept on it. Reading it fresh per
+// option would be fifty state names against every event on every keystroke; done once it is a
+// tally. An event with no location, or one naming no state, counts for none. 2026-09-06.
+function _eventStateOf(e) {
+  if (e._st !== undefined) return e._st;
+  var loc = String(e.location || "");
+  var found = "";
+  if (loc.trim()) {
+    var locL = loc.toLowerCase();
+    for (var i = 0; i < US_STATES.length; i++) {
+      var st = US_STATES[i], ab = US_STATES_ABBR[st];
+      if (locL.indexOf(st.toLowerCase()) !== -1 || (ab && new RegExp("\\b" + ab + "\\b", "i").test(loc))) { found = st; break; }
+    }
+  }
+  e._st = found;
+  return found;
+}
+
+// Counts on the country and state lists, the same shape as the category pills: what you would get,
+// of what exists. NOT on region, which Jessie asked to leave alone. The option text is rebuilt each
+// time, so the base label is kept on the option rather than parsed back out of it.
+function _locCounts(everything) {
+  var sel = document.getElementById("filter-state");
+  if (!sel || !everything) return;
+  var got = {}, all = {};
+  everything.forEach(function (e) {
+    var st = _eventStateOf(e);
+    if (!st) return;
+    all[st] = (all[st] || 0) + 1;
+    try { if (_passesEventFilters(e, { skipLoc: true })) { got[st] = (got[st] || 0) + 1; } } catch (err) {}
+  });
+  [].forEach.call(sel.options, function (o) {
+    if (!o.value) return;
+    var base = o.getAttribute("data-base");
+    if (base === null) { base = o.textContent; o.setAttribute("data-base", base); }
+    var g = got[o.value] || 0, a = all[o.value] || 0;
+    o.textContent = a ? base + "  " + (g === a ? String(a) : g + " of " + a) : base;
+  });
+  var cs = document.getElementById("filter-country");
+  if (cs) {
+    var gTot = 0, aTot = 0;
+    Object.keys(all).forEach(function (k) { aTot += all[k]; gTot += (got[k] || 0); });
+    [].forEach.call(cs.options, function (o) {
+      if (o.value !== "United States") return;
+      var b = o.getAttribute("data-base");
+      if (b === null) { b = o.textContent; o.setAttribute("data-base", b); }
+      o.textContent = aTot ? b + "  " + (gTot === aTot ? String(aTot) : gTot + " of " + aTot) : b;
+    });
+  }
+}
+
 function _applyChipDims(baseListForCat, baseListForMood, everything) {
   var catCounts = {};
   baseListForCat.forEach(function(e) {
@@ -2789,6 +2855,7 @@ function renderEvents() {
   var _catBase  = _prefiltered.filter(function(e) { return _passesEventFilters(e, {skipCat:true}); });
   var _moodBase = _prefiltered.filter(function(e) { return _passesEventFilters(e, {skipMood:true}); });
   _applyChipDims(_catBase, _moodBase, _prefiltered);
+  try { _locCounts(_prefiltered); } catch (e) {}
 }
 
 async function markGoing(id) {
@@ -4847,7 +4914,12 @@ if (new URLSearchParams(window.location.search).get("embed") === "1") {
 
 const savedFilter = localStorage.getItem("db-filter");
 const savedMode   = localStorage.getItem("db-mode");
-if (savedFilter) activeFilter = savedFilter;
+try {
+  var savedCats = JSON.parse(localStorage.getItem("db-cats") || "null");
+  if (savedCats && savedCats.length) { savedCats.forEach(function (x) { activeCats.add(x); }); }
+  else if (savedFilter && savedFilter !== "all") { activeCats.add(savedFilter); }
+} catch (e) {}
+activeFilter = activeCats.size ? "multi" : "all";
 
 renderPills();
 setMode(savedMode === 'virtual' ? 'all' : (savedMode || activeMode));
@@ -5121,8 +5193,10 @@ function _fbarValue(key) {
       // "all" means no category. Jessie asked for Select all and Select none, which needs this to
       // become multi-select; that is a change to how filtering works rather than a move, so it is
       // raised rather than assumed. 2026-09-06.
-      var af = typeof activeFilter !== "undefined" ? activeFilter : "all";
-      return (!af || af === "all") ? "All" : String(af);
+      // Never the category names: two or three of them do not fit on a pill and the button stops
+      // being scannable. The count is the state. Jessie, 2026-09-06.
+      var n = (typeof activeCats !== "undefined" && activeCats) ? activeCats.size : 0;
+      return n ? String(n) : "All";
     }
     if (key === "location") {
       // THE DEEPEST LEVEL ACTUALLY CHOSEN, never a lower one. Saying Washington when only a region
@@ -5164,7 +5238,7 @@ function fbarToggle(key) {
 function fbarClear(key) {
   try {
     if (key === "interests") { saveInterests([]); renderForYou(); }
-    if (key === "categories" && typeof setFilter === "function") { setFilter("all"); }
+    if (key === "categories" && typeof setFilter === "function") { setFilter("all"); }   // clears the set
     if (key === "location") { ["where-state","where-country","where-region"].forEach(function (id) { var el = document.getElementById(id); if (el) { el.value = ""; } }); }
     if (key === "format" && typeof setFilterFormat === "function") { setFilterFormat("all"); }
     if (key === "date") { var sel = document.getElementById("date-filter-select"); if (sel) { sel.value = "upcoming"; if (typeof setDateFilter === "function") setDateFilter("upcoming"); } }
@@ -5189,7 +5263,7 @@ function fbarDraw() {
     var on = v !== "All";
     var open = _fbarOpen === c.key;
     return '<button class="fbar-btn' + (on ? ' on' : '') + '" onclick="fbarToggle(\'' + c.key + '\')">'
-      + c.label + ' <b>' + esc(v) + '</b> ' + (open ? '\u25b4' : '\u25be') + '</button>';
+      + c.label + ' <b>' + esc(v) + '</b> <span class="fbar-car' + (open ? ' up' : '') + '">\u25be</span></button>';
   }).join("") + '<button class="fbar-btn" id="fbar-reset" onclick="fbarResetAll()">Reset</button>';
 
   FBAR_CONTROLS.forEach(function (c) {
@@ -5215,7 +5289,8 @@ function fbarDraw() {
     hb.style.cssText = "background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:50%;"
       + "width:22px;height:22px;flex-shrink:0;line-height:1;font-size:12px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;";
     hb.onclick = toggleBarHelp;
-    searchBox.appendChild(hb);
+    var under = document.getElementById("fbar-under");
+    if (under) { under.appendChild(hb); } else { searchBox.appendChild(hb); }
   }
   // Venue and host are under Advanced now, so nothing else goes in the top row.
 }
@@ -5267,9 +5342,9 @@ function fbarBoot() {
     if (!panel) return;
     var tools = document.createElement("div");
     tools.className = "fbar-tools";
-    tools.innerHTML = '<button onclick="fbarToggle(\'' + c.key + '\')">Hide</button>'
-      + '<button onclick="fbarClear(\'' + c.key + '\')">Clear</button>'
-      ;   // no extra control for categories: the panel already carries its own Show all pill
+    // HIDE ONLY. Clear read as though it would delete the topics themselves rather than stop them
+    // filtering, and every control's own Reset does that job. Jessie, 2026-09-06.
+    tools.innerHTML = '<button onclick="fbarToggle(\'' + c.key + '\')">Hide</button>';
     panel.insertBefore(tools, panel.firstChild);
   });
 
