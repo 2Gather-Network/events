@@ -4977,7 +4977,14 @@ function toggleFyCollapse() {
 // Words that appear in event text and are never a subject. Listed rather than guessed at, so
 // adding one is a line here.
 var FY_NOT_TOPICS = { cancelled: 1, canceled: 1, postponed: 1, tbd: 1, zoom: 1, online: 1 };
-var FY_CAP = 6;
+// Five on a desktop. On a phone the cards do not draw at all until asked for: the block sits above
+// the calendar and a wall of match cards pushed the events themselves off the screen. Jessie,
+// 2026-09-06: "make it only show the first 5 matches on desktop... on mobile just show 6 of 138
+// matches, Show all, as a link".
+var FY_CAP = 5;
+function _fyIsPhone() {
+  try { return window.matchMedia('(max-width: 768px)').matches; } catch (e) { return false; }
+}
 var _fyRedrawing = false;   // renderEvents calls renderForYou; stop them calling each other
 var _fyShowAll = false;
 function toggleFyShowAll() { _fyShowAll = !_fyShowAll; renderForYou(); }
@@ -5056,22 +5063,17 @@ function renderForYou() {
   });
   const _fyTotal = _fyKept.length;
   const _fyHidden = _fyAll - _fyTotal;
-  const matched = _fyShowAll ? _fyKept : _fyKept.slice(0, FY_CAP);
+  // A phone shows none until Show all is pressed; a desktop shows five.
+  const matched = _fyShowAll ? _fyKept : (_fyIsPhone() ? [] : _fyKept.slice(0, FY_CAP));
 
   const resultsEl = document.getElementById("for-you-results");
   if (!resultsEl) return;
   // Update the mobile collapse bar. Empty state stays uncollapsed (nothing to hide).
-  if (_fyBar) {
-    if (matched.length === 0) {
-      _fyBar.innerHTML = "";
-      resultsEl.classList.remove("collapsed");
-    } else {
-      const label = matched.length === 1 ? "1 event match" : (matched.length + " event matches");
-      const action = _fyCollapsedMobile ? "Show" : "Hide";
-      _fyBar.innerHTML = "<span>You have " + label + "</span><span class=\"fy-toggle\" onclick=\"toggleFyCollapse()\">" + action + "</span>";
-      resultsEl.classList.toggle("collapsed", _fyCollapsedMobile);
-    }
-  }
+  // The phone used to carry its own collapse bar saying "You have N event matches" with Show and
+  // Hide, while the desktop said nothing. Two controls for one idea, and neither said the true
+  // total. One line does it now, on both, below.
+  if (_fyBar) { _fyBar.innerHTML = ""; }
+  resultsEl.classList.remove("collapsed");
   if (matched.length === 0) {
     resultsEl.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:8px 0;">🔍 No upcoming events match your topics. <a onclick="toggleInterestsPanel()" style="color:var(--primary);font-weight:700;cursor:pointer;">Try broadening your keywords</a></div>`;
     return;
@@ -5081,7 +5083,11 @@ function renderForYou() {
     // Say what the number is a count of. A count that silently excludes things is the fault this
     // whole block was fixing.
     var bits = [];
-    if (_fyTotal > FY_CAP) {
+    if (_fyTotal > 0 && matched.length === 0) {
+      // A phone, nothing drawn yet. Say the total and offer them.
+      bits.push('<span style="color:var(--muted);">' + _fyTotal + (_fyTotal === 1 ? ' match' : ' matches') + '</span>'
+        + ' \u00b7 <a onclick="toggleFyShowAll()" style="color:var(--primary);font-weight:700;cursor:pointer;">Show all</a>');
+    } else if (_fyTotal > FY_CAP) {
       bits.push('<span style="color:var(--muted);">' + matched.length + ' of ' + _fyTotal + ' matches</span>'
         + ' \u00b7 <a onclick="toggleFyShowAll()" style="color:var(--primary);font-weight:700;cursor:pointer;">'
         + (_fyShowAll ? 'Show fewer' : 'Show all') + '</a>');
