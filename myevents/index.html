@@ -388,6 +388,7 @@ function recurToEv(r) {
     format: r.format||"", location: r.location||"",
     room: r.room||"", description: r.description||"",
     host: r.host||"", hostlink: r.hostlink||"", hostType: r.hostType||"",
+    userID: r.userID||"",
     hasBB: String(r.hasBB!==undefined&&r.hasBB!==""?r.hasBB:r.hasHub||"").trim().toLowerCase()==="true",
     contactEmail: r.contactEmail||"", contactPhone: r.contactPhone||"",
     cooplink: r.cooplink||"", paymentlink: r.paymentlink||"",
@@ -517,6 +518,7 @@ function toEv(r) {
     date: parseDate(r.date), time: parseTime(r.startTime), endtime: parseTime(r.endTime),
     format: r.format||"", location: r.location||"", room: r.room||"",
     description: r.description||"", host: r.host||"", hostlink: r.hostlink||"", hostType: r.hostType||"",
+    userID: r.userID||"",
     hasBB: String(r.hasBB!==undefined&&r.hasBB!==""?r.hasBB:r.hasHub||"").trim().toLowerCase()==="true",
     contactEmail: r.contactEmail||"", contactPhone: r.contactPhone||"",
     cooplink: r.cooplink||"", paymentlink: r.paymentlink||"", meetinglink: r.meetinglink||"",
@@ -1699,11 +1701,21 @@ async function renderMyEventsList(memberId, data) {
     return e;
   }).filter(Boolean);
   const attending = allEv.filter(function(e) { return activeIds.indexOf(String(e.id)) > -1; }).concat(occurrences);
-  // hostMemberCard is blank on nearly every row, so an event counts as yours when your member id
-  // appears in hostlink. The sheet's hostType column then says which kind: host or socializer.
+  // WHO MADE AN EVENT, in order of how much the answer can be trusted.
+  //
+  // userID is the only one that means "this person made this". It is written when an event is
+  // posted and shown to nobody. hostlink is the link to somebody's Appear page and is filled ONLY
+  // if they ticked an optional box about displaying it, so using it as identity meant 187 events,
+  // 43 percent of them, were invisible to the person who made them. A member reported it on
+  // 2026-09-04 and thought her own company's security was blocking her. hostMemberCard has never
+  // been returned by the feed at all, so that branch has never matched anybody, ever.
+  //
+  // Both fallbacks stay while userID fills. Removing them is the contract step and it comes after
+  // the backfill, not before.
   const _mine = allEv.filter(function(e) {
     var me = _expNorm(memberId);
     if (!me) return false;
+    if (e.userID && _expNorm(e.userID) === me) return true;
     if (e.hostMemberCard && _expNorm(e.hostMemberCard) === me) return true;
     return _expNorm(e.hostlink || '').indexOf(me) > -1;
   });
