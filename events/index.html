@@ -272,9 +272,14 @@
         <!-- State 2: has topics - pencil (icon only) sits to the LEFT of "My interests" -->
         <div id="for-you-active" style="display:none;">
           <div style="display:flex;align-items:center;gap:8px;">
-            <button onclick="toggleInterestsPanel()" aria-label="Edit your topics" style="background:none;border:none;color:var(--primary);font-size:15px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;">✏️</button>
+            <button onclick="onInterestsPencil()" aria-label="Edit your topics" style="background:none;border:none;color:var(--primary);font-size:15px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;">✏️</button>
             <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);white-space:nowrap;flex-shrink:0;">My interests</span>
-            <div id="for-you-chips" style="display:flex;gap:6px;overflow-x:auto;flex:1;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px;"></div>
+            <!-- ONE LINE, scrolling sideways, never wrapping. flex-wrap:nowrap and min-width:0
+                 are both needed: without the second, a flex child refuses to shrink below its
+                 content and pushes the row onto a second line instead of scrolling. On a phone the
+                 whole row is hidden until the pencil is tapped, because six chips and an Add topics
+                 button do not fit and the chips lost. Jessie, 2026-09-06. -->
+            <div id="for-you-chips" style="display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;flex:1;min-width:0;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px;"></div>
           </div>
         </div>
       </div>
@@ -4998,6 +5003,16 @@ var _fyRedrawing = false;   // renderEvents calls renderForYou; stop them callin
 var _fyShowAll = false;
 function toggleFyShowAll() { _fyShowAll = !_fyShowAll; renderForYou(); }
 
+// The pencil does two jobs, and which one depends on the screen. On a desktop the chips are always
+// visible, so it opens the panel for editing. On a phone they are hidden by default, so the first
+// tap reveals them and the second opens the panel. Jessie, 2026-09-06: "on mobile don't show
+// interests unless you click on the pencil icon, because the tags hide behind Add topics".
+var _fyChipsShown = false;
+function onInterestsPencil() {
+  if (_fyIsPhone() && !_fyChipsShown) { _fyChipsShown = true; renderForYou(); return; }
+  toggleInterestsPanel();
+}
+
 function renderForYou() {
   const interests = loadInterests();
   updatePullProfileLink();   // link state is independent of which render branch runs below
@@ -5020,6 +5035,7 @@ function renderForYou() {
 
   // Render chips
   const chipsEl = document.getElementById("for-you-chips");
+  if (chipsEl) { chipsEl.style.display = (_fyIsPhone() && !_fyChipsShown) ? "none" : "flex"; }
   if (chipsEl) {
     chipsEl.innerHTML = interests.map(kw =>
       `<span style="display:inline-flex;align-items:center;gap:4px;background:#EBF5FB;border:1px solid #AED6F1;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;color:#1B6896;">${esc(kw)}</span>`
@@ -5083,7 +5099,11 @@ function renderForYou() {
   // total. One line does it now, on both, below.
   if (_fyBar) { _fyBar.innerHTML = ""; }
   resultsEl.classList.remove("collapsed");
-  if (matched.length === 0) {
+  // ZERO MATCHES, not zero cards. On a phone the cards are deliberately not drawn until Show all is
+  // pressed, and this branch fired on the empty card list and returned before the count line was
+  // written — so a phone with 138 matches was told nothing matched. Introduced and found the same
+  // hour, 2026-09-06.
+  if (_fyTotal === 0) {
     resultsEl.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:8px 0;">🔍 No upcoming events match your topics. <a onclick="toggleInterestsPanel()" style="color:var(--primary);font-weight:700;cursor:pointer;">Try broadening your keywords</a></div>`;
     return;
   }
@@ -5110,6 +5130,7 @@ function renderForYou() {
     else { _fyMore.style.display = "none"; _fyMore.innerHTML = ""; }
   }
 
+  if (matched.length === 0) { resultsEl.innerHTML = ""; return; }   // a phone, waiting to be asked
   resultsEl.innerHTML = matched.map(ev => {
     const haystack = [ev.title, ev.keywords, ev.categories, ev.description, ev.host, ev.location, ev.venue, ev.experience]
       .filter(Boolean).join(" ").toLowerCase();
