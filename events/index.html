@@ -4884,6 +4884,14 @@ function _interestsKey() {
   var m = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
   return m ? ("my-interests-" + m) : "my-interests";
 }
+// One reader for a list that may arrive under either separator.
+function _splitList(v) {
+  var raw = String(v || '');
+  return raw.split(raw.indexOf('|') > -1 ? '|' : ',')
+            .map(function (x) { return x.trim(); })
+            .filter(Boolean);
+}
+
 function loadInterests() {
   try { return JSON.parse(localStorage.getItem(_interestsKey()) || "[]"); } catch(e) { return []; }
 }
@@ -4891,7 +4899,9 @@ function saveInterests(arr) {
   try { localStorage.setItem(_interestsKey(), JSON.stringify(arr)); } catch(e) {}
   const memberId = getMemberId();
   if (memberId) {
-    fetch(GS_URL + "?action=saveInterests&appearId=" + encodeURIComponent(memberId) + "&interests=" + encodeURIComponent(arr.join(","))).catch(()=>{});
+    // Written back with pipes, matching the column and the house rule. Writing commas here would
+    // undo the migration one save at a time.
+    fetch(GS_URL + "?action=saveInterests&appearId=" + encodeURIComponent(memberId) + "&interests=" + encodeURIComponent(arr.join("|"))).catch(()=>{});
   }
 }
 
@@ -4910,7 +4920,13 @@ async function initForYou() {
     const data = (d && d.data) || {};
     // Always reflect THIS member's topics (empty if none), into their own keyed slot, so a
     // member with no topics shows an empty box rather than the previous member's.
-    const topicsArr = String(data.topics || "").split(",").map(s => s.trim()).filter(Boolean);
+    // PIPE FIRST, comma only when there is no pipe. The house rule is "pipe, never a comma",
+    // because commas live inside values, and the topics column was migrated to pipes. This reader
+    // was never taught, so five interests arrived as ONE string, drew as one chip reading
+    // "Singing|Ping Pong|Camping|Pickleball|Craft Drinks", and matched no event ever. Jessie saw
+    // it on 2026-09-05. Splitting on both at once would break any value that legitimately
+    // contains a comma, so the separator is decided by what the string actually holds.
+    const topicsArr = _splitList(data.topics);
     try { localStorage.setItem(_interestsKey(), JSON.stringify(topicsArr)); } catch(e) {}
     // "What I enjoy" is "Item:Level|Item:Level" - keep the bare item, original casing.
     _myEnjoy = String(data.interests || "").split("|").map(s => s.split(":")[0].trim()).filter(Boolean);
@@ -5094,7 +5110,7 @@ function removeInterest(kw) {
 function addInterest() {
   const input = document.getElementById("interests-input");
   if (!input) return;
-  const vals = input.value.split(",").map(s => normalizeInterest(s)).filter(Boolean);
+  const vals = input.value.split(/[,|]/).map(s => normalizeInterest(s)).filter(Boolean);
   if (!vals.length) return;
   const arr = loadInterests();
   const existing = arr.map(s => s.toLowerCase());
