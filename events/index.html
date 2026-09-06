@@ -302,7 +302,7 @@
     <div id="fbar-panel-location" class="fbar-panel" style="display:none;"></div>
     <div id="fbar-panel-format" class="fbar-panel" style="display:none;"></div>
     <div id="fbar-panel-date" class="fbar-panel" style="display:none;"></div>
-    <div id="fbar-panel-feeling" class="fbar-panel" style="display:none;"></div>
+    <div id="fbar-panel-advanced" class="fbar-panel" style="display:none;"></div>
     <div id="fbar-count" style="font-size:13px;color:var(--muted);margin-top:10px;"></div>
   </div>
 
@@ -411,7 +411,7 @@
   </div>
 
   <div id="filter-panel" style="display:none;background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;">
-    <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+    <div id="fp-format" style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);">
       <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:8px;">Format</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button id="filter-fmt-all" onclick="setFilterFormat('all')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:none;background:#154F74;color:#fff;cursor:pointer;font-weight:600;">🌐 All events</button>
@@ -419,17 +419,17 @@
         <button id="filter-fmt-inperson" onclick="setFilterFormat('inperson')" style="padding:6px 14px;border-radius:20px;font-size:13px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;">📍 In-person</button>
       </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-top:16px;">
-      <div style="flex:1;min-width:160px;position:relative;">
+      <div id="fp-venue" style="flex:1;min-width:160px;position:relative;">
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:5px;">Venue</label>
         <input class="input" id="venue-filter" type="text" placeholder="Search venues..." autocomplete="off" oninput="onVenueInput()" onfocus="onVenueInput()" onblur="setTimeout(()=>hideDropdown('venue-suggestions'),200)" style="padding:7px 12px;font-size:13px;width:100%;">
         <div id="venue-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
       </div>
-      <div style="flex:1;min-width:160px;position:relative;">
+      <div id="fp-host" style="flex:1;min-width:160px;position:relative;">
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:5px;">Host</label>
         <input class="input" id="host-filter" type="text" placeholder="Search hosts..." autocomplete="off" oninput="onHostInput()" onfocus="onHostInput()" onblur="setTimeout(()=>hideDropdown('host-suggestions'),200)" style="padding:7px 12px;font-size:13px;width:100%;">
         <div id="host-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
       </div>
-      <div style="flex:1;min-width:160px;">
+      <div id="fp-date" style="flex:1;min-width:160px;">
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:5px;">Show</label>
         <select class="input" id="date-filter-select" onchange="setDateFilter(this.value)" style="padding:7px 12px;font-size:13px;width:100%;cursor:pointer;">
           <option value="upcoming">All upcoming events</option>
@@ -442,7 +442,7 @@
       </div>
     </div>
       <!-- V12.80: mood filter moved below Venue/Host/Show so the section header 'How would you like to feel?' does not sit above the field-name labels. Any picked mood = OR-match on the event's experience list. -->
-      <div style="margin-top:14px;">
+      <div id="fp-feeling" style="margin-top:14px;">
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:4px;">How would you like to feel?</label>
         <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Show events based on your desired mood.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -5074,7 +5074,9 @@ var FBAR_CONTROLS = [
   { key: "location",   label: "Location" },
   { key: "format",     label: "Format" },
   { key: "date",       label: "Date" },
-  { key: "feeling",    label: "Feeling" }
+  // Venue, host and feeling live under Advanced, which is what Jessie asked for at the start:
+  // "advanced would filter by venue, filter by host, filter by feeling".
+  { key: "advanced",   label: "Advanced" }
 ];
 
 function _fbarMove(fromId, toId) {
@@ -5115,9 +5117,15 @@ function _fbarValue(key) {
       var opt = sel.options[sel.selectedIndex];
       return opt ? opt.textContent.trim() : "All";
     }
-    if (key === "feeling") {
+    if (key === "advanced") {
+      var bits = [];
       var m = (typeof _selectedMoods !== "undefined" && _selectedMoods && _selectedMoods.size) || 0;
-      return m ? String(m) : "All";
+      if (m) bits.push(m + (m === 1 ? " feeling" : " feelings"));
+      var vv = (document.getElementById("venue-filter") || {}).value || "";
+      var hh = (document.getElementById("host-filter") || {}).value || "";
+      if (vv) bits.push("venue");
+      if (hh) bits.push("host");
+      return bits.length ? bits.join(", ") : "All";
     }
   } catch (e) {}
   return "All";
@@ -5135,7 +5143,12 @@ function fbarClear(key) {
     if (key === "location") { ["where-state","where-country","where-region"].forEach(function (id) { var el = document.getElementById(id); if (el) { el.value = ""; } }); }
     if (key === "format" && typeof setFilterFormat === "function") { setFilterFormat("all"); }
     if (key === "date") { var sel = document.getElementById("date-filter-select"); if (sel) { sel.value = "upcoming"; if (typeof setDateFilter === "function") setDateFilter("upcoming"); } }
-    if (key === "feeling" && typeof _selectedMoods !== "undefined") { _selectedMoods.clear(); }
+    if (key === "advanced") {
+      if (typeof _selectedMoods !== "undefined" && _selectedMoods) { _selectedMoods.clear(); }
+      ["venue-filter", "host-filter"].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ""; });
+      if (typeof renderPills === "function") { try { renderPills(); } catch (e) {} }
+      document.querySelectorAll(".mood-chip").forEach(function (b) { b.classList.remove("on"); b.style.background = ""; b.style.color = ""; });
+    }
   } catch (e) {}
   renderEvents();
   fbarDraw();
@@ -5151,7 +5164,7 @@ function fbarDraw() {
     var on = v !== "All";
     var open = _fbarOpen === c.key;
     return '<button class="fbar-btn' + (on ? ' on' : '') + '" onclick="fbarToggle(\'' + c.key + '\')">'
-      + c.label + ': <b>' + esc(v) + '</b> ' + (open ? '\u25b4' : '\u25be') + '</button>';
+      + c.label + ' <b>' + esc(v) + '</b> ' + (open ? '\u25b4' : '\u25be') + '</button>';
   }).join("") + '<button class="fbar-btn" id="fbar-reset" onclick="fbarResetAll()">Reset</button>';
 
   FBAR_CONTROLS.forEach(function (c) {
@@ -5168,16 +5181,7 @@ function fbarDraw() {
     se.style.display = ""; se.style.flex = "1"; se.style.minWidth = "0"; se.style.width = "auto";
     searchBox.appendChild(se);
   }
-  var box = document.getElementById("fbar-inputs");
-  if (box) {
-    ["venue-filter", "host-filter"].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el && el.parentElement !== box) {
-        el.style.display = ""; el.style.flex = "1 1 110px"; el.style.minWidth = "0"; el.style.width = "auto";
-        box.appendChild(el);
-      }
-    });
-  }
+  // Venue and host are under Advanced now, so nothing else goes in the top row.
 }
 
 function toggleRecWhy() {
@@ -5202,6 +5206,13 @@ function fbarBoot() {
   _fbarMove("where-row",   "fbar-panel-location");
   _fbarMove("cat-pills",   "fbar-panel-categories");
   _fbarMove("location-filter", "fbar-panel-location");
+  // Format, Date and Advanced were empty because nothing had been moved into them. Jessie:
+  // "these 3 don't work at all". 2026-09-06.
+  _fbarMove("fp-format",  "fbar-panel-format");
+  _fbarMove("fp-date",    "fbar-panel-date");
+  _fbarMove("fp-venue",   "fbar-panel-advanced");
+  _fbarMove("fp-host",    "fbar-panel-advanced");
+  _fbarMove("fp-feeling", "fbar-panel-advanced");
 
   // Interests: the chips row and the add row, both lifted out of the recommendations box.
   var iPanel = document.getElementById("fbar-panel-interests");
