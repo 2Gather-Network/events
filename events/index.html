@@ -2673,6 +2673,13 @@ function renderEvents() {
 
   // V12.80: dim chips whose own filter would zero-out the visible set.
   // For each candidate we hold every OTHER filter and count what remains.
+  // For You reads the same filters, so it has to be redrawn whenever they change. Without this the
+  // count would be right on load and stale on the first filter press.
+  if (typeof renderForYou === "function" && !_fyRedrawing) {
+    _fyRedrawing = true;
+    try { renderForYou(); } finally { _fyRedrawing = false; }
+  }
+
   var _catBase  = _prefiltered.filter(function(e) { return _passesEventFilters(e, {skipCat:true}); });
   var _moodBase = _prefiltered.filter(function(e) { return _passesEventFilters(e, {skipMood:true}); });
   _applyChipDims(_catBase, _moodBase);
@@ -4967,7 +4974,11 @@ function toggleFyCollapse() {
   _fyCollapsedMobile = !_fyCollapsedMobile;
   renderForYou();
 }
+// Words that appear in event text and are never a subject. Listed rather than guessed at, so
+// adding one is a line here.
+var FY_NOT_TOPICS = { cancelled: 1, canceled: 1, postponed: 1, tbd: 1, zoom: 1, online: 1 };
 var FY_CAP = 6;
+var _fyRedrawing = false;   // renderEvents calls renderForYou; stop them calling each other
 var _fyShowAll = false;
 function toggleFyShowAll() { _fyShowAll = !_fyShowAll; renderForYou(); }
 
@@ -5035,8 +5046,17 @@ function renderForYou() {
   // COUNT EVERYTHING, THEN CAP. It used to break out of the loop at six, so the total was never
   // known and nothing could report it: on a laptop with twelve matches you saw six and had no way
   // to find out. Jessie, 2026-09-06: "say the true number and offer the rest".
-  const _fyTotal = _allMatched.length;
-  const matched = _fyShowAll ? _allMatched : _allMatched.slice(0, FY_CAP);
+  // YOUR FILTERS REACH YOUR MATCHES. For You was built as its own island: it read every event and
+  // never saw the location, date, category or search filters applied to the list below, so a match
+  // could be in another state next year while the page was filtered to Washington this month.
+  // Same function the main list uses, so the two can never drift. Jessie, 2026-09-06.
+  const _fyAll = _allMatched.length;
+  const _fyKept = _allMatched.filter(function (ev) {
+    try { return _passesEventFilters(ev); } catch (e) { return true; }
+  });
+  const _fyTotal = _fyKept.length;
+  const _fyHidden = _fyAll - _fyTotal;
+  const matched = _fyShowAll ? _fyKept : _fyKept.slice(0, FY_CAP);
 
   const resultsEl = document.getElementById("for-you-results");
   if (!resultsEl) return;
@@ -5058,15 +5078,21 @@ function renderForYou() {
   }
   var _fyMore = document.getElementById("for-you-more");
   if (_fyMore) {
+    // Say what the number is a count of. A count that silently excludes things is the fault this
+    // whole block was fixing.
+    var bits = [];
     if (_fyTotal > FY_CAP) {
-      _fyMore.style.display = "block";
-      _fyMore.innerHTML = '<span style="color:var(--muted);">' + matched.length + ' of ' + _fyTotal +
-        ' matches</span> \u00b7 <a onclick="toggleFyShowAll()" style="color:var(--primary);font-weight:700;cursor:pointer;">' +
-        (_fyShowAll ? 'Show fewer' : 'Show all') + '</a>';
-    } else {
-      _fyMore.style.display = "none";
-      _fyMore.innerHTML = "";
+      bits.push('<span style="color:var(--muted);">' + matched.length + ' of ' + _fyTotal + ' matches</span>'
+        + ' \u00b7 <a onclick="toggleFyShowAll()" style="color:var(--primary);font-weight:700;cursor:pointer;">'
+        + (_fyShowAll ? 'Show fewer' : 'Show all') + '</a>');
+    } else if (_fyHidden > 0) {
+      bits.push('<span style="color:var(--muted);">' + _fyTotal + (_fyTotal === 1 ? ' match' : ' matches') + '</span>');
     }
+    if (_fyHidden > 0) {
+      bits.push('<span style="color:var(--muted);">' + _fyHidden + ' more match your topics, hidden by your filters</span>');
+    }
+    if (bits.length) { _fyMore.style.display = "block"; _fyMore.innerHTML = bits.join(' \u00b7 '); }
+    else { _fyMore.style.display = "none"; _fyMore.innerHTML = ""; }
   }
 
   resultsEl.innerHTML = matched.map(ev => {
@@ -5198,6 +5224,10 @@ function onInterestsInput(e) {
         const raw = word.trim().replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '');
         const w = raw.toLowerCase();
         if (w.length <= 2 || w.indexOf(val) !== 0) return;
+        // A word that is about the LISTING rather than the subject is not a topic. "CANCELLED"
+        // came out of titles like "Intention Lab [CANCELLED]" and nobody wants it as an interest.
+        // Jessie saw it on 2026-09-06.
+        if (FY_NOT_TOPICS[w]) return;
         var held = seen[w];
         if (!held) { seen[w] = raw; return; }
         var betterCase = /^[A-Z]/.test(raw) && !/^[A-Z]/.test(held);
