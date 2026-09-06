@@ -223,7 +223,18 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   a { color: var(--primary); }
   a:visited { color: var(--primary); }
-  </style>
+    .fbar-btn{font-size:13px;padding:6px 11px;border-radius:8px;border:1.5px solid var(--border);
+    background:#fff;color:var(--muted);font-family:inherit;cursor:pointer;white-space:nowrap;}
+  .fbar-btn b{color:var(--dark);font-weight:600;}
+  .fbar-btn.on{background:#EBF5FB;border-color:#AED6F1;color:#154F74;}
+  .fbar-btn.on b{color:#154F74;}
+  .fbar-panel{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+  .fbar-tools{display:flex;align-items:center;gap:12px;margin-bottom:8px;font-size:13px;}
+  .fbar-tools button{background:none;border:none;color:var(--primary);font-family:inherit;
+    font-size:13px;font-weight:700;cursor:pointer;padding:0;}
+  .fbar-sep{color:var(--border);}
+  #fbar-reset{margin-left:auto;}
+</style>
   <script src="/nav/identity.js?v=12"></script>
 </head>
 <body>
@@ -261,6 +272,30 @@
        left of a row; the topic input + Add button sit on the right and are NEVER rebuilt, so
        typing survives the empty->active flip. Matched events fill the width below. On mobile
        the row wraps and the input drops under the text. -->
+  <!-- ═══ THE FILTER BAR, behind ?bar=1 ═══════════════════════════════════════════════════════
+       Spec: design/features/events-filter-bar-2026-09-06.md. Today's page is frozen at
+       design/frozen/events-2026-09-06.html.
+
+       IT MOVES THE EXISTING CONTROLS, it does not rebuild them. Each panel below is filled at boot
+       by physically moving the real elements into it, so every handler, every id and every piece of
+       logic already written keeps working and there is no second copy to keep in step. Jessie:
+       "instead of drop down interests it just says Show interests and then shows our already built
+       interest bar, no different."
+
+       Nothing here overlays anything. Panels open downward, in the flow of the page, because modals
+       render badly inside Glide and that is a standing rule.
+  -->
+  <div id="fbar" style="display:none;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:14px;">
+    <div id="fbar-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
+    <div id="fbar-panel-interests" class="fbar-panel" style="display:none;"></div>
+    <div id="fbar-panel-categories" class="fbar-panel" style="display:none;"></div>
+    <div id="fbar-panel-location" class="fbar-panel" style="display:none;"></div>
+    <div id="fbar-panel-format" class="fbar-panel" style="display:none;"></div>
+    <div id="fbar-panel-date" class="fbar-panel" style="display:none;"></div>
+    <div id="fbar-panel-feeling" class="fbar-panel" style="display:none;"></div>
+    <div id="fbar-count" style="font-size:13px;color:var(--muted);margin-top:10px;"></div>
+  </div>
+
   <div id="for-you-section" style="display:none;background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:24px;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
       <div style="flex:1;min-width:180px;">
@@ -297,7 +332,18 @@
     <!-- V12.36 REMOVED: "Pull more from my event profile" button auto-added ALL matching topics
          with no picker, flooding the topic list. Removed 2026-08-19; keep pullProfileInterests()
          function in JS (harmless without the row) in case another entry point calls it. -->
-<!-- Matches, full width below the row. renderForYou toggles this with the active state. -->
+<!-- Recommendations. The header and the i are drawn only when the bar is on, because without it
+         the block already sits under My interests and a second heading would say the same twice. -->
+    <div id="rec-head" style="display:none;align-items:center;gap:8px;margin-bottom:2px;">
+      <span style="font-size:15px;font-weight:800;color:var(--dark);">Recommendations</span>
+      <button onclick="toggleRecWhy()" aria-label="Why these are here" style="background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:50%;width:20px;height:20px;line-height:1;font-size:12px;font-weight:700;cursor:pointer;padding:0;">i</button>
+    </div>
+    <!-- IN PLACE, not an overlay. Modals render badly inside Glide and that is a standing rule. -->
+    <div id="rec-why" style="display:none;font-size:13px;color:var(--muted);background:#F7FBFF;border:1px solid #C9DFF3;border-radius:8px;padding:8px 10px;margin-bottom:8px;">
+      These are recommended based on your interests and location.
+      <button onclick="toggleRecWhy()" aria-label="Close" style="background:none;border:none;color:var(--muted);float:right;font-size:14px;cursor:pointer;padding:0 2px;line-height:1;">&times;</button>
+    </div>
+    <!-- Matches, full width below the row. renderForYou toggles this with the active state. -->
     <!-- V12.80: on mobile the bar below stands in for the results grid, which collapses via the .collapsed class. -->
     <div id="for-you-collapse-bar"></div>
     <div id="for-you-results" style="display:none;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);"></div>
@@ -2691,7 +2737,14 @@ function renderEvents() {
   // count would be right on load and stale on the first filter press.
   if (typeof renderForYou === "function" && !_fyRedrawing) {
     _fyRedrawing = true;
-    try { renderForYou(); } finally { _fyRedrawing = false; }
+    try { renderForYou(); if (typeof fbarDraw === "function") fbarDraw(); } finally { _fyRedrawing = false; }
+  }
+  // One count for the whole page, under the bar, replacing the per-block ones.
+  if (FBAR) {
+    var _fc = document.getElementById("fbar-count");
+    if (_fc) { _fc.textContent = (_totalMatches === list.length)
+      ? _totalMatches + (_totalMatches === 1 ? " event" : " events")
+      : list.length + " of " + _totalMatches + " events"; }
   }
 
   var _catBase  = _prefiltered.filter(function(e) { return _passesEventFilters(e, {skipCat:true}); });
@@ -4865,6 +4918,8 @@ loadEvents().then(() => {
   }
   // Initialize For You section after events load
   initForYou();
+  // The bar last, because it moves controls that everything above has finished wiring.
+  try { fbarBoot(); } catch (e) { if (FBAR) { console.error("filter bar failed to boot", e); } }
 });
 
 // ── For You Section ─────────────────────────────────────────────
@@ -4990,6 +5045,169 @@ function toggleFyCollapse() {
 }
 // Words that appear in event text and are never a subject. Listed rather than guessed at, so
 // adding one is a line here.
+// ═══ THE FILTER BAR ═══════════════════════════════════════════════════════════════════════════
+// Behind ?bar=1 until Jessie says otherwise. Spec: design/features/events-filter-bar-2026-09-06.md
+//
+// It MOVES the controls that already exist into its panels rather than rebuilding them, so nothing
+// is duplicated and every existing handler keeps working. Built 2026-09-06.
+var FBAR = /[?&]bar=1(&|$)/.test(location.search);
+var _fbarOpen = "";
+
+// Each control: what it is called, which panel it opens, and how it says its own state.
+var FBAR_CONTROLS = [
+  { key: "interests",  label: "Interests" },
+  { key: "categories", label: "Categories" },
+  { key: "location",   label: "Location" },
+  { key: "format",     label: "Format" },
+  { key: "date",       label: "Date" },
+  { key: "feeling",    label: "Feeling" }
+];
+
+function _fbarMove(fromId, toId) {
+  var el = document.getElementById(fromId), to = document.getElementById(toId);
+  if (el && to) { el.style.display = ""; to.appendChild(el); }
+}
+
+// What each control says when it is closed. "All" when it is doing nothing.
+function _fbarValue(key) {
+  try {
+    if (key === "interests") {
+      var on = loadInterests().length;
+      return on ? on + " of " + on : "All";
+    }
+    if (key === "categories") {
+      // ONE category at a time, which is what the page already does. activeFilter holds it and
+      // "all" means no category. Jessie asked for Select all and Select none, which needs this to
+      // become multi-select; that is a change to how filtering works rather than a move, so it is
+      // raised rather than assumed. 2026-09-06.
+      var af = typeof activeFilter !== "undefined" ? activeFilter : "all";
+      return (!af || af === "all") ? "All" : String(af);
+    }
+    if (key === "location") {
+      // THE DEEPEST LEVEL ACTUALLY CHOSEN, never a lower one. Saying Washington when only a region
+      // was picked is a claim the person never made. Jessie, 2026-09-06.
+      var st = (document.getElementById("where-state") || {}).value || "";
+      var co = (document.getElementById("where-country") || {}).value || "";
+      var rg = (document.getElementById("where-region") || {}).value || "";
+      return st || co || rg || "All";
+    }
+    if (key === "format") {
+      var f = typeof _activeFormat !== "undefined" ? _activeFormat : "all";
+      return f === "virtual" ? "Virtual" : f === "inperson" ? "In person" : "All";
+    }
+    if (key === "date") {
+      var sel = document.getElementById("date-filter-select");
+      if (!sel || !sel.value || sel.value === "upcoming") return "All";
+      var opt = sel.options[sel.selectedIndex];
+      return opt ? opt.textContent.trim() : "All";
+    }
+    if (key === "feeling") {
+      var m = (typeof _selectedMoods !== "undefined" && _selectedMoods && _selectedMoods.size) || 0;
+      return m ? String(m) : "All";
+    }
+  } catch (e) {}
+  return "All";
+}
+
+function fbarToggle(key) {
+  _fbarOpen = (_fbarOpen === key) ? "" : key;
+  fbarDraw();
+}
+
+function fbarClear(key) {
+  try {
+    if (key === "interests") { saveInterests([]); renderForYou(); }
+    if (key === "categories" && typeof setFilter === "function") { setFilter("all"); }
+    if (key === "location") { ["where-state","where-country","where-region"].forEach(function (id) { var el = document.getElementById(id); if (el) { el.value = ""; } }); }
+    if (key === "format" && typeof setFilterFormat === "function") { setFilterFormat("all"); }
+    if (key === "date") { var sel = document.getElementById("date-filter-select"); if (sel) { sel.value = "upcoming"; if (typeof setDateFilter === "function") setDateFilter("upcoming"); } }
+    if (key === "feeling" && typeof _selectedMoods !== "undefined") { _selectedMoods.clear(); }
+  } catch (e) {}
+  renderEvents();
+  fbarDraw();
+}
+
+function fbarDraw() {
+  if (!FBAR) return;
+  var row = document.getElementById("fbar-row");
+  if (!row) return;
+
+  row.innerHTML = FBAR_CONTROLS.map(function (c) {
+    var v = _fbarValue(c.key);
+    var on = v !== "All";
+    var open = _fbarOpen === c.key;
+    return '<button class="fbar-btn' + (on ? ' on' : '') + '" onclick="fbarToggle(\'' + c.key + '\')">'
+      + c.label + ': <b>' + esc(v) + '</b> ' + (open ? '\u25b4' : '\u25be') + '</button>';
+  }).join("") + '<button class="fbar-btn" id="fbar-reset" onclick="fbarResetAll()">Reset</button>';
+
+  FBAR_CONTROLS.forEach(function (c) {
+    var panel = document.getElementById("fbar-panel-" + c.key);
+    if (!panel) return;
+    panel.style.display = (_fbarOpen === c.key) ? "block" : "none";
+  });
+
+  // The bar owns the venue, host and search boxes; they sit after the controls.
+  ["venue-filter", "host-filter", "search-input"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el && el.parentElement !== row) { row.insertBefore(el, document.getElementById("fbar-reset")); }
+  });
+}
+
+function toggleRecWhy() {
+  var el = document.getElementById("rec-why");
+  if (el) { el.style.display = (el.style.display === "block") ? "none" : "block"; }
+}
+
+function fbarResetAll() { if (typeof resetFilters === "function") { resetFilters(); } _fbarOpen = ""; fbarDraw(); }
+
+function fbarBoot() {
+  if (!FBAR) return;
+  var bar = document.getElementById("fbar");
+  if (bar) bar.style.display = "block";
+  var rh = document.getElementById("rec-head");
+  if (rh) rh.style.display = "flex";
+
+  // Hide the three places these controls used to live. The panel keeps whatever is not moved.
+  [".filter-row"].forEach(function (sel) { var el = document.querySelector(sel); if (el) el.style.display = "none"; });
+  ["filter-panel"].forEach(function (id) { var el = document.getElementById(id); if (el) el.style.display = "none"; });
+
+  // Move the real controls in. Each one keeps its id, its handlers and its behaviour.
+  _fbarMove("where-row",   "fbar-panel-location");
+  _fbarMove("cat-pills",   "fbar-panel-categories");
+  _fbarMove("location-filter", "fbar-panel-location");
+
+  // Interests: the chips row and the add row, both lifted out of the recommendations box.
+  var iPanel = document.getElementById("fbar-panel-interests");
+  var chips = document.getElementById("for-you-chips");
+  if (chips && iPanel && chips.parentElement) { iPanel.appendChild(chips.parentElement); }
+  _fbarMove("topic-add-row", "fbar-panel-interests");
+
+  // Every panel gets its own Hide and Clear, and categories gets select all and none.
+  FBAR_CONTROLS.forEach(function (c) {
+    var panel = document.getElementById("fbar-panel-" + c.key);
+    if (!panel) return;
+    var tools = document.createElement("div");
+    tools.className = "fbar-tools";
+    tools.innerHTML = '<button onclick="fbarToggle(\'' + c.key + '\')">Hide</button>'
+      + '<button onclick="fbarClear(\'' + c.key + '\')">Clear</button>'
+      + (c.key === "categories"
+          ? '<span class="fbar-sep">|</span><button onclick="fbarSelectAllCats(true)">Show all categories</button>'
+          : "");
+    panel.insertBefore(tools, panel.firstChild);
+  });
+
+  fbarDraw();
+}
+
+function fbarSelectAllCats(all) {
+  // "Select all" is what the page already calls Show all categories. There is no "select none"
+  // while a category is a single choice: none would mean showing nothing at all. It comes back the
+  // day categories become multi-select, which is queued rather than smuggled in here.
+  if (typeof setFilter === "function") { setFilter("all"); }
+  renderEvents();
+  fbarDraw();
+}
+
 var FY_NOT_TOPICS = { cancelled: 1, canceled: 1, postponed: 1, tbd: 1, zoom: 1, online: 1 };
 // Five on a desktop. On a phone the cards do not draw at all until asked for: the block sits above
 // the calendar and a wall of match cards pushed the events themselves off the screen. Jessie,
