@@ -296,6 +296,9 @@
     <!-- V12.80: on mobile the bar below stands in for the results grid, which collapses via the .collapsed class. -->
     <div id="for-you-collapse-bar"></div>
     <div id="for-you-results" style="display:none;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);"></div>
+    <!-- The true count, on every screen. The phone had a collapse bar saying how many; the desktop
+         said nothing at all, so six of twelve looked like twelve. 2026-09-06. -->
+    <div id="for-you-more" style="display:none;font-size:13px;margin-top:10px;"></div>
     <!-- Inline reveal rather than an overlay - modals render badly inside Glide. Adding happens
          in the row above, so this panel is only for removing topics. -->
     <div id="interests-panel" style="display:none;border-top:1px solid var(--border);padding-top:16px;margin-top:14px;">
@@ -4964,6 +4967,10 @@ function toggleFyCollapse() {
   _fyCollapsedMobile = !_fyCollapsedMobile;
   renderForYou();
 }
+var FY_CAP = 6;
+var _fyShowAll = false;
+function toggleFyShowAll() { _fyShowAll = !_fyShowAll; renderForYou(); }
+
 function renderForYou() {
   const interests = loadInterests();
   updatePullProfileLink();   // link state is independent of which render branch runs below
@@ -5018,14 +5025,18 @@ function renderForYou() {
   // occurrences count as one; one-off events stay unique by id. Sorted ascending above, so
   // the first one kept per series is the soonest.
   const _seenSeries = new Set();
-  const matched = [];
+  const _allMatched = [];
   for (const ev of matchedAll) {
     const key = ev.recurFreq ? ("series:" + String(ev.title||"").trim().toLowerCase()) : ("id:" + ev.id);
     if (_seenSeries.has(key)) continue;
     _seenSeries.add(key);
-    matched.push(ev);
-    if (matched.length >= 6) break;
+    _allMatched.push(ev);
   }
+  // COUNT EVERYTHING, THEN CAP. It used to break out of the loop at six, so the total was never
+  // known and nothing could report it: on a laptop with twelve matches you saw six and had no way
+  // to find out. Jessie, 2026-09-06: "say the true number and offer the rest".
+  const _fyTotal = _allMatched.length;
+  const matched = _fyShowAll ? _allMatched : _allMatched.slice(0, FY_CAP);
 
   const resultsEl = document.getElementById("for-you-results");
   if (!resultsEl) return;
@@ -5045,6 +5056,19 @@ function renderForYou() {
     resultsEl.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:8px 0;">🔍 No upcoming events match your topics. <a onclick="toggleInterestsPanel()" style="color:var(--primary);font-weight:700;cursor:pointer;">Try broadening your keywords</a></div>`;
     return;
   }
+  var _fyMore = document.getElementById("for-you-more");
+  if (_fyMore) {
+    if (_fyTotal > FY_CAP) {
+      _fyMore.style.display = "block";
+      _fyMore.innerHTML = '<span style="color:var(--muted);">' + matched.length + ' of ' + _fyTotal +
+        ' matches</span> \u00b7 <a onclick="toggleFyShowAll()" style="color:var(--primary);font-weight:700;cursor:pointer;">' +
+        (_fyShowAll ? 'Show fewer' : 'Show all') + '</a>';
+    } else {
+      _fyMore.style.display = "none";
+      _fyMore.innerHTML = "";
+    }
+  }
+
   resultsEl.innerHTML = matched.map(ev => {
     const haystack = [ev.title, ev.keywords, ev.categories, ev.description, ev.host, ev.location, ev.venue, ev.experience]
       .filter(Boolean).join(" ").toLowerCase();
@@ -5157,17 +5181,31 @@ function onInterestsInput(e) {
   const val = e.target.value.trim().toLowerCase();
   const ac = document.getElementById("interests-autocomplete");
   if (!val || val.length < 2) { ac.style.display = "none"; return; }
-  const suggestions = new Set();
+  // FROM THE START OF A WORD, not anywhere inside it. Typing "ca" used to return Physical,
+  // Landscape and Medical, because it matched physi-ca-l, lands-ca-pe and medi-ca-l. Matching
+  // inside a word is right in the middle of a search box and wrong at the front of one.
+  //
+  // And ONE ENTRY PER WORD. The old version kept each spelling as written and de-duplicated on the
+  // exact text, so an event that wrote "Landscape" and one that wrote "landscape" became two
+  // suggestions, and picking both gave two topics that mean the same thing. They fold together now
+  // and the nicest-looking spelling wins: a capitalised one over lower case, the longest otherwise.
+  // Jessie, 2026-09-06.
+  const seen = {};
   events.forEach(ev => {
     [ev.title, ev.keywords, ev.categories, ev.description].forEach(field => {
       if (!field) return;
       String(field).split(/[,\s]+/).forEach(word => {
-        const w = word.trim().toLowerCase();
-        if (w.length > 2 && w.includes(val)) suggestions.add(word.trim());
+        const raw = word.trim().replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '');
+        const w = raw.toLowerCase();
+        if (w.length <= 2 || w.indexOf(val) !== 0) return;
+        var held = seen[w];
+        if (!held) { seen[w] = raw; return; }
+        var betterCase = /^[A-Z]/.test(raw) && !/^[A-Z]/.test(held);
+        if (betterCase || (raw.length > held.length && /^[A-Z]/.test(raw) === /^[A-Z]/.test(held))) { seen[w] = raw; }
       });
     });
   });
-  const filtered = Array.from(suggestions).slice(0, 8);
+  const filtered = Object.keys(seen).sort().map(function (k) { return seen[k]; }).slice(0, 8);
   if (!filtered.length) { ac.style.display = "none"; return; }
   ac.innerHTML = filtered.map(s =>
     `<div onclick="selectInterestSuggestion('${s.replace(/'/g,"\\'")}') " style="padding:9px 14px;font-size:13px;cursor:pointer;color:var(--dark);border-bottom:1px solid var(--border);">${s}</div>`
