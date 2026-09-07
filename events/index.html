@@ -422,6 +422,15 @@
       <select id="where-state" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onWhereState()">
         <option value="">Select state…</option>
       </select>
+      <!-- The fourth level, and the only one in the location spec that was never built. It draws
+           its options from the counties the EVENTS carry rather than from a list, so there is no
+           second thing to keep in step, and it stays hidden until there are two or more to choose
+           between. Today every event with a county says Snohomish County, so nobody sees this.
+           The day events arrive from a second county it appears on its own with no push.
+           Jessie, 2026-09-06: "only for 2 or more yes". -->
+      <select id="where-county" class="input" style="width:auto;padding:7px 12px;font-size:13px;display:none;" onchange="onWhereCounty()">
+        <option value="">Select county…</option>
+      </select>
     </div>
     <div id="where-chip" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;">
       <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#154F74;background:#E8F2F9;padding:7px 14px;border-radius:20px;">📍 Location: <span id="where-chip-label"></span></span>
@@ -2241,7 +2250,9 @@ function _wherePlaceName() {
   return (c === "Canada" || c === "Mexico") ? c : "";
 }
 function _whereChipLabel() {
+  var co = (document.getElementById("where-county") || {}).value || "";
   var st = document.getElementById("where-state").value;
+  if (co && st) return co + ", " + st;
   if (st) return st + ", United States";
   return _wherePlaceName();
 }
@@ -2267,6 +2278,14 @@ function _eventMatchesWhere(e) {
   var loc = String(e.location || "");
   var locL = loc.toLowerCase();
   if (!locL.trim()) return true;   // no location -> vague -> keep
+  // THE COUNTY FIRST, when one is chosen, because it is the narrower question. An event with no
+  // county of its own is kept, which is the same rule this function already applies to an event
+  // with no location: vague keeps rather than hides. 2026-09-06.
+  var co = (document.getElementById("where-county") || {}).value || "";
+  if (co) {
+    var evCo = String(e.county || "").trim();
+    if (evCo && _bareCounty(evCo) !== _bareCounty(co)) return false;
+  }
   var st = document.getElementById("where-state").value;
   if (st) {
     var abbr = US_STATES_ABBR[st] || "";
@@ -2324,7 +2343,52 @@ function onWhereState() {
   var v = document.getElementById("where-state").value;
   rememberState(v);
   _syncFilterState(v);
+  var co = document.getElementById("where-county");
+  if (co) { co.value = ""; }          // a new state, so the old county cannot still hold
+  refreshCountyOptions();
   if (v) whereApply(); else renderEvents();
+}
+
+function onWhereCounty() {
+  var co = document.getElementById("where-county");
+  if (co && co.value) { whereApply(); } else { renderEvents(); }
+}
+
+// "King County" and "King" are the same place. The us-county tab writes Washington's with the word
+// and Oregon's without it, so every comparison is made on the bare name. 2026-09-06.
+function _bareCounty(v) {
+  return String(v || "").trim().toLowerCase().replace(/\s+county$/, "");
+}
+
+// The options ARE the data: every distinct county on the events that survive the rest of the
+// location filter. Rebuilt only when that set actually changes, so an open dropdown is not reset
+// under somebody's hand on every keystroke in the search box.
+var _countySig = "";
+function refreshCountyOptions() {
+  var sel = document.getElementById("where-county");
+  if (!sel) return;
+  var seen = {};
+  try {
+    var pool = (typeof events !== "undefined" && events) ? events : [];
+    pool.forEach(function (e) {
+      var v = String(e.county || "").trim();
+      if (!v) return;
+      if (e.isPrivate) return;
+      seen[_bareCounty(v)] = v;      // keep the spelling the sheet uses
+    });
+  } catch (err) {}
+  var names = Object.keys(seen).sort().map(function (k) { return seen[k]; });
+  var sig = names.join("|");
+  if (sig === _countySig) return;
+  _countySig = sig;
+  var keep = sel.value;
+  // FEWER THAN TWO IS NOT A CHOICE. One option that cannot narrow anything is a dead control, and
+  // the page would still have to draw it at nought. Jessie, 2026-09-06: "only for 2 or more yes".
+  if (names.length < 2) { sel.style.display = "none"; sel.value = ""; sel.innerHTML = '<option value="">Select county…</option>'; return; }
+  sel.innerHTML = '<option value="">Select county…</option>';
+  names.forEach(function (n) { sel.innerHTML += '<option>' + n + '</option>'; });
+  sel.value = (names.indexOf(keep) !== -1) ? keep : "";
+  sel.style.display = "";
 }
 function _syncFilterState(v) {
   var fs = document.getElementById("filter-state");
@@ -2333,6 +2397,7 @@ function _syncFilterState(v) {
   fs.value = v || "";
 }
 function _resetWhereRow() {
+  var cy = document.getElementById("where-county"); if (cy) { cy.value = ""; cy.style.display = "none"; }
   var rg = document.getElementById("where-region"); if (rg) rg.value = "North America";
   rememberState("");
   _whereApplied = false;
@@ -2742,6 +2807,7 @@ function renderEvents() {
   // THE COUNT IN THE HEADING, and it is what the filters leave. Nothing while the events are
   // still arriving: "Upcoming events (0)" during the first seconds is the page asserting
   // something before it knows. Jessie, 2026-09-06: "where 42 is total filtered showing".
+  refreshCountyOptions();   // the events are what the list is made of, so it follows them
   var _uh = document.getElementById("upcoming-head");
   if (_uh) { _uh.textContent = isLoadingData ? "Upcoming events" : ("Upcoming events (" + list.length + ")"); }
 
@@ -5220,10 +5286,11 @@ function _fbarValue(key) {
     if (key === "location") {
       // THE DEEPEST LEVEL ACTUALLY CHOSEN, never a lower one. Saying Washington when only a region
       // was picked is a claim the person never made. Jessie, 2026-09-06.
+      var cy = (document.getElementById("where-county") || {}).value || "";
       var st = (document.getElementById("where-state") || {}).value || "";
       var co = (document.getElementById("where-country") || {}).value || "";
       var rg = (document.getElementById("where-region") || {}).value || "";
-      return st || co || rg || "All";
+      return cy || st || co || rg || "All";
     }
     if (key === "format") {
       var f = typeof _activeFormat !== "undefined" ? _activeFormat : "all";
@@ -5258,7 +5325,7 @@ function fbarClear(key) {
   try {
     if (key === "interests") { saveInterests([]); renderForYou(); }
     if (key === "categories" && typeof setFilter === "function") { setFilter("all"); }   // clears the set
-    if (key === "location") { ["where-state","where-country","where-region"].forEach(function (id) { var el = document.getElementById(id); if (el) { el.value = ""; } }); }
+    if (key === "location") { ["where-county","where-state","where-country","where-region"].forEach(function (id) { var el = document.getElementById(id); if (el) { el.value = ""; } }); }
     if (key === "format" && typeof setFilterFormat === "function") { setFilterFormat("all"); }
     if (key === "date") { var sel = document.getElementById("date-filter-select"); if (sel) { sel.value = "upcoming"; if (typeof setDateFilter === "function") setDateFilter("upcoming"); } }
     if (key === "advanced") {
