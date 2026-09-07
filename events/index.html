@@ -276,6 +276,12 @@
      2026-09-06 and the other two came out with the parameter that showed them. */
   .fbar-btn.fbar-adv{border-width:2px;border-color:var(--cw-blue);color:var(--cw-blue);font-weight:700;}
   .fbar-btn.fbar-adv b{color:var(--cw-blue);}
+  /* AND WHITE ONCE IT IS ON. .fbar-btn.on sets a blue background and white text, and the two rules
+     above have the same specificity and come later, so their blue text won: the button turned into
+     a solid blue rectangle with an invisible label. Jessie, 2026-09-07: "search by
+     (feeling/venue/host) doesn't work. just makes dark blue button". It worked. It could not be
+     read. Three classes beats two, which settles it rather than relying on the order. */
+  .fbar-btn.fbar-adv.on, .fbar-btn.fbar-adv.on b{color:#fff;}
   .fbar-car{display:inline-block;transition:transform .12s;}
   .fbar-car.up{transform:rotate(180deg);}
   /* THE OLD CONTROLS ARE HIDDEN FROM THE FIRST PAINT, not when the events arrive.
@@ -445,7 +451,7 @@
            The button comes first in the markup now and the field follows it, which is that order
            on the screen. The button-first reveal from V12.80 is gone with it: in editing the field
            is simply there. -->
-      <div id="topic-add-row" style="display:none;gap:8px;position:relative;flex-shrink:0;align-items:center;">
+      <div id="topic-add-row" style="display:none;gap:8px;position:relative;flex-shrink:0;align-items:center;margin-bottom:12px;">
         <button id="topic-add-btn" onclick="onTopicAddClick()" style="flex-shrink:0;background:var(--cw-blue);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;">Add</button>
         <input id="interests-input" type="text" placeholder='Topic or "exact phrase"' autocomplete="off"
           style="width:220px;max-width:52vw;border:1.5px solid var(--border);border-radius:8px;padding:9px 14px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;box-sizing:border-box;"
@@ -509,7 +515,12 @@
        America / United States so picking a US state is one tap (not four levels deep in Filters);
        any other region offers nothing further. Writes rememberState() - the same source the local
        banner's Washington gate reads via knownState() - and mirrors into #filter-state. -->
-  <div id="where-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+  <!-- NO INLINE display HERE. It carried style="display:flex" and the rule meant to hide it during
+       the load was `#where-row{display:none}` in the stylesheet, which an inline style beats. So
+       the fix written on 2026-09-07 to stop this painting on its own did nothing at all, and Jessie
+       saw the Location chip again on the next slow load. The stylesheet owns it now: hidden where
+       it starts, shown once it is inside a panel. Specificity decides, not intent. -->
+  <div id="where-row" style="align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
     <div id="where-edit" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <span style="font-size:13px;font-weight:700;color:var(--dark);white-space:nowrap;">📍 Where are you?</span>
       <select id="where-region" class="input" style="width:auto;padding:7px 12px;font-size:13px;" onchange="onWhereRegion()">
@@ -2935,7 +2946,9 @@ function renderEvents() {
   if (_lm) _lm.remove();
   if (list.length === 0) {
     if (isLoadingData) {
-      grid.innerHTML = `<div style="text-align:center;padding:30px 20px;"><div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#1b6896;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px;"></div><p style="color:#6b7280;font-size:14px;margin:0;">Loading events...</p></div>`;
+      // ACROSS THE WHOLE WIDTH. The grid lays out cards in columns, so this sat in the first one
+      // and the spinner appeared off to the left rather than in the middle of the page.
+      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px 20px;"><div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#1b6896;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px;"></div><p style="color:#6b7280;font-size:14px;margin:0;">Loading events...</p></div>`;
     } else {
       const msg = activeTab === "past" ? "No past events yet." : "Be the first to post something for the community.";
       grid.innerHTML = `<div style="text-align:center;padding:40px 20px;"><div class="empty-icon">📋</div><div class="empty-title">No events here</div><p style="color:var(--muted);">${msg}</p></div>`;
@@ -5254,6 +5267,12 @@ const _MC_PARAM = (function () {
     }).catch(function(){});
 })();
 
+// THE BAR IS DRAWN BEFORE THE DATA, because it does not need any. Its pills read from controls
+// that are already in the markup, so waiting for loadEvents left a bordered white box with nothing
+// in it for the whole 2-to-40-second load. Jessie, 2026-09-07: "remove the white bar showign while
+// loading too." fbarBoot draws it again afterwards, once the categories have counts.
+try { fbarDraw(); } catch (e) {}
+
 loadEvents().then(() => {
   // ?post=1 OPENS THE FORM. The welcome screen has a "Post an event" door and there was no address
   // that lands on the form, only a page with a button on it somewhere. A switch on the page that
@@ -5928,9 +5947,6 @@ function fbarBoot() {
       iRow.appendChild(chips);          // out of the label's container, into the row
     }
     var addRow = document.getElementById("topic-add-row");
-    // Moved, not shown. _fyPaintEditing owns whether it is on screen, because it belongs to the
-    // pencil now rather than to the row.
-    if (addRow) { addRow.style.flex = "0 0 auto"; iRow.appendChild(addRow); }
     iPanel.appendChild(iRow);
     // The invitation goes where the button is. It used to be prose in a box further down the page
     // that held no control at all. Shown only while there are no topics.
@@ -5944,7 +5960,14 @@ function fbarBoot() {
     // page, or nothing at all. Jessie, 2026-09-07: "I couldn't click on the pencil icon to edit
     // it." It opens in place now, under the row it belongs to.
     var editPanel = document.getElementById("interests-panel");
-    if (editPanel) { editPanel.style.borderTop = "none"; editPanel.style.paddingTop = "0"; editPanel.style.marginTop = "10px"; iPanel.appendChild(editPanel); }
+    if (editPanel) {
+      editPanel.style.borderTop = "none"; editPanel.style.paddingTop = "0"; editPanel.style.marginTop = "10px";
+      // ADD AND ITS FIELD GO IN HERE, AT THE LEFT. On the label row they were pushed to the far
+      // right by the chips, which take the space between. Jessie asked for the button left
+      // justified with the field to its right, so the pair leads the panel that the pencil opens.
+      if (addRow) { addRow.style.flex = "0 0 auto"; editPanel.insertBefore(addRow, editPanel.firstChild); }
+      iPanel.appendChild(editPanel);
+    }
   }
 
   // Every panel gets its own Hide and Clear, and categories gets select all and none.
