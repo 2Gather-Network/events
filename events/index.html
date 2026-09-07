@@ -5391,6 +5391,10 @@ function loadInterests() {
 function saveInterests(arr, phrase) {
   var onBehalf = isViewingSomeoneElse();
   if (onBehalf && !_confirmOnBehalf(phrase)) { return; }
+  // Kept so the chip draws at once, and PUT BACK if the backend says it could not save. Apps
+  // Script takes 2 to 40 seconds, so waiting for it before drawing would make every topic feel
+  // broken. Drawing and never checking is what made a failed save look like a good one.
+  var _before = loadInterests();
   try { localStorage.setItem(_interestsKey(), JSON.stringify(arr)); } catch(e) {}
   // WHOSE list this is, which is the viewed person while looking at somebody, and yours otherwise.
   const memberId = onBehalf ? getMemberId() : getRealMemberId();
@@ -5409,6 +5413,9 @@ function saveInterests(arr, phrase) {
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d && d.status === "ok" && d.saved === false) {
+          // Put the list back to what it was, so the screen and the sheet agree again.
+          try { localStorage.setItem(_interestsKey(), JSON.stringify(_before)); } catch (e) {}
+          try { renderForYou(); renderEnjoyPills(); } catch (e) {}
           var _who = onBehalf ? (function () {
             try { return localStorage.getItem("cw-view-as-name") || "that person"; } catch (e) { return "that person"; }
           })() : "you";
