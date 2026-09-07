@@ -1864,7 +1864,13 @@ async function renderMyEventsList(memberId, data) {
       + '<div style="font-size:14px;color:var(--muted);">Pick an event to see it here.</div></div>';
     var when = e.date ? fmtDate(e.date, e.time, e.endtime) : 'Date to be announced';
     var loc = e.venue || e.location || '';
-    var evUrl = 'event.html?id=' + encodeURIComponent(e.id) + '&memberCard=' + encodeURIComponent(memberId);
+    // ABSOLUTE, AND CARRYING NOBODY. It built "event.html?id=..." relative to whatever page you
+    // were on, so from /myevents/ it made /myevents/event.html, which is a 404. The same fault was
+    // fixed in seven places on 2026-09-04 and this one was missed. Jessie hit it on 2026-09-07.
+    //
+    // And the memberCard is gone. An id in an address is a bearer token that the next page
+    // remembers, and the event page asks the device who you are anyway.
+    var evUrl = 'https://2gather.network/event/?id=' + encodeURIComponent(e.id);
     // The event bulletin board is attendees-v2.html, the group.html-style board wired to event
     // data. attendees.html is the older inventory page and is not the board any more.
     var bbUrl = 'https://2gather.network/attendees-v2.html?id=' + encodeURIComponent(e.id) + '&memberCard=' + encodeURIComponent(memberId);
@@ -1957,6 +1963,36 @@ async function renderMyEventsList(memberId, data) {
         }
         var _host = _hostIdx > -1 ? ats.splice(_hostIdx, 1)[0] : null;
         var _hostName = String((_host && (_host.first || _host.name)) || _ev.host || '').trim();
+        // THE HOST IS FOUND BY WHO MADE THE EVENT, not by whether they registered for it.
+        //
+        // hostlink is the link to somebody's Appear page, filled only if they ticked an optional
+        // box about showing it, and matching on it is the fault that made 187 events invisible to
+        // their own hosts. So a host who did not register for their own event fell through to a
+        // name-only pill with initials in it. Jessie, 2026-09-07: "doesn't show jerry's photo".
+        //
+        // guestID says who made it. One small public read, and only when the host is not already
+        // among the people returned.
+        var _guest = String(_ev.guestID || _ev.userID || _ev.GuestID || '').trim();
+        if (!_host && _guest) {
+          fetch(GS_URL + '?action=lookupProfile&appearId=' + encodeURIComponent(_guest))
+            .then(function (r) { return r.json(); })
+            .then(function (p) {
+              if (_whoFor !== want || !p) return;
+              var face = document.getElementById('who-host-face');
+              var nameEl = document.getElementById('who-host-name');
+              var nm = String(p.name || _hostName || '').trim();
+              if (nameEl && nm) { nameEl.textContent = nm; }
+              if (face && p.photo) {
+                var img = document.createElement('img');
+                img.src = p.photo;
+                img.alt = '';
+                img.style.cssText = 'width:28px;height:28px;border-radius:50%;object-fit:cover;';
+                img.id = 'who-host-face';
+                face.parentNode.replaceChild(img, face);
+              }
+            })
+            .catch(function () {});
+        }
 
         // A face here opens that person's profile. Hrefless (data-nav + _safeNavGo) so the id
         // never shows on hover, and only when we actually have a page to open.
@@ -1975,12 +2011,12 @@ async function renderMyEventsList(memberId, data) {
         var hostPill = '';
         if (_host || _hostName) {
           var _hp = _host && _host.photo
-            ? '<img src="' + esc(_host.photo) + '" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">'
-            : '<span style="width:28px;height:28px;border-radius:50%;background:#B7C4D6;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">'
+            ? '<img id="who-host-face" src="' + esc(_host.photo) + '" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">'
+            : '<span id="who-host-face" style="width:28px;height:28px;border-radius:50%;background:#B7C4D6;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">'
               + esc(String(_hostName || '?').charAt(0).toUpperCase()) + '</span>';
           hostPill = wrapLink(_host,
             '<span style="display:inline-flex;align-items:center;gap:7px;background:#fff;border:1.5px solid var(--primary);border-radius:20px;padding:2px 12px 2px 2px;font-size:13px;font-weight:700;color:var(--primary);">'
-            + _hp + esc(_hostName || 'Host')
+            + _hp + '<span id="who-host-name">' + esc(_hostName || 'Host') + '</span>' 
             + '<span style="font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:#EEF1F5;color:#6B7A8D;border:1px solid #DDE3EA;border-radius:10px;padding:2px 7px;">Host</span></span>',
             _hostName ? ('Open ' + _hostName + "'s profile") : 'Open profile');
         }
