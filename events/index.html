@@ -5131,10 +5131,53 @@ try {
   }
 } catch(e){}
 // getMemberId - reads memberCard from URL param live each call, falls back to localStorage
+// WHO THIS PAGE IS LOOKING AT, and who is actually signed in. They are not the same person while
+// somebody is using "View as someone", and this page treated them as one thing.
+//
+// Jessie, 2026-09-07: viewing as Doug showed HER matches, her interests and her groups. The rest of
+// the site reads the id that View as someone stores; this page read only her own and had never
+// heard of it, so the top bar said Doug and the calendar underneath was still her.
+//
+// identity.js already had both halves and this page used neither:
+//   CW.me()      the person being LOOKED AT. Everything that DISPLAYS asks this.
+//   CW.realMe()  the person signed in.       Everything that WRITES asks this.
+//
+// Behind ?asview=1 until Jessie has tested it, because it changes who the page thinks you are and
+// that is the one thing worth being slow about.
+var VIEWFIX = /[?&]asview=1(&|$)/.test(location.search);
+
 function getMemberId() {
   const urlParam = new URLSearchParams(window.location.search).get("memberCard");
   if (urlParam) return urlParam;
+  if (VIEWFIX) {
+    try {
+      if (window.CW && typeof window.CW.me === "function") {
+        var seen = String(window.CW.me().id || "").trim();
+        if (seen) return seen;
+      }
+    } catch (e) {}
+  }
   try { return localStorage.getItem("appear-id"); } catch(e) { return null; }
+}
+
+// The signed-in person, whatever is being looked at. Anything that WRITES asks this and nothing
+// else, so looking at somebody can never save something onto their record.
+function getRealMemberId() {
+  const urlParam = new URLSearchParams(window.location.search).get("memberCard");
+  if (urlParam) return urlParam;
+  try {
+    if (window.CW && typeof window.CW.realMe === "function") {
+      var real = String(window.CW.realMe().id || "").trim();
+      if (real) return real;
+    }
+  } catch (e) {}
+  try { return localStorage.getItem("appear-id"); } catch(e) { return null; }
+}
+
+// True while looking at somebody else. A write checks this and refuses.
+function isViewingSomeoneElse() {
+  if (!VIEWFIX) return false;
+  try { return !!(window.CW && window.CW.me && window.CW.me().viewing); } catch (e) { return false; }
 }
 const _MC_PARAM = getMemberId();
 (function() {
@@ -5261,8 +5304,15 @@ function loadInterests() {
   try { return JSON.parse(localStorage.getItem(_interestsKey()) || "[]"); } catch(e) { return []; }
 }
 function saveInterests(arr) {
+  // NOTHING IS SAVED WHILE LOOKING AT SOMEBODY ELSE. Their topics are on screen because you asked
+  // to see what they see; typing here would write onto their record. It refuses rather than
+  // guessing which of the two people meant it.
+  if (isViewingSomeoneElse()) {
+    try { console.warn("Viewing as somebody else. Topics were not saved."); } catch (e) {}
+    return;
+  }
   try { localStorage.setItem(_interestsKey(), JSON.stringify(arr)); } catch(e) {}
-  const memberId = getMemberId();
+  const memberId = getRealMemberId();
   if (memberId) {
     // Written back with pipes, matching the column and the house rule. Writing commas here would
     // undo the migration one save at a time.
