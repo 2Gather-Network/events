@@ -1362,7 +1362,7 @@ const WORKER_URL = "https://findatime.jessieupp.workers.dev/";
 function openPostEvent() {
   // In Glide webview, modals don't render correctly - open form directly
   if (window.self !== window.top) {
-    try { window.top.location.href = "https://2gather.network/events?action=post" + (getMemberId() ? "&memberCard=" + encodeURIComponent(getMemberId()) : ""); } catch(e) {}
+    try { window.top.location.href = "https://2gather.network/events?action=post" + (getRealMemberId() ? "&memberCard=" + encodeURIComponent(getRealMemberId()) : ""); } catch(e) {}
   } else {
     openChoiceModal();
   }
@@ -1476,7 +1476,7 @@ async function submitSocializer() {
 
   if (!input) { errEl.textContent = "Paste an event link or event ID."; errEl.style.display = "block"; return; }
 
-  const memberId = getMemberId();
+  const memberId = getRealMemberId();
   if (!memberId) { errEl.textContent = "Sign in first to save your share."; errEl.style.display = "block"; return; }
 
   // Extract event ID from URL or use input directly
@@ -2075,7 +2075,9 @@ async function apiAdd(ev) {
   // A field about identity is not a field about display, and it is deliberately NOT sent on an
   // update, so editing somebody's event can never take it over.
   var row = evToSheet(ev);
-  if (!row.userID) { try { row.userID = getMemberId() || ""; } catch (e) {} }
+  // THE REAL PERSON. Stamping who made an event with the id being VIEWED would file Jessie's
+  // event under Doug the moment she posted one while looking at his page. 2026-09-07.
+  if (!row.userID) { try { row.userID = getRealMemberId() || ""; } catch (e) {} }
   return jsonp({ action:"add", event: row });
 }
 async function apiUpdate(ev)       { return jsonp({ action:"update", event:evToSheet(ev) }); }
@@ -3907,7 +3909,7 @@ function _hostIsMe() {
 function _resolveMyAppearLink() {
   if (_myAppearLinkPromise) return _myAppearLinkPromise;
   _myAppearLinkPromise = (async function() {
-    var me = getMemberId();
+    var me = getRealMemberId();
     if (me) {
       try {
         var res = await fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(me));
@@ -4066,7 +4068,9 @@ function openEventView(id) {
   // and mygroups links to /events/ WITH the slash. A member hit it on 2026-09-04 and thought
   // it was her own company's security. Every other cross-page link on this site is absolute.
   const base = "https://2gather.network/";
-  const savedMemberCard = getMemberId() || "";
+  // A memberCard in an address is a bearer token. It is always the REAL person, never the one
+  // being looked at, so looking at somebody can never hand their key to another page.
+  const savedMemberCard = getRealMemberId() || "";
   const mcParam = savedMemberCard ? "&memberCard=" + encodeURIComponent(savedMemberCard) : "";
   // V12.66: encode the id - see index V3.51. Recurring ids carry the title.
   window.location.href = base + "event.html?id=" + encodeURIComponent(id) + mcParam;   // navigate to the full event page (no modal)
@@ -4113,7 +4117,8 @@ function confirmFindPin() {
 
 
 function goMyEvents(){
-  var m=(typeof getMemberId==='function' && getMemberId())||'';
+  // MY events means MINE, whoever is being looked at.
+  var m=(typeof getRealMemberId==='function' && getRealMemberId())||'';
   var url=m?'https://2gather.network/myevents?id='+encodeURIComponent(m):'https://2gather.network';
   try{ window.top.location.href=url; }catch(e){ window.location.href=url; }
 }
@@ -4300,7 +4305,7 @@ function addToCalendarFromSummary() { if (summaryEventId) addToCalendar(summaryE
 function closeSummaryModal(stay) {
   document.getElementById("summary-modal").classList.remove("open");
   if (stay) return;   // V12.79: the ✕ dismisses and leaves you on the board
-  const savedId = getMemberId();
+  const savedId = getRealMemberId();
   if (savedId && window.location.hash !== "#nomy") {
     window.location.href = "myevents.html?id=" + encodeURIComponent(savedId);
   }
@@ -4312,7 +4317,7 @@ function viewPostedEvent() {
   document.getElementById("summary-modal").classList.remove("open");
   if (!summaryEventId) { closeSummaryModal(); return; }
   const base = "https://2gather.network/";
-  const mc = getMemberId();
+  const mc = getRealMemberId();
   const url = base + "event.html?id=" + encodeURIComponent(summaryEventId) + (mc ? "&memberCard=" + encodeURIComponent(mc) : "");
   try {
     if (window.self !== window.top) { window.top.location.href = url; return; }
@@ -4615,7 +4620,7 @@ async function submitEvent() {
     // V12.60: posted via "I'm sharing an event I'm not hosting" -> record the poster as a socializer
     // of this event (not its host). The host field holds the real host/org they entered.
     if (window._isSharing) {
-      var _me = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
+      var _me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
       if (_me) fetch(GS_URL + "?action=saveSocializer&appearId=" + encodeURIComponent(_me) + "&eventId=" + encodeURIComponent(newId) + "&refCode=&via=share").catch(function(){});
     }
     window._isSharing = false;
@@ -5179,7 +5184,19 @@ function isViewingSomeoneElse() {
   if (!VIEWFIX) return false;
   try { return !!(window.CW && window.CW.me && window.CW.me().viewing); } catch (e) { return false; }
 }
-const _MC_PARAM = getMemberId();
+// THE URL PARAMETER ONLY, and never whatever getMemberId happens to answer.
+//
+// This wrote the id it was given onto the device permanently. It used to be handed the stored id,
+// which was harmless because it wrote back the same value. The moment getMemberId learned about
+// "View as someone" it would have been handed the id of the person being LOOKED AT, and stamped
+// them onto this device as who you are, on every page, until somebody noticed. Looking at somebody
+// would have taken their identity.
+//
+// Caught while auditing the writes rather than by it happening. It reads the address bar, which is
+// the only thing this block was ever for. 2026-09-07.
+const _MC_PARAM = (function () {
+  try { return new URLSearchParams(window.location.search).get("memberCard") || ""; } catch (e) { return ""; }
+})();
 (function() {
   if (_MC_PARAM) {
     // BOTH keys, or neither. Writing appear-id alone left cw-id holding somebody else, and
