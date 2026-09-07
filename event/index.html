@@ -1483,7 +1483,24 @@ async function init() {
 
   try {
     const data = await fetchEvents(id);
-    const ev = (data.events||[]).filter(r=>r.id).map(toEv).find(e=>e.id===id);
+    let ev = (data.events||[]).filter(r=>r.id).map(toEv).find(e=>e.id===id);
+    // NOT IN THE PUBLIC FEED IS NOT THE SAME AS NOT THERE. A private event is stripped before the
+    // feed is sent, so its own host opening it was told "Event not found." Jessie, 2026-09-07.
+    // getMyEvents answers with one person's own events, private ones included, so this asks it
+    // before giving up. Somebody the event does not belong to still gets nothing.
+    if (!ev) {
+      try {
+        var _me = (window.CW && window.CW.me) ? String(window.CW.me().id || "").trim() : "";
+        if (!_me) { try { _me = String(localStorage.getItem("cw-id") || localStorage.getItem("appear-id") || "").trim(); } catch (e) {} }
+        if (_me) {
+          const mineRes = await fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(_me) + "&t=" + Date.now());
+          const mine = await mineRes.json();
+          if (mine && mine.status === "ok" && Array.isArray(mine.events)) {
+            ev = mine.events.filter(r=>r.id).map(toEv).find(e=>e.id===id);
+          }
+        }
+      } catch (e) {}
+    }
     if (!ev) { showError("Event not found."); return; }
     // Handle ?via= socializer attribution
     const viaCard = new URLSearchParams(window.location.search).get("via");
