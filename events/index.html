@@ -5378,8 +5378,10 @@ async function initForYou() {
     // "What I enjoy" is "Item:Level|Item:Level" - keep the bare item, original casing.
     _myEnjoy = String(data.interests || "").split("|").map(s => s.split(":")[0].trim()).filter(Boolean);
   } catch(e) {}
-  _fyProfileIn = true;   // topics have arrived, so an empty list now means none rather than not yet
+  // The topics have arrived, so an empty list now means none rather than not yet. This is the one
+  // moment the panel decides to open itself, and it never asks again.
   renderForYou();
+  _fyOfferTopics();
 }
 
 // V12.36: the "pull more from my event profile" link shows only when the person HAS an event
@@ -5960,7 +5962,7 @@ function fbarBoot() {
   // Only when it is empty, and only at boot: pressing Hide closes it and it stays closed for that
   // visit, because a panel that reopens itself is a panel you are fighting.
   // Signed out, so there is no profile coming and this is the only chance to offer it. A signed-in
-  // person gets the same offer from _fyOfferTopicsOnce, once their topics have actually arrived,
+  // person gets the same offer from _fyOfferTopics, once their topics have actually arrived,
   // so the panel does not open at somebody who has topics and simply has not been handed them yet.
   try {
     var _sIn = (typeof getMemberId === "function") ? !!getMemberId() : false;
@@ -6013,12 +6015,13 @@ function onInterestsPencil() {
 // On arrival only. Pressing Hide closes it and it stays closed, because a panel that reopens itself
 // is a panel you are fighting. And it waits for the topics to arrive from the profile, because
 // before then an empty list means "not yet" rather than "none".
-var _fyOfferedTopics = false;
-var _fyProfileIn = false;
-function _fyOfferTopicsOnce(nothingToShow) {
-  if (_fyOfferedTopics || !_fyProfileIn) return;
-  _fyOfferedTopics = true;
-  if (!nothingToShow) return;
+// DECIDED IN ONE PLACE, from the render that follows the profile arriving. An earlier version
+// asked at each of the three points renderForYou can finish, and renderEvents calls renderForYou
+// too, so which answer arrived first depended on how long the backend took. Now the render only
+// records what it drew and initForYou reads it once.
+var _fyNothingToShow = false;
+function _fyOfferTopics() {
+  if (!_fyNothingToShow) return;
   try { _fbarOpen = "interests"; fbarDraw(); } catch (e) {}
 }
 
@@ -6048,7 +6051,7 @@ function renderForYou() {
     var _fyChipsGone = document.getElementById("for-you-chips");
     if (_fyChipsGone) _fyChipsGone.innerHTML = "";
     _fyTopicHint(true);
-    _fyOfferTopicsOnce(true);
+    _fyNothingToShow = true;
     return;
   }
   if (_fySection) _fySection.style.display = "block";
@@ -6144,13 +6147,12 @@ function renderForYou() {
       : `<div style="font-size:13px;color:var(--muted);padding:8px 0;">🔍 No upcoming events match your topics. <a onclick="toggleInterestsPanel()" style="color:var(--primary);font-weight:700;cursor:pointer;">Try broadening your keywords</a></div>`;
     var _fyMore0 = document.getElementById("for-you-more");
     if (_fyMore0) { _fyMore0.style.display = "none"; _fyMore0.innerHTML = ""; }
-    // Topics that match nothing get the panel opened too, and filters hiding everything do not:
-    // there the answer is Reset, which the line above already offers.
-    _fyOfferTopicsOnce(_fyHidden === 0);
+    // Topics that match nothing count as nothing to show. Filters hiding everything do not: there
+    // the answer is Reset, which the line above already offers.
+    _fyNothingToShow = (_fyHidden === 0);
     return;
   }
-  // There are matches, so the offer is spent without opening anything.
-  _fyOfferTopicsOnce(false);
+  _fyNothingToShow = false;
   var _fyMore = document.getElementById("for-you-more");
   if (_fyMore) {
     // ONE SHAPE, ALWAYS. Only the numbers move. It used to have three shapes and rewrote itself
