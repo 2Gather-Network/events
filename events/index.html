@@ -263,7 +263,10 @@
      can never separate them. NO margin-left:auto: pushing them to the far right made the pair take
      a whole line of its own the moment the row wrapped, which is the thing being fixed. The search
      box flexes, so on a wide screen they still sit at the end of the row. 2026-09-06. */
-  .fbar-end{display:inline-flex;align-items:center;gap:6px;}
+  /* Pushed to the right end of the row, with the i before Reset. Jessie, 2026-09-06: "right
+     justify reset and put i before it". They are held in one span so a wrap can never separate
+     them, which is what happened the first time this was tried. */
+  .fbar-end{display:inline-flex;align-items:center;gap:6px;margin-left:auto;}
   .fbar-i{background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:50%;
     width:22px;height:22px;flex-shrink:0;line-height:1;font-size:12px;font-weight:700;
     cursor:pointer;padding:0;font-family:inherit;}
@@ -5527,8 +5530,8 @@ function fbarDraw() {
       + c.label + ' <b>(' + esc(v) + ')</b> <span class="fbar-car' + (open ? ' up' : '') + '">\u25be</span></button>';
   }).join("")
     + '<span class="fbar-end">'
-    +   '<button class="fbar-btn" id="fbar-reset" onclick="fbarResetAll()">Reset</button>'
     +   '<button class="fbar-i" id="fbar-help-btn" onclick="toggleBarHelp()" aria-label="How searching and filtering works">i</button>'
+    +   '<button class="fbar-btn" id="fbar-reset" onclick="fbarResetAll()">Reset</button>'
     + '</span>';
 
   // A CONTROL DROPS FROM ITS BUTTON OR IT OPENS A PANEL, never both. Format and Date were doing
@@ -5573,8 +5576,32 @@ function fbarResetAll() {
   fbarDraw();
 }
 
+// CLICKING AWAY CLOSES IT. A list that only closes by pressing the same button again is a list
+// you have to remember how to escape. Jessie, 2026-09-06: "I just can't seem to click outside of
+// the drop down menu to make it collapse again."
+//
+// Anything inside a control, a list or an open panel is left alone, so picking three groups still
+// works and typing in the venue box does not shut the panel under your hands.
+var _fbarAwayWired = false;
+function _fbarWireClickAway() {
+  if (_fbarAwayWired) return;
+  _fbarAwayWired = true;
+  document.addEventListener("click", function (ev) {
+    if (!_fbarOpen) return;
+    var t = ev.target;
+    if (t && t.closest && t.closest(".fbar-dd, .fbar-panel, .fbar-btn, .fbar-menu, #fbar-help")) return;
+    _fbarOpen = "";
+    fbarDraw();
+  });
+  // Escape does the same, for anybody who reaches for it.
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && _fbarOpen) { _fbarOpen = ""; fbarDraw(); }
+  });
+}
+
 function fbarBoot() {
   if (!FBAR) return;
+  _fbarWireClickAway();
   var bar = document.getElementById("fbar");
   if (bar) bar.style.display = "block";
   var rh = document.getElementById("rec-head");
