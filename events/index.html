@@ -5781,6 +5781,16 @@ function _fbarWireClickAway() {
   document.addEventListener("click", function (ev) {
     if (!_fbarOpen) return;
     var t = ev.target;
+    // A CLICK THAT DELETED ITS OWN BUTTON IS NOT A CLICK OUTSIDE.
+    //
+    // Removing a topic removes the chip, so by the time this listener runs the thing that was
+    // clicked is no longer in the page. closest() then walks a detached branch, finds no panel
+    // above it, and the whole Interests panel closed as if somebody had clicked away. Jessie,
+    // 2026-09-07: "the interest bar completely goes away when deleting something".
+    //
+    // If the target has left the document, the click came from inside something that has just
+    // rebuilt itself, and nothing should close.
+    if (t && t.nodeType === 1 && !document.contains(t)) return;
     if (t && t.closest && t.closest(".fbar-dd, .fbar-panel, .fbar-btn, .fbar-menu, #fbar-help")) return;
     _fbarOpen = "";
     fbarDraw();
@@ -6155,6 +6165,10 @@ function toggleInterestsPanel() {
 }
 
 function closeInterestsPanel() {
+  // Done closes the EDITING list. It must not close the Interests panel around it, which is what
+  // somebody is still using. Jessie, 2026-09-07: "I shouldn't be able to press done and then make
+  // the bar go away."
+  try { _fbarOpen = "interests"; } catch (e) {}
   const panel = document.getElementById("interests-panel");
   if (panel) panel.style.display = "none";
   const ac = document.getElementById("interests-autocomplete");
