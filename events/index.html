@@ -418,11 +418,11 @@
   <div id="for-you-section" style="display:none;background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:24px;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
       <div style="flex:1;min-width:180px;">
-        <!-- State 1: no topics -->
-        <div id="for-you-empty" style="display:none;">
-          <p style="font-size:14px;font-weight:700;color:var(--dark);margin:0 0 4px;">🎯 Find events for you</p>
-          <p style="font-size:13px;color:var(--muted);margin:0;">Add topics to see matching upcoming events.</p>
-        </div>
+        <!-- State 1 was a box saying "Add topics to see matching upcoming events" with no way to
+             add one, under a "Recommended matches" heading with nothing beneath it. The button it
+             named lives in the Interests panel further up the page. Jessie, 2026-09-07, of that
+             box: "This isnt helpful." The invitation moved into the panel that holds the button
+             and this whole box now waits until it has matches to show. -->
         <!-- State 2: has topics - pencil (icon only) sits to the LEFT of "My interests" -->
         <div id="for-you-active" style="display:none;">
           <div style="display:flex;align-items:center;gap:8px;">
@@ -5378,6 +5378,7 @@ async function initForYou() {
     // "What I enjoy" is "Item:Level|Item:Level" - keep the bare item, original casing.
     _myEnjoy = String(data.interests || "").split("|").map(s => s.split(":")[0].trim()).filter(Boolean);
   } catch(e) {}
+  _fyProfileIn = true;   // topics have arrived, so an empty list now means none rather than not yet
   renderForYou();
 }
 
@@ -5904,6 +5905,13 @@ function fbarBoot() {
     var addRow = document.getElementById("topic-add-row");
     if (addRow) { addRow.id = "topic-add-row"; addRow.style.display = "flex"; addRow.style.flex = "0 0 auto"; iRow.appendChild(addRow); }
     iPanel.appendChild(iRow);
+    // The invitation goes where the button is. It used to be prose in a box further down the page
+    // that held no control at all. Shown only while there are no topics.
+    var iHint = document.createElement("div");
+    iHint.id = "fbar-interests-hint";
+    iHint.style.cssText = "display:none;font-size:13px;color:var(--muted);margin-top:8px;";
+    iHint.textContent = "Add a topic and this page will show you the events that match it.";
+    iPanel.appendChild(iHint);
     // THE PENCIL'S PANEL COMES TOO. The chips and the Add button were moved into the bar and this
     // was left behind inside the old box, so pressing the pencil opened something far down the
     // page, or nothing at all. Jessie, 2026-09-07: "I couldn't click on the pencil icon to edit
@@ -5951,8 +5959,12 @@ function fbarBoot() {
   //
   // Only when it is empty, and only at boot: pressing Hide closes it and it stays closed for that
   // visit, because a panel that reopens itself is a panel you are fighting.
+  // Signed out, so there is no profile coming and this is the only chance to offer it. A signed-in
+  // person gets the same offer from _fyOfferTopicsOnce, once their topics have actually arrived,
+  // so the panel does not open at somebody who has topics and simply has not been handed them yet.
   try {
-    if (!loadInterests().length) { _fbarOpen = "interests"; }
+    var _sIn = (typeof getMemberId === "function") ? !!getMemberId() : false;
+    if (!_sIn && !loadInterests().length) { _fbarOpen = "interests"; }
   } catch (e) {}
 
   fbarDraw();
@@ -5992,25 +6004,57 @@ function onInterestsPencil() {
   toggleInterestsPanel();
 }
 
+// NOTHING TO SHOW OPENS THE INTERESTS PANEL, ONCE PER VISIT. Somebody with no topics, or with
+// topics that match no upcoming event, is looking at a page with nothing on it for them and has no
+// reason to press a pill called Interests. Jessie, 2026-09-07: "show the sub area where it says add
+// interest actually uncollapsed if there are no matches so it helps. It actually will help find
+// matches."
+//
+// On arrival only. Pressing Hide closes it and it stays closed, because a panel that reopens itself
+// is a panel you are fighting. And it waits for the topics to arrive from the profile, because
+// before then an empty list means "not yet" rather than "none".
+var _fyOfferedTopics = false;
+var _fyProfileIn = false;
+function _fyOfferTopicsOnce(nothingToShow) {
+  if (_fyOfferedTopics || !_fyProfileIn) return;
+  _fyOfferedTopics = true;
+  if (!nothingToShow) return;
+  try { _fbarOpen = "interests"; fbarDraw(); } catch (e) {}
+}
+
+// The one line that says what topics are for, beside the button that adds one.
+function _fyTopicHint(show) {
+  var el = document.getElementById("fbar-interests-hint");
+  if (el) el.style.display = show ? "block" : "none";
+}
+
 function renderForYou() {
   const interests = loadInterests();
   updatePullProfileLink();   // link state is independent of which render branch runs below
-  const emptyEl = document.getElementById("for-you-empty");
   const activeEl = document.getElementById("for-you-active");
-  if (!emptyEl || !activeEl) return;
+  if (!activeEl) return;
 
   var _fyResults = document.getElementById("for-you-results");
   const _fyBar = document.getElementById("for-you-collapse-bar");
+  var _fySection = document.getElementById("for-you-section");
   if (interests.length === 0) {
-    emptyEl.style.display = "block";
+    // NOTHING RATHER THAN AN EMPTY PROMISE. 2026-09-07.
+    if (_fySection) _fySection.style.display = "none";
     activeEl.style.display = "none";
     if (_fyResults) _fyResults.style.display = "none";   // V12.35: results live outside the active block now
     if (_fyBar) _fyBar.innerHTML = "";
+    // The chips sit in the filter bar now, so the last topic removed has to clear them there. The
+    // early return used to leave them drawn, holding topics that were gone.
+    var _fyChipsGone = document.getElementById("for-you-chips");
+    if (_fyChipsGone) _fyChipsGone.innerHTML = "";
+    _fyTopicHint(true);
+    _fyOfferTopicsOnce(true);
     return;
   }
-  emptyEl.style.display = "none";
+  if (_fySection) _fySection.style.display = "block";
   activeEl.style.display = "block";
   if (_fyResults) _fyResults.style.display = "grid";
+  _fyTopicHint(false);
 
   // Render chips
   const chipsEl = document.getElementById("for-you-chips");
@@ -6100,8 +6144,13 @@ function renderForYou() {
       : `<div style="font-size:13px;color:var(--muted);padding:8px 0;">🔍 No upcoming events match your topics. <a onclick="toggleInterestsPanel()" style="color:var(--primary);font-weight:700;cursor:pointer;">Try broadening your keywords</a></div>`;
     var _fyMore0 = document.getElementById("for-you-more");
     if (_fyMore0) { _fyMore0.style.display = "none"; _fyMore0.innerHTML = ""; }
+    // Topics that match nothing get the panel opened too, and filters hiding everything do not:
+    // there the answer is Reset, which the line above already offers.
+    _fyOfferTopicsOnce(_fyHidden === 0);
     return;
   }
+  // There are matches, so the offer is spent without opening anything.
+  _fyOfferTopicsOnce(false);
   var _fyMore = document.getElementById("for-you-more");
   if (_fyMore) {
     // ONE SHAPE, ALWAYS. Only the numbers move. It used to have three shapes and rewrote itself
@@ -6171,15 +6220,22 @@ function toggleInterestsPanel() {
 }
 
 function closeInterestsPanel() {
-  // Done closes the EDITING list. It must not close the Interests panel around it, which is what
-  // somebody is still using. Jessie, 2026-09-07: "I shouldn't be able to press done and then make
-  // the bar go away."
-  try { _fbarOpen = "interests"; } catch (e) {}
+  // DONE CLOSES THE WHOLE INTERESTS SECTION, the editing list and the panel under the bar with it.
+  // Jessie, 2026-09-07: "it should allow me to click on done, and then it closes the sub filter of
+  // interest."
+  //
+  // It used to close the editing list and deliberately hold the panel open, from her line earlier
+  // the same day: "I shouldn't be able to press done and then make the bar go away." The bar itself
+  // stays either way. What closes now is the one panel hanging under it, which is the thing Done
+  // was pressed on. Her newer words win, and both are here so the change is not a mystery later.
   const panel = document.getElementById("interests-panel");
   if (panel) panel.style.display = "none";
   const ac = document.getElementById("interests-autocomplete");
   if (ac) ac.style.display = "none";
+  try { closeTopicInput(); } catch (e) {}
   renderForYou();
+  // Last, so nothing above can reopen what Done just closed.
+  try { _fbarOpen = ""; fbarDraw(); } catch (e) {}
 }
 
 function renderInterestsChips() {
@@ -6195,10 +6251,21 @@ function renderInterestsChips() {
 }
 
 function removeInterest(kw) {
+  // REFUSE OUT LOUD, the same as adding one. saveInterests refuses to write while somebody else's
+  // page is on screen, and this carried on and redrew from the unchanged list, so the chip simply
+  // stayed and nothing said why. A silent refusal is the bug we already fixed on the way in.
+  if (isViewingSomeoneElse()) { _refuseWhileViewing(); return; }
   const arr = loadInterests().filter(k => k !== kw);
   saveInterests(arr);
   renderInterestsChips();
   renderForYou();   // matches sit right below the open panel now, so keep them current
+}
+
+// One refusal, said the same way wherever a topic is changed while looking at somebody else.
+function _refuseWhileViewing() {
+  var _vn = "";
+  try { _vn = localStorage.getItem("cw-view-as-name") || "somebody else"; } catch (e) { _vn = "somebody else"; }
+  alert("You are looking at " + _vn + "'s page. Topics cannot be changed from here.\n\nPress Back to me first.");
 }
 
 function addInterest() {
@@ -6206,12 +6273,7 @@ function addInterest() {
   // function carried on drawing the chips from its own copy of the list, so it LOOKED saved and
   // was not. A silent refusal that renders success is worse than no refusal at all. Jessie,
   // 2026-09-07: "I added two interests for Doug and it seemed to work."
-  if (isViewingSomeoneElse()) {
-    var _vn = "";
-    try { _vn = localStorage.getItem("cw-view-as-name") || "somebody else"; } catch (e) { _vn = "somebody else"; }
-    alert("You are looking at " + _vn + "'s page. Topics cannot be changed from here.\n\nPress Back to me first.");
-    return;
-  }
+  if (isViewingSomeoneElse()) { _refuseWhileViewing(); return; }
   const input = document.getElementById("interests-input");
   if (!input) return;
   const vals = input.value.split(/[,|]/).map(s => normalizeInterest(s)).filter(Boolean);
