@@ -65,6 +65,18 @@
   var ABOUT    = 'https://2gather.network/about';
   var SUPPORT  = 'https://2gather.network/support';
 
+  /* WHERE THEY WERE, CARRIED RATHER THAN GUESSED. The support form recorded the page somebody came
+     from by reading document.referrer, and a referrer is not a record: it is empty on a tab opened
+     directly, and Brave strips it. Jessie's own test on 2026-09-07 arrived with ticketFromPage
+     blank for exactly that reason.
+     The bar knows the page it is drawn on, so it says so. The PATHNAME only, never the query, so
+     an id in an address can never travel into a ticket. */
+  function supportUrl() {
+    var here = '';
+    try { here = String(window.location.pathname || '').trim(); } catch (e) {}
+    return here ? (SUPPORT + '?from=' + encodeURIComponent(here)) : SUPPORT;
+  }
+
   // carry says which name that destination reads the person by.
   var NAV = [
     { key: 'events', label: 'Events', items: [
@@ -99,7 +111,7 @@
       // adding one is a second change nobody asked for.
       { label: 'My profile',         url: PROFILE,  carry: 'CWid' },
       { label: 'About',              url: ABOUT },
-      { label: 'Support',            url: SUPPORT },
+      { label: 'Support',            url: supportUrl() },
       { label: 'Sign out',           signOut: true }
     ]}
   ];
@@ -849,7 +861,7 @@
     var waiting = ls(function () { return parseInt(w.localStorage.getItem('cw-tickets') || '', 10); }, NaN);
     adminLink((waiting > 0)
       ? (waiting + ' support ticket' + (waiting === 1 ? '' : 's') + ' waiting')
-      : 'Support', 'https://2gather.network/support/', waiting > 0);
+      : 'Support', supportUrl(), waiting > 0);
 
     // Hiding it during a demo has to survive walking to another page, so the choice is kept on
     // the device rather than in this page. A word rather than a symbol, so the way back reads.
