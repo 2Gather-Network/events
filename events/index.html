@@ -5345,8 +5345,31 @@ var FBAR_CONTROLS = [
   { key: "mygroups",   label: "My groups", toggle: true },
   // LAST, right before Reset. Jessie, 2026-09-06: "advanced, then reset". It holds three filters
   // where the others hold one, so it sits at the end rather than in the middle of the six.
-  { key: "advanced",   label: "Advanced" }
+  // SEARCH BY. It was called Advanced and opened all three fields at once, which put a form on the
+  // page. It offers the three as a list, and the one picked is the only one shown. Jessie,
+  // 2026-09-06: "Instead of advanced say search by and then offer the drop down by venue by host
+  // and then when they slept it then show the field where they can select".
+  { key: "advanced",   label: "Search by" }
 ];
+
+// Which of the three is being searched by. Empty means the list is showing rather than a field.
+var _advPick = "";
+var ADV_PARTS = [
+  { key: "venue",   label: "Venue",   panel: "fp-venue" },
+  { key: "host",    label: "Host",    panel: "fp-host" },
+  { key: "feeling", label: "Feeling", panel: "fp-feeling" }
+];
+
+function fbarPickAdv(k) {
+  _advPick = k;
+  _fbarOpen = "advanced";
+  fbarDraw();
+  // Put the cursor in the box they just asked for, so picking Venue means typing a venue.
+  try {
+    var el = document.querySelector("#fp-" + k + " input");
+    if (el) el.focus();
+  } catch (e) {}
+}
 
 // WHO YOUR GROUPS ARE, asked for once and only when you press the control. getMyGroups measures
 // about five seconds and Apps Script runs our calls one at a time, so asking at boot would slow
@@ -5447,6 +5470,14 @@ function _fbarValue(key) {
       return String(_myGroups.length);
     }
     if (key === "advanced") {
+      // It says the one being searched by, and what is typed in it. "All" was removed earlier
+      // because a control holding three filters had no single value; now it has one at a time.
+      var vv0 = (document.getElementById("venue-filter") || {}).value || "";
+      var hh0 = (document.getElementById("host-filter") || {}).value || "";
+      var mm0 = (typeof _selectedMoods !== "undefined" && _selectedMoods && _selectedMoods.size) || 0;
+      if (_advPick === "venue")   return vv0 || "Venue";
+      if (_advPick === "host")    return hh0 || "Host";
+      if (_advPick === "feeling") return mm0 ? (mm0 + (mm0 === 1 ? " feeling" : " feelings")) : "Feeling";
       var bits = [];
       var m = (typeof _selectedMoods !== "undefined" && _selectedMoods && _selectedMoods.size) || 0;
       if (m) bits.push(m + (m === 1 ? " feeling" : " feelings"));
@@ -5473,6 +5504,7 @@ function fbarClear(key) {
     if (key === "format" && typeof setFilterFormat === "function") { setFilterFormat("all"); }
     if (key === "date") { var sel = document.getElementById("date-filter-select"); if (sel) { sel.value = "upcoming"; if (typeof setDateFilter === "function") setDateFilter("upcoming"); } }
     if (key === "advanced") {
+      _advPick = "";
       if (typeof _selectedMoods !== "undefined" && _selectedMoods) { _selectedMoods.clear(); }
       ["venue-filter", "host-filter"].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ""; });
       if (typeof renderPills === "function") { try { renderPills(); } catch (e) {} }
@@ -5555,9 +5587,18 @@ function fbarDraw() {
     // read as a value it did not have. Jessie, 2026-09-06: "Don't say all in the advance button".
     // It keeps saying what is set when something is.
     if (c.key === "advanced") {
-      return '<button class="fbar-btn fbar-adv' + (on ? ' on' : '') + '" onclick="fbarToggle(\'advanced\')">'
-        + c.label + (on ? ' <b>(' + esc(v) + ')</b>' : '')
-        + ' <span class="fbar-car' + (open ? ' up' : '') + '">\u25be</span></button>';
+      var advItems = ADV_PARTS.map(function (a) {
+        return '<button class="fbar-mi' + (_advPick === a.key ? ' pick' : '') + '" onclick="fbarPickAdv(\'' + a.key + '\')">'
+          + (_advPick === a.key ? '\u2713 ' : '') + a.label + '</button>';
+      }).join("");
+      return '<span class="fbar-dd">'
+        + '<button class="fbar-btn fbar-adv' + (on ? ' on' : '') + '" onclick="fbarToggle(\'advanced\')">'
+        +   c.label + (on ? ' <b>(' + esc(v) + ')</b>' : '')
+        +   ' <span class="fbar-car' + (open ? ' up' : '') + '">\u25be</span></button>'
+        // The list shows while nothing is picked. Once something is, the panel below holds the
+        // field and the list gets out of the way, so there is one thing on screen and not two.
+        + '<div class="fbar-menu"' + (open && !_advPick ? '' : ' hidden') + '>' + advItems + '</div>'
+        + '</span>';
     }
     return '<button class="fbar-btn' + (on ? ' on' : '') + '" onclick="fbarToggle(\'' + c.key + '\')">'
       + c.label + ' <b>(' + esc(v) + ')</b> <span class="fbar-car' + (open ? ' up' : '') + '">\u25be</span></button>';
@@ -5574,7 +5615,15 @@ function fbarDraw() {
   FBAR_CONTROLS.forEach(function (c) {
     var panel = document.getElementById("fbar-panel-" + c.key);
     if (!panel) return;
-    panel.style.display = (!DROPDOWNS[c.key] && _fbarOpen === c.key) ? "block" : "none";
+    var show = (!DROPDOWNS[c.key] && _fbarOpen === c.key);
+    // Search by opens its panel only once one of the three has been picked, and then shows THAT
+    // ONE. All three at once is the form this replaced.
+    if (c.key === "advanced") show = show && !!_advPick;
+    panel.style.display = show ? "block" : "none";
+  });
+  ADV_PARTS.forEach(function (a) {
+    var el = document.getElementById(a.panel);
+    if (el) el.style.display = (_advPick === a.key) ? "" : "none";
   });
 
   // The bar owns the venue, host and search boxes. Moved ONCE, into their own container, so the
@@ -5604,6 +5653,7 @@ function toggleRecWhy() {
 function fbarResetAll() {
   if (typeof resetFilters === "function") { resetFilters(); }
   _myGroupPick = {};        // the list of groups is kept, so opening it again costs nothing
+  _advPick = "";            // Search by goes back to offering the three
   _fbarOpen = "";
   renderEvents();
   fbarDraw();
@@ -5670,9 +5720,11 @@ function fbarBoot() {
   if (adv) {
     adv.style.display = "block";
     var strip = document.createElement("div");
+    // ONE FIELD AT A TIME NOW, so the two columns are gone. The chosen one takes the width it
+    // needs and nothing sits beside it looking empty.
     strip.style.cssText = "display:flex;align-items:flex-start;gap:22px;flex-wrap:wrap;";
     var leftCol = document.createElement("div");
-    leftCol.style.cssText = "display:flex;flex-direction:column;gap:12px;flex:0 1 280px;min-width:200px;";
+    leftCol.style.cssText = "display:flex;flex-direction:column;gap:12px;flex:1 1 100%;min-width:0;";
     // NOT A FORM. The uppercase VENUE and HOST labels above two boxes made this read as a form to
     // fill in rather than two things to search. The boxes already say what they are inside them.
     // Jessie, 2026-09-06: "I still don't like how the advanced section looks."
@@ -5705,7 +5757,11 @@ function fbarBoot() {
     tools.className = "fbar-tools";
     // HIDE ONLY. Clear read as though it would delete the topics themselves rather than stop them
     // filtering, and every control's own Reset does that job. Jessie, 2026-09-06.
-    tools.innerHTML = '<button onclick="fbarToggle(\'' + c.key + '\')">\u00d7 Hide</button>';
+    tools.innerHTML = (c.key === "advanced")
+      // Hiding Search by puts the list of three back, so opening it again asks the question rather
+      // than reopening the last answer. Anything typed in the field is left alone.
+      ? '<button onclick="_advPick=\'\'; fbarDraw();">\u00d7 Hide</button>'
+      : '<button onclick="fbarToggle(\'' + c.key + '\')">\u00d7 Hide</button>';
     panel.insertBefore(tools, panel.firstChild);
   });
 
@@ -5831,7 +5887,11 @@ function renderForYou() {
   const _fyTotal = _fyKept.length;
   const _fyHidden = _fyAll - _fyTotal;
   // A phone shows none until Show all is pressed; a desktop shows five.
-  const matched = _fyShowAll ? _fyKept : (_fyIsPhone() ? [] : _fyKept.slice(0, FY_CAP));
+  // THE SAME FIVE ON EVERY SCREEN. A phone used to draw none until Show all was pressed, because
+  // the block sat above the calendar and a wall of cards pushed the events off the page. The block
+  // is a fraction of that size now. Jessie, 2026-09-06: "show them and draw the same five a
+  // desktop gets".
+  const matched = _fyShowAll ? _fyKept : _fyKept.slice(0, FY_CAP);
 
   const resultsEl = document.getElementById("for-you-results");
   if (!resultsEl) return;
