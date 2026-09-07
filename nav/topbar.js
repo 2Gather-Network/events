@@ -923,12 +923,29 @@
     bar.parentNode.insertBefore(panel, bar.nextSibling);
     inp.focus();
 
-    function row(id, label) {
+    /* A FACE AND AN ADDRESS UNDER THE NAME. Two rows both reading Doug Breitbart, with nothing to
+       tell them apart, is the whole reason for this. Jessie, 2026-09-07. The photo is drawn only
+       when there is one, so nobody gets an empty circle. */
+    function esc(t) {
+      return String(t == null ? '' : t)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function row(id, label, email, photo) {
       var b = d.createElement('button');
       b.type = 'button';
-      b.textContent = label;
-      b.style.cssText = 'text-align:left;font:inherit;padding:8px 11px;border-radius:9px;cursor:pointer;'
+      b.style.cssText = 'display:flex;align-items:center;gap:10px;width:100%;text-align:left;'
+        + 'font:inherit;padding:8px 11px;border-radius:9px;cursor:pointer;'
         + 'border:1px solid #DDE3EA;background:#F7FBFF;color:#1A2E42;';
+      var face = photo
+        ? '<img src="' + esc(photo) + '" alt="" style="width:30px;height:30px;border-radius:50%;'
+          + 'object-fit:cover;flex:0 0 auto;">'
+        : '';
+      b.innerHTML = face
+        + '<span style="min-width:0;">'
+        +   '<span style="display:block;font-weight:700;">' + esc(label) + '</span>'
+        +   (email ? '<span style="display:block;font-size:12px;color:#6B7A8D;overflow:hidden;'
+              + 'text-overflow:ellipsis;">' + esc(email) + '</span>' : '')
+        + '</span>';
       b.onclick = function () { w.CW.viewAs(id, label); w.location.reload(); };
       return b;
     }
@@ -939,17 +956,31 @@
       if (timer) { clearTimeout(timer); }
       out.innerHTML = '';
       if (q.length < 2) { return; }
-      // Anything without a space is as likely to be an id as a name, so offer it either way.
-      if (q.indexOf(' ') === -1) { out.appendChild(row(q, q)); }
+      /* THE TYPED TEXT IS OFFERED ONLY WHEN NOTHING MATCHED IT. It used to be drawn straight away
+         for anything without a space, on the reasoning that a single word is as likely to be an id
+         as a name. So typing "doug" put "doug" at the top of a list of Dougs, which reads as a
+         duplicate of the thing you just typed. Jessie, 2026-09-07: "whatever i search for names it
+         shows the name again - duplciative."
+
+         Pasting an id still works, because an id matches no name and the list comes back empty,
+         which is exactly when the typed text is worth offering. */
       timer = setTimeout(function () {
         fetch(GS + '?action=findAnyone&appearId=' + encodeURIComponent(me.id)
               + '&q=' + encodeURIComponent(q))
           .then(function (r) { return r.json(); })
           .then(function (dd) {
-            if (!dd || dd.status !== 'ok' || !dd.matches) { return; }
-            dd.matches.forEach(function (p) {
-              out.appendChild(row(p.appearId, (p.name || p.appearId)));
+            var list = (dd && dd.status === 'ok' && dd.matches) ? dd.matches : [];
+            out.innerHTML = '';
+            list.forEach(function (p) {
+              out.appendChild(row(p.appearId, (p.name || p.appearId), p.email, p.photo));
             });
+            if (!list.length) {
+              out.appendChild(row(q, q));
+              var note = d.createElement('div');
+              note.textContent = 'No name matched. Press it to view as that id.';
+              note.style.cssText = 'font-size:12px;color:#6B7A8D;padding:2px 2px 0;';
+              out.appendChild(note);
+            }
           })
           .catch(function () {});
       }, 350);
