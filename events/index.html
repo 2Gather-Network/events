@@ -249,7 +249,7 @@
   /* The pale version is gone: an open control is solid now. Removed rather than overridden, so
      one rule says what an active pill looks like. */
   .fbar-panel{margin-top:12px;}   /* no rules. Jessie, 2026-09-06: remove all horizontal lines */
-  .fbar-tools{display:flex;justify-content:flex-end;margin-top:10px;font-size:13px;}
+  .fbar-tools{display:flex;justify-content:flex-end;gap:8px;margin-top:10px;font-size:13px;}
   .fbar-tools button{background:#fff;border:1.5px solid var(--border);color:var(--muted);
     font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;padding:4px 12px;border-radius:20px;}
   /* Outlined, dark blue, carrying a close mark. Jessie picked this out of three on 2026-09-06,
@@ -2090,7 +2090,7 @@ function onHostInput()  { showSuggestions("host-filter",  "host-suggestions",  _
 
 function setFilterFormat(fmt) {
   _activeFormat = fmt;
-  ["all","virtual","inperson"].forEach(f => {
+  ["all","virtual","inperson","hybrid"].forEach(f => {
     const btn = document.getElementById("filter-fmt-" + f);
     if (!btn) return;
     if (f === fmt) { btn.style.background = "var(--cw-blue)"; btn.style.color = "#fff"; btn.style.border = "none"; }
@@ -2725,7 +2725,9 @@ function _passesEventFilters(e, opts) {
   const _fmtIsVirtual = e.format === "virtual" || e.format === "both" ||
     (!e.format && !!(e.meetinglink || (e.location||"").toLowerCase().includes("virtual")
       || (e.location||"").toLowerCase().includes("online") || (e.location||"").toLowerCase().includes("zoom")));
-  const matchFormat = fmt === "all" || (fmt === "virtual" && _fmtIsVirtual) || (fmt === "inperson" && !_fmtIsVirtual);
+  const matchFormat = fmt === "all" || (fmt === "virtual" && _fmtIsVirtual)
+    || (fmt === "inperson" && !_fmtIsVirtual)
+    || (fmt === "hybrid" && e.format === "both");
   var locWhereOK = true;
   if (_whereApplied && !opts.skipLoc) {   // V12.56: all virtual + only in-person in the set place (vague kept)
     var _isV = (e.format === "virtual" || e.format === "both" || !e.format);
@@ -2781,17 +2783,10 @@ function _locCounts(everything) {
     var g = got[o.value] || 0, a = all[o.value] || 0;
     o.textContent = a ? base + "  " + (g === a ? String(a) : g + " of " + a) : base;
   });
-  var cs = document.getElementById("filter-country");
-  if (cs) {
-    var gTot = 0, aTot = 0;
-    Object.keys(all).forEach(function (k) { aTot += all[k]; gTot += (got[k] || 0); });
-    [].forEach.call(cs.options, function (o) {
-      if (o.value !== "United States") return;
-      var b = o.getAttribute("data-base");
-      if (b === null) { b = o.textContent; o.setAttribute("data-base", b); }
-      o.textContent = aTot ? b + "  " + (gTot === aTot ? String(aTot) : gTot + " of " + aTot) : b;
-    });
-  }
+  // NO COUNT ON THE COUNTRY. It read "United States 46 of 826" beside "Washington 27 of 826",
+  // which invites a comparison between two numbers counted differently and answers a question
+  // nobody asked: the country is not what somebody is choosing between. The state is.
+  // Jessie, 2026-09-07: "remove stats from united states - only show in the state."
 }
 
 function _applyChipDims(baseListForCat, baseListForMood, everything) {
@@ -5604,7 +5599,7 @@ function _fbarValue(key) {
     }
     if (key === "format") {
       var f = typeof _activeFormat !== "undefined" ? _activeFormat : "all";
-      return f === "virtual" ? "Virtual" : f === "inperson" ? "In person" : "All";
+      return f === "virtual" ? "Virtual" : f === "inperson" ? "In person" : f === "hybrid" ? "Hybrid" : "All";
     }
     if (key === "date") {
       var sel = document.getElementById("date-filter-select");
@@ -5718,7 +5713,11 @@ function fbarDraw() {
     // events virtual and in person." The page's own setFilterFormat still does the work.
     if (c.key === "format") {
       var f = (typeof _activeFormat !== "undefined") ? _activeFormat : "all";
-      var fopts = [["all", "All events"], ["virtual", "Virtual"], ["inperson", "In person"]]
+      // HYBRID IS ITS OWN ANSWER. An event marked "both" is run in a room and on a link at the
+      // same time, and there was no way to ask for those. Jessie, 2026-09-07: "add options of
+      // Hybrid". Virtual and In person are left exactly as they were, so nothing moves out of a
+      // filter somebody is already using.
+      var fopts = [["all", "All events"], ["virtual", "Virtual"], ["inperson", "In person"], ["hybrid", "Hybrid"]]
         .map(function (o) {
           return '<button class="fbar-mi' + (o[0] === f ? ' pick' : '') + '" onclick="fbarPickFormat(\'' + o[0] + '\')">' + o[1] + '</button>';
         }).join("");
@@ -5978,10 +5977,15 @@ function fbarBoot() {
     tools.className = "fbar-tools";
     // HIDE ONLY. Clear read as though it would delete the topics themselves rather than stop them
     // filtering, and every control's own Reset does that job. Jessie, 2026-09-06.
+    // SEARCH BY GETS A CLEAR. Hide put the list of three back and deliberately left the typed
+    // value alone, so a venue could go on filtering with no control anywhere to remove it and the
+    // pill read "Search by (Edmonds Waterfront Center)" with no way out except Reset, which throws
+    // away every other filter too. Jessie, 2026-09-07: "no way to remove this when I select venue
+    // - check with othetrs in search by." It clears venue, host and the feelings together, which
+    // is what the other two needed as well.
     tools.innerHTML = (c.key === "advanced")
-      // Hiding Search by puts the list of three back, so opening it again asks the question rather
-      // than reopening the last answer. Anything typed in the field is left alone.
-      ? '<button onclick="_advPick=\'\'; fbarDraw();">\u00d7 Hide</button>'
+      ? '<button onclick="fbarClear(\'advanced\')">\u00d7 Clear</button>'
+        + '<button onclick="_advPick=\'\'; fbarDraw();">\u00d7 Hide</button>'
       : '<button onclick="fbarToggle(\'' + c.key + '\')">\u00d7 Hide</button>';
     // AT THE BOTTOM, not the top. Hide is what you press when you have finished with a panel, so
     // it belongs at the end of the thing rather than above it. Jessie, 2026-09-06.
@@ -6306,7 +6310,15 @@ function renderForYou() {
 // overlay; modals render badly inside the Glide webview. Adding a topic no longer needs
 // this panel at all - the field above is always visible - so it is now only for removing.
 function toggleInterestsPanel() {
-  if (_fyEditing) { closeInterestsPanel(); return; }
+  // THE PENCIL TURNS EDITING ON. It never turns it off, and that is the fix rather than the
+  // wording. It was a toggle, and editing can already be on without anybody having pressed it,
+  // because the panel opens itself for somebody with nothing to show. So the first press closed
+  // the whole thing instead of opening it, and Jessie hit exactly that: "when clicking on pencil
+  // it looks liek this - can't edit anyting". Done and Hide are the ways out.
+  if (_fyEditing) {
+    try { var _inp = document.getElementById("interests-input"); if (_inp) _inp.focus(); } catch (e) {}
+    return;
+  }
   _fyEditing = true;
   renderForYou();          // the chips grow their x, Add appears, the panel opens
   // NO SCROLL. It used to scroll itself into view, from a day when the panel opened far down the
@@ -6542,7 +6554,7 @@ function selectInterestSuggestion(val) {
   upd();
 })();
 </script>
-<script src="/nav/topbar.js?v=5.73" defer></script>
+<script src="/nav/topbar.js?v=5.74" defer></script>
 </body>
 <!--
   Copyright 2026 DayBalancer LLC. All rights reserved.
