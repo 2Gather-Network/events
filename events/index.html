@@ -5398,9 +5398,27 @@ function saveInterests(arr, phrase) {
   if (memberId) {
     // Written back with pipes, matching the column and the house rule. Writing commas here would
     // undo the migration one save at a time.
+    // AND IT READS THE ANSWER. This fired and forgot, so a save the backend could not make looked
+    // exactly like one it did: the chip was drawn either way. The backend now says whether it found
+    // a row to write to, and saved:false is said out loud rather than swallowed. Jessie hit this
+    // adding a topic for somebody whose ikigai row is keyed by the newer id: "wouldn't let me add
+    // anyting angain."
     fetch(GS_URL + "?action=saveInterests&appearId=" + encodeURIComponent(memberId)
       + "&interests=" + encodeURIComponent(arr.join("|"))
-      + (onBehalf ? "&actingAs=" + encodeURIComponent(actor || "") : "")).catch(()=>{});
+      + (onBehalf ? "&actingAs=" + encodeURIComponent(actor || "") : ""))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.status === "ok" && d.saved === false) {
+          var _who = onBehalf ? (function () {
+            try { return localStorage.getItem("cw-view-as-name") || "that person"; } catch (e) { return "that person"; }
+          })() : "you";
+          try {
+            alert("That did not save.\n\nThere is no profile row to write to for " + _who
+              + ", so the topic is on screen and nowhere else. Tell me and I will look at the row.");
+          } catch (e) {}
+        }
+      })
+      .catch(function () {});
   }
 }
 
