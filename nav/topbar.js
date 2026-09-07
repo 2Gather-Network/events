@@ -505,8 +505,14 @@
     // viewing key and cannot undo a write to the id itself. It is tested on the raw key rather
     // than on CW.me().viewing, because once the device has been stamped the two ids match and
     // viewing reads false, which is exactly the state this has to refuse in.
+    // AND IT READS THE KEY ITSELF WHEN CW IS NOT THERE. identity.js is what defines CW, and it is
+    // not on every page that loads this file: on creating.works the bar is up and identity.js is
+    // not, so asking CW would have answered "nobody is being viewed" on exactly the pages with no
+    // other protection. Those are the pages where this guard is the only one.
     try {
-      var seen = (window.CW && window.CW.viewingAs) ? String(window.CW.viewingAs() || '').trim() : '';
+      var seen = (window.CW && window.CW.viewingAs)
+        ? String(window.CW.viewingAs() || '').trim()
+        : String(localStorage.getItem('cw-view-as') || '').trim();
       if (seen) { return; }
     } catch (e) {}
     window.CW_ID = id;
