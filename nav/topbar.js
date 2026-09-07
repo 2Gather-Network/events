@@ -835,15 +835,21 @@
       // It says what is true, and pressing it still puts you back, which is the one thing anybody
       // reaching for it wants. Harmless when nothing is being viewed, and the way out if the
       // strip is ever out of step with the device.
-      /* IT SAYS WHO, not what. "You are seeing your own pages" is a sentence about the state and
-         somebody reading a strip wants the name. Jessie, 2026-09-07: "chagne to Viewing as (name)
-         so it's apparent". The name is whatever the bar already learned beside the photo; with no
-         name yet it falls back to the sentence rather than saying "Viewing as" and nothing. */
+      /* IT SAYS WHO, and it must not say it the SAME WAY as the other state. She asked for the
+         name to show: "chagne to Viewing as (name) so it's apparent". Taken literally that made
+         both states read "Viewing as somebody", so standing on her own page said the same words as
+         standing on Doug's, and the missing Back to me read as a fault rather than as nothing to
+         go back from. Jessie, minutes later: "Back to viewing as me is gone on bar."
+
+         So the name is here, which is what she asked for, and the two states cannot be confused:
+         "You are Jessie Upp" against an amber "Viewing as Doug Breitbart". Pressing it still puts
+         you back, which is harmless when you are already yourself and is the way out if the strip
+         is ever out of step with the device. */
       var mine = '';
       try { mine = String(w.CW_NAME || w.localStorage.getItem('cw-name') || '').trim(); } catch (e) {}
       says = d.createElement('button');
       says.type = 'button';
-      says.textContent = mine ? ('Viewing as ' + mine) : 'You are seeing your own pages';
+      says.textContent = mine ? ('You are ' + mine) : 'You are seeing your own pages';
       says.style.cssText = 'font:inherit;padding:0;border:0;background:transparent;color:#1A2E42;'
         + 'cursor:pointer;text-align:left;';
       says.onclick = function () { try { w.CW.stopViewing(); } catch (e) {} w.location.reload(); };
