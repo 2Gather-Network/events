@@ -469,13 +469,20 @@
     <!-- The true count, on every screen. The phone had a collapse bar saying how many; the desktop
          said nothing at all, so six of twelve looked like twelve. 2026-09-06. -->
     <div id="for-you-more" style="display:none;font-size:13px;margin-top:10px;"></div>
-    <!-- Inline reveal rather than an overlay - modals render badly inside Glide. Adding happens
-         in the row above, so this panel is only for removing topics. -->
+    <!-- ONE LIST, NOT TWO. This used to repeat every chip from the row above under a heading of
+         its own, with an x on each. Jessie, 2026-09-07, looking at it on a phone: "Looks
+         duplicative. The chips just turned into chips with exes when the pencil icon is clicked?"
+         They do that in place now, and the room it freed holds the things she already told her
+         profile she enjoys, as pills to tap. Her words: "Reserve the second set of buttons for
+         maybe showing pills that show up under profile > joy section that they can add to the
+         list."
+         Inline reveal rather than an overlay - modals render badly inside Glide. -->
     <div id="interests-panel" style="display:none;border-top:1px solid var(--border);padding-top:16px;margin-top:14px;">
-      <div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:4px;">Your topics</div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Remove any you no longer want.</p>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:32px;">
-        <div id="interests-chips-panel" style="display:flex;flex-wrap:wrap;gap:8px;flex:1;min-width:200px;"></div>
+      <div id="enjoy-block" style="display:none;margin-bottom:12px;">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">From your profile. Tap one to add it.</div>
+        <div id="enjoy-pills" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;">
         <button onclick="closeInterestsPanel()" style="flex-shrink:0;background:var(--cw-blue);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">Done</button>
       </div>
     </div>
@@ -5399,7 +5406,7 @@ function pullProfileInterests() {
   _myEnjoy.forEach(function(v){ if (v && existing.indexOf(v.toLowerCase()) === -1) { arr.push(v); existing.push(v.toLowerCase()); added++; } });
   if (!added) { updatePullProfileLink(); return; }
   saveInterests(arr);
-  renderInterestsChips();
+  renderEnjoyPills();
   renderForYou();
   if (typeof showToast === "function") showToast("Added " + added + " from your event profile");
 }
@@ -5612,7 +5619,12 @@ function fbarToggle(key) {
   _fbarOpen = closing ? "" : key;
   // Hide on the Interests panel is her saying she has seen it. It stops opening itself for the
   // rest of the visit, however little there is to show.
-  if (closing && key === "interests") { _fyOfferOff = true; }
+  if (closing && key === "interests") {
+    _fyOfferOff = true;
+    _fyEditing = false;
+    try { var _ip = document.getElementById("interests-panel"); if (_ip) _ip.style.display = "none"; } catch (e) {}
+    try { renderForYou(); } catch (e) {}
+  }
   fbarDraw();
 }
 
@@ -6080,9 +6092,17 @@ function renderForYou() {
   // them from. Jessie, 2026-09-06.
   if (chipsEl) { chipsEl.style.display = "flex"; }
   if (chipsEl) {
-    chipsEl.innerHTML = interests.map(kw =>
-      `<span style="display:inline-flex;align-items:center;gap:4px;background:#EBF5FB;border:1px solid #AED6F1;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;color:#1B6896;">${esc(kw)}</span>`
-    ).join("");
+    // THE SAME CHIPS, WITH AN X ON THEM. The pencil used to draw a second copy of this list in a
+    // panel below with its own heading, which on a phone was most of a screen saying one thing.
+    // While editing they also wrap instead of scrolling sideways, because a topic you cannot see
+    // is a topic you cannot remove.
+    chipsEl.style.flexWrap = _fyEditing ? "wrap" : "nowrap";
+    chipsEl.innerHTML = interests.map(kw => {
+      const x = _fyEditing
+        ? `<button onclick="removeInterest('${kw.replace(/'/g,"\\'")}')" aria-label="Remove ${esc(kw)}" style="background:none;border:none;color:#1B6896;cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px;">&times;</button>`
+        : "";
+      return `<span style="display:inline-flex;align-items:center;gap:4px;background:#EBF5FB;border:1px solid #AED6F1;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;color:#1B6896;">${esc(kw)}${x}</span>`;
+    }).join("");
   }
 
   // Match events
@@ -6231,7 +6251,9 @@ function toggleInterestsPanel() {
   const panel = document.getElementById("interests-panel");
   if (!panel) return;
   if (panel.style.display === "block") { closeInterestsPanel(); return; }
-  renderInterestsChips();
+  _fyEditing = true;
+  renderEnjoyPills();
+  renderForYou();          // the chips grow their x where they already are
   panel.style.display = "block";
   // With many topics on the page, the panel opens below the fold and it looks like nothing
   // happened. Scroll it into view so the pencil click has a visible effect.
@@ -6255,22 +6277,43 @@ function closeInterestsPanel() {
   const ac = document.getElementById("interests-autocomplete");
   if (ac) ac.style.display = "none";
   try { closeTopicInput(); } catch (e) {}
+  _fyEditing = false;      // the chips go back to plain
   _fyOfferOff = true;      // Done is her closing it, so it stays closed
   renderForYou();
   // Last, so nothing above can reopen what Done just closed.
   try { _fbarOpen = ""; fbarDraw(); } catch (e) {}
 }
 
-function renderInterestsChips() {
-  const interests = loadInterests();
-  const el = document.getElementById("interests-chips-panel");
-  if (!el) return;
-  el.innerHTML = interests.map(kw =>
-    `<span style="display:inline-flex;align-items:center;gap:6px;background:#EBF5FB;border:1px solid #AED6F1;border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;color:#1B6896;">
-      ${esc(kw)}
-      <button onclick="removeInterest('${kw.replace(/'/g,"\\'")}') " style="background:none;border:none;color:#1B6896;cursor:pointer;font-size:14px;line-height:1;padding:0;">×</button>
-    </span>`
-  ).join("");
+// TRUE WHILE THE PENCIL IS ON. It changes what the chips look like rather than what is on screen
+// beside them.
+var _fyEditing = false;
+
+// WHAT SHE ALREADY TOLD HER PROFILE SHE ENJOYS, as pills to tap. They arrive in the same
+// getProfile call the page makes at boot, so this costs no read and adds no column.
+//
+// A button that added ALL of them at once was built and removed in V12.36 for flooding the list.
+// One tap per pill is the thing it was missing. Only what is not already a topic is offered, so
+// the row empties itself as it is used and disappears when there is nothing left to add.
+function renderEnjoyPills() {
+  const block = document.getElementById("enjoy-block");
+  const el = document.getElementById("enjoy-pills");
+  if (!block || !el) return;
+  const have = loadInterests().map(function (s) { return String(s).toLowerCase(); });
+  const fresh = _myEnjoy.filter(function (v) { return v && have.indexOf(String(v).toLowerCase()) === -1; });
+  if (!fresh.length) { block.style.display = "none"; el.innerHTML = ""; return; }
+  block.style.display = "block";
+  el.innerHTML = fresh.map(function (v) {
+    return `<button onclick="addEnjoy('${String(v).replace(/'/g,"\\'")}')" style="display:inline-flex;align-items:center;gap:5px;background:#fff;border:1.5px solid #AED6F1;border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;color:#1B6896;cursor:pointer;font-family:inherit;">+ ${esc(v)}</button>`;
+  }).join("");
+}
+
+function addEnjoy(item) {
+  if (isViewingSomeoneElse()) { _refuseWhileViewing(); return; }
+  const arr = loadInterests();
+  const have = arr.map(function (s) { return String(s).toLowerCase(); });
+  if (have.indexOf(String(item).toLowerCase()) === -1) { arr.push(item); saveInterests(arr); }
+  renderEnjoyPills();
+  renderForYou();
 }
 
 function removeInterest(kw) {
@@ -6280,7 +6323,7 @@ function removeInterest(kw) {
   if (isViewingSomeoneElse()) { _refuseWhileViewing(); return; }
   const arr = loadInterests().filter(k => k !== kw);
   saveInterests(arr);
-  renderInterestsChips();
+  renderEnjoyPills();   // one fewer topic can mean one more thing to offer from the profile
   renderForYou();   // matches sit right below the open panel now, so keep them current
 }
 
@@ -6307,7 +6350,7 @@ function addInterest() {
   saveInterests(arr);
   input.value = "";
   document.getElementById("interests-autocomplete").style.display = "none";
-  renderInterestsChips();
+  renderEnjoyPills();
   renderForYou();
   closeTopicInput();   // V12.80: input is hidden by default, so collapse it after saving
 }
