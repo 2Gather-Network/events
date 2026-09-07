@@ -495,6 +495,8 @@
               localStorage.setItem('cw-name-for', who);
             }
           } catch (e) {}
+          // Tell the strip, which drew before this answer arrived.
+          try { if (window.CW_REDRAW_ADMIN) { window.CW_REDRAW_ADMIN(); } } catch (e) {}
           try {
             localStorage.setItem('cw-photo', d.photo);
             localStorage.setItem('cw-photo-for', who);
@@ -873,7 +875,11 @@
       } catch (e) {}
       says = d.createElement('button');
       says.type = 'button';
-      says.textContent = mine ? ('You are ' + mine) : 'You are seeing your own pages';
+      /* HER WORDING, after seeing both. I changed this to "You are Jessie Upp" because both states
+         otherwise read "Viewing as somebody", and she looked at that and asked for her version
+         back: "i want it to say Viewing as Jessie Upp again not You are seeing your own pages".
+         The amber and the Back to me button are what separate the two states. Her call, twice. */
+      says.textContent = mine ? ('Viewing as ' + mine) : 'You are seeing your own pages';
       says.style.cssText = 'font:inherit;padding:0;border:0;background:transparent;color:#1A2E42;'
         + 'cursor:pointer;text-align:left;';
       says.onclick = function () { try { w.CW.stopViewing(); } catch (e) {} w.location.reload(); };
@@ -966,6 +972,12 @@
   }
 
   function drawAdminBar() { if (folded()) { paintFolded(); } else { paint(); } }
+
+  /* A HOOK, because the name is fetched in this file's OTHER closure and cannot call in here.
+     Without it the strip only learns your name on the next page load, so Back to me left it saying
+     "You are seeing your own pages" until she navigated again. Jessie, 2026-09-07: "yes back to me
+     worked but it went back to saying You are seeing your own pages". */
+  w.CW_REDRAW_ADMIN = function () { try { drawAdminBar(); } catch (e) {} };
 
   function open(bar) {
     var old = d.getElementById('cw-viewas-pick'); if (old) { old.remove(); return; }
