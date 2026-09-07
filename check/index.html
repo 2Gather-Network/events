@@ -79,7 +79,13 @@
     var hadId = /CWid|memberCard|appearId|(^|[?&])me=/.test(startedWith);
     var stillHasId = !!(p.get('CWid') || p.get('memberCard') || p.get('appearId') || p.get('me'));
     var id = '', photo = '', token = '', exp = '';
+    var cwId = '', appearId = '', viewAs = '', viewName = '', photoFor = '';
     try {
+      cwId = localStorage.getItem('cw-id') || '';
+      appearId = localStorage.getItem('appear-id') || '';
+      viewAs = localStorage.getItem('cw-view-as') || '';
+      viewName = localStorage.getItem('cw-view-as-name') || '';
+      photoFor = localStorage.getItem('cw-photo-for') || '';
       id = localStorage.getItem('cw-id') || localStorage.getItem('appear-id') || '';
       photo = localStorage.getItem('cw-photo') || '';
       token = localStorage.getItem('cw-token') || '';
@@ -99,10 +105,42 @@
       row('Id still in address', stillHasId ? 'yes, the strip did not run' : 'no, it was removed',
           !stillHasId) +
       row('Shared file version', ver) +
-      row('Device remembers', id || 'nobody', !!id) +
+      // WHO DOES THIS DEVICE THINK YOU ARE, in a name rather than an id. Added 2026-09-07, after
+      // the top bar showed Doug's face while the strip above it said "View as self". An id on its
+      // own cannot answer that question for somebody who does not know their own id by sight.
+      row('Device remembers', '<span id="who-name">looking...</span> '
+          + (id ? '<span class="k">' + id + '</span>' : 'nobody'), !!id) +
+      row('The two keys agree', (cwId && appearId)
+            ? (cwId === appearId ? 'yes' : 'NO. cw-id is ' + cwId + ' and appear-id is ' + appearId)
+            : 'only one of them is set',
+          !!(cwId && appearId && cwId === appearId)) +
+      // The whole point of the strip at the top, said out loud down here as well.
+      row('Viewing as somebody else', viewAs
+            ? ('yes, ' + (viewName || viewAs) + ' <span class="k">' + viewAs + '</span>')
+            : 'no, this is you',
+          !viewAs) +
       row('Photo stored', photo ? photo.slice(0, 48) + '…' : 'none', !!photo) +
+      row('Photo belongs to', photoFor
+            ? ('<span id="photo-name">looking...</span> <span class="k">' + photoFor + '</span>')
+            : 'nobody', !!photoFor) +
       row('Photo in memory', live) +
       row('Signed in until', token ? exp : 'no session, sign in needed', !!token);
+
+    nameInto('who-name', id);
+    nameInto('photo-name', photoFor);
+  }
+
+  // One small public read per id, and the answer is written in where the waiting word was. It
+  // says "looking..." until it knows, rather than a name that might be wrong for a second.
+  function nameInto(slot, id) {
+    var el = document.getElementById(slot);
+    if (!el) return;
+    if (!id) { el.textContent = ''; return; }
+    fetch('https://cw-api-gate.jessieupp.workers.dev/?action=lookupProfile&appearId=' +
+          encodeURIComponent(id))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { el.textContent = (d && (d.name || d.first)) ? (d.name || d.first) : 'a row nobody can name'; })
+      .catch(function () { el.textContent = 'could not ask'; });
   }
 
   setTimeout(paint, 1200);
