@@ -482,7 +482,19 @@
           window.CW_TOPBAR_PHOTO = d.photo;
           // The name rides along with the photo, out of a call already being made, so the admin
           // strip can say who you are rather than a sentence about it.
-          try { if (d.name) { window.CW_NAME = d.name; localStorage.setItem('cw-name', d.name); } } catch (e) {}
+          //
+          // AND IT IS KEPT BESIDE WHOSE NAME IT IS. This is fetched for the person being LOOKED AT,
+          // so while viewing Doug it holds Doug's name. Without a key saying so, Back to me left
+          // the strip reading "You are Doug Breitbart" until the next fetch returned. The photo has
+          // had cw-photo-for for exactly this reason since the day it was written; the name went in
+          // without one. Jessie, 2026-09-07: "didn't change over when i went back to me, maybe?"
+          try {
+            if (d.name) {
+              window.CW_NAME = d.name;
+              localStorage.setItem('cw-name', d.name);
+              localStorage.setItem('cw-name-for', who);
+            }
+          } catch (e) {}
           try {
             localStorage.setItem('cw-photo', d.photo);
             localStorage.setItem('cw-photo-for', who);
@@ -845,8 +857,20 @@
          "You are Jessie Upp" against an amber "Viewing as Doug Breitbart". Pressing it still puts
          you back, which is harmless when you are already yourself and is the way out if the strip
          is ever out of step with the device. */
+      /* Only if it is THIS person's name. A name with no owner is how the strip came to greet her
+         as the person she had just stopped viewing. */
       var mine = '';
-      try { mine = String(w.CW_NAME || w.localStorage.getItem('cw-name') || '').trim(); } catch (e) {}
+      try {
+        var nameFor = String(w.localStorage.getItem('cw-name-for') || '').trim();
+        var realNow = String((w.CW && w.CW.realMe && w.CW.realMe().id) || '').trim();
+        // Compared here rather than with identity.js's normalise, which is not in scope in this
+        // file. Assuming a helper crosses a closure boundary is the fault that took the whole strip
+        // down earlier today.
+        var _flat = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
+        if (nameFor && realNow && _flat(nameFor) === _flat(realNow)) {
+          mine = String(w.localStorage.getItem('cw-name') || '').trim();
+        }
+      } catch (e) {}
       says = d.createElement('button');
       says.type = 'button';
       says.textContent = mine ? ('You are ' + mine) : 'You are seeing your own pages';
