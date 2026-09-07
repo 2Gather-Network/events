@@ -5366,20 +5366,30 @@ function _splitList(v) {
 function loadInterests() {
   try { return JSON.parse(localStorage.getItem(_interestsKey()) || "[]"); } catch(e) { return []; }
 }
-function saveInterests(arr) {
-  // NOTHING IS SAVED WHILE LOOKING AT SOMEBODY ELSE. Their topics are on screen because you asked
-  // to see what they see; typing here would write onto their record. It refuses rather than
-  // guessing which of the two people meant it.
-  if (isViewingSomeoneElse()) {
-    try { console.warn("Viewing as somebody else. Topics were not saved."); } catch (e) {}
-    return;
-  }
+// ON SOMEBODY'S BEHALF, rather than refusing. Until 2026-09-07 every topic change refused while
+// looking at another person, which was the safe first move rather than the answer: the danger was
+// never the write, it was a write with nothing recording who made it. Jessie: "why can't i work on
+// other people's behalf? i want to."
+//
+// THREE THINGS, THREE PLACES, and she asked about the middle one twice.
+//   The record changed is the person being LOOKED AT. Their wish list, their matches.
+//   The actor is the person SIGNED IN, and goes only into the audit log.
+//   The actor's own profile is untouched, because nothing in this path writes to it at all.
+//
+// `phrase` is only for the sentence in the confirm, so it can say Add or Remove and the word.
+function saveInterests(arr, phrase) {
+  var onBehalf = isViewingSomeoneElse();
+  if (onBehalf && !_confirmOnBehalf(phrase)) { return; }
   try { localStorage.setItem(_interestsKey(), JSON.stringify(arr)); } catch(e) {}
-  const memberId = getRealMemberId();
+  // WHOSE list this is, which is the viewed person while looking at somebody, and yours otherwise.
+  const memberId = onBehalf ? getMemberId() : getRealMemberId();
+  const actor = getRealMemberId();
   if (memberId) {
     // Written back with pipes, matching the column and the house rule. Writing commas here would
     // undo the migration one save at a time.
-    fetch(GS_URL + "?action=saveInterests&appearId=" + encodeURIComponent(memberId) + "&interests=" + encodeURIComponent(arr.join("|"))).catch(()=>{});
+    fetch(GS_URL + "?action=saveInterests&appearId=" + encodeURIComponent(memberId)
+      + "&interests=" + encodeURIComponent(arr.join("|"))
+      + (onBehalf ? "&actingAs=" + encodeURIComponent(actor || "") : "")).catch(()=>{});
   }
 }
 
@@ -5429,7 +5439,7 @@ function pullProfileInterests() {
   var added = 0;
   _myEnjoy.forEach(function(v){ if (v && existing.indexOf(v.toLowerCase()) === -1) { arr.push(v); existing.push(v.toLowerCase()); added++; } });
   if (!added) { updatePullProfileLink(); return; }
-  saveInterests(arr);
+  saveInterests(arr, 'Add ' + added + (added === 1 ? ' topic to' : ' topics to'));
   renderEnjoyPills();
   renderForYou();
   if (typeof showToast === "function") showToast("Added " + added + " from your event profile");
@@ -6400,38 +6410,42 @@ function renderEnjoyPills() {
 }
 
 function addEnjoy(item) {
-  if (isViewingSomeoneElse()) { _refuseWhileViewing(); return; }
   const arr = loadInterests();
   const have = arr.map(function (s) { return String(s).toLowerCase(); });
-  if (have.indexOf(String(item).toLowerCase()) === -1) { arr.push(item); saveInterests(arr); }
+  if (have.indexOf(String(item).toLowerCase()) === -1) { arr.push(item); saveInterests(arr, 'Add "' + item + '" to'); }
   renderEnjoyPills();
   renderForYou();
 }
 
 function removeInterest(kw) {
-  // REFUSE OUT LOUD, the same as adding one. saveInterests refuses to write while somebody else's
-  // page is on screen, and this carried on and redrew from the unchanged list, so the chip simply
-  // stayed and nothing said why. A silent refusal is the bug we already fixed on the way in.
-  if (isViewingSomeoneElse()) { _refuseWhileViewing(); return; }
   const arr = loadInterests().filter(k => k !== kw);
-  saveInterests(arr);
+  saveInterests(arr, 'Remove "' + kw + '" from');
   renderEnjoyPills();   // one fewer topic can mean one more thing to offer from the profile
   renderForYou();   // matches sit right below the open panel now, so keep them current
 }
 
-// One refusal, said the same way wherever a topic is changed while looking at somebody else.
-function _refuseWhileViewing() {
-  var _vn = "";
-  try { _vn = localStorage.getItem("cw-view-as-name") || "somebody else"; } catch (e) { _vn = "somebody else"; }
-  alert("You are looking at " + _vn + "'s page. Topics cannot be changed from here.\n\nPress Back to me first.");
+// ASKED ONCE PER PERSON PER VISIT, not per keystroke. Confirming every change is how people learn
+// to click through a warning without reading it, and the strip at the top of the page says whose
+// pages these are the whole time anyway.
+//
+// The sentence says all three things: whose record, that it is not yours, and that you are recorded.
+var _onBehalfOK = "";
+function _confirmOnBehalf(phrase) {
+  var who = "", name = "";
+  try { who = String(getMemberId() || ""); } catch (e) {}
+  try { name = localStorage.getItem("cw-view-as-name") || ""; } catch (e) {}
+  if (!name) { name = who || "this person"; }
+  if (_onBehalfOK && _onBehalfOK === who) { return true; }
+  var line = (phrase ? phrase + " " : "Change ") + name + "'s wish list?";
+  var ok = false;
+  try {
+    ok = window.confirm(line + "\n\nIt saves on their profile, not yours, and the log records that you did it.");
+  } catch (e) { ok = false; }
+  if (ok) { _onBehalfOK = who; }
+  return ok;
 }
 
 function addInterest() {
-  // REFUSE OUT LOUD. saveInterests already refused while looking at somebody else, but this
-  // function carried on drawing the chips from its own copy of the list, so it LOOKED saved and
-  // was not. A silent refusal that renders success is worse than no refusal at all. Jessie,
-  // 2026-09-07: "I added two interests for Doug and it seemed to work."
-  if (isViewingSomeoneElse()) { _refuseWhileViewing(); return; }
   const input = document.getElementById("interests-input");
   if (!input) return;
   const vals = input.value.split(/[,|]/).map(s => normalizeInterest(s)).filter(Boolean);
@@ -6439,7 +6453,7 @@ function addInterest() {
   const arr = loadInterests();
   const existing = arr.map(s => s.toLowerCase());
   vals.forEach(v => { if (!existing.includes(v.toLowerCase())) { arr.push(v); existing.push(v.toLowerCase()); } });
-  saveInterests(arr);
+  saveInterests(arr, 'Add "' + vals.join('", "') + '" to');
   input.value = "";
   document.getElementById("interests-autocomplete").style.display = "none";
   renderEnjoyPills();
@@ -6449,7 +6463,6 @@ function addInterest() {
 
 // The field is beside the button while editing, so Add only ever adds.
 function onTopicAddClick() {
-  if (isViewingSomeoneElse()) { addInterest(); return; }   // says why, changes nothing
   const input = document.getElementById("interests-input");
   if (!input) return;
   if (input.value.trim()) { addInterest(); return; }
