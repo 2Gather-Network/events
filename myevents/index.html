@@ -460,7 +460,33 @@ document.addEventListener('keydown',function(e){if(e.key!=='Enter'&&e.key!==' ')
 
 async function fetchEvents() {
   const res = await fetch(GS_URL + "?t=" + Date.now());
-  return res.json();
+  const data = await res.json();
+  // AND YOUR OWN PRIVATE ONES, which the public feed strips.
+  //
+  // Marking an event private keeps it off the calendar, and My events was reading that same feed,
+  // so it hid the event from the person who posted it as well. Jessie found it on 2026-09-07: the
+  // event existed, was correctly private, and appeared under nobody. getMyEvents answers with one
+  // person's own events and nothing else, so this adds what is missing rather than widening what
+  // anybody can see.
+  try {
+    // Asked of CW rather than of a variable somewhere else in the file, so there is no chance of
+    // reading one that has not been assigned yet. CW.me() is the person being looked at, which is
+    // whose events this page is showing.
+    var whoNow = (window.CW && window.CW.me) ? String(window.CW.me().id || "").trim() : "";
+    if (!whoNow) { try { whoNow = String(localStorage.getItem("cw-id") || localStorage.getItem("appear-id") || "").trim(); } catch (e) {} }
+    if (whoNow) {
+      const mineRes = await fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(whoNow) + "&t=" + Date.now());
+      const mine = await mineRes.json();
+      if (mine && mine.status === "ok" && Array.isArray(mine.events) && mine.events.length) {
+        const have = {};
+        (data.events || []).forEach(function (r) { if (r && r.id) { have[String(r.id)] = 1; } });
+        data.events = (data.events || []).concat(mine.events.filter(function (r) {
+          return r && r.id && !have[String(r.id)];
+        }));
+      }
+    }
+  } catch (e) {}
+  return data;
 }
 
 function jsonp(params) {
