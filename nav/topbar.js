@@ -118,8 +118,30 @@
     catch (e) { return ''; }
   }
 
+  // WHO IS SIGNED IN, whatever is on screen. Everything that DISPLAYS asks me(); an id put into an
+  // address is not a display, it is a bearer token that the block further down remembers on this
+  // device as who you are.
+  function realId() {
+    try {
+      if (window.CW && window.CW.realMe) {
+        var r = String(window.CW.realMe().id || '').trim();
+        if (r) return r;
+      }
+    } catch (e) {}
+    return me();
+  }
+
+  // THE ADDRESS CARRIES THE PERSON SIGNED IN, never the person being looked at.
+  //
+  // These links were built from me(), which is the person being viewed while View as someone is
+  // on. So every "my" link in this bar carried Doug's id, the strip below remembered it, and one
+  // click left Jessie's browser holding his id in both keys as who she is, on every page. She
+  // found it on 2026-09-07 by his face still being in the bar after Back to me.
+  //
+  // The pages still show what he sees, because they ask CW.me() and the viewing key travels with
+  // the device rather than in the address.
   function link(url, carry) {
-    var who = me();
+    var who = realId();
     if (!who || !carry) return url;
     return url + (url.indexOf('?') > -1 ? '&' : '?') + carry + '=' + encodeURIComponent(who);
   }
@@ -478,6 +500,15 @@
 
   function remember(id) {
     if (!id) return;
+    // NEVER WHILE LOOKING AT SOMEBODY ELSE. This writes an id onto this device permanently, as who
+    // you are, on every page, and nothing afterwards says it happened: Back to me clears the
+    // viewing key and cannot undo a write to the id itself. It is tested on the raw key rather
+    // than on CW.me().viewing, because once the device has been stamped the two ids match and
+    // viewing reads false, which is exactly the state this has to refuse in.
+    try {
+      var seen = (window.CW && window.CW.viewingAs) ? String(window.CW.viewingAs() || '').trim() : '';
+      if (seen) { return; }
+    } catch (e) {}
     window.CW_ID = id;
     try { localStorage.setItem('appear-id', id); } catch (e) {}
     try { localStorage.setItem('cw-id', id); } catch (e) {}
@@ -751,11 +782,29 @@
     w.addEventListener('resize', reserve);
     w.addEventListener('orientationchange', reserve);
 
-    var says = d.createElement('span');
     // 2026-08-30. "Viewing as yourself" pushed the strip onto two rows on a phone, with Support
     // and Hide wrapping underneath. Shorter, so the whole strip sits on one line.
-    says.textContent = seen ? ('Viewing as ' + (name || seen)) : 'View as self';
-    if (seen) { says.style.color = '#8A6220'; }
+    var says;
+    if (seen) {
+      says = d.createElement('span');
+      says.textContent = 'Viewing as ' + (name || seen);
+      says.style.color = '#8A6220';
+    } else {
+      // NOT A LABEL THAT READS LIKE A BUTTON. "View as self" sat beside the "View as someone"
+      // pill and the eye paired them, so pressing it was the obvious way back and there was
+      // nothing behind it. Jessie, 2026-09-07: "view as self at top super admin bar doesn't go
+      // back to me."
+      //
+      // It says what is true, and pressing it still puts you back, which is the one thing anybody
+      // reaching for it wants. Harmless when nothing is being viewed, and the way out if the
+      // strip is ever out of step with the device.
+      says = d.createElement('button');
+      says.type = 'button';
+      says.textContent = 'You are seeing your own pages';
+      says.style.cssText = 'font:inherit;padding:0;border:0;background:transparent;color:#1A2E42;'
+        + 'cursor:pointer;text-align:left;';
+      says.onclick = function () { try { w.CW.stopViewing(); } catch (e) {} w.location.reload(); };
+    }
     left.appendChild(says);
 
     var pick = d.createElement('button');
