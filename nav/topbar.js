@@ -80,20 +80,25 @@
   // carry says which name that destination reads the person by.
   var NAV = [
     { key: 'events', label: 'Events', items: [
-      { label: 'Calendar of events', url: EVENTS,   carry: 'memberCard' },
+      // FIND AN EVENT, because that is what somebody opening this menu is trying to do. "Calendar
+      // of events" names the thing rather than the errand. Jessie, 2026-09-07.
+      { label: 'Find an event',      url: EVENTS,   carry: 'memberCard' },
       // MY EVENTS CARRIES NOBODY. It used to send the person as `id`, and that id then decided
       // whose list the page drew - which meant that while somebody was using View as someone, an
       // id in the address would have overridden the person they were looking at. The page asks
       // the device now, and the device is what knows both halves. It also keeps a person's id out
       // of an address for no reason, which is the rule everywhere else here.
       { label: 'My events',          url: MYEVENTS },
-      { label: 'Post an event',      url: POST,     carry: 'memberCard' },
-      { label: 'My event profile',   url: PROFILE,  carry: 'CWid' }
+      { label: 'Post an event',      url: POST,     carry: 'memberCard' }
+      // My event profile came off this menu on 2026-09-07. The profile is not an events thing and
+      // it is already on More, so it was the same door listed twice.
     ]},
     { key: 'groups', label: 'Groups', items: [
+      // Host a group is third, because joining one is what most people are here to do and hosting
+      // is the smaller door. It was called Start a group. Jessie, 2026-09-07.
       { label: 'My groups',    url: MYGROUPS, carry: 'CWid' },
-      { label: 'Start a group', url: START,   carry: 'CWid' },
-      { label: 'Join a group',  url: JOIN,    carry: 'CWid' }
+      { label: 'Join a group',  url: JOIN,    carry: 'CWid' },
+      { label: 'Host a group',  url: START,   carry: 'CWid' }
     ]},
     { key: 'more', label: 'More', items: [
       { label: 'Where do I start?',  url: 'https://2gather.network/welcome/' },
