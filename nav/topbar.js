@@ -727,6 +727,19 @@
 
   function ls(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
 
+  /* ITS OWN COPY, because this is a different closure. The first version called supportUrl() from
+     the file's other IIFE, where it is not in scope, so paint() threw a ReferenceError and the
+     whole admin strip stopped drawing on every page. Jessie, 2026-09-07: "my super admin at top is
+     missing from this page". Found in the console rather than guessed at. A helper crossing a
+     closure boundary is not shared, it is undefined. */
+  function _supportHere() {
+    var here = '';
+    try { here = String(w.location.pathname || '').trim(); } catch (e) {}
+    return here
+      ? 'https://2gather.network/support?from=' + encodeURIComponent(here)
+      : 'https://2gather.network/support';
+  }
+
   function paint() {
     var old = d.getElementById('cw-viewas'); if (old) { old.remove(); }
     var seen = w.CW.viewingAs();
@@ -861,7 +874,7 @@
     var waiting = ls(function () { return parseInt(w.localStorage.getItem('cw-tickets') || '', 10); }, NaN);
     adminLink((waiting > 0)
       ? (waiting + ' support ticket' + (waiting === 1 ? '' : 's') + ' waiting')
-      : 'Support', supportUrl(), waiting > 0);
+      : 'Support', _supportHere(), waiting > 0);
 
     // Hiding it during a demo has to survive walking to another page, so the choice is kept on
     // the device rather than in this page. A word rather than a symbol, so the way back reads.
