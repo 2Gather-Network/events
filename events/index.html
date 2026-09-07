@@ -5169,21 +5169,23 @@ try {
 //   CW.me()      the person being LOOKED AT. Everything that DISPLAYS asks this.
 //   CW.realMe()  the person signed in.       Everything that WRITES asks this.
 //
-// Behind ?asview=1 until Jessie has tested it, because it changes who the page thinks you are and
-// that is the one thing worth being slow about.
-var VIEWFIX = /[?&]asview=1(&|$)/.test(location.search);
-
+// ON FOR EVERYBODY as of 2026-09-07. It shipped behind ?asview=1 all day, because it changes who
+// the page thinks you are and that is the one thing worth being slow about, and Jessie ran both
+// checks before this line changed:
+//
+//   Viewing as Doug, `appear-id` on the device still held HER id. The device never became him.
+//   An event posted while viewing as Doug was recorded against her id, not his.
+//
+// An old link still carrying ?asview=1 works, because an unknown parameter is ignored.
 function getMemberId() {
   const urlParam = new URLSearchParams(window.location.search).get("memberCard");
   if (urlParam) return urlParam;
-  if (VIEWFIX) {
-    try {
-      if (window.CW && typeof window.CW.me === "function") {
-        var seen = String(window.CW.me().id || "").trim();
-        if (seen) return seen;
-      }
-    } catch (e) {}
-  }
+  try {
+    if (window.CW && typeof window.CW.me === "function") {
+      var seen = String(window.CW.me().id || "").trim();
+      if (seen) return seen;
+    }
+  } catch (e) {}
   try { return localStorage.getItem("appear-id"); } catch(e) { return null; }
 }
 
@@ -5203,7 +5205,6 @@ function getRealMemberId() {
 
 // True while looking at somebody else. A write checks this and refuses.
 function isViewingSomeoneElse() {
-  if (!VIEWFIX) return false;
   try { return !!(window.CW && window.CW.me && window.CW.me().viewing); } catch (e) { return false; }
 }
 // THE URL PARAMETER ONLY, and never whatever getMemberId happens to answer.
