@@ -246,6 +246,7 @@
     color:var(--dark);padding:7px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;}
   .fbar-menu button:hover{background:#EBF5FB;}
   .fbar-menu button.pick{font-weight:700;color:#154F74;background:#EBF5FB;}
+  .fbar-mnote{font-size:13px;color:var(--muted);padding:8px 10px;white-space:nowrap;}
   /* Three looks for Advanced, because it holds three filters where the others hold one.
      1 set apart with a gap and a divider, 2 a heavier border, 3 filled. 2026-09-06. */
   /* 1 - SET APART. Same pill, moved away from the six and separated by a rule, so the eye reads
@@ -2579,9 +2580,9 @@ function _passesEventFilters(e, opts) {
   // MY GROUPS ONLY. An event with no group is dropped here rather than kept, which is the opposite
   // of the vague-keeps rule the location filter uses, and deliberately: "only my groups" is a
   // request FOR group events, so an event belonging to no group is not one of them. 2026-09-06.
-  if (_myGroupsOn && _myGroupIds) {
+  if (Object.keys(_myGroupPick).length) {
     var _eg = String(e.groupId || "").trim();
-    if (!_eg || _myGroupIds.indexOf(_eg) === -1) return false;
+    if (!_eg || !_myGroupPick[_eg]) return false;
   }
   const q = (document.getElementById("search-input")?.value || "").toLowerCase();
   const now = Date.now();
@@ -5285,7 +5286,7 @@ var FBAR = /[?&]bar=1(&|$)/.test(location.search);
 var _fbarOpen = "";
 // Which of the three Advanced button designs. &adv=1|2|3 beside ?bar=1, so all three can be looked
 // at on the real page. It comes out with the parameter once Jessie picks one. 2026-09-06.
-var FBAR_ADV = (/[?&]adv=([123])(&|$)/.exec(location.search) || [])[1] || "1";
+
 
 // The date list writes into the real select and fires the page's own handler, so nothing about how
 // dates filter has changed. One source, as it was before.
@@ -5306,39 +5307,61 @@ var FBAR_CONTROLS = [
   { key: "date",       label: "Date" },
   // Venue, host and feeling live under Advanced, which is what Jessie asked for at the start:
   // "advanced would filter by venue, filter by host, filter by feeling".
-  { key: "advanced",   label: "Advanced" },
+
   // A TOGGLE, not a panel, and drawn without a caret because there is nothing to open. Jessie,
   // 2026-09-06: "out of Filter show me my groups only and will only show events that are
   // associated to groups that they belong to". It is not drawn at all for somebody signed out,
   // who has no groups for it to mean anything about.
-  { key: "mygroups",   label: "My groups", toggle: true }
+  { key: "mygroups",   label: "My groups", toggle: true },
+  // LAST, right before Reset. Jessie, 2026-09-06: "advanced, then reset". It holds three filters
+  // where the others hold one, so it sits at the end rather than in the middle of the six.
+  { key: "advanced",   label: "Advanced" }
 ];
 
 // WHO YOUR GROUPS ARE, asked for once and only when you press the control. getMyGroups measures
 // about five seconds and Apps Script runs our calls one at a time, so asking at boot would slow
 // the calendar down for everybody to serve the people who press this. 2026-09-06.
-var _myGroupIds = null;      // null = never asked, [] = asked and you are in none
+var _myGroups = null;        // null = never asked, [] = asked and you are in none
 var _myGroupsBusy = false;
-var _myGroupsOn = false;
+var _myGroupPick = {};       // the ones ticked. Empty means this control is filtering nothing.
 
-function fbarMyGroupsToggle() {
-  if (_myGroupsOn) { _myGroupsOn = false; renderEvents(); fbarDraw(); return; }
-  if (_myGroupIds !== null) { _myGroupsOn = true; renderEvents(); fbarDraw(); return; }
-  if (_myGroupsBusy) return;
+function _myGroupPickCount() { return Object.keys(_myGroupPick).length; }
+
+// Opening it is what asks. Nothing is fetched at boot, because getMyGroups measures about five
+// seconds and Apps Script runs our calls one at a time, so asking at boot would slow the calendar
+// for everybody to serve the people who open this.
+function fbarOpenMyGroups() {
+  _fbarOpen = (_fbarOpen === "mygroups") ? "" : "mygroups";
+  fbarDraw();
+  if (_fbarOpen !== "mygroups" || _myGroups !== null || _myGroupsBusy) return;
   var me = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
-  if (!me) return;
+  if (!me) { _myGroups = []; fbarDraw(); return; }
   _myGroupsBusy = true;
   fbarDraw();                                  // says it is looking, rather than claiming a number
   fetch(GS_URL + "?action=getMyGroups&appearId=" + encodeURIComponent(me))
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      _myGroupIds = ((d && d.groups) || []).map(function (g) {
-        return String(g.groupID || g.groupId || g.id || "").trim();
-      }).filter(Boolean);
-      _myGroupsOn = true;
+      _myGroups = ((d && d.groups) || []).map(function (g) {
+        var id = String(g.groupID || g.groupId || g.id || "").trim();
+        return { id: id, name: String(g.groupName || g.name || g.title || id).trim() || id };
+      }).filter(function (g) { return g.id; });
     })
-    .catch(function () { _myGroupIds = []; _myGroupsOn = true; })
-    .then(function () { _myGroupsBusy = false; renderEvents(); fbarDraw(); });
+    .catch(function () { _myGroups = []; })
+    .then(function () { _myGroupsBusy = false; fbarDraw(); });
+}
+
+// One or several. The menu stays open, because picking three groups should not be three openings.
+function fbarPickGroup(id) {
+  if (_myGroupPick[id]) { delete _myGroupPick[id]; } else { _myGroupPick[id] = true; }
+  renderEvents();
+  fbarDraw();
+}
+
+function fbarPickFormat(v) {
+  if (typeof setFilterFormat === "function") { setFilterFormat(v); }
+  _fbarOpen = "";
+  renderEvents();
+  fbarDraw();
 }
 
 function _fbarMove(fromId, toId) {
@@ -5386,10 +5409,12 @@ function _fbarValue(key) {
       return opt ? opt.textContent.trim() : "All";
     }
     if (key === "mygroups") {
-      if (_myGroupsBusy) return "looking...";
-      if (!_myGroupsOn) return "All";
-      if (_myGroupIds && _myGroupIds.length) return "Only mine";
-      return "none yet";      // signed in, asked, and in no group. Says so rather than showing nothing.
+      // BLANK UNTIL IT KNOWS. Before the list has arrived there is no number to show, and a
+      // number invented for the first five seconds is the fault this page keeps making.
+      var pk = _myGroupPickCount();
+      if (pk) return String(pk);
+      if (_myGroups === null || _myGroupsBusy) return "";
+      return String(_myGroups.length);
     }
     if (key === "advanced") {
       var bits = [];
@@ -5438,16 +5463,49 @@ function fbarDraw() {
     return c.key !== "mygroups" || _signedIn;      // nothing it could mean signed out
   }).map(function (c) {
     var v = _fbarValue(c.key);
-    var on = v !== "All";
+    // My groups says a number even when it is filtering nothing, because the number is how many
+    // groups you have. So the highlight follows what is PICKED rather than what the pill reads.
+    var on = (c.key === "mygroups") ? (_myGroupPickCount() > 0) : (v !== "All");
     var open = _fbarOpen === c.key;
-    if (c.toggle) {
-      return '<button class="fbar-btn' + (on ? ' on' : '') + '" onclick="fbarMyGroupsToggle()">'
-        + c.label + ' <b>(' + esc(v) + ')</b></button>';
+    // MY GROUPS IS A LIST YOU PICK FROM, one or several. Jessie, 2026-09-06: "Say My groups (5)
+    // instead of all and then drop down all groups i belong to where I can select one or multiple".
+    // The pill says how many groups you have until you pick, then how many you picked, and it is
+    // blank until the answer has actually arrived rather than claiming a number it does not have.
+    if (c.key === "mygroups") {
+      var items = "";
+      if (_myGroupsBusy) items = '<div class="fbar-mnote">Looking up your groups...</div>';
+      else if (_myGroups === null) items = '<div class="fbar-mnote">Open to load your groups.</div>';
+      else if (!_myGroups.length) items = '<div class="fbar-mnote">You are not in a group yet.</div>';
+      else items = _myGroups.map(function (g) {
+        return '<button class="fbar-mi' + (_myGroupPick[g.id] ? ' pick' : '') + '" onclick="fbarPickGroup(\'' + esc(g.id).replace(/'/g, "") + '\')">'
+          + (_myGroupPick[g.id] ? '\u2713 ' : '') + esc(g.name) + '</button>';
+      }).join("");
+      return '<span class="fbar-dd">'
+        + '<button class="fbar-btn' + (on ? ' on' : '') + '" onclick="fbarOpenMyGroups()">'
+        +   c.label + (v ? ' <b>(' + esc(v) + ')</b>' : '')
+        +   ' <span class="fbar-car' + (open ? ' up' : '') + '">\u25be</span></button>'
+        + '<div class="fbar-menu"' + (open ? '' : ' hidden') + '>' + items + '</div>'
+        + '</span>';
     }
     // DATE DROPS FROM THE BUTTON. It used to open a section under the whole bar with a dropdown
     // sitting inside it, which is two openings for one choice. Jessie, 2026-09-06: "don't make the
     // date. Create a subcategory. Just Drop it down from the top." The real select is still the
     // only source of truth and still hidden in the page; this list writes into it.
+    // FORMAT DROPS FROM ITS BUTTON TOO. Three choices do not need a section of the page.
+    // Jessie, 2026-09-06: "Remove the subset for format as well and just have a drop down for all
+    // events virtual and in person." The page's own setFilterFormat still does the work.
+    if (c.key === "format") {
+      var f = (typeof _activeFormat !== "undefined") ? _activeFormat : "all";
+      var fopts = [["all", "All events"], ["virtual", "Virtual"], ["inperson", "In person"]]
+        .map(function (o) {
+          return '<button class="fbar-mi' + (o[0] === f ? ' pick' : '') + '" onclick="fbarPickFormat(\'' + o[0] + '\')">' + o[1] + '</button>';
+        }).join("");
+      return '<span class="fbar-dd">'
+        + '<button class="fbar-btn' + (on ? ' on' : '') + '" onclick="fbarToggle(\'format\')">'
+        +   c.label + ' <b>(' + esc(v) + ')</b> <span class="fbar-car' + (open ? ' up' : '') + '">\u25be</span></button>'
+        + '<div class="fbar-menu"' + (open ? '' : ' hidden') + '>' + fopts + '</div>'
+        + '</span>';
+    }
     if (c.key === "date") {
       var sel = document.getElementById("date-filter-select");
       var opts = "";
@@ -5467,7 +5525,7 @@ function fbarDraw() {
     // read as a value it did not have. Jessie, 2026-09-06: "Don't say all in the advance button".
     // It keeps saying what is set when something is.
     if (c.key === "advanced") {
-      return '<button class="fbar-btn fbar-adv adv' + FBAR_ADV + (on ? ' on' : '') + '" onclick="fbarToggle(\'advanced\')">'
+      return '<button class="fbar-btn fbar-adv' + (on ? ' on' : '') + '" onclick="fbarToggle(\'advanced\')">'
         + c.label + (on ? ' <b>(' + esc(v) + ')</b>' : '')
         + ' <span class="fbar-car' + (open ? ' up' : '') + '">\u25be</span></button>';
     }
@@ -5511,7 +5569,7 @@ function toggleRecWhy() {
 
 function fbarResetAll() {
   if (typeof resetFilters === "function") { resetFilters(); }
-  _myGroupsOn = false;      // the list of groups is kept, so pressing it again costs nothing
+  _myGroupPick = {};        // the list of groups is kept, so opening it again costs nothing
   _fbarOpen = "";
   renderEvents();
   fbarDraw();
