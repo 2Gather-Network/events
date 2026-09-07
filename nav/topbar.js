@@ -69,9 +69,12 @@
   var NAV = [
     { key: 'events', label: 'Events', items: [
       { label: 'Calendar of events', url: EVENTS,   carry: 'memberCard' },
-      // My events reads the person as `id`. Sent as memberCard it sees nothing and
-      // falls back to a demo event, which is what it did until now.
-      { label: 'My events',          url: MYEVENTS, carry: 'id' },
+      // MY EVENTS CARRIES NOBODY. It used to send the person as `id`, and that id then decided
+      // whose list the page drew - which meant that while somebody was using View as someone, an
+      // id in the address would have overridden the person they were looking at. The page asks
+      // the device now, and the device is what knows both halves. It also keeps a person's id out
+      // of an address for no reason, which is the rule everywhere else here.
+      { label: 'My events',          url: MYEVENTS },
       { label: 'Post an event',      url: POST,     carry: 'memberCard' },
       { label: 'My event profile',   url: PROFILE,  carry: 'CWid' }
     ]},

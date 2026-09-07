@@ -1532,7 +1532,26 @@ async function init() {
     if (backBar) backBar.style.display = "none";
   }
   const id = new URLSearchParams(window.location.search).get("id");
-  if (!id) { render(PREVIEW_EVENT); return; }
+  if (!id) {
+    // NOBODY NAMED IN THE ADDRESS IS NOT NOBODY. This drew PREVIEW_EVENT, a whole event written
+    // into the page by hand, carrying Jessie's name, her email and her personal Appear link. So
+    // anybody who reached /myevents/ without an id - which is what happens whenever the id does
+    // not survive the hop - was shown a made-up event with her details on it as though it were
+    // real. Jessie, 2026-09-07: "myevents goes to this event still - broken for a while."
+    //
+    // It asks the device now, and it asks CW.me() rather than the signed-in id, so somebody using
+    // View as someone sees that person's events instead of their own. If the device knows nobody
+    // at all, the top bar has already sent them to sign in, so there is nothing to draw here.
+    var _who = "";
+    try { _who = (window.CW && window.CW.me) ? String(window.CW.me().id || "").trim() : ""; } catch (e) {}
+    if (!_who) {
+      try { _who = String(localStorage.getItem("cw-id") || localStorage.getItem("appear-id") || "").trim(); } catch (e) {}
+    }
+    if (!_who) { return; }
+    try { await renderMyEventsList(_who, await fetchEvents()); }
+    catch (e) { showError("Could not load your events. Please try again."); }
+    return;
+  }
 
   // "Manage my experience": ?id={member}&event={eventId} -> the per-event Event experience panel.
   const _expEvent = new URLSearchParams(window.location.search).get("event");
@@ -1623,17 +1642,9 @@ async function init() {
       location.replace('event.html?' + q.toString() + (location.hash || ''));
     })();
     return;
-    // Handle ?via= socializer attribution
-    const viaCard = new URLSearchParams(window.location.search).get("via");
-    if (viaCard && ev.id) {
-      window._sharedByCard = viaCard;
-      // Log the click to socializers tab
-      try {
-        fetch(`${GS_URL}?action=saveSocializer&appearId=${encodeURIComponent(viaCard)}&eventId=${encodeURIComponent(ev.id)}&refCode=&via=link`);
-      } catch(e) {}
-    }
-    render(ev);
-    maybeAutoOpenManage();
+    // Everything that used to sit here was unreachable, and had been since this page started
+    // forwarding a single event to event.html above. Socializer attribution, the render and the
+    // manage panel all live on that page.
   } catch(e) {
     showError("Could not load event. Please try again.");
   }
@@ -2333,26 +2344,14 @@ window._confirmCancelModal=function(){
   _cancelCtx=null;
 };
 
-const PREVIEW_EVENT = {
-  id: "preview", title: "Monday CoWorking",
-  date: new Date().toISOString().slice(0,10),
-  time: "09:00", endtime: "12:00",
-  format: "both", room: "The Commons", location: "23000 Lakeview Dr, Mountlake Terrace, WA 98043",
-  host: "Jessie Upp", hostlink: "https://appear.network/dl/page/s/e13594/r/w.hssQR.Q7CnpNDnVJ6DwQ",
-  contactEmail: "jessie@appear.network",
-  description: "Creators create. Start your week with other independents. Share what you're working on, what you offer, and what you need. Compatible people and opportunities show up from there. Stay for open coworking - or keep circulating what you brought into the room. Login virtually or join in person, right off the light rail.",
-  experience: "connected,expressed,energized", exchangeType: "spread,feedback", showLinks: "contact", recurFreq: "weekly",
-  imageUrl: "https://lh3.googleusercontent.com/d/1cNqWkDAo6RfZDetJ0bkAM9x0UWbHImNC",
-  detailImageUrl: "", categories: ["arts","learning","professional","creative","resources","care","social","wealth"], otherExchange: "",
-  contactPhone: "", cooplink: "", paymentlink: "", meetinglink: "",
-  lifeStage: "", keywords: "", isPrivate: false,
-  interestedEnabled: "off", interested: "", sharedNotesEnabled: false, sharedNotes: "",
-};
+// PREVIEW_EVENT was here: a hardcoded event carrying a real person's name, email and Appear
+// link, drawn whenever this page was reached without an id. Nothing about a person lives in the
+// code. Removed 2026-09-07.
 
 init();
 </script>
 <!-- Version: V5.43 | Date: 2026-07-20 | LAST CHANGE: The edit-PIN handoff no longer postMessages the parent frame. Its listener in events.html went away with the event-view iframe (events V12.29), and the send carried the event's edit PIN to whatever the parent origin happened to be with "*". Navigating the top window to events.html?edit=&pin= is the path that was doing the work anyway - and a blocked navigation now falls back to this frame instead of being swallowed by a bare catch, which would have left a correct PIN doing nothing. (V5.42: contribution-list save made safe.) -->
-<script src="/nav/topbar.js?v=5.69" defer></script>
+<script src="/nav/topbar.js?v=5.70" defer></script>
 </body>
 <!--
   Copyright 2026 DayBalancer LLC. All rights reserved.
