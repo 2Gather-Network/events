@@ -5354,7 +5354,7 @@ function saveInterests(arr) {
 
 async function initForYou() {
   const memberId = getMemberId();
-  if (!memberId) return;
+  if (!memberId) { _fyProfileIn = true; return; }   // signed out, so no topics are on their way
   const section = document.getElementById("for-you-section");
   if (section) section.style.display = "block";
   try {
@@ -5378,10 +5378,8 @@ async function initForYou() {
     // "What I enjoy" is "Item:Level|Item:Level" - keep the bare item, original casing.
     _myEnjoy = String(data.interests || "").split("|").map(s => s.split(":")[0].trim()).filter(Boolean);
   } catch(e) {}
-  // The topics have arrived, so an empty list now means none rather than not yet. This is the one
-  // moment the panel decides to open itself, and it never asks again.
+  _fyProfileIn = true;   // the topics have arrived, so an empty list now means none
   renderForYou();
-  _fyOfferTopics();
 }
 
 // V12.36: the "pull more from my event profile" link shows only when the person HAS an event
@@ -5610,7 +5608,11 @@ function _fbarValue(key) {
 }
 
 function fbarToggle(key) {
-  _fbarOpen = (_fbarOpen === key) ? "" : key;
+  var closing = (_fbarOpen === key);
+  _fbarOpen = closing ? "" : key;
+  // Hide on the Interests panel is her saying she has seen it. It stops opening itself for the
+  // rest of the visit, however little there is to show.
+  if (closing && key === "interests") { _fyOfferOff = true; }
   fbarDraw();
 }
 
@@ -6015,13 +6017,23 @@ function onInterestsPencil() {
 // On arrival only. Pressing Hide closes it and it stays closed, because a panel that reopens itself
 // is a panel you are fighting. And it waits for the topics to arrive from the profile, because
 // before then an empty list means "not yet" rather than "none".
-// DECIDED IN ONE PLACE, from the render that follows the profile arriving. An earlier version
-// asked at each of the three points renderForYou can finish, and renderEvents calls renderForYou
-// too, so which answer arrived first depended on how long the backend took. Now the render only
-// records what it drew and initForYou reads it once.
+// NOT ONCE, AND NOT AT A MOMENT. Two versions of this asked the question at a chosen point - at
+// each render, then at the one render that follows the profile arriving - and both were wrong for
+// the same reason: the page settles in stages against a backend that takes 2 to 40 seconds, so
+// whichever moment is picked can be a moment when the answer is still changing. On 2026-09-07 the
+// profile landed while the answer was still "there are matches", the one offer was spent, and the
+// panel never opened for somebody with none.
+//
+// So it is a state rather than an event. While there is nothing to show, the panel is open. The
+// moment she closes it herself - Hide, or Done - it stays closed for the rest of the visit, which
+// is the only thing the "once" was ever protecting.
 var _fyNothingToShow = false;
+var _fyOfferOff = false;    // she closed it herself
+var _fyProfileIn = false;   // before the topics arrive, an empty list means "not yet"
 function _fyOfferTopics() {
+  if (_fyOfferOff || !_fyProfileIn) return;
   if (!_fyNothingToShow) return;
+  if (_fbarOpen === "interests") return;
   try { _fbarOpen = "interests"; fbarDraw(); } catch (e) {}
 }
 
@@ -6052,6 +6064,7 @@ function renderForYou() {
     if (_fyChipsGone) _fyChipsGone.innerHTML = "";
     _fyTopicHint(true);
     _fyNothingToShow = true;
+    _fyOfferTopics();
     return;
   }
   if (_fySection) _fySection.style.display = "block";
@@ -6138,6 +6151,9 @@ function renderForYou() {
   // written — so a phone with 138 matches was told nothing matched. Introduced and found the same
   // hour, 2026-09-06.
   if (_fyTotal === 0) {
+    // ONE SENTENCE, NOT ONE COLUMN. The results are a grid of 180px cards, so this line was drawn
+    // inside the first cell and came out as four words a line down the left edge.
+    resultsEl.style.display = "block";
     // TWO REASONS FOR NOTHING, and they are not the same sentence. Nought because your topics
     // match nothing, or nought because your filters hid everything they matched. Saying the first
     // when the second is true was safe while the line below carried the hidden count; that count
@@ -6150,6 +6166,7 @@ function renderForYou() {
     // Topics that match nothing count as nothing to show. Filters hiding everything do not: there
     // the answer is Reset, which the line above already offers.
     _fyNothingToShow = (_fyHidden === 0);
+    _fyOfferTopics();
     return;
   }
   _fyNothingToShow = false;
@@ -6235,6 +6252,7 @@ function closeInterestsPanel() {
   const ac = document.getElementById("interests-autocomplete");
   if (ac) ac.style.display = "none";
   try { closeTopicInput(); } catch (e) {}
+  _fyOfferOff = true;      // Done is her closing it, so it stays closed
   renderForYou();
   // Last, so nothing above can reopen what Done just closed.
   try { _fbarOpen = ""; fbarDraw(); } catch (e) {}
