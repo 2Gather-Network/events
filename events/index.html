@@ -237,6 +237,22 @@
   .fbar-tools button{background:#fff;border-color:#154F74;color:#154F74;}
   .fbar-tools button:hover{background:#EBF5FB;border-color:#154F74;color:#154F74;}
   /* One caret, turned over when open, so the open and closed states are the same size. */
+  /* The date list, hanging off its own button rather than opening a section under the bar. */
+  .fbar-dd{position:relative;display:inline-flex;}
+  .fbar-menu{position:absolute;top:calc(100% + 4px);left:0;z-index:60;background:#fff;
+    border:1.5px solid var(--border);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.12);
+    padding:4px;min-width:210px;display:flex;flex-direction:column;}
+  .fbar-menu button{background:none;border:none;text-align:left;font-family:inherit;font-size:13px;
+    color:var(--dark);padding:7px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;}
+  .fbar-menu button:hover{background:#EBF5FB;}
+  .fbar-menu button.pick{font-weight:700;color:#154F74;background:#EBF5FB;}
+  /* Three looks for Advanced, because it holds three filters where the others hold one.
+     1 set apart with a gap and a divider, 2 a heavier border, 3 filled. 2026-09-06. */
+  .fbar-adv.adv1{margin-left:10px;border-left-width:1.5px;}
+  .fbar-adv.adv1::before{content:"";position:absolute;}
+  .fbar-btn.fbar-adv.adv2{border-width:2px;border-color:#154F74;color:#154F74;font-weight:700;}
+  .fbar-btn.fbar-adv.adv3{background:#154F74;border-color:#154F74;color:#fff;}
+  .fbar-btn.fbar-adv.adv3 b{color:#fff;}
   .fbar-car{display:inline-block;transition:transform .12s;}
   .fbar-car.up{transform:rotate(180deg);}
   .fbar-sep{color:var(--border);}
@@ -306,7 +322,11 @@
          container destroyed them on the second draw. 2026-09-06. -->
     <div id="fbar-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       <!-- Search first, top left. Jessie, 2026-09-06. -->
-      <div id="fbar-search" style="display:flex;align-items:center;gap:6px;flex:1 1 240px;min-width:200px;"></div>
+      <!-- 180 rather than 240, so the seven controls, Reset and the i all fit on one row on a
+           desktop. Jessie, 2026-09-06: "Make all of the search bar on one line. So the search
+           events field should be smaller." A phone still wraps, because seven controls cannot
+           fit on 375 pixels and pretending otherwise would squeeze the box to nothing. -->
+      <div id="fbar-search" style="display:flex;align-items:center;gap:6px;flex:1 1 180px;min-width:150px;"></div>
       <div id="fbar-controls" style="display:contents;"></div>
     </div>
     <div id="fbar-panel-interests" class="fbar-panel" style="display:none;"></div>
@@ -5257,6 +5277,19 @@ function toggleFyCollapse() {
 // is duplicated and every existing handler keeps working. Built 2026-09-06.
 var FBAR = /[?&]bar=1(&|$)/.test(location.search);
 var _fbarOpen = "";
+// Which of the three Advanced button designs. &adv=1|2|3 beside ?bar=1, so all three can be looked
+// at on the real page. It comes out with the parameter once Jessie picks one. 2026-09-06.
+var FBAR_ADV = (/[?&]adv=([123])(&|$)/.exec(location.search) || [])[1] || "1";
+
+// The date list writes into the real select and fires the page's own handler, so nothing about how
+// dates filter has changed. One source, as it was before.
+function fbarPickDate(v) {
+  var sel = document.getElementById("date-filter-select");
+  if (sel) { sel.value = v; if (typeof setDateFilter === "function") setDateFilter(v); }
+  _fbarOpen = "";
+  renderEvents();
+  fbarDraw();
+}
 
 // Each control: what it is called, which panel it opens, and how it says its own state.
 var FBAR_CONTROLS = [
@@ -5405,6 +5438,33 @@ function fbarDraw() {
       return '<button class="fbar-btn' + (on ? ' on' : '') + '" onclick="fbarMyGroupsToggle()">'
         + c.label + ' <b>(' + esc(v) + ')</b></button>';
     }
+    // DATE DROPS FROM THE BUTTON. It used to open a section under the whole bar with a dropdown
+    // sitting inside it, which is two openings for one choice. Jessie, 2026-09-06: "don't make the
+    // date. Create a subcategory. Just Drop it down from the top." The real select is still the
+    // only source of truth and still hidden in the page; this list writes into it.
+    if (c.key === "date") {
+      var sel = document.getElementById("date-filter-select");
+      var opts = "";
+      if (sel) {
+        for (var oi = 0; oi < sel.options.length; oi++) {
+          var o = sel.options[oi];
+          opts += '<button class="fbar-mi' + (o.value === sel.value ? ' pick' : '') + '" onclick="fbarPickDate(\'' + o.value + '\')">' + esc(o.textContent.trim()) + '</button>';
+        }
+      }
+      return '<span class="fbar-dd">'
+        + '<button class="fbar-btn' + (on ? ' on' : '') + '" onclick="fbarToggle(\'date\')">'
+        +   c.label + ' <b>(' + esc(v) + ')</b> <span class="fbar-car' + (open ? ' up' : '') + '">\u25be</span></button>'
+        + '<div class="fbar-menu"' + (open ? '' : ' hidden') + '>' + opts + '</div>'
+        + '</span>';
+    }
+    // ADVANCED SAYS NOTHING WHEN IT IS DOING NOTHING. "(All)" on a control holding three filters
+    // read as a value it did not have. Jessie, 2026-09-06: "Don't say all in the advance button".
+    // It keeps saying what is set when something is.
+    if (c.key === "advanced") {
+      return '<button class="fbar-btn fbar-adv adv' + FBAR_ADV + (on ? ' on' : '') + '" onclick="fbarToggle(\'advanced\')">'
+        + c.label + (on ? ' <b>(' + esc(v) + ')</b>' : '')
+        + ' <span class="fbar-car' + (open ? ' up' : '') + '">\u25be</span></button>';
+    }
     return '<button class="fbar-btn' + (on ? ' on' : '') + '" onclick="fbarToggle(\'' + c.key + '\')">'
       + c.label + ' <b>(' + esc(v) + ')</b> <span class="fbar-car' + (open ? ' up' : '') + '">\u25be</span></button>';
   }).join("")
@@ -5491,9 +5551,16 @@ function fbarBoot() {
     strip.style.cssText = "display:flex;align-items:flex-start;gap:22px;flex-wrap:wrap;";
     var leftCol = document.createElement("div");
     leftCol.style.cssText = "display:flex;flex-direction:column;gap:12px;flex:0 1 280px;min-width:200px;";
+    // NOT A FORM. The uppercase VENUE and HOST labels above two boxes made this read as a form to
+    // fill in rather than two things to search. The boxes already say what they are inside them.
+    // Jessie, 2026-09-06: "I still don't like how the advanced section looks."
     ["fp-venue", "fp-host"].forEach(function (id) {
       var el = document.getElementById(id);
-      if (el) { el.style.marginTop = "0"; el.style.flex = "none"; el.style.minWidth = "0"; el.style.width = "100%"; leftCol.appendChild(el); }
+      if (!el) return;
+      var lab = el.querySelector("label");
+      if (lab) lab.style.display = "none";
+      el.style.marginTop = "0"; el.style.flex = "none"; el.style.minWidth = "0"; el.style.width = "100%";
+      leftCol.appendChild(el);
     });
     strip.appendChild(leftCol);
     var feel = document.getElementById("fp-feeling");
