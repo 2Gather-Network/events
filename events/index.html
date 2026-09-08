@@ -987,7 +987,9 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <label style="display:flex;align-items:flex-start;gap:8px;font-size:14px;cursor:pointer;margin-bottom:10px;">
         <input type="checkbox" id="show-group" onchange="toggleGroupPick()" style="width:16px;height:16px;accent-color:var(--primary);margin-top:2px;flex-shrink:0;">
         <span>Associate this event with a group</span>
+        <button type="button" onclick="event.preventDefault();var e=document.getElementById('group-info');e.style.display=e.style.display==='none'?'block':'none';" aria-label="What does associating a group do?" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 0 0 4px;line-height:1;">ℹ️</button>
       </label>
+      <p id="group-info" style="display:none;font-size:12px;color:var(--muted);background:#f3f4f6;border-radius:8px;padding:8px 10px;margin:0 0 10px 24px;line-height:1.5;">Associate any of your groups with this event, where people find each other based on needs, interests, skills, and offers.</p>
       <!-- MY GROUPS SITS ABOVE THE OPTIONS. Jessie, 2026-09-07: "put this above the checkmarked
            options". The reveal tick that opened it came off in the same move: a tick whose only job
            is to show a block that now sits above the ticks is one press for nothing. -->
@@ -1001,8 +1003,6 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
              The whole block hides for somebody with no groups, because an empty list is a question
              they cannot answer. -->
         <div id="share-opt-group" style="display:none;flex-direction:column;gap:6px;margin-bottom:14px;">
-          <label class="field-label" style="margin:0;">My groups</label>
-          <div style="font-size:12px;color:var(--muted);line-height:1.5;">Associate any of your groups with this event, where people find each other based on needs, interests, skills, and offers.</div>
           <div id="f-group-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
           <input type="hidden" id="f-group-ids">
           <div id="f-group-chosen" style="display:none;font-size:12px;color:var(--cw-blue);font-weight:600;line-height:1.5;"></div>
@@ -1014,7 +1014,6 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
              will be shared to event registrants only." The fields below are the decision: filling
              one shares it, leaving it empty does not, and a tick above them said the same thing a
              second time. -->
-        <p style="font-size:12px;color:#1B6896;font-weight:600;margin:0 0 2px;">Anything you put in the email or phone fields below is shared with people who register, and nobody else.</p>
         <label id="share-opt-payment" style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
           <input type="checkbox" id="show-paymentlink" onchange="toggleLinkFields()" style="width:16px;height:16px;accent-color:var(--primary);">
           Show a registration/payment link
@@ -1070,7 +1069,10 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <input class="input" id="f-paymentlink" type="url" placeholder="https://...">
     </div>
 
-    <div id="field-contact" style="display:none;">
+    <!-- ALWAYS SHOWN. The tick that revealed these came off with the Contact info option, and I
+         left them behind it, so the fields vanished with the tick. Jessie: "(and they are missing)".
+         Filling one IS the decision to share it, which was the whole reason the tick went. -->
+    <div id="field-contact">
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <div style="flex:1;min-width:140px;" class="field">
           <label class="field-label">Contact email</label>
@@ -1081,6 +1083,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
           <input class="input" id="f-contact-phone" type="tel" placeholder="Example: 206-555-0100">
         </div>
       </div>
+      <p style="font-size:12px;color:#1B6896;font-weight:600;margin:0 0 18px;">Anything you put in these fields is shared with people who register, and nobody else.</p>
     </div>
 
     <!-- #4 Cover image updated hint -->
@@ -1890,14 +1893,10 @@ Return ONLY the JSON object, no explanation.`;
       document.getElementById("f-paymentlink").value = parsed.paymentlink;
       document.getElementById("show-paymentlink").checked = true;
     }
-    if (parsed.contactEmail) {
-      document.getElementById("f-contact-email").value = parsed.contactEmail;
-      document.getElementById("show-contact").checked = true;
-    }
-    if (parsed.contactPhone) {
-      document.getElementById("f-contact-phone").value = parsed.contactPhone;
-      document.getElementById("show-contact").checked = true;
-    }
+    // show-contact no longer exists, and reading .checked on null threw here, which would have
+    // stopped the rest of the paste being applied. Filling the field IS the sharing now.
+    if (parsed.contactEmail) { document.getElementById("f-contact-email").value = parsed.contactEmail; }
+    if (parsed.contactPhone) { document.getElementById("f-contact-phone").value = parsed.contactPhone; }
     toggleLinkFields();
 
     // Auto-select categories
@@ -3233,7 +3232,7 @@ function saveEditDraft() {
     keywords: document.getElementById("f-keywords")?.value.trim() || "",
     hostNote: document.getElementById("f-host-note")?.value.trim() || "",
     recurEnd: document.getElementById("f-recur-end")?.value || "",
-    showLinks: ["hostlink","cooplink","paymentlink","contact"].filter(k => document.getElementById("show-"+k)?.checked).join(","),
+    showLinks: _showLinksValue(),
     cats: [...selectedCats], format: selectedFormat, room: selectedRoom,
     interestedEnabled, sharedNotesEnabled,
   };
@@ -3293,7 +3292,7 @@ function saveDraft() {
     contactEmail: document.getElementById("f-contact-email")?.value || "", contactPhone: document.getElementById("f-contact-phone")?.value || "",
     cooplink: document.getElementById("f-cooplink")?.value || "", passcode: document.getElementById("f-passcode")?.value || "",
     paymentlink: document.getElementById("f-paymentlink")?.value || "", exchangeType: [...selectedExchangeTypes].join(",") || "", otherExchange: document.getElementById("f-exch-other")?.value.trim() || "",
-    showLinks: ["hostlink","cooplink","paymentlink","contact"].filter(k => document.getElementById("show-"+k)?.checked).join(","),
+    showLinks: _showLinksValue(),
     cats: [...selectedCats], format: selectedFormat, room: selectedRoom,
     interestedEnabled, sharedNotesEnabled,
   };
@@ -4151,9 +4150,10 @@ function _goToGroupPick() {
    It is behind a parameter so the live form is untouched while she looks at it.
    https://2gather.network/events/?tidy=1                                                        */
 function _tidyHelp() {
-  try {
-    if (new URLSearchParams(window.location.search).get('tidy') !== '1') return;
-  } catch (e) { return; }
+  // ON FOR EVERYBODY since 2026-09-07. It shipped behind ?tidy=1 that evening, she looked, and
+  // said publish. The parameter is gone rather than left defaulting to on, so there is one
+  // behaviour rather than two.
+
   document.querySelectorAll('.field-help').forEach(function (p) {
     if (p.dataset.tidied) return;
     p.dataset.tidied = '1';
@@ -4320,7 +4320,9 @@ function _knownPosterName() {
 }
 
 function toggleLinkFields() {
-  ["cooplink","paymentlink","contact"].forEach(k => {   // hostlink handled specially below
+  // contact is NOT in this list any more. Its tick came off, so nothing can ever check it, and
+  // leaving it here hid the two fields for good. 2026-09-07.
+  ["cooplink","paymentlink"].forEach(k => {   // hostlink handled specially below
     const field = document.getElementById("field-"+k);
     const cb = document.getElementById("show-"+k);
     if (field && cb) field.style.display = cb.checked ? "block" : "none";
@@ -4438,6 +4440,20 @@ function toggleBulkCal() {
   var el = document.getElementById("bulk-cal-info");
   if (el) el.style.display = (el.style.display === "none" || !el.style.display) ? "block" : "none";
 }
+// CONTACT IS DECIDED BY THE FIELDS, not by a tick. The tick came off on 2026-09-07 because the
+// fields are the decision: fill one and it is shared, leave it empty and it is not. Without this,
+// "contact" would never reach showLinks again and contact details would stop showing to anybody.
+function _showLinksValue() {
+  var out = ["hostlink", "cooplink", "paymentlink"].filter(function (k) {
+    var el = document.getElementById("show-" + k);
+    return el && el.checked;
+  });
+  var em = (document.getElementById("f-contact-email") || {}).value || "";
+  var ph = (document.getElementById("f-contact-phone") || {}).value || "";
+  if (em.trim() || ph.trim()) { out.push("contact"); }
+  return out.join(",");
+}
+
 function copyBulkEmail(btn) {
   var done = function(){ var t = btn.textContent; btn.textContent = "Copied!"; setTimeout(function(){ btn.textContent = t; }, 1500); };
   try { navigator.clipboard.writeText("hello@creating.works").then(done, done); }
@@ -4995,7 +5011,7 @@ async function submitEvent() {
     hasBB: document.getElementById("f-has-bb")?.checked || false,
     lifeStage: [...selectedLifeStages].join(","),
     keywords: document.getElementById("f-keywords")?.value.trim() || "",
-    showLinks: ["hostlink","cooplink","paymentlink","contact"].filter(k => document.getElementById("show-"+k)?.checked).join(","),
+    showLinks: _showLinksValue(),
     recurFreq: (document.getElementById("f-recurring")?.checked) ? (recurFreq || "") : "",   // isMasterUser dropped 2026-09-07, the row is everybody's now
     recurring: !!(isMasterUser && document.getElementById("f-recurring")?.checked && recurFreq),
     interestedEnabled, sharedNotesEnabled,
