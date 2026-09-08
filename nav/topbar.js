@@ -972,7 +972,14 @@
          on her own pages, "Viewing as" is three words explaining a state that is simply normal.
          The other state keeps its full sentence in amber, because THAT one is the one worth
          announcing. */
-      says.textContent = mine || 'Your own pages';
+      /* IT SAYS NOTHING UNTIL IT KNOWS. Jessie, 2026-09-08: "why does it toggle from 'your own
+         pages' to 'Jessie Upp' at top superadmin nav?"
+         Because the name is fetched and the strip draws first. It said "Your own pages", then the
+         answer arrived and it redrew as her name - two different things in the same spot, seconds
+         apart, which reads as the page changing its mind.
+         Empty until the name is there. The strip keeps its height either way, so nothing jumps,
+         and what appears appears once. */
+      says.textContent = mine || '';
       says.style.cssText = 'font:inherit;padding:0;border:0;background:transparent;color:#1A2E42;'
         + 'cursor:pointer;text-align:left;';
       says.onclick = function () { try { w.CW.stopViewing(); } catch (e) {} w.location.reload(); };
