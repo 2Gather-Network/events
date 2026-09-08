@@ -947,26 +947,23 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
 
 
     <div class="field">
-      <label class="field-label" id="host-field-label">Event host</label>
+      <label class="field-label" id="host-field-label">Event host name</label>
       <input class="input" id="f-host">
-    </div>
-    <div class="field">
-      <label class="field-label">Organization <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted);">- optional</span></label>
-      <input class="input" id="f-org" placeholder="e.g. Edmonds Food Bank">
     </div>
 
     <div class="field" id="registration-field" style="margin-bottom:12px;">
       <label class="field-label" style="margin-bottom:4px;">Event registration</label>
       <p style="font-size:12px;color:var(--muted);margin:0 0 8px;" id="int-hint">People can register from the event page. Attendee info found in "My events."</p>
       <div style="display:flex;gap:8px;">
-        <button type="button" class="format-chip selected" id="int-required" onclick="setInterestedEnabled('required')" style="flex:1;">Required</button>
-        <button type="button" class="format-chip" id="int-optional" onclick="setInterestedEnabled('optional')" style="flex:1;">Optional</button>
+        <button type="button" class="format-chip selected" id="int-optional" onclick="setInterestedEnabled('optional')" style="flex:1;">Optional</button>
+        <button type="button" class="format-chip" id="int-required" onclick="setInterestedEnabled('required')" style="flex:1;">Required</button>
         <button type="button" class="format-chip" id="int-off" onclick="setInterestedEnabled('off')" style="flex:1;">Off</button>
       </div>
     </div>
 
     <div class="field">
       <label class="field-label">Categories <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted);">- select all that apply</span></label>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Select all that apply. People are matched to the categories they said they are interested in.</p>
       <div class="form-cat-chips" id="f-cat-chips"></div>
     </div>
 
@@ -1166,6 +1163,11 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
     <div class="field" id="field-host-note" style="display:none;">
       <label class="field-label">Host note <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted);">- optional, visible after someone registers interest</span></label>
       <textarea class="textarea" id="f-host-note" placeholder="Add a note for people who register interest..." style="min-height:80px;"></textarea>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Organization <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted);">- optional</span></label>
+      <input class="input" id="f-org" placeholder="e.g. Edmonds Food Bank">
     </div>
 
     </div><!-- end more-options-section -->
@@ -1505,13 +1507,12 @@ function applySharingMode(sharing) {
   // and link fields describe the poster rather than whoever runs it. Both fill
   // themselves from what this device already remembers.
   var lab = document.getElementById("host-field-label");
-  if (lab) lab.textContent = sharing ? "Your name" : "Event host";
+  if (lab) lab.textContent = sharing ? "Your name" : "Event host name";
   // EITHER WAY IT IS A NAME THIS DEVICE ALREADY KNOWS. Jessie, 2026-09-07: "Not sure if this
   // who's hosting is necessary if I'm posting an event. It should just bring in my name."
   // Sharing filled it and hosting left it blank, so anybody posting their own event typed their
   // own name every time. Same helper, same line, both branches. It stays editable.
-  var hn = document.getElementById("f-host");
-  if (hn && !hn.value.trim()) hn.value = _knownPosterName();
+  _fillPosterName();
   if (sharing) {
     // V12.77: the link is no longer planted here. Ticking "My Appear Network page" looks it up.
   }
@@ -3820,7 +3821,7 @@ function loadEditForm(id) {
 
 let selectedExchangeTypes = new Set();
 let recurFreq = null;
-let interestedEnabled = "required";
+let interestedEnabled = "optional";   // Jessie, 2026-09-07: Optional is the one to start on
 let sharedNotesEnabled = false;
 let selectedLifeStages = new Set();
 let formDirty = false;
@@ -4234,6 +4235,31 @@ function _rememberPosterName(name) {
   var k = _nameKey();
   if (k && String(name || "").trim()) { try { localStorage.setItem(k, String(name).trim()); } catch (e) {} }
 }
+// THE NAME COMES FROM THE ACCOUNT WHEN THE DEVICE HAS NEVER HELD ONE. Jessie, 2026-09-07: "This
+// is where it should pipe in the person's name that is posting the event as the host... I don't see
+// that at all."
+//
+// _knownPosterName reads poster-name-<id>, which is only written once somebody has TYPED a name and
+// posted, so on a device that has never posted it is empty and the box stayed blank. That was the
+// whole feature, on the machine where it mattered most.
+//
+// So: use what the device remembers, and otherwise ask who this is. _resolveMyAppearLink caches its
+// promise and already fills _myAppearName from lookupProfile, so this costs nothing on a page that
+// was going to ask anyway and one call on a page that was not. It never writes over typing.
+function _fillPosterName() {
+  var hn = document.getElementById("f-host");
+  if (!hn) return;
+  var known = _knownPosterName();
+  if (known && !hn.value.trim()) { hn.value = known; return; }
+  if (hn.value.trim()) return;
+  try {
+    _resolveMyAppearLink().then(function () {
+      if (hn.value.trim()) return;                 // they typed while we asked
+      if (_myAppearName) { hn.value = _myAppearName; }
+    });
+  } catch (e) {}
+}
+
 function _knownPosterName() {
   var k = _nameKey();
   try { return k ? (localStorage.getItem(k) || "") : ""; } catch (e) { return ""; }
