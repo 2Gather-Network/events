@@ -549,7 +549,7 @@
     try {
       var seen = (window.CW && window.CW.viewingAs)
         ? String(window.CW.viewingAs() || '').trim()
-        : String(localStorage.getItem('cw-view-as') || '').trim();
+        : String(sessionStorage.getItem('cw-view-as') || '').trim();   // per tab since 2026-09-07
       if (seen) { return; }
     } catch (e) {}
     window.CW_ID = id;
@@ -765,7 +765,7 @@
   function paint() {
     var old = d.getElementById('cw-viewas'); if (old) { old.remove(); }
     var seen = w.CW.viewingAs();
-    var name = ls(function () { return w.localStorage.getItem('cw-view-as-name') || ''; }, '');
+    var name = ls(function () { return w.sessionStorage.getItem('cw-view-as-name') || ''; }, '');
 
     var bar = d.createElement('div');
     bar.id = 'cw-viewas';

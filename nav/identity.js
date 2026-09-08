@@ -32,6 +32,17 @@
   var VIEW_KEY = 'cw-view-as';
 
   function ls(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
+  /* VIEWING AS SOMEBODY LIVES PER TAB. Moved from localStorage on 2026-09-07.
+     Jessie: "Would you say that it would be an issue if I'm logged in on one tab as me and doing as
+     Jerry as another on another tab?" It was. localStorage is shared by every tab on the site, so
+     there were never two sessions, there was one, and the last tab to switch decided for both. The
+     other tab went on showing the old person until its next read and then quietly became Jerry.
+     sessionStorage is per tab, survives a reload and starts empty in a new tab, which is the shape
+     this always wanted. Signing in is still localStorage: that IS meant to follow you everywhere. */
+  function ss(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
+  /* Anybody carrying the old key would be stuck viewing somebody with no tab to end it in, so it
+     is cleared once, here, on load. */
+  ls(function () { w.localStorage.removeItem('cw-view-as'); w.localStorage.removeItem('cw-view-as-name'); });
 
   /* Dots and case are noise. `w.hss` and `whss` are one person, and every storage
      key, cache key and comparison uses this form so they never split in two. */
@@ -209,7 +220,7 @@
   })();
 
   function viewingAs() {
-    return ls(function () { return String(w.localStorage.getItem(VIEW_KEY) || '').trim(); }, '');
+    return ss(function () { return String(w.sessionStorage.getItem(VIEW_KEY) || '').trim(); }, '');
   }
 
   w.CW = {
@@ -237,15 +248,15 @@
     viewAs: function (id, name) {
       id = String(id || '').trim();
       ls(function () {
-        if (!id) { w.localStorage.removeItem(VIEW_KEY); w.localStorage.removeItem('cw-view-as-name'); }
-        else { w.localStorage.setItem(VIEW_KEY, id); w.localStorage.setItem('cw-view-as-name', String(name || '')); }
+        if (!id) { w.sessionStorage.removeItem(VIEW_KEY); w.sessionStorage.removeItem('cw-view-as-name'); }
+        else { w.sessionStorage.setItem(VIEW_KEY, id); w.sessionStorage.setItem('cw-view-as-name', String(name || '')); }
       });
       return id;
     },
     stopViewing: function () {
-      ls(function () {
-        w.localStorage.removeItem(VIEW_KEY);
-        w.localStorage.removeItem('cw-view-as-name');
+      ss(function () {
+        w.sessionStorage.removeItem(VIEW_KEY);
+        w.sessionStorage.removeItem('cw-view-as-name');
       });
     },
     remember: function (id) { return remember(id); },
@@ -255,6 +266,11 @@
     forget: function () {
       ls(function () {
         for (var i = 0; i < CLEAR.length; i++) { w.localStorage.removeItem(CLEAR[i]); }
+        // Viewing lives in sessionStorage now, and signing out still ends it.
+        ss(function () {
+          w.sessionStorage.removeItem('cw-view-as');
+          w.sessionStorage.removeItem('cw-view-as-name');
+        });
         Object.keys(w.localStorage).forEach(function (k) {
           if (k.indexOf('cw-edit-') === 0) { w.localStorage.removeItem(k); }
         });
