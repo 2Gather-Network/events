@@ -507,8 +507,36 @@
       if (img && img.getAttribute('src')) { src = img.getAttribute('src'); }
     }
     if (src) {
-      face.className = 'cwtb-face';
-      face.innerHTML = '<img src="' + src + '" alt="">';
+      // THE PILL SURVIVES THE PHOTO ARRIVING. Jessie, 2026-09-08: "top photo isn't a pill."
+      //
+      // Most pages never fetch a face, so the bar draws the fallback anchor first and this fills it
+      // in when the photo turns up. It did that by turning that anchor INTO a bare face - which on
+      // every page where the photo arrives late is every page, threw away the pill and the name
+      // with it. The pill was only ever visible on the rare page that already had a photo at draw
+      // time, which is why it looked like it had not been built.
+      //
+      // Two shapes to fill: the span inside a pill that is already there, or the fallback anchor,
+      // which is rebuilt AS the pill.
+      var inPill = face.parentNode && face.parentNode.className &&
+                   String(face.parentNode.className).indexOf('cwtb-me') > -1;
+      if (inPill || face.className.indexOf('cwtb-face') > -1) {
+        face.className = 'cwtb-face';
+        face.innerHTML = '<img src="' + src + '" alt="">';
+        return true;
+      }
+      var nm2 = '';
+      try {
+        nm2 = String(window.CW_NAME || window.localStorage.getItem('cw-name') || '').trim();
+        var forWho2 = String(window.localStorage.getItem('cw-name-for') || '').trim();
+        var meNow = String((window.CW && window.CW.me) ? (window.CW.me().id || '') : '').trim();
+        if (forWho2 && meNow && forWho2 !== meNow) { nm2 = ''; }
+      } catch (e) { nm2 = ''; }
+      var esc3 = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
+      face.className = 'cwtb-me';
+      face.setAttribute('title', 'My profile');
+      face.innerHTML = (nm2 ? '<span class="cwtb-me-name">' + esc3(nm2) + ' \u{1F331}</span>' : '')
+                     + '<span class="cwtb-face"><img src="' + src + '" alt=""></span>';
       return true;
     }
     return false;
