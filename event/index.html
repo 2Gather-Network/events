@@ -1042,25 +1042,41 @@ function addToCalendar(ev) {
   window.open("https://calendar.google.com/calendar/r/eventedit?" + params.toString(), "_blank");
 }
 
-async function copyLink() {
+// COPY ON THE PRESS. Jessie, 2026-09-07: "why does this pop up rather tha just coying to
+// clipbaord?" Because it awaited getShortCode first, and by the time that answered the browser had
+// stopped believing a person had asked for the clipboard, so writeText was refused and the code
+// fell through to a browser prompt. The same fault as Share, which was fixed the same evening:
+// waiting inside a handler loses the gesture that authorised it.
+//
+// The short address is primed when the event renders, so this uses whatever exists at the instant
+// of the press and never waits. A recurring occurrence has no short code, and the full address is
+// a perfectly good link.
+//
+// And the browser prompt is gone. It is one of the three overlays Jessie has queued for removal,
+// it cannot be styled, and it says "2gather.network says" above whatever we wrote.
+function copyLink() {
   const btns = document.querySelectorAll(".copy-btn-el");
   const origTexts = Array.from(btns).map(b => b.innerHTML);
-  btns.forEach(b => b.innerHTML = "⏳ Getting link...");
-
-  try {
-    const id = _currentEv && _currentEv.id;
-    if (!id) throw new Error("no id");
-    const res = await fetch(`${GS_URL}?action=getShortCode&id=${encodeURIComponent(id)}`);
-    const data = await res.json();
-    if (data.status !== "ok" || !data.code) throw new Error("no code");
-    const shortUrl = _withRef(`https://go.2gather.network/${data.code}`);
-    await navigator.clipboard.writeText(shortUrl);
-    btns.forEach((b, i) => { b.innerHTML = "✓ Copied!"; setTimeout(() => b.innerHTML = origTexts[i], 2000); });
-  } catch(e) {
+  const url = _withRef(_shortLink || window.location.href);
+  const done = () => { btns.forEach((b, i) => { b.innerHTML = "✓ Copied!"; setTimeout(() => b.innerHTML = origTexts[i], 2000); }); };
+  const fallback = () => {
     btns.forEach((b, i) => b.innerHTML = origTexts[i]);
-    const fallbackUrl = _withRef(window.location.href.split('?')[0] + window.location.search.replace(/[?&]r=[^&]*/g, ''));
-    navigator.clipboard?.writeText(fallbackUrl).then(() => showToast("🔗 Link copied!")).catch(() => prompt("Copy this link:", fallbackUrl));
-  }
+    const box = document.getElementById("share-url-box");
+    if (box) { box.remove(); return; }
+    const d = document.createElement("div");
+    d.id = "share-url-box";
+    d.style.cssText = "position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:0 4px 24px rgba(0,0,0,.18);z-index:9999;width:min(340px,92vw);";
+    d.innerHTML = '<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Copy this link to share:</p>'
+      + '<input value="' + url.replace(/"/g, "&quot;") + '" readonly style="width:100%;border:1.5px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--dark);box-sizing:border-box;">';
+    document.body.appendChild(d);
+    setTimeout(() => { const i = d.querySelector("input"); if (i) i.select(); }, 60);
+    setTimeout(() => d.remove(), 8000);
+  };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done, fallback);
+    } else { fallback(); }
+  } catch (e) { fallback(); }
 }
 
 // THE SAME SIX CHARACTERS THE BACKEND WORKS OUT, so a link can be built here without asking for
