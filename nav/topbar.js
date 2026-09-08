@@ -52,8 +52,7 @@
   var LOGO     = 'https://2gather.network/images/2gather_logo.png';
   var EVENTS   = 'https://2gather.network/events';
   var MYEVENTS = 'https://2gather.network/myevents';
-  // POSTING LIVES ON /manage/ NOW, 2026-09-08. The calendar page is for looking.
-  var POST     = 'https://2gather.network/manage/';
+  var POST     = 'https://2gather.network/events?action=post';
   var MYGROUPS = 'https://2gather.network/mygroups';
   var START    = 'https://2gather.network/groups/create';
   var JOIN     = 'https://2gather.network/mygroups?join=1';

@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: M1.7 | Date: 2026-09-08 | LAST CHANGE: the site's own dimensions - 1040px wide on a blue ground like My events and My groups, with the rail widened to 300px from 270. It was 1200px wide with a NARROWER rail, which is what made it read as a different product. Form buttons are smaller and right-justified. Co-hosts appear only when "Add a co-host" is ticked. -->
+<!-- Version: M1.8 | Date: 2026-09-08 | LAST CHANGE: the rail is Attending / Hosting / Socialized, matching My events, opening on Hosting. Arriving here no longer opens a posting form nobody asked for. Waiting says "Loading your events" as the blinking pill. And a failed call now says so instead of reporting an empty list, which had it telling her that her own event belonged to somebody else. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -384,6 +384,12 @@
   .manage-new { display:block; width:calc(100% - 12px); margin:10px 6px 4px; text-align:center; background:var(--primary); color:#fff; border:0; font:inherit; font-size:13px; font-weight:700; padding:9px 12px; border-radius:22px; cursor:pointer; }
   .manage-main { background:#fff; border-radius:14px; padding:18px 20px; min-height:420px; }
   .manage-hint { font-size:13px; color:var(--muted); padding:6px 2px; }
+  /* THE WAITING STATE SHE ALREADY PICKED. Jessie, 2026-09-08: "say Loading your events as a
+     blinking button as you used to". Lifted from My events V5.44 rather than written again. */
+  .cw-loading{display:inline-flex;align-items:center;gap:8px;background:#1F699E;color:#fff;
+    font-size:13px;font-weight:700;padding:8px 16px;border-radius:20px;white-space:nowrap;
+    animation:cw-breathe 1.6s ease-in-out infinite;}
+  @keyframes cw-breathe{0%,100%{opacity:1}50%{opacity:.62}}
 
   /* The form is written as an overlay because on the calendar page it was one. Here it is the
      page, so the overlay chrome comes off and it lays out in the flow. */
@@ -460,15 +466,15 @@
            as one thing. What the three filter is hers to say; these are the three that every event
            in the list can actually be. -->
       <div class="manage-seg">
-        <button type="button" class="manage-tab on" data-pane="upcoming" onclick="manageTab('upcoming')">Upcoming<span>0</span></button>
-        <button type="button" class="manage-tab" data-pane="past" onclick="manageTab('past')">Past<span>0</span></button>
-        <button type="button" class="manage-tab" data-pane="cancelled" onclick="manageTab('cancelled')">Cancelled<span>0</span></button>
+        <button type="button" class="manage-tab" data-pane="attending" onclick="manageTab('attending')">Attending<span>0</span></button>
+        <button type="button" class="manage-tab on" data-pane="hosting" onclick="manageTab('hosting')">Hosting<span>0</span></button>
+        <button type="button" class="manage-tab" data-pane="socialized" onclick="manageTab('socialized')">Socialized<span>0</span></button>
       </div>
-      <div id="manage-list"><div class="manage-hint">Looking for your events...</div></div>
+      <div id="manage-list"></div>
       <button type="button" class="manage-new" onclick="try{openChoiceModal()}catch(e){location.href='https://2gather.network/manage/'}">Post a new event</button>
     </aside>
     <section class="manage-main">
-      <div id="manage-status" class="manage-hint">Opening the form...</div>
+      <div id="manage-status"><span class="cw-loading">Loading your events</span></div>
       <div id="form-host"></div>
     </section>
   </div>
@@ -7780,7 +7786,7 @@ function selectInterestSuggestion(val) {
   var wantId = '';
   try { wantId = (new URLSearchParams(location.search).get('id') || '').trim(); } catch (e) {}
 
-  function say(msg) { if (status) { status.textContent = msg; status.style.display = 'block'; } }
+  function say(msg) { if (status) { status.innerHTML = ''; status.className = 'manage-hint'; status.textContent = msg; status.style.display = 'block'; } }
   function quiet()  { if (status) { status.style.display = 'none'; } }
 
   // The form is built as an overlay elsewhere in this file. Here it is the page, so it is moved
@@ -7808,22 +7814,22 @@ function selectInterestSuggestion(val) {
   // The three pills filter one list. The rows are held here so pressing a pill costs nothing:
   // getMyEvents measures 9 to 39 seconds and it has already been asked once.
   var allRows = [];
-  var pane = 'upcoming';
+  // Hosting opens, not Attending. Jessie, 2026-09-08: "railing changed to something else agian -
+  // was attenidn/hosting/socialized." Same three as My events so the two rails are one thing.
+  // Hosting leads here rather than Attending, because this page is for editing and an event you
+  // are attending is somebody else's to edit.
+  var pane = 'hosting';
   var selId = '';
 
-  var isCancelled = function (r) {
-    var v = String(r.cancelled == null ? '' : r.cancelled).trim().toLowerCase();
-    return v === 'true' || v === 'yes' || v === '1';
+  // The same rule My events uses to tell the two apart: an event you shared rather than run has
+  // hostType 'socializer'. Attending is somebody else's event, and getMyEvents answers with what
+  // you own or co-host, so it reads 0 here until this page is given the registration list too.
+  var isSocialized = function (r) {
+    return String(r.hostType || '').trim().toLowerCase() === 'socializer';
   };
-  var dayOf = function (r) { var d = new Date(String(r.date || '')); return isNaN(d) ? null : d; };
   var inPane = function (r, p) {
-    if (isCancelled(r)) return p === 'cancelled';
-    if (p === 'cancelled') return false;
-    var d = dayOf(r);
-    var today = new Date(); today.setHours(0, 0, 0, 0);
-    // An undated event is unfinished rather than over, so it sits with the upcoming ones.
-    if (!d) return p === 'upcoming';
-    return p === 'upcoming' ? d >= today : d < today;
+    if (p === 'attending') return false;
+    return p === 'socialized' ? isSocialized(r) : !isSocialized(r);
   };
 
   window.manageTab = function (p) {
@@ -7835,7 +7841,7 @@ function selectInterestSuggestion(val) {
   };
 
   function paintCounts(rows) {
-    ['upcoming', 'past', 'cancelled'].forEach(function (p) {
+    ['attending', 'hosting', 'socialized'].forEach(function (p) {
       var b = document.querySelector('.manage-tab[data-pane="' + p + '"] span');
       if (b) b.textContent = rows.filter(function (r) { return inPane(r, p); }).length;
     });
@@ -7888,18 +7894,30 @@ function selectInterestSuggestion(val) {
     try { me = (typeof getRealMemberId === 'function' && getRealMemberId()) || ''; } catch (e) {}
     if (!me) { say('Sign in to post or edit an event.'); if (list) list.innerHTML = ''; return; }
 
-    var rows = [];
+    // A CALL THAT FAILED IS NOT AN EMPTY LIST. Jessie, 2026-09-08, on her own event: "what page is
+    // this? an actual event?" - the rail read 0, 0, 0 and "Nothing here", and the panel said the
+    // event belonged to somebody else. Both were false. The call had failed and the catch left an
+    // empty array, which is indistinguishable from having no events, so the page confidently told
+    // her something untrue about her own data. Saying nothing would have been better; saying what
+    // happened is better still.
+    var rows = [], failed = false;
     try {
       var r = await fetch(GS_URL + '?action=getMyEvents&appearId=' + encodeURIComponent(me) + '&t=' + Date.now());
       var d = await r.json();
       if (d && d.status === 'ok' && Array.isArray(d.events)) { rows = d.events; }
-    } catch (e) {}
+      else { failed = true; }
+    } catch (e) { failed = true; }
+    if (failed) {
+      if (list) list.innerHTML = '<div class="manage-hint">Could not reach the server. <a href="" onclick="location.reload();return false;">Try again</a></div>';
+      say('Could not load your events, so nothing here is trustworthy yet. Reload and try again.');
+      return;
+    }
 
     // The pill opens on whichever one actually holds the event being edited, so arriving at a past
     // or cancelled event does not land on an empty Upcoming list.
     if (wantId) {
       var here = rows.filter(function (x) { return String(x.id || '').trim() === wantId; })[0];
-      if (here) { ['upcoming', 'past', 'cancelled'].forEach(function (p) { if (inPane(here, p)) { pane = p; } }); }
+      if (here) { ['attending', 'hosting', 'socialized'].forEach(function (p) { if (inPane(here, p)) { pane = p; } }); }
       Array.prototype.forEach.call(document.querySelectorAll('.manage-tab'), function (b) {
         b.classList.toggle('on', b.getAttribute('data-pane') === pane);
       });
@@ -7907,16 +7925,12 @@ function selectInterestSuggestion(val) {
     paintRail(rows, wantId);
 
     if (!wantId) {
-      // THE TWO QUESTIONS COME FIRST. Jessie, 2026-09-08: "needs these too when clicking post an
-      // event", with the choice screens - are you hosting this or sharing someone else's, and then
-      // fill out the form or paste a link. This page went straight to a blank form and skipped
-      // both, and the first of those answers decides what the form even shows: a socializer never
-      // sees the registration control, because registrations land in the HOST's sheet.
-      //
-      // They stay as overlays. They are two short questions rather than a screen, they are already
-      // built and working on the calendar page, and the form they lead to is the page itself.
-      quiet();
-      try { openChoiceModal(); } catch (e) { mountForm(); try { openModal(); } catch (e2) {} }
+      // SHE CAME TO LOOK, NOT TO POST. Jessie, 2026-09-08: "i dind't say i wnated to post an
+      // event. i just want to see a page wiht all hte options of viewing my events."
+      // This opened the posting flow on arrival, so landing on /manage/ put a modal in front of
+      // her asking a question she had not asked to be asked. Nothing opens now. Posting is the
+      // button, and the button is the only thing that starts it.
+      say(rows.length ? 'Pick an event on the left to edit it.' : 'Nothing here yet. Post a new event to get started.');
       return;
     }
 
