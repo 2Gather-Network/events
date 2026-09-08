@@ -12,7 +12,7 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V5.51 | Date: 2026-08-10 | LAST CHANGE: The "Gather here today" button and the "Meeting room" link open in a new tab. Embedded in the Appear iframe they loaded the room inside that frame, where GoBrunch cannot run, which is why the room opened from 2Gather and not from Appear. (V5.50: socializer events do not offer registration.) -->
+  <!-- Version: V5.54 | Date: 2026-09-08 | LAST CHANGE: the event page renders by role. Edit is shown to a host, a co-host or a super admin and to nobody else, revealed only once the backend has said so rather than drawn on a guess, and it opens 2gather.network/manage/?id= rather than the calendar page. The role rides along on getEventById, which the gate already forwards and caches per person, so it costs one small cached call and no new action. -->
   <meta charset="UTF-8">
   <script>
   /* Forward the Lake Ballinger event to its Glide page (m97sjwa3 only). Runs before render, so no flash. */
@@ -383,6 +383,40 @@ function esc(s) {
 // topbar.js asks the backend once and remembers the answer in cw-super, so this costs no call. An
 // absent answer draws NOTHING rather than guessing, which is the right way round: a hidden pencil
 // is never a leak, and it appears as soon as the top bar has been anywhere on the site.
+
+// WHO YOU ARE TO THIS EVENT DECIDES WHETHER YOU SEE EDIT. Jessie, 2026-09-08, on why viewing and
+// editing were two different pages: "Why don't we just make one page with two different edits, like
+// edit profile and profile?" and then "I like the idea of an event having its own page but it can
+// be seen differently based on roles like super admin to host to registrant to visitor guest."
+//
+// The pencil came off this page on 2026-09-07 - "I just don't wanna see the pencil on the event
+// itself to anybody except me" - because before that day ANYBODY could press it and get in with a
+// typed PIN. That hole was closed the same night: ownership is checked against the backend now, so
+// the button can only ever appear to the person who owns the event. The reason for the ban is gone,
+// so the door comes back, for hosts and co-hosts rather than for everyone.
+//
+// It starts HIDDEN and is revealed only when the answer arrives. A button drawn before we know is
+// a claim the page cannot make yet, and it is the fault this file has recorded more than any other.
+//
+// The answer rides along on getEventById, which the gate already forwards and already caches with
+// appearId as part of the key, so this is one small cached call and no new action to deploy.
+async function _applyEventRole() {
+  var btns = document.querySelectorAll('.cw-edit-btn');
+  if (!btns.length || !_currentEv || !_currentEv.id) return;
+  var me = '';
+  try { me = getMemberId() || ''; } catch (e) {}
+  if (!me) return;   // signed out: nothing to reveal, and nothing asked of the backend
+  try {
+    var r = await fetch(GS_URL + '?action=getEventById&id=' + encodeURIComponent(_currentEv.id)
+                        + '&appearId=' + encodeURIComponent(me));
+    var d = await r.json();
+    var role = (d && d.event && d.event.myRole) || 'visitor';
+    if (role === 'host' || role === 'cohost' || role === 'super') {
+      btns.forEach(function (b) { b.style.display = ''; });
+    }
+  } catch (e) {}
+}
+
 function _superViewer() {
   try {
     // VIEWING AS SOMEBODY SHOWS WHAT THEY SEE, and they do not see this. Jessie, 2026-09-07:
@@ -409,7 +443,10 @@ function openEditDirect() {
   const ev = _currentEv;
   if (!ev) return;
   const urlId = new URLSearchParams(window.location.search).get("id") || ev.id;
-  const editUrl = "https://2gather.network/events.html?edit=" + encodeURIComponent(urlId);
+  // THE CONTROL ROOM, not the calendar page. Jessie, 2026-09-08. The calendar page loaded the
+  // whole calendar and then asked who owned the event, which is why editing began with a five
+  // second look at a calendar she had not asked for. /manage/ IS the form.
+  const editUrl = "https://2gather.network/manage/?id=" + encodeURIComponent(urlId);
   if (window.self !== window.top) {
     try { window.top.location.href = editUrl; }
     catch (e) { window.location.href = editUrl; }
@@ -864,7 +901,7 @@ function render(ev) {
         <button class="btn btn-outline copy-btn-el" onclick="copyLink()">🔗 Copy link</button>
         ${!ev.cancelled ? `<button class="btn btn-outline" onclick="share()" ontouchstart="share()" style="touch-action:manipulation;-webkit-tap-highlight-color:transparent;padding:10px 14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>` : ""}
         <button class="btn btn-outline" onclick="openQrModal()" title="Get QR code" style="padding:10px 14px;">⊞ QR</button>
-        ${!ev.cancelled && _superViewer() ? `<button class="btn btn-outline" onclick="openEditDirect()" title="Edit this event" style="padding:10px 14px;">✏️</button>` : ""}
+        ${!ev.cancelled ? `<button class="btn btn-outline cw-edit-btn" onclick="openEditDirect()" title="Edit this event" style="padding:10px 14px;display:none;">✏️ Edit</button>` : ""}
       </div>
       ${ev.description ? `<hr style="border:none;border-top:1px solid var(--border);margin:16px 0 14px;"><p class="description">${esc(ev.description).replace(/\[the calendar\]/g, '<a href="https://appear.network/dl/gather" rel="noopener" style="color:var(--primary);font-weight:600;">the calendar</a>').replace(/creating\.works/gi, '<a href="http://creating.works" rel="noopener" style="color:var(--primary);">creating.works</a>')}</p>` : ""}
       <hr style="border:none;border-top:1px solid var(--border);margin:18px 0 14px;">
@@ -879,7 +916,7 @@ function render(ev) {
         <button class="btn btn-outline copy-btn-el" onclick="copyLink()">🔗 Copy link</button>
         ${!ev.cancelled ? `<button class="btn btn-outline" onclick="share()" ontouchstart="share()" style="touch-action:manipulation;-webkit-tap-highlight-color:transparent;padding:10px 14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>` : ""}
         <button class="btn btn-outline" onclick="openQrModal()" title="Get QR code" style="padding:10px 14px;">⊞ QR</button>
-        ${!ev.cancelled && _superViewer() ? `<button class="btn btn-outline" onclick="openEditDirect()" title="Edit this event" style="padding:10px 14px;">✏️</button>` : ""}
+        ${!ev.cancelled ? `<button class="btn btn-outline cw-edit-btn" onclick="openEditDirect()" title="Edit this event" style="padding:10px 14px;display:none;">✏️ Edit</button>` : ""}
       </div>` : ""}
       ${window._sharedByCard ? `<div style="text-align:right;margin-top:16px;"><div style="font-size:12px;color:var(--muted);">Shared by <a href="https://appear.network/dl/page/s/e13594/r/${encodeURIComponent(window._sharedByCard)}" rel="noopener" target="_blank" style="color:var(--primary);text-decoration:none;font-weight:600;">${window._sharedByCard}</a></div></div>` : ""}
 
@@ -911,6 +948,7 @@ function render(ev) {
   // So it is asked for once, in the background, while somebody is still reading the event. If it
   // has not arrived by the time they press Share, the full address goes instead, which works.
   _primeShortLink(ev.id);
+  _applyEventRole();   // reveals Edit for a host, a co-host or a super admin (non-blocking)
   applyBoardGate();   // hide/reveal the bulletin board per the host's profile gate (non-blocking)
   if ((_editVerified || _myId) && !ev.cancelled) { loadPotluckClaims(ev.id); }
 
