@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.12 | Date: 2026-09-08 | LAST CHANGE: the Groups control is back, and every list opens with a way back to everything - All groups and All categories, beside the All events and All upcoming that Format and Date already had. In a rail, sixteen categories with three lit and no way back except unpicking each one is a different thing from a row of pills you can see at a glance. -->
+<!-- Version: V13.14 | Date: 2026-09-08 | LAST CHANGE: categories carry their counts and sort busiest first with empty ones dimmed at the bottom. The interests panel wraps its pills and grows instead of scrolling. The Hide button is gone - the control collapses the panel already. And Edit hides while the panel it opens is open. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -430,6 +430,19 @@
     font-size:13px;font-weight:700;padding:8px 16px;border-radius:20px;white-space:nowrap;
     animation:cw-breathe 1.6s ease-in-out infinite;}
   @keyframes cw-breathe{0%,100%{opacity:1}50%{opacity:.62}}
+  /* THE INTERESTS PANEL WRAPS AND PUSHES. Jessie, 2026-09-08: "wrap pills like you do when showing
+     edit version" and "remove the need to scroll intersest - just push evetything else down".
+     A panel with its own scrollbar inside a rail is two scrollbars fighting, and it hides how many
+     topics somebody has. It grows instead and everything below moves down. */
+  html.cw-railview #fbar-panel-interests,
+  html.cw-railview #fbar-panel-categories,
+  html.cw-railview #fbar-panel-location { max-height:none !important; overflow:visible !important; }
+  html.cw-railview #fbar-panel-interests .chip-row,
+  html.cw-railview #fbar-panel-interests > div > div { flex-wrap:wrap !important; overflow:visible !important; }
+  html.cw-railview #fbar-panel-interests [style*="nowrap"] { white-space:normal !important; }
+  /* The collapse arrow on the control is the way out, so a second one inside is a second answer. */
+  html.cw-railview [onclick*="fbarToggle"][class*="fbar-mi"] { display:none; }
+
 
 
 </style>
@@ -531,7 +544,10 @@
                  has to interpret before they will press it. Jessie, 2026-09-07: "add edit button
                  with emoji of pencil". Same outlined pill as Hide and Clear, so it reads as one of
                  the controls rather than as decoration. -->
-            <button onclick="onInterestsPencil()" aria-label="Edit your topics" style="background:#fff;border:1.5px solid var(--cw-blue);color:var(--cw-blue);font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;padding:4px 11px;border-radius:20px;line-height:1.4;flex-shrink:0;white-space:nowrap;">✏️ Edit</button>
+            <!-- IT HIDES ONCE YOU ARE IN. Jessie, 2026-09-08: "remove edit button when on the actual
+                 edit view". Edit opens this panel, so inside the panel it is the button you have
+                 already pressed - offering it again suggests there is somewhere further to go. -->
+            <button id="interests-edit-btn" onclick="onInterestsPencil()" aria-label="Edit your topics" style="background:#fff;border:1.5px solid var(--cw-blue);color:var(--cw-blue);font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;padding:4px 11px;border-radius:20px;line-height:1.4;flex-shrink:0;white-space:nowrap;">✏️ Edit</button>
             <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);white-space:nowrap;flex-shrink:0;">My event wish list</span>
             <!-- ONE LINE, scrolling sideways, never wrapping. flex-wrap:nowrap and min-width:0
                  are both needed: without the second, a flex child refuses to shrink below its
@@ -2584,11 +2600,35 @@ function renderPills() {
     });
     c.appendChild(allBtn);
   }
-  CATEGORIES.forEach(function(cat) {
+  // BUSIEST FIRST, EMPTY ONES LAST. Jessie, 2026-09-08: "sort categories from highest nubmers to
+  // lowest - where greyed out ones are at bottom."
+  //
+  // Sixteen categories in a fixed order meant the one with forty events could sit below three with
+  // none, and somebody scanning had no way to tell which was worth pressing until they pressed it.
+  //
+  // Counted against everything loaded rather than against what the filters leave, so the order does
+  // not rearrange itself under somebody's hand while they are picking.
+  var _catCount = {};
+  try {
+    (events || []).forEach(function (ev) {
+      String(ev.categories || "").split(",").forEach(function (x) {
+        var k = x.trim(); if (k) { _catCount[k] = (_catCount[k] || 0) + 1; }
+      });
+    });
+  } catch (e) {}
+  CATEGORIES.slice().sort(function (a, b) {
+    var ca = _catCount[a.label] || 0, cb = _catCount[b.label] || 0;
+    if (ca !== cb) return cb - ca;
+    return String(a.label).localeCompare(String(b.label));   // alphabetical among equals, not random
+  }).forEach(function(cat) {
     var isActive = activeCats.has(cat.label);
+    var n = _catCount[cat.label] || 0;
     // V12.80: tapping the active pill deselects the filter (resets to All). Otherwise picking it filters as before.
-    var btn = makeFilterBtn(cat.emoji + " " + cat.label, isActive, function() { setFilter(cat.label); });
+    var btn = makeFilterBtn(cat.emoji + " " + cat.label + (n ? " (" + n + ")" : ""), isActive, function() { setFilter(cat.label); });
     btn.setAttribute("data-cat-label", cat.label);
+    // Nothing behind it, so it says so rather than looking like the rest. Still pressable, because
+    // an empty category today is not an empty one tomorrow.
+    if (!n) { btn.style.opacity = "0.45"; }
     c.appendChild(btn);
   });
 }
@@ -7043,7 +7083,7 @@ function fbarDraw() {
       _fc.querySelectorAll('[id^="fbar-panel-"], #fbar-help').forEach(function (el) { _fb.appendChild(el); });
     }
   } catch (e) {}
-  setTimeout(function () { try { _railPlacePanels(); } catch (e) {} }, 0);
+  setTimeout(function () { try { _railPlacePanels(); } catch (e) {} try { _syncInterestsEditBtn(); } catch (e) {} }, 0);
   var row = document.getElementById("fbar-controls");
   if (!row) return;
 
@@ -7372,10 +7412,13 @@ function fbarBoot() {
     // away every other filter too. Jessie, 2026-09-07: "no way to remove this when I select venue
     // - check with othetrs in search by." It clears venue, host and the feelings together, which
     // is what the other two needed as well.
+    // HIDE IS GONE. Jessie, 2026-09-08: "remove hide button since no longer needed with collapse."
+    // The control itself collapses the panel, so a second button at the bottom saying the same
+    // thing was a second answer to one question - and in a rail it sits far from the control that
+    // opened it, which makes it read as something else entirely.
     tools.innerHTML = (c.key === "advanced")
       ? '<button onclick="fbarClear(\'advanced\')">\u00d7 Clear</button>'
-        + '<button onclick="_advPick=\'\'; fbarDraw();">\u00d7 Hide</button>'
-      : '<button onclick="fbarToggle(\'' + c.key + '\')">\u00d7 Hide</button>';
+      : '';
     // AT THE BOTTOM, not the top. Hide is what you press when you have finished with a panel, so
     // it belongs at the end of the thing rather than above it. Jessie, 2026-09-06.
     //
@@ -7445,7 +7488,18 @@ function onInterestsPencil() {
   // and open the panel on the second tap, which is two meanings for one button.
   _fyChipsShown = true;
   toggleInterestsPanel();
+  _syncInterestsEditBtn();
 }
+
+// Visible when the panel is closed, gone when it is open. See the note beside the button.
+function _syncInterestsEditBtn() {
+  var b = document.getElementById("interests-edit-btn");
+  var p = document.getElementById("fbar-panel-interests");
+  if (!b) return;
+  var open = !!(p && getComputedStyle(p).display !== "none");
+  b.style.display = open ? "none" : "";
+}
+window._syncInterestsEditBtn = _syncInterestsEditBtn;
 
 // NOTHING TO SHOW OPENS THE INTERESTS PANEL, ONCE PER VISIT. Somebody with no topics, or with
 // topics that match no upcoming event, is looking at a page with nothing on it for them and has no
