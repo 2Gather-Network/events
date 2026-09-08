@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.22 | Date: 2026-09-08 | LAST CHANGE: six recommendations on a desktop again. "maybe 3 recomended matches / group evnets / all events" was her naming the three sections and I read it as a count. -->
+<!-- Version: V13.26 | Date: 2026-09-08 | LAST CHANGE: belonging to groups with nothing in them shows "Be the first" and a Post an event button, because an empty room somebody can fill is not the same as a room that is not theirs. Belonging to no groups still hides the section entirely. An empty recommendations box asks for a topic where the emptiness is. The groups list is kept for the tab. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -781,8 +781,8 @@
        matches / group evnets / all events ... shows all 3 but filters all 3?" Each group carries
        its own small picture beside its name - "show small image of group next to each" - because a
        list of group names is the hardest thing to scan and the pictures already exist. -->
-  <div id="group-events-wrap" style="display:none;">
-    <div id="group-events-head" style="font-size:15px;font-weight:800;color:var(--dark);margin:18px 0 10px;">Group events</div>
+  <div id="group-events-wrap" style="display:none;background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:16px;">
+    <div id="group-events-head" style="font-size:15px;font-weight:800;color:var(--dark);margin:0 0 12px;">Group events</div>
     <div class="event-grid" id="group-events-grid"></div>
   </div>
   <div id="cal-loading" style="display:none;text-align:center;margin:22px 0 8px;"><span class="cw-loading">Loading events</span></div>
@@ -790,8 +790,13 @@
     <button type="button" id="show-all-btn" onclick="_showAllEvents()"
             style="background:var(--primary);color:#fff;border:0;border-radius:26px;font:inherit;font-size:15px;font-weight:700;padding:12px 28px;cursor:pointer;">Show all upcoming events</button>
   </div>
-  <div id="upcoming-head" style="display:none;font-size:15px;font-weight:800;color:var(--dark);margin:16px 0 10px;">Upcoming events</div>
-  <div class="event-grid" id="event-grid" style="display:none;"></div>
+  <!-- IN A BOX, LIKE RECOMMENDED MATCHES. Jessie, 2026-09-08: "make Upcoming events (52) inside the
+       box liek Recommended matches". It sat loose on the page while the section above it was in a
+       white card, so two things doing the same job looked like different kinds of thing. -->
+  <div id="upcoming-box" style="display:none;background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:16px;">
+    <div id="upcoming-head" style="font-size:15px;font-weight:800;color:var(--dark);margin:0 0 12px;">Upcoming events</div>
+    <div class="event-grid" id="event-grid"></div>
+  </div>
 </div>
 
 <!-- CHOICE MODAL (v11.91) -->
@@ -3075,6 +3080,9 @@ function renderGroupEvents() {
   if (!wrap || !gg || !grid) return;
   var mine = {};
   try { (_myGroups || []).forEach(function (g) { if (g && g.id) { mine[g.id] = g; } }); } catch (e) {}
+  // NO GROUPS, NO SECTION. Jessie, 2026-09-08: "when there is a null in groups - don't show groups
+  // section at all", then "don't show groups if you dohn't belong to any". Same rule as the rail's
+  // My groups pill and as the checklist: never show a door somebody has not been invited through.
   if (!Object.keys(mine).length) { wrap.style.display = "none"; return; }
 
   var picked = [];
@@ -3084,7 +3092,23 @@ function renderGroupEvents() {
     gs.some(function (k) { if (k && mine[k]) { hit = mine[k]; return true; } return false; });
     if (hit) { picked.push({ card: card, group: hit }); }
   });
-  if (!picked.length) { wrap.style.display = "none"; return; }
+  // BE THE FIRST. Jessie, 2026-09-08: "but if you belong to groups and there are no evnets in any
+  // groups, we should ahve a post an event option and a message to be the first :)"
+  //
+  // Belonging to a group with nothing in it is not the same as belonging to none. The first is an
+  // empty room somebody can fill, and hiding it hides that. The second is not theirs to fill, and
+  // that one stays hidden.
+  if (!picked.length) {
+    wrap.style.display = "";
+    var h0 = document.getElementById("group-events-head");
+    if (h0) { h0.textContent = "Group events"; }
+    gg.innerHTML = '<div style="grid-column:1/-1;padding:6px 0 2px;">'
+      + '<div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Nothing on the calendar for your groups yet. Be the first.</div>'
+      + '<a role="link" tabindex="0" data-nav="https://2gather.network/manage/?post=1" onclick="return _safeNavGo(this)"'
+      + ' style="display:inline-block;background:var(--primary);color:#fff;border-radius:24px;padding:10px 20px;font-size:14px;font-weight:700;text-decoration:none;cursor:pointer;">Post an event</a>'
+      + '</div>';
+    return;
+  }
 
   wrap.style.display = "";
   var head = document.getElementById("group-events-head");
@@ -3485,7 +3509,9 @@ function renderEvents() {
   // Recommendations, then this person's group events, then everything. Every filter narrows all
   // three, so the page answers one question in three depths rather than hiding two of them.
   if (_grid) { _grid.style.display = ""; }
-  if (_uh) { _uh.style.display = isLoadingData ? "none" : "block"; }
+  if (_uh) { _uh.style.display = "block"; }
+  var _ubox = document.getElementById("upcoming-box");
+  if (_ubox) { _ubox.style.display = isLoadingData ? "none" : "block"; }
   // THE ALL EVENTS BUTTON IS GONE. Jessie, 2026-09-08: "remove all evnets button in panel too."
   // What is left on this page is what was chosen for the person looking - the recommendations -
   // and the routes in from elsewhere: ?mygroups=1 opens their groups' events, and a filter opens
@@ -4536,6 +4562,7 @@ function _loadFormGroups(preferId, preferName) {
                  // getMyGroups started returning joinedAt on 2026-09-07 for exactly this.
                  at: String(g.joinedAt || g.dateCreated || "") };
       }).filter(function (g) { return g.id; });
+      try { _keepMyGroups(_myGroups); } catch (e) {}
       // HERS AT THE TOP, NEWEST FIRST. Jessie, 2026-09-07: "In parentheiss say (Host) Besides any
       // group that I host and sort newest at the top. For both host and for most newest joined."
       // Two runs, not one sort with a tie-break, because the two halves are ordered by different
@@ -6968,7 +6995,22 @@ function fbarPickAdv(k) {
 // WHO YOUR GROUPS ARE, asked for once and only when you press the control. getMyGroups measures
 // about five seconds and Apps Script runs our calls one at a time, so asking at boot would slow
 // the calendar down for everybody to serve the people who press this. 2026-09-06.
-var _myGroups = null;        // null = never asked, [] = asked and you are in none
+// KEPT FOR THE TAB. Jessie, 2026-09-08: "once loaded it shoudl cache - it's loading my groups every
+// time and it takes a whiel". getMyGroups measures about five seconds and Apps Script runs our
+// calls one at a time, so every page load spent five seconds re-learning something that had not
+// changed - and the Group events section had nothing to draw with until it came back.
+//
+// Read from the tab at boot, refreshed behind whatever is drawn from it.
+var _myGroups = (function () {
+  try {
+    var raw = sessionStorage.getItem("cw-mygroups");
+    var v = raw ? JSON.parse(raw) : null;
+    return (v && v.length) ? v : null;
+  } catch (e) { return null; }
+})();
+function _keepMyGroups(list) {
+  try { sessionStorage.setItem("cw-mygroups", JSON.stringify(list || [])); } catch (e) {}
+}
 var _myGroupsBusy = false;
 var _myGroupPick = {};       // the ones ticked. Empty means this control is filtering nothing.
 
@@ -6992,6 +7034,7 @@ function fbarOpenMyGroups() {
         var id = String(g.groupID || g.groupId || g.id || "").trim();
         return { id: id, name: String(g.groupName || g.name || g.title || id).trim() || id };
       }).filter(function (g) { return g.id; });
+      try { _keepMyGroups(_myGroups); } catch (e) {}
     })
     .catch(function () { _myGroups = []; })
     .then(function () { _myGroupsBusy = false; fbarDraw(); });
@@ -7016,6 +7059,7 @@ function _pickAllMyGroups() {
         var id = String(g.groupID || g.groupId || g.id || "").trim();
         return { id: id, name: String(g.groupName || g.name || g.title || id).trim() || id };
       }).filter(function (g) { return g.id; });
+      try { _keepMyGroups(_myGroups); } catch (e) {}
       _myGroups.forEach(function (g) { _myGroupPick[g.id] = true; });
       // Somebody who came for their groups' events came to see them, not to press a second button.
       try { window._allEventsShown = true; } catch (e) {}
@@ -7602,6 +7646,19 @@ function toggleFyShowAll() { _fyShowAll = !_fyShowAll; renderForYou(); }
 // tap reveals them and the second opens the panel. Jessie, 2026-09-06: "on mobile don't show
 // interests unless you click on the pencil icon, because the tags hide behind Add topics".
 var _fyChipsShown = false;
+// The Add beside the empty message hands straight to the control that already knows how to add a
+// topic, so there is one place where a topic is added rather than two that can drift.
+function _fyAddFromEmpty() {
+  var box = document.getElementById("fy-empty-topic");
+  var v = box ? String(box.value || "").trim() : "";
+  if (!v) { if (box) box.focus(); return; }
+  var real = document.getElementById("interests-input");
+  if (real) { real.value = v; }
+  try { onTopicAddClick(); } catch (e) {}
+  if (box) { box.value = ""; }
+}
+window._fyAddFromEmpty = _fyAddFromEmpty;
+
 function onInterestsPencil() {
   // The pencil opens the panel on every screen now. It used to reveal the chips on a phone first
   // and open the panel on the second tap, which is two meanings for one button.
@@ -7820,7 +7877,17 @@ function renderForYou() {
     // is gone, so this branch has to say which. 2026-09-06.
     resultsEl.innerHTML = (_fyHidden > 0)
       ? `<div style="font-size:13px;color:var(--muted);padding:8px 0;">🔍 Your filters hide every event that matches your topics. <a onclick="fbarResetAll()" style="color:var(--primary);font-weight:700;cursor:pointer;">Reset</a></div>`
-      : `<div style="font-size:13px;color:var(--muted);padding:8px 0;">🔍 No upcoming events match your topics. <a onclick="toggleInterestsPanel()" style="color:var(--primary);font-weight:700;cursor:pointer;">Try broadening your keywords</a></div>`;
+      // NOTHING MATCHING ASKS FOR A TOPIC, HERE. Jessie, 2026-09-08: "when there i sa null in event
+      // matches we should show in hte panel this the first time". The old line sent her to a
+      // control in the rail, which is a different column and easy to miss, so the answer to an
+      // empty section was somewhere else on the screen. The box asks where the emptiness is.
+      : `<div style="padding:6px 0 2px;">
+           <div style="font-size:13px;color:var(--muted);margin-bottom:10px;">No upcoming events match your topics yet. Add one and this page will show you what matches it.</div>
+           <div style="display:flex;gap:8px;flex-wrap:wrap;">
+             <input id="fy-empty-topic" type="text" placeholder='Topic or "exact phrase"' style="flex:1;min-width:160px;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;">
+             <button onclick="_fyAddFromEmpty()" style="background:var(--primary);color:#fff;border:0;border-radius:8px;padding:9px 20px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;">Add</button>
+           </div>
+         </div>`;
     var _fyMore0 = document.getElementById("for-you-more");
     if (_fyMore0) { _fyMore0.style.display = "none"; _fyMore0.innerHTML = ""; }
     // Topics that match nothing count as nothing to show. Filters hiding everything do not: there
@@ -8323,6 +8390,7 @@ function _railPlacePanels() {
             var id = String(g.groupID || g.groupId || g.id || '').trim();
             return { id: id, name: String(g.groupName || g.name || g.title || id).trim() || id };
           }).filter(function (g) { return g.id; });
+      try { _keepMyGroups(_myGroups); } catch (e) {}
           try { if (typeof _myGroups !== 'undefined' && _myGroups === null) { _myGroups = list; } } catch (e) {}
           place(list);
         })
