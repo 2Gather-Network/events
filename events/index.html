@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.09 | Date: 2026-09-08 | LAST CHANGE: the group filter no longer empties the recommendations. Arriving on ?mygroups=1 ticks every group, and the recommendations were run through the same filter as the calendar, so matches belonging to no group were hidden and the section claimed her filters hid everything. Recommendations are what was chosen FOR the person; a group filter narrows the calendar, not who they are. -->
+<!-- Version: V13.10 | Date: 2026-09-08 | LAST CHANGE: the filter panels survive a redraw. They were moved under their buttons into #fbar-controls, which fbarDraw rebuilds with innerHTML, so the first redraw deleted them from the document - Format and Search by kept working only because their menus are built BY that redraw. They are moved home before the rebuild and placed again after. And the i sits beside the search box at the top rather than down beside Reset. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -7015,6 +7015,19 @@ function fbarClear(key) {
 
 function fbarDraw() {
   if (!FBAR) return;
+  // RESCUE THE PANELS BEFORE THE REDRAW EATS THEM. In the rail view each panel is moved to sit
+  // under the button that opens it, and that button lives in #fbar-controls - which this function
+  // rebuilds with innerHTML. So the first redraw deleted every panel from the document, and after
+  // that those controls opened nothing. Format and Search by kept working because their menus are
+  // built BY this redraw rather than moved into it. Jessie, 2026-09-08: "no drop down works except
+  // format and search drop downs".
+  // They go home first, and _railPlacePanels puts them back once the new buttons exist.
+  try {
+    var _fb = document.getElementById("fbar"), _fc = document.getElementById("fbar-controls");
+    if (_fb && _fc) {
+      _fc.querySelectorAll('[id^="fbar-panel-"], #fbar-help').forEach(function (el) { _fb.appendChild(el); });
+    }
+  } catch (e) {}
   setTimeout(function () { try { _railPlacePanels(); } catch (e) {} }, 0);
   var row = document.getElementById("fbar-controls");
   if (!row) return;
@@ -7976,9 +7989,17 @@ function _railPlacePanels() {
       host.parentNode.insertBefore(panel, host.nextSibling);
     }
   });
-  // The help note belongs beside the thing that opens it, which is beside the search box.
-  var help = document.getElementById('fbar-help');
+  // The i sits beside the search box, at the top, with its note under it. Jessie, 2026-09-08:
+  // "i (info) should be to the right of the search bar at top". It was down beside Reset, which is
+  // the last place anybody looks for an explanation of the thing at the top.
   var search = document.getElementById('fbar-search');
+  var info = row.querySelector('[onclick*="toggleBarHelp"]');
+  if (info && search && info.parentNode !== search) {
+    info.style.flex = '0 0 auto';
+    info.style.marginLeft = '6px';
+    search.appendChild(info);
+  }
+  var help = document.getElementById('fbar-help');
   if (help && search && search.parentNode && help.previousElementSibling !== search) {
     search.parentNode.insertBefore(help, search.nextSibling);
   }
