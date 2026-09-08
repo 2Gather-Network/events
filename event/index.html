@@ -1053,14 +1053,37 @@ async function copyLink() {
     const res = await fetch(`${GS_URL}?action=getShortCode&id=${encodeURIComponent(id)}`);
     const data = await res.json();
     if (data.status !== "ok" || !data.code) throw new Error("no code");
-    const shortUrl = `https://go.2gather.network/${data.code}`;
+    const shortUrl = _withRef(`https://go.2gather.network/${data.code}`);
     await navigator.clipboard.writeText(shortUrl);
     btns.forEach((b, i) => { b.innerHTML = "✓ Copied!"; setTimeout(() => b.innerHTML = origTexts[i], 2000); });
   } catch(e) {
     btns.forEach((b, i) => b.innerHTML = origTexts[i]);
-    const fallbackUrl = window.location.href;
+    const fallbackUrl = _withRef(window.location.href.split('?')[0] + window.location.search.replace(/[?&]r=[^&]*/g, ''));
     navigator.clipboard?.writeText(fallbackUrl).then(() => showToast("🔗 Link copied!")).catch(() => prompt("Copy this link:", fallbackUrl));
   }
+}
+
+// THE SAME SIX CHARACTERS THE BACKEND WORKS OUT, so a link can be built here without asking for
+// anything and read there without carrying anybody's id. Jessie asked for her referral in Copy
+// link; ?via= would have put her id into every link she shared, which is the id stripped out of
+// the public feed the same morning. Derived rather than stored: no column, nothing to keep in
+// step, and a link built today still resolves in a year.
+function _refCode(id) {
+  var v = String(id || '').split('.').join('').toLowerCase();
+  var h = 5381;
+  for (var i = 0; i < v.length; i++) { h = ((h * 33) ^ v.charCodeAt(i)) >>> 0; }
+  return ('000000' + h.toString(36)).slice(-6);
+}
+
+// Every address handed out from this page carries it. The person sharing is the REAL person, never
+// whoever is being viewed, or a share while looking at somebody else would be credited to them.
+function _withRef(url) {
+  try {
+    var me = (window.CW && CW.realMe) ? String(CW.realMe().id || '') : '';
+    if (!me) { me = String(localStorage.getItem('cw-id') || localStorage.getItem('appear-id') || ''); }
+    if (!me) return url;
+    return url + (url.indexOf('?') > -1 ? '&' : '?') + 'r=' + _refCode(me);
+  } catch (e) { return url; }
 }
 
 var _shortLink = null;
@@ -1079,7 +1102,7 @@ function _primeShortLink(id) {
 
 function share() {
   // Whatever we have this instant. No await, so the sheet opens on the press.
-  const url = _shortLink || window.location.href;
+  const url = _withRef(_shortLink || window.location.href);
 
   const showCopyUI = () => {
     const existing = document.getElementById("share-url-box");
@@ -1588,14 +1611,19 @@ async function init() {
       } catch (e) {}
     }
     if (!ev) { showError("Event not found."); return; }
-    // Handle ?via= socializer attribution
+    // A SHARE ARRIVES AS A CODE. ?via= carried the sharer's id and is still read, because links
+    // built before tonight are in circulation, but nothing hands one out any more.
+    const _r = new URLSearchParams(window.location.search).get("r");
     const viaCard = new URLSearchParams(window.location.search).get("via");
-    if (viaCard && ev.id) {
+    if (_r && ev.id) {
+      fetch(`${GS_URL}?action=noteShare&r=${encodeURIComponent(_r)}&eventId=${encodeURIComponent(ev.id)}&t=${Date.now()}`)
+        .then(function (rr) { return rr.json(); })
+        .then(function (dd) {
+          if (dd && dd.found && dd.name) { window._sharedByCard = dd.name; try { render(ev); } catch (e) {} }
+        })
+        .catch(function () {});
+    } else if (viaCard && ev.id) {
       window._sharedByCard = viaCard;
-      // Log the click to socializers tab
-      try {
-        fetch(`${GS_URL}?action=saveSocializer&appearId=${encodeURIComponent(viaCard)}&eventId=${encodeURIComponent(ev.id)}&refCode=&via=link`);
-      } catch(e) {}
     }
     render(ev);
     maybeAutoOpenManage();
