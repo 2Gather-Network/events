@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.02 | Date: 2026-09-08 | LAST CHANGE: the loading pill waits a second and a quarter before it appears. On a warm cache it was flashing and vanishing, which is worse than nothing; taking it out entirely brings back the blank page on a 36-second load. A fast load never shows it, a slow one still says the page is working. -->
+<!-- Version: V13.03 | Date: 2026-09-08 | LAST CHANGE: in the rail view each filter panel opens under the button that opened it, and the help note sits beside the search box, instead of every one of them opening at the bottom of the column. The rail heading came off and My events is marked as where you are. The Group events control came off the bar - the rail has My groups and ?mygroups=1 does the filtering. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -392,6 +392,11 @@
   html.cw-railview .fbar-dd { display:block; width:100%; }
   html.cw-railview .fbar-menu { position:static; box-shadow:none; border:1px solid var(--border); margin-top:6px; width:100%; max-height:260px; overflow:auto; }
   html.cw-railview #geo-btn-wrap { margin:0 0 8px; }
+  /* The gap above the search box was the bar's own padding, kept after it stopped being a bar. */
+  html.cw-railview #fbar-row { padding:0; margin:0; }
+  html.cw-railview #fbar-search { margin:0; }
+  html.cw-railview .fbar-menu, html.cw-railview [id^="fbar-panel-"] { position:static !important; box-shadow:none; border:1px solid var(--border); margin:6px 0 4px; width:100%; max-height:300px; overflow:auto; }
+  html.cw-railview #fbar-help { position:static !important; margin:6px 0 4px; width:100%; }
   /* A BLANK PAGE READS AS BROKEN. Jessie, 2026-09-08: "evnets not showing at all." It was not
      broken - loadEvents measured 36.5 seconds and then rendered 685 events perfectly. But the
      filter bar, the heading, the grid and the button all hide while it waits, so for those 36
@@ -6737,7 +6742,11 @@ var FBAR_CONTROLS = [
   // GROUP EVENTS, not My groups. Every other pill on this bar narrows the calendar, and a pill
   // called My groups reads as a way to go to them. Jessie, 2026-09-07: "Chagne My gruops to Group
   // events". The list inside is still the groups she belongs to.
-  { key: "mygroups",   label: "Group events", toggle: true },
+  // GONE. Jessie, 2026-09-08: "remove Group events button in panel - not needed anymore." The rail
+  // carries My groups as navigation now, and View group events on the manage page arrives here on
+  // ?mygroups=1 with every group already ticked - so a control that did the same thing a third way
+  // was the third way. _myGroupPick and its filter stay: that is what ?mygroups=1 sets.
+  // { key: "mygroups",   label: "Group events", toggle: true },
   // LAST, right before Reset. Jessie, 2026-09-06: "advanced, then reset". It holds three filters
   // where the others hold one, so it sits at the end rather than in the middle of the six.
   // SEARCH BY. It was called Advanced and opened all three fields at once, which put a form on the
@@ -6968,6 +6977,7 @@ function fbarClear(key) {
 
 function fbarDraw() {
   if (!FBAR) return;
+  setTimeout(function () { try { _railPlacePanels(); } catch (e) {} }, 0);
   var row = document.getElementById("fbar-controls");
   if (!row) return;
 
@@ -7879,6 +7889,39 @@ function selectInterestSuggestion(val) {
 })();
 </script>
 <script>
+// A PANEL OPENS UNDER ITS OWN BUTTON. Jessie, 2026-09-08: "none of the drop downs are working when
+// clicking", and "i to the right of serach bar - oit's at the bottom and opens at bottom".
+//
+// They were working. The panels are siblings of the control row, which is right when the controls
+// are a horizontal bar - the panel opens under the bar. Stacked in a rail the button is at the top
+// and its panel opened at the very bottom of the column, so pressing it looked like nothing
+// happening. The same fault as the hosting block on the posting form earlier the same day.
+//
+// So after every redraw the open panel is moved to sit directly after the button that opened it.
+// Nothing about the panels changes; only where they sit.
+function _railPlacePanels() {
+  if (!document.documentElement.classList.contains('cw-railview')) return;
+  var row = document.getElementById('fbar-controls');
+  if (!row) return;
+  var map = { interests:'fbar-panel-interests', categories:'fbar-panel-categories', location:'fbar-panel-location',
+              format:'fbar-panel-format', date:'fbar-panel-date', advanced:'fbar-panel-advanced' };
+  Object.keys(map).forEach(function (k) {
+    var panel = document.getElementById(map[k]);
+    if (!panel) return;
+    var btn = row.querySelector('[onclick*="\'' + k + '\'"]');
+    var host = btn ? (btn.closest('.fbar-dd') || btn) : null;
+    if (host && host.parentNode && panel.previousElementSibling !== host) {
+      host.parentNode.insertBefore(panel, host.nextSibling);
+    }
+  });
+  // The help note belongs beside the thing that opens it, which is beside the search box.
+  var help = document.getElementById('fbar-help');
+  var search = document.getElementById('fbar-search');
+  if (help && search && search.parentNode && help.previousElementSibling !== search) {
+    search.parentNode.insertBefore(help, search.nextSibling);
+  }
+}
+
 // ── ?v=rail: THE CALENDAR IN THE PAGE TEMPLATE ──────────────────────────────────────────────────
 // See the note beside .cw-rl in the stylesheet. Nothing is rebuilt: the existing pieces are moved
 // into two columns, so every control keeps the code it already had and there is no second calendar
@@ -7905,9 +7948,10 @@ function selectInterestSuggestion(val) {
     // at least one. Drawing it first and removing it would flash a door at somebody who has not
     // been invited through one, which is the same thing a beat later.
     rail.innerHTML =
-      '<div class="cw-rl-head">2Gather</div>' +
+      // No heading. Jessie, 2026-09-08: "remove 2gather at the top and have my events selected
+      // since that's what we're on."
       '<div class="cw-rl-seg" id="cw-rl-seg">' +
-        '<a class="cw-rl-tab" role="link" tabindex="0" data-nav="https://2gather.network/manage/" onclick="return _safeNavGo(this)">My events</a>' +
+        '<a class="cw-rl-tab on" role="link" tabindex="0" data-nav="https://2gather.network/manage/" onclick="return _safeNavGo(this)">My events</a>' +
         '<a class="cw-rl-tab" role="link" tabindex="0" data-nav="https://2gather.network/ikigai" onclick="return _safeNavGo(this)">My profile</a>' +
       '</div>';
 
