@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.32 | Date: 2026-09-08 | LAST CHANGE: the rule that decides WHICH events match now uses whole words, the same as the rule that labels them. Fixing only the label stopped a card claiming Ping Pong and left it in the list with no reason at all, because the two rules disagreed about what a match is. -->
+<!-- Version: V13.33 | Date: 2026-09-08 | LAST CHANGE: Group events reads the whole filtered list rather than the cards the main grid happened to draw. That worked while the grid held thirty and broke the moment the page size went to six, so the section was reporting on the first six events rather than on her groups - saying "Be the first" while the same events sat in Upcoming below it. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3103,12 +3103,26 @@ function renderGroupEvents() {
   // My groups pill and as the checklist: never show a door somebody has not been invited through.
   if (!Object.keys(mine).length) { wrap.style.display = "none"; return; }
 
+  // IT LOOKS AT THE WHOLE FILTERED LIST, NOT AT WHAT THE GRID DREW. Jessie, 2026-09-08, for the
+  // third time: "I keep sayin ghte same thing - don't see what I asked for here", with Group events
+  // saying "Be the first" while the very same Lake Ballinger events sat in Upcoming just below it.
+  //
+  // This read the cards the main grid had rendered. That worked while the grid held thirty of them
+  // and stopped the moment the page size went to six: her group's events are further down the
+  // list, so there was nothing to find. The section was reporting on the first six events rather
+  // than on her groups.
+  //
+  // It reads the list itself now and clones a card only if one happens to exist, building the row
+  // from the event otherwise. What the grid drew is no longer the limit.
   var picked = [];
-  grid.querySelectorAll("[data-ev-groups]").forEach(function (card) {
-    var gs = String(card.getAttribute("data-ev-groups") || "").split("|").map(_gk);
+  var _cardById = {};
+  grid.querySelectorAll("[data-ev-id]").forEach(function (c) { _cardById[c.getAttribute("data-ev-id")] = c; });
+  (window._lastFilteredList || []).forEach(function (ev) {
     var hit = null;
-    gs.some(function (k) { if (k && mine[k]) { hit = mine[k]; return true; } return false; });
-    if (hit) { picked.push({ card: card, group: hit }); }
+    String(ev.groupId || "").split("|").map(_gk).some(function (k) {
+      if (k && mine[k]) { hit = mine[k]; return true; } return false;
+    });
+    if (hit) { picked.push({ ev: ev, card: _cardById[String(ev.id)] || null, group: hit }); }
   });
   // BE THE FIRST. Jessie, 2026-09-08: "but if you belong to groups and there are no evnets in any
   // groups, we should ahve a post an event option and a message to be the first :)"
@@ -3141,7 +3155,21 @@ function renderGroupEvents() {
   }
   gg.innerHTML = "";
   picked.slice(0, geShown).forEach(function (p) {
-    var copy = p.card.cloneNode(true);
+    var copy;
+    if (p.card) { copy = p.card.cloneNode(true); }
+    else {
+      // Not in the grid, so a simple row rather than nothing. Same information, less picture.
+      copy = document.createElement("div");
+      copy.className = "event-card";
+      var when = p.ev.date ? fmtDate(p.ev.date, p.ev.time, "") : "Date to be announced";
+      copy.innerHTML = '<div style="padding:14px 16px;">'
+        + '<div style="font-size:15px;font-weight:800;color:var(--dark);margin-bottom:4px;">' + esc(p.ev.title || "Event") + '</div>'
+        + '<div style="font-size:12px;color:var(--muted);">' + esc(when) + '</div>'
+        + (p.ev.venue || p.ev.location ? '<div style="font-size:12px;color:var(--muted);margin-top:2px;">📍 ' + esc(p.ev.venue || p.ev.location) + '</div>' : '')
+        + '</div>';
+      copy.style.cursor = "pointer";
+      copy.onclick = (function (id) { return function () { try { openEventView(id); } catch (e) {} }; })(p.ev.id);
+    }
     // Ids are for the original. A copy carrying them would give two elements one name.
     copy.querySelectorAll("[id]").forEach(function (n) { n.removeAttribute("id"); });
     copy.removeAttribute("id");
@@ -3567,6 +3595,10 @@ function renderEvents() {
   if (_sab) { _sab.textContent = (_grpOn ? "Group events (" : "All events (") + list.length + ")"; }
   var _fbarBox = document.getElementById("fbar");
   if (_fbarBox) { _fbarBox.style.display = isLoadingData ? "none" : "block"; }
+
+  // Kept so Group events can look at everything the filters left, rather than at the six cards
+  // this render happens to draw.
+  window._lastFilteredList = list;
 
   grid.innerHTML = "";
   var _lm = document.getElementById("load-more-wrap");   // drop it now; re-added below only if needed
