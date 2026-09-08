@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.31 | Date: 2026-09-08 | LAST CHANGE: filters in her order - Interests, Location, Date, Categories, Groups, Format, Search by. A topic word must match a whole word, so "ping" no longer matches helping or camping and a card cannot claim a reason that is not true. Group ids are normalised on both sides, which is why Group events kept saying "Be the first". Each group in the filter carries its picture. -->
+<!-- Version: V13.32 | Date: 2026-09-08 | LAST CHANGE: the rule that decides WHICH events match now uses whole words, the same as the rule that labels them. Fixing only the label stopped a card claiming Ping Pong and left it in the list with no reason at all, because the two rules disagreed about what a match is. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -7873,7 +7873,15 @@ function renderForYou() {
     if (ev.date === "TBD") return false;   // V12.51: a TBD (undated) event is shared by link only, not in matches
     const haystack = [ev.title, ev.keywords, ev.categories, ev.description, ev.host, ev.location, ev.venue, ev.experience]
       .filter(Boolean).join(" ").toLowerCase();
-    return matchers.some(m => haystack.includes(m.phrase));
+    // THE SAME WORD RULE AS THE TAG. Jessie, 2026-09-08, on the StairClimb: "why did ping pong show
+    // as match... when the event didn't say ping pong?" The tag was fixed first, which stopped the
+    // card CLAIMING Ping Pong - and left it sitting in the matches with no reason at all, because
+    // this line, which decides what gets in, was still doing a plain substring test. A word that is
+    // not in quotes has to be a whole word here too, or the two disagree about what a match is.
+    return matchers.some(m => {
+      if (m.exact) { return haystack.includes(m.phrase); }   // a quoted phrase is taken literally
+      return new RegExp("(^|[^a-z0-9])" + m.phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^a-z0-9]|$)", "i").test(haystack);
+    });
   }).sort((a,b) => new Date(a.date) - new Date(b.date));
 
   // V12.41: collapse a recurring series to its single soonest occurrence. getAllRecurring
