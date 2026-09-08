@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: M2.0 | Date: 2026-09-08 | LAST CHANGE: the form no longer waits on the list. It opens from getEventById, which answers about ONE event in 6.6 seconds cold and 1.1 KB and is cached by the gate per person, instead of getMyEvents, which answered with all 435 events a super admin can edit in 31.8 seconds and 562 KB. The list still loads, behind it, for the rail. Backend @361 returns the whole row on that call, but only to a host, a co-host or a super admin. -->
+<!-- Version: M2.1 | Date: 2026-09-08 | LAST CHANGE: rail 270 to 285 across the template. The Edit event heading lines up with the field labels under it. Clear form asks in the page rather than in a browser dialog, and says so plainly: clearing empties the boxes and forgets the local draft, it does not touch the event, because nothing saves until Save is pressed. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -362,7 +362,7 @@
      that reaches for one of its elements still finds it. */
   .page-body { display:none !important; }
   .manage-body { max-width:1200px; margin:0 auto; padding:20px; width:100%; box-sizing:border-box; }
-  .manage-grid { display:grid; grid-template-columns:270px minmax(0,1fr); gap:18px; align-items:start; }
+  .manage-grid { display:grid; grid-template-columns:285px minmax(0,1fr); gap:18px; align-items:start; }   /* 285 since 2026-09-08: Jessie, "increase the railing width... say naouther 15 pixels?" It was 270. */
   @media (max-width:860px) { .manage-grid { grid-template-columns:1fr; } }   /* the template's one breakpoint */
   .manage-rail { background:#fff; border-radius:14px; padding:12px; height:fit-content; }
   /* A super admin is shown every event on the site, so this scrolls rather than running the page
@@ -412,6 +412,12 @@
      over the white and worked over the blue. */
   #post-modal .modal-form { max-height:none; overflow:visible; display:block; }
   #post-modal .modal-scroll-body { flex:none; overflow:visible; min-height:0; padding:0; }
+  /* THE HEADING LINES UP WITH THE FIELDS. Jessie, 2026-09-08: "left justify correctly over event
+     title header." As a modal the header carries 32px of side padding and the scrolling body
+     carries its own. Taking the body's off for this page left the heading indented past every
+     label under it. */
+  #post-modal .modal-header { padding:0 0 16px; }
+  #post-modal .modal-footer { padding:16px 0 0; }
   /* The footer was pinned to the bottom of a box that no longer exists. It sits after the form. */
   #post-modal .modal-actions, #post-modal .modal-foot { position:static; }
   /* SMALLER, AND ON THE RIGHT. Jessie: "buttons are quite large and shouldn't be - make smaller
@@ -906,7 +912,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;gap:12px;">
         <div class="modal-title" id="modal-title" style="margin-bottom:0;">Post an event</div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
-          <button type="button" onclick="clearForm()" style="background:none;border:none;font-size:12px;color:var(--muted);cursor:pointer;padding:4px 0;white-space:nowrap;">↺ Clear form</button>
+          <button type="button" onclick="_askClearForm(this)" style="background:none;border:none;font-size:12px;color:var(--muted);cursor:pointer;padding:4px 0;white-space:nowrap;">↺ Clear form</button>
         </div>
       </div>
       <div id="draft-notice" style="display:none; background:#e8f5e9; color:#2e7d32; border-radius:8px; padding:8px 12px; font-size:13px;">✏️ Your draft was restored - pick up where you left off!</div>
@@ -5182,8 +5188,34 @@ function goMyEvents(){
   var url=m?'https://2gather.network/myevents?id='+encodeURIComponent(m):'https://2gather.network';
   try{ window.top.location.href=url; }catch(e){ window.location.href=url; }
 }
-function clearForm() {
-  if (!confirm("Clear all fields and start over?")) return;
+// CLEARING THE FORM ASKS FIRST, IN THE PAGE. Jessie, 2026-09-08: clear form should say "are you
+// sure you want to clear the entire form?"
+//
+// It used a browser confirm. She has already said what she thinks of browser dialogs - "why does
+// this pop up rather tha just coying to clipbaord?" - and they cannot be worded or styled beyond
+// the sentence inside them. So the question is asked where the button is.
+//
+// Worth knowing, and it is what she asked next: clearing empties the boxes on screen and forgets
+// the local draft. It does NOT touch the event. Nothing here writes to the sheet until Save is
+// pressed - there is no autosave on this form. But clearing and THEN saving would write the empty
+// form over the event, which is the reason for asking at all.
+function _askClearForm(btn) {
+  var box = document.getElementById('clear-confirm');
+  if (box) { box.remove(); return; }
+  var d = document.createElement('div');
+  d.id = 'clear-confirm';
+  d.style.cssText = 'margin-top:6px;font-size:12px;color:var(--dark);background:#FFF8E7;border:1px solid #F0B429;border-radius:8px;padding:8px 10px;line-height:1.5;max-width:260px;text-align:left;';
+  d.innerHTML = 'Are you sure you want to clear the entire form?'
+    + '<div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">'
+    + '<button type="button" onclick="document.getElementById(\'clear-confirm\').remove()" style="background:none;border:1px solid var(--border);border-radius:14px;padding:4px 12px;font:inherit;font-size:12px;cursor:pointer;">Keep it</button>'
+    + '<button type="button" onclick="document.getElementById(\'clear-confirm\').remove(); clearForm(true);" style="background:#c0392b;color:#fff;border:0;border-radius:14px;padding:4px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;">Clear it</button>'
+    + '</div>';
+  (btn && btn.parentNode ? btn.parentNode : document.body).appendChild(d);
+}
+window._askClearForm = _askClearForm;
+
+function clearForm(confirmed) {
+  if (!confirmed && !confirm("Clear all fields and start over?")) return;
   clearDraft();
   clearEditDraft();
   // Reset all inputs
