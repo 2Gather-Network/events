@@ -360,6 +360,9 @@
   .manage-grid { display:grid; grid-template-columns:270px minmax(0,1fr); gap:18px; align-items:start; }
   @media (max-width:860px) { .manage-grid { grid-template-columns:1fr; } }
   .manage-rail { background:#fff; border-radius:14px; padding:12px; height:fit-content; }
+  /* A super admin is shown every event on the site, so this scrolls rather than running the page
+     off the bottom. */
+  #manage-list { max-height:60vh; overflow-y:auto; }
   .manage-rail-head { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:4px 6px 10px; }
   .manage-row { display:block; width:100%; text-align:left; background:none; border:0; font:inherit; padding:9px 10px; border-radius:9px; cursor:pointer; color:var(--dark); }
   .manage-row:hover { background:#F3F7FA; }
@@ -7708,11 +7711,35 @@ function selectInterestSuggestion(val) {
     if (modal) { modal.classList.add('open'); modal.style.display = 'block'; }
   }
 
+  // A DATE A PERSON CAN READ. The rows come back as 2026-10-30T00:00:00.000Z, which is the
+  // machine's answer to the question, not hers.
+  function railDate(v) {
+    var t = String(v || '').trim();
+    if (!t || t === 'TBD') return 'Date to be announced';
+    var d = new Date(t.length > 10 ? t : t + 'T12:00:00');
+    if (isNaN(d)) return t;
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
   function paintRail(rows, sel) {
     if (!list) return;
     if (!rows.length) { list.innerHTML = '<div class="manage-hint">Nothing here yet.</div>'; return; }
+    // SOONEST FIRST, AND THE PAST AT THE BOTTOM. A super admin gets every event on the site - 435
+    // of them the first time this ran - so the order is the whole difference between a rail you
+    // can use and a wall you scroll past. Undated events sit between: they are unfinished rather
+    // than over.
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var when = function (r) { var d = new Date(String(r.date || '')); return isNaN(d) ? null : d; };
+    var rank = function (r) { var d = when(r); if (!d) return 1; return d >= today ? 0 : 2; };
+    rows = rows.slice().sort(function (a, b) {
+      var ra = rank(a), rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      var da = when(a), db = when(b);
+      if (!da || !db) return String(a.title || '').localeCompare(String(b.title || ''));
+      return ra === 2 ? db - da : da - db;   // past counts backwards from most recent
+    });
     list.innerHTML = rows.map(function (r) {
-      var when = (r.date && r.date !== 'TBD') ? r.date : 'Date to be announced';
+      var when = railDate(r.date);
       return '<button type="button" class="manage-row' + (String(r.id) === String(sel) ? ' on' : '') + '"'
            + ' onclick="location.href=\'https://2gather.network/manage/?id=' + encodeURIComponent(String(r.id)) + '\'">'
            + '<b>' + (window.esc ? esc(r.title || 'Untitled') + '</b>' : (r.title || 'Untitled') + '</b>')
