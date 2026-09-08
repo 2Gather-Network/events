@@ -1114,6 +1114,9 @@ async function verifyRegistrationState() {
 window.verifyRegistrationState = verifyRegistrationState;
 
 
+var _showCancelled = false;
+var _cancelledCount = 0;
+function _toggleCancelled(){ _showCancelled = !_showCancelled; try { window.myEvRepaint && window.myEvRepaint(); } catch (e) {} }
 let _currentEv = null; // store rendered event for calendar lookup
 
 function addToCalendarById(id) {
@@ -1824,7 +1827,7 @@ async function renderMyEventsList(memberId, data) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) e.date = dateStr;
     return e;
   }).filter(Boolean);
-  const attending = allEv.filter(function(e) { return activeIds.indexOf(String(e.id)) > -1; }).concat(occurrences);
+  var attending = allEv.filter(function(e) { return activeIds.indexOf(String(e.id)) > -1; }).concat(occurrences);
   // WHO MADE AN EVENT, in order of how much the answer can be trusted.
   //
   // userID is the only one that means "this person made this". It is written when an event is
@@ -1845,8 +1848,25 @@ async function renderMyEventsList(memberId, data) {
   });
   const _isSocialized = function(e){ return String(e.hostType || '').trim().toLowerCase() === 'socializer'; };
   // A blank hostType is treated as hosting, since that is what the column meant before it existed.
-  const hosting = _mine.filter(function(e){ return !_isSocialized(e); });
-  const socialized = _mine.filter(_isSocialized);
+  var hosting = _mine.filter(function(e){ return !_isSocialized(e); });
+  var socialized = _mine.filter(_isSocialized);
+  // CANCELLED EVENTS STEP BACK. Jessie, 2026-09-07: "hide cancel events on both attending.hosting
+  // and give the person the ability to show canceled events."
+  //
+  // Forty-four of her own rows are cancelled, and the backfill that morning put her name on every
+  // one, so the list she opens is mostly things that are not happening. They are not deleted and
+  // they are not hidden from her: a line says how many there are and one press brings them back.
+  //
+  // Both tests, because the two disagree. cancelled is the flag the form writes, and the older
+  // rows carry it only in the title, which is where the calendar reads it from too.
+  var _isCancelled = function (e) {
+    if (e && (e.cancelled === true || String(e.cancelled).toLowerCase() === 'true')) return true;
+    return /\[\s*cancell?ed\s*\]/i.test(String((e && e.title) || ''));
+  };
+  // Filtered where the LIST IS READ rather than where it is built, because the lists are built
+  // once and pressing the toggle only repaints. Counting happens there too, so the number always
+  // describes the pane in front of you.
+  window._isCancelledEv = _isCancelled;
   const byDate = function(a, b) { return String(a.date || "").localeCompare(String(b.date || "")); };
   attending.sort(byDate); hosting.sort(byDate); socialized.sort(byDate);
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -1891,8 +1911,13 @@ async function renderMyEventsList(memberId, data) {
   };
 
   let _pane = 'attending', _when = 'upcoming', _sel = null;
-  const paneList = function(){
+  const paneListRaw = function(){
     return (_pane === 'attending') ? attending : (_pane === 'socialized') ? socialized : hosting;
+  };
+  const paneList = function(){
+    var all = paneListRaw();
+    _cancelledCount = all.filter(_isCancelled).length;
+    return _showCancelled ? all : all.filter(function (e) { return !_isCancelled(e); });
   };
   const bucket = function(){
     return paneList().filter(function(e){ return (_when === 'upcoming') ? isUpcoming(e) : !isUpcoming(e); });
@@ -1932,12 +1957,17 @@ async function renderMyEventsList(memberId, data) {
       : '<div style="padding:14px 10px;font-size:13px;color:var(--muted);line-height:1.55;">' + emptyLine() + '</div>';
     return '<div style="background:#fff;border-radius:14px;padding:10px;height:fit-content;">'
       + '<div style="display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:4px 4px 10px;">'
-      + segBtn('attending', 'Attending', attending.filter(isUpcoming).length)
-      + segBtn('hosting', 'Hosting', hosting.filter(isUpcoming).length)
-      + segBtn('socialized', 'Socialized', socialized.length)
+      + segBtn('attending', 'Attending', attending.filter(function(e){ return isUpcoming(e) && (_showCancelled || !_isCancelled(e)); }).length)
+      + segBtn('hosting', 'Hosting', hosting.filter(function(e){ return isUpcoming(e) && (_showCancelled || !_isCancelled(e)); }).length)
+      + segBtn('socialized', 'Socialized', socialized.filter(function(e){ return _showCancelled || !_isCancelled(e); }).length)
       + '</div>'
       + '<div style="display:flex;gap:18px;margin:0 6px 10px;border-bottom:1px solid var(--border);">'
       + uBtn('upcoming', 'Upcoming', up) + uBtn('past', 'Past', pa) + '</div>'
+      + (_cancelledCount || _showCancelled
+          ? '<div style="margin:0 6px 8px;"><button type="button" onclick="_toggleCancelled()" style="background:none;border:none;padding:0;font:inherit;font-size:12px;color:var(--primary);font-weight:700;text-decoration:underline;cursor:pointer;">'
+            + (_showCancelled ? 'Hide cancelled events' : ('Show ' + _cancelledCount + ' cancelled ' + (_cancelledCount === 1 ? 'event' : 'events')))
+            + '</button></div>'
+          : '')
       + items + '</div>';
   };
 
@@ -2118,7 +2148,16 @@ async function renderMyEventsList(memberId, data) {
 
   window.myEvPane = function(which){ _pane = which; _sel = null; paint(); };
   window.myEvWhen = function(which){ _when = which; _sel = null; paint(); };
-  window.myEvPick = function(id){ _sel = String(id); paint(); };
+  window.myEvRepaint = function(){ _sel = null; paint(); };
+  // TO THE TOP ON A PICK. Jessie, 2026-09-07: "When I cloick an event it should put me to the top
+  // of the page." The detail pane is beside the list on a wide screen and above it on a narrow one,
+  // and by the time somebody has scrolled far enough down the list to choose, what they chose is
+  // off screen behind them.
+  window.myEvPick = function(id){
+    _sel = String(id);
+    paint();
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+  };
   paint();
 }
 
