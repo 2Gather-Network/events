@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: M1.9 | Date: 2026-09-08 | LAST CHANGE: the rail is kept for the tab and painted at once on every load after the first, while a fresh copy is fetched behind it. getMyEvents was measured at 31.8 seconds and 562 KB for a super admin, and one call before that timed out at 90 seconds. Only what the rail draws is kept; the form still waits for the real answer, because it needs all 46 fields and must never save a stale one. Also: the site page template, 1200 / 270 / 18 folding at 860, and the mobile sheet rules turned off so the form stops running off the right edge of a phone. -->
+<!-- Version: M2.0 | Date: 2026-09-08 | LAST CHANGE: the form no longer waits on the list. It opens from getEventById, which answers about ONE event in 6.6 seconds cold and 1.1 KB and is cached by the gate per person, instead of getMyEvents, which answered with all 435 events a super admin can edit in 31.8 seconds and 562 KB. The list still loads, behind it, for the rail. Backend @361 returns the whole row on that call, but only to a host, a co-host or a super admin. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -7925,6 +7925,41 @@ function selectInterestSuggestion(val) {
     try { kept = JSON.parse(sessionStorage.getItem(KEEP) || 'null'); } catch (e) {}
     if (kept && kept.length) { paintRail(kept, wantId); }
 
+    // ── THE FORM NO LONGER WAITS ON THE LIST ────────────────────────────────────────────────────
+    // Jessie, 2026-09-08: "seonc load about 5 seconds after first one 45 seconds." Both of those
+    // were the form waiting on getMyEvents, which answers with EVERY event she can edit - all 435
+    // on the site - to open ONE of them.
+    //
+    // getEventById answers about one event in 6.6 seconds cold and 1.1 KB, the gate already
+    // forwards it, and the gate already caches it for a minute with the person's id in the key, so
+    // a second visit is immediate. Since 2026-09-08 it returns the whole row, but only to a host, a
+    // co-host or a super admin - a visitor gets the same nine fields they always got.
+    //
+    // So the form opens from that, and the list loads behind it for the rail. Two questions asked
+    // at once instead of one big one asked first.
+    var railJob = fetch(GS_URL + '?action=getMyEvents&appearId=' + encodeURIComponent(me) + '&t=' + Date.now())
+                    .then(function (r) { return r.json(); })
+                    .catch(function () { return null; });
+
+    if (wantId) {
+      try {
+        var one = await fetch(GS_URL + '?action=getEventById&id=' + encodeURIComponent(wantId)
+                              + '&appearId=' + encodeURIComponent(me)).then(function (r) { return r.json(); });
+        var ev1 = one && one.event;
+        if (ev1 && ev1.row && (ev1.myRole === 'host' || ev1.myRole === 'cohost' || ev1.myRole === 'super')) {
+          try {
+            if (typeof events !== 'undefined' && !events.some(function (x) { return x.id === wantId; })) {
+              events.push(sheetToEv(ev1.row));
+            }
+          } catch (e) {}
+          mountForm();
+          try { loadEditForm(wantId); quiet(); } catch (e) {}
+        } else if (ev1 && ev1.myRole === 'visitor') {
+          say('That event belongs to somebody else, so the form did not open.');
+        }
+      } catch (e) {}   // the slower path below still runs and can still open it
+    }
+
     // A CALL THAT FAILED IS NOT AN EMPTY LIST. Jessie, 2026-09-08, on her own event: "what page is
     // this? an actual event?" - the rail read 0, 0, 0 and "Nothing here", and the panel said the
     // event belonged to somebody else. Both were false. The call had failed and the catch left an
@@ -7932,12 +7967,8 @@ function selectInterestSuggestion(val) {
     // her something untrue about her own data. Saying nothing would have been better; saying what
     // happened is better still.
     var rows = [], failed = false;
-    try {
-      var r = await fetch(GS_URL + '?action=getMyEvents&appearId=' + encodeURIComponent(me) + '&t=' + Date.now());
-      var d = await r.json();
-      if (d && d.status === 'ok' && Array.isArray(d.events)) { rows = d.events; }
-      else { failed = true; }
-    } catch (e) { failed = true; }
+    var d = await railJob;   // started above, alongside the one-event read
+    if (d && d.status === 'ok' && Array.isArray(d.events)) { rows = d.events; } else { failed = true; }
     if (failed) {
       // With something kept, the rail is already drawn and useful, so the failure is a note rather
       // than an empty screen. With nothing kept, it is the whole story.
@@ -7987,6 +8018,8 @@ function selectInterestSuggestion(val) {
       }
     } catch (e) {}
 
+    var already = document.getElementById('post-modal');
+    if (already && already.classList.contains('cw-mounted')) { return; }   // the fast path got there first
     mountForm();
     try { loadEditForm(wantId); } catch (e) { say('The form could not be opened. Reload and try again.'); return; }
     quiet();
