@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.29 | Date: 2026-09-08 | LAST CHANGE: the white bar was the boxed section left behind in the page body, because the move list still named the pieces inside it. The rail group fetch fills the shared list, so Group events and the Groups filter both have it. Groups reads (All) like Format and Date. The pencil hides only while the box to type in is on screen, so it returns on Done and on collapse. -->
+<!-- Version: V13.30 | Date: 2026-09-08 | LAST CHANGE: all three sections share one heading row - the name on the left, the count and its action on the right in blue - and each shows six with the rest one press away. The number comes out of the headings themselves. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -783,7 +783,14 @@
        its own small picture beside its name - "show small image of group next to each" - because a
        list of group names is the hardest thing to scan and the pictures already exist. -->
   <div id="group-events-wrap" style="display:none;background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:16px;">
-    <div id="group-events-head" style="font-size:15px;font-weight:800;color:var(--dark);margin:0 0 12px;">Group events</div>
+    <!-- THE SAME ROW AS RECOMMENDED MATCHES. Jessie, 2026-09-08: "do same for groups section
+         Showing 6 of 137 matches - Show all", "remove nubmer from header Group events (7)", and
+         "andsame with all evnets / 6 possiblities for each section". Name on the left, count and
+         its action on the right in blue, so the three sections read as siblings. -->
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 12px;">
+      <span id="group-events-head" style="font-size:15px;font-weight:800;color:var(--dark);">Group events</span>
+      <span id="group-events-count" style="font-size:13px;color:var(--primary);font-weight:700;"></span>
+    </div>
     <div class="event-grid" id="group-events-grid"></div>
   </div>
   <div id="cal-loading" style="display:none;text-align:center;margin:22px 0 8px;"><span class="cw-loading">Loading events</span></div>
@@ -795,7 +802,10 @@
        box liek Recommended matches". It sat loose on the page while the section above it was in a
        white card, so two things doing the same job looked like different kinds of thing. -->
   <div id="upcoming-box" style="display:none;background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:16px;">
-    <div id="upcoming-head" style="font-size:15px;font-weight:800;color:var(--dark);margin:0 0 12px;">Upcoming events</div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 12px;">
+      <span id="upcoming-head" style="font-size:15px;font-weight:800;color:var(--dark);">Upcoming events</span>
+      <span id="upcoming-count" style="font-size:13px;color:var(--primary);font-weight:700;"></span>
+    </div>
     <div class="event-grid" id="event-grid"></div>
   </div>
 </div>
@@ -3051,7 +3061,7 @@ function updateLocalBanner() {
    The cap resets whenever the result set changes, so a new search always starts
    at the top. Signature is the joined ids - clicking Load more does not change
    the result set, so it does not reset itself. */
-var PAGE_SIZE = 30;
+var PAGE_SIZE = 6;   // six a section, on her word: "6 possiblities for each section"
 var _shownCount = PAGE_SIZE;
 var _lastListSig = null;
 
@@ -3104,8 +3114,8 @@ function renderGroupEvents() {
   // that one stays hidden.
   if (!picked.length) {
     wrap.style.display = "";
-    var h0 = document.getElementById("group-events-head");
-    if (h0) { h0.textContent = "Group events"; }
+    var c0 = document.getElementById("group-events-count");
+    if (c0) { c0.textContent = ""; }
     gg.innerHTML = '<div style="grid-column:1/-1;padding:6px 0 2px;">'
       + '<div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Nothing on the calendar for your groups yet. Be the first.</div>'
       + '<a role="link" tabindex="0" data-nav="https://2gather.network/manage/?post=1" onclick="return _safeNavGo(this)"'
@@ -3115,10 +3125,18 @@ function renderGroupEvents() {
   }
 
   wrap.style.display = "";
-  var head = document.getElementById("group-events-head");
-  if (head) { head.textContent = "Group events (" + picked.length + ")"; }
+  var GE_CAP = window._geShowAll ? picked.length : 6;
+  var geShown = Math.min(picked.length, GE_CAP);
+  var headN = document.getElementById("group-events-count");
+  if (headN) {
+    headN.innerHTML = "Showing " + geShown + " of " + picked.length
+      + (picked.length > 6
+          ? ' \u00b7 <a onclick="window._geShowAll=!window._geShowAll;renderGroupEvents();" style="color:var(--primary);font-weight:700;cursor:pointer;">'
+            + (window._geShowAll ? "Show fewer" : "Show all") + "</a>"
+          : "");
+  }
   gg.innerHTML = "";
-  picked.slice(0, 12).forEach(function (p) {
+  picked.slice(0, geShown).forEach(function (p) {
     var copy = p.card.cloneNode(true);
     // Ids are for the original. A copy carrying them would give two elements one name.
     copy.querySelectorAll("[id]").forEach(function (n) { n.removeAttribute("id"); });
@@ -3149,9 +3167,13 @@ function renderLoadMore(total, shown) {
   var wrap = document.createElement("div");
   wrap.id = "load-more-wrap";
   wrap.style.cssText = "text-align:center;margin:22px 0 8px;";
-  wrap.innerHTML =
-    '<button onclick="loadMoreEvents()" style="padding:10px 26px;border-radius:22px;font-size:14px;font-weight:700;border:none;background:var(--cw-blue);color:#fff;cursor:pointer;">Load more</button>' +
-    '<div style="font-size:12px;color:var(--muted);margin-top:8px;">Showing ' + shown + ' of ' + total + ' events</div>';
+  // The count and its action live in the heading row, the way the two sections above do it.
+  var _uc = document.getElementById("upcoming-count");
+  if (_uc) {
+    _uc.innerHTML = "Showing " + shown + " of " + total
+      + ' \u00b7 <a onclick="loadMoreEvents()" style="color:var(--primary);font-weight:700;cursor:pointer;">Show more</a>';
+  }
+  wrap.innerHTML = "";
   grid.parentNode.insertBefore(wrap, grid.nextSibling);
 }
 
@@ -3502,7 +3524,7 @@ function renderEvents() {
     // WHICH CALENDAR THIS IS. Jessie, 2026-09-08: on ?mygroups=1 the heading "should change to
     // Upcoming group events (20)". Arriving with a filter already on and a heading that does not
     // mention it makes the number look like the whole calendar.
-    _uh.textContent = (_grpOn ? "Upcoming group events (" : "Upcoming events (") + list.length + ")";
+    _uh.textContent = _grpOn ? "Upcoming group events" : "Upcoming events";
   }
   // THREE SECTIONS, ALL SHOWN, ALL FILTERED THE SAME. Jessie, 2026-09-08: "maybe 3 recomended
   // matches / group evnets / all events ... shows all 3 but filters all 3?" and "Filters will just
