@@ -968,7 +968,11 @@
          otherwise read "Viewing as somebody", and she looked at that and asked for her version
          back: "i want it to say Viewing as Jessie Upp again not You are seeing your own pages".
          The amber and the Back to me button are what separate the two states. Her call, twice. */
-      says.textContent = mine ? ('Viewing as ' + mine) : 'You are seeing your own pages';
+      /* JUST THE NAME. Jessie, 2026-09-08: "and Viewing as Jessie Upp to just my name". Standing
+         on her own pages, "Viewing as" is three words explaining a state that is simply normal.
+         The other state keeps its full sentence in amber, because THAT one is the one worth
+         announcing. */
+      says.textContent = mine || 'Your own pages';
       says.style.cssText = 'font:inherit;padding:0;border:0;background:transparent;color:#1A2E42;'
         + 'cursor:pointer;text-align:left;';
       says.onclick = function () { try { w.CW.stopViewing(); } catch (e) {} w.location.reload(); };
@@ -977,7 +981,10 @@
 
     var pick = d.createElement('button');
     pick.type = 'button';
-    pick.textContent = seen ? 'Someone else' : 'View as someone';
+    // TWO WORDS. Jessie, 2026-09-08: "change view as someone at top of my supseradmin bar to change
+    // view". Both states say the same two words now, which is also the button rule arriving on the
+    // one control that had been carrying three.
+    pick.textContent = 'Change view';
     pick.style.cssText = 'font:inherit;padding:4px 12px;border-radius:14px;cursor:pointer;'
       + 'border:1px solid #C3D0DB;background:transparent;color:#1A2E42;';
     pick.onclick = function () { open(bar); };
