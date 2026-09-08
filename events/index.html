@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V12.91 | Date: 2026-09-08 | LAST CHANGE: posting and editing left this page for 2gather.network/manage/. Every door - the top bar, the welcome screen, the about page, a group page and this page itself - points there, and the two old addresses, ?action=post and ?edit=, forward rather than break, because they are in emails, bookmarks and QR codes. The in-page editor below the forward is now unreachable and comes out in the push that deletes the form. -->
+<!-- Version: V12.92 | Date: 2026-09-08 | LAST CHANGE: co-hosts appear only when "Add a co-host" is ticked, below the host name. An event that already has one is never hidden by it. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -987,7 +987,18 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
            Same power as the owner, her call: a co-host sees the event under Hosting on their own My
            events and can edit it. They cannot appoint further co-hosts, so there is one answer to
            who decides. -->
-      <div class="field" id="cohost-field" style="margin-top:14px;">
+      <!-- CO-HOSTS ARE ASKED FOR, NOT ASSUMED. Jessie, 2026-09-08: "don't show co-hosts header and
+           field until they click add host (checkbox below host name field)." Most events have one
+           host, so the heading and an empty address box were two lines of form that most people
+           scroll past having answered nothing. The tick is the question; the field only exists once
+           the answer is yes.
+           Unticking clears what was typed but never what was already added: a co-host on the sheet
+           is a person with access, and a tick is not the place to take that away. -->
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;cursor:pointer;">
+        <input type="checkbox" id="f-wants-cohosts" onchange="_syncCoHostField()" style="width:16px;height:16px;accent-color:var(--primary);">
+        <span>Add a co-host</span>
+      </label>
+      <div class="field" id="cohost-field" style="margin-top:14px;display:none;">
         <label class="field-label">Co-hosts</label>
         <div id="cohost-list" style="display:flex;flex-direction:column;gap:6px;"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
@@ -3506,7 +3517,7 @@ function openModal(skipDraft = false) {
   const occNoteFieldReset2 = document.getElementById("occurrence-note-field"); if(occNoteFieldReset2) occNoteFieldReset2.style.display = "none";
   const cancelOccFieldReset = document.getElementById("cancel-occurrence-field"); if(cancelOccFieldReset) cancelOccFieldReset.style.display = "none";
   const cancelOccReset = document.getElementById("f-cancel-occurrence"); if(cancelOccReset) cancelOccReset.checked = false;
-  ["show-hostlink","show-cooplink","show-paymentlink","show-contact","f-room-gated","f-has-bb","f-group-assoc"].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; }); const otherReset = document.getElementById("f-exch-other"); if(otherReset) otherReset.value = ""; _syncBoardGate();
+  ["show-hostlink","show-cooplink","show-paymentlink","show-contact","f-room-gated","f-has-bb","f-group-assoc","f-wants-cohosts"].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; }); const otherReset = document.getElementById("f-exch-other"); if(otherReset) otherReset.value = ""; _syncBoardGate(); _syncCoHostField();
   // Group relate: shows + pre-checks the "Relate this event to the group: <name>" checkbox when
   // the modal was opened from a group page's "+ Post an event" (URL carries ?groupId=X&groupName=Y).
   // Also hides the redundant "Group link" (show-cooplink) checkbox in that case.
@@ -4506,6 +4517,7 @@ function _renderCoHosts() {
       + '</div>');
   });
   host.innerHTML = rows.join("");
+  try { _syncCoHostField(); } catch (e) {}   // an event that already has one is never hidden
 }
 
 function _dropPendingCoHost(i) { _coHostAdds.splice(i, 1); _renderCoHosts(); _coStat("", false); }
@@ -4523,6 +4535,21 @@ function _removeCoHost(i) {
     })
     .catch(function () { _coStat("That did not go through.", false); });
 }
+
+// The co-host block appears only when it has been asked for. It is force-shown whenever the event
+// already has one, so an existing co-host can never be hidden by a tick nobody set.
+function _syncCoHostField() {
+  var want = document.getElementById("f-wants-cohosts");
+  var row  = document.getElementById("cohost-field");
+  var list = document.getElementById("cohost-list");
+  if (!row) return;
+  var already = !!(list && list.children.length);
+  var on = already || !!(want && want.checked);
+  row.style.display = on ? "" : "none";
+  if (want && already && !want.checked) { want.checked = true; }
+  if (!on) { var e = document.getElementById("f-cohost-email"); if (e) e.value = ""; }
+}
+window._syncCoHostField = _syncCoHostField;
 
 function _addCoHost() {
   var inp = document.getElementById("f-cohost-email");

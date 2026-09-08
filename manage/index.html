@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: M1.6 | Date: 2026-09-08 | LAST CHANGE: posting a new event asks the two questions first - are you hosting this or sharing someone else's, then fill out the form or paste a link - rather than jumping to a blank form. The first answer decides what the form shows, since a socializer never sees the registration control. Post a new event in the rail opens the same two questions instead of reloading the page. -->
+<!-- Version: M1.7 | Date: 2026-09-08 | LAST CHANGE: the site's own dimensions - 1040px wide on a blue ground like My events and My groups, with the rail widened to 300px from 270. It was 1200px wide with a NARROWER rail, which is what made it read as a different product. Form buttons are smaller and right-justified. Co-hosts appear only when "Add a co-host" is ticked. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -27,7 +27,10 @@
     --green: #4CAF7D; --light: #F5F7FA; --border: #DCE3EA;
     --dark: #2C3A47; --muted: #4A5A6B; --white: #FFFFFF;
   }
-  body { font-family: 'DM Sans','Segoe UI',sans-serif; background:var(--light); color:var(--dark); }
+  /* Blue ground, like My events and My groups. This carried the pale grey the calendar page uses,
+     which is what made it read as a different product from the pages beside it. */
+  body { font-family: 'DM Sans','Segoe UI',sans-serif; background:#1F699E; color:var(--dark); }
+  .manage-rail-head, .manage-body > .manage-grid { color:var(--dark); }
   [data-nav]{cursor:pointer;}
 
   .header { background:var(--primary); padding:14px 20px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -405,6 +408,11 @@
   #post-modal .modal-scroll-body { flex:none; overflow:visible; min-height:0; padding:0; }
   /* The footer was pinned to the bottom of a box that no longer exists. It sits after the form. */
   #post-modal .modal-actions, #post-modal .modal-foot { position:static; }
+  /* SMALLER, AND ON THE RIGHT. Jessie: "buttons are quite large and shouldn't be - make smaller
+     and justify right." Post event ran the full width of the form, which made the least
+     reversible control on the page the biggest thing on it. */
+  #post-modal .modal-actions { justify-content:flex-end; flex-wrap:wrap; }
+  #post-modal .modal-actions .btn { flex:none !important; width:auto; padding:9px 18px; font-size:13.5px; }
 
 </style>
   <script src="/nav/identity.js?v=13"></script>
@@ -1079,7 +1087,18 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
            Same power as the owner, her call: a co-host sees the event under Hosting on their own My
            events and can edit it. They cannot appoint further co-hosts, so there is one answer to
            who decides. -->
-      <div class="field" id="cohost-field" style="margin-top:14px;">
+      <!-- CO-HOSTS ARE ASKED FOR, NOT ASSUMED. Jessie, 2026-09-08: "don't show co-hosts header and
+           field until they click add host (checkbox below host name field)." Most events have one
+           host, so the heading and an empty address box were two lines of form that most people
+           scroll past having answered nothing. The tick is the question; the field only exists once
+           the answer is yes.
+           Unticking clears what was typed but never what was already added: a co-host on the sheet
+           is a person with access, and a tick is not the place to take that away. -->
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;cursor:pointer;">
+        <input type="checkbox" id="f-wants-cohosts" onchange="_syncCoHostField()" style="width:16px;height:16px;accent-color:var(--primary);">
+        <span>Add a co-host</span>
+      </label>
+      <div class="field" id="cohost-field" style="margin-top:14px;display:none;">
         <label class="field-label">Co-hosts</label>
         <div id="cohost-list" style="display:flex;flex-direction:column;gap:6px;"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
@@ -3598,7 +3617,7 @@ function openModal(skipDraft = false) {
   const occNoteFieldReset2 = document.getElementById("occurrence-note-field"); if(occNoteFieldReset2) occNoteFieldReset2.style.display = "none";
   const cancelOccFieldReset = document.getElementById("cancel-occurrence-field"); if(cancelOccFieldReset) cancelOccFieldReset.style.display = "none";
   const cancelOccReset = document.getElementById("f-cancel-occurrence"); if(cancelOccReset) cancelOccReset.checked = false;
-  ["show-hostlink","show-cooplink","show-paymentlink","show-contact","f-room-gated","f-has-bb","f-group-assoc"].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; }); const otherReset = document.getElementById("f-exch-other"); if(otherReset) otherReset.value = ""; _syncBoardGate();
+  ["show-hostlink","show-cooplink","show-paymentlink","show-contact","f-room-gated","f-has-bb","f-group-assoc","f-wants-cohosts"].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; }); const otherReset = document.getElementById("f-exch-other"); if(otherReset) otherReset.value = ""; _syncBoardGate(); _syncCoHostField();
   // Group relate: shows + pre-checks the "Relate this event to the group: <name>" checkbox when
   // the modal was opened from a group page's "+ Post an event" (URL carries ?groupId=X&groupName=Y).
   // Also hides the redundant "Group link" (show-cooplink) checkbox in that case.
@@ -4598,6 +4617,7 @@ function _renderCoHosts() {
       + '</div>');
   });
   host.innerHTML = rows.join("");
+  try { _syncCoHostField(); } catch (e) {}   // an event that already has one is never hidden
 }
 
 function _dropPendingCoHost(i) { _coHostAdds.splice(i, 1); _renderCoHosts(); _coStat("", false); }
@@ -4615,6 +4635,21 @@ function _removeCoHost(i) {
     })
     .catch(function () { _coStat("That did not go through.", false); });
 }
+
+// The co-host block appears only when it has been asked for. It is force-shown whenever the event
+// already has one, so an existing co-host can never be hidden by a tick nobody set.
+function _syncCoHostField() {
+  var want = document.getElementById("f-wants-cohosts");
+  var row  = document.getElementById("cohost-field");
+  var list = document.getElementById("cohost-list");
+  if (!row) return;
+  var already = !!(list && list.children.length);
+  var on = already || !!(want && want.checked);
+  row.style.display = on ? "" : "none";
+  if (want && already && !want.checked) { want.checked = true; }
+  if (!on) { var e = document.getElementById("f-cohost-email"); if (e) e.value = ""; }
+}
+window._syncCoHostField = _syncCoHostField;
 
 function _addCoHost() {
   var inp = document.getElementById("f-cohost-email");
