@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V12.88 | Date: 2026-09-07 | LAST CHANGE: title placeholder removed; every placeholder lightened to #8E8E93; "Associate this event with a group" became "Socialize this event within a group"; the group list puts the ones she hosts first with (Host) beside them and orders each half newest first, using the joinedAt getMyGroups started returning today. -->
+<!-- Version: V12.89 | Date: 2026-09-07 | LAST CHANGE: opening the editor asks who owns the event on the same tick as the calendar load rather than after it, so the two long calls overlap instead of queueing, and the calendar is hidden while the editor opens. Jessie: "When I click edit event from my events, it takes about five seconds to load, and all I see is the calendar." The calendar comes back if the editor cannot open, so no message is shown against a blank page. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -48,6 +48,9 @@
 
   .input,.textarea { width:100%; border:1.5px solid var(--border); border-radius:8px; padding:11px 16px; font-size:15px; font-family:inherit; color:var(--dark); background:var(--white); outline:none; transition:border-color .15s; }
   .input:focus,.textarea:focus { border-color:var(--primary); }
+  /* Opening the editor puts the calendar away until the form is up. Removed again the moment the
+     editor cannot open, so no message is ever shown against a blank page. */
+  html.cw-editing .page-body > *:not(.modal-overlay) { display:none !important; }
   /* PLACEHOLDERS STEP BACK. Jessie, 2026-09-07: "make any placeholder a lot more light gray, but
      still accessible." The browser default is around #757575, which is the darkest a placeholder
      ever needs to be and reads as if the box is already filled in. #8E8E93 sits at 3.4:1 on white:
@@ -6197,6 +6200,38 @@ const _MC_PARAM = (function () {
 // loading too." fbarBoot draws it again afterwards, once the categories have counts.
 try { fbarDraw(); } catch (e) {}
 
+// THE TWO LONG CALLS NOW RUN TOGETHER. Jessie, 2026-09-07: "When I click edit event from my events,
+// it takes about five seconds to load, and all I see is the calendar."
+//
+// She saw the calendar because the calendar is what this page is, and she waited because the
+// ownership question was asked only AFTER the calendar had finished. loadEvents measures 2 to 40
+// seconds and getMyEvents 9 to 39, and they were running one after the other for no reason: the
+// editor needs the second answer and nothing from the first.
+//
+// The question is asked here instead, on the same tick as the calendar, so the two waits overlap.
+// The block below picks up the answer whenever it lands. Nothing about the ordering downstream
+// changed, because it still opens the form after loadEvents has resolved.
+var _editWanted = null;
+try { _editWanted = new URLSearchParams(window.location.search).get("edit"); } catch (e) {}
+var _editRowPromise = null;
+if (_editWanted) {
+  _editRowPromise = (async function () {
+    var _me = "";
+    try { _me = getRealMemberId() || ""; } catch (e) {}
+    if (!_me) return { err: 'signin' };
+    try {
+      const r = await fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(_me) + "&t=" + Date.now());
+      const d = await r.json();
+      if (!d || d.status !== "ok" || !Array.isArray(d.events)) return { err: 'bad' };
+      return { row: d.events.find(function (x) { return String(x.id || "").trim() === _editWanted; }) || null };
+    } catch (e) { return { err: 'bad' }; }
+  })();
+  // AND THE CALENDAR GETS OUT OF THE WAY. She is not here to look at it, and it was the only thing
+  // on screen for the whole wait. It comes back if the editor cannot open, so an error is never
+  // shown against a blank page.
+  try { document.documentElement.classList.add('cw-editing'); } catch (e) {}
+}
+
 loadEvents().then(() => {
   // ?post=1 OPENS THE FORM. The welcome screen has a "Post an event" door and there was no address
   // that lands on the form, only a page with a button on it somewhere. A switch on the page that
@@ -6242,20 +6277,19 @@ loadEvents().then(() => {
 
           (async function () {
             try {
-              var _me = "";
-              try { _me = getRealMemberId() || ""; } catch (e) {}
-              if (!_me) { say('Sign in first, then open the event again.'); return; }
-              const r = await fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(_me) + "&t=" + Date.now());
-              const d = await r.json();
-              if (!d || d.status !== "ok" || !Array.isArray(d.events)) {
-                say('The editor could not be opened. Reload the page and try again.'); return;
-              }
-              const row = d.events.find(function (x) { return String(x.id || "").trim() === editId; });
-              if (!row) { say('That event belongs to somebody else, so the editor did not open.'); return; }
+              // Started before the calendar, up at the top of this file. By the time we get here
+              // it has usually already answered.
+              const res = await (_editRowPromise || Promise.resolve({ err: 'bad' }));
+              const _unhide = function () { try { document.documentElement.classList.remove('cw-editing'); } catch (e) {} };
+              if (res.err === 'signin') { _unhide(); say('Sign in first, then open the event again.'); return; }
+              if (res.err) { _unhide(); say('The editor could not be opened. Reload the page and try again.'); return; }
+              const row = res.row;
+              if (!row) { _unhide(); say('That event belongs to somebody else, so the editor did not open.'); return; }
               if (!events.some(function (x) { return x.id === editId; })) { events.push(sheetToEv(row)); }
               done();
               loadEditForm(editId);
             } catch (e) {
+              try { document.documentElement.classList.remove('cw-editing'); } catch (e2) {}
               say('The editor could not be opened. Reload the page and try again.');
             }
           })();
