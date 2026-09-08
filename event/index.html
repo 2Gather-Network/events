@@ -707,11 +707,12 @@ function render(ev) {
   const isToday = eventDay && eventDay.toDateString() === today.toDateString();
   const gatherUrl = esc(ev.meetinglink || roomUrl);
   const gatherTimeStr = ev.time ? new Date("1970-01-01T"+ev.time).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}) : "";
-  // V5.38: when the host gated the room, both room affordances start HIDDEN and applyRoomGate()
-  // reveals them only once the viewer's profile is confirmed complete - the link is never in
-  // the DOM-visible output before the check, so an incomplete viewer cannot grab it.
-  const _gateRoom = !!ev.roomGated && (ev.format === "virtual" || ev.format === "both");
-  const _hide = _gateRoom ? "display:none;" : "";
+  // V5.38 gated the MEETING ROOM behind a completed profile. Jessie, 2026-09-07, asked what the
+  // tick should mean and answered it herself: "the tick hidess the bulletin board." So the room is
+  // open again to anyone who is registered, and roomGated now holds back the shared notes board.
+  // The column keeps its old name because renaming it means a sheet edit and a migration for
+  // nothing; what it does is written here instead.
+  const _hide = "";
   // V5.51: both room links open in a new tab. This page is embedded in an iframe on Appear, and
   // without a target the room loaded inside that frame, where GoBrunch cannot run. 2Gather was
   // fine because it serves the page directly. Every other link here already carried _blank.
@@ -724,9 +725,7 @@ function render(ev) {
   // V5.39: the gate reminder is its own element so it also shows on the event day, when the
   // "Gather here today" button is hidden for an incomplete profile. Before, it was built only
   // into meetingRoomLine (pre-day), so on the day the button just vanished with no explanation.
-  const gateMsg = _gateRoom
-    ? `<div id="room-gate-msg" style="display:none;font-size:14px;color:#7B5800;background:#FFF8E7;border:1px solid #F0B429;border-radius:8px;padding:10px 12px;margin-bottom:4px;">You're registered! Please complete your event profile to unlock the virtual meeting space. <a id="room-gate-link" href="https://creating.works" style="color:#1B6896;font-weight:700;">Complete profile</a></div>`
-    : "";
+  const gateMsg = "";
 
   const locLink = ev.location
     ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}" rel="noopener" target="_blank">${esc(ev.location)}</a>`
@@ -827,6 +826,9 @@ function render(ev) {
           <p style="font-size:14px;color:#374151;line-height:1.6;white-space:pre-wrap;">${esc(ev.host_note)}</p>
         </div>
       ` : ""}
+      ${(hasNotes && ev.roomGated) ? `
+        <div id="room-gate-msg" style="display:none;margin-top:16px;font-size:14px;color:#7B5800;background:#FFF8E7;border:1px solid #F0B429;border-radius:8px;padding:10px 12px;">You're registered. Please complete your event profile to open the bulletin board. <a id="room-gate-link" href="https://creating.works" style="color:#1B6896;font-weight:700;">Complete profile</a></div>
+      ` : ""}
       ${hasNotes ? `
         <div id="notes-section" style="display:none;margin-top:16px;">
           <p style="font-size:13px;color:var(--muted);margin-bottom:8px;">📋 This is a shared notes board - anything you add is seen by the host and all participants.</p>
@@ -909,7 +911,7 @@ function render(ev) {
   // So it is asked for once, in the background, while somebody is still reading the event. If it
   // has not arrived by the time they press Share, the full address goes instead, which works.
   _primeShortLink(ev.id);
-  applyRoomGate();   // V5.38: hide/reveal the meeting room per the host's profile gate (non-blocking)
+  applyBoardGate();   // hide/reveal the bulletin board per the host's profile gate (non-blocking)
   if ((_editVerified || _myId) && !ev.cancelled) { loadPotluckClaims(ev.id); }
 
   // RSVP state comes from the sheet, not the device - read registrations on load
@@ -942,8 +944,11 @@ function applyRegisteredUI() {
   if (cancelArea) cancelArea.style.display = "block";
   const confirmed = document.getElementById("interest-confirmed");
   if (confirmed) confirmed.style.display = "block";
-  const notes = document.getElementById("notes-section");
-  if (notes) notes.style.display = "block";
+  // The board used to open the moment you registered. With the gate on, registering is only half
+  // of what it asks for, so the decision moves to _paintBoard and this just records the half.
+  window._isRegistered = true;
+  _paintBoard();
+  if (_boardOK === null) applyBoardGate();
   const hostNoteEl = document.getElementById("host-note-section");
   if (hostNoteEl) hostNoteEl.style.display = "block";
   loadWhoIsGoing();
@@ -968,6 +973,12 @@ function applyUnregisteredUI() {
   if (cancelArea) cancelArea.style.display = "none";
   const confirmed = document.getElementById("interest-confirmed");
   if (confirmed) confirmed.style.display = "none";
+  // Cancelling used to leave the board and the host's note on screen. Nothing hid them, because
+  // nothing had to while the board opened for everyone who registered.
+  window._isRegistered = false;
+  _paintBoard();
+  const hostNoteOff = document.getElementById("host-note-section");
+  if (hostNoteOff) hostNoteOff.style.display = "none";
 }
 window.applyUnregisteredUI = applyUnregisteredUI;
 
@@ -1297,28 +1308,39 @@ function _profileComplete(d) {
   const has = (s) => String(s || "").split("|").filter(Boolean).length > 0;
   return has(d.interests) && has(d.skills) && has(d.values) && has(d.languages) && !!String(d.postal || "").trim();
 }
-async function applyRoomGate() {
-  if (!_currentEv || !_currentEv.roomGated) return;
-  if (!(_currentEv.format === "virtual" || _currentEv.format === "both")) return;
-  const jbw = document.getElementById("join-btn-wrap");
-  const mrl = document.getElementById("meeting-room-line");
+// THE BULLETIN BOARD OPENS WHEN YOU ARE REGISTERED AND YOUR EVENT PROFILE IS COMPLETE.
+// Jessie, 2026-09-07: "the tick hidess the bulletin board." Until this evening the same setting
+// hid the meeting room, which is what V5.38 built and what the tick on the posting form had
+// stopped saying. The words are hers, so the behaviour follows them.
+//
+// Two conditions, and neither alone is enough: registered, and a profile carrying an interest, a
+// skill, a value, a language and a postal code. Anyone can be on the wrong side of either.
+let _boardOK = null;   // null until the profile answers - see _paintBoard
+
+// One place decides whether the board is on screen. Nothing else may set its display, or the two
+// answers race and the loser wins whenever the network is slow.
+function _paintBoard() {
+  const notes = document.getElementById("notes-section");
   const msg = document.getElementById("room-gate-msg");
+  const hide = (el) => { if (el) el.style.display = "none"; };
+  if (!notes) return;
+  if (!window._isRegistered) { hide(notes); hide(msg); return; }
+  if (!_currentEv || !_currentEv.roomGated) { notes.style.display = "block"; hide(msg); return; }
+  if (_boardOK === true) { notes.style.display = "block"; hide(msg); return; }
+  if (_boardOK === false) { hide(notes); if (msg) msg.style.display = "block"; return; }
+  // Still asking. Draw neither, rather than a notice that would be wrong for the next few seconds.
+  hide(notes); hide(msg);
+}
+
+async function applyBoardGate() {
+  if (!_currentEv || !_currentEv.roomGated) return;
   const viewer = getMemberId();
-  if (!viewer) return;   // not signed in -> room stays hidden; the sign-in CTA handles them
-  const d = await _viewerIntakeData(viewer);
-  if (_profileComplete(d)) {
-    if (jbw) jbw.style.display = "";
-    if (mrl) mrl.style.display = "";
-    if (msg) msg.style.display = "none";
-  } else {
-    if (jbw) jbw.style.display = "none";
-    if (mrl) mrl.style.display = "none";
-    if (msg) {
-      const link = document.getElementById("room-gate-link");
-      if (link) link.href = "https://creating.works/profile?id=" + encodeURIComponent(viewer) + "&eventId=" + encodeURIComponent(_currentEv.id);
-      msg.style.display = "block";
-    }
-  }
+  if (!viewer) { _boardOK = false; _paintBoard(); return; }
+  const d = await _viewerIntakeData(viewer);   // cached, so the second ask costs nothing
+  _boardOK = _profileComplete(d);
+  const link = document.getElementById("room-gate-link");
+  if (link) link.href = "https://creating.works/profile?id=" + encodeURIComponent(viewer) + "&eventId=" + encodeURIComponent(_currentEv.id);
+  _paintBoard();
 }
 
 async function maybeShowIntakePrompt() {
@@ -1669,7 +1691,7 @@ async function init() {
 
 init();
 </script>
-<!-- Version: V5.38 | Date: 2026-07-20 | LAST CHANGE: The meeting room can be gated behind a completed event profile (roomGated). When on, both room affordances start hidden and applyRoomGate() reveals them only if the viewer's profile has an interest, skill, value, language AND postal - otherwise "You're registered! Please complete your event profile to unlock the virtual meeting space." One getIntake call, shared with the intake prompt, non-blocking. (V5.37: Lake Ballinger RSVP goes to the hub.) -->
+<!-- Version: V5.53 | Date: 2026-09-07 | LAST CHANGE: roomGated now holds back the BULLETIN BOARD, not the meeting room - Jessie: "the tick hidess the bulletin board." The room is open again to anyone registered. The board needs both halves: registered AND a profile with an interest, skill, value, language and postal. _paintBoard is the only thing that sets its display, and draws neither board nor notice while the answer is still coming. Cancelling an RSVP now closes the board and the host note, which it never did. (V5.52: Copy link copies on the press and the browser prompt is gone; the foot buttons only appear when the event has page above them.) -->
 <script src="/nav/topbar.js?v=5.78" defer></script>
 <script>
 // The Sign in destination lives in one place, the shared file. This picks it up.
