@@ -239,11 +239,40 @@
     // remembers. Somebody standing at the front door is not through it yet.
     var atDoor = (window.location.pathname || '').toLowerCase().indexOf('/signin') === 0;
 
+    // THE NAME SITS BESIDE THE FACE, IN ONE PILL. Jessie, 2026-09-08: "put my name to the left of
+    // my photo in top right photo as we did in the same pill", and she picked the version carrying
+    // the seedling: "C - pill with the greeting". The seedling comes up from the My account
+    // heading, which goes once this is in, so nothing is lost in the move.
+    //
+    // The name is whatever the bar already knows. It is fetched for the person being LOOKED AT, so
+    // while viewing as somebody else it is their name, and cw-name-for says whose - which is why
+    // it is checked rather than trusted. Without a name the pill is just the face, which is what
+    // it was before.
+    //
+    // On a phone the name is hidden by CSS rather than left out, so nothing has to be redrawn when
+    // the window changes size. A long name would otherwise push this bar onto two rows, which
+    // already happened once to GROUPS and MORE at 375px.
+    function myName() {
+      try {
+        // window, not w. `w` is a local in another function further down this file and is not in
+        // scope here; reaching for it would throw and take the whole bar with it, on every page.
+        var n = String(window.CW_NAME || window.localStorage.getItem('cw-name') || '').trim();
+        var forWho = String(window.localStorage.getItem('cw-name-for') || '').trim();
+        if (!n) return '';
+        if (forWho && String(me() || '').trim() && forWho !== String(me() || '').trim()) { return ''; }
+        return n;
+      } catch (e) { return ''; }
+    }
+    function esc2(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+
     var photo;
     if (!atDoor && me() && window.CW_TOPBAR_PHOTO) {
-      photo = '<a role="link" tabindex="0" class="cwtb-face" title="My profile" data-nav="' +
+      var nm = myName();
+      photo = '<a role="link" tabindex="0" class="cwtb-me" title="My profile" data-nav="' +
               link(PROFILE, 'CWid') + '" onclick="return _safeNavGo(this)">' +
-              '<img src="' + window.CW_TOPBAR_PHOTO + '" alt=""></a>';
+              (nm ? '<span class="cwtb-me-name">' + esc2(nm) + ' \u{1F331}</span>' : '') +
+              '<span class="cwtb-face"><img src="' + window.CW_TOPBAR_PHOTO + '" alt=""></span></a>';
     } else if (!atDoor && me()) {
       photo = '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost cwtb-mine" data-nav="' +
               link(PROFILE, 'CWid') + '" onclick="return _safeNavGo(this)">My profile</a>';
@@ -399,6 +428,13 @@
         'background:linear-gradient(135deg,#7DD3FC,#1F699E);display:block;' +
         'box-shadow:0 0 0 2px rgba(255,255,255,.55);}' +
       '.cwtb-face img{width:100%;height:100%;object-fit:cover;display:block;}' +
+      '.cwtb-me{display:inline-flex;align-items:center;gap:9px;background:#fff;border-radius:26px;' +
+        'padding:3px 4px 3px 15px;text-decoration:none;flex-shrink:0;cursor:pointer;}' +
+      '.cwtb-me .cwtb-face{width:32px;height:32px;box-shadow:none;}' +
+      '.cwtb-me-name{color:#1F699E;font-size:14px;font-weight:700;white-space:nowrap;line-height:1;}' +
+      '@media(max-width:700px){.cwtb-me{background:none;padding:0;gap:0;}' +
+        '.cwtb-me-name{display:none;}' +
+        '.cwtb-me .cwtb-face{width:36px;height:36px;box-shadow:0 0 0 2px rgba(255,255,255,.55);}}' +
       '.cwtb-signin{flex-shrink:0;background:#fff;color:#1F699E;font-size:14px;font-weight:700;' +
         'padding:9px 18px;border-radius:22px;text-decoration:none;cursor:pointer;white-space:nowrap;}' +
       '.cwtb-signin:hover{background:#F7FBFF;}' +
@@ -452,7 +488,10 @@
   // reading once. The old My profile pill comes off while the bar is up,
   // because the photo in the bar is that same link.
   function adopt() {
-    var face = document.querySelector('#cw-topbar .cwtb-face') ||
+    // Inside the pill the face is a span, so this fills THAT rather than replacing the pill and
+    // taking the name with it.
+    var face = document.querySelector('#cw-topbar .cwtb-me .cwtb-face') ||
+               document.querySelector('#cw-topbar .cwtb-face') ||
                document.querySelector('#cw-topbar .cwtb-mine');
     if (!face) return true;
 
