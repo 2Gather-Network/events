@@ -78,7 +78,21 @@
   }
 
   // carry says which name that destination reads the person by.
-  var NAV = [
+  // ONLY THE PHOTO. Jessie, 2026-09-08: "since 2gather is synchronous adn appear is asynchronous
+  // groups are begin decided as more appear. so leat's make the top nav bar only the pphoto and
+  // when clicking on it , it goes to my profile. remove groups and evnets from top."
+  //
+  // Groups are being decided as an Appear thing rather than a 2Gather one, which is decision B6 in
+  // the decisions doc arriving in the product. A Groups menu on this bar states an answer that has
+  // not been given. Events came off with it, because a bar with one menu on it is a bar that has
+  // not decided what it is.
+  //
+  // The menus are kept below rather than deleted, so putting one back is uncommenting rather than
+  // rewriting. Everything in them is still reachable: Find an event and My events from the calendar
+  // and My events themselves, and My profile from the photo.
+  var NAV = [];
+  var NAV_PARKED = [
+
     { key: 'events', label: 'Events', items: [
       // FIND AN EVENT, because that is what somebody opening this menu is trying to do. "Calendar
       // of events" names the thing rather than the errand. Jessie, 2026-09-07.
