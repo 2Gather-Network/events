@@ -12,7 +12,7 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V5.51 | Date: 2026-09-08 | LAST CHANGE: rail 270 to 285, across the template. -->
+  <!-- Version: V5.52 | Date: 2026-09-08 | LAST CHANGE: the rail carries a search box and a sort, the same pair My groups has. Both narrow what the chosen tab already holds and never reach outside it, so searching inside Hosting never returns something you are only attending. Rail also went 270 to 285 with the template. -->
   <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1939,8 +1939,41 @@ async function renderMyEventsList(memberId, data) {
     return paneList().filter(function(e){ return (_when === 'upcoming') ? isUpcoming(e) : !isUpcoming(e); });
   };
 
+  // What is typed and how it is ordered, held across repaints. Both are per-view rather than per
+  // tab: switching tab keeps what you typed, which is what you want when you are hunting for one
+  // event and are not sure which tab it is in.
+  var _railQ = '';
+  var _railSort = 'soon';
+  window.myEvSearch = function (v) {
+    _railQ = String(v || '');
+    myEvRepaint();
+    var box = document.getElementById('rail-filter');
+    if (box) { box.focus(); try { box.setSelectionRange(box.value.length, box.value.length); } catch (e) {} }
+  };
+  window.myEvSort = function (v) { _railSort = v || 'soon'; myEvRepaint(); };
+
+  // Search and sort narrow what the tab already chose; they never reach outside it.
+  var _railNarrow = function (evs) {
+    var q = _railQ.trim().toLowerCase();
+    if (q) {
+      evs = evs.filter(function (e) {
+        return (String(e.title || '') + ' ' + String(e.venue || '') + ' ' + String(e.location || ''))
+                 .toLowerCase().indexOf(q) > -1;
+      });
+    }
+    var when = function (e) { var d = new Date(String(e.date || '')); return isNaN(d) ? null : d; };
+    return evs.slice().sort(function (a, b) {
+      if (_railSort === 'az') return String(a.title || '').localeCompare(String(b.title || ''));
+      var da = when(a), db = when(b);
+      if (!da && !db) return 0;
+      if (!da) return 1;      // an undated event has no place in a date order, so it goes last
+      if (!db) return -1;
+      return _railSort === 'late' ? db - da : da - db;
+    });
+  };
+
   const renderRail = function(){
-    var evs = bucket();
+    var evs = _railNarrow(bucket());
     var up = paneList().filter(isUpcoming).length;
     var pa = paneList().length - up;
     // THE NUMBER SITS UNDER THE WORD, so the three tabs are the same height instead of
@@ -1985,6 +2018,24 @@ async function renderMyEventsList(memberId, data) {
       + '</div>'
       + '<div style="display:flex;gap:18px;margin:0 6px 10px;border-bottom:1px solid var(--border);">'
       + uBtn('upcoming', 'Upcoming', up) + uBtn('past', 'Past', pa) + '</div>'
+      // SEARCH AND SORT, the same pair My groups carries. Jessie, 2026-09-08: "put this search and
+      // filter on my events page too, in railing - and this is set for each 'tab' right?" Yes -
+      // both narrow what is already in the chosen tab, exactly as they do on My groups. Searching
+      // inside Hosting never reaches into Attending.
+      // The value is read back out of the box on every repaint rather than kept in a variable,
+      // because the rail is rebuilt from scratch each time and a variable would have to be kept in
+      // step with the DOM.
+      + '<div style="display:flex;gap:8px;align-items:center;margin:0 6px 10px;">'
+      +   '<div style="flex:1;min-width:0;display:flex;align-items:center;background:#F7F9FC;border-radius:18px;padding:2px 6px 2px 12px;">'
+      +     '<input type="text" id="rail-filter" value="' + esc(_railQ) + '" placeholder="&#128269; Search"'
+      +       ' oninput="myEvSearch(this.value)" style="flex:1;min-width:0;border:none;background:transparent;font-family:inherit;font-size:14px;padding:8px 4px;outline:none;">'
+      +   '</div>'
+      +   '<select id="rail-sort" onchange="myEvSort(this.value)" aria-label="Sort events" style="border:1.5px solid var(--border);border-radius:18px;background:#fff;font-family:inherit;font-size:13px;padding:7px 8px;color:var(--dark);cursor:pointer;">'
+      +     '<option value="soon"' + (_railSort === 'soon' ? ' selected' : '') + '>Soonest first</option>'
+      +     '<option value="late"' + (_railSort === 'late' ? ' selected' : '') + '>Furthest out</option>'
+      +     '<option value="az"' + (_railSort === 'az' ? ' selected' : '') + '>A to Z</option>'
+      +   '</select>'
+      + '</div>'
       + (_cancelledCount || _showCancelled
           ? '<div style="margin:0 6px 8px;"><button type="button" onclick="_toggleCancelled()" style="background:none;border:none;padding:0;font:inherit;font-size:12px;color:var(--primary);font-weight:700;text-decoration:underline;cursor:pointer;">'
             + (_showCancelled ? 'Hide cancelled events' : ('Show ' + _cancelledCount + ' cancelled ' + (_cancelledCount === 1 ? 'event' : 'events')))
