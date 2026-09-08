@@ -51,7 +51,10 @@
   // ---- addresses, all of them, in one place ---------------------------------
   var LOGO     = 'https://2gather.network/images/2gather_logo.png';
   var EVENTS   = 'https://2gather.network/events';
-  var MYEVENTS = 'https://2gather.network/myevents';
+  // MY EVENTS IS THE MANAGE PAGE NOW, 2026-09-08, on her word: "yes Shall I point My events
+  // at /manage/?" Same rail, same three tabs, and the panel holds the form instead of a modal.
+  // /myevents/ still works and is still linked from elsewhere; it is only what this word points at.
+  var MYEVENTS = 'https://2gather.network/manage/';
   var POST     = 'https://2gather.network/events?action=post';
   var MYGROUPS = 'https://2gather.network/mygroups';
   var START    = 'https://2gather.network/groups/create';

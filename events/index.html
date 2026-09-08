@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V12.93 | Date: 2026-09-08 | LAST CHANGE: the upcoming events list waits behind a centred blue button below the recommendations, with the count on the button so the door says how much is behind it. Fifty-two cards under the recommendations buried them, and the recommendations are the point of this page. -->
+<!-- Version: V12.94 | Date: 2026-09-08 | LAST CHANGE: ?mygroups=1 arrives with every one of your groups ticked and the list open, so a link can send somebody straight to their groups' events combined. The filter existed and had no door from a link. Groups are still not fetched at boot for everybody, only for somebody who asked by arriving on this address. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -6393,6 +6393,11 @@ loadEvents().then(() => {
     // clean up URL
     window.history.replaceState({}, "", window.location.pathname);
   }
+  // Arriving on ?mygroups=1 means the group events are what was asked for.
+  try {
+    if (new URLSearchParams(window.location.search).get("mygroups") === "1") { _pickAllMyGroups(); }
+  } catch (e) {}
+
   // pre-set venue filter if ?venue= param present
   const venueParam = new URLSearchParams(window.location.search).get("venue");
   if (venueParam) {
@@ -6683,6 +6688,38 @@ function fbarOpenMyGroups() {
     })
     .catch(function () { _myGroups = []; })
     .then(function () { _myGroupsBusy = false; fbarDraw(); });
+}
+
+// ?mygroups=1 ARRIVES WITH ALL OF THEM TICKED. Added 2026-09-08 for the panel button Jessie asked
+// for: "Upcoming group events (show all my group events combined, in total)". The filter existed
+// and had no door from a link, so there was no way to send somebody straight to it.
+//
+// Groups are still not fetched at boot for everybody - getMyGroups measures about five seconds and
+// Apps Script runs our calls one at a time - only for somebody who asked for this by arriving on
+// this address.
+function _pickAllMyGroups() {
+  var me = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
+  if (!me) return;
+  _myGroupsBusy = true;
+  try { fbarDraw(); } catch (e) {}
+  fetch(GS_URL + "?action=getMyGroups&appearId=" + encodeURIComponent(me))
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      _myGroups = ((d && d.groups) || []).map(function (g) {
+        var id = String(g.groupID || g.groupId || g.id || "").trim();
+        return { id: id, name: String(g.groupName || g.name || g.title || id).trim() || id };
+      }).filter(function (g) { return g.id; });
+      _myGroups.forEach(function (g) { _myGroupPick[g.id] = true; });
+      // Somebody who came for their groups' events came to see them, not to press a second button.
+      try { window._allEventsShown = true; } catch (e) {}
+    })
+    .catch(function () { _myGroups = []; })
+    .then(function () {
+      _myGroupsBusy = false;
+      try { renderEvents(); } catch (e) {}
+      try { fbarDraw(); } catch (e) {}
+      try { _showAllEvents(); } catch (e) {}
+    });
 }
 
 // One or several. The menu stays open, because picking three groups should not be three openings.
@@ -7722,7 +7759,7 @@ function selectInterestSuggestion(val) {
   upd();
 })();
 </script>
-<script src="/nav/topbar.js?v=5.83" defer></script>
+<script src="/nav/topbar.js?v=5.84" defer></script>
 </body>
 <!--
   Copyright 2026 DayBalancer LLC. All rights reserved.
