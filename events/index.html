@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V12.97 | Date: 2026-09-08 | LAST CHANGE: ?v=rail puts the calendar into the page template. My groups appears in the rail only once the answer says there is at least one - it is not drawn and then hidden, because flashing a door at somebody who has not been invited through one is the same thing a beat later. Everything here is invitation only. Off by default. -->
+<!-- Version: V12.98 | Date: 2026-09-08 | LAST CHANGE: the calendar is back. The heading change called _myGroupPickCount() before _myGroupPick had been assigned, so Object.keys(undefined) threw and killed renderEvents, leaving the page blank. Guarded, and the same trap in the filter guarded with it. Blue ground on ?v=rail. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -370,7 +370,9 @@
      The three pills are navigation rather than filters, so the rail reads the same on every page:
      where am I, then what is on this page.
      Live behind a parameter and off by default, so nothing anybody uses changes until she says. */
-  html.cw-railview .page-body { max-width:1200px; margin:0 auto; padding:24px 20px 60px; }
+  /* Blue, like the other three. Jessie: "looks good but background isn't blue". */
+  html.cw-railview body, html.cw-railview { background:#1F699E; }
+  html.cw-railview .page-body { max-width:1200px; margin:0 auto; padding:24px 20px 60px; background:transparent; }
   html.cw-railview .cw-rl { display:grid; grid-template-columns:340px minmax(0,1fr); gap:18px; align-items:start; }
   @media (max-width:860px) { html.cw-railview .cw-rl { grid-template-columns:1fr; } }
   html.cw-railview .cw-rl-rail { background:#fff; border-radius:14px; padding:12px; height:fit-content; }
@@ -2967,7 +2969,7 @@ function _passesEventFilters(e, opts) {
   // MY GROUPS ONLY. An event with no group is dropped here rather than kept, which is the opposite
   // of the vague-keeps rule the location filter uses, and deliberately: "only my groups" is a
   // request FOR group events, so an event belonging to no group is not one of them. 2026-09-06.
-  if (Object.keys(_myGroupPick).length) {
+  if (_myGroupPick && Object.keys(_myGroupPick).length) {
     // AN EVENT CAN BELONG TO SEVERAL GROUPS, pipe separated since 2026-09-07. A single id reads
     // back as a list of one, so nothing already on the sheet changes meaning.
     var _egs = String(e.groupId || "").split("|").map(function (x) { return x.trim(); }).filter(Boolean);
@@ -3246,6 +3248,12 @@ function renderEvents() {
   // is one line on the page saying so, and nothing else claiming to be a heading or a control.
   // The heading and the grid wait behind the button until somebody asks for them. The count goes
   // ON the button, so the door says how much is behind it.
+  // SAFE BEFORE ITS VARIABLE EXISTS. _myGroupPick is declared far below this point, so `var`
+  // hoists the name but not the object: calling _myGroupPickCount() here did Object.keys(undefined)
+  // and threw, which killed renderEvents and left the calendar completely blank. Jessie, 2026-09-08:
+  // "evnets not showing at all". Mine, from the heading change an hour earlier.
+  var _grpOn = false;
+  try { _grpOn = !!(_myGroupPick && Object.keys(_myGroupPick).length); } catch (e) { _grpOn = false; }
   var _uh = document.getElementById("upcoming-head");
   var _saw = document.getElementById("show-all-wrap");
   var _sab = document.getElementById("show-all-btn");
@@ -3255,13 +3263,11 @@ function renderEvents() {
     // WHICH CALENDAR THIS IS. Jessie, 2026-09-08: on ?mygroups=1 the heading "should change to
     // Upcoming group events (20)". Arriving with a filter already on and a heading that does not
     // mention it makes the number look like the whole calendar.
-    _uh.textContent = (typeof _myGroupPickCount === "function" && _myGroupPickCount() > 0
-                        ? "Upcoming group events (" : "Upcoming events (") + list.length + ")";
+    _uh.textContent = (_grpOn ? "Upcoming group events (" : "Upcoming events (") + list.length + ")";
   }
   if (_grid) { _grid.style.display = window._allEventsShown ? "" : "none"; }
   if (_saw) { _saw.style.display = (!isLoadingData && !window._allEventsShown) ? "block" : "none"; }
-  if (_sab) { _sab.textContent = (typeof _myGroupPickCount === "function" && _myGroupPickCount() > 0
-                                  ? "Show all group events (" : "Show all upcoming events (") + list.length + ")"; }
+  if (_sab) { _sab.textContent = (_grpOn ? "Show all group events (" : "Show all upcoming events (") + list.length + ")"; }
   var _fbarBox = document.getElementById("fbar");
   if (_fbarBox) { _fbarBox.style.display = isLoadingData ? "none" : "block"; }
 
