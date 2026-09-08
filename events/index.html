@@ -6973,7 +6973,7 @@ var FBAR_CONTROLS = [
   // IT CAME BACK, 2026-09-08. Taken off an hour earlier on "remove Group events button in panel -
   // not needed anymore", then "groups drop down still not showing". Hers to decide, and the filter
   // never went anywhere - only the control did.
-  { key: "mygroups",   label: "Groups", toggle: true },
+  { key: "mygroups",   label: "Groups", toggle: true },   // reads "Groups (All)" until some are picked - see _fbarValue
   // LAST, right before Reset. Jessie, 2026-09-06: "advanced, then reset". It holds three filters
   // where the others hold one, so it sits at the end rather than in the middle of the six.
   // SEARCH BY. It was called Advanced and opened all three fields at once, which put a form on the
@@ -7262,6 +7262,10 @@ function fbarDraw() {
     // The pill says how many groups you have until you pick, then how many you picked, and it is
     // blank until the answer has actually arrived rather than claiming a number it does not have.
     if (c.key === "mygroups") {
+      // IT SAYS (All) LIKE THE OTHERS. Jessie, 2026-09-08: "Groups (All) shoudl show". Format and
+      // Date both say what they are set to; this said only "Groups", so it looked like a different
+      // kind of control and gave no clue that it was filtering nothing.
+      var _gLbl = _myGroupPickCount() > 0 ? String(_myGroupPickCount()) : "All";
       var items = "";
       if (_myGroupsBusy) items = '<div class="fbar-mnote">Looking up your groups...</div>';
       else if (_myGroups === null) items = '<div class="fbar-mnote">Open to load your groups.</div>';
@@ -7684,10 +7688,15 @@ function onInterestsPencil() {
 // Visible when the panel is closed, gone when it is open. See the note beside the button.
 function _syncInterestsEditBtn() {
   var b = document.getElementById("interests-edit-btn");
-  var p = document.getElementById("fbar-panel-interests");
   if (!b) return;
-  var open = !!(p && getComputedStyle(p).display !== "none");
-  b.style.display = open ? "none" : "";
+  // ONLY ON THE EDIT VIEW, NOT WHENEVER THE PANEL IS OPEN. Jessie asked for "remove edit button
+  // when on the actual edit view" and I hid it any time the panel showed - but that panel has two
+  // states. Open and reading is chips with no crosses and no add box; open and EDITING is chips
+  // with crosses and a box to type in. Taking the pencil away in the first left her looking at her
+  // topics with no way to change them. Jessie, minutes later: "pencil gone".
+  var typing = document.getElementById("interests-input");
+  var editing = !!(typing && typing.offsetParent !== null);
+  b.style.display = editing ? "none" : "";
 }
 window._syncInterestsEditBtn = _syncInterestsEditBtn;
 
@@ -8371,7 +8380,11 @@ function _railPlacePanels() {
     if (fbar) { rail.appendChild(fbar); }
 
     // Everything else is the calendar itself and belongs in the panel.
-    ['for-you-section', 'cat-pills', 'show-all-wrap', 'upcoming-head', 'event-grid'].forEach(function (id) {
+    // THE BOXES, NOT THE PIECES INSIDE THEM. Both sections were wrapped in their own white card on
+    // 2026-09-08 and this list still named the inner heading and grid - so the empty wrapper stayed
+    // behind in the page body and drew a white bar across the top of the page above both columns.
+    // Jessie: "shows white bar at top".
+    ['for-you-section', 'cat-pills', 'group-events-wrap', 'cal-loading', 'upcoming-box'].forEach(function (id) {
       var el = document.getElementById(id) || document.querySelector('.' + id);
       if (el) { main.appendChild(el); }
     });
@@ -8407,7 +8420,12 @@ function _railPlacePanels() {
       try { _keepMyGroups(_myGroups); } catch (e) {}
       // The section could not draw before this answer existed, so it draws now.
       try { renderGroupEvents(); } catch (e) {}
-          try { if (typeof _myGroups !== 'undefined' && _myGroups === null) { _myGroups = list; } } catch (e) {}
+          // It fills the shared list rather than keeping a private copy, so the Group events
+          // section and the Groups filter both have it. Keeping it private is why _myGroups was
+          // still null after this had already answered, and the section had nothing to draw with.
+          try { _myGroups = list; _keepMyGroups(list); } catch (e) {}
+          try { renderGroupEvents(); } catch (e) {}
+          try { fbarDraw(); } catch (e) {}
           place(list);
         })
         .catch(function () {});
