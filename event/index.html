@@ -881,6 +881,17 @@ function render(ev) {
   _setMeta("x-image", ev.imageUrl||"");
 
   _currentEv = ev;
+  // THE SHORT LINK IS FETCHED NOW, NOT WHEN SHARE IS PRESSED. Jessie, 2026-09-07: "This takes
+  // about four seconds to show, and I'm not sure why, and I would have clicked elsewhere if I
+  // didn't know that it would have shown."
+  //
+  // share() awaited getShortCode before opening the sheet, and that call is the 2-to-40-second
+  // Apps Script. Four seconds was it being fast. Waiting inside a share handler also risks the
+  // browser dropping the user gesture, which is the other reason not to do it there.
+  //
+  // So it is asked for once, in the background, while somebody is still reading the event. If it
+  // has not arrived by the time they press Share, the full address goes instead, which works.
+  _primeShortLink(ev.id);
   applyRoomGate();   // V5.38: hide/reveal the meeting room per the host's profile gate (non-blocking)
   if ((_editVerified || _myId) && !ev.cancelled) { loadPotluckClaims(ev.id); }
 
@@ -1036,17 +1047,23 @@ async function copyLink() {
   }
 }
 
-async function share() {
-  // Always use short URL for sharing
-  let url = window.location.href;
+var _shortLink = null;
+function _primeShortLink(id) {
+  _shortLink = null;
+  if (!id) return;
   try {
-    const id = _currentEv && _currentEv.id;
-    if (id) {
-      const res = await fetch(`${GS_URL}?action=getShortCode&id=${encodeURIComponent(id)}`);
-      const data = await res.json();
-      if (data.status === "ok" && data.code) url = `https://go.2gather.network/${data.code}`;
-    }
-  } catch(e) { /* fall back to raw URL */ }
+    fetch(GS_URL + "?action=getShortCode&id=" + encodeURIComponent(id))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.status === "ok" && d.code) { _shortLink = "https://go.2gather.network/" + d.code; }
+      })
+      .catch(function () {});
+  } catch (e) {}
+}
+
+function share() {
+  // Whatever we have this instant. No await, so the sheet opens on the press.
+  const url = _shortLink || window.location.href;
 
   const showCopyUI = () => {
     const existing = document.getElementById("share-url-box");
