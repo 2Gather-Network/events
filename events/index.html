@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.19 | Date: 2026-09-08 | LAST CHANGE: the match reasons are small tags, one per reason, rather than a run-on line held together by middle dots. Six recommendations on a desktop and three on a phone. -->
+<!-- Version: V13.20 | Date: 2026-09-08 | LAST CHANGE: three sections, all shown and all filtered the same - three recommendations, then Group events, then everything. The gate that hid the list is gone; it made picking All groups show nothing. Group events draws from the cards the main grid already built, each with its group picture beside its name. Nothing in the rail scrolls inside itself. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -434,9 +434,12 @@
      edit version" and "remove the need to scroll intersest - just push evetything else down".
      A panel with its own scrollbar inside a rail is two scrollbars fighting, and it hides how many
      topics somebody has. It grows instead and everything below moves down. */
+  /* Nothing in this rail scrolls inside itself. Jessie, 2026-09-08: "Dont' make me scroll for
+     groups eitehr - just push it down". Same answer the interests panel got. */
   html.cw-railview #fbar-panel-interests,
   html.cw-railview #fbar-panel-categories,
-  html.cw-railview #fbar-panel-location { max-height:none !important; overflow:visible !important; }
+  html.cw-railview #fbar-panel-location,
+  html.cw-railview .fbar-menu { max-height:none !important; overflow:visible !important; }
   html.cw-railview #fbar-panel-interests .chip-row,
   html.cw-railview #fbar-panel-interests > div > div { flex-wrap:wrap !important; overflow:visible !important; }
   html.cw-railview #fbar-panel-interests [style*="nowrap"] { white-space:normal !important; }
@@ -769,6 +772,14 @@
        back the other fault: loadEvents can take 36 seconds and the page is blank the whole time.
        So it holds for a second and a quarter first. A fast load never shows it; a slow one still
        says the page is working. -->
+  <!-- GROUP EVENTS, BETWEEN THE MATCHES AND EVERYTHING. Jessie, 2026-09-08: "maybe 3 recomended
+       matches / group evnets / all events ... shows all 3 but filters all 3?" Each group carries
+       its own small picture beside its name - "show small image of group next to each" - because a
+       list of group names is the hardest thing to scan and the pictures already exist. -->
+  <div id="group-events-wrap" style="display:none;">
+    <div id="group-events-head" style="font-size:15px;font-weight:800;color:var(--dark);margin:18px 0 10px;">Group events</div>
+    <div class="event-grid" id="group-events-grid"></div>
+  </div>
   <div id="cal-loading" style="display:none;text-align:center;margin:22px 0 8px;"><span class="cw-loading">Loading events</span></div>
   <div id="show-all-wrap" style="display:none;text-align:center;margin:22px 0 8px;">
     <button type="button" id="show-all-btn" onclick="_showAllEvents()"
@@ -3027,7 +3038,53 @@ function loadMoreEvents() {
   renderEvents();
 }
 
+// GROUP EVENTS, BETWEEN THE MATCHES AND EVERYTHING. Jessie, 2026-09-08: "maybe 3 recomended
+// matches / group evnets / all events ... shows all 3 but filters all 3?"
+//
+// It draws from the cards the main grid has just built rather than building its own, so the two
+// can never disagree about what an event looks like, and the same filters have already been
+// applied to both by definition.
+//
+// Each card carries its group's own small picture beside its name - "show small image of group next
+// to each" - because a list of group names is the hardest thing to scan and the pictures exist.
+function renderGroupEvents() {
+  var wrap = document.getElementById("group-events-wrap");
+  var gg = document.getElementById("group-events-grid");
+  var grid = document.getElementById("event-grid");
+  if (!wrap || !gg || !grid) return;
+  var mine = {};
+  try { (_myGroups || []).forEach(function (g) { if (g && g.id) { mine[g.id] = g; } }); } catch (e) {}
+  if (!Object.keys(mine).length) { wrap.style.display = "none"; return; }
+
+  var picked = [];
+  grid.querySelectorAll("[data-ev-groups]").forEach(function (card) {
+    var gs = String(card.getAttribute("data-ev-groups") || "").split("|").map(function (x) { return x.trim(); });
+    var hit = null;
+    gs.some(function (k) { if (k && mine[k]) { hit = mine[k]; return true; } return false; });
+    if (hit) { picked.push({ card: card, group: hit }); }
+  });
+  if (!picked.length) { wrap.style.display = "none"; return; }
+
+  wrap.style.display = "";
+  var head = document.getElementById("group-events-head");
+  if (head) { head.textContent = "Group events (" + picked.length + ")"; }
+  gg.innerHTML = "";
+  picked.slice(0, 12).forEach(function (p) {
+    var copy = p.card.cloneNode(true);
+    // Ids are for the original. A copy carrying them would give two elements one name.
+    copy.querySelectorAll("[id]").forEach(function (n) { n.removeAttribute("id"); });
+    copy.removeAttribute("id");
+    var tag = document.createElement("div");
+    tag.style.cssText = "display:flex;align-items:center;gap:6px;padding:8px 12px;font-size:12px;color:var(--muted);border-top:1px solid var(--border);";
+    tag.innerHTML = (p.group.image ? '<img src="' + esc(p.group.image) + '" alt="" style="width:18px;height:18px;border-radius:4px;object-fit:cover;flex-shrink:0;">' : '')
+                  + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(p.group.name || "") + '</span>';
+    copy.appendChild(tag);
+    gg.appendChild(copy);
+  });
+}
+
 function renderLoadMore(total, shown) {
+  try { renderGroupEvents(); } catch (e) {}   // the main grid is built by the time this runs
   var old = document.getElementById("load-more-wrap");
   if (old) old.remove();
   if (total <= shown) return;
@@ -3389,13 +3446,18 @@ function renderEvents() {
     // mention it makes the number look like the whole calendar.
     _uh.textContent = (_grpOn ? "Upcoming group events (" : "Upcoming events (") + list.length + ")";
   }
-  // A filter is an ask, so what it finds is shown. Without one, and without a route in, the grid
-  // stays closed.
-  var _asked = window._allEventsShown || _grpOn
-            || (typeof activeCats !== "undefined" && activeCats && activeCats.size)
-            || ((document.getElementById("search-input") || {}).value || "").trim().length > 0;
-  if (_grid) { _grid.style.display = _asked ? "" : "none"; }
-  if (_uh) { _uh.style.display = (!isLoadingData && _asked) ? "block" : "none"; }
+  // THREE SECTIONS, ALL SHOWN, ALL FILTERED THE SAME. Jessie, 2026-09-08: "maybe 3 recomended
+  // matches / group evnets / all events ... shows all 3 but filters all 3?" and "Filters will just
+  // filter both the recommended matches and all of the events below."
+  //
+  // The gate that hid the list unless somebody asked is gone. It produced the thing she hit a
+  // minute earlier: picking All groups clears the group filter, which under that gate CLOSED the
+  // list - so choosing "all" showed nothing, which is the opposite of what the words say.
+  //
+  // Recommendations, then this person's group events, then everything. Every filter narrows all
+  // three, so the page answers one question in three depths rather than hiding two of them.
+  if (_grid) { _grid.style.display = ""; }
+  if (_uh) { _uh.style.display = isLoadingData ? "none" : "block"; }
   // THE ALL EVENTS BUTTON IS GONE. Jessie, 2026-09-08: "remove all evnets button in panel too."
   // What is left on this page is what was chosen for the person looking - the recommendations -
   // and the routes in from elsewhere: ?mygroups=1 opens their groups' events, and a filter opens
@@ -3521,6 +3583,8 @@ function renderEvents() {
           ${ev.sharedNotesEnabled && isRegistered(ev.id) ? `<button class="btn btn-sm btn-outline" onclick="openNotesModal('${ev.id}')" title="Shared notes" style="padding:8px 10px;">📝</button>` : ""}
         </div>
       </div>`;
+    card.setAttribute("data-ev-id", String(ev.id));
+    card.setAttribute("data-ev-groups", String(ev.groupId || ""));
     grid.appendChild(card);
   });
 
@@ -7493,7 +7557,7 @@ var FY_NOT_TOPICS = { cancelled: 1, canceled: 1, postponed: 1, tbd: 1, zoom: 1, 
 //
 // Read each time rather than set once, because the window can be resized and Show all is right
 // there for anybody who wants the rest.
-function FY_CAP_NOW() { return _fyIsPhone() ? 3 : 6; }
+function FY_CAP_NOW() { return _fyIsPhone() ? 3 : 3; }   // three, on her word, now that Group events and All events sit below them
 function _fyIsPhone() {
   try { return window.matchMedia('(max-width: 768px)').matches; } catch (e) { return false; }
 }
