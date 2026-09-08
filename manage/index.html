@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: M2.5 | Date: 2026-09-08 | LAST CHANGE: on the Socialized tab the rail button reads "Share an event". It asks the same two questions as posting, because that flow already handles both errands and the first question is what decides which. Rail 340. -->
+<!-- Version: M2.6 | Date: 2026-09-08 | LAST CHANGE: the panel rests on two doors, Find an event and Post an event, and the posting questions now render INSIDE the panel rather than opening a modal over the page. Cancel puts the doors back. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -423,6 +423,22 @@
      carries its own. Taking the body's off for this page left the heading indented past every
      label under it. */
   #post-modal .modal-header { padding:0 0 16px; }
+  /* THE QUESTIONS ARE IN THE PANEL, NOT OVER IT. Jessie, 2026-09-08: "post an event would not go
+     to the modal but this modal contnet integratied i the right rail /content box. and everything
+     they click stays in taht box and doesn't open up a new modal."
+     Same treatment as the form: the overlay chrome comes off and it lays out in the flow. */
+  #choice-modal.modal-overlay { display:none; }
+  #choice-modal.modal-overlay.cw-mounted { position:static; display:block; background:none; padding:0; opacity:1; visibility:visible; }
+  #choice-modal .modal { max-width:none; width:100%; margin:0; box-shadow:none; border-radius:0; max-height:none; padding:0; overflow:visible; }
+  @media (max-width:860px) {
+    #choice-modal .modal { border-radius:0; max-width:100%; width:100%; padding:0; margin:0;
+                           box-shadow:none; transform:none; max-height:none; overflow:visible; }
+  }
+  /* The panel's own two doors, before anything has been chosen. */
+  .panel-doors { display:flex; gap:10px; flex-wrap:wrap; }
+  .panel-door { background:var(--primary); color:#fff; border:0; font:inherit; font-size:14px; font-weight:700;
+                padding:11px 20px; border-radius:24px; cursor:pointer; text-decoration:none; display:inline-block; }
+  .panel-door.ghost { background:#fff; color:var(--primary); border:1.5px solid var(--primary); }
   #post-modal .modal-footer { padding:16px 0 0; }
   /* The footer was pinned to the bottom of a box that no longer exists. It sits after the form. */
   #post-modal .modal-actions, #post-modal .modal-foot { position:static; }
@@ -498,11 +514,34 @@
         <button type="button" class="manage-tab on" data-pane="hosting" onclick="manageTab('hosting')">Hosting<span>0</span></button>
         <button type="button" class="manage-tab" data-pane="socialized" onclick="manageTab('socialized')">Socialized<span>0</span></button>
       </div>
+      <!-- SEARCH AND SORT, the pair from My events. Jessie, 2026-09-08: "i didn't see this updated
+           yet - where is it?" They were built on My events, and this page is becoming My events,
+           so they belong here. Both narrow what the chosen tab already holds and never reach
+           outside it. -->
+      <div style="display:flex;gap:8px;align-items:center;margin:0 2px 10px;">
+        <div style="flex:1;min-width:0;display:flex;align-items:center;background:#F7F9FC;border-radius:18px;padding:2px 6px 2px 12px;">
+          <input type="text" id="rail-filter" placeholder="&#128269; Search" oninput="manageSearch(this.value)"
+                 style="flex:1;min-width:0;border:none;background:transparent;font-family:inherit;font-size:14px;padding:8px 4px;outline:none;">
+        </div>
+        <select id="rail-sort" onchange="manageSort(this.value)" aria-label="Sort events"
+                style="border:1.5px solid var(--border);border-radius:18px;background:#fff;font-family:inherit;font-size:13px;padding:7px 8px;color:var(--dark);cursor:pointer;">
+          <option value="soon">Soonest first</option>
+          <option value="late">Furthest out</option>
+          <option value="az">A to Z</option>
+        </select>
+      </div>
       <div id="manage-list"></div>
       <button type="button" class="manage-new" id="manage-new-btn" onclick="manageNewClick()">Post a new event</button>
     </aside>
     <section class="manage-main">
       <div id="manage-status"><span class="cw-loading">Loading your events</span></div>
+      <!-- WHAT THE PANEL SHOWS WHEN NOTHING IS CHOSEN. Jessie, 2026-09-08: "nothing in the right
+           rail... except 3 buttons find an event and post an event and we'll figure out the rest
+           of hte content later." -->
+      <div id="panel-doors" class="panel-doors" style="display:none;">
+        <a class="panel-door ghost" role="link" tabindex="0" data-nav="https://2gather.network/events" onclick="return _safeNavGo(this)">Find an event</a>
+        <button type="button" class="panel-door" onclick="openChoiceModal()">Post an event</button>
+      </div>
       <div id="form-host"></div>
     </section>
   </div>
@@ -1743,6 +1782,17 @@ function openPostEvent() {
 }
 
 function openChoiceModal() {
+  // In the panel on this page. Everything a person clicks from here stays in that one box.
+  try {
+    var host = document.getElementById('form-host');
+    var cm = document.getElementById('choice-modal');
+    if (host && cm) {
+      var doors = document.getElementById('panel-doors'); if (doors) { doors.style.display = 'none'; }
+      var st = document.getElementById('manage-status'); if (st) { st.style.display = 'none'; }
+      if (cm.parentNode !== host) { host.appendChild(cm); }
+      cm.classList.add('cw-mounted');
+    }
+  } catch (e) {}
   document.getElementById("choice-modal").classList.add("open");
   document.getElementById("choice-step-1").style.display = "block";
   document.getElementById("choice-step-2").style.display = "none";
@@ -1752,6 +1802,11 @@ function openChoiceModal() {
 
 function closeChoiceModal() {
   document.getElementById("choice-modal").classList.remove("open");
+  // Cancel puts the panel back to its doors rather than leaving an empty box.
+  try {
+    var cm = document.getElementById('choice-modal'); if (cm) { cm.classList.remove('cw-mounted'); }
+    var doors = document.getElementById('panel-doors'); if (doors) { doors.style.display = ''; }
+  } catch (e) {}
 }
 
 let _choiceMethod = null;
@@ -7912,6 +7967,17 @@ function selectInterestSuggestion(val) {
     try { openChoiceModal(); } catch (e) { location.href = 'https://2gather.network/manage/'; }
   };
 
+  var _q = '', _sort = 'soon';
+  window.manageSearch = function (v) {
+    _q = String(v || '');
+    paintRail(allRows, selId);
+    var box = document.getElementById('rail-filter');
+    // The rail is rebuilt from scratch, so the box is a new element and has to be handed the
+    // cursor back or typing stops after one letter.
+    if (box) { box.value = _q; box.focus(); try { box.setSelectionRange(_q.length, _q.length); } catch (e) {} }
+  };
+  window.manageSort = function (v) { _sort = v || 'soon'; paintRail(allRows, selId); };
+
   window.manageTab = function (p) {
     pane = p;
     Array.prototype.forEach.call(document.querySelectorAll('.manage-tab'), function (b) {
@@ -7928,12 +7994,31 @@ function selectInterestSuggestion(val) {
     });
   }
 
+  // One row builder. The three orderings each end by drawing rows, and three copies of this markup
+  // is three places for it to drift.
+  var _sel4row = '';
+  function rowHtml(r) {
+    var when = railDate(r.date);
+    return '<button type="button" class="manage-row' + (String(r.id) === String(_sel4row) ? ' on' : '') + '"'
+         + ' onclick="location.href=\'https://2gather.network/manage/?id=' + encodeURIComponent(String(r.id)) + '\'">'
+         + '<b>' + (window.esc ? esc(r.title || 'Untitled') + '</b>' : (r.title || 'Untitled') + '</b>')
+         + '<span>' + when + '</span></button>';
+  }
+
   function paintRail(rows, sel) {
     if (!list) return;
-    allRows = rows; selId = sel || selId;
+    allRows = rows; selId = sel || selId; _sel4row = selId;
     paintCounts(rows);
     _paintNewBtn();
     rows = rows.filter(function (r) { return inPane(r, pane); });
+    // Search and sort narrow what the tab already chose; they never reach outside it.
+    if (_q.trim()) {
+      var needle = _q.trim().toLowerCase();
+      rows = rows.filter(function (r) {
+        return (String(r.title || '') + ' ' + String(r.venue || '') + ' ' + String(r.location || ''))
+                 .toLowerCase().indexOf(needle) > -1;
+      });
+    }
     if (!rows.length) { list.innerHTML = '<div class="manage-hint">Nothing here.</div>'; return; }
     // SOONEST FIRST, AND THE PAST AT THE BOTTOM. A super admin gets every event on the site - 435
     // of them the first time this ran - so the order is the whole difference between a rail you
@@ -7942,6 +8027,20 @@ function selectInterestSuggestion(val) {
     var today = new Date(); today.setHours(0, 0, 0, 0);
     var when = function (r) { var d = new Date(String(r.date || '')); return isNaN(d) ? null : d; };
     var rank = function (r) { var d = when(r); if (!d) return 1; return d >= today ? 0 : 2; };
+    if (_sort === 'az') {
+      rows = rows.slice().sort(function (a, b) { return String(a.title || '').localeCompare(String(b.title || '')); });
+      list.innerHTML = rows.map(rowHtml).join(''); return;
+    }
+    if (_sort === 'late') {
+      rows = rows.slice().sort(function (a, b) {
+        var da = new Date(String(a.date || '')), db = new Date(String(b.date || ''));
+        if (isNaN(da) && isNaN(db)) return 0;
+        if (isNaN(da)) return 1;
+        if (isNaN(db)) return -1;
+        return db - da;
+      });
+      list.innerHTML = rows.map(rowHtml).join(''); return;
+    }
     rows = rows.slice().sort(function (a, b) {
       var ra = rank(a), rb = rank(b);
       if (ra !== rb) return ra - rb;
@@ -7949,13 +8048,7 @@ function selectInterestSuggestion(val) {
       if (!da || !db) return String(a.title || '').localeCompare(String(b.title || ''));
       return ra === 2 ? db - da : da - db;   // past counts backwards from most recent
     });
-    list.innerHTML = rows.map(function (r) {
-      var when = railDate(r.date);
-      return '<button type="button" class="manage-row' + (String(r.id) === String(sel) ? ' on' : '') + '"'
-           + ' onclick="location.href=\'https://2gather.network/manage/?id=' + encodeURIComponent(String(r.id)) + '\'">'
-           + '<b>' + (window.esc ? esc(r.title || 'Untitled') + '</b>' : (r.title || 'Untitled') + '</b>')
-           + '<span>' + when + '</span></button>';
-    }).join('');
+    list.innerHTML = rows.map(rowHtml).join('');
   }
 
   // The choice screens end by calling openModal, from more than one branch. Rather than chase each
@@ -8070,7 +8163,8 @@ function selectInterestSuggestion(val) {
       // This opened the posting flow on arrival, so landing on /manage/ put a modal in front of
       // her asking a question she had not asked to be asked. Nothing opens now. Posting is the
       // button, and the button is the only thing that starts it.
-      say(rows.length ? 'Pick an event on the left to edit it.' : 'Nothing here yet. Post a new event to get started.');
+      say(rows.length ? 'Pick an event on the left to edit it.' : 'Nothing here yet.');
+      var doors = document.getElementById('panel-doors'); if (doors) { doors.style.display = 'flex'; }
       return;
     }
 
