@@ -993,6 +993,7 @@
     panel.style.cssText = 'position:sticky;top:calc(var(--cw-adminbar, 34px));z-index:99999;background:#fff;color:#1A2E42;'
       + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "DM Sans",system-ui,sans-serif;';
 
+    var _faSeq = 0;   // see the note on the fetch below: answers can arrive out of order
     var inp = d.createElement('input');
     inp.type = 'text';
     // IT DID NOT FIT. Jessie, 2026-09-07: "The placeholder doesn't fit. So just name or email."
@@ -1048,11 +1049,26 @@
 
          Pasting an id still works, because an id matches no name and the list comes back empty,
          which is exactly when the typed text is worth offering. */
+      /* THE LAST ANSWER TO ARRIVE IS NOT THE ANSWER TO THE LAST QUESTION. Jessie, 2026-09-07:
+         "I looked Jerry up again to see what his email was and got this where nobody matches."
+         Five people came back for "jerry": Devkumar Banerjee, Jeff McClard, Jessie Upp, Jennifer
+         Diamond, Jennifer Mason. Nothing matches "jerry" and every one of them contains a j -
+         Banerjee, Jeff, Jessie, Jennifer. That was the answer to her FIRST keystroke, landing
+         after the answer to the whole word and painting over it.
+
+         The debounce only stops a request being SENT. Once two are in flight this backend takes
+         anywhere from two to forty seconds, so they come back in whatever order they finish, and
+         the slower early one wins. A stamp on each request, and a check that the box still holds
+         the text this answer was asked about, so a late reply to an abandoned question is dropped
+         rather than drawn. */
+      var seq = (++_faSeq);
       timer = setTimeout(function () {
         fetch(GS + '?action=findAnyone&appearId=' + encodeURIComponent(me.id)
               + '&q=' + encodeURIComponent(q))
           .then(function (r) { return r.json(); })
           .then(function (dd) {
+            if (seq !== _faSeq) { return; }
+            if (inp.value.trim() !== q) { return; }   // q is not lowercased where it is read
             var list = (dd && dd.status === 'ok' && dd.matches) ? dd.matches : [];
             out.innerHTML = '';
             list.forEach(function (p) {
