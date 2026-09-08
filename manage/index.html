@@ -362,7 +362,14 @@
   .manage-rail { background:#fff; border-radius:14px; padding:12px; height:fit-content; }
   /* A super admin is shown every event on the site, so this scrolls rather than running the page
      off the bottom. */
-  #manage-list { max-height:60vh; overflow-y:auto; }
+  #manage-list { max-height:56vh; overflow-y:auto; }
+  /* Lifted from My events V5.46, where three separate pills replaced one box holding a pressed
+     control beside two headings. Same shape here so the two rails read as one thing. */
+  .manage-seg { display:flex; gap:6px; margin:4px 2px 10px; }
+  .manage-tab { flex:1; background:#fff; color:var(--primary); border:1.5px solid #C9D6E2; border-radius:9px;
+                font:inherit; font-size:12.5px; font-weight:700; padding:7px 3px; cursor:pointer; line-height:1.25; }
+  .manage-tab.on { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .manage-tab span { display:block; font-size:12px; font-weight:600; opacity:.75; }
   .manage-rail-head { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:4px 6px 10px; }
   .manage-row { display:block; width:100%; text-align:left; background:none; border:0; font:inherit; padding:9px 10px; border-radius:9px; cursor:pointer; color:var(--dark); }
   .manage-row:hover { background:#F3F7FA; }
@@ -418,6 +425,16 @@
   <div class="manage-grid">
     <aside class="manage-rail">
       <div class="manage-rail-head">My events</div>
+      <!-- THE SAME STRIP AS MY EVENTS. Jessie, 2026-09-08: "Can you use the same railing as my
+           groups where the three buttons are at the top, and we'll put three different data things
+           in there?" Same three pills, same borders, same count underneath, so the two rails read
+           as one thing. What the three filter is hers to say; these are the three that every event
+           in the list can actually be. -->
+      <div class="manage-seg">
+        <button type="button" class="manage-tab on" data-pane="upcoming" onclick="manageTab('upcoming')">Upcoming<span>0</span></button>
+        <button type="button" class="manage-tab" data-pane="past" onclick="manageTab('past')">Past<span>0</span></button>
+        <button type="button" class="manage-tab" data-pane="cancelled" onclick="manageTab('cancelled')">Cancelled<span>0</span></button>
+      </div>
       <div id="manage-list"><div class="manage-hint">Looking for your events...</div></div>
       <a class="manage-new" role="link" tabindex="0" data-nav="https://2gather.network/manage/" onclick="return _safeNavGo?_safeNavGo(this):true;">Post a new event</a>
     </aside>
@@ -7721,9 +7738,48 @@ function selectInterestSuggestion(val) {
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   }
 
+  // The three pills filter one list. The rows are held here so pressing a pill costs nothing:
+  // getMyEvents measures 9 to 39 seconds and it has already been asked once.
+  var allRows = [];
+  var pane = 'upcoming';
+  var selId = '';
+
+  var isCancelled = function (r) {
+    var v = String(r.cancelled == null ? '' : r.cancelled).trim().toLowerCase();
+    return v === 'true' || v === 'yes' || v === '1';
+  };
+  var dayOf = function (r) { var d = new Date(String(r.date || '')); return isNaN(d) ? null : d; };
+  var inPane = function (r, p) {
+    if (isCancelled(r)) return p === 'cancelled';
+    if (p === 'cancelled') return false;
+    var d = dayOf(r);
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    // An undated event is unfinished rather than over, so it sits with the upcoming ones.
+    if (!d) return p === 'upcoming';
+    return p === 'upcoming' ? d >= today : d < today;
+  };
+
+  window.manageTab = function (p) {
+    pane = p;
+    Array.prototype.forEach.call(document.querySelectorAll('.manage-tab'), function (b) {
+      b.classList.toggle('on', b.getAttribute('data-pane') === p);
+    });
+    paintRail(allRows, selId);
+  };
+
+  function paintCounts(rows) {
+    ['upcoming', 'past', 'cancelled'].forEach(function (p) {
+      var b = document.querySelector('.manage-tab[data-pane="' + p + '"] span');
+      if (b) b.textContent = rows.filter(function (r) { return inPane(r, p); }).length;
+    });
+  }
+
   function paintRail(rows, sel) {
     if (!list) return;
-    if (!rows.length) { list.innerHTML = '<div class="manage-hint">Nothing here yet.</div>'; return; }
+    allRows = rows; selId = sel || selId;
+    paintCounts(rows);
+    rows = rows.filter(function (r) { return inPane(r, pane); });
+    if (!rows.length) { list.innerHTML = '<div class="manage-hint">Nothing here.</div>'; return; }
     // SOONEST FIRST, AND THE PAST AT THE BOTTOM. A super admin gets every event on the site - 435
     // of them the first time this ran - so the order is the whole difference between a rail you
     // can use and a wall you scroll past. Undated events sit between: they are unfinished rather
@@ -7759,6 +7815,15 @@ function selectInterestSuggestion(val) {
       if (d && d.status === 'ok' && Array.isArray(d.events)) { rows = d.events; }
     } catch (e) {}
 
+    // The pill opens on whichever one actually holds the event being edited, so arriving at a past
+    // or cancelled event does not land on an empty Upcoming list.
+    if (wantId) {
+      var here = rows.filter(function (x) { return String(x.id || '').trim() === wantId; })[0];
+      if (here) { ['upcoming', 'past', 'cancelled'].forEach(function (p) { if (inPane(here, p)) { pane = p; } }); }
+      Array.prototype.forEach.call(document.querySelectorAll('.manage-tab'), function (b) {
+        b.classList.toggle('on', b.getAttribute('data-pane') === pane);
+      });
+    }
     paintRail(rows, wantId);
 
     if (!wantId) {
