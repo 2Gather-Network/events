@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: M1.8 | Date: 2026-09-08 | LAST CHANGE: the rail is Attending / Hosting / Socialized, matching My events, opening on Hosting. Arriving here no longer opens a posting form nobody asked for. Waiting says "Loading your events" as the blinking pill. And a failed call now says so instead of reporting an empty list, which had it telling her that her own event belonged to somebody else. -->
+<!-- Version: M1.9 | Date: 2026-09-08 | LAST CHANGE: the rail is kept for the tab and painted at once on every load after the first, while a fresh copy is fetched behind it. getMyEvents was measured at 31.8 seconds and 562 KB for a super admin, and one call before that timed out at 90 seconds. Only what the rail draws is kept; the form still waits for the real answer, because it needs all 46 fields and must never save a stale one. Also: the site page template, 1200 / 270 / 18 folding at 860, and the mobile sheet rules turned off so the form stops running off the right edge of a phone. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -7910,6 +7910,21 @@ function selectInterestSuggestion(val) {
     try { me = (typeof getRealMemberId === 'function' && getRealMemberId()) || ''; } catch (e) {}
     if (!me) { say('Sign in to post or edit an event.'); if (list) list.innerHTML = ''; return; }
 
+    // IT IS KEPT, BECAUSE IT COSTS THIRTY SECONDS. Jessie, 2026-09-08: "still it's loading VERY
+    // long." Measured the same evening: one call timed out at 90 seconds and returned nothing, the
+    // next took 31.8 seconds and returned 562 KB - 435 events of 46 fields each, because a super
+    // admin is shown every event on the site and the rail needs five of those fields.
+    //
+    // So the answer is kept for the tab and painted at once on every load after the first, while a
+    // fresh one is fetched behind it. Moving between events stops costing half a minute each time.
+    // Only what the rail draws is kept - id, title, date, hostType, cancelled - so this is a few
+    // kilobytes rather than half a megabyte, and the form still waits for the real answer because
+    // it needs all 46 fields and must never save a stale one.
+    var KEEP = 'cw-manage-rail-' + me;
+    var kept = null;
+    try { kept = JSON.parse(sessionStorage.getItem(KEEP) || 'null'); } catch (e) {}
+    if (kept && kept.length) { paintRail(kept, wantId); }
+
     // A CALL THAT FAILED IS NOT AN EMPTY LIST. Jessie, 2026-09-08, on her own event: "what page is
     // this? an actual event?" - the rail read 0, 0, 0 and "Nothing here", and the panel said the
     // event belonged to somebody else. Both were false. The call had failed and the catch left an
@@ -7924,9 +7939,21 @@ function selectInterestSuggestion(val) {
       else { failed = true; }
     } catch (e) { failed = true; }
     if (failed) {
-      if (list) list.innerHTML = '<div class="manage-hint">Could not reach the server. <a href="" onclick="location.reload();return false;">Try again</a></div>';
-      say('Could not load your events, so nothing here is trustworthy yet. Reload and try again.');
-      return;
+      // With something kept, the rail is already drawn and useful, so the failure is a note rather
+      // than an empty screen. With nothing kept, it is the whole story.
+      if (kept && kept.length) { say('Could not refresh your events just now, so this list may be a little behind.'); }
+      else {
+        if (list) list.innerHTML = '<div class="manage-hint">Could not reach the server. <a href="" onclick="location.reload();return false;">Try again</a></div>';
+        say('Could not load your events, so nothing here is trustworthy yet. Reload and try again.');
+      }
+      if (!wantId) return;
+    }
+    if (!failed) {
+      try {
+        sessionStorage.setItem(KEEP, JSON.stringify(rows.map(function (r) {
+          return { id: r.id, title: r.title, date: r.date, hostType: r.hostType, cancelled: r.cancelled };
+        })));
+      } catch (e) {}
     }
 
     // The pill opens on whichever one actually holds the event being edited, so arriving at a past
