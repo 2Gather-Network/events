@@ -1089,7 +1089,19 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
     <!-- #4 Cover image updated hint -->
     <div class="field">
       <label class="field-label">Cover image</label>
+      <!-- UPLOAD OR PASTE. Jessie, 2026-09-07: "I still noticed that they can't update... upload
+           their cover image let's make that happen and don't give the option for uploading a
+           detailed image, just a link." Every cover until now lived on somebody else's server and
+           broke when that server did. The file goes to cw-photos, the same place group pictures
+           and people's photos already live. -->
       <input type="url" id="f-image-url" class="input" placeholder="https://..." style="width:100%;">
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;">
+        <label style="font-size:13px;font-weight:700;color:var(--primary);border:1.5px solid var(--primary);border-radius:20px;padding:6px 14px;cursor:pointer;background:#fff;">
+          Choose a picture
+          <input type="file" id="f-image-file" accept="image/jpeg,image/png,image/webp" onchange="_pickCover(this)" style="display:none;">
+        </label>
+        <span id="cover-file-name" style="font-size:12px;color:var(--muted);"></span>
+      </div>
     </div>
 
     <div class="field">
@@ -4456,6 +4468,56 @@ function _showLinksValue() {
   return out.join(",");
 }
 
+// ── The cover picture ────────────────────────────────────────────────────────────────────────
+// Chosen before the event exists, sent after it does, because the file is filed under the event's
+// id. If the upload fails the event is still posted and still fine, which is the same call the
+// group picture makes: a picture is not worth losing the thing it belongs to.
+var _coverBlob = null;
+function _pickCover(input) {
+  var f = input && input.files && input.files[0];
+  var label = document.getElementById("cover-file-name");
+  if (!f) { _coverBlob = null; if (label) label.textContent = ""; return; }
+  if (f.size > 5 * 1024 * 1024) {
+    _coverBlob = null; input.value = "";
+    if (label) label.textContent = "That picture is over 5MB. Choose a smaller one.";
+    return;
+  }
+  _coverBlob = f;
+  if (label) label.textContent = f.name + " will be uploaded when you post.";
+}
+
+function _coverToken() {
+  try {
+    var me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
+    var norm = String(me).split(".").join("").toLowerCase();
+    var raw = localStorage.getItem("cw-edit-" + norm);
+    if (raw) { var o = JSON.parse(raw); if (o && o.t) return o.t; }
+    return localStorage.getItem("cw-token") || "";
+  } catch (e) { return ""; }
+}
+
+function _sendCover(eventId) {
+  if (!_coverBlob || !eventId) return;
+  var me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
+  if (!me) return;
+  var blob = _coverBlob;
+  _coverBlob = null;
+  fetch("https://cw-photos.jessieupp.workers.dev/upload-event?id=" + encodeURIComponent(eventId)
+        + "&host=" + encodeURIComponent(me), {
+    method: "POST",
+    headers: { "Content-Type": blob.type || "image/jpeg", "x-cw-token": _coverToken() },
+    body: blob
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (p) {
+      if (!p || p.status !== "ok" || !p.url) return;
+      var idx = events.findIndex(function (e) { return e.id === eventId; });
+      if (idx > -1) { events[idx].imageUrl = p.url; renderEvents(); }
+      return apiUpdate({ id: eventId, imageUrl: p.url });
+    })
+    .catch(function () {});
+}
+
 function copyBulkEmail(btn) {
   var done = function(){ var t = btn.textContent; btn.textContent = "Copied!"; setTimeout(function(){ btn.textContent = t; }, 1500); };
   try { navigator.clipboard.writeText("hello@creating.works").then(done, done); }
@@ -5135,6 +5197,7 @@ async function submitEvent() {
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Posted ✓"; setTimeout(() => { submitBtn.disabled = false; submitBtn.textContent = "Post event"; }, 10000); }
     events.unshift(newEv); clearDraft(); clearEditDraft(); closeModal(); renderEvents(); showSummary(newEv);
     apiAdd(newEv).catch(() => {});
+    _sendCover(newId);
     // V12.60: posted via "I'm sharing an event I'm not hosting" -> record the poster as a socializer
     // of this event (not its host). The host field holds the real host/org they entered.
     if (window._isSharing) {
