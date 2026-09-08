@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.20 | Date: 2026-09-08 | LAST CHANGE: three sections, all shown and all filtered the same - three recommendations, then Group events, then everything. The gate that hid the list is gone; it made picking All groups show nothing. Group events draws from the cards the main grid already built, each with its group picture beside its name. Nothing in the rail scrolls inside itself. -->
+<!-- Version: V13.21 | Date: 2026-09-08 | LAST CHANGE: a category pill holds a name and its count sits outside it, one to a row. With the count inside, "Social Events & Gatherings (235) 670 of 842" outgrew the rail and the pill stopped looking like something to press. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -445,6 +445,11 @@
   html.cw-railview #fbar-panel-interests [style*="nowrap"] { white-space:normal !important; }
   /* The collapse arrow on the control is the way out, so a second one inside is a second answer. */
   html.cw-railview [onclick*="fbarToggle"][class*="fbar-mi"] { display:none; }
+  /* One category to a row: the pill, then its number. See the note in renderPills. */
+  html.cw-railview #cat-pills { display:block; }
+  html.cw-railview #cat-pills .cat-row { width:100%; }
+  html.cw-railview #cat-pills .cat-pill { flex:1 1 auto; min-width:0; text-align:left; white-space:nowrap; }
+
 
 
 
@@ -2613,7 +2618,11 @@ function renderPills() {
       try { localStorage.setItem("db-cats", "[]"); } catch (e) {}
       renderPills(); renderEvents(); try { fbarDraw(); } catch (e) {}
     });
-    c.appendChild(allBtn);
+    var allRow = document.createElement("div");
+    allRow.className = "cat-row";
+    allRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
+    allRow.appendChild(allBtn);
+    c.appendChild(allRow);
   }
   // BUSIEST FIRST, EMPTY ONES LAST. Jessie, 2026-09-08: "sort categories from highest nubmers to
   // lowest - where greyed out ones are at bottom."
@@ -2643,9 +2652,21 @@ function renderPills() {
     // to every pill and dims the ones with nothing behind them right now. Adding a second put
     // "Arts & Culture (50)  15" on the pill - my number and then theirs. The count above is used
     // for the ORDER only, which is the part that did not exist.
+    // THE PILL HOLDS A NAME, THE NUMBER SITS BESIDE IT. Jessie, 2026-09-08 picked option B from
+    // three. With the count inside, "Social Events & Gatherings (235) 670 of 842" outgrew the rail
+    // and the pill stopped looking like something to press.
     var btn = makeFilterBtn(cat.emoji + " " + cat.label, isActive, function() { setFilter(cat.label); });
     btn.setAttribute("data-cat-label", cat.label);
-    c.appendChild(btn);
+    var rowEl = document.createElement("div");
+    rowEl.className = "cat-row";
+    rowEl.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
+    btn.style.overflow = "hidden";
+    btn.style.textOverflow = "ellipsis";
+    var num = document.createElement("span");
+    num.className = "cat-n";
+    num.style.cssText = "font-size:12px;color:var(--muted);flex-shrink:0;";
+    rowEl.appendChild(btn); rowEl.appendChild(num);
+    c.appendChild(rowEl);
   });
 }
 function makeFilterBtn(text, isActive, onClick) {
@@ -3285,9 +3306,16 @@ function _applyChipDims(baseListForCat, baseListForMood, everything) {
     if (!lbl || lbl === "all") { btn.classList.remove("dim"); return; }
     var got = catCounts[lbl] || 0, all = catTotals[lbl] || 0;
     btn.classList.toggle("dim", !got);
-    var base = btn.getAttribute("data-cat-text");
-    if (base === null) { base = btn.textContent; btn.setAttribute("data-cat-text", base); }
-    btn.textContent = base + "  " + (got === all ? String(all) : got + " of " + all);
+    // Outside the pill since 2026-09-08. It used to be appended to the button's own text, which is
+    // what made the pill grow past the rail and stop reading as a control.
+    var numEl = btn.parentElement && btn.parentElement.querySelector(".cat-n");
+    var txt = (got === all ? String(all) : got + " of " + all);
+    if (numEl) { numEl.textContent = txt; }
+    else {
+      var base = btn.getAttribute("data-cat-text");
+      if (base === null) { base = btn.textContent; btn.setAttribute("data-cat-text", base); }
+      btn.textContent = base + "  " + txt;
+    }
   });
   var moodCounts = { connected:0, expressed:0, nourished:0, energized:0, playful:0, rested:0 };
   baseListForMood.forEach(function(e) {
