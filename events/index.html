@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V12.94 | Date: 2026-09-08 | LAST CHANGE: ?mygroups=1 arrives with every one of your groups ticked and the list open, so a link can send somebody straight to their groups' events combined. The filter existed and had no door from a link. Groups are still not fetched at boot for everybody, only for somebody who asked by arriving on this address. -->
+<!-- Version: V12.95 | Date: 2026-09-08 | LAST CHANGE: no ticks in the filter menus - chosen is blue with white lettering, everything else blue lettering on white. And with a group filter on, the heading reads "Upcoming group events (20)" rather than letting the number look like the whole calendar. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -282,7 +282,11 @@
   .fbar-menu button{background:none;border:none;text-align:left;font-family:inherit;font-size:13px;
     color:var(--dark);padding:7px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;}
   .fbar-menu button:hover{background:#EBF5FB;}
-  .fbar-menu button.pick{font-weight:700;color:var(--cw-blue);background:#EBF5FB;}
+  /* SELECTED IS FILLED, NOT TICKED. Jessie, 2026-09-08. Chosen is blue with white lettering;
+     everything else is blue lettering on white. One thing to read rather than two, and the row
+     does not shift sideways when it is picked. */
+  .fbar-menu button{color:var(--cw-blue);background:#fff;}
+  .fbar-menu button.pick{font-weight:700;color:#fff;background:var(--cw-blue);}
   .fbar-mnote{font-size:13px;color:var(--muted);padding:8px 10px;white-space:nowrap;}
   /* Three looks for Advanced, because it holds three filters where the others hold one.
      1 set apart with a gap and a divider, 2 a heavier border, 3 filled. 2026-09-06. */
@@ -685,14 +689,23 @@
       <div class="choice-options">
         <button class="choice-btn" onclick="choiceSelectMethod('host')" style="background:var(--cw-blue);border-color:var(--cw-blue);">
           <div class="choice-btn-icon">🗓️</div>
+          <!-- TWO WORDS ON THE BUTTON, the rest underneath. Jessie, 2026-09-08: "Not sure why you
+               keep on missing that a button never has 3 or more words unless you ask. I'm sharing
+               an event I'm not hosting is a lot of words in a button."
+               She is right and it was already written down twice, in design-checklist.md at line 48
+               and again as its own section. The answer is not a shorter sentence, it is the label
+               carrying the choice and a second line carrying the explanation - which this control
+               already supports and the NEXT screen already uses. -->
           <div class="choice-btn-text">
-            <div class="choice-btn-title" style="color:#fff;">I'm hosting an event</div>
+            <div class="choice-btn-title" style="color:#fff;">I'm hosting</div>
+            <div class="choice-btn-desc" style="color:#DCEAF4;">This is my event</div>
           </div>
         </button>
         <button class="choice-btn" onclick="choiceSelectMethod('share')" style="background:var(--cw-blue);border-color:var(--cw-blue);">
           <div class="choice-btn-icon">📣</div>
           <div class="choice-btn-text">
-            <div class="choice-btn-title" style="color:#fff;">I'm sharing an event I'm not hosting</div>
+            <div class="choice-btn-title" style="color:#fff;">I'm sharing</div>
+            <div class="choice-btn-desc" style="color:#DCEAF4;">Somebody else is hosting it</div>
           </div>
         </button>
       </div>
@@ -3207,11 +3220,16 @@ function renderEvents() {
   var _grid = document.getElementById("event-grid");
   if (_uh) {
     _uh.style.display = (!isLoadingData && window._allEventsShown) ? "block" : "none";
-    _uh.textContent = "Upcoming events (" + list.length + ")";
+    // WHICH CALENDAR THIS IS. Jessie, 2026-09-08: on ?mygroups=1 the heading "should change to
+    // Upcoming group events (20)". Arriving with a filter already on and a heading that does not
+    // mention it makes the number look like the whole calendar.
+    _uh.textContent = (typeof _myGroupPickCount === "function" && _myGroupPickCount() > 0
+                        ? "Upcoming group events (" : "Upcoming events (") + list.length + ")";
   }
   if (_grid) { _grid.style.display = window._allEventsShown ? "" : "none"; }
   if (_saw) { _saw.style.display = (!isLoadingData && !window._allEventsShown) ? "block" : "none"; }
-  if (_sab) { _sab.textContent = "Show all upcoming events (" + list.length + ")"; }
+  if (_sab) { _sab.textContent = (typeof _myGroupPickCount === "function" && _myGroupPickCount() > 0
+                                  ? "Show all group events (" : "Show all upcoming events (") + list.length + ")"; }
   var _fbarBox = document.getElementById("fbar");
   if (_fbarBox) { _fbarBox.style.display = isLoadingData ? "none" : "block"; }
 
@@ -6892,7 +6910,11 @@ function fbarDraw() {
       else if (!_myGroups.length) items = '<div class="fbar-mnote">You are not in a group yet.</div>';
       else items = _myGroups.map(function (g) {
         return '<button class="fbar-mi' + (_myGroupPick[g.id] ? ' pick' : '') + '" onclick="fbarPickGroup(\'' + esc(g.id).replace(/'/g, "") + '\')">'
-          + (_myGroupPick[g.id] ? '\u2713 ' : '') + esc(g.name) + '</button>';
+          // NO TICK. Jessie, 2026-09-08: "No checkmarks in our designs... isntead make it looks
+          // selected in blue wiht shite lettering for selected and those not selected blue font
+          // wiht white background." A tick is a second thing to read that says what the colour
+          // already says, and it shifts every label sideways by a character.
+          + esc(g.name) + '</button>';
       }).join("");
       return '<span class="fbar-dd">'
         + '<button class="fbar-btn' + (on ? ' on' : '') + '" onclick="fbarOpenMyGroups()">'
@@ -6945,7 +6967,9 @@ function fbarDraw() {
     if (c.key === "advanced") {
       var advItems = ADV_PARTS.map(function (a) {
         return '<button class="fbar-mi' + (_advPick === a.key ? ' pick' : '') + '" onclick="fbarPickAdv(\'' + a.key + '\')">'
-          + (_advPick === a.key ? '\u2713 ' : '') + a.label + '</button>';
+          // Same rule as the group menu above: the fill says it is chosen, so the tick is a second
+          // thing to read saying the same thing.
+          + a.label + '</button>';
       }).join("");
       return '<span class="fbar-dd">'
         + '<button class="fbar-btn fbar-adv' + (on ? ' on' : '') + '" onclick="fbarToggle(\'advanced\')">'
