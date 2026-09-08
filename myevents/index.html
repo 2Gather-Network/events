@@ -524,11 +524,22 @@ async function fetchEvents() {
       const mineRes = await fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(whoNow) + "&t=" + Date.now());
       const mine = await mineRes.json();
       if (mine && mine.status === "ok" && Array.isArray(mine.events) && mine.events.length) {
-        const have = {};
-        (data.events || []).forEach(function (r) { if (r && r.id) { have[String(r.id)] = 1; } });
-        data.events = (data.events || []).concat(mine.events.filter(function (r) {
-          return r && r.id && !have[String(r.id)];
-        }));
+        // YOUR OWN ROW WINS, rather than only filling gaps. Jessie, 2026-09-07: "none of my groups
+        // are showing up", with Attending 0, Hosting 0 and Socialized 0 for somebody who owns 296.
+        //
+        // This used to ADD only the events the public feed did not already have, which was right
+        // while both carried the same fields. That morning guestID was stripped out of the public
+        // feed, because it was handing anybody who asked the id that identifies a person. This page
+        // decides an event is yours BY guestID, so for every event of yours that is also public the
+        // feed's row won and arrived without the one field the page needed.
+        //
+        // getMyEvents answers with one person's own events and strips the private fields the same
+        // way, so preferring its row adds nothing anybody could not already see and restores what
+        // the page reads.
+        const byId = {};
+        (data.events || []).forEach(function (r) { if (r && r.id) { byId[String(r.id)] = r; } });
+        mine.events.forEach(function (r) { if (r && r.id) { byId[String(r.id)] = r; } });
+        data.events = Object.keys(byId).map(function (k) { return byId[k]; });
       }
     }
   } catch (e) {}
