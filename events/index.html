@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.30 | Date: 2026-09-08 | LAST CHANGE: all three sections share one heading row - the name on the left, the count and its action on the right in blue - and each shows six with the rest one press away. The number comes out of the headings themselves. -->
+<!-- Version: V13.31 | Date: 2026-09-08 | LAST CHANGE: filters in her order - Interests, Location, Date, Categories, Groups, Format, Search by. A topic word must match a whole word, so "ping" no longer matches helping or camping and a card cannot claim a reason that is not true. Group ids are normalised on both sides, which is why Group events kept saying "Be the first". Each group in the filter carries its picture. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3093,7 +3093,11 @@ function renderGroupEvents() {
   var grid = document.getElementById("event-grid");
   if (!wrap || !gg || !grid) return;
   var mine = {};
-  try { (_myGroups || []).forEach(function (g) { if (g && g.id) { mine[g.id] = g; } }); } catch (e) {}
+  // NORMALISED BOTH SIDES. A group id on an event row and the same id from getMyGroups can differ
+  // in case and in dots, which is why this section kept saying "Be the first" for somebody whose
+  // groups plainly had events. Everything else here compares ids this way.
+  var _gk = function (v) { return String(v || "").trim().split(".").join("").toLowerCase(); };
+  try { (_myGroups || []).forEach(function (g) { if (g && g.id) { mine[_gk(g.id)] = g; } }); } catch (e) {}
   // NO GROUPS, NO SECTION. Jessie, 2026-09-08: "when there is a null in groups - don't show groups
   // section at all", then "don't show groups if you dohn't belong to any". Same rule as the rail's
   // My groups pill and as the checklist: never show a door somebody has not been invited through.
@@ -3101,7 +3105,7 @@ function renderGroupEvents() {
 
   var picked = [];
   grid.querySelectorAll("[data-ev-groups]").forEach(function (card) {
-    var gs = String(card.getAttribute("data-ev-groups") || "").split("|").map(function (x) { return x.trim(); });
+    var gs = String(card.getAttribute("data-ev-groups") || "").split("|").map(_gk);
     var hit = null;
     gs.some(function (k) { if (k && mine[k]) { hit = mine[k]; return true; } return false; });
     if (hit) { picked.push({ card: card, group: hit }); }
@@ -6972,12 +6976,14 @@ function fbarPickDate(v) {
 }
 
 // Each control: what it is called, which panel it opens, and how it says its own state.
+// HER ORDER, 2026-09-08: "move location below interests / then date / then category / groups /
+// format / feeling / venue / host". Feeling, Venue and Host sit inside Search by until they are
+// split out, which is queued.
 var FBAR_CONTROLS = [
   { key: "interests",  label: "Interests" },
-  { key: "categories", label: "Categories" },
   { key: "location",   label: "Location" },
-  { key: "format",     label: "Format" },
   { key: "date",       label: "Date" },
+  { key: "categories", label: "Categories" },
   // Venue, host and feeling live under Advanced, which is what Jessie asked for at the start:
   // "advanced would filter by venue, filter by host, filter by feeling".
 
@@ -6996,6 +7002,7 @@ var FBAR_CONTROLS = [
   // not needed anymore", then "groups drop down still not showing". Hers to decide, and the filter
   // never went anywhere - only the control did.
   { key: "mygroups",   label: "Groups", toggle: true },   // reads "Groups (All)" until some are picked - see _fbarValue
+  { key: "format",     label: "Format" },
   // LAST, right before Reset. Jessie, 2026-09-06: "advanced, then reset". It holds three filters
   // where the others hold one, so it sits at the end rather than in the middle of the six.
   // SEARCH BY. It was called Advanced and opened all three fields at once, which put a form on the
@@ -7293,7 +7300,10 @@ function fbarDraw() {
       else if (_myGroups === null) items = '<div class="fbar-mnote">Open to load your groups.</div>';
       else if (!_myGroups.length) items = '<div class="fbar-mnote">You are not in a group yet.</div>';
       else items = _myGroups.map(function (g) {
-        return '<button class="fbar-mi' + (_myGroupPick[g.id] ? ' pick' : '') + '" onclick="fbarPickGroup(\'' + esc(g.id).replace(/'/g, "") + '\')">'
+        return '<button class="fbar-mi' + (_myGroupPick[g.id] ? ' pick' : '') + '" onclick="fbarPickGroup(\'' + esc(g.id).replace(/'/g, "") + '\')" style="display:flex;align-items:center;gap:8px;">'
+          // The group's own picture beside its name. Jessie, 2026-09-08: "gropus not showing images
+          // next to each name". A dozen names is the hardest thing to scan and the pictures exist.
+          + (g.image ? '<img src="' + esc(g.image) + '" alt="" style="width:18px;height:18px;border-radius:4px;object-fit:cover;flex-shrink:0;">' : '')
           // NO TICK. Jessie, 2026-09-08: "No checkmarks in our designs... isntead make it looks
           // selected in blue wiht shite lettering for selected and those not selected blue font
           // wiht white background." A tick is a second thing to read that says what the colour
@@ -7998,7 +8008,16 @@ function renderForYou() {
       if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
         return haystack.includes(trimmed.slice(1,-1).toLowerCase());
       }
-      return trimmed.split(/\s+/).some(w => { const c = w.replace(/[^a-zA-Z0-9]/g,"").toLowerCase(); return c.length > 2 && haystack.includes(c); });
+      // A WORD, NOT A RUN OF LETTERS INSIDE ANOTHER ONE. Jessie, 2026-09-08: "why did ping pong show
+      // as match for 2026 Seattle CF StairClimb when the event didn't say ping pong?" It did not.
+      // The topic was split into "ping" and "pong" and each was looked for as a plain substring, so
+      // "ping" matched anything containing those four letters - helping, camping, shipping. The tag
+      // then said Ping Pong, which is the page stating something untrue about why it chose an event.
+      return trimmed.split(/\s+/).some(w => {
+        const c = w.replace(/[^a-zA-Z0-9]/g,"").toLowerCase();
+        if (c.length <= 2) return false;
+        return new RegExp("(^|[^a-z0-9])" + c + "([^a-z0-9]|$)", "i").test(haystack);
+      });
     });
     // SAY EVERYTHING IT MATCHED ON. Jessie, 2026-09-08: "Shouodl show EVERYTHING it matches so
     // peopel know what to take away (interests, location, type)."
