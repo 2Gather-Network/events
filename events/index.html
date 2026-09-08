@@ -950,7 +950,21 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
 
     <div class="field">
       <label class="field-label" id="host-field-label">Event host name</label>
-      <input class="input" id="f-host">
+      <input class="input" id="f-host" oninput="_hostTypedOver()">
+      <!-- NAMING A HOST WHO IS NOT YOU. Jessie, 2026-09-07: "we need host to be linking to hteir
+           profile - so this needs to be built properly when building/editing event."
+           The event page has always linked events.host to events.hostlink. Nothing could fill both
+           for somebody other than the poster, which is why an event posted on another person's
+           behalf shows their name as plain text. The lookup returns a name and a page address and
+           never an id. -->
+      <button type="button" id="host-find-open" onclick="_openHostFind()" style="background:none;border:none;padding:0;margin-top:6px;font:inherit;font-size:12px;color:var(--cw-blue);font-weight:700;text-decoration:underline;cursor:pointer;">The host is someone else on the network</button>
+      <div id="host-find-box" style="display:none;margin-top:8px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <input class="input" id="f-host-find" type="email" placeholder="Example: sam@example.com" style="flex:1;min-width:180px;">
+          <button type="button" onclick="_findHost()" style="background:var(--cw-blue);border:1.5px solid var(--cw-blue);color:#fff;border-radius:20px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">Find them</button>
+        </div>
+        <p id="host-find-stat" style="display:none;font-size:12px;margin:6px 0 0;line-height:1.5;"></p>
+      </div>
     </div>
 
     <div class="field" id="registration-field">
@@ -4336,6 +4350,62 @@ function _rememberPosterName(name) {
 // So: use what the device remembers, and otherwise ask who this is. _resolveMyAppearLink caches its
 // promise and already fills _myAppearName from lookupProfile, so this costs nothing on a page that
 // was going to ask anyway and one call on a page that was not. It never writes over typing.
+function _openHostFind() {
+  var box = document.getElementById("host-find-box");
+  var link = document.getElementById("host-find-open");
+  if (!box) return;
+  box.style.display = "block";
+  if (link) link.style.display = "none";
+  var inp = document.getElementById("f-host-find");
+  if (inp) { inp.focus(); }
+}
+
+function _hostStat(msg, ok) {
+  var el = document.getElementById("host-find-stat");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.style.display = msg ? "block" : "none";
+  el.style.color = ok ? "#1B6896" : "var(--muted)";
+  el.style.fontWeight = ok ? "600" : "400";
+}
+
+// Typing over the name by hand drops the link, because a link behind the wrong name is worse than
+// no link. Nothing is said about it: the person is typing, and they can see what they typed.
+function _hostTypedOver() {
+  var hl = document.getElementById("f-hostlink");
+  if (hl && hl.value && !_hostFoundName) { hl.value = ""; }
+  if (_hostFoundName) {
+    var hn = document.getElementById("f-host");
+    if (hn && hn.value.trim() !== _hostFoundName) { _hostFoundName = ""; if (hl) hl.value = ""; _hostStat("", false); }
+  }
+}
+
+var _hostFoundName = "";
+function _findHost() {
+  var inp = document.getElementById("f-host-find");
+  var email = inp ? String(inp.value || "").trim() : "";
+  if (!email || email.indexOf("@") === -1) { _hostStat("Type their email address.", false); return; }
+  _hostStat("Looking…", false);
+  fetch(GS_URL + "?action=findHostByEmail&email=" + encodeURIComponent(email) + "&t=" + Date.now())
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.found || !d.name) {
+        _hostStat("Nobody here answers to that address. Type the host's name above instead.", false);
+        return;
+      }
+      _hostFoundName = d.name;
+      var hn = document.getElementById("f-host"); if (hn) hn.value = d.name;
+      var hl = document.getElementById("f-hostlink"); if (hl) hl.value = d.pageLink || "";
+      // The poster's own Appear tick would overwrite the link we just set, so it comes off.
+      var mine = document.getElementById("show-hostlink");
+      if (mine && mine.checked) { mine.checked = false; try { toggleLinkFields(); } catch (e) {} }
+      _hostStat(d.pageLink
+        ? (d.name + " will be shown as the host, linked to their page.")
+        : (d.name + " will be shown as the host. They have no page to link to yet."), true);
+    })
+    .catch(function () { _hostStat("That did not go through. Try again.", false); });
+}
+
 function _fillPosterName() {
   var hn = document.getElementById("f-host");
   if (!hn) return;
