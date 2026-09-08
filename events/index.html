@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.16 | Date: 2026-09-08 | LAST CHANGE: one info button rather than one per redraw - moving it into the search box is what let it survive the rebuild, so they piled up until they pushed the search off the row. All categories is always first and is the lit one when nothing else is picked. Reset puts everything back to All except the region, which is where somebody is. -->
+<!-- Version: V13.17 | Date: 2026-09-08 | LAST CHANGE: a match reason has to be something that was asked for. The card was listing the venue, the category and the format whether or not a filter was on, so "In person" appeared as a reason to somebody who had never filtered by format. With no filters running the only reason is the topics, which is the truth. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -7778,14 +7778,32 @@ function renderForYou() {
     //
     // Three kinds, each named as what it is: the topics that matched, where it is, and what kind
     // of event. Anything absent is simply left out rather than shown empty.
+    // ONLY WHAT SHE ACTUALLY ASKED FOR. Jessie, 2026-09-08: "I didn't have in-person selected in my
+    // filter so why is 'in-person' showing up as a reason for a match?"
+    //
+    // Because I listed the venue, the category and the format whether or not she had filtered on
+    // them. Those are not reasons for a match, they are facts about the event - and the card
+    // already shows the venue and the date. A reason has to be something she asked for and this
+    // event answered.
+    //
+    // So each one is included only when the corresponding filter is on and this event satisfies
+    // it. With no filters running, the only reason is her topics, which is the truth.
     const _mParts = [];
     if (matchedLabels.length) { _mParts.push(matchedLabels.join(", ")); }
-    const _place = String(ev.venue || ev.location || "").split(",")[0].trim();
-    if (_place && !matchedLabels.some(l => l.toLowerCase() === _place.toLowerCase())) { _mParts.push(_place); }
-    const _kind = String(ev.categories || "").split(",")[0].trim();
-    if (_kind) { _mParts.push(_kind); }
-    const _fmt = { virtual: "Virtual", inperson: "In person", both: "Hybrid" }[String(ev.format || "").toLowerCase()];
-    if (_fmt) { _mParts.push(_fmt); }
+    try {
+      if (activeCats && activeCats.size) {
+        String(ev.categories || "").split(",").map(x => x.trim()).forEach(function (k) {
+          if (k && activeCats.has(k) && _mParts.indexOf(k) === -1) { _mParts.push(k); }
+        });
+      }
+    } catch (e) {}
+    try {
+      var _fmtPick = (typeof activeMode !== "undefined") ? String(activeMode || "all") : "all";
+      if (_fmtPick && _fmtPick !== "all") {
+        var _fmtName = { virtual: "Virtual", inperson: "In person", both: "Hybrid" }[String(ev.format || "").toLowerCase()];
+        if (_fmtName) { _mParts.push(_fmtName); }
+      }
+    } catch (e) {}
     const matchTag = _mParts.length ? `<div style="font-size:11px;color:var(--primary);font-weight:400;margin-top:4px;line-height:1.45;">Match: ${esc(_mParts.join(" · "))}</div>` : "";
     // A SMALL PICTURE ON EACH ONE. Jessie, 2026-09-08: "show small images for each event". These
     // were four boxes of text side by side, which is the hardest thing to tell apart at a glance,
