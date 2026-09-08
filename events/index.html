@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.15 | Date: 2026-09-08 | LAST CHANGE: categories sort busiest first. The count and the dimming were already there, so the sort uses the totals and adds nothing to the label - the first attempt put two numbers on every pill. -->
+<!-- Version: V13.16 | Date: 2026-09-08 | LAST CHANGE: one info button rather than one per redraw - moving it into the search box is what let it survive the rebuild, so they piled up until they pushed the search off the row. All categories is always first and is the lit one when nothing else is picked. Reset puts everything back to All except the region, which is where somebody is. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2592,8 +2592,12 @@ function renderPills() {
   // In a rail, a list of sixteen with three lit and no way back to everything except unpicking
   // each one is a different thing entirely. It only does something when something is picked, so
   // it never sits there meaning nothing.
-  if (activeCats.size) {
-    var allBtn = makeFilterBtn("All categories", false, function () {
+  // ALWAYS THERE, AND LIT WHEN NOTHING ELSE IS. Jessie, 2026-09-08: "all categories should be the
+  // first selection and in blue selected". It only appeared once something was picked, so the list
+  // opened with nothing lit at all and no way to say "everything" - which is a state the person is
+  // already in but cannot see.
+  {
+    var allBtn = makeFilterBtn("All categories", activeCats.size === 0, function () {
       activeCats.clear(); activeFilter = "all";
       try { localStorage.setItem("db-cats", "[]"); } catch (e) {}
       renderPills(); renderEvents(); try { fbarDraw(); } catch (e) {}
@@ -7243,6 +7247,15 @@ function fbarResetAll() {
   if (typeof resetFilters === "function") { resetFilters(); }
   _myGroupPick = {};        // the list of groups is kept, so opening it again costs nothing
   _advPick = "";            // Search by goes back to offering the three
+  // EVERYTHING BACK TO ALL, EXCEPT THE REGION. Jessie, 2026-09-08: "on reset it should remove all
+  // filters and set everythign to all (and select all when uncollpaseing) except region." The
+  // region is where somebody is, which a reset button has no business changing.
+  try {
+    activeCats.clear(); activeFilter = "all";
+    localStorage.setItem("db-cats", "[]");
+    var _si = document.getElementById("search-input"); if (_si) { _si.value = ""; }
+    renderPills();
+  } catch (e) {}
   _fbarOpen = "";
   renderEvents();
   fbarDraw();
@@ -7545,7 +7558,7 @@ function _fyTopicHint(empty) {
   el.style.display = "block";
   el.textContent = empty
     ? "Add a topic and this page will show you the events that match it."
-    : "Your matches below are found from these topics.";
+    : "Your recommended matches derive from your interests.";
 }
 
 // EDITING IS ONE STATE AND THREE THINGS FOLLOW IT: the chips grow an x, Add and its field appear,
@@ -8086,7 +8099,14 @@ function _railPlacePanels() {
   // "i (info) should be to the right of the search bar at top". It was down beside Reset, which is
   // the last place anybody looks for an explanation of the thing at the top.
   var search = document.getElementById('fbar-search');
+  // ONE OF THEM. Jessie, 2026-09-08: "when clicking categories dorp down the i i i shows and search
+  // goes away". Moving the i into the search box is what makes it survive fbarDraw's innerHTML
+  // wipe - so every redraw built a new one, moved it too, and they piled up until they pushed the
+  // search box off the row. Any earlier one goes before the current one arrives.
   var info = row.querySelector('[onclick*="toggleBarHelp"]');
+  if (search) {
+    search.querySelectorAll('[onclick*="toggleBarHelp"]').forEach(function (old) { old.remove(); });
+  }
   if (info && search && info.parentNode !== search) {
     info.style.flex = '0 0 auto';
     info.style.marginLeft = '6px';
