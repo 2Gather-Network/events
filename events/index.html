@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V12.95 | Date: 2026-09-08 | LAST CHANGE: no ticks in the filter menus - chosen is blue with white lettering, everything else blue lettering on white. And with a group filter on, the heading reads "Upcoming group events (20)" rather than letting the number look like the whole calendar. -->
+<!-- Version: V12.97 | Date: 2026-09-08 | LAST CHANGE: ?v=rail puts the calendar into the page template. My groups appears in the rail only once the answer says there is at least one - it is not drawn and then hidden, because flashing a door at somebody who has not been invited through one is the same thing a beat later. Everything here is invitation only. Off by default. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -359,6 +359,38 @@
     width:22px;height:22px;flex-shrink:0;line-height:1;font-size:12px;font-weight:700;
     cursor:pointer;padding:0;font-family:inherit;}
   .fbar-i:hover{border-color:var(--primary);color:var(--primary);}
+  /* ── THE TEMPLATE ON THE CALENDAR, behind ?v=rail ────────────────────────────────────────────
+     Jessie, 2026-09-08: "How about we just use our template instead and using what we're doing
+     right now and put the my groups on the left rail?", then "all filers" and the three pills:
+     "My events My groups My profile".
+     Three pages already use this shape and the calendar used a filter bar with menus hanging off
+     it, which is why the group filter needed ticks and a dropdown at all. In the rail the chosen
+     one is filled, the same as every other rail, so that problem stops existing rather than being
+     fixed.
+     The three pills are navigation rather than filters, so the rail reads the same on every page:
+     where am I, then what is on this page.
+     Live behind a parameter and off by default, so nothing anybody uses changes until she says. */
+  html.cw-railview .page-body { max-width:1200px; margin:0 auto; padding:24px 20px 60px; }
+  html.cw-railview .cw-rl { display:grid; grid-template-columns:340px minmax(0,1fr); gap:18px; align-items:start; }
+  @media (max-width:860px) { html.cw-railview .cw-rl { grid-template-columns:1fr; } }
+  html.cw-railview .cw-rl-rail { background:#fff; border-radius:14px; padding:12px; height:fit-content; }
+  html.cw-railview .cw-rl-main { background:#fff; border-radius:14px; padding:12px 20px 18px; min-height:420px; }
+  html.cw-railview .cw-rl-head { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:4px 6px 10px; }
+  html.cw-railview .cw-rl-seg { display:flex; gap:6px; margin:4px 2px 12px; }
+  html.cw-railview .cw-rl-tab { flex:1; background:#fff; color:var(--primary); border:1.5px solid #C9D6E2; border-radius:9px;
+                                font:inherit; font-size:12.5px; font-weight:700; padding:7px 3px; cursor:pointer; text-align:center;
+                                text-decoration:none; line-height:1.25; }
+  html.cw-railview .cw-rl-tab.on { background:var(--primary); color:#fff; border-color:var(--primary); }
+  /* The bar becomes a column. Its controls keep working; they just stack. */
+  html.cw-railview #fbar { display:block !important; background:none; border:0; box-shadow:none; padding:0; margin:0; }
+  html.cw-railview #fbar-row { display:flex; flex-direction:column; align-items:stretch; gap:8px; }
+  html.cw-railview #fbar-row > * { width:100%; }
+  html.cw-railview #fbar-controls { display:flex; flex-direction:column; align-items:stretch; gap:8px; width:100%; }
+  html.cw-railview #fbar-controls > * { width:100%; text-align:left; }
+  html.cw-railview .fbar-dd { display:block; width:100%; }
+  html.cw-railview .fbar-menu { position:static; box-shadow:none; border:1px solid var(--border); margin-top:6px; width:100%; max-height:260px; overflow:auto; }
+  html.cw-railview #geo-btn-wrap { margin:0 0 8px; }
+
 </style>
   <script src="/nav/identity.js?v=13"></script>
 </head>
@@ -7784,6 +7816,88 @@ function selectInterestSuggestion(val) {
   function upd(){ b.style.display = (window.scrollY > 500) ? "block" : "none"; }
   window.addEventListener("scroll", upd, { passive:true });
   upd();
+})();
+</script>
+<script>
+// ── ?v=rail: THE CALENDAR IN THE PAGE TEMPLATE ──────────────────────────────────────────────────
+// See the note beside .cw-rl in the stylesheet. Nothing is rebuilt: the existing pieces are moved
+// into two columns, so every control keeps the code it already had and there is no second calendar
+// to keep in step.
+(function () {
+  var want = false;
+  try { want = new URLSearchParams(location.search).get('v') === 'rail'; } catch (e) {}
+  if (!want) return;
+  document.documentElement.className += ' cw-railview';
+
+  function go() {
+    var body = document.querySelector('.page-body');
+    if (!body) return;
+    var wrap = document.createElement('div'); wrap.className = 'cw-rl';
+    var rail = document.createElement('aside'); rail.className = 'cw-rl-rail';
+    var main = document.createElement('section'); main.className = 'cw-rl-main';
+
+    // Navigation first, the same three on every page: where am I.
+    // MY GROUPS IS NOT THERE UNTIL THERE ARE GROUPS. Jessie, 2026-09-08: "My groups doesnt show if
+    // they have no gruops", and the reason: "evetyting is invitation only so we don't give someone
+    // t unless they ask."
+    //
+    // So it is not drawn and then hidden, it is not drawn at all until the answer comes back with
+    // at least one. Drawing it first and removing it would flash a door at somebody who has not
+    // been invited through one, which is the same thing a beat later.
+    rail.innerHTML =
+      '<div class="cw-rl-head">2Gather</div>' +
+      '<div class="cw-rl-seg" id="cw-rl-seg">' +
+        '<a class="cw-rl-tab" role="link" tabindex="0" data-nav="https://2gather.network/manage/" onclick="return _safeNavGo(this)">My events</a>' +
+        '<a class="cw-rl-tab" role="link" tabindex="0" data-nav="https://2gather.network/ikigai" onclick="return _safeNavGo(this)">My profile</a>' +
+      '</div>';
+
+    var geo  = document.getElementById('geo-btn-wrap');
+    var fbar = document.getElementById('fbar');
+    if (geo)  { rail.appendChild(geo); }
+    if (fbar) { rail.appendChild(fbar); }
+
+    // Everything else is the calendar itself and belongs in the panel.
+    ['for-you-section', 'cat-pills', 'show-all-wrap', 'upcoming-head', 'event-grid'].forEach(function (id) {
+      var el = document.getElementById(id) || document.querySelector('.' + id);
+      if (el) { main.appendChild(el); }
+    });
+
+    wrap.appendChild(rail); wrap.appendChild(main);
+    body.appendChild(wrap);
+
+    // The filter down this rail needs the same list, so this one answer serves both and there is
+    // no second call.
+    (function () {
+      function place(list) {
+        if (!list || !list.length) return;
+        var seg = document.getElementById('cw-rl-seg');
+        if (!seg || seg.querySelector('[data-groups]')) return;
+        var a = document.createElement('a');
+        a.className = 'cw-rl-tab'; a.setAttribute('role', 'link'); a.setAttribute('tabindex', '0');
+        a.setAttribute('data-groups', '1');
+        a.setAttribute('data-nav', 'https://2gather.network/mygroups');
+        a.setAttribute('onclick', 'return _safeNavGo(this)');
+        a.textContent = 'My groups';
+        seg.insertBefore(a, seg.children[1] || null);   // between My events and My profile
+      }
+      try { if (typeof _myGroups !== 'undefined' && _myGroups && _myGroups.length) { place(_myGroups); return; } } catch (e) {}
+      var me = (typeof getMemberId === 'function') ? (getMemberId() || '') : '';
+      if (!me) return;
+      fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(me))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var list = ((d && d.groups) || []).map(function (g) {
+            var id = String(g.groupID || g.groupId || g.id || '').trim();
+            return { id: id, name: String(g.groupName || g.name || g.title || id).trim() || id };
+          }).filter(function (g) { return g.id; });
+          try { if (typeof _myGroups !== 'undefined' && _myGroups === null) { _myGroups = list; } } catch (e) {}
+          place(list);
+        })
+        .catch(function () {});
+    })();
+  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', go); }
+  else { go(); }
 })();
 </script>
 <script src="/nav/topbar.js?v=5.86" defer></script>
