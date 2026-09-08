@@ -995,7 +995,10 @@
 
     var inp = d.createElement('input');
     inp.type = 'text';
-    inp.placeholder = 'Type a name, or paste an id';
+    // IT DID NOT FIT. Jessie, 2026-09-07: "The placeholder doesn't fit. So just name or email."
+    // On a phone the box is narrower than the sentence, so it cut off mid-word and told nobody
+    // anything. Two words fit, and the search reads both.
+    inp.placeholder = 'Name or email';
     inp.style.cssText = 'width:100%;max-width:420px;border:1.5px solid #DDE3EA;border-radius:10px;'
       + 'padding:9px 12px;font:inherit;outline:none;';
     var out = d.createElement('div');

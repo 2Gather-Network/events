@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V12.87 | Date: 2026-09-07 | LAST CHANGE: the blue "Anything you put in these fields is shared with people who register." came off, and each of Contact email and Contact phone carries a gray "Shared with registrants." under its box instead. -->
+<!-- Version: V12.88 | Date: 2026-09-07 | LAST CHANGE: title placeholder removed; every placeholder lightened to #8E8E93; "Associate this event with a group" became "Socialize this event within a group"; the group list puts the ones she hosts first with (Host) beside them and orders each half newest first, using the joinedAt getMyGroups started returning today. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -48,6 +48,12 @@
 
   .input,.textarea { width:100%; border:1.5px solid var(--border); border-radius:8px; padding:11px 16px; font-size:15px; font-family:inherit; color:var(--dark); background:var(--white); outline:none; transition:border-color .15s; }
   .input:focus,.textarea:focus { border-color:var(--primary); }
+  /* PLACEHOLDERS STEP BACK. Jessie, 2026-09-07: "make any placeholder a lot more light gray, but
+     still accessible." The browser default is around #757575, which is the darkest a placeholder
+     ever needs to be and reads as if the box is already filled in. #8E8E93 sits at 3.4:1 on white:
+     lighter than the default by a clear margin, above the 3:1 floor, and never the only way to
+     know what a field is, because every one of these boxes carries a label above it. */
+  .input::placeholder,.textarea::placeholder,input::placeholder,textarea::placeholder { color:#8E8E93; opacity:1; }
   .textarea { resize:vertical; min-height:180px; }
   /* THE QUESTIONS, IN BLUE. Jessie, 2026-09-07: "make more blue for all q's - give me 3 blue
      choices here". Three are on ?q=a, ?q=b and ?q=c so she can look rather than read a hex code.
@@ -808,7 +814,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
 
     <div class="field">
       <label class="field-label">Event title</label>
-      <input class="input" id="f-title" placeholder="Give your event a clear name">
+      <input class="input" id="f-title">
     </div>
 
     <div class="field">
@@ -1023,7 +1029,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:10px;">
         <label style="display:flex;align-items:flex-start;gap:8px;font-size:14px;cursor:pointer;flex:1;">
           <input type="checkbox" id="show-group" onchange="toggleGroupPick()" style="width:16px;height:16px;accent-color:var(--primary);margin-top:2px;flex-shrink:0;">
-          <span>Associate this event with a group</span>
+          <span>Socialize this event within a group</span>
         </label>
         <button type="button" onclick="var e=document.getElementById('group-info');e.style.display=e.style.display==='none'?'block':'none';" aria-label="What does associating a group do?" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;line-height:1;margin-top:2px;">ℹ️</button>
       </div>
@@ -4143,7 +4149,7 @@ function _loadFormGroups(preferId, preferName) {
       if (!known.some(function (g) { return g.id === id; })) {
         // A group they were sent from, or one they have since left, still belongs in the list so
         // it can be kept rather than silently dropped on the next save.
-        known.push({ id: id, name: (want.length === 1 && preferName) ? preferName : id });
+        known.push({ id: id, name: (want.length === 1 && preferName) ? preferName : id, hosts: false, at: "" });
       }
     });
     host.innerHTML = known.map(function (g) {
@@ -4151,7 +4157,9 @@ function _loadFormGroups(preferId, preferName) {
            + '<input type="checkbox" class="grp-check" value="' + esc(g.id) + '"'
            + (want.indexOf(g.id) > -1 ? ' checked' : '')
            + ' onchange="onGroupPick()" style="width:16px;height:16px;accent-color:var(--primary);margin-top:2px;flex-shrink:0;">'
-           + '<span>' + esc(g.name) + '</span></label>';
+           + '<span>' + esc(g.name)
+           + (g.hosts ? ' <span style="color:var(--muted);font-weight:400;">(Host)</span>' : '')
+           + '</span></label>';
     }).join("");
     var tick = document.getElementById("show-group");
     if (want.length && tick && !tick.checked) { tick.checked = true; }   // an event that already has one
@@ -4168,8 +4176,24 @@ function _loadFormGroups(preferId, preferName) {
     .then(function (d) {
       _formGroups = ((d && d.groups) || []).map(function (g) {
         var id = String(g.groupID || g.groupId || g.id || "").trim();
-        return { id: id, name: String(g.groupName || g.name || g.title || id).trim() || id };
+        var role = String(g.role || "").toLowerCase();
+        return { id: id,
+                 name: String(g.groupName || g.name || g.title || id).trim() || id,
+                 hosts: (role === "host" || role === "cohost"),
+                 // When she joined for a group she is in, when it was made for one she hosts.
+                 // getMyGroups started returning joinedAt on 2026-09-07 for exactly this.
+                 at: String(g.joinedAt || g.dateCreated || "") };
       }).filter(function (g) { return g.id; });
+      // HERS AT THE TOP, NEWEST FIRST. Jessie, 2026-09-07: "In parentheiss say (Host) Besides any
+      // group that I host and sort newest at the top. For both host and for most newest joined."
+      // Two runs, not one sort with a tie-break, because the two halves are ordered by different
+      // dates: a group she hosts by when it was made, a group she joined by when she joined.
+      _formGroups.sort(function (a, b) {
+        if (a.hosts !== b.hosts) return a.hosts ? -1 : 1;
+        var av = Date.parse(a.at) || 0, bv = Date.parse(b.at) || 0;
+        if (av !== bv) return bv - av;
+        return a.name.localeCompare(b.name);   // no date on either, so alphabetical beats random
+      });
     })
     .catch(function () { _formGroups = []; })
     .then(function () { _formGroupsBusy = false; paint(); });
@@ -7570,7 +7594,7 @@ function selectInterestSuggestion(val) {
   upd();
 })();
 </script>
-<script src="/nav/topbar.js?v=5.78" defer></script>
+<script src="/nav/topbar.js?v=5.79" defer></script>
 </body>
 <!--
   Copyright 2026 DayBalancer LLC. All rights reserved.
