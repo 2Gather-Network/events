@@ -1002,6 +1002,14 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
           </label>
         </div>
         <div id="group-link-info" style="display:none;"></div>
+        <!-- ADD THIS EVENT TO MY GROUP. Jessie, 2026-09-07: "add Add this event to my group as a
+             checkbox before Add bulletin board to this event. If they click this, the add bulletin
+             board goes away and the drop down of groups are shown, and it says select group. and
+             allow for mutlipel groups to be addeded." -->
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:14px;cursor:pointer;">
+          <input type="checkbox" id="show-group" onchange="toggleGroupPick()" style="width:16px;height:16px;accent-color:var(--primary);margin-top:2px;flex-shrink:0;">
+          <span>Add this event to my group</span>
+        </label>
         <!-- V12.58 (renamed 2026-08-20): bulletin board (was "venue"). Internal id f-has-bb / hasHub unchanged. -->
         <div style="display:flex;align-items:flex-start;gap:6px;">
           <label id="share-opt-venue" style="display:flex;align-items:flex-start;gap:8px;font-size:14px;cursor:pointer;flex:1;">
@@ -1020,12 +1028,11 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
              filter groups from calendar."
              The whole block hides for somebody with no groups, because an empty list is a question
              they cannot answer. -->
-        <div id="share-opt-group" style="display:none;flex-direction:column;gap:6px;">
-          <label class="field-label" style="margin:0;">My group</label>
-          <div style="font-size:12px;color:var(--muted);line-height:1.5;">Associate a group with this event, where people find each other based on needs, interests, skills, and offers.</div>
-          <select id="f-group-select" class="input" onchange="onGroupPick()" style="width:auto;max-width:100%;padding:8px 12px;font-size:14px;">
-            <option value="">No group</option>
-          </select>
+        <div id="share-opt-group" style="display:none;flex-direction:column;gap:6px;margin-left:24px;">
+          <label class="field-label" style="margin:0;">Select group</label>
+          <div style="font-size:12px;color:var(--muted);line-height:1.5;">Associate a group with this event, where people find each other based on needs, interests, skills, and offers. You can pick more than one.</div>
+          <div id="f-group-checks" style="display:flex;flex-direction:column;gap:6px;"></div>
+          <input type="hidden" id="f-group-ids">
           <div id="f-group-chosen" style="display:none;font-size:12px;color:var(--cw-blue);font-weight:600;line-height:1.5;"></div>
         </div>
       </div>
@@ -2755,8 +2762,10 @@ function _passesEventFilters(e, opts) {
   // of the vague-keeps rule the location filter uses, and deliberately: "only my groups" is a
   // request FOR group events, so an event belonging to no group is not one of them. 2026-09-06.
   if (Object.keys(_myGroupPick).length) {
-    var _eg = String(e.groupId || "").trim();
-    if (!_eg || !_myGroupPick[_eg]) return false;
+    // AN EVENT CAN BELONG TO SEVERAL GROUPS, pipe separated since 2026-09-07. A single id reads
+    // back as a list of one, so nothing already on the sheet changes meaning.
+    var _egs = String(e.groupId || "").split("|").map(function (x) { return x.trim(); }).filter(Boolean);
+    if (!_egs.length || !_egs.some(function (g) { return _myGroupPick[g]; })) return false;
   }
   const q = (document.getElementById("search-input")?.value || "").toLowerCase();
   const now = Date.now();
@@ -3825,8 +3834,8 @@ function _freqLabel(f) {
 function _syncRecurringGate() {
   var row = document.getElementById('recurring-field');
   if (!row) return;
-  var sel = document.getElementById('f-group-select');
-  var gid = sel ? String(sel.value || '').trim() : '';
+  var hid = document.getElementById('f-group-ids');
+  var gid = hid ? String(hid.value || '').trim() : '';
   var note = document.getElementById('recurring-needs-group');
   if (!note) {
     note = document.createElement('p');
@@ -3958,22 +3967,32 @@ function setInterestedEnabled(val) {
 var _formGroups = null, _formGroupsBusy = false;
 function _loadFormGroups(preferId, preferName) {
   var box = document.getElementById("share-opt-group");
-  var sel = document.getElementById("f-group-select");
-  if (!box || !sel) return;
+  var host = document.getElementById("f-group-checks");
+  if (!box || !host) return;
   function paint() {
     if (!_formGroups || !_formGroups.length) { box.style.display = "none"; return; }
-    var want = String(preferId || sel.value || "").trim();
-    sel.innerHTML = '<option value="">No group</option>'
-      + _formGroups.map(function (g) {
-          return '<option value="' + esc(g.id) + '">' + esc(g.name) + '</option>';
-        }).join("");
-    // A group we were sent from but which is not in the list still belongs in it, so it can be kept.
-    if (want && !_formGroups.some(function (g) { return g.id === want; })) {
-      sel.insertAdjacentHTML("beforeend",
-        '<option value="' + esc(want) + '">' + esc(preferName || want) + '</option>');
-    }
-    if (want) { sel.value = want; }
-    box.style.display = "flex";
+    // MORE THAN ONE, so the stored value is pipe separated the way groups.coHostIds already is.
+    // Everything on the sheet today holds a single id, which reads back as a list of one.
+    var wantRaw = String(preferId || (document.getElementById("f-group-ids") || {}).value || "");
+    var want = wantRaw.split("|").map(function (x) { return x.trim(); }).filter(Boolean);
+    var known = _formGroups.slice();
+    want.forEach(function (id) {
+      if (!known.some(function (g) { return g.id === id; })) {
+        // A group they were sent from, or one they have since left, still belongs in the list so
+        // it can be kept rather than silently dropped on the next save.
+        known.push({ id: id, name: (want.length === 1 && preferName) ? preferName : id });
+      }
+    });
+    host.innerHTML = known.map(function (g) {
+      return '<label style="display:flex;align-items:flex-start;gap:8px;font-size:14px;cursor:pointer;">'
+           + '<input type="checkbox" class="grp-check" value="' + esc(g.id) + '"'
+           + (want.indexOf(g.id) > -1 ? ' checked' : '')
+           + ' onchange="onGroupPick()" style="width:16px;height:16px;accent-color:var(--primary);margin-top:2px;flex-shrink:0;">'
+           + '<span>' + esc(g.name) + '</span></label>';
+    }).join("");
+    var tick = document.getElementById("show-group");
+    if (want.length && tick && !tick.checked) { tick.checked = true; }
+    box.style.display = (tick && tick.checked) ? "flex" : "none";
     onGroupPick();
   }
   if (_formGroups) { paint(); return; }
@@ -3993,29 +4012,55 @@ function _loadFormGroups(preferId, preferName) {
     .then(function () { _formGroupsBusy = false; paint(); });
 }
 
+// THE TICK OPENS THE LIST. Nothing is asked until somebody says they want a group on this event.
+function toggleGroupPick() {
+  var tick = document.getElementById("show-group");
+  var box = document.getElementById("share-opt-group");
+  if (!tick || !box) return;
+  if (tick.checked) {
+    box.style.display = "flex";
+    _loadFormGroups();
+  } else {
+    box.style.display = "none";
+    document.querySelectorAll("#f-group-checks .grp-check").forEach(function (c) { c.checked = false; });
+    onGroupPick();
+  }
+}
+
 // Choosing a group says what it will do, and takes the bulletin board question away, because a
 // group already has one. Jessie, 2026-09-07.
 function onGroupPick() {
-  try { _syncRecurringGate(); } catch (e) {}
-  var sel = document.getElementById("f-group-select");
+  var host = document.getElementById("f-group-checks");
   var said = document.getElementById("f-group-chosen");
+  var hidden = document.getElementById("f-group-ids");
   var idInp = document.getElementById("f-group-assoc-id");
   var nmInp = document.getElementById("f-group-assoc-name-val");
-  var id = sel ? String(sel.value || "").trim() : "";
-  var name = "";
-  if (sel && sel.selectedIndex > -1) { name = sel.options[sel.selectedIndex].textContent; }
-  if (idInp) idInp.value = id;
-  if (nmInp) nmInp.value = id ? name : "";
+  var ids = [], names = [];
+  if (host) {
+    host.querySelectorAll(".grp-check").forEach(function (c) {
+      if (!c.checked) return;
+      ids.push(String(c.value || "").trim());
+      var sp = c.parentElement ? c.parentElement.querySelector("span") : null;
+      names.push(sp ? sp.textContent : c.value);
+    });
+  }
+  var joined = ids.filter(Boolean).join("|");
+  if (hidden) hidden.value = joined;
+  if (idInp) idInp.value = joined;
+  if (nmInp) nmInp.value = names.join(", ");
   if (said) {
-    said.style.display = id ? "block" : "none";
-    said.textContent = id ? ("This event will show up on the " + name + " group page.") : "";
+    said.style.display = ids.length ? "block" : "none";
+    said.textContent = ids.length
+      ? ("This event will show up on the " + names.join(" and ") + (ids.length > 1 ? " group pages." : " group page."))
+      : "";
   }
   // A group has its own bulletin board, so the event does not need to offer a second one.
   var bbRow = document.getElementById("f-has-bb");
   var bbLabel = bbRow ? bbRow.closest("label") : null;
   var bbWrap = bbLabel ? bbLabel.parentElement : null;
-  if (bbWrap) { bbWrap.style.display = id ? "none" : "flex"; }
-  if (id && bbRow) { bbRow.checked = false; }
+  if (bbWrap) { bbWrap.style.display = ids.length ? "none" : "flex"; }
+  if (ids.length && bbRow) { bbRow.checked = false; }
+  try { _syncRecurringGate(); } catch (e) {}
 }
 function toggleContribEnabled(cb){
   // Contribution list shows only when the checkbox is on AND editing a saved event (potluck needs an id to save).
@@ -4860,7 +4905,7 @@ async function submitEvent() {
     var _gAssocRow = document.getElementById("share-opt-group");
     if (_gAssocRow && _gAssocRow.style.display !== "none") {
       // From the picker, which is the only thing that sets it now.
-      eventData.groupId = String((document.getElementById("f-group-select") || {}).value || "").trim();
+      eventData.groupId = String((document.getElementById("f-group-ids") || {}).value || "").trim();
     }
   }
 
