@@ -356,6 +356,16 @@
       <button type="button" class="btn ghost sm" id="e-res-add" style="margin-top:8px;">Add a resource</button>
       <div class="help">The links and tools this group uses. A row with no address is dropped when you save.</div>
 
+      <div class="q">If you ever leave, what happens to this group?</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <div class="tab" data-succession="close">It closes with me</div>
+        <div class="tab" data-succession="name">Somebody I name takes it</div>
+      </div>
+      <div id="e-successor-who" style="display:none;margin-top:10px;">
+        <input type="email" id="e-successor" placeholder="Example: sam@example.com">
+        <div class="help">They are asked to accept before anything moves, so nobody is handed a group they did not agree to.</div>
+      </div>
+
       <div class="q">How does someone join?</div>
       <!-- The passcode settles joining, so this is how it works rather than a choice to make.
            Screening moves to the licensed version. Jessie 2026-09-01. -->
@@ -595,6 +605,7 @@
         if (Array.isArray(g.coHostIds)) _eCoHosts = g.coHostIds.slice();
         _drawCoHosts();
         _drawResources(g.resources || '');
+        _drawSuccession(g.succession, g.successorEmail);
 
         // The invitation, built from the group itself so it can never name the wrong passcode.
         // The same words the backend sends, kept in step by hand: if one changes, change both.
@@ -996,7 +1007,7 @@
   });
 
   // Join-mode toggle inside Group info
-  ['data-caninvite'].forEach(function(attr){
+  ['data-caninvite', 'data-succession'].forEach(function(attr){
     document.querySelectorAll('[' + attr + ']').forEach(function(t){
       t.addEventListener('click', function(){
         document.querySelectorAll('[' + attr + ']').forEach(function(x){ x.classList.remove('on'); });
@@ -1251,6 +1262,34 @@
     });
     filterMembers(document.getElementById('mem-search').value);
   }
+  // ── SUCCESSION ────────────────────────────────────────────────────────────────────────────
+  // The last of the three, and the only one that needed the backend as well as a screen: neither
+  // succession nor successorEmail was in the update map, so the question asked at creation could
+  // never be answered again. Frank asked for it on 2026-09-01 and it has been locked ever since.
+  // The address is a private one, so the backend hands it back only to a host.
+  function _drawSuccession(mode, email){
+    var pick = (String(mode || '').trim().toLowerCase() === 'name') ? 'name' : 'close';
+    document.querySelectorAll('[data-succession]').forEach(function(t){
+      t.classList.toggle('on', t.getAttribute('data-succession') === pick);
+    });
+    var who = document.getElementById('e-successor-who');
+    if (who) who.style.display = (pick === 'name') ? 'block' : 'none';
+    var em = document.getElementById('e-successor');
+    if (em) em.value = email || '';
+  }
+  function _readSuccession(){
+    var on = document.querySelector('[data-succession].on');
+    return on ? on.getAttribute('data-succession') : 'close';
+  }
+  (function(){
+    document.querySelectorAll('[data-succession]').forEach(function(t){
+      t.addEventListener('click', function(){
+        var who = document.getElementById('e-successor-who');
+        if (who) who.style.display = (t.getAttribute('data-succession') === 'name') ? 'block' : 'none';
+      });
+    });
+  })();
+
   // ── RESOURCES ─────────────────────────────────────────────────────────────────────────────
   // The second of the three fields you could set at creation and never change again. Stored the
   // way the create page stores it, a JSON list of {type, url}, so one shape is read and written by
@@ -1515,6 +1554,8 @@
       agreements: document.getElementById('e-agreements').value.trim(),
       coHostIds: _eCoHosts.join('|'),
       resources: _readResources(),
+      succession: _readSuccession(),
+      successorEmail: (document.getElementById('e-successor') || {}).value ? document.getElementById('e-successor').value.trim() : '',
       joinMode: 'open',   // the passcode settles joining; joinMode decides nothing
       membersCanInvite: ((document.querySelector('[data-caninvite].on') || {}).getAttribute
         ? document.querySelector('[data-caninvite].on').getAttribute('data-caninvite') : 'off') === 'on' ? 'true' : 'false'
