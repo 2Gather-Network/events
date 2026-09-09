@@ -351,6 +351,11 @@
       <div class="lookup-results" id="e-cohost-results"></div>
       <div class="help">A co-host can do everything a host can. Removing somebody here leaves them in the group.</div>
 
+      <div class="q">Resources:</div>
+      <div id="e-res-list"></div>
+      <button type="button" class="btn ghost sm" id="e-res-add" style="margin-top:8px;">Add a resource</button>
+      <div class="help">The links and tools this group uses. A row with no address is dropped when you save.</div>
+
       <div class="q">How does someone join?</div>
       <!-- The passcode settles joining, so this is how it works rather than a choice to make.
            Screening moves to the licensed version. Jessie 2026-09-01. -->
@@ -589,6 +594,7 @@
         _eCoHosts = String(g.coHostIds || '').split('|').map(function(x){ return x.trim(); }).filter(Boolean);
         if (Array.isArray(g.coHostIds)) _eCoHosts = g.coHostIds.slice();
         _drawCoHosts();
+        _drawResources(g.resources || '');
 
         // The invitation, built from the group itself so it can never name the wrong passcode.
         // The same words the backend sends, kept in step by hand: if one changes, change both.
@@ -1245,6 +1251,66 @@
     });
     filterMembers(document.getElementById('mem-search').value);
   }
+  // ── RESOURCES ─────────────────────────────────────────────────────────────────────────────
+  // The second of the three fields you could set at creation and never change again. Stored the
+  // way the create page stores it, a JSON list of {type, url}, so one shape is read and written by
+  // both screens rather than two shapes that agree until they do not.
+  // THE TYPES COME FROM THE REFERENCE SHEET, never from this file: adding a kind is a row rather
+  // than a deploy, and that read is edge-cached for ten minutes so it costs nothing here.
+  var _RES_TYPES = ['Website','Calendar','Collaboration','Chat','Virtual meeting','Email list','Promotion','Shared doc','Other'];
+  fetch(GS_URL + '?action=getReferenceData')
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if (d && d.resourceTypes && d.resourceTypes.length) _RES_TYPES = d.resourceTypes; })
+    .catch(function(){});
+  function _addResRow(type, url){
+    var host = document.getElementById('e-res-list');
+    if (!host) return;
+    var row = document.createElement('div');
+    row.className = 'res-row';
+    row.setAttribute('style', 'display:flex;align-items:center;gap:8px;margin-top:8px;');
+    var sel = document.createElement('select');
+    sel.className = 'res-type';
+    sel.setAttribute('style', 'flex:0 0 150px;padding:10px;border:1.5px solid #DDE4EE;border-radius:10px;font:inherit;background:#fff;');
+    _RES_TYPES.forEach(function(t){
+      var o = document.createElement('option'); o.value = t; o.textContent = t;
+      if (t === type) o.selected = true;
+      sel.appendChild(o);
+    });
+    var inp = document.createElement('input');
+    inp.type = 'url'; inp.className = 'res-url'; inp.value = url || '';
+    inp.placeholder = 'Paste the address';
+    inp.setAttribute('style', 'flex:1;min-width:0;margin:0;');
+    var x = document.createElement('button');
+    x.type = 'button'; x.textContent = '\u00d7';
+    x.setAttribute('aria-label', 'Remove this resource');
+    x.setAttribute('style', 'flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1.5px solid #DDE4EE;background:#fff;color:var(--muted);font-size:16px;cursor:pointer;');
+    x.addEventListener('click', function(){ row.remove(); });
+    row.appendChild(sel); row.appendChild(inp); row.appendChild(x);
+    host.appendChild(row);
+  }
+  function _drawResources(raw){
+    var host = document.getElementById('e-res-list');
+    if (!host) return;
+    host.innerHTML = '';
+    var arr = [];
+    try { arr = JSON.parse(raw || '[]'); } catch (e) { arr = []; }
+    if (!Array.isArray(arr)) arr = [];
+    arr.forEach(function(r){ _addResRow(r && r.type, r && r.url); });
+    if (!arr.length) _addResRow('', '');
+  }
+  function _readResources(){
+    var out = [];
+    document.querySelectorAll('#e-res-list .res-row').forEach(function(row){
+      var t = row.querySelector('.res-type'), u = row.querySelector('.res-url');
+      if (u && u.value.trim()) out.push({ type: (t && t.value) || 'Website', url: u.value.trim() });
+    });
+    return JSON.stringify(out);
+  }
+  (function(){
+    var add = document.getElementById('e-res-add');
+    if (add) add.addEventListener('click', function(){ _addResRow('', ''); });
+  })();
+
   // ── CO-HOSTS ──────────────────────────────────────────────────────────────────────────────
   // The same control the create page carries, on the page where it can be changed. The backend has
   // accepted coHostIds since 23 August and updateGroup writes only the fields it is sent, so until
@@ -1448,6 +1514,7 @@
       passcode: document.getElementById('e-passcode').value.trim(),
       agreements: document.getElementById('e-agreements').value.trim(),
       coHostIds: _eCoHosts.join('|'),
+      resources: _readResources(),
       joinMode: 'open',   // the passcode settles joining; joinMode decides nothing
       membersCanInvite: ((document.querySelector('[data-caninvite].on') || {}).getAttribute
         ? document.querySelector('[data-caninvite].on').getAttribute('data-caninvite') : 'off') === 'on' ? 'true' : 'false'
