@@ -56,6 +56,25 @@
   .cw-rl-rail .tab:last-child{margin-bottom:0;}
   /* The code gate is one question, so it keeps a readable measure rather than stretching to 1200. */
   #stage-pin{max-width:620px;}
+  /* CO-HOSTS, THE SAME CONTROL THE CREATE PAGE HAS. Jessie, 2026-09-08, asked for the three things
+     you can set when a group is made and never change afterwards. This is the first of them, and
+     the backend has accepted coHostIds since 23 August, so only the screen was missing. */
+  .cohost-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+  .cohost{display:flex;align-items:center;gap:10px;background:var(--panel,#F7FBFF);border:1px solid var(--panel-line,#C9DFF3);
+          border-radius:22px;padding:5px 12px 5px 5px;font-size:14px;color:var(--ink);}
+  .cohost .av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#7DD3FC,#1F699E);
+              color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;overflow:hidden;flex-shrink:0;}
+  .cohost .av img{width:100%;height:100%;object-fit:cover;display:block;}
+  .cohost .nm{flex:1;font-weight:600;}
+  .cohost .x{color:var(--muted);cursor:pointer;font-size:13px;font-weight:700;padding:2px 8px;}
+  .lookup-results{margin-top:8px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 4px;max-height:220px;overflow-y:auto;display:none;}
+  .lookup-results.on{display:block;}
+  .lookup-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:14px;}
+  .lookup-item:hover{background:var(--panel,#F7FBFF);}
+  .lookup-item .av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#7DD3FC,#1F699E);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0;overflow:hidden;}
+  .lookup-item .av img{width:100%;height:100%;object-fit:cover;}
+  .lookup-item .who{flex:1;color:var(--ink);}
+  .lookup-item .add{color:var(--brand);font-weight:700;font-size:13px;}
   .cw-loading{display:inline-flex;align-items:center;gap:8px;background:#fff;color:var(--bg);
     font-size:13px;font-weight:700;padding:8px 16px;border-radius:20px;white-space:nowrap;
     animation:cw-breathe 1.6s ease-in-out infinite;}
@@ -326,6 +345,12 @@
       <div class="q">Group agreements:</div>
       <textarea id="e-agreements"></textarea>
 
+      <div class="q">Co-hosts:</div>
+      <div class="cohost-list" id="e-cohost-list"></div>
+      <input type="text" id="e-cohost-lookup" placeholder="Add a co-host by name…" style="margin-top:8px;">
+      <div class="lookup-results" id="e-cohost-results"></div>
+      <div class="help">A co-host can do everything a host can. Removing somebody here leaves them in the group.</div>
+
       <div class="q">How does someone join?</div>
       <!-- The passcode settles joining, so this is how it works rather than a choice to make.
            Screening moves to the licensed version. Jessie 2026-09-01. -->
@@ -561,6 +586,9 @@
         _updateEThumb();
         document.getElementById('e-passcode').value = g.passcode || '';
         document.getElementById('e-agreements').value = g.agreements || '';
+        _eCoHosts = String(g.coHostIds || '').split('|').map(function(x){ return x.trim(); }).filter(Boolean);
+        if (Array.isArray(g.coHostIds)) _eCoHosts = g.coHostIds.slice();
+        _drawCoHosts();
 
         // The invitation, built from the group itself so it can never name the wrong passcode.
         // The same words the backend sends, kept in step by hand: if one changes, change both.
@@ -1217,6 +1245,92 @@
     });
     filterMembers(document.getElementById('mem-search').value);
   }
+  // ── CO-HOSTS ──────────────────────────────────────────────────────────────────────────────
+  // The same control the create page carries, on the page where it can be changed. The backend has
+  // accepted coHostIds since 23 August and updateGroup writes only the fields it is sent, so until
+  // now this simply never arrived and the answer sat where it was set at creation.
+  var _eCoHosts = [];
+  function _coName(id){
+    var k = _nrmId(id);
+    var hit = (_members || []).filter(function(m){ return _nrmId(m.appearId) === k; })[0];
+    return hit || { appearId: id, name: id, first: '', photo: '' };
+  }
+  function _drawCoHosts(){
+    var box = document.getElementById('e-cohost-list');
+    if (!box) return;
+    box.innerHTML = '';
+    if (!_eCoHosts.length) {
+      var none = document.createElement('div');
+      none.className = 'help';
+      none.style.cssText = 'margin:0;';
+      none.textContent = 'Nobody else runs this group yet.';
+      box.appendChild(none);
+      return;
+    }
+    _eCoHosts.forEach(function(id){
+      var p = _coName(id);
+      var chip = document.createElement('div'); chip.className = 'cohost';
+      var av = document.createElement('span'); av.className = 'av';
+      if (p.photo) av.innerHTML = '<img src="' + p.photo + '" alt="">';
+      else av.textContent = String(p.name || p.first || '?').charAt(0).toUpperCase();
+      var nm = document.createElement('span'); nm.className = 'nm';
+      nm.textContent = p.name || p.first || id;
+      var x = document.createElement('span'); x.className = 'x'; x.textContent = 'Remove';
+      x.setAttribute('role', 'button'); x.tabIndex = 0;
+      x.addEventListener('click', function(){
+        _eCoHosts = _eCoHosts.filter(function(v){ return _nrmId(v) !== _nrmId(id); });
+        _drawCoHosts();
+      });
+      chip.appendChild(av); chip.appendChild(nm); chip.appendChild(x);
+      box.appendChild(chip);
+    });
+  }
+  (function(){
+    var input = document.getElementById('e-cohost-lookup');
+    var results = document.getElementById('e-cohost-results');
+    if (!input || !results) return;
+    var timer = null;
+    input.addEventListener('input', function(){
+      var q = input.value.trim();
+      if (timer) clearTimeout(timer);
+      if (q.length < 2) { results.classList.remove('on'); results.innerHTML = ''; return; }
+      timer = setTimeout(function(){
+        fetch(GS_URL + '?action=lookupProfile&name=' + encodeURIComponent(q))
+          .then(function(r){ return r.json(); })
+          .then(function(matches){
+            results.innerHTML = '';
+            var arr = Array.isArray(matches) ? matches : (matches && matches.matches) || [];
+            if (!arr.length) {
+              results.innerHTML = '<div class="lookup-item" style="cursor:default;color:var(--muted);">No matches for "' + q + '"</div>';
+            } else {
+              arr.slice(0, 8).forEach(function(pp){
+                var item = document.createElement('div'); item.className = 'lookup-item';
+                var av = document.createElement('span'); av.className = 'av';
+                if (pp.photo) av.innerHTML = '<img src="' + pp.photo + '" alt="">';
+                else av.textContent = String(pp.first || pp.name || '?').charAt(0).toUpperCase();
+                var who = document.createElement('span'); who.className = 'who';
+                who.textContent = (pp.name || pp.first || pp.appearId);
+                var add = document.createElement('span'); add.className = 'add'; add.textContent = '+ Add';
+                item.appendChild(av); item.appendChild(who); item.appendChild(add);
+                item.addEventListener('click', function(){
+                  var k = _nrmId(pp.appearId);
+                  if (k && !_eCoHosts.some(function(v){ return _nrmId(v) === k; })) _eCoHosts.push(pp.appearId);
+                  _drawCoHosts();
+                  input.value = ''; results.classList.remove('on'); results.innerHTML = '';
+                });
+                results.appendChild(item);
+              });
+            }
+            results.classList.add('on');
+          })
+          .catch(function(){
+            results.innerHTML = '<div class="lookup-item" style="cursor:default;color:var(--muted);">Lookup unavailable, try again in a moment.</div>';
+            results.classList.add('on');
+          });
+      }, 220);
+    });
+  })();
+
   // The two things the filters need, both built from answers the page already holds.
   function _nrmId(v){ return String(v || '').split('.').join('').toLowerCase(); }
   function _runsGroup(){
@@ -1333,6 +1447,7 @@
       image: document.getElementById('e-image').value.trim(),
       passcode: document.getElementById('e-passcode').value.trim(),
       agreements: document.getElementById('e-agreements').value.trim(),
+      coHostIds: _eCoHosts.join('|'),
       joinMode: 'open',   // the passcode settles joining; joinMode decides nothing
       membersCanInvite: ((document.querySelector('[data-caninvite].on') || {}).getAttribute
         ? document.querySelector('[data-caninvite].on').getAttribute('data-caninvite') : 'off') === 'on' ? 'true' : 'false'
