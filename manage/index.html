@@ -3309,8 +3309,18 @@ function _applyChipDims(baseListForCat, baseListForMood, everything) {
 var CANCEL_COLLAPSE_AT = 3;
 var CANCEL_OPEN_DATES = {};   // keyed by date + venue
 
+// WHAT ACTUALLY SAYS AN OCCURRENCE IS CANCELLED. Jessie, 2026-09-08, on finding the code writes a
+// field that lands nowhere: "Fix this".
+//
+// There is no `cancelled` column on the events sheet, so `ev.cancelled` has always been empty and
+// every test of it has always been false. The real record is a row of its own, id
+// "cancelled-<occurrence>", and syncCancelledOccurrences turns those rows into this set on load.
+// So the set is the answer, ev.cancelled is kept only for a row that somehow carries it, and the
+// write that pretended to set it is gone rather than left looking like it works.
 function _isCancelledEvent(ev) {
-  return !!(ev.cancelled || cancelledOccurrences.has(ev.id));
+  if (!ev || !ev.id) return false;
+  return !!(ev.cancelled || cancelledOccurrences.has(ev.id) ||
+            String(ev.id).indexOf('cancelled-') === 0);
 }
 
 function _cancelKey(ev) { return (ev.date || "") + "|" + (ev.venue || ""); }
@@ -5751,7 +5761,7 @@ async function submitEvent() {
         cancelledOccurrences.add(editingId);
         localStorage.setItem("db-cancelled-occurrences", JSON.stringify([...cancelledOccurrences]));
         const occDate = editingId.slice(-10);
-        apiAdd({ id:"cancelled-"+editingId, title:(title||"")+" [CANCELLED]", date:occDate, host:eventData.host||host, passcode:MASTER_PASSCODE, going:0, cancelled:true, categories:"", format:"", description:"" }).catch(()=>{});
+        apiAdd({ id:"cancelled-"+editingId, title:(title||"")+" [CANCELLED]", date:occDate, host:eventData.host||host, passcode:MASTER_PASSCODE, going:0, categories:"", format:"", description:"" }).catch(()=>{});
         closeModal(); renderEvents(); showToast("This occurrence has been cancelled.");
         setTimeout(() => {
           const base = "https://2gather.network/";

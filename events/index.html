@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.44 | Date: 2026-09-08 | LAST CHANGE: the matches count is put on the heading row by the code that writes the count, rather than once at startup, which never took. -->
+<!-- Version: V13.45 | Date: 2026-09-09 | LAST CHANGE: Show cancelled is a switch on the filter bar, off by default. A cancellation is a row of its own rather than a flag, and the code no longer writes a field the sheet has no column for. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3438,11 +3438,37 @@ function _applyChipDims(baseListForCat, baseListForMood, everything) {
 var CANCEL_COLLAPSE_AT = 3;
 var CANCEL_OPEN_DATES = {};   // keyed by date + venue
 
+// WHAT ACTUALLY SAYS AN OCCURRENCE IS CANCELLED. Jessie, 2026-09-08, on finding the code writes a
+// field that lands nowhere: "Fix this".
+//
+// There is no `cancelled` column on the events sheet, so `ev.cancelled` has always been empty and
+// every test of it has always been false. The real record is a row of its own, id
+// "cancelled-<occurrence>", and syncCancelledOccurrences turns those rows into this set on load.
+// So the set is the answer, ev.cancelled is kept only for a row that somehow carries it, and the
+// write that pretended to set it is gone rather than left looking like it works.
 function _isCancelledEvent(ev) {
-  return !!(ev.cancelled || cancelledOccurrences.has(ev.id));
+  if (!ev || !ev.id) return false;
+  return !!(ev.cancelled || cancelledOccurrences.has(ev.id) ||
+            String(ev.id).indexOf('cancelled-') === 0);
 }
 
 function _cancelKey(ev) { return (ev.date || "") + "|" + (ev.venue || ""); }
+
+// Remembered per browser, because it is a way of looking rather than a fact about the data.
+var _showCancelled = false;
+try { _showCancelled = localStorage.getItem('db-show-cancelled') === '1'; } catch (e) {}
+function toggleShowCancelled() {
+  _showCancelled = !_showCancelled;
+  try { localStorage.setItem('db-show-cancelled', _showCancelled ? '1' : '0'); } catch (e) {}
+  _paintShowCancelled();
+  try { renderEvents(); } catch (e) {}
+}
+function _paintShowCancelled() {
+  var b = document.getElementById('show-cancelled-btn');
+  if (!b) return;
+  b.textContent = _showCancelled ? 'Hide cancelled' : 'Show cancelled';
+  b.classList.toggle('on', _showCancelled);
+}
 
 function _cancelLine(ev) {
   var d = document.createElement("div");
@@ -3654,6 +3680,13 @@ function renderEvents() {
 
   list.forEach(ev => {
     if (_isCancelledEvent(ev)) {
+      // OFF UNLESS SOMEBODY ASKS. Jessie, 2026-09-08: "have a way to Show cancelled events but it
+      // defaults to not showing them". A cancellation is not something anybody is looking for, and
+      // 47 of them have been made, so they sat in the calendar taking room from what is happening.
+      // A host still needs to see what they called off, which is why it is a switch rather than a
+      // deletion, and it lives on the calendar because that is the only place a cancelled
+      // occurrence is drawn at all.
+      if (!_showCancelled) return;
       // Every cancellation for one date and venue goes INSIDE one full-width block. Before this
       // they were loose grid items, so the next day's real events flowed in beside them and
       // opening the group looked like it had revealed live events too. Jessie saw exactly that on
@@ -5966,7 +5999,7 @@ async function submitEvent() {
         cancelledOccurrences.add(editingId);
         localStorage.setItem("db-cancelled-occurrences", JSON.stringify([...cancelledOccurrences]));
         const occDate = editingId.slice(-10);
-        apiAdd({ id:"cancelled-"+editingId, title:(title||"")+" [CANCELLED]", date:occDate, host:eventData.host||host, passcode:MASTER_PASSCODE, going:0, cancelled:true, categories:"", format:"", description:"" }).catch(()=>{});
+        apiAdd({ id:"cancelled-"+editingId, title:(title||"")+" [CANCELLED]", date:occDate, host:eventData.host||host, passcode:MASTER_PASSCODE, going:0, categories:"", format:"", description:"" }).catch(()=>{});
         closeModal(); renderEvents(); showToast("This occurrence has been cancelled.");
         setTimeout(() => {
           const base = "https://2gather.network/";
@@ -7457,6 +7490,7 @@ function fbarDraw() {
   }).join("")
     + '<span class="fbar-end">'
     +   '<button class="fbar-i" id="fbar-help-btn" onclick="toggleBarHelp()" aria-label="How searching and filtering works">i</button>'
+    +   '<button class="fbar-btn" id="show-cancelled-btn" onclick="toggleShowCancelled()">Show cancelled</button>'
     +   '<button class="fbar-btn" id="fbar-reset" onclick="fbarResetAll()">Reset</button>'
     + '</span>';
 
@@ -7501,6 +7535,9 @@ function toggleRecWhy() {
   var el = document.getElementById("rec-why");
   if (el) { el.style.display = (el.style.display === "block") ? "none" : "block"; }
 }
+
+// The switch keeps its state through a rebuild of the bar, so it says what it is doing.
+try { setTimeout(_paintShowCancelled, 0); } catch (e) {}
 
 function fbarResetAll() {
   if (typeof resetFilters === "function") { resetFilters(); }
