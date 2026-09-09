@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.45 | Date: 2026-09-09 | LAST CHANGE: Show cancelled is a switch on the filter bar, off by default. A cancellation is a row of its own rather than a flag, and the code no longer writes a field the sheet has no column for. -->
+<!-- Version: V13.46 | Date: 2026-09-09 | LAST CHANGE: naming somebody as host actually makes them the host, resolved on the server so no id travels, with the poster kept as co-host. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2495,7 +2495,11 @@ async function apiAdd(ev) {
       row.guestID = _mine;
     } catch (e) {}
   }
-  return jsonp({ action:"add", event: row });
+  // Sent alongside the event, not inside it, because it is a question for the backend rather than
+  // a column on the row.
+  var _add = { action:"add", event: row };
+  try { if (_hostFoundEmail && String(row.hostType||"").toLowerCase() === "socializer") { _add.hostFoundEmail = _hostFoundEmail; } } catch (e) {}
+  return jsonp(_add);
 }
 async function apiUpdate(ev)       { return jsonp({ action:"update", event:evToSheet(ev) }); }
 async function apiDelete(id)       { return jsonp({ action:"delete", id }); }
@@ -4455,7 +4459,7 @@ function loadEditForm(id) {
 
     // The host lookup starts closed, and the name it found last time is forgotten, or typing over
     // an unrelated event's host would be measured against somebody else's name.
-    _hostFoundName = "";
+    _hostFoundName = ""; _hostFoundEmail = "";
     var _hfb = document.getElementById("host-find-box"); if (_hfb) _hfb.style.display = "none";
     var _hfo = document.getElementById("host-find-open"); if (_hfo) _hfo.style.display = "";
     var _hfs = document.getElementById("host-find-stat"); if (_hfs) _hfs.style.display = "none";
@@ -5105,6 +5109,7 @@ function _hostTypedOver() {
 }
 
 var _hostFoundName = "";
+var _hostFoundEmail = "";
 function _findHost() {
   var inp = document.getElementById("f-host-find");
   var email = inp ? String(inp.value || "").trim() : "";
@@ -5118,6 +5123,10 @@ function _findHost() {
         return;
       }
       _hostFoundName = d.name;
+      // The ADDRESS is kept, never an id. The backend turns it into the person when the event is
+      // posted, so naming somebody as host actually makes them the host and they can edit it.
+      // An endpoint handing an id back for an address is the door that was shut on canonicalId.
+      _hostFoundEmail = email;
       var hn = document.getElementById("f-host"); if (hn) hn.value = d.name;
       var hl = document.getElementById("f-hostlink"); if (hl) hl.value = d.pageLink || "";
       // The poster's own Appear tick would overwrite the link we just set, so it comes off.
