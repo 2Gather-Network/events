@@ -548,6 +548,11 @@
           <option value="az">A to Z</option>
         </select>
       </div>
+      <!-- Hidden until there is something to show, so it is never a door onto nothing. -->
+      <button type="button" id="mine-show-cancelled" onclick="toggleShowCancelledMine()"
+              style="display:none;margin:0 0 10px;border:1.5px solid var(--primary,#1F699E);border-radius:18px;
+                     background:#fff;color:var(--primary,#1F699E);font-family:inherit;font-size:12.5px;
+                     font-weight:700;padding:6px 14px;cursor:pointer;">Show cancelled</button>
       <div id="manage-list"></div>
       <button type="button" class="manage-new" id="manage-new-btn" onclick="manageNewClick()">Post a new event</button>
     </aside>
@@ -8073,12 +8078,42 @@ function selectInterestSuggestion(val) {
          + '<span>' + when + '</span></button>';
   }
 
+  // SHOW CANCELLED, OFF BY DEFAULT. Jessie, 2026-09-09: "My events too". A cancellation is not
+  // something anybody is looking for, and 47 of them turned this list into a week of them. A host
+  // still needs to see what they called off, so it is a switch rather than a deletion, and it is
+  // remembered per browser because it is a way of looking rather than a fact.
+  var _cancelledRows = [];
+  var _showCancelled = false;
+  try { _showCancelled = localStorage.getItem('db-show-cancelled-mine') === '1'; } catch (e) {}
+  window.toggleShowCancelledMine = function () { toggleShowCancelledMine(); };
+  function toggleShowCancelledMine() {
+    _showCancelled = !_showCancelled;
+    try { localStorage.setItem('db-show-cancelled-mine', _showCancelled ? '1' : '0'); } catch (e) {}
+    _paintCancelBtn();
+    paintRail(allRows, selId);
+  }
+  function _paintCancelBtn() {
+    var b = document.getElementById('mine-show-cancelled');
+    if (!b) return;
+    b.textContent = _showCancelled ? 'Hide cancelled' : 'Show cancelled';
+    b.setAttribute('aria-pressed', _showCancelled ? 'true' : 'false');
+    b.style.background = _showCancelled ? 'var(--primary,#1F699E)' : '#fff';
+    b.style.color = _showCancelled ? '#fff' : 'var(--primary,#1F699E)';
+    b.style.display = _cancelledRows.length ? 'inline-block' : 'none';
+  }
+
   function paintRail(rows, sel) {
     if (!list) return;
     allRows = rows; selId = sel || selId; _sel4row = selId;
     paintCounts(rows);
     _paintNewBtn();
-    rows = rows.filter(function (r) { return inPane(r, pane); });
+    // Cancellations join the list only when asked, and only under Hosting, which is where the
+    // person who called them off would look.
+    if (_showCancelled && pane === 'hosting' && _cancelledRows.length) {
+      rows = rows.concat(_cancelledRows);
+    }
+    _paintCancelBtn();
+    rows = rows.filter(function (r) { return inPane(r, pane) || r.cancelled; });
     // Search and sort narrow what the tab already chose; they never reach outside it.
     if (_q.trim()) {
       var needle = _q.trim().toLowerCase();
@@ -8196,6 +8231,11 @@ function selectInterestSuggestion(val) {
     var rows = [], failed = false;
     var d = await railJob;   // started above, alongside the one-event read
     if (d && d.status === 'ok' && Array.isArray(d.events)) { rows = d.events; } else { failed = true; }
+    // The cancellations arrive beside the events rather than among them, so they can be shown on
+    // request and can never turn up by accident. Jessie, 2026-09-09: "My events too".
+    _cancelledRows = (d && Array.isArray(d.cancelled)) ? d.cancelled.map(function (r) {
+      r.cancelled = true; return r;
+    }) : [];
     if (failed) {
       // With something kept, the rail is already drawn and useful, so the failure is a note rather
       // than an empty screen. With nothing kept, it is the whole story.
