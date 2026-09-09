@@ -227,6 +227,23 @@
       </div>
       <div id="mem-tools" style="display:none;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
         <input type="text" id="mem-search" placeholder="Search by name…" style="flex:1;min-width:180px;margin:0;">
+        <!-- NARROWING AND ORDERING, ON DATA ALREADY IN HAND. Jessie, 2026-09-08 picked these four
+             and the one sort. None of them costs a call: the offers, the needs and the host list
+             all arrive with the group, and the join dates arrive with the requests, which this
+             page already asks for at boot.
+             Her caveat stands and she chose it anyway: almost every row reads "joined before we
+             recorded dates", so newest-to-oldest puts the handful with a date on top and leaves
+             the rest in one block underneath. -->
+        <select id="mem-filter" style="padding:8px 10px;border:1.5px solid #DDE4EE;border-radius:10px;font:inherit;">
+          <option value="all">Everyone</option>
+          <option value="offers">Has offers</option>
+          <option value="needs">Has needs</option>
+          <option value="hosts">Hosts and co-hosts</option>
+        </select>
+        <select id="mem-sort" style="padding:8px 10px;border:1.5px solid #DDE4EE;border-radius:10px;font:inherit;">
+          <option value="joined">Joined newest to oldest</option>
+          <option value="name">Name A to Z</option>
+        </select>
         <label id="mem-size-wrap" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap;">
           Show
           <select id="mem-size" style="padding:8px 10px;border:1.5px solid #DDE4EE;border-radius:10px;font:inherit;">
@@ -1189,17 +1206,69 @@
     // The list is in, so the tools that act on it appear with it.
     var _mt = document.getElementById('mem-tools');
     if (_mt) _mt.style.display = 'flex';
+    ['mem-filter', 'mem-sort'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (!el || el._wired) return;
+      el._wired = 1;
+      el.addEventListener('change', function(){
+        _memShown = _memPageSize();
+        filterMembers(document.getElementById('mem-search').value);
+      });
+    });
     filterMembers(document.getElementById('mem-search').value);
   }
+  // The two things the filters need, both built from answers the page already holds.
+  function _nrmId(v){ return String(v || '').split('.').join('').toLowerCase(); }
+  function _runsGroup(){
+    var out = {};
+    var g = (groupData && groupData.group) || {};
+    [].concat(g.hostIds || [], g.coHostIds || []).forEach(function(h){
+      var k = _nrmId(h); if (k) out[k] = 1;
+    });
+    return out;
+  }
+  function _joinedWhen(){
+    var out = {};
+    (_joinedRows || []).forEach(function(r){
+      var k = _nrmId(r.appearId);
+      if (k && r.dateJoined) out[k] = String(r.dateJoined);
+    });
+    return out;
+  }
+
   function filterMembers(q){
     var list = document.getElementById('mem-list');
     list.innerHTML = '';
     var qs = String(q||'').trim().toLowerCase();
+    var mode = (document.getElementById('mem-filter') || {}).value || 'all';
+    var order = (document.getElementById('mem-sort') || {}).value || 'joined';
+    var has = function(v){ return String(v || '').split('|').some(function(x){ return x.trim(); }); };
     var matching = _members.filter(function(m){
-      if (!qs) return true;
-      var nm = ((m.first||'')+' '+(m.name||'')).toLowerCase();
-      return nm.indexOf(qs) !== -1;
+      if (qs) {
+        var nm = ((m.first||'')+' '+(m.name||'')).toLowerCase();
+        if (nm.indexOf(qs) === -1) return false;
+      }
+      if (mode === 'offers') return has(m.skills);
+      if (mode === 'needs')  return has(m.needs);
+      if (mode === 'hosts')  return !!_runsGroup()[_nrmId(m.appearId)];
+      return true;
     });
+    if (order === 'name') {
+      matching.sort(function(a, b){
+        return String(a.name || a.first || '').localeCompare(String(b.name || b.first || ''));
+      });
+    } else {
+      // Newest first, and everybody without a date keeps the order they came in rather than being
+      // shuffled. Almost every row has no date, so this is a small band on top of a large block.
+      var when = _joinedWhen();
+      matching.sort(function(a, b){
+        var da = when[_nrmId(a.appearId)] || '', db = when[_nrmId(b.appearId)] || '';
+        if (da && db) return db.localeCompare(da);
+        if (da) return -1;
+        if (db) return 1;
+        return 0;
+      });
+    }
     var shown = matching.slice(0, _memShown);
     var moreWrap = document.getElementById('mem-more-wrap');
     var countEl  = document.getElementById('mem-count');
