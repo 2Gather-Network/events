@@ -346,6 +346,12 @@
       <textarea id="e-agreements"></textarea>
 
       <div class="q">Co-hosts:</div>
+      <!-- WHO RUNS IT, READ LIVE. Jessie, 2026-09-08, asked whether every host address and name
+           should go on the group row. They should not: groups.groupHostEmail already holds one
+           address copied at creation, hostNames was added in August and nothing ever read it, and
+           both are wrong the day somebody changes their name or their address. This is the same
+           information without the copy, read off Info each time and shown only to a host. -->
+      <div id="e-host-live" style="margin:0 0 10px;"></div>
       <div class="cohost-list" id="e-cohost-list"></div>
       <input type="text" id="e-cohost-lookup" placeholder="Add a co-host by name…" style="margin-top:8px;">
       <div class="lookup-results" id="e-cohost-results"></div>
@@ -499,6 +505,18 @@
     if (superTok) stamp(SUPER_TOK_KEY, superTok);
   }
 
+  // THE HOUR RESTARTS ON EVERY ACTION. Jessie, 2026-09-08: "annoying being asked this - how long
+  // doe sit let me be in this - 60 minutes?" The backend hands back a fresh unlock on any call
+  // that arrived with a working one, so this keeps whatever came back and the hour only runs out
+  // after an hour of doing nothing.
+  function keepFreshToken(d){
+    try {
+      if (!d || typeof d !== 'object') return d;
+      if (d.sessionToken || d.superToken) setToken(d.sessionToken, d.superToken);
+    } catch (e) {}
+    return d;
+  }
+
   var groupData = null;
 
   // Ten seconds of an empty blue field, because the real call carries `me` and so is cached per
@@ -508,7 +526,7 @@
   // depends on who is looking. Jessie, 2026-09-01: "15 second lag".
   function nameTheGroupFast(){
     fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId))
-      .then(function(r){ return r.json(); })
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         var nm = ((d && d.group) || {}).name || '';
         if (!nm) return;
@@ -532,7 +550,7 @@
     // on the calendar the same evening.
     return fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId)
                  + '&me=' + encodeURIComponent(meId) + '&nocache=1&t=' + Date.now())
-      .then(function(r){ return r.json(); })
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         groupData = d || {};
         var g = (d && d.group) || {};
@@ -603,6 +621,7 @@
         document.getElementById('e-agreements').value = g.agreements || '';
         _eCoHosts = String(g.coHostIds || '').split('|').map(function(x){ return x.trim(); }).filter(Boolean);
         if (Array.isArray(g.coHostIds)) _eCoHosts = g.coHostIds.slice();
+        _drawHostsLive(g.hosts);
         _drawCoHosts();
         _drawResources(g.resources || '');
         _drawSuccession(g.succession, g.successorEmail);
@@ -685,7 +704,7 @@
           + '&hostAppearId=' + encodeURIComponent(meId)
           + '&sessionToken=' + encodeURIComponent(tok)
           + '&nocache=1')
-      .then(function(r){ return r.json(); })
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         if (!d || d.status !== 'ok' || !d.left || !d.left.length) return;
         var list = document.getElementById('left-list');
@@ -753,7 +772,7 @@
     setTimeout(function(){ if (send) send.disabled = false; }, 1200);
     showStatus('pin-status', 'ok', 'Sending code to host email…');
     fetch(GS_URL + '?action=sendAdminPin&groupId=' + encodeURIComponent(groupId) + '&hostAppearId=' + encodeURIComponent(meId))
-      .then(function(r){ return r.json(); })
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         if (d && d.status === 'ok') {
           // Which inbox to go and look in. A stranger can press Send code, so the address is
@@ -884,7 +903,7 @@
       showStatus('mem-leave-status', 'ok', 'Leaving...');
       fetch(GS_URL + '?action=leaveGroup&groupId=' + encodeURIComponent(groupId)
             + '&appearId=' + encodeURIComponent(meId) + '&t=' + Date.now())
-        .then(function(r){ return r.json(); })
+        .then(function(r){ return r.json(); }).then(keepFreshToken)
         .then(function(res){
           if (!res || res.status !== 'ok') {
             btn.disabled = false;
@@ -945,7 +964,7 @@
     var btn = document.getElementById('pin-unlock');
     btn.disabled = true;
     fetch(GS_URL + '?action=verifyAdminPin&groupId=' + encodeURIComponent(groupId) + '&hostAppearId=' + encodeURIComponent(meId) + '&code=' + encodeURIComponent(code))
-      .then(function(r){ return r.json(); })
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         btn.disabled = false;
         if (d && d.status === 'ok' && d.sessionToken) {
@@ -1035,7 +1054,7 @@
     fetch(GS_URL + '?action=getGroupPasscodeRequests&groupId=' + encodeURIComponent(groupId)
           + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok0)
           + '&nocache=1')
-      .then(function(r){ return r.json(); })
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         var reqs = (d && d.requests) || [];
         document.getElementById('tab-req-count').textContent = ' (' + reqs.length + ')';
@@ -1133,7 +1152,7 @@
       fetch(GS_URL + '?action=sendGroupPasscode&requestId=' + encodeURIComponent(rq.requestId)
             + '&groupId=' + encodeURIComponent(groupId)
             + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok))
-        .then(function(r){ return r.json(); })
+        .then(function(r){ return r.json(); }).then(keepFreshToken)
         .then(function(d){
           if (d && d.status === 'ok') {
             // Nothing is sent by us. The host copies this into their own email, which is the
@@ -1199,7 +1218,7 @@
               + '&groupId=' + encodeURIComponent(groupId)
               + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok)
               + '&reason=' + encodeURIComponent(reason) + '&note=' + encodeURIComponent(note))
-          .then(function(r){ return r.json(); })
+          .then(function(r){ return r.json(); }).then(keepFreshToken)
           .then(function(d){
             if (d && d.status === 'ok') {
               actionStatus.textContent = 'Declined, and your reason is recorded.';
@@ -1298,7 +1317,7 @@
   // than a deploy, and that read is edge-cached for ten minutes so it costs nothing here.
   var _RES_TYPES = ['Website','Calendar','Collaboration','Chat','Virtual meeting','Email list','Promotion','Shared doc','Other'];
   fetch(GS_URL + '?action=getReferenceData')
-    .then(function(r){ return r.json(); })
+    .then(function(r){ return r.json(); }).then(keepFreshToken)
     .then(function(d){ if (d && d.resourceTypes && d.resourceTypes.length) _RES_TYPES = d.resourceTypes; })
     .catch(function(){});
   function _addResRow(type, url){
@@ -1360,6 +1379,27 @@
     var hit = (_members || []).filter(function(m){ return _nrmId(m.appearId) === k; })[0];
     return hit || { appearId: id, name: id, first: '', photo: '' };
   }
+  function _drawHostsLive(hosts){
+    var box = document.getElementById('e-host-live');
+    if (!box) return;
+    box.innerHTML = '';
+    if (!hosts || !hosts.length) return;
+    hosts.forEach(function(h){
+      var row = document.createElement('div');
+      row.setAttribute('style', 'display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:4px 0;font-size:14px;');
+      var nm = document.createElement('span');
+      nm.setAttribute('style', 'font-weight:700;color:var(--ink);');
+      nm.textContent = h.name || h.id;
+      var role = document.createElement('span');
+      role.setAttribute('style', 'font-size:12.5px;color:var(--muted);');
+      role.textContent = h.role || 'Host';
+      var em = document.createElement('span');
+      em.setAttribute('style', 'font-size:13px;color:var(--soft);');
+      em.textContent = h.email || 'no address on file';
+      row.appendChild(nm); row.appendChild(role); row.appendChild(em);
+      box.appendChild(row);
+    });
+  }
   function _drawCoHosts(){
     var box = document.getElementById('e-cohost-list');
     if (!box) return;
@@ -1401,7 +1441,7 @@
       if (q.length < 2) { results.classList.remove('on'); results.innerHTML = ''; return; }
       timer = setTimeout(function(){
         fetch(GS_URL + '?action=lookupProfile&name=' + encodeURIComponent(q))
-          .then(function(r){ return r.json(); })
+          .then(function(r){ return r.json(); }).then(keepFreshToken)
           .then(function(matches){
             results.innerHTML = '';
             var arr = Array.isArray(matches) ? matches : (matches && matches.matches) || [];
@@ -1570,7 +1610,7 @@
     });
     showStatus('save-info-status', 'ok', 'Saving…');
     fetch(url)
-      .then(function(r){ return r.json(); })
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         btn.disabled = false;
         if (d && d.status === 'ok') {
@@ -1600,7 +1640,7 @@
     var tok = getToken() || '';
     showStatus('danger-status', 'ok', 'Sending…');
     fetch(GS_URL + '?action=' + actionName + '&groupId=' + encodeURIComponent(groupId) + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok))
-      .then(function(r){ return r.json(); })
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         if (d && d.status === 'ok') {
           showStatus('danger-status', 'ok', label + ' complete.');
@@ -1618,7 +1658,7 @@
     showStatus('danger-status', 'ok', 'Making a new passcode…');
     fetch(GS_URL + '?action=resetGroupPasscode&groupId=' + encodeURIComponent(groupId)
           + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok))
-      .then(function(r){ return r.json(); })
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         if (d && d.status === 'ok') {
           showStatus('danger-status', 'ok', d.emailed
@@ -1655,7 +1695,7 @@
           + '&hostAppearId=' + encodeURIComponent(meId)
           + '&sessionToken=' + encodeURIComponent(tok)
           + '&toEmail=' + encodeURIComponent(to))
-      .then(function(r){ return r.json(); })
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         if (d && d.status === 'ok') {
           showStatus('invite-status', 'ok', 'Sent to ' + (d.sentTo || to) + '.');
@@ -1676,7 +1716,7 @@
           + '&hostAppearId=' + encodeURIComponent(meId)
           + '&sessionToken=' + encodeURIComponent(tok)
           + '&toEmail=' + encodeURIComponent(to))
-      .then(function(r){ return r.json(); })
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         if (d && d.status === 'ok') {
           showStatus('transfer-status', 'ok', (d.offeredTo || 'They') + ' has been asked. The group stays yours until they accept.');
@@ -1694,7 +1734,7 @@
     showStatus('danger-status', 'ok', 'Archiving…');
     fetch(GS_URL + '?action=archiveGroup&groupId=' + encodeURIComponent(groupId)
           + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok2))
-      .then(function(r){ return r.json(); })
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         if (d && d.status === 'ok') {
           showStatus('danger-status', 'ok', (d.groupName || 'The group') + ' is archived.');
