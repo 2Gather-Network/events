@@ -150,7 +150,7 @@
 
     <!-- MEMBERS TAB -->
     <div id="tab-members" class="card">
-      <h2>All members</h2>
+      <h2 id="mem-heading">All members</h2>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
         <input type="text" id="mem-search" placeholder="Search by name…" style="flex:1;min-width:180px;margin:0;">
         <label id="mem-size-wrap" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap;">
@@ -239,9 +239,6 @@
         <input type="checkbox" checked disabled style="width:auto;">
         Anyone with the passcode can join
       </label>
-      <div style="font-size:13px;color:var(--muted);margin-top:6px;">
-        Screening people before they join is part of the licensed version.
-      </div>
 
       <div class="q">Can members invite people?</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -853,7 +850,11 @@
           : 'Nobody is waiting';
         list.innerHTML = '';
         reqs.forEach(function(rq){ list.appendChild(renderRequestCard(rq)); });
-        renderJoined((d && d.joined) || []);
+        // NOT HERE. Jessie, 2026-09-08: "remove all ht people's names here". Requests is about
+        // who is waiting, and it answered that in one line and then printed the entire membership
+        // underneath it. The count and the names belong on Members, which is the tab for them.
+        _joinedRows = (d && d.joined) || [];
+        _paintJoinedCount();
       })
       .catch(function(){
         document.getElementById('req-heading').textContent = 'Could not load this just now';
@@ -861,37 +862,29 @@
       });
   }
 
-  // Who is in, and when they arrived. It arrives on the same call, so it costs no extra wait.
-  function renderJoined(rows){
-    var host = document.getElementById('req-list');
-    if (!host || !rows.length) return;
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'margin-top:26px;';
-    var h = document.createElement('h2');
-    h.textContent = rows.length + (rows.length === 1 ? ' person has joined' : ' people have joined');
-    wrap.appendChild(h);
-    rows.slice().sort(function(a, b){
-      return String(b.dateJoined || '').localeCompare(String(a.dateJoined || ''));
-    }).forEach(function(m){
-      var row = document.createElement('div');
-      row.className = 'row';
-      var who = document.createElement('div'); who.className = 'who';
-      var nm = document.createElement('div'); nm.className = 'name';
-      var a = document.createElement('a');
-      a.setAttribute('role', 'link'); a.tabIndex = 0;
-      a.textContent = m.name || m.appearId;
-      a.style.cssText = 'color:inherit;text-decoration:none;cursor:pointer;';
-      a.setAttribute('data-nav', m.profileUrl || '');
-      a.setAttribute('onclick', 'return _safeNavGo(this)');
-      nm.appendChild(a);
-      var sub = document.createElement('div'); sub.className = 'sub';
-      // A blank date is a migrated row, not somebody who arrived without one. Say which.
-      sub.textContent = m.dateJoined ? ('Joined ' + String(m.dateJoined).slice(0, 10)) : 'Joined before we recorded dates';
-      who.appendChild(nm); who.appendChild(sub);
-      row.appendChild(who);
-      wrap.appendChild(row);
-    });
-    host.appendChild(wrap);
+  // WHO HAS JOINED, COUNTED ON THE MEMBERS TAB. Jessie, 2026-09-08: "remove all ht people's
+  // names here" and "on members tab say 694 people have joined".
+  //
+  // This used to print every member with their join date underneath the requests, which answered
+  // a question nobody asked on that tab and buried the one it exists for. The answer arrives on
+  // the same call, so keeping the number costs nothing.
+  //
+  // TWO NUMBERS, AND THEY DO NOT AGREE. This list holds 694 and the member list holds 655, so the
+  // heading says how many are drawn beside how many have ever joined rather than pasting one over
+  // the other. A heading claiming 694 above 655 rows is a heading that lies.
+  var _joinedRows = [];
+  function _paintJoinedCount(){
+    var h = document.getElementById('mem-heading');
+    if (!h) return;
+    var joined = _joinedRows.length;
+    var listed = (typeof _members !== 'undefined' && _members) ? _members.length : 0;
+    if (!joined && !listed) { h.textContent = 'All members'; return; }
+    if (joined && listed && joined !== listed) {
+      h.textContent = listed + ' members \u00b7 ' + joined + ' people have joined';
+    } else {
+      var n = joined || listed;
+      h.textContent = n + (n === 1 ? ' person has joined' : ' people have joined');
+    }
   }
 
   function renderRequestCard(rq){
@@ -1065,13 +1058,17 @@
     var countEl  = document.getElementById('mem-count');
     if (moreWrap) moreWrap.style.display = (matching.length > shown.length) ? 'block' : 'none';
     if (countEl)  countEl.textContent = 'Showing ' + shown.length + ' of ' + matching.length;
+    try { _paintJoinedCount(); } catch (e) {}
     shown.forEach(function(m){
       var row = document.createElement('div'); row.className = 'row';
       var av = document.createElement('span'); av.className = 'av';
       if (m.photo) av.innerHTML = '<img src="' + m.photo + '" alt="">';
       else av.textContent = String(m.first || m.name || '?').charAt(0).toUpperCase();
       var who = document.createElement('div'); who.className = 'who';
-      var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = (m.first || m.name || m.appearId);
+      var nm = document.createElement('div'); nm.className = 'name';
+      // THE WHOLE NAME. Jessie, 2026-09-08: "put full name". It led with the first name, so a
+      // list of 655 people held a lot of Davids with no way to tell them apart.
+      nm.textContent = (m.name || m.first || m.appearId);
       who.appendChild(nm);
       // Values and domains read as one list of what a person cares about, and the stored level
       // suffix is dropped. Somebody who has filled in neither gets no line at all, rather than
