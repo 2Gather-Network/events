@@ -492,7 +492,17 @@
   }
 
   // Session token storage
-  var TOK_KEY = 'cw_admin_' + groupId;
+  // A TOKEN BELONGS TO A PERSON, NOT JUST TO A GROUP. Jessie, 2026-09-08, after switching to view
+  // as Jerry on a group only she hosts and finding the whole admin rail drawn for him: "if he has
+  // this link he shoudln't even be able to see this page if he doens't host this group right?"
+  // She is right. The key was named after the group alone, so her own unlock, sitting in her own
+  // browser, was found and used the moment the page started sending somebody else's id.
+  // Nothing leaked: the backend refuses every action without a token issued to the caller, and the
+  // information never loaded. But the doors were drawn, which is the rule about never showing
+  // somebody a door they have not been invited through.
+  // Adding the person to the key throws away unlocks stored under the old shape, so the next code
+  // asked for is the price of this, once.
+  var TOK_KEY = 'cw_admin_' + groupId + '_' + String(meId || '').split('.').join('').toLowerCase();
   var SUPER_TOK_KEY = 'cw_admin_super_' + meId;
   function getToken(){
     // A super admin's verification is about the person, not the group, so it is kept under a
@@ -609,7 +619,11 @@
         // card and then calls loadGroup, and loadGroup put it straight back, so after a correct
         // code the card sat above the unlocked screen with the used code still in it. Jessie,
         // 2026-09-01: "remove pin white section when logged in".
+        // A HOST WHO IS ALREADY VERIFIED GOES STRAIGHT IN. The boot used to open the dashboard on
+        // a stored token before knowing who was asking; the group answers first now, and the token
+        // is what says the code step is already done rather than what says who they are.
         var _dashOpen = !document.getElementById('stage-dashboard').classList.contains('hidden');
+        if (!_dashOpen && getToken()) { unlockDashboard(); _dashOpen = true; }
         if (_dashOpen) {
           document.getElementById('stage-pin').classList.add('hidden');
         } else {
@@ -961,9 +975,10 @@
     loadGroup().then(loadRequests);
   }
 
-  if (getToken()) {
-    unlockDashboard();
-  } else {
+  // AND NEVER OPEN ON A TOKEN ALONE. This unlocked the dashboard at boot purely because a token
+  // was in the browser, before the group had said a word about who is asking. The group decides,
+  // and the token only says the code step is already done. So: always look first.
+  {
     // Look at the group BEFORE asking for anything. This call needed no code and was only ever
     // made after one, so a member was asked to verify themselves before the page had any idea
     // whether they were a host. Nothing host-shaped is shown by it: the dashboard stays hidden,
