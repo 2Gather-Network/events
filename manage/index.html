@@ -531,6 +531,16 @@
         <button type="button" class="manage-tab" data-pane="attending" onclick="manageTab('attending')">Attending<span>0</span></button>
         <button type="button" class="manage-tab on" data-pane="hosting" onclick="manageTab('hosting')">Hosting<span>0</span></button>
         <button type="button" class="manage-tab" data-pane="socialized" onclick="manageTab('socialized')">Socialized<span>0</span></button>
+        <!-- ALL, AND ONLY FOR THE PAIR. Jessie, 2026-09-09: "what if I wanna look at all events?
+             from the interface I'm in? and be able to edit anything from there?" and "Just say all
+             as a pill because that's too big of a word, and it would squish everything."
+             Hosting used to hold 388 events on a site of 388, because being able to edit
+             everything was being read as everything being hers. It holds her own events now and
+             this is the named place that holds the rest.
+             Hidden until the answer says the person holds BOTH superadmin and support. Never drawn
+             and then taken away. -->
+        <button type="button" class="manage-tab" id="manage-tab-all" data-pane="all"
+                onclick="manageTab('all')" style="display:none;">All<span>0</span></button>
       </div>
       <!-- SEARCH AND SORT, the pair from My events. Jessie, 2026-09-08: "i didn't see this updated
            yet - where is it?" They were built on My events, and this page is becoming My events,
@@ -8005,6 +8015,7 @@ function selectInterestSuggestion(val) {
   };
   var inPane = function (r, p) {
     if (p === 'attending') return false;
+    if (p === 'all') return true;          // the whole site, once it has been asked for
     return p === 'socialized' ? isSocialized(r) : !isSocialized(r);
   };
 
@@ -8057,11 +8068,37 @@ function selectInterestSuggestion(val) {
       b.classList.toggle('on', b.getAttribute('data-pane') === p);
     });
     _paintNewBtn();
+    if (p === 'all') { loadAllEvents(); }
     paintRail(allRows, selId);
   };
 
+  var _isOperator = false;
+  var _allLoaded = false;
+
+  // ASKING FOR THE WHOLE SITE IS A SECOND QUESTION, so it is only asked when the pill is pressed
+  // and only once. It is 388 rows and about half a minute, which is worth saying rather than
+  // leaving somebody looking at a list that has not changed.
+  function loadAllEvents() {
+    if (_allLoaded) return;
+    _allLoaded = true;
+    say('Loading every event on the site. This one takes a while.');
+    fetch(GS_URL + '?action=getMyEvents&asOperator=1&appearId=' + encodeURIComponent(me) + '&t=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.status !== 'ok' || !Array.isArray(d.events)) {
+          _allLoaded = false;
+          say('Could not load every event just now. Try All again in a moment.');
+          return;
+        }
+        quiet();
+        allRows = d.events;
+        paintRail(allRows, selId);
+      })
+      .catch(function () { _allLoaded = false; say('Could not reach the server. Try All again.'); });
+  }
+
   function paintCounts(rows) {
-    ['attending', 'hosting', 'socialized'].forEach(function (p) {
+    ['attending', 'hosting', 'socialized', 'all'].forEach(function (p) {
       var b = document.querySelector('.manage-tab[data-pane="' + p + '"] span');
       if (b) b.textContent = rows.filter(function (r) { return inPane(r, p); }).length;
     });
@@ -8236,6 +8273,10 @@ function selectInterestSuggestion(val) {
     _cancelledRows = (d && Array.isArray(d.cancelled)) ? d.cancelled.map(function (r) {
       r.cancelled = true; return r;
     }) : [];
+    // Drawn only when the answer says this person holds both roles, never drawn and then removed.
+    _isOperator = !!(d && d.isOperator);
+    var _allBtn = document.getElementById('manage-tab-all');
+    if (_allBtn) _allBtn.style.display = _isOperator ? '' : 'none';
     if (failed) {
       // With something kept, the rail is already drawn and useful, so the failure is a note rather
       // than an empty screen. With nothing kept, it is the whole story.
