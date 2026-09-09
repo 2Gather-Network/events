@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.41 | Date: 2026-09-08 | LAST CHANGE: the rail calendar is the default. It was behind ?v=rail; ?v=old now serves the previous calendar. -->
+<!-- Version: V13.43 | Date: 2026-09-08 | LAST CHANGE: the matches count sits on the heading row. The code that moved it ran while the heading was in a detached element, so both lookups came back null. Also: editing an event keeps the profile-completed tick. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -4386,8 +4386,15 @@ function loadEditForm(id) {
   }
   // set visibility last so draft or earlier resets don't override the event's actual value
   setVisibility(ev.isPrivate ? "private" : "public");
-  { const _rg = document.getElementById("f-room-gated"); if (_rg) _rg.checked = !!ev.roomGated; _syncBoardGate(); }  // V12.49
-  { const _hh = document.getElementById("f-has-bb"); if (_hh) _hh.checked = !!ev.hasHub;  _syncBoardGate(); }  // V12.58: editable on load
+  // THE BOARD GOES IN BEFORE THE GATE, AND THE RULE RUNS ONCE AFTER BOTH. These two lines used to
+  // sit the other way round with a sync on each, and _syncBoardGate clears the gate tick whenever
+  // the board tick is off. So loading an event with both ticked set the gate, then immediately
+  // wiped it because the board had not been filled in yet, one line later. The form came up with
+  // the gate empty and the next Save wrote that emptiness back over the real setting - a field the
+  // create form writes and the edit form loses is a delete, not an inconsistency.
+  { const _hh = document.getElementById("f-has-bb");    if (_hh) _hh.checked = !!ev.hasHub;   }  // V12.58: editable on load
+  { const _rg = document.getElementById("f-room-gated"); if (_rg) _rg.checked = !!ev.roomGated; }  // V12.49
+  _syncBoardGate();
   // Group on edit: the picker opens on whatever group the event already carries, and the name
   // comes from the person's own list when it is there. An event whose group is one they have since
   // left still shows it, so editing cannot silently detach it.
@@ -8526,23 +8533,29 @@ function _railPlacePanels() {
       if (el) { main.appendChild(el); }
     });
 
+    wrap.appendChild(rail); wrap.appendChild(main);
+    body.appendChild(wrap);
+
     // THE COUNT SITS ON THE HEADING ROW, LIKE THE OTHER TWO SECTIONS. It was a separate block
     // under the heading, so "Showing 3 of 3 matches" dropped onto its own line while Group events
     // and Upcoming events both carry theirs on the right of the heading itself. Same shape for all
     // three now. Only moved in the rail, because on the plain page the heading is hidden.
+    //
+    // AND IT HAS TO RUN AFTER THE COLUMNS ARE IN THE PAGE. This sat above, between the forEach
+    // that moves the sections into the panel and the line that puts the panel into the document -
+    // so it looked for the heading while the heading was sitting inside a detached element.
+    // getElementById only searches the document, both lookups came back null, the guard failed
+    // silently and nothing moved. The code was live and correct and could not find what it was
+    // holding. Anything that looks an element up by id belongs after body.appendChild, not before.
     (function () {
       var head = document.getElementById('rec-head');
       var more = document.getElementById('for-you-more');
       if (head && more) {
         head.style.justifyContent = 'space-between';
-        more.style.marginLeft = 'auto';
         more.style.margin = '0 0 0 auto';
         head.appendChild(more);
       }
     })();
-
-    wrap.appendChild(rail); wrap.appendChild(main);
-    body.appendChild(wrap);
 
     // The filter down this rail needs the same list, so this one answer serves both and there is
     // no second call.
