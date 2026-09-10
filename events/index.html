@@ -10,7 +10,9 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.55 | Date: 2026-09-10 | LAST CHANGE: My groups is drawn only for somebody in a group other than Appear Network, which everybody is in. -->
+<!-- Version: V13.57 | Date: 2026-09-10 | LAST CHANGE: a Group events card names every one of your groups on the event, one line each, with no rule above them. -->
+<!-- Previous: V13.56 | Date: 2026-09-10 | LAST CHANGE: Show bookmarked draws at once from the bookmarks this browser was last given, and the fresh answer replaces them. -->
+<!-- Previous: V13.55 | Date: 2026-09-10 | LAST CHANGE: My groups is drawn only for somebody in a group other than Appear Network, which everybody is in. -->
 <!-- Previous: V13.54 | Date: 2026-09-10 | LAST CHANGE: Show bookmarked. A switch to the left of Show cancelled narrows all three sections, Recommended matches, Group events and Upcoming events, to the events this person bookmarked. It is drawn only once the bookmarks have answered and one of them is on the calendar, it starts off on every visit, and Reset turns it off. -->
 <!-- Previous: V13.53 | Date: 2026-09-10 | LAST CHANGE: registration starts Off in the form, in every place that set it: the Hosting choice, the reset and the button marked on arrival. -->
 <!-- Previous: V13.52 | Date: 2026-09-10 | LAST CHANGE: Show cancelled is a switch, it and Reset sit at the bottom on a phone, and the four tabs keep to one line. -->
@@ -3312,11 +3314,14 @@ function renderGroupEvents() {
   var _cardById = {};
   grid.querySelectorAll("[data-ev-id]").forEach(function (c) { _cardById[c.getAttribute("data-ev-id")] = c; });
   (window._lastFilteredList || []).forEach(function (ev) {
-    var hit = null;
-    String(ev.groupId || "").split("|").map(_gk).some(function (k) {
-      if (k && mine[k]) { hit = mine[k]; return true; } return false;
+    // EVERY GROUP OF YOURS ON THE EVENT, NOT THE FIRST. Jessie, 2026-09-10: "If there are multiple
+    // groups associated with the same event, list them all here in the card." This stopped at the
+    // first match, so an event shared by two of her groups named one of them.
+    var hits = [], seenG = {};
+    String(ev.groupId || "").split("|").map(_gk).forEach(function (k) {
+      if (k && mine[k] && !seenG[k]) { seenG[k] = 1; hits.push(mine[k]); }
     });
-    if (hit) { picked.push({ ev: ev, card: _cardById[String(ev.id)] || null, group: hit }); }
+    if (hits.length) { picked.push({ ev: ev, card: _cardById[String(ev.id)] || null, group: hits[0], groups: hits }); }
   });
   // BE THE FIRST. Jessie, 2026-09-08: "but if you belong to groups and there are no evnets in any
   // groups, we should ahve a post an event option and a message to be the first :)"
@@ -3379,10 +3384,15 @@ function renderGroupEvents() {
     // Ids are for the original. A copy carrying them would give two elements one name.
     copy.querySelectorAll("[id]").forEach(function (n) { n.removeAttribute("id"); });
     copy.removeAttribute("id");
+    // One line per group, and no rule above them: space separates, as everywhere else (the standing
+    // "no horizontal lines" rule, 2026-09-08).
     var tag = document.createElement("div");
-    tag.style.cssText = "display:flex;align-items:center;gap:6px;padding:8px 12px;font-size:12px;color:var(--muted);border-top:1px solid var(--border);";
-    tag.innerHTML = (p.group.image ? '<img src="' + esc(p.group.image) + '" alt="" style="width:18px;height:18px;border-radius:4px;object-fit:cover;flex-shrink:0;">' : '')
-                  + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(p.group.name || "") + '</span>';
+    tag.style.cssText = "display:flex;flex-direction:column;gap:6px;padding:4px 12px 10px;font-size:12px;color:var(--muted);";
+    tag.innerHTML = (p.groups || [p.group]).map(function (g) {
+      return '<div style="display:flex;align-items:center;gap:6px;min-width:0;">'
+        + (g.image ? '<img src="' + esc(g.image) + '" alt="" style="width:18px;height:18px;border-radius:4px;object-fit:cover;flex-shrink:0;">' : '')
+        + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(g.name || "") + '</span></div>';
+    }).join('');
     copy.appendChild(tag);
     gg.appendChild(copy);
   });
@@ -3740,6 +3750,20 @@ function _bmAskWhenQuiet() {
   var me = "";
   try { me = getMemberId() || ""; } catch (e) {}
   if (!me) return;                      // signed out: nothing to ask, nothing drawn
+  // REMEMBERED BOOKMARKS, drawn at once. Jessie, 2026-09-10: "don't see boomarked option yet".
+  // It was there, a minute later: getBookmarks waits for every other question about the person,
+  // which is 20 to 40 seconds before it is even asked. So the answer this browser got last time,
+  // kept by this page and by the event page's Bookmark button under cw-bm-events-<id>, draws the
+  // switch straight away, and the fresh answer below replaces it when it lands. A list this
+  // browser was given is a thing it knows, not a guess; with nothing kept, nothing is drawn.
+  try {
+    var _kept = JSON.parse(localStorage.getItem('cw-bm-events-' + me) || 'null');
+    if (Array.isArray(_kept) && _kept.length) {
+      _bmIds = _kept.map(String).filter(Boolean);
+      _bmSet = {}; _bmIds.forEach(function (k) { _bmSet[k] = 1; });
+      try { fbarDraw(); } catch (e) {}
+    }
+  } catch (e) {}
   // The rail's getMyGroups goes out at DOMContentLoaded, so the list is read after that.
   var ready = new Promise(function (res) {
     if (document.readyState === "loading") {
@@ -3763,6 +3787,8 @@ function _bmAskWhenQuiet() {
         ? bd.ids.map(function (x) { return String(x == null ? "" : x).trim(); }).filter(Boolean) : [];
       _bmSet = {};
       _bmIds.forEach(function (k) { _bmSet[k] = 1; });
+      try { localStorage.setItem('cw-bm-events-' + me, JSON.stringify(_bmIds)); } catch (e) {}
+      if (_showBookmarked) { try { renderEvents(); } catch (e) {} }
       try { fbarDraw(); } catch (e) {}
     })
     .catch(function () {});             // no answer: the switch is simply never drawn
