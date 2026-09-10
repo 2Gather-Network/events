@@ -12,7 +12,8 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V5.54 | Date: 2026-09-08 | LAST CHANGE: the event page renders by role. Edit is shown to a host, a co-host or a super admin and to nobody else, revealed only once the backend has said so rather than drawn on a guess, and it opens 2gather.network/myevents/?id= rather than the calendar page. The role rides along on getEventById, which the gate already forwards and caches per person, so it costs one small cached call and no new action. -->
+  <!-- Version: V5.55 | Date: 2026-09-10 | LAST CHANGE: Jessie's review of the template view. +1 and Bookmark go back into the card beside the title, with Edit as a filled blue button next to them for a host, co-host or super admin. "Save for later" reads Bookmark / Bookmarked with a site-blue outline. The meta reads "In person:", "Hybrid:", "Online:" in bold like "Venue:", with no pin emoji. In the template view Register / Pay is a dark navy button at the top right of the card rather than a link in the meta, every rail icon sits in a fixed 22px box so the labels line up, and the rail names the viewer's own groups this event belongs to, each opening that group's events, from the getMyGroups answer the rail already asks for. The host's organization sits on its own line. Bare web addresses in a description are links, on screen only. -->
+  <!-- Previous: V5.54 | Date: 2026-09-08 | LAST CHANGE: the event page renders by role. Edit is shown to a host, a co-host or a super admin and to nobody else, revealed only once the backend has said so rather than drawn on a guess, and it opens 2gather.network/myevents/?id= rather than the calendar page. The role rides along on getEventById, which the gate already forwards and caches per person, so it costs one small cached call and no new action. -->
   <meta charset="UTF-8">
   <script>
   /* Forward the Lake Ballinger event to its Glide page (m97sjwa3 only). Runs before render, so no flash. */
@@ -94,6 +95,14 @@
     }
     .detail-img { width: 100%; border-radius: 10px; margin-bottom: 16px; display: block; max-height: 300px; object-fit: cover; }
     .description { font-size: 15px; color: #374151; line-height: 1.7; margin-bottom: 24px; white-space: pre-wrap; }
+    /* A long address breaks where it has to rather than pushing the card wider on a phone. */
+    .description a { overflow-wrap: anywhere; }
+    /* THE TEMPLATE VIEW'S OWN PIECES stay out of the ordinary view: Register / Pay as a button and
+       Edit beside +1 and Bookmark. The ordinary view keeps the Register / Pay line in the meta and
+       Edit in its action row. Written here, in the first style block, so neither can flash in the
+       ordinary view before the template block below is read. */
+    .ev-pay-btn { display: none; }
+    html:not(.cw-tplview) .cw-edit-head { display: none !important; }
     /* NO HORIZONTAL LINES. Jessie, 2026-09-09: "remove horiizontal link aftre frist set of
        buttons nad before descripton", and the standing rule is that we do not use them anywhere
        unless she asks. The class is kept so the markup does not have to change everywhere, and it
@@ -346,6 +355,7 @@ function recurToEv(r) {
     sharedNotesEnabled: r.sharedNotesEnabled||false, sharedNotes: r.sharedNotes||"",
     host_note: r.host_note||"",
     cancelled: r.cancelled||false,
+    groupId: r.groupId||"",
   };
 }
 
@@ -372,6 +382,47 @@ function getMemberId() {
 
 function esc(s) {
   return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// A WEB ADDRESS IN A DESCRIPTION IS A LINK. Jessie, 2026-09-10: "can you make any links put in
+// event body linkable for them on their behalf?" The StairClimb says "Register to climb at
+// https://..." and the address was plain text, so the one instruction in it could only be copied.
+//
+// On screen only. The host's words in events.description are not touched; this is how they are
+// drawn. The description was plain escaped text before this, never HTML, and nothing else on the
+// page linked addresses inside it.
+//
+// ESCAPED FIRST, THEN LINKED, so nothing the host typed can become markup. The pattern runs over
+// the escaped text and cannot cross an escaped bracket or quote, so the address it finds is already
+// safe to put inside href="". Only http and https match, so no other kind of link can be made.
+// Full stops, commas and a closing bracket that end a sentence are left outside the link, unless the
+// address itself opened that bracket. Same tab, which is the rule for every link on the site.
+//
+// The two older replacements ([the calendar] and creating.works) run only on the text between
+// addresses, so an address that happens to contain creating.works is not linked twice.
+function _descHTML(raw) {
+  var s = esc(raw);
+  var legacy = function (t) {
+    return t.replace(/\[the calendar\]/g, '<a href="https://appear.network/dl/gather" rel="noopener" style="color:var(--primary);font-weight:600;">the calendar</a>')
+            .replace(/creating\.works/gi, '<a href="http://creating.works" rel="noopener" style="color:var(--primary);">creating.works</a>');
+  };
+  var re = /https?:\/\/(?:(?!&(?:lt|gt|quot);)[^\s<>"])+/gi;
+  var out = '', last = 0, m;
+  while ((m = re.exec(s))) {
+    var url = m[0];
+    while (url.length) {
+      var ch = url.charAt(url.length - 1);
+      if (/[.,;:!?'\]]/.test(ch)) { url = url.slice(0, -1); continue; }
+      if (ch === ')' && (url.match(/\)/g) || []).length > (url.match(/\(/g) || []).length) { url = url.slice(0, -1); continue; }
+      break;
+    }
+    re.lastIndex = m.index + Math.max(url.length, 1);
+    if (!/^https?:\/\/[^\/]/i.test(url)) { continue; }   // nothing after the scheme: leave it as text
+    out += legacy(s.slice(last, m.index))
+         + '<a href="' + url + '" rel="noopener" style="color:var(--primary);">' + url + '</a>';
+    last = m.index + url.length;
+  }
+  return out + legacy(s.slice(last));
 }
 
 /* Do we know who is looking? (Jessie 2026-08-26.) The edit pencil used to greet every
@@ -563,6 +614,10 @@ function toEv(r) {
     venue: r.venue||"", org: r.org||"", county: r.county||"", hostType: r.hostType||"",
     intakeRedirect: r.intakeRedirect||"",
     hostMemberCard: r.hostMemberCard||"", signupPotluck: r.signupPotluck||"",
+    // THE GROUPS AN EVENT BELONGS TO. events.groupId, pipe separated since 2026-09-07 (the group
+    // page and the calendar both split it on "|"). Mapped 2026-09-10 for the rail's "In your
+    // groups" section; it was never carried here, the same silent miss as org in V5.46.
+    groupId: r.groupId||"",
   };
 }
 
@@ -777,7 +832,7 @@ function render(ev) {
     ? `<span id="join-btn-wrap" style="${_hide}"><a href="${gatherUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:var(--primary);color:#fff;padding:8px 18px;border-radius:20px;font-weight:700;font-size:13px;text-decoration:none;white-space:nowrap;flex-shrink:0;">🏠 Gather here today${gatherTimeStr ? " at " + gatherTimeStr : ""}</a></span>`
     : "";
   const meetingRoomLine = (ev.format === "virtual" || ev.format === "both") && ev.room && !isToday
-    ? `<div id="meeting-room-line" style="font-size:14px;margin-bottom:4px;${_hide}">Meeting room: <a href="${esc(roomUrl)}" target="_blank" rel="noopener" style="color:var(--primary);">${esc(ev.room)}</a></div>`
+    ? `<div id="meeting-room-line" style="font-size:14px;margin-bottom:4px;${_hide}"><strong>Online:</strong> <a href="${esc(roomUrl)}" target="_blank" rel="noopener" style="color:var(--primary);">${esc(ev.room)}</a></div>`
     : "";
   // V5.39: the gate reminder is its own element so it also shows on the event day, when the
   // "Gather here today" button is hidden for an incomplete profile. Before, it was built only
@@ -789,6 +844,9 @@ function render(ev) {
     : "In-person";
 
   const hostHtml = ev.hostlink ? `<a href="${esc(ev.hostlink)}" rel="noopener" target="_blank" style="color:var(--primary);">${esc(ev.host)}</a>` : esc(ev.host);
+  // THE ORGANIZATION GOES UNDER THE HOST'S NAME, ON ITS OWN LINE. Jessie, 2026-09-10: "if they put
+  // org in there, is it below the name". It trailed the name after a grey dot, which in a 340px
+  // rail wrapped wherever it happened to and read as part of the name. Drawn in #ev-host below.
   // V5.45: a placeholder host ("Needs host name") used to leak into the copy as
   // "What Needs invites". Only treat the host as a person's name when one is
   // actually set; otherwise fall back to the "Host" this line always intended.
@@ -801,17 +859,28 @@ function render(ev) {
   const _isSocialized = ev.hostType === "socializer";
 
   const sl = ev.showLinks||"";
+  const _payOn = !!(ev.paymentlink && sl.includes("paymentlink"));
   const lines = [
     (fmtBadge||recurBadge) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;">${fmtBadge}${recurBadge}</div>` : "",
     ev.date ? `<div style="font-size:14px;font-weight:600;color:var(--dark);margin-bottom:6px;">${esc(fmtDate(ev.date,ev.time,ev.endtime))}</div>` : "",
     meetingRoomLine,
     gateMsg,
     ev.venue ? `<div style="font-size:14px;color:var(--dark);margin-bottom:4px;"><strong>Venue:</strong> ${esc(ev.venue)}</div>` : "",
-    (ev.format==="inperson") ? `<div style="font-size:14px;margin-bottom:4px;">📍 In-person${ev.location ? " · " + locLink : ""}</div>` : "",
-    (ev.format==="both") ? `<div style="font-size:14px;margin-bottom:4px;">📍 ${locLink}</div>` : "",
-    (!ev.format&&ev.location) ? `<div style="font-size:14px;margin-bottom:4px;">📍 ${locLink}</div>` : "",
+    // WHERE IT IS READS LIKE WHAT IT IS CALLED. Jessie, 2026-09-10: "take out emoji 📍 In-person ·
+    // and make bold In person:". Venue was already a bold word and a colon, and the line under it
+    // was a pin, a hyphenated word and a dot, so two facts of the same kind were written two ways.
+    // Every format now says its own word in bold: In person:, Hybrid:, and Online: on the meeting
+    // room line above. With no address there is nothing to follow a colon, so In person stands
+    // alone rather than repeating itself ("In person: In-person" was the old fallback). A hybrid
+    // event with no address draws no line at all: its Hybrid tag already says so, and the old
+    // fallback here claimed "In-person" for it.
+    (ev.format==="inperson") ? `<div style="font-size:14px;margin-bottom:4px;">${ev.location ? "<strong>In person:</strong> " + locLink : "<strong>In person</strong>"}</div>` : "",
+    (ev.format==="both" && ev.location) ? `<div style="font-size:14px;margin-bottom:4px;"><strong>Hybrid:</strong> ${locLink}</div>` : "",
+    (!ev.format&&ev.location) ? `<div style="font-size:14px;margin-bottom:4px;"><strong>Where:</strong> ${locLink}</div>` : "",
     ev.cooplink ? `<div style="font-size:14px;margin-bottom:4px;">🔗 <a href="${esc(ev.cooplink)}" rel="noopener" target="_blank" style="color:var(--primary);text-decoration:none;">Associated group</a></div>` : "",
-    (ev.paymentlink&&sl.includes("paymentlink")) ? `<div style="font-size:14px;margin-bottom:4px;"><a href="${esc(ev.paymentlink)}" rel="noopener">Register / Pay</a></div>` : "",
+    // In the template view this line gives way to the Register / Pay button at the top of the card
+    // (.ev-pay-line is hidden there), so it is never on screen twice. The ordinary view keeps it.
+    _payOn ? `<div class="ev-pay-line" style="font-size:14px;margin-bottom:4px;"><a href="${esc(ev.paymentlink)}" rel="noopener">Register / Pay</a></div>` : "",
   ].filter(Boolean).join("");
 
   const urlIdForPotluck = new URLSearchParams(window.location.search).get("id") || ev.id;
@@ -866,7 +935,33 @@ function render(ev) {
   ) : "";
 
   const bookmarkHTML = (_isLoggedIn && !ev.cancelled)
-    ? `<button onclick="toggleEventBookmark()" id="bookmark-btn" style="background:#fff;border:1.5px solid var(--border);color:var(--muted);font-weight:700;font-size:13px;padding:6px 14px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">Save for later</button>`
+    ? `<button onclick="toggleEventBookmark()" id="bookmark-btn" style="background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;font-size:13px;padding:6px 14px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">Bookmark</button>`
+    : "";
+
+  // EDIT SITS BESIDE +1 AND BOOKMARK, FILLED BLUE. Jessie, 2026-09-10: "If i'm the host/co-host i
+  // want to be able to click edit from my event" and then "it did appear actually - i didn't see
+  // the button. make it more apparent in panel as blue next". It was an outline button at the end
+  // of the action row, in the rail, below the fold of what she was reading.
+  //
+  // It carries cw-edit-btn, so _applyEventRole reveals it exactly as it reveals the others: hidden
+  // until getEventById says host, co-host or super admin, never drawn on a guess. The CSS decides
+  // which copy a view shows (this one in the template view, the action row's in the ordinary one),
+  // so the reveal logic did not have to change.
+  const editHeadHTML = !ev.cancelled
+    ? `<button class="cw-edit-btn cw-edit-head" onclick="openEditDirect()" title="Edit this event" style="display:none;background:#1F699E;border:1.5px solid #1F699E;color:#fff;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">Edit</button>`
+    : "";
+
+  // REGISTER / PAY IS A BUTTON AT THE TOP RIGHT, in the template view. Jessie, 2026-09-10: "put
+  // register/pay on top right so more apparent and in a button format" and then "dark blue". It was
+  // an underlined link at the foot of the date and place lines, the one thing on the page that
+  // sends somebody to actually sign up, drawn like a footnote.
+  //
+  // #1A2E42 is the navy the top bar uses for its headings and for its own filled button, so it is
+  // the site's dark blue rather than a new one, and it is clearly darker than the #1F699E pills
+  // beside it, so it does not read as the same button drawn slightly wrong. Same tab, like the
+  // link it replaces. Hidden outside the template view, where the meta line still carries it.
+  const payHeadHTML = _payOn
+    ? `<a class="ev-pay-btn" href="${esc(ev.paymentlink)}" rel="noopener" style="background:#1A2E42;border:1.5px solid #1A2E42;color:#fff;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;white-space:nowrap;text-decoration:none;font-family:inherit;">Register / Pay</a>`
     : "";
 
   const engagementSection = (hasInterest || hasNotes) && !ev.cancelled ? `
@@ -911,9 +1006,11 @@ function render(ev) {
       <div class="evt-head-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
         <h1 style="margin:0;flex:1;min-width:0;">${esc(ev.title)}</h1>
         <div class="evt-head-btns" style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
+          ${payHeadHTML}
           ${joinBtn}
           ${interestHeaderHTML}
           ${bookmarkHTML}
+          ${editHeadHTML}
         </div>
       </div>
       <div style="margin-bottom:8px;">${engagementSection}</div>
@@ -926,13 +1023,13 @@ function render(ev) {
         <button class="btn btn-outline copy-btn-el" onclick="copyLink()">🔗 Copy link</button>
         ${!ev.cancelled ? `<button class="btn btn-outline" onclick="share()" ontouchstart="share()" style="touch-action:manipulation;-webkit-tap-highlight-color:transparent;padding:10px 14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>` : ""}
         <button class="btn btn-outline" onclick="openQrModal()" title="Get QR code" style="padding:10px 14px;">⊞ QR</button>
-        ${!ev.cancelled ? `<button class="btn btn-outline cw-edit-btn" onclick="openEditDirect()" title="Edit this event" style="padding:10px 14px;display:none;">✏️ Edit</button>` : ""}
+        ${!ev.cancelled ? `<button class="btn btn-primary cw-edit-btn" onclick="openEditDirect()" title="Edit this event" style="padding:10px 14px;display:none;">✏️ Edit</button>` : ""}
       </div>
-      ${ev.description ? `<hr id="ev-desc-rule" style="border:none;margin:16px 0 0;"><p class="description" id="ev-description">${esc(ev.description).replace(/\[the calendar\]/g, '<a href="https://appear.network/dl/gather" rel="noopener" style="color:var(--primary);font-weight:600;">the calendar</a>').replace(/creating\.works/gi, '<a href="http://creating.works" rel="noopener" style="color:var(--primary);">creating.works</a>')}</p>` : ""}
+      ${ev.description ? `<hr id="ev-desc-rule" style="border:none;margin:16px 0 0;"><p class="description" id="ev-description">${_descHTML(ev.description)}</p>` : ""}
       <hr style="border:none;margin:18px 0 0;">
       ${(ev.categories && ev.categories.length) ? `<div id="ev-categories"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">This event represents</p><div style="display:flex;flex-wrap:wrap;gap:6px;">${ev.categories.map(c=>{const catObj=resolveCategory(c); return catObj ? `<span style="font-size:12px;font-weight:600;padding:4px 10px;background:#fff;border:1.5px solid var(--border);border-radius:20px;color:var(--dark);">${catObj.emoji} ${catObj.label}</span>` : '';}).filter(Boolean).join("")}</div></div>` : ""}
       ${ev.experience ? `<div id="ev-experience" style="margin-top:20px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">Event experience</p><div style="display:flex;flex-wrap:wrap;gap:6px;">${ev.experience.split(",").filter(Boolean).map(t=>`<span style="font-size:12px;padding:3px 9px;background:#f3f4f6;border-radius:20px;white-space:nowrap;">${expMap[t]||t}</span>`).join("")}</div></div>` : ""}
-      ${ev.host ? `<div id="ev-host" style="margin-top:24px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">${ev.hostType === "socializer" ? "Shared by" : "Event host"}</p><div style="font-size:14px;margin-bottom:4px;">${hostHtml}${(ev.org && ev.hostType !== "socializer") ? ` <span style="color:var(--muted);">· ${esc(ev.org)}</span>` : ""}</div>${(ev.contactEmail&&sl.includes("contact")) ? `<div style="margin-bottom:4px;"><a href="mailto:${esc(ev.contactEmail)}" style="font-size:14px;color:var(--primary);">${esc(ev.contactEmail)}</a></div>` : ""}${(ev.contactPhone&&sl.includes("contact")) ? `<div style="font-size:14px;margin-bottom:4px;">${esc(ev.contactPhone)}</div>` : ""}</div>` : ""}
+      ${ev.host ? `<div id="ev-host" style="margin-top:24px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">${ev.hostType === "socializer" ? "Shared by" : "Event host"}</p><div style="font-size:14px;margin-bottom:4px;">${hostHtml}</div>${(ev.org && ev.hostType !== "socializer") ? `<div style="font-size:14px;color:var(--muted);margin-bottom:4px;">${esc(ev.org)}</div>` : ""}${(ev.contactEmail&&sl.includes("contact")) ? `<div style="margin-bottom:4px;"><a href="mailto:${esc(ev.contactEmail)}" style="font-size:14px;color:var(--primary);">${esc(ev.contactEmail)}</a></div>` : ""}${(ev.contactPhone&&sl.includes("contact")) ? `<div style="font-size:14px;margin-bottom:4px;">${esc(ev.contactPhone)}</div>` : ""}</div>` : ""}
       ${ev.exchangeType ? `<div id="ev-exchange" style="margin-top:24px;">${exchange}</div>` : ""}
       ${_hasBody(ev) ? `
       <hr class="divider">
@@ -941,7 +1038,7 @@ function render(ev) {
         <button class="btn btn-outline copy-btn-el" onclick="copyLink()">🔗 Copy link</button>
         ${!ev.cancelled ? `<button class="btn btn-outline" onclick="share()" ontouchstart="share()" style="touch-action:manipulation;-webkit-tap-highlight-color:transparent;padding:10px 14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>` : ""}
         <button class="btn btn-outline" onclick="openQrModal()" title="Get QR code" style="padding:10px 14px;">⊞ QR</button>
-        ${!ev.cancelled ? `<button class="btn btn-outline cw-edit-btn" onclick="openEditDirect()" title="Edit this event" style="padding:10px 14px;display:none;">✏️ Edit</button>` : ""}
+        ${!ev.cancelled ? `<button class="btn btn-primary cw-edit-btn" onclick="openEditDirect()" title="Edit this event" style="padding:10px 14px;display:none;">✏️ Edit</button>` : ""}
       </div>` : ""}
       ${window._sharedByCard ? `<div style="text-align:right;margin-top:16px;"><div style="font-size:12px;color:var(--muted);">Shared by <a href="https://appear.network/dl/page/s/e13594/r/${encodeURIComponent(window._sharedByCard)}" rel="noopener" target="_blank" style="color:var(--primary);text-decoration:none;font-weight:600;">${window._sharedByCard}</a></div></div>` : ""}
 
@@ -962,6 +1059,7 @@ function render(ev) {
   _setMeta("x-image", ev.imageUrl||"");
 
   _currentEv = ev;
+  try { _paintBookmark(); } catch (err) {}   // the card was just rewritten; keep Bookmarked if it is
   // THE TEMPLATE VIEW REBUILDS WITH THE CARD. #card is written with innerHTML on every render, so
   // anything lifted out of it is destroyed and remade. Placed from here, after the write.
   try { if (window.cwTplPlace) cwTplPlace(); } catch (err) {}
@@ -1040,16 +1138,23 @@ window.applyRegisteredUI = applyRegisteredUI;
 // type now, so an event bookmark is a row in the same place rather than a new tab, a new action
 // and a new thing to keep in step.
 //
-// The button says what it does rather than naming the mechanism: "Save for later", and "Saved"
-// once it is. Pressing it again removes it.
+// The button said "Save for later", and "Saved" once it was, until Jessie renamed it on 2026-09-10
+// (below). Pressing it again removes it.
+//
+// BOOKMARK, AND A LINE YOU CAN SEE. Jessie, 2026-09-10: "save event should be bookmark and darker
+// outline". So the button says Bookmark, and Bookmarked once it is, and its outline is the site
+// blue at 1.5px instead of the faint grey that made it look switched off beside the +1.
+//
+// render() rewrites the card, and the card used to come back saying Bookmark on an event already
+// bookmarked until something repainted it, so render() calls this after every write as well.
 var _bmOn = false;
 function _paintBookmark() {
   var b = document.getElementById('bookmark-btn');
   if (!b) return;
-  b.textContent = _bmOn ? 'Saved' : 'Save for later';
+  b.textContent = _bmOn ? 'Bookmarked' : 'Bookmark';
   b.style.background = _bmOn ? 'var(--primary)' : '#fff';
-  b.style.color = _bmOn ? '#fff' : 'var(--muted)';
-  b.style.borderColor = _bmOn ? 'var(--primary)' : 'var(--border)';
+  b.style.color = _bmOn ? '#fff' : '#1F699E';
+  b.style.borderColor = _bmOn ? 'var(--primary)' : '#1F699E';
 }
 window.toggleEventBookmark = async function () {
   var me = ''; try { me = getMemberId() || ''; } catch (e) {}
@@ -1883,10 +1988,31 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
      the only action in the rail, and it is drawn grey on grey because on the card it sits beside a
      title and is meant to be quiet there. In a column of blue buttons it read as disabled. It is
      inline-styled, so this has to say so out loud. */
-  html.cw-tplview .cw-rl-rail [onclick*="openRsvpRegister"] {
+  /* 2026-09-10: +1 and Bookmark went back into the card (below), and Sign in to RSVP went with
+     them, so this follows it there. Still blue for the same reason, sized as the pill beside the
+     title rather than as a rail row. */
+  html.cw-tplview .evt-head-btns [onclick*="openRsvpRegister"] {
     background:#1F699E !important; color:#fff !important; border:1.5px solid #1F699E !important;
-    font-size:14px !important; font-weight:700 !important; padding:11px 14px !important;
-    border-radius:9px !important;
+    font-size:13px !important; font-weight:700 !important; padding:7px 16px !important;
+    border-radius:20px !important;
+  }
+  /* +1 I'M GOING AND BOOKMARK STAY IN THE CARD, BESIDE THE TITLE. Jessie, 2026-09-10: "put this
+     back into pane where it was". The rail took them on the morning of the 10th along with the
+     date and the place; she wants the date and the place left in the rail - "don't put that into
+     pane just yet" - so only the buttons come back, to the head row they were written into. */
+  /* EDIT IS IN THE CARD NOW, so the rail's copy stands down. Jessie, 2026-09-10: "make it more
+     apparent in panel as blue next". _applyEventRole reveals every .cw-edit-btn with an inline
+     display, which !important outranks, so the reveal logic is untouched and still decides alone
+     whether anybody sees Edit at all. */
+  html.cw-tplview .cw-rl-rail .cw-edit-btn { display:none !important; }
+  /* Register / Pay is the button at the top right of the card here, so its meta line goes. */
+  html.cw-tplview .ev-pay-btn { display:inline-flex; align-items:center; justify-content:center; }
+  html.cw-tplview .ev-pay-line { display:none; }
+  /* On a phone the head buttons already drop under the title (the 768px rule in the first style
+     block). Here there can be four of them, and four pills stacked one per line push the
+     description a screen down, so they wrap in a row instead, Register / Pay still first. */
+  @media (max-width:768px) {
+    html.cw-tplview .evt-head-btns { flex-direction:row !important; flex-wrap:wrap; }
   }
   /* EMOJI AND WORD ON ONE LINE. Jessie: "words in buttons not looking aligned with emojis". The
      buttons carried their own gaps - some 6px, one none at all, one an SVG a different height from
@@ -1901,14 +2027,33 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
   html.cw-tplview .cw-rl-rail .actions .btn > svg { width:18px; height:18px; }
   html.cw-tplview .cw-rl-rail .cw-ico { display:inline-flex; align-items:center; justify-content:center;
                                         width:22px; margin-right:10px; font-size:15px; line-height:1; }
+  /* THE BOX IS 22px WHATEVER IS IN IT. Jessie, 2026-09-10: "a little off on left justification
+     still". The rule above asked for 22px, but the row's own "> * { flex:0 0 auto }" is more
+     specific, and a flex item is never narrower than its content, so the calendar emoji, which is
+     wider than the link one, pushed "Add to calendar" further right than "Copy link". Pinned here
+     at a higher specificity: the box cannot grow or shrink, the icon is centred inside it, and a
+     glyph wider than the box spills into the margin rather than moving the word. */
+  html.cw-tplview .cw-rl-rail .actions .btn > .cw-ico {
+    flex:0 0 22px; width:22px; min-width:22px; max-width:22px; overflow:visible;
+  }
+  /* AND THE GAP IS NONE, OUT LOUD. Measured in the browser on 2026-09-10: the icon boxes all began
+     at the same x and "Add to calendar" still started 6px right of "Copy link". Add to calendar is
+     the one button written with an inline style="gap:6px", and an inline style beats the "gap:0"
+     above, so the 10px margin on its icon had 6px more added to it. */
+  html.cw-tplview .cw-rl-rail .actions .btn { gap:0 !important; }
   /* The action row becomes a column. */
   html.cw-tplview .cw-rl-rail .actions { display:flex; flex-direction:column; align-items:stretch; gap:8px; margin:0; }
   /* WHAT THE EVENT IS, ON THE LEFT. Jessie: "put everhwting except description on left". The rail
      carries the facts, so these blocks arrive here having been written for a 560px card. */
   html.cw-tplview .cw-rl-rail .cw-rl-block { margin:0 0 14px; }
-  html.cw-tplview .cw-rl-rail .evt-head-btns { display:flex; flex-direction:column; align-items:stretch; gap:8px; margin:0 0 14px; }
-  html.cw-tplview .cw-rl-rail .evt-head-btns > * { width:100%; justify-content:center; }
   html.cw-tplview .cw-rl-rail #ev-meta { margin:0 0 14px; }
+  /* THE VIEWER'S OWN GROUPS THIS EVENT BELONGS TO. See paintGroups() below. */
+  html.cw-tplview .cw-rl-rail #cw-tpl-groups { margin:14px 0 0; }
+  html.cw-tplview .cw-rl-rail #cw-tpl-groups .cw-rl-glist { display:flex; flex-direction:column; gap:8px; }
+  html.cw-tplview .cw-rl-rail #cw-tpl-groups .btn {
+    width:100%; display:flex; align-items:center; justify-content:flex-start; text-align:left;
+    padding:11px 14px; font-size:14px; line-height:1.2; cursor:pointer;
+  }
   html.cw-tplview .cw-rl-rail #ev-categories,
   html.cw-tplview .cw-rl-rail #ev-experience,
   html.cw-tplview .cw-rl-rail #ev-host,
@@ -1963,6 +2108,12 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
         fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(me))
           .then(function (r) { return r.json(); })
           .then(function (d) {
+            // The same answer names the groups for "In your groups", so that section costs no call.
+            _myGroupsAnswer = ((d && d.groups) || []).map(function (g) {
+              var id = String(g.groupID || g.groupId || g.id || '').trim();
+              return { id: id, name: String(g.groupName || g.name || g.title || id).trim() || id };
+            }).filter(function (g) { return g.id; });
+            paintGroups();
             var n = ((d && d.groups) || []).length;
             if (!n || seg.querySelector('[data-groups]')) return;
             var a = document.createElement('a');
@@ -2000,10 +2151,12 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
     }
 
     // WHAT THE EVENT IS, ON THE LEFT, IN THE ORDER SOMEBODY READS IT. Jessie, 2026-09-10: "put
-    // everhwting except description on left". Registering first, because that is what the page is
-    // for; then when and where; then what you can do with it; then who it belongs to.
-    var btns = card.querySelector('.evt-head-btns');
-    if (btns) { take(btns); }
+    // everhwting except description on left". When and where first; then what you can do with it;
+    // then who it belongs to.
+    //
+    // +1 I'm going and Bookmark are NOT taken any more. Jessie, later the same day: "put this back
+    // into pane where it was". They stay in the card's head row, beside the title, where render()
+    // writes them, with Edit and Register / Pay in the same column.
     var meta = document.getElementById('ev-meta');
     if (meta) { take(meta); }
 
@@ -2042,6 +2195,7 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
     ['ev-categories', 'ev-experience', 'ev-host', 'ev-exchange'].forEach(function (id) {
       take(document.getElementById(id));
     });
+    paintGroups();
 
     // The rules were separating things that are no longer next to each other.
     var hr = card.querySelector('hr.divider');
@@ -2049,6 +2203,68 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
     var dr = document.getElementById('ev-desc-rule');
     if (dr) { dr.style.display = 'none'; }
   }
+  // IN YOUR GROUPS. Jessie, 2026-09-10: "if it's associated to a group, say which groups I belong to
+  // are associated with this event somewhere in left panel and give me the ability to go to any of
+  // them landing on the group calendar".
+  //
+  // An event names its groups in events.groupId, pipe separated since 2026-09-07. The viewer's
+  // groups are the getMyGroups answer the rail already asks for to decide whether to draw the My
+  // groups tab, kept here, so this costs no call of its own. Ids are compared the way the calendar
+  // compares them (trimmed, dots out, lower case), because the same group has been written both ways.
+  //
+  // NOTHING UNTIL THE ANSWER IS IN, AND NOTHING IF NOTHING MATCHES. null means getMyGroups has not
+  // answered; this draws nothing then rather than a heading that might turn out to be empty, and a
+  // signed-out visitor never asks at all. A group this person is not in is never named.
+  //
+  // Each group opens its own page on its events panel, group?id=...&view=events - the "View" on
+  // the group page's Events tile - which is the group's calendar. The group page checks membership
+  // itself before it opens that panel. Hrefless, like every other door in this rail.
+  var _myGroupsAnswer = null;
+  function paintGroups() {
+    var rail = document.querySelector('.cw-tpl-wrap .cw-rl-rail');
+    if (!rail) return;
+    var old = document.getElementById('cw-tpl-groups');
+    if (old) { old.remove(); }
+    var ev = null;
+    try { ev = _currentEv; } catch (e) {}
+    if (_myGroupsAnswer === null || !ev || !_myGroupsAnswer.length) return;
+    var key = function (v) { return String(v || '').trim().split('.').join('').toLowerCase(); };
+    var evGroups = String(ev.groupId || '').split('|').map(key).filter(Boolean);
+    if (!evGroups.length) return;
+    var seen = {};
+    var hits = _myGroupsAnswer.filter(function (g) {
+      var k = key(g.id);
+      if (seen[k] || evGroups.indexOf(k) < 0) return false;
+      seen[k] = true; return true;
+    });
+    if (!hits.length) return;
+
+    var box = document.createElement('div');
+    box.id = 'cw-tpl-groups';
+    box.className = 'cw-rl-moved';
+    var head = document.createElement('p');
+    head.style.cssText = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;';
+    head.textContent = hits.length === 1 ? 'In your group' : 'In your groups';
+    box.appendChild(head);
+    var list = document.createElement('div');
+    list.className = 'cw-rl-glist';
+    hits.forEach(function (g) {
+      var a = document.createElement('a');
+      a.className = 'btn btn-outline';
+      a.setAttribute('role', 'link');
+      a.setAttribute('tabindex', '0');
+      a.setAttribute('title', "See this group's events");
+      a.setAttribute('data-nav', 'https://2gather.network/group?id=' + encodeURIComponent(g.id) + '&view=events');
+      a.setAttribute('onclick', 'return _safeNavGo(this)');
+      a.textContent = g.name;
+      list.appendChild(a);
+    });
+    box.appendChild(list);
+    // Under the actions and above what the event represents, so it is in view without scrolling.
+    var before = rail.querySelector('#ev-categories, #ev-experience, #ev-host, #ev-exchange');
+    if (before) { rail.insertBefore(box, before); } else { rail.appendChild(box); }
+  }
+
   window.cwTplPlace = function () { try { build(); place(); } catch (e) {} };
 
   if (document.readyState === 'loading') {
