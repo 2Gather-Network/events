@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V5.50 | Date: 2026-08-26 | LAST CHANGE: the bar runs edge to edge on every page.
+/*  Version: V5.98 | Date: 2026-09-10 | LAST CHANGE: Post an event goes to /myevents/new/ rather than the calendar's overlay form.
+    V5.50 | Date: 2026-08-26 | LAST CHANGE: the bar runs edge to edge on every page.
     V5.42 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 full-bleed also stretches a centred flex item.
     V5.41 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 previews the full-bleed bar.
     V5.40 | Date: 2026-08-26 | LAST CHANGE: your own id comes out of show= as well.
@@ -58,7 +59,10 @@
   // mygroups". So this word points at /myevents/, matching /mygroups/, and the old address
   // forwards. The real pair is /event/?id= against /myevents/?id=, and that one stays two.
   var MYEVENTS = 'https://2gather.network/myevents/';
-  var POST     = 'https://2gather.network/events?action=post';
+  // POSTING IS AT /myevents/new/. 2026-09-10, Jessie's "64 yes". This went to the calendar's
+  // ?action=post, which opens the form as an overlay once the whole calendar has loaded;
+  // /myevents/new/ opens the same two questions in the page at once.
+  var POST     = 'https://2gather.network/myevents/new/';
   var MYGROUPS = 'https://2gather.network/mygroups';
   var START    = 'https://2gather.network/groups/create';
   var JOIN     = 'https://2gather.network/mygroups?join=1';
