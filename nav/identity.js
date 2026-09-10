@@ -1,5 +1,8 @@
 /* Creating.Works — who is looking at this page.
  *
+ *  Version: V14 | Date: 2026-09-10 | LAST CHANGE: a super admin can view the site signed out, and every page asking CW is told nobody is here.
+ *  V13 | Date: 2026-09-07 | LAST CHANGE: viewing as somebody lives per tab, in sessionStorage.
+ *
  * Load this FIRST in <head>, with no defer and no async:
  *     <script src="/nav/identity.js?v=5"></script>
  *
@@ -30,6 +33,16 @@
      different things, and keeping them apart is what lets every page know the difference and
      refuse to write. It is also why signing out ends it: it is in the list above. */
   var VIEW_KEY = 'cw-view-as';
+  /* SIGNED OUT, AS A VIEW. Jessie, 2026-09-10, looking at her strip reading "Jessie Upp | Change
+     view": "add a signed out view to here so i know hwat an even looks like or any page looks like
+     for signed out".
+     Signing out for real to look would cost her the sign-in, and a private window shows nothing of
+     the strip that gets her back. So it is a view, the same shape as viewing as somebody: its own
+     key, per tab, beside cw-view-as and never in place of cw-id. While it is on, me() and realMe()
+     both answer nobody, so every page that asks CW draws what a visitor sees and has no id to write
+     with. The id on the device is never read out, never cleared and never written. Only atKeyboard()
+     below still answers her, and only the admin strip asks it, because the strip is the way back. */
+  var OUT_KEY = 'cw-view-out';
 
   function ls(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
   /* VIEWING AS SOMEBODY LIVES PER TAB. Moved from localStorage on 2026-09-07.
@@ -220,8 +233,21 @@
   })();
 
   function viewingAs() {
+    // Nobody is being viewed as while the view is signed out. Whoever was picked before is still in
+    // the key only if something wrote around viewSignedOut(), and it must not come back here.
+    if (signedOutView()) { return ''; }
     return ss(function () { return String(w.sessionStorage.getItem(VIEW_KEY) || '').trim(); }, '');
   }
+  function signedOutView() {
+    return ss(function () { return w.sessionStorage.getItem(OUT_KEY) === '1'; }, false);
+  }
+  function nobody() {
+    return { id: '', key: '', known: false, viewing: false, realId: '', signedOutView: true };
+  }
+
+  /* CW_ID ANSWERS NOBODY TOO, because the top bar's fallback and the older pages read it directly.
+     Only the global is emptied. The id stays on the device, where atKeyboard() reads it. */
+  if (signedOutView()) { w.CW_ID = ''; }
 
   w.CW = {
     /* The one call. Always the same shape, never null, so CW.me().id cannot throw
@@ -231,6 +257,7 @@
        page reads this and every page should show what they would see. `viewing` says so, and
        anything that writes is expected to check it and refuse. */
     me: function () {
+      if (signedOutView()) { return nobody(); }
       var real = String(w.CW_ID || '').trim() || fromDevice();
       var seen = viewingAs();
       if (seen && normalise(seen) !== normalise(real)) {
@@ -240,23 +267,48 @@
     },
     /* Who is actually signed in, whatever they are looking at. Anything that writes, or that
        decides what somebody is allowed to do, asks this rather than me(). */
+    /* NOBODY WHILE THE VIEW IS SIGNED OUT, 2026-09-10. Pages ask this for who may write and for the
+       id put into a link, and a visitor has neither. Answering her here would put the pencil, her
+       RSVPs and her id in every address back on the page she asked to see without them. */
     realMe: function () {
+      if (signedOutView()) { return { id: '', key: '', known: false }; }
       var real = String(w.CW_ID || '').trim() || fromDevice();
       return { id: real, key: normalise(real), known: !!real };
     },
+    /* THE PERSON AT THE KEYBOARD, whatever view is on. ONLY THE ADMIN STRIP ASKS THIS. Jessie,
+       2026-09-10: the signed-out view needs "a way back to herself", and the strip can only offer
+       one if it still knows she is a super admin while every page is being told nobody is here.
+       A page asking this instead of me() or realMe() would undo the view, so none should. */
+    atKeyboard: function () {
+      var real = String(w.CW_ID || '').trim() || fromDevice();   // CW_ID is empty in the view
+      return { id: real, key: normalise(real), known: !!real };
+    },
     viewingAs: viewingAs,
+    signedOutView: signedOutView,
+    /* One view at a time. Choosing signed out ends viewing as somebody, and choosing a person ends
+       signed out, so the strip can never be saying one thing while the pages do another. */
+    viewSignedOut: function () {
+      ss(function () {
+        w.sessionStorage.removeItem(VIEW_KEY);
+        w.sessionStorage.removeItem('cw-view-as-name');
+        w.sessionStorage.setItem(OUT_KEY, '1');
+      });
+    },
     viewAs: function (id, name) {
       id = String(id || '').trim();
+      ss(function () { w.sessionStorage.removeItem(OUT_KEY); });
       ls(function () {
         if (!id) { w.sessionStorage.removeItem(VIEW_KEY); w.sessionStorage.removeItem('cw-view-as-name'); }
         else { w.sessionStorage.setItem(VIEW_KEY, id); w.sessionStorage.setItem('cw-view-as-name', String(name || '')); }
       });
       return id;
     },
+    // Back to me ends either view, so there is one way back whichever one is on.
     stopViewing: function () {
       ss(function () {
         w.sessionStorage.removeItem(VIEW_KEY);
         w.sessionStorage.removeItem('cw-view-as-name');
+        w.sessionStorage.removeItem(OUT_KEY);
       });
     },
     remember: function (id) { return remember(id); },
@@ -270,6 +322,7 @@
         ss(function () {
           w.sessionStorage.removeItem('cw-view-as');
           w.sessionStorage.removeItem('cw-view-as-name');
+          w.sessionStorage.removeItem(OUT_KEY);
         });
         Object.keys(w.localStorage).forEach(function (k) {
           if (k.indexOf('cw-edit-') === 0) { w.localStorage.removeItem(k); }

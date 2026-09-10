@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V5.99 | Date: 2026-09-10 | LAST CHANGE: cwCountedGroups leaves out groups everybody is in (Appear Network), so My groups is drawn only for somebody who joined one.
+/*  Version: V6.00 | Date: 2026-09-10 | LAST CHANGE: Change view offers Signed out, and the strip says "Viewing signed out" with Back to me.
+    V5.99 | Date: 2026-09-10 | LAST CHANGE: cwCountedGroups leaves out groups everybody is in (Appear Network), so My groups is drawn only for somebody who joined one.
     V5.98 | Date: 2026-09-10 | LAST CHANGE: Post an event goes to /myevents/new/ rather than the calendar's overlay form.
     V5.50 | Date: 2026-08-26 | LAST CHANGE: the bar runs edge to edge on every page.
     V5.42 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 full-bleed also stretches a centred flex item.
@@ -656,6 +657,12 @@
         ? String(window.CW.viewingAs() || '').trim()
         : String(sessionStorage.getItem('cw-view-as') || '').trim();   // per tab since 2026-09-07
       if (seen) { return; }
+      // NOR WHILE THE VIEW IS SIGNED OUT. 2026-09-10, Jessie: "add a signed out view to here". A
+      // visitor has no id to remember, and her real one is left exactly as it was.
+      var out = (window.CW && window.CW.signedOutView)
+        ? window.CW.signedOutView()
+        : sessionStorage.getItem('cw-view-out') === '1';
+      if (out) { return; }
     } catch (e) {}
     window.CW_ID = id;
     try { localStorage.setItem('appear-id', id); } catch (e) {}
@@ -849,7 +856,12 @@
   if (!w.CW || !w.CW.realMe) { return; }
 
   var GS = 'https://cw-api-gate.jessieupp.workers.dev';
-  var me = w.CW.realMe();
+  /* THE PERSON AT THE KEYBOARD, NOT realMe(). Jessie, 2026-09-10, asking for a signed-out view
+     with "a way back to herself". While it is on, realMe() answers nobody on every page, and this
+     strip asked realMe() whether to draw at all, so it would have vanished and taken the way back
+     with it. atKeyboard() is the one question in identity.js that still answers her, and this strip
+     is the only thing that asks it. An older identity.js without it still gets realMe(). */
+  var me = w.CW.atKeyboard ? w.CW.atKeyboard() : w.CW.realMe();
   if (!me.known) { return; }
 
   function ls(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
@@ -869,6 +881,7 @@
 
   function paint() {
     var old = d.getElementById('cw-viewas'); if (old) { old.remove(); }
+    var out = !!(w.CW.signedOutView && w.CW.signedOutView());
     var seen = w.CW.viewingAs();
     var name = ls(function () { return w.sessionStorage.getItem('cw-view-as-name') || ''; }, '');
 
@@ -881,7 +894,7 @@
       + 'background:#fff;color:#1A2E42;border-bottom:1px solid #E3EAF0;'
       // White throughout, as asked. Standing in somebody else's shoes still has to be
       // impossible to miss, so that state keeps an amber edge and an amber name.
-      + (seen ? 'box-shadow:inset 4px 0 0 #B8862F;' : '');
+      + ((seen || out) ? 'box-shadow:inset 4px 0 0 #B8862F;' : '');
 
     // Two clusters: who you are looking as on the left, the things you run on the right.
     // Without this they queued up in one row and the bar read as a pile rather than a strip.
@@ -946,7 +959,15 @@
     // 2026-08-30. "Viewing as yourself" pushed the strip onto two rows on a phone, with Support
     // and Hide wrapping underneath. Shorter, so the whole strip sits on one line.
     var says;
-    if (seen) {
+    if (out) {
+      /* VIEWING SIGNED OUT, in the amber of the other view. Jessie, 2026-09-10: "add a signed out
+         view to here so i know hwat an even looks like or any page looks like for signed out". The
+         page underneath is drawn for a visitor, so this line is the only thing on screen saying
+         she is still signed in, and it has to be as hard to miss as viewing as somebody. */
+      says = d.createElement('span');
+      says.textContent = 'Viewing signed out';
+      says.style.color = '#8A6220';
+    } else if (seen) {
       says = d.createElement('span');
       says.textContent = 'Viewing as ' + (name || seen);
       says.style.color = '#8A6220';
@@ -1018,7 +1039,8 @@
     pick.onclick = function () { open(bar); };
     left.appendChild(pick);
 
-    if (seen) {
+    // The same Back to me for both views, and it ends whichever one is on.
+    if (seen || out) {
       var stop = d.createElement('button');
       stop.type = 'button';
       stop.textContent = 'Back to me';
@@ -1123,6 +1145,26 @@
       + 'padding:9px 12px;font:inherit;outline:none;';
     var out = d.createElement('div');
     out.style.cssText = 'margin-top:8px;display:flex;flex-direction:column;gap:5px;max-width:420px;';
+    /* SIGNED OUT IS ONE OF THE CHOICES, beside looking as a person. Jessie, 2026-09-10: "add a
+       signed out view to here so i know hwat an even looks like or any page looks like for signed
+       out". First in the panel and one press, because it needs no search. Drawn only when
+       identity.js knows how to do it, so a cached older copy never offers a button that does
+       nothing. */
+    if (w.CW.viewSignedOut) {
+      var outLine = d.createElement('div');
+      outLine.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;';
+      var asOut = d.createElement('button');
+      asOut.type = 'button';
+      asOut.textContent = 'Signed out';
+      asOut.style.cssText = 'font:inherit;font-weight:700;padding:6px 14px;border-radius:14px;cursor:pointer;'
+        + 'border:1px solid #DDE3EA;background:#F7FBFF;color:#1A2E42;';
+      asOut.onclick = function () { w.CW.viewSignedOut(); w.location.reload(); };
+      var outNote = d.createElement('span');
+      outNote.textContent = 'See every page as somebody who is not signed in. Or look as a person:';
+      outNote.style.cssText = 'font-size:12.5px;color:#6B7A8D;';
+      outLine.appendChild(asOut); outLine.appendChild(outNote);
+      panel.appendChild(outLine);
+    }
     panel.appendChild(inp); panel.appendChild(out);
     bar.parentNode.insertBefore(panel, bar.nextSibling);
     inp.focus();
