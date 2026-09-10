@@ -526,6 +526,18 @@ function esc(s) {
 window._safeNavGo=function(el){try{var u=el&&el.getAttribute&&el.getAttribute('data-nav');if(u){window.location.href=u;}}catch(e){}return false;};
 document.addEventListener('keydown',function(e){if(e.key!=='Enter'&&e.key!==' ')return;var t=e.target;if(t&&t.tagName==='A'&&!t.hasAttribute('href')&&t.hasAttribute('data-nav')){e.preventDefault();_safeNavGo(t);}});
 
+// Just her own events. One call, no public calendar, for the list view.
+async function fetchMine(who) {
+  if (!who) return { events: [] };
+  try {
+    const r = await fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(who) + "&t=" + Date.now());
+    const d = await r.json();
+    if (d && d.status === "ok" && Array.isArray(d.events)) { return { events: d.events }; }
+  } catch (e) {}
+  // If that one call fails, fall back to the old pair rather than showing her nothing.
+  return await fetchEvents();
+}
+
 async function fetchEvents() {
   // BOTH CALLS AT ONCE. Jessie, 2026-09-10: "took 10 seconds to load. not good."
   //
@@ -1703,7 +1715,7 @@ async function init() {
       try { _who = String(localStorage.getItem("cw-id") || localStorage.getItem("appear-id") || "").trim(); } catch (e) {}
     }
     if (!_who) { return; }
-    try { await renderMyEventsList(_who, await fetchEvents()); }
+    try { await renderMyEventsList(_who, await fetchMine(_who)); }
     catch (e) { showError("Could not load your events. Please try again."); }
     return;
   }
