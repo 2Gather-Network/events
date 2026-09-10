@@ -33,6 +33,9 @@ CHECKS = [
     ('no hand emoji',                 'People registered (RSVPs)'),
     ('heading names the event',       'JUST THE NAME'),
     ('9am fills a blank',             '9am WHEREVER IT WOULD OTHERWISE BE BLANK'),
+    # 2026-09-10: item 1's "off until they say" reached one copy's variable and nothing else.
+    ('registration starts Off',       'class="format-chip selected" id="int-off"'),
+    ('Hosting choice keeps it Off',   'OFF UNTIL THE HOST SAYS OTHERWISE, HERE TOO'),
 ]
 
 print('%-34s %-10s %s' % ('change', 'events/', 'myevents/'))
