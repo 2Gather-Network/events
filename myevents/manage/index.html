@@ -378,11 +378,20 @@
      A parameter on the live page rather than three builds, because she can then flip between them
      on the same event with the same data in front of her. */   /* 285 since 2026-09-08: Jessie, "increase the railing width... say naouther 15 pixels?" It was 270. */
   @media (max-width:860px) { .manage-grid { grid-template-columns:1fr; } }   /* the template's one breakpoint */
-  .manage-crumb { font-size:13px; color:#fff; margin:14px 0 24px; }
-  .manage-crumb a { color:#fff; text-decoration:none; font-weight:400; }
+  /* THE SIZE THE DESIGN LIBRARY SETS, not one I picked. Jessie, 2026-09-09: "breadcrubms not the
+     right size - check design library". design-checklist: on the blue the trail is white with the
+     separator at 55%, only the page you are on is bold, and 24px of clear space under it. The
+     size and weight come from mygroups, which is the page that already does it: 14px, weight 500,
+     .92 opacity. */
+  .manage-crumb { font-size:14px; font-weight:500; color:#fff; opacity:.92; margin:14px 0 24px; }
+  .manage-crumb a { color:#fff; text-decoration:none; font-weight:500; cursor:pointer; }
   .manage-crumb a:hover { text-decoration:underline; }
   .manage-crumb .sep { color:rgba(255,255,255,.55); padding:0 6px; }
   .manage-crumb .here { font-weight:800; color:#fff; }
+  /* A TRAIL IS A WAY BACK, so it is drawn only for somebody who came from somewhere. Jessie,
+     2026-09-09: "dont' show breadcrumbs. unless i came from somewhere". Opening a shared link
+     never came through My events, and offering a return to a page never visited is a door nobody
+     was invited through. Same rule as the event page. */
   /* The two ways out, inside the panel and against its right edge. */
   .panel-top { display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
   .panel-btn { background:var(--primary); color:#fff; border:0; padding:8px 16px; border-radius:20px;
@@ -548,6 +557,18 @@
      nothing was taken out. What the calendar page keeps is deleted from THERE, once this is
      signed off, so there is one form and not two.
      ───────────────────────────────────────────────────────────────────────────────────────── -->
+<script>
+  (function () {
+    try {
+      if (String(document.referrer || '').indexOf('2gather.network') > -1) {
+        document.addEventListener('DOMContentLoaded', function () {
+          var c = document.getElementById('manage-crumb');
+          if (c) { c.style.display = ''; }
+        });
+      }
+    } catch (e) {}
+  })();
+</script>
 <div class="manage-body">
   <!-- Title left in white, actions right as white pills, 14px clear of the top bar. The page
        template's header, which this page never had, and it is where the way back belongs. -->
@@ -556,7 +577,7 @@
        "breadcrubms where refernece needed".
        On the blue: only the page you are on is bold, the step behind it is clickable, white with
        the separator at 55%, 24px of clear space under it. The buttons moved into the panel. -->
-  <div class="manage-crumb">
+  <div class="manage-crumb" id="manage-crumb" style="display:none;">
     <a href="https://2gather.network/myevents" onclick="goMyEvents();return false;">My events</a>
     <span class="sep">/</span>
     <span class="here">Edit event</span>
@@ -635,8 +656,11 @@
       <!-- The ghost heading is GONE, not hidden. It existed to hold the space of the rail's
            heading, and the rail's heading has been display:none since 2026-09-08, so it was
            holding space against nothing and pushing this whole column 30px down. -->
+      <!-- NO "MY EVENTS" BUTTON ON MY EVENTS. Jessie, 2026-09-09: "isn't this my events? why have
+           a pill saying that". She is right - the top bar's My events points HERE, so a pill with
+           the same words on this page names the page you are already standing on.
+           Post event stays, because it is a thing to do rather than a place to go. -->
       <div class="panel-top">
-        <button type="button" class="panel-btn" onclick="goMyEvents()">My events</button>
         <button type="button" class="panel-btn" onclick="openPostEvent()">Post event</button>
       </div>
       <div id="panel-doors" class="panel-doors" style="display:none;">
@@ -8111,12 +8135,31 @@ function selectInterestSuggestion(val) {
 
   // A DATE A PERSON CAN READ. The rows come back as 2026-10-30T00:00:00.000Z, which is the
   // machine's answer to the question, not hers.
-  function railDate(v) {
-    var t = String(v || '').trim();
-    if (!t || t === 'TBD') return 'Date to be announced';
-    var d = new Date(t.length > 10 ? t : t + 'T12:00:00');
-    if (isNaN(d)) return t;
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  var RAIL_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  // A RECURRING EVENT HAS A DATE. IT IS JUST NOT ONE DATE. Jessie, 2026-09-09: "all these dates
+  // are already set with recurring weekly dates based on my evnets -what happened?"
+  //
+  // This read events.date and nothing else, and a recurring TEMPLATE carries no single date - it
+  // carries recurFreq and dayOfWeek. So every weekly event in the rail said "Date to be
+  // announced", which is not merely unhelpful, it is false: those dates are set.
+  //
+  // It takes the whole row now and says "Every Tuesday", the same words the group events page
+  // already uses, so the two lists describe the same event the same way.
+  function railDate(r) {
+    var row = (r && typeof r === 'object') ? r : { date: r };
+    var t = String(row.date || '').trim();
+    if (t && t !== 'TBD') {
+      var d = new Date(t.length > 10 ? t : t + 'T12:00:00');
+      if (isNaN(d)) return t;
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    var dow = row.dayOfWeek;
+    if (row.recurFreq && dow !== '' && dow !== null && dow !== undefined) {
+      return 'Every ' + (RAIL_DAYS[parseInt(dow, 10)] || 'week');
+    }
+    if (row.recurFreq) { return 'Repeats'; }
+    if (t === 'TBD') return 'Date to be announced';
+    return 'Date to be announced';
   }
 
   // The three pills filter one list. The rows are held here so pressing a pill costs nothing:
@@ -8230,7 +8273,7 @@ function selectInterestSuggestion(val) {
   // is three places for it to drift.
   var _sel4row = '';
   function rowHtml(r) {
-    var when = railDate(r.date);
+    var when = railDate(r);
     return '<button type="button" class="manage-row' + (String(r.id) === String(_sel4row) ? ' on' : '') + '"'
          + ' onclick="location.href=\'https://2gather.network/myevents/manage/?id=' + encodeURIComponent(String(r.id)) + '\'">'
          + '<b>' + (window.esc ? esc(r.title || 'Untitled') + '</b>' : (r.title || 'Untitled') + '</b>')
