@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.9 | Date: 2026-09-10 | LAST CHANGE: the two posting questions are smaller and everything in them reads from the left. -->
+<!-- Version: M3.10 | Date: 2026-09-10 | LAST CHANGE: the rail starts with the pages row from the event page: Calendar, My events (lit), My groups (only for somebody in a group) and My profile. Jessie: "add these to rail here". -->
+<!-- Previous: M3.9 | Date: 2026-09-10 | LAST CHANGE: the two posting questions are smaller and everything in them reads from the left. -->
 <!-- Previous: M3.8 | Date: 2026-09-10 | LAST CHANGE: arriving on My events with no event chosen, the panel shows the section's heading and its Post event button instead of nothing. -->
 <!-- Previous: M3.7 | Date: 2026-09-10 | LAST CHANGE: registration starts Off in the form, in every place that set it, matching the calendar's copy. -->
 <!-- Previous: M3.6 | Date: 2026-09-10 | LAST CHANGE: Show bookmarked. Under Attending, a switch beside Show cancelled narrows the list to just the events this person bookmarked. It is drawn only once the bookmarks have answered and at least one of them can be shown, and it starts off, so Attending means attending until somebody asks otherwise. -->
@@ -435,6 +436,18 @@
                 font:inherit; font-size:12.5px; font-weight:700; padding:7px 3px; cursor:pointer; line-height:1.25; }
   .manage-tab.on { background:var(--primary); color:#fff; border-color:var(--primary); }
   .manage-tab span { display:block; font-size:12px; font-weight:600; opacity:.75; }
+  /* The pages row sits above the filter pills, one line, each a separate white button. */
+  .manage-nav { display:flex; gap:6px; margin:4px 2px 0; }
+  .manage-nav:empty { display:none; }
+  .manage-nav a { flex:1; background:#fff; color:var(--primary); border:1.5px solid #C9D6E2; border-radius:9px;
+                  font:inherit; font-size:12.5px; font-weight:700; padding:7px 3px; cursor:pointer;
+                  text-align:center; text-decoration:none; line-height:1.25; white-space:nowrap; }
+  .manage-nav a.on { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .manage-nav:not(:empty) + .manage-seg { margin-top:10px; }
+  @media (max-width:768px) {
+    .manage-nav { gap:4px; }
+    .manage-nav a { font-size:11.5px; padding:7px 2px; }
+  }
   .manage-rail-head { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:4px 6px 10px; }
   /* EVERY EVENT IS A TILE, AND THE CHOSEN ONE IS BLUE. Jessie, 2026-09-09: "selected version looks
      like that - make this teh non selected and when selected make it blue wiht white lettering".
@@ -650,6 +663,12 @@
            Each pill was written with a 0 under it, so for the 17 to 25 seconds getMyEvents takes
            the rail said Hosting 0 to somebody hosting dozens - a page asserting something before it
            knows. The space is held and left blank until paintCounts fills it. -->
+      <!-- THE PAGES ROW, the same four the event page carries: Calendar, My events, My groups and
+           My profile. Jessie, 2026-09-10, with a picture of the event page's row: "add these to rail
+           here". My events is lit because it is the page you are on. Empty until the script below
+           knows somebody is signed in, and My groups is added only once getMyGroups says they are
+           in a group, so no door is drawn and then taken away. -->
+      <div class="manage-nav" id="manage-nav"></div>
       <div class="manage-seg">
         <button type="button" class="manage-tab" data-pane="attending" onclick="manageTab('attending')">Attending<span>&nbsp;</span></button>
         <button type="button" class="manage-tab on" data-pane="hosting" onclick="manageTab('hosting')">Hosting<span>&nbsp;</span></button>
@@ -8987,6 +9006,40 @@ function selectInterestSuggestion(val) {
 })();
 </script>
 
+<script>
+// THE PAGES ROW. The doors are for whoever is signed in on this device, never somebody being
+// viewed on their behalf, so it asks getRealMemberId. Signed out, the row stays empty.
+(function () {
+  var box = document.getElementById('manage-nav');
+  if (!box) return;
+  var me = '';
+  try { me = (typeof getRealMemberId === 'function' ? (getRealMemberId() || '') : ''); } catch (e) {}
+  if (!me) return;
+  function door(label, url, on) {
+    return '<a role="link" tabindex="0"' + (on ? ' class="on" aria-current="page"' : '') +
+      ' data-nav="' + url + '" onclick="return _safeNavGo(this)">' + label + '</a>';
+  }
+  box.innerHTML =
+    door('Calendar', 'https://2gather.network/events/', false) +
+    door('My events', 'https://2gather.network/myevents/', true) +
+    door('My profile', 'https://2gather.network/ikigai', false);
+  try {
+    fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(me))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var list = (d && d.groups) || [];
+        // Appear Network, which everybody is in, does not count (window.cwCountedGroups, in the top bar).
+        if (window.cwCountedGroups) { list = window.cwCountedGroups(list); }
+        if (!list.length || box.querySelector('[data-groups]')) return;
+        var t = document.createElement('div');
+        t.innerHTML = door('My groups', 'https://2gather.network/mygroups', false);
+        var a = t.firstChild; a.setAttribute('data-groups', '1');
+        box.insertBefore(a, box.children[2] || null);   // between My events and My profile
+      })
+      .catch(function () {});
+  } catch (e) {}
+})();
+</script>
 <script src="/nav/topbar.js?v=5.99" defer>
 </script>
 </body>
