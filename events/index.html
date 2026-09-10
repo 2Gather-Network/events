@@ -2553,7 +2553,15 @@ async function apiUpdate(ev) {
   try { _as = (window.CW && CW.me && CW.me().id) || _by; } catch (e) { _as = _by; }
   return jsonp({ action:"update", event:evToSheet(ev), appearId:_by, actingAs:_as });
 }
-async function apiDelete(id)       { return jsonp({ action:"delete", id }); }
+// DELETING SAYS WHO IS DELETING, the same as saving does. It said nothing at all until
+// 2026-09-10, so the backend had no way to refuse somebody taking another person's event off the
+// calendar. The REAL person, never the one being looked at.
+async function apiDelete(id) {
+  var _by = "", _as = "";
+  try { _by = getRealMemberId() || ""; } catch (e) {}
+  try { _as = (window.CW && CW.me && CW.me().id) || _by; } catch (e) { _as = _by; }
+  return jsonp({ action:"delete", id, appearId:_by, actingAs:_as });
+}
 async function apiGoing(id, delta) { return jsonp({ action:"going",  id, delta }); }
 
 function showLoading(on) {
@@ -6114,11 +6122,24 @@ async function submitEvent() {
     } else {
       const idx = events.findIndex(e => e.id === editingId);
       const savedId = editingId;
+      // WHAT IT LOOKED LIKE BEFORE, so a refusal can put it back. Added 2026-09-10 with the gate.
+      const beforeEv = idx > -1 ? { ...events[idx] } : null;
       const updatedEv = idx > -1 ? { ...events[idx], ...eventData } : null;
       if (updatedEv) events[idx] = updatedEv;
       closeModal(); renderEvents();
       if (updatedEv) {
-        try { await apiUpdate(updatedEv); } catch(e) { console.warn("Update save failed", e); }
+        var _saveRes = null;
+        try { _saveRes = await apiUpdate(updatedEv); } catch(e) { console.warn("Update save failed", e); }
+        // THE SHEET CAN SAY NO NOW, so the page has to listen. Until 2026-09-10 the backend wrote
+        // whatever it was handed, so this closed the form and walked to the event without ever
+        // asking whether the save landed. With a gate on the other end, saying "saved" and showing
+        // the old event is worse than saying nothing: the person believes their change is in.
+        if (_saveRes && _saveRes.status === 'error') {
+          if (idx > -1 && beforeEv) { events[idx] = beforeEv; }
+          renderEvents();
+          showToast(_saveRes.message || "That event belongs to somebody else.");
+          return;
+        }
       }
       const base = "https://2gather.network/";
       window.location.href = base + "event.html?id=" + encodeURIComponent(savedId);
@@ -6216,8 +6237,18 @@ async function deleteEvent() {
   const ev = found.ev;
   const input = prompt(`Type "delete" to archive "${ev.title}". This removes it from the calendar but keeps it in your records.`);
   if (!input || input.trim().toLowerCase() !== "delete") return;
+  const goneEv = ev;
   events = events.filter(e => e.id !== editingId);
-  await apiDelete(editingId);
+  const delRes = await apiDelete(editingId);
+  // A REFUSED DELETE PUTS THE EVENT BACK. Added 2026-09-10 with the gate. The row is dropped from
+  // the list first so the calendar answers straight away, which means a no from the sheet has to
+  // undo that rather than leave the person looking at a calendar the sheet does not agree with.
+  if (delRes && delRes.status === 'error') {
+    if (goneEv && !events.some(e => e.id === goneEv.id)) { events.push(goneEv); }
+    renderEvents();
+    showToast(delRes.message || "That event belongs to somebody else.");
+    return;
+  }
   closeModal(); renderEvents(); showToast("Event archived.");
 }
 
@@ -8773,7 +8804,7 @@ function _railPlacePanels() {
   else { go(); }
 })();
 </script>
-<script src="/nav/topbar.js?v=5.90" defer></script>
+<script src="/nav/topbar.js?v=5.91" defer></script>
 </body>
 <!--
   Copyright 2026 DayBalancer LLC. All rights reserved.
