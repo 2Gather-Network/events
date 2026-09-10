@@ -10,7 +10,9 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.53 | Date: 2026-09-10 | LAST CHANGE: registration starts Off in the form, in every place that set it: the Hosting choice, the reset and the button marked on arrival. -->
+<!-- Version: V13.55 | Date: 2026-09-10 | LAST CHANGE: My groups is drawn only for somebody in a group other than Appear Network, which everybody is in. -->
+<!-- Previous: V13.54 | Date: 2026-09-10 | LAST CHANGE: Show bookmarked. A switch to the left of Show cancelled narrows all three sections, Recommended matches, Group events and Upcoming events, to the events this person bookmarked. It is drawn only once the bookmarks have answered and one of them is on the calendar, it starts off on every visit, and Reset turns it off. -->
+<!-- Previous: V13.53 | Date: 2026-09-10 | LAST CHANGE: registration starts Off in the form, in every place that set it: the Hosting choice, the reset and the button marked on arrival. -->
 <!-- Previous: V13.52 | Date: 2026-09-10 | LAST CHANGE: Show cancelled is a switch, it and Reset sit at the bottom on a phone, and the four tabs keep to one line. -->
 <!-- Previous: V13.51 | Date: 2026-09-10 | LAST CHANGE: the rail gains a Calendar tab, first and lit on this page, so My events no longer claims to be where you are. -->
 <!-- Previous: V13.50 | Date: 2026-09-10 | LAST CHANGE: on a phone the filters fold behind one Filters button under the search box; an open filter's panel opens under its own button, which stays at the top while you scroll it; every filter is full width, words left on a computer and centered on a phone. -->
@@ -514,6 +516,10 @@
      Show cancelled and Reset are not filters and stay a small pair, at the left on a computer. */
   html.cw-railview #fbar-controls .fbar-btn { width:100%; text-align:left; }
   html.cw-railview #fbar-controls .fbar-end { justify-content:flex-start; margin-left:0; }
+  /* THREE DO NOT FIT ON ONE LINE OF THE RAIL, SO THEY WRAP. 2026-09-10, with Show bookmarked beside
+     Show cancelled at Jessie's asking ("put Show bookmarked to the left of show cancelled"). Without
+     wrapping, Reset ran past the rail's edge and was cut to "Rese". Reset drops to the next line. */
+  html.cw-railview #fbar-controls .fbar-end { flex-wrap:wrap; row-gap:4px; max-width:100%; }
   html.cw-railview #fbar-controls .fbar-end .fbar-btn { width:auto; }
 
   /* THE OPEN FILTER'S BUTTON STAYS AT THE TOP. Jessie, 2026-09-10: "When you open up a filter, the
@@ -3322,6 +3328,14 @@ function renderGroupEvents() {
     wrap.style.display = "";
     var c0 = document.getElementById("group-events-count");
     if (c0) { c0.textContent = ""; }
+    // WITH SHOW BOOKMARKED ON, THE EMPTINESS IS THE SWITCH, NOT THE GROUPS. Jessie, 2026-09-10,
+    // asking for the switch to narrow all three sections. "Nothing on the calendar for your groups
+    // yet. Be the first." would be false here, since their groups may have plenty on; none of it is
+    // bookmarked. So it says that, and offers no posting, which is not what was asked.
+    if (_bmFilterOn()) {
+      gg.innerHTML = '<div style="grid-column:1/-1;font-size:13px;color:var(--muted);padding:6px 0 2px;">No bookmarked events from your groups here.</div>';
+      return;
+    }
     // /myevents/new/, the address of posting since 2026-09-10 (see the + beside the search box).
     gg.innerHTML = '<div style="grid-column:1/-1;padding:6px 0 2px;">'
       + '<div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Nothing on the calendar for your groups yet. Be the first.</div>'
@@ -3435,6 +3449,10 @@ function matchesQuery(e, q) {
 // category (or mood) filter?" — the two questions a dim indicator needs.
 function _passesEventFilters(e, opts) {
   opts = opts || {};
+  // SHOW BOOKMARKED, first because it is the narrowest. Jessie, 2026-09-10: "filter all evnets in
+  // panel all 3 sections to only bookmarked". Matched by the exact id; see SHOW BOOKMARKED above
+  // toggleShowBookmarked for why that is right for a recurring date too.
+  if (_bmFilterOn() && !_bmHas(e && e.id)) return false;
   // MY GROUPS ONLY. An event with no group is dropped here rather than kept, which is the opposite
   // of the vague-keeps rule the location filter uses, and deliberately: "only my groups" is a
   // request FOR group events, so an event belonging to no group is not one of them. 2026-09-06.
@@ -3648,6 +3666,108 @@ function _paintShowCancelled() {
   b.setAttribute('aria-checked', _showCancelled ? 'true' : 'false');
 }
 
+// SHOW BOOKMARKED. Jessie, 2026-09-10: "put Show bookmarked to the left of show cancelled and mark
+// it on (which means filter all evnets in panel all 3 sections to only bookmarked )".
+//
+// So it is a filter like the others, and it lives in _passesEventFilters, the one function every
+// section already goes through: Upcoming events filters with it, Group events reads what Upcoming
+// kept, and Recommended matches runs its matches through it. One test, three sections, no copy.
+//
+// WHICH ID A BOOKMARK HOLDS. The event page's Bookmark button saves the id of the event it is
+// showing, and for a recurring event that is one date of it, "recurring-<title>-<YYYY-MM-DD>",
+// built the same way this page builds the id on that date's card (getNextOccurrences), and it is
+// the very id the card opens the event page with. So a bookmark is matched to a card by its id,
+// exactly, after trimming. A bookmark on one Tuesday of a weekly event is that Tuesday, not the
+// whole series, because that is the date somebody pressed it on.
+//
+// IT STARTS OFF ON EVERY VISIT, unlike Show cancelled. It hides most of the calendar, so a reload
+// that quietly kept it on would be the page hiding things nobody asked it to hide today.
+//
+// INVITATION ONLY. It is not drawn until getBookmarks has answered AND at least one bookmark is an
+// event this calendar can show: public, not cancelled, not over. Never drawn and then removed,
+// never a door onto nothing. Somebody signed out is never asked about, so it is never drawn.
+var _showBookmarked = false;
+var _bmIds = null;          // null until getBookmarks answers; [] when it answers with none
+var _bmSet = {};
+function _bmHas(id) { return !!_bmSet[String(id == null ? "" : id).trim()]; }
+function _bmFilterOn() { return _showBookmarked === true && _bmIds !== null; }
+// How many bookmarks the calendar can show, from the same list Upcoming events is made of.
+function _bmOnCalendar() {
+  if (!_bmIds || !_bmIds.length) return 0;
+  var n = 0, seen = {};
+  try {
+    var now = Date.now();
+    [].concat(events || [], getPublicRecurring(2) || []).forEach(function (e) {
+      if (!e || !e.id || seen[e.id] || !_bmHas(e.id)) return;
+      if (e.isPrivate || _isCancelledEvent(e) || !e.date || e.date === "TBD") return;
+      var end = e.endtime ? new Date(e.date + "T" + e.endtime).getTime()
+                          : new Date(e.date + "T" + (e.time || "00:00")).getTime() + 3600000;
+      if (!(end >= now)) return;
+      seen[e.id] = 1; n++;
+    });
+  } catch (err) { return 0; }
+  return n;
+}
+function _bmCanOffer() {
+  var signedIn = false;
+  try { signedIn = !!getMemberId(); } catch (e) {}
+  return signedIn && _bmOnCalendar() > 0;
+}
+function toggleShowBookmarked() {
+  if (!_showBookmarked && !_bmCanOffer()) return;
+  _showBookmarked = !_showBookmarked;
+  try { renderEvents(); } catch (e) {}
+  try { fbarDraw(); } catch (e) {}
+  // The redraw replaced the switch, so the keyboard goes back to the new one.
+  try { var _sb = document.getElementById('show-bookmarked-btn'); if (_sb) _sb.focus({ preventScroll: true }); } catch (e) {}
+}
+
+// ONE QUESTION AT A TIME TO THE BACKEND. Apps Script drops requests that arrive together (measured
+// 2026-07-07, three of four 404ed), so getBookmarks is asked only once every other question this
+// page asks about the person has answered. Each of those registers itself here as it goes out:
+// getRegistrations, getProfile (the topics), getMyGroups (the rail's and the Groups filter's), and
+// getMyEvents when ?edit= is in the address. The top bar's own calls live in /nav/topbar.js and
+// are remembered there between pages, so they are not waited on.
+var _cwPersonJobs = [];
+function _cwPersonJob(p) {
+  try { if (p && typeof p.then === "function") { _cwPersonJobs.push(p); } } catch (e) {}
+  return p;
+}
+var _bmAsked = false;
+function _bmAskWhenQuiet() {
+  if (_bmAsked) return;
+  _bmAsked = true;
+  var me = "";
+  try { me = getMemberId() || ""; } catch (e) {}
+  if (!me) return;                      // signed out: nothing to ask, nothing drawn
+  // The rail's getMyGroups goes out at DOMContentLoaded, so the list is read after that.
+  var ready = new Promise(function (res) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", function () { setTimeout(res, 0); });
+    } else { setTimeout(res, 0); }
+  });
+  // Waits for everything registered so far, then looks again in case one more went out meanwhile.
+  function quiet() {
+    var jobs = _cwPersonJobs.slice();
+    return Promise.all(jobs.map(function (p) { return Promise.resolve(p).catch(function () {}); }))
+      .then(function () { return (_cwPersonJobs.length > jobs.length) ? quiet() : null; });
+  }
+  ready.then(quiet)
+    .then(function () {
+      return fetch(GS_URL + "?action=getBookmarks&type=Event&appearId=" + encodeURIComponent(me));
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (bd) {
+      // Parsed the way My events parses it.
+      _bmIds = (bd && bd.status === "ok" && Array.isArray(bd.ids))
+        ? bd.ids.map(function (x) { return String(x == null ? "" : x).trim(); }).filter(Boolean) : [];
+      _bmSet = {};
+      _bmIds.forEach(function (k) { _bmSet[k] = 1; });
+      try { fbarDraw(); } catch (e) {}
+    })
+    .catch(function () {});             // no answer: the switch is simply never drawn
+}
+
 function _cancelLine(ev) {
   var d = document.createElement("div");
   d.className = "event-cancel-line";
@@ -3833,8 +3953,23 @@ function renderEvents() {
       // and the spinner appeared off to the left rather than in the middle of the page.
       grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px 20px;"><div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#1b6896;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px;"></div><p style="color:#6b7280;font-size:14px;margin:0;">Loading information</p></div>`;
     } else {
-      const msg = activeTab === "past" ? "No past events yet." : "Be the first to post something for the community.";
+      // With Show bookmarked on, the reason is the switch, so the line says so rather than inviting
+      // a post. 2026-09-10, see SHOW BOOKMARKED above toggleShowBookmarked.
+      const msg = _bmFilterOn() ? "None of the events you bookmarked are in this view."
+                : activeTab === "past" ? "No past events yet." : "Be the first to post something for the community.";
       grid.innerHTML = `<div style="text-align:center;padding:40px 20px;"><div class="empty-icon">📋</div><div class="empty-title">No events here</div><p style="color:var(--muted);">${msg}</p></div>`;
+      // NOTHING LEFT STILL REDRAWS THE OTHER TWO. Found 2026-09-10 building Show bookmarked: this
+      // branch returned before the count, Group events and Recommended matches were redrawn, so a
+      // filter that emptied this section left "Showing 3 of 40" above it and the other two sections
+      // still showing what the filters had just ruled out. The count is cleared, and the two are
+      // drawn from the same empty list the way the full branch below draws them.
+      var _uc0 = document.getElementById("upcoming-count");
+      if (_uc0) { _uc0.textContent = ""; }
+      try { renderGroupEvents(); } catch (e) {}
+      if (typeof renderForYou === "function" && !_fyRedrawing) {
+        _fyRedrawing = true;
+        try { renderForYou(); if (typeof fbarDraw === "function") fbarDraw(); } finally { _fyRedrawing = false; }
+      }
     }
     return;
   }
@@ -6974,7 +7109,8 @@ const _MC_PARAM = (function () {
 (function checkLocalEventBannerRegistration() {
   var memberId = getMemberId();
   if (!memberId) return;
-  fetch(GS_URL + "?action=getRegistrations&appearId=" + encodeURIComponent(memberId))
+  // Registered so getBookmarks waits for it. 2026-09-10, see ONE QUESTION AT A TIME.
+  _cwPersonJob(fetch(GS_URL + "?action=getRegistrations&appearId=" + encodeURIComponent(memberId))
     .then(function(r) { return r.json(); })
     .then(function(d) {
       var regs = (d.registrations || []).filter(function(r) { return String(r.cancelled || "").trim().toLowerCase() !== "true"; });
@@ -6984,7 +7120,7 @@ const _MC_PARAM = (function () {
         var b = document.getElementById("local-event-banner");
         if (b) b.style.display = "none";
       }
-    }).catch(function(){});
+    }).catch(function(){}));
 })();
 
 // THE BAR IS DRAWN BEFORE THE DATA, because it does not need any. Its pills read from controls
@@ -7019,6 +7155,7 @@ if (_editWanted) {
       return { row: d.events.find(function (x) { return String(x.id || "").trim() === _editWanted; }) || null };
     } catch (e) { return { err: 'bad' }; }
   })();
+  _cwPersonJob(_editRowPromise);   // getBookmarks waits for it, 2026-09-10 (ONE QUESTION AT A TIME)
   // AND THE CALENDAR GETS OUT OF THE WAY. She is not here to look at it, and it was the only thing
   // on screen for the whole wait. It comes back if the editor cannot open, so an error is never
   // shown against a blank page.
@@ -7113,9 +7250,13 @@ loadEvents().then(() => {
     window.history.replaceState({}, "", window.location.pathname);
   }
   // Initialize For You section after events load
-  initForYou();
+  _cwPersonJob(initForYou());   // getProfile, which getBookmarks waits for
   // The bar last, because it moves controls that everything above has finished wiring.
   try { fbarBoot(); } catch (e) { if (FBAR) { console.error("filter bar failed to boot", e); } }
+  // THE BOOKMARKS ARE ASKED LAST, for Show bookmarked. 2026-09-10. The calendar is in by now, and
+  // this waits for every other question about the person to answer first (ONE QUESTION AT A TIME,
+  // beside toggleShowBookmarked). Only the switch waits for it; nothing on the page does.
+  try { _bmAskWhenQuiet(); } catch (e) {}
 });
 
 // ── For You Section ─────────────────────────────────────────────
@@ -7423,7 +7564,8 @@ function fbarOpenMyGroups() {
   if (!me) { _myGroups = []; fbarDraw(); return; }
   _myGroupsBusy = true;
   fbarDraw();                                  // says it is looking, rather than claiming a number
-  fetch(GS_URL + "?action=getMyGroups&appearId=" + encodeURIComponent(me))
+  // Registered so getBookmarks waits for it. 2026-09-10, see ONE QUESTION AT A TIME.
+  _cwPersonJob(fetch(GS_URL + "?action=getMyGroups&appearId=" + encodeURIComponent(me))
     .then(function (r) { return r.json(); })
     .then(function (d) {
       _myGroups = ((d && d.groups) || []).map(function (g) {
@@ -7440,7 +7582,7 @@ function fbarOpenMyGroups() {
       try { renderGroupEvents(); } catch (e) {}
     })
     .catch(function () { _myGroups = []; })
-    .then(function () { _myGroupsBusy = false; fbarDraw(); });
+    .then(function () { _myGroupsBusy = false; fbarDraw(); }));
 }
 
 // ?mygroups=1 ARRIVES WITH ALL OF THEM TICKED. Added 2026-09-08 for the panel button Jessie asked
@@ -7455,7 +7597,8 @@ function _pickAllMyGroups() {
   if (!me) return;
   _myGroupsBusy = true;
   try { fbarDraw(); } catch (e) {}
-  fetch(GS_URL + "?action=getMyGroups&appearId=" + encodeURIComponent(me))
+  // Registered so getBookmarks waits for it. 2026-09-10, see ONE QUESTION AT A TIME.
+  _cwPersonJob(fetch(GS_URL + "?action=getMyGroups&appearId=" + encodeURIComponent(me))
     .then(function (r) { return r.json(); })
     .then(function (d) {
       _myGroups = ((d && d.groups) || []).map(function (g) {
@@ -7480,7 +7623,7 @@ function _pickAllMyGroups() {
       try { renderEvents(); } catch (e) {}
       try { fbarDraw(); } catch (e) {}
       try { _showAllEvents(); } catch (e) {}
-    });
+    }));
 }
 
 // One or several. The menu stays open, because picking three groups should not be three openings.
@@ -7772,6 +7915,9 @@ function fbarDraw() {
     return '<button class="fbar-btn' + (on ? ' on' : '') + _bk + '" onclick="fbarToggle(\'' + c.key + '\')">'
       + c.label + ' <b>(' + esc(v) + ')</b> <span class="fbar-car' + (open ? ' up' : '') + '">\u25be</span></button>';
   }).join("");
+  // SHOW BOOKMARKED COUNTS AS ONE ON, because it narrows the calendar like any filter. 2026-09-10.
+  // Show cancelled does not: it adds lines back rather than taking events away.
+  if (_bmFilterOn()) _onCount++;
 
   // THE FILTERS BUTTON, first in the set so it sits under the search box. Drawn on every screen and
   // shown only on a phone, by the stylesheet. Jessie approved it on 2026-09-10 as "Filters (2 on)".
@@ -7791,6 +7937,13 @@ function fbarDraw() {
   row.innerHTML = _foldHtml + _ctlHtml
     + '<span class="fbar-end">'
     +   '<button class="fbar-i" id="fbar-help-btn" onclick="toggleBarHelp()" aria-label="How searching and filtering works">i</button>'
+    // SHOW BOOKMARKED, IMMEDIATELY LEFT OF SHOW CANCELLED. Jessie, 2026-09-10: "put Show bookmarked
+    // to the left of show cancelled". The same switch, drawn only once the bookmarks have answered
+    // with one the calendar can show (see _bmCanOffer), so it never appears and then goes.
+    +   (_bmCanOffer()
+          ? '<button type="button" class="fbar-switch' + (_showBookmarked ? ' on' : '') + '" id="show-bookmarked-btn" role="switch" aria-checked="' + (_showBookmarked ? 'true' : 'false') + '"'
+            + ' onclick="toggleShowBookmarked()"><span class="cancel-track"><span class="cancel-knob"></span></span>Show bookmarked</button>'
+          : '')
     +   '<button type="button" class="fbar-switch' + (_showCancelled ? ' on' : '') + '" id="show-cancelled-btn" role="switch" aria-checked="' + (_showCancelled ? 'true' : 'false') + '"'
     +     ' onclick="toggleShowCancelled()"><span class="cancel-track"><span class="cancel-knob"></span></span>Show cancelled</button>'
     +   '<button class="fbar-btn" id="fbar-reset" onclick="fbarResetAll()">Reset</button>'
@@ -7845,6 +7998,10 @@ function fbarResetAll() {
   if (typeof resetFilters === "function") { resetFilters(); }
   _myGroupPick = {};        // the list of groups is kept, so opening it again costs nothing
   _advPick = "";            // Search by goes back to offering the three
+  // SHOW BOOKMARKED GOES OFF. 2026-09-10. Jessie asked for it as a way of narrowing all three
+  // sections, so it is part of the view Reset puts back to everything. Show cancelled is left as it
+  // is, because it is remembered as a way of looking rather than a narrowing.
+  _showBookmarked = false;
   // EVERYTHING BACK TO ALL, EXCEPT THE REGION. Jessie, 2026-09-08: "on reset it should remove all
   // filters and set everythign to all (and select all when uncollpaseing) except region." The
   // region is where somebody is, which a reset button has no business changing.
@@ -8306,6 +8463,11 @@ function renderForYou() {
   const _seenSeries = new Set();
   const _allMatched = [];
   for (const ev of matchedAll) {
+    // SHOW BOOKMARKED CHOOSES BEFORE THE SERIES COLLAPSES. 2026-09-10. A bookmark holds one date of
+    // a recurring event, and it may not be the soonest. Collapsing first kept the soonest date and
+    // the filter then threw it out, losing the date that was bookmarked. So with the switch on,
+    // only bookmarked dates are in the running, and the soonest of those stands for its series.
+    if (_bmFilterOn() && !_bmHas(ev.id)) continue;
     const key = ev.recurFreq ? ("series:" + String(ev.title||"").trim().toLowerCase()) : ("id:" + ev.id);
     if (_seenSeries.has(key)) continue;
     _seenSeries.add(key);
@@ -8363,6 +8525,17 @@ function renderForYou() {
     // ONE SENTENCE, NOT ONE COLUMN. The results are a grid of 180px cards, so this line was drawn
     // inside the first cell and came out as four words a line down the left edge.
     resultsEl.style.display = "block";
+    // A THIRD REASON, SHOW BOOKMARKED. 2026-09-10. With it on, the list above only held bookmarked
+    // dates, so nought means none of her bookmarks match her topics in this view. Saying "No
+    // upcoming events match your topics yet" would be false, and opening the topics panel to ask
+    // for one would answer a question nobody asked. Reset turns the switch off with the rest.
+    if (_bmFilterOn()) {
+      resultsEl.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:8px 0;">None of the events you bookmarked match your topics here. <a onclick="fbarResetAll()" style="color:var(--primary);font-weight:700;cursor:pointer;">Reset</a></div>`;
+      var _fyMoreB = document.getElementById("for-you-more");
+      if (_fyMoreB) { _fyMoreB.style.display = "none"; _fyMoreB.innerHTML = ""; }
+      _fyNothingToShow = false;
+      return;
+    }
     // TWO REASONS FOR NOTHING, and they are not the same sentence. Nought because your topics
     // match nothing, or nought because your filters hid everything they matched. Saying the first
     // when the second is true was safe while the line below carried the hidden count; that count
@@ -8982,6 +9155,9 @@ function _railKeepInView(key) {
     // no second call.
     (function () {
       function place(list) {
+        // Appear Network, which everybody is in, does not count (window.cwCountedGroups, in the top
+        // bar). Jessie, 2026-09-10: "don't count beYd4M39RCqGSbP4KsNqGQ as part of a group".
+        if (window.cwCountedGroups) { list = window.cwCountedGroups(list); }
         if (!list || !list.length) return;
         var seg = document.getElementById('cw-rl-seg');
         if (!seg || seg.querySelector('[data-groups]')) return;
@@ -8996,7 +9172,8 @@ function _railKeepInView(key) {
       try { if (typeof _myGroups !== 'undefined' && _myGroups && _myGroups.length) { place(_myGroups); return; } } catch (e) {}
       var me = (typeof getMemberId === 'function') ? (getMemberId() || '') : '';
       if (!me) return;
-      fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(me))
+      // Registered so getBookmarks waits for it. 2026-09-10, see ONE QUESTION AT A TIME.
+      _cwPersonJob(fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(me))
         .then(function (r) { return r.json(); })
         .then(function (d) {
           var list = ((d && d.groups) || []).map(function (g) {
@@ -9019,14 +9196,14 @@ function _railKeepInView(key) {
           try { fbarDraw(); } catch (e) {}
           place(list);
         })
-        .catch(function () {});
+        .catch(function () {}));
     })();
   }
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', go); }
   else { go(); }
 })();
 </script>
-<script src="/nav/topbar.js?v=5.98" defer></script>
+<script src="/nav/topbar.js?v=5.99" defer></script>
 </body>
 <!--
   Copyright 2026 DayBalancer LLC. All rights reserved.
