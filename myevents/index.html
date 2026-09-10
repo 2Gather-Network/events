@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.17 | Date: 2026-09-10 | LAST CHANGE: each event name is 14px bold, the size of its date line. -->
+<!-- Version: M3.18 | Date: 2026-09-10 | LAST CHANGE: on a phone, opening an event folds the rest of the list behind an Events (N) bar like the calendar's Filters bar, with the open event under it, and the page starts at that bar. -->
+<!-- Previous: M3.17 | Date: 2026-09-10 | LAST CHANGE: each event name is 14px bold, the size of its date line. -->
 <!-- Previous: M3.16 | Date: 2026-09-10 | LAST CHANGE: ?pane=socialized (or attending, hosting) opens that section on arrival. An event somebody socialized from its own page is listed under Socialized and opens its public page, and it never opens the edit form, because they do not host it. -->
 <!-- Previous: M3.15 | Date: 2026-09-10 | LAST CHANGE: the event list uses the calendar card's type sizes, and Post a new event ends where the rows end. -->
 <!-- Previous: M3.14 | Date: 2026-09-10 | LAST CHANGE: All sits on its own under Attending, Hosting and Socialized, and Post a new event lines up with the list under it. -->
@@ -477,6 +478,21 @@
   .manage-row .mrow-text { flex:1; min-width:0; }
   .manage-row.on { background:var(--primary); color:var(--white); }
   .manage-row.on:hover { background:var(--primary); }
+  /* ON A PHONE THE LIST FOLDS ONCE AN EVENT IS OPEN. Jessie, 2026-09-10, on a phone with test event
+     picked: "when selecting an event collapse all the other events like we do with the filters bar
+     in the rail", and "Can't actually see the event itself when I click on it on mobile". The list
+     sits above the event on a phone, so opening one left the event under a wall of others. Now the
+     others fold behind one bar, drawn like the calendar's Filters bar, with the open event under it
+     in blue. Pressing the bar opens the list again. Only where the list stacks above the event. */
+  .manage-fold { display:none; }
+  @media (max-width:860px) {
+    .manage-rail.cw-has-sel .manage-fold {
+      display:block; width:100%; margin:0 0 6px; background:#fff; border:2px solid #154F74; color:#1F699E;
+      font:inherit; font-size:14px; font-weight:800; padding:9px 12px; border-radius:9px;
+      cursor:pointer; text-align:center; line-height:1.3; }
+    .manage-rail.cw-has-sel .manage-fold .fbar-car { font-size:16px; line-height:1; vertical-align:-1px; }
+    .manage-rail.cw-folded #manage-list .manage-row:not(.on) { display:none; }
+  }
   /* THE CALENDAR'S TYPE. Jessie, 2026-09-10: "match font from calendar to font sizes in my events".
      The same sizes as a calendar card: the name 15px at 800, two lines at most, the date 14px in the
      muted grey (.event-title and .event-meta-item in events/index.html). */
@@ -743,6 +759,7 @@
            anybody. So it sat over a form that was ready to use and read as the form not being ready.
            It lives here now, where the rows will land, and the first paint of the rail replaces it.
            A failed call still says so, here, in its place. -->
+      <button type="button" class="manage-fold" id="manage-fold" onclick="manageFold()" aria-expanded="false"></button>
       <div id="manage-list"><div class="manage-hint"><span class="cw-loading">Loading information...</span></div></div>
       <!-- AND CANCELLED AT THE END, AS A SWITCH. Jessie, 2026-09-10: "move Show cancelled to end
            of list of evnets and make it a toggle to enable disable instead". It is a way of
@@ -8491,6 +8508,7 @@ function selectInterestSuggestion(val) {
   var _q = '', _sort = 'soon';
   window.manageSearch = function (v) {
     _q = String(v || '');
+    _foldOpen = true;
     paintRail(allRows, selId);
     var box = document.getElementById('rail-filter');
     // The rail is rebuilt from scratch, so the box is a new element and has to be handed the
@@ -8520,6 +8538,7 @@ function selectInterestSuggestion(val) {
 
   window.manageTab = function (p) {
     pane = p;
+    _foldOpen = true;
     Array.prototype.forEach.call(document.querySelectorAll('.manage-tab'), function (b) {
       b.classList.toggle('on', b.getAttribute('data-pane') === p);
     });
@@ -8853,7 +8872,31 @@ function selectInterestSuggestion(val) {
     wrap.style.display = (pane === 'attending' && n > 0) ? 'flex' : 'none';
   }
 
-  function paintRail(rows, sel) {
+  // THE FOLD, drawn after every paint of the list. See ON A PHONE THE LIST FOLDS ONCE AN EVENT IS OPEN
+  // in the stylesheet. Folded whenever an event is open and it is in the list; opened by the bar,
+  // by choosing a section, or by searching, all of which are asking to see the list.
+  var _foldOpen = false, _foldScrolled = false;
+  function _paintFold() {
+    var btn = document.getElementById('manage-fold');
+    var rail = list && list.closest ? list.closest('.manage-rail') : null;
+    if (!btn || !rail) return;
+    var n = list.querySelectorAll('.manage-row').length;
+    var has = n > 1 && !!list.querySelector('.manage-row.on');
+    rail.classList.toggle('cw-has-sel', has);
+    rail.classList.toggle('cw-folded', has && !_foldOpen);
+    btn.setAttribute('aria-expanded', _foldOpen ? 'true' : 'false');
+    if (!has) return;
+    btn.innerHTML = 'Events (' + n + ') <span class="fbar-car' + (_foldOpen ? ' up' : '') + '">\u25be</span>';
+    // ARRIVING ON AN EVENT, A PHONE STARTS AT THE BAR, so the open event and the event itself are
+    // what fill the screen, not the pages row and the section pills above them. Once per visit.
+    if (!_foldOpen && !_foldScrolled && wantId && window.innerWidth <= 860) {
+      _foldScrolled = true;
+      try { btn.scrollIntoView({ block: 'start' }); } catch (e) {}
+    }
+  }
+  window.manageFold = function () { _foldOpen = !_foldOpen; _paintFold(); };
+  function paintRail(rows, sel) { _paintRailRows(rows, sel); _paintFold(); }
+  function _paintRailRows(rows, sel) {
     if (!list) return;
     allRows = rows; selId = sel || selId; _sel4row = selId;
     paintCounts(rows);
