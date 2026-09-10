@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: V1.00 | Date: 2026-08-26 | LAST CHANGE: it stops sitting on Sending when the backend has no such action. -->
+<!-- Version: V1.01 | Date: 2026-09-10 | LAST CHANGE: the Category list offers "Request to claim event as host". Arriving from an event's socialize screen (?topic=claim-event&event=) chooses it and names the event in the message, and the event's id travels with the request. -->
+<!-- Previous: V1.00 | Date: 2026-08-26 | LAST CHANGE: it stops sitting on Sending when the backend has no such action. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -74,6 +75,10 @@
         <option value="Feedback">Feedback</option>
         <option value="Request">A request</option>
         <option value="Problem">Something is broken</option>
+        <!-- CLAIMING AN EVENT AS HOST. Jessie, 2026-09-10: "give them a link to the support page and
+             have an option from the drop down for support page request to claim event as host".
+             A super admin approves it; see CLAIM EVENT in the script below. -->
+        <option value="Claim event">Request to claim event as host</option>
       </select>
     </div>
 
@@ -189,6 +194,38 @@ window._safeNavGo = window._safeNavGo || function (el) {
   // used to rewrite this line went with it, so the sentence lives in one place.
   if (SENT_UI) { var _sl = document.getElementById('statuslink'); if (_sl) { _sl.classList.remove('hide'); } }
 
+  // CLAIM EVENT. Jessie, 2026-09-10, on the event page's socialize screen: "Link 'are you the host of
+  // this event?' and put in a message explaining how they can claim this event as host and if
+  // approved, it give them the ability to edit it as they wish. and give them a link to the support
+  // page and have an option from the drop down for support page request to claim event as host".
+  //
+  // The event page's "Ask on the support page" arrives as ?topic=claim-event&event=<id>. The request
+  // is chosen and the message names the event, so the super admin reading it knows which one without
+  // asking. The title comes from the event page itself, handed over in this tab's sessionStorage the
+  // moment the link was pressed, because this page loads no events and asking the backend for one
+  // title is a round trip for a nicety. Without it the id and the event's address are enough.
+  // The person can still change the category or write over the message.
+  var CLAIM_EVENT = '';
+  if (params.get('topic') === 'claim-event') {
+    CLAIM_EVENT = String(params.get('event') || '').replace(/\s+/g, '').slice(0, 200);
+    var kindEl = document.getElementById('kind');
+    if (kindEl) { kindEl.value = 'Claim event'; }
+    if (CLAIM_EVENT) {
+      var claimTitle = '';
+      try {
+        var handed = JSON.parse(sessionStorage.getItem('cw-claim-event') || 'null');
+        if (handed && String(handed.id) === CLAIM_EVENT) { claimTitle = String(handed.title || '').trim(); }
+      } catch (e) {}
+      var msgEl = document.getElementById('msg');
+      if (msgEl && !msgEl.value) {
+        msgEl.value = 'I would like to claim this event as its host.\n'
+          + (claimTitle ? 'Event: ' + claimTitle + '\n' : '')
+          + 'Event id: ' + CLAIM_EVENT + '\n'
+          + 'https://2gather.network/event/?id=' + encodeURIComponent(CLAIM_EVENT) + '\n\n';
+      }
+    }
+  }
+
   var say = document.getElementById('say');
   function tell(msg, good) {
     say.style.display = 'block';
@@ -218,6 +255,8 @@ window._safeNavGo = window._safeNavGo || function (el) {
       + '&email=' + encodeURIComponent(email)
       + '&message=' + encodeURIComponent(msg)
       + '&appearId=' + encodeURIComponent(who)
+      // The event travels as its own field as well as in the message, for a claim only (CLAIM EVENT).
+      + ((kind === 'Claim event' && CLAIM_EVENT) ? '&eventId=' + encodeURIComponent(CLAIM_EVENT) : '')
       // THE ADDRESS FIRST, the referrer only as a fallback. A referrer is empty on a tab opened
       // directly and Brave strips it, so this arrived blank on a real test. The top bar now carries
       // the page it was pressed on as ?from=, and that is what gets recorded.

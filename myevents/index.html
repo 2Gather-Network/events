@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.15 | Date: 2026-09-10 | LAST CHANGE: the event list uses the calendar card's type sizes, and Post a new event ends where the rows end. -->
+<!-- Version: M3.16 | Date: 2026-09-10 | LAST CHANGE: ?pane=socialized (or attending, hosting) opens that section on arrival. An event somebody socialized from its own page is listed under Socialized and opens its public page, and it never opens the edit form, because they do not host it. -->
+<!-- Previous: M3.15 | Date: 2026-09-10 | LAST CHANGE: the event list uses the calendar card's type sizes, and Post a new event ends where the rows end. -->
 <!-- Previous: M3.14 | Date: 2026-09-10 | LAST CHANGE: All sits on its own under Attending, Hosting and Socialized, and Post a new event lines up with the list under it. -->
 <!-- Previous: M3.13 | Date: 2026-09-10 | LAST CHANGE: each event in the list shows its photo on the left, on white with a blue outline; the open one is still filled blue. -->
 <!-- Previous: M3.12 | Date: 2026-09-10 | LAST CHANGE: two chats' work joined. The pages row is the other chat's (My events lit, Calendar, My groups; no My profile), its My groups now asked in turn after the page's other requests rather than beside them. All is the public calendar still to come, Attending is what you registered for, Show cancelled only under Hosting, posting needs no PIN, and the signed-out view is honored. -->
@@ -6924,7 +6925,9 @@ if (_editWanted) {
       const r = await fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(_me) + "&t=" + Date.now());
       const d = await r.json();
       if (!d || d.status !== "ok" || !Array.isArray(d.events)) return { err: 'bad' };
-      return { row: d.events.find(function (x) { return String(x.id || "").trim() === _editWanted; }) || null };
+      // A row the person only socialized (socializedByMe, 2026-09-10) is somebody else's event, so it
+      // never opens the editor. See A ROW YOU ONLY SOCIALIZED IS NOT YOURS TO EDIT, in the boot.
+      return { row: d.events.find(function (x) { return String(x.id || "").trim() === _editWanted && x.socializedByMe !== true; }) || null };
     } catch (e) { return { err: 'bad' }; }
   })();
   // AND THE CALENDAR GETS OUT OF THE WAY. She is not here to look at it, and it was the only thing
@@ -8416,6 +8419,18 @@ function selectInterestSuggestion(val) {
   // Hosting leads here rather than Attending, because this page is for editing and an event you
   // are attending is somebody else's to edit.
   var pane = 'hosting';
+  // THE ADDRESS CAN NAME THE SECTION. Jessie, 2026-09-10: "after socializing it, let the... you're
+  // socializing this button link to the socialized tab". The event page's "You're socializing this"
+  // arrives as ?pane=socialized. Attending and Hosting are honored the same way. All is not: it is
+  // drawn only for somebody the backend says holds both roles, and the address cannot say that.
+  // An event opened with ?id= still chooses its own section, further down.
+  try {
+    var _askedPane = String(new URLSearchParams(location.search).get('pane') || '').trim().toLowerCase();
+    if (_askedPane === 'attending' || _askedPane === 'hosting' || _askedPane === 'socialized') { pane = _askedPane; }
+  } catch (e) {}
+  Array.prototype.forEach.call(document.querySelectorAll('.manage-tab'), function (b) {
+    b.classList.toggle('on', b.getAttribute('data-pane') === pane);
+  });
   var selId = '';
 
   // The same rule My events uses to tell the two apart: an event you shared rather than run has
@@ -8426,8 +8441,12 @@ function selectInterestSuggestion(val) {
   // list of its own: Attending from what you registered for (see ATTENDING IS WHAT YOU REGISTERED
   // FOR), All from the calendar (see ALL IS THE PUBLIC CALENDAR, STILL TO COME). All used to answer
   // yes to every row here, so its count was the count of your own events until it was pressed.
+  // AND AN EVENT YOU SOCIALIZED FROM ITS OWN PAGE. Jessie, 2026-09-10, approving Socialize this event
+  // on the event page: "after socializing it, let the... you're socializing this button link to the
+  // socialized tab". getMyEvents also answers with those events now, each marked socializedByMe, and
+  // somebody else hosts them, so they belong under Socialized and never under Hosting.
   var isSocialized = function (r) {
-    return String(r.hostType || '').trim().toLowerCase() === 'socializer';
+    return String(r.hostType || '').trim().toLowerCase() === 'socializer' || r.socializedByMe === true;
   };
   var inPane = function (r, p) {
     if (p === 'attending' || p === 'all') return false;
@@ -8712,7 +8731,9 @@ function selectInterestSuggestion(val) {
     // door, /event/?id=, in the same tab like every other row.
     // An event under Attending that somebody else hosts is marked the same way, for the same reason
     // (2026-09-10, see ATTENDING IS WHAT YOU REGISTERED FOR). All keeps the editing door on purpose.
-    var door = r._bmPublic ? 'https://2gather.network/event/?id=' : 'https://2gather.network/myevents/?id=';
+    // An event socialized from its own page (socializedByMe) is somebody else's too, so it opens the
+    // public door for the same reason (2026-09-10, see AND AN EVENT YOU SOCIALIZED FROM ITS OWN PAGE).
+    var door = (r._bmPublic || r.socializedByMe === true) ? 'https://2gather.network/event/?id=' : 'https://2gather.network/myevents/?id=';
     return '<button type="button" class="manage-row' + (String(r.id) === String(_sel4row) ? ' on' : '') + '"'
          + ' onclick="location.href=\'' + door + encodeURIComponent(String(r.id)) + '\'">'
          + '<div class="mrow-img">' + (r.imageUrl
@@ -8791,7 +8812,14 @@ function selectInterestSuggestion(val) {
   // by Show bookmarked and by Attending, so the two find an event the same way.
   function _idMaps() {
     var mine = {}, feed = {};
-    (_mineRows || []).forEach(function (r) { if (r && r.id) mine[String(r.id).trim()] = r; });
+    // A row you only socialized never stands in for one you host: if the backend sends both for one
+    // event, the hosted row is the one found, so it keeps the editing door.
+    (_mineRows || []).forEach(function (r) {
+      if (!r || !r.id) return;
+      var k = String(r.id).trim();
+      if (r.socializedByMe === true && mine[k]) return;
+      mine[k] = r;
+    });
     try {
       (typeof events !== 'undefined' ? events : []).concat(typeof RECURRING_EVENTS !== 'undefined' ? RECURRING_EVENTS : [])
         .forEach(function (r) { if (r && r.id) feed[String(r.id).trim()] = r; });
@@ -9266,17 +9294,24 @@ function selectInterestSuggestion(val) {
         sessionStorage.setItem(KEEP, JSON.stringify(rows.map(function (r) {
           // imageUrl added 2026-09-10 with the photo on each row: the kept list is a second
           // definition of a row (see WHAT THE RAIL KEEPS HAS TO MATCH WHAT THE RAIL READS).
+          // socializedByMe added 2026-09-10 with Socialize this event: without it the kept list
+          // would file a socialized event under Hosting until the fresh answer moved it.
           return { id: r.id, title: r.title, date: r.date, hostType: r.hostType,
                    cancelled: r.cancelled, recurFreq: r.recurFreq, dayOfWeek: r.dayOfWeek,
-                   imageUrl: r.imageUrl };
+                   imageUrl: r.imageUrl, socializedByMe: r.socializedByMe === true };
         })));
       } catch (e) {}
     }
 
     // The pill opens on whichever one actually holds the event being edited, so arriving at a past
     // or cancelled event does not land on an empty Upcoming list.
+    // A ROW YOU ONLY SOCIALIZED IS NOT YOURS TO EDIT. 2026-09-10, with Socialize this event:
+    // getMyEvents answers with those rows too (socializedByMe), and this list has been the permission
+    // for the edit form since 2026-09-07 ("OWNING IT IS THE PERMISSION"). So the form is opened only
+    // from a row that is not one of them; the rail still lists them, under Socialized.
+    var _editable = rows.filter(function (x) { return x && x.socializedByMe !== true; });
     if (wantId) {
-      var here = rows.filter(function (x) { return String(x.id || '').trim() === wantId; })[0];
+      var here = _editable.filter(function (x) { return String(x.id || '').trim() === wantId; })[0];
       if (here) { ['attending', 'hosting', 'socialized'].forEach(function (p) { if (inPane(here, p)) { pane = p; } }); }
       Array.prototype.forEach.call(document.querySelectorAll('.manage-tab'), function (b) {
         b.classList.toggle('on', b.getAttribute('data-pane') === pane);
@@ -9312,7 +9347,7 @@ function selectInterestSuggestion(val) {
       return;
     }
 
-    var row = rows.filter(function (x) { return String(x.id || '').trim() === wantId; })[0];
+    var row = _editable.filter(function (x) { return String(x.id || '').trim() === wantId; })[0];
     if (!row) { say('That event belongs to somebody else, so the form did not open.'); return; }
 
     // The row is put where the form expects to find it, the same handoff the old edit path used.

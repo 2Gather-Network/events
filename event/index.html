@@ -12,7 +12,8 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V6.02 | Date: 2026-09-10 | LAST CHANGE: My profile is off the tab row: Calendar, My events, My groups. -->
+  <!-- Version: V6.03 | Date: 2026-09-10 | LAST CHANGE: Socialize this event. The rail's actions are Add to calendar and Socialize this event; Copy link, Share and QR live inside the socialize screen, which takes the place of the event in the panel. Somebody signed in can ask to be listed as helping, and once they have, the button reads "You're socializing this" and opens My events on Socialized. "Socialized by" follows Hosted by in the rail. A foot link explains how a host claims the event, through the support page. -->
+<!-- Previous: V6.02 | Date: 2026-09-10 | LAST CHANGE: My profile is off the tab row: Calendar, My events, My groups. -->
 <!-- Previous: V6.01 | Date: 2026-09-10 | LAST CHANGE: the rail's tabs start with Calendar, lit, because an event is a page of the calendar. Jessie: "Choose Calendar is lit". Then My events, My groups (only for somebody in a group) and My profile. On a phone the four stay on one line. -->
 <!-- Previous: V6.00 | Date: 2026-09-10 | LAST CHANGE: the template view is the event page for everybody. ?tpl=0 still shows the old card. -->
 <!-- Previous: V5.61 | Date: 2026-09-10 | LAST CHANGE: My groups is drawn only for somebody in a group other than Appear Network, which everybody is in. -->
@@ -113,6 +114,10 @@
     .ev-pay-btn { display: inline-flex; align-items: center; justify-content: center; }
     .ev-pay-line { display: none; }
     html:not(.cw-tplview) .cw-edit-head { display: none !important; }
+    /* SOCIALIZE THIS EVENT IS THE TEMPLATE VIEW'S BUTTON. The ordinary view (?tpl=0) keeps Copy link,
+       Share and QR in its action row, so it never draws this one. Written here, in the first style
+       block, so it cannot flash before the template block below is read. See SOCIALIZE THIS EVENT. */
+    html:not(.cw-tplview) .cw-soc-btn { display: none !important; }
     /* +1, Bookmark and the day's Gather button sit in one wrapper so the template view can lift them
        under the title as a row. Here the wrapper draws no box of its own, so in the ordinary view
        they are still three items in the column beside the title, exactly where they were. */
@@ -243,7 +248,7 @@
     <p id="qr-event-title" style="font-size:13px;font-weight:700;color:var(--dark);margin:12px 0 4px;"></p>
     <p id="qr-short-url" style="font-size:12px;color:var(--muted);margin-bottom:16px;word-break:break-all;"></p>
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="downloadQr()">⬇ Download PNG</button>
+      <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="downloadQr()">Download PNG</button>
       <button class="btn btn-outline" onclick="closeQrModal()">Close</button>
     </div>
   </div>
@@ -370,6 +375,8 @@ function recurToEv(r) {
     host_note: r.host_note||"",
     cancelled: r.cancelled||false,
     groupId: r.groupId||"",
+    // Carried through for a series as for a single event (see SOCIALIZED BY, at toEv).
+    socializedBy: r.socializedBy||[], socializerCount: r.socializerCount||0,
   };
 }
 
@@ -497,25 +504,46 @@ function _paintEventRole(role) {
   if (eb) { eb.textContent = role === 'super' ? '\u270F\uFE0F Edit' : 'Edit'; }
   document.querySelectorAll('.cw-edit-btn').forEach(function (b) { b.style.display = ''; });
 }
+// THE SAME ANSWER SAYS WHETHER THIS PERSON IS SOCIALIZING THE EVENT. Jessie, 2026-09-10: "after
+// socializing it, let the... you're socializing this button link to the socialized tab". The rail
+// button reads one of two things, and the page cannot know which until the backend says, so for
+// somebody signed in it is drawn only once getEventById has answered (mySocializing, myShown), and
+// never drawn as "Socialize this event" and then flipped. Somebody signed out is not socializing
+// anything, so theirs is drawn at once and nothing is asked.
+//
+// ASKED FOR EVERY EVENT NOW, cancelled ones included. It used to stop when the card carried no Edit
+// button (a cancelled event has none), which was right while Edit was the only thing it decided.
+//
+// ONE QUESTION AT A TIME. render() runs two or three times on a load, and each run used to send
+// getEventById again while the first was still out. The one in flight is the one that paints, on
+// whatever the card is by the time it answers.
+var _evRoleAsking = '';   // "eventId|personId" while getEventById is out
+var _evRoleFailed = '';   // the same key, when it failed: the rail then offers Socialize this event
 async function _applyEventRole() {
-  var btns = document.querySelectorAll('.cw-edit-btn');
-  if (!btns.length || !_currentEv || !_currentEv.id) return;
+  if (!_currentEv || !_currentEv.id) return;
   var me = '';
   try { me = getMemberId() || ''; } catch (e) {}
-  if (!me) return;   // signed out: nothing to reveal, and nothing asked of the backend
+  if (!me) { _paintSocialize(); return; }   // signed out: nothing to reveal, and nothing asked of the backend
   var eid = String(_currentEv.id);
   var k = _evRoleKnown;
-  if (k && k.id === eid && k.me === me) { _paintEventRole(k.role); return; }
+  if (k && k.id === eid && k.me === me) { _paintEventRole(k.role); _paintSocialize(); return; }
+  var key = eid + '|' + me;
+  if (_evRoleAsking === key) return;
+  _evRoleAsking = key;
   try {
     var r = await fetch(GS_URL + '?action=getEventById&id=' + encodeURIComponent(eid)
                         + '&appearId=' + encodeURIComponent(me));
     var d = await r.json();
-    var role = (d && d.event && d.event.myRole) || 'visitor';
-    _evRoleKnown = { id: eid, me: me, role: role };
+    var e1 = (d && d.event) || {};
+    var role = e1.myRole || 'visitor';
+    _evRoleKnown = { id: eid, me: me, role: role,
+                     socializing: e1.mySocializing === true, shown: e1.myShown === true };
     // Painted on the card as it stands now, not the one this call began on, which a re-render
     // may already have thrown away.
     _paintEventRole(role);
-  } catch (e) {}
+  } catch (e) { _evRoleFailed = key; }
+  _evRoleAsking = '';
+  _paintSocialize();
 }
 
 function _superViewer() {
@@ -661,7 +689,20 @@ function toEv(r) {
     // page and the calendar both split it on "|"). Mapped 2026-09-10 for the rail's "In your
     // groups" section; it was never carried here, the same silent miss as org in V5.46.
     groupId: r.groupId||"",
+    // SOCIALIZED BY. Jessie, 2026-09-10: "then only add their info on the event when shared if they
+    // said yes (don't show if it says 'No thank you')". The feed row carries socializedBy, the people
+    // who said yes, as { name, photo, link } and never an id, and socializerCount, which counts the
+    // people who said no as well. Mapped here because this function is the one door a row comes
+    // through; a field it does not carry is a field the page cannot draw (org, V5.46).
+    socializedBy: _socByList(r.socializedBy), socializerCount: Number(r.socializerCount) || 0,
   };
+}
+// An array, or nothing. A string holding the array is read as one, so a backend that writes the
+// cell as text still reaches the page; anything else is treated as nobody.
+function _socByList(v) {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string" && v.trim().charAt(0) === "[") { try { var a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) {} }
+  return [];
 }
 
 // ── Potluck host builder ─────────────────────────────────────────────────────
@@ -1093,9 +1134,10 @@ function render(ev) {
       ${ev.occurrenceNote ? `<div style="background:#FFF8E7;border:1.5px solid #F0B429;border-radius:10px;padding:14px 16px;margin-bottom:16px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7B5800;margin-bottom:6px;">Note from the host - this event only</p><p style="font-size:14px;color:#374151;line-height:1.6;white-space:pre-wrap;">${esc(ev.occurrenceNote)}</p></div>` : ""}
       <div class="actions" style="margin-bottom:16px;">
         ${ev.date && ev.date !== "TBD" && !ev.cancelled ? `<button class="btn btn-outline" onclick="addToCalendarById('${ev.id}')" style="gap:6px;">📅 Add to calendar</button>` : ""}
-        <button class="btn btn-outline copy-btn-el" onclick="copyLink()">🔗 Copy link</button>
-        ${!ev.cancelled ? `<button class="btn btn-outline" onclick="share()" ontouchstart="share()" style="touch-action:manipulation;-webkit-tap-highlight-color:transparent;padding:10px 14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>` : ""}
-        <button class="btn btn-outline" onclick="openQrModal()" title="Get QR code" style="padding:10px 14px;">⊞ QR</button>
+        <button type="button" class="btn btn-outline cw-soc-btn" id="cw-soc-btn" onclick="cwSocOpen()" style="display:none;"><span class="cw-ico">📣</span><span class="cw-soc-label">Socialize this event</span></button>
+        <button class="btn btn-outline copy-btn-el cw-share-old" onclick="copyLink()">🔗 Copy link</button>
+        ${!ev.cancelled ? `<button class="btn btn-outline cw-share-old" onclick="share()" ontouchstart="share()" style="touch-action:manipulation;-webkit-tap-highlight-color:transparent;padding:10px 14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>` : ""}
+        <button class="btn btn-outline cw-share-old" onclick="openQrModal()" title="Get QR code" style="padding:10px 14px;">⊞ QR</button>
         ${!ev.cancelled ? `<button class="btn btn-primary cw-edit-btn" onclick="openEditDirect()" title="Edit this event" style="padding:10px 14px;display:none;">✏️ Edit</button>` : ""}
       </div>
       ${ev.description ? `<hr id="ev-desc-rule" style="border:none;margin:16px 0 0;"><p class="description" id="ev-description">${_descHTML(ev.description)}</p>` : ""}
@@ -1103,6 +1145,7 @@ function render(ev) {
       ${(ev.categories && ev.categories.length) ? `<div id="ev-categories"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">${ev.categories.length === 1 ? "Event category" : "Event categories"}</p><div style="display:flex;flex-wrap:wrap;gap:6px;">${ev.categories.map(c=>{const catObj=resolveCategory(c); return catObj ? `<span style="font-size:12px;font-weight:600;padding:4px 10px;background:#fff;border:1.5px solid var(--border);border-radius:20px;color:var(--dark);">${catObj.emoji} ${catObj.label}</span>` : '';}).filter(Boolean).join("")}</div></div>` : ""}
       ${ev.experience ? `<div id="ev-experience" style="margin-top:20px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">Event intention</p><div style="display:flex;flex-wrap:wrap;gap:6px;">${ev.experience.split(",").filter(Boolean).map(t=>`<span style="font-size:12px;padding:3px 9px;background:#f3f4f6;border-radius:20px;white-space:nowrap;">${expMap[t]||t}</span>`).join("")}</div></div>` : ""}
       ${ev.host ? `<div id="ev-host" style="margin-top:24px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">${ev.hostType === "socializer" ? "Shared by" : "Hosted by"}</p><div style="font-size:14px;margin-bottom:4px;">${hostHtml}${(String(ev.org || "").trim() && ev.hostType !== "socializer") ? ` representing ${esc(String(ev.org).trim())}` : ""}</div>${(ev.contactEmail&&sl.includes("contact")) ? `<div style="margin-bottom:4px;"><a href="mailto:${esc(ev.contactEmail)}" style="font-size:14px;color:var(--primary);">${esc(ev.contactEmail)}</a></div>` : ""}${(ev.contactPhone&&sl.includes("contact")) ? `<div style="font-size:14px;margin-bottom:4px;">${esc(ev.contactPhone)}</div>` : ""}</div>` : ""}
+      ${_socByHTML(ev)}
       ${ev.exchangeType ? `<div id="ev-exchange" style="margin-top:24px;">${exchange}</div>` : ""}
       ${_hasBody(ev) ? `
       <hr class="divider">
@@ -1265,6 +1308,266 @@ window.toggleEventBookmark = async function () {
     if (d && Array.isArray(d.ids) && eid && d.ids.indexOf(String(eid)) > -1) { _bmOn = true; _paintBookmark(); }
   } catch (e) {}
 })();
+
+// ── SOCIALIZE THIS EVENT ─────────────────────────────────────────────────────────────────────
+// Jessie, 2026-09-10: "wher is the socialixe button ? how can i socialize this evnet if i wanted
+// to?" There was no way to, from the event itself. Approved the same day with her changes:
+// "I like socialize event actually opening up the three options for copy share QR. and we can
+// remove the buttons on the left to make more space", and "on every event to anyone signed in and
+// signed out".
+//
+// ONE BUTTON IN THE RAIL, THE THREE WAYS TO SPREAD IT INSIDE. The rail carries Add to calendar and
+// Socialize this event. Copy link, Share and QR are still written into the action row (the ordinary
+// view, ?tpl=0, keeps them there), and the template view hides them in the rail (.cw-share-old).
+// Pressing Socialize this event puts the socialize screen where the event was, in the panel, the
+// way registering does. Never an overlay: nothing on this site opens over the page.
+//
+// THE HOST STAYS THE HOST, SAID ONLY WHEN THERE IS ONE. Jessie: the words "Help socialize this event
+// in the way you want. The host stays the host." with "(only say The host stays the host. if there
+// is a host - if someone is socializing a socialized event, then don't say that)". An event somebody
+// only shared carries hostType 'socializer' and names the sharer, not a host.
+//
+// BEING LISTED IS ASKED, AND NOTHING IS CHOSEN FOR THEM. Jessie: "Add a question if they want to be
+// listed as someone who's helping socialize the event where people can see face, name, and a link to
+// the profile" and "only add their info on the event when shared if they said yes (don't show if it
+// says 'No thank you')". Neither answer starts chosen, so Socialize it waits until one is. Her
+// "Remove: Your link, which credits you when people arrive through it" took the line about the
+// credited link out of the design; the link still carries the r= code (_withRef), as every link
+// handed out from this page has since 2026-09-07.
+//
+// SIGNED OUT, THE THREE BUTTONS STILL WORK. There is nobody to list, so the question gives way to
+// one line inviting them to sign in, and Done.
+var _socChoice = '';     // 'yes' or 'no' once a choice is pressed; '' means none chosen
+var _socSaving = false;  // true while the write is out, so a second press does nothing
+var _socDoneFor = '';    // "eventId|personId" once the backend has said yes on this page load
+
+// Which of the two the rail button reads, or 'unknown' while the page cannot say.
+function _socState() {
+  var ev = _currentEv;
+  if (!ev || !ev.id) return 'unknown';
+  var eid = String(ev.id);
+  var me = '';
+  try { me = getMemberId() || ''; } catch (e) {}
+  if (!me) return 'no';                                   // signed out: drawn at once
+  if (_socDoneFor === eid + '|' + me) return 'yes';
+  var k = _evRoleKnown;
+  if (k && k.id === eid && k.me === me) return k.socializing ? 'yes' : 'no';
+  if (_evRoleFailed === eid + '|' + me) return 'no';     // the question failed: the door stays open
+  return 'unknown';                                       // still asking: draw nothing
+}
+
+// YOU'RE SOCIALIZING THIS, AND IT OPENS WHERE THAT LIVES. Jessie: "after socializing it, let the...
+// you're socializing this button link to the socialized tab". Filled, the way Bookmarked and You're
+// going are filled: an outline is something you can do, a filled button is something done. Same tab,
+// hrefless, like every door in this rail.
+function _paintSocialize() {
+  var b = document.getElementById('cw-soc-btn');
+  if (!b) return;
+  var st = _socState();
+  if (st === 'unknown') { b.style.display = 'none'; return; }
+  var lab = b.querySelector('.cw-soc-label');
+  if (st === 'yes') {
+    if (lab) lab.textContent = "You're socializing this";
+    b.classList.remove('btn-outline'); b.classList.add('btn-primary');
+    b.setAttribute('data-nav', 'https://2gather.network/myevents/?pane=socialized');
+    b.setAttribute('role', 'link');
+    b.onclick = function () { return _safeNavGo(b); };
+  } else {
+    if (lab) lab.textContent = 'Socialize this event';
+    b.classList.remove('btn-primary'); b.classList.add('btn-outline');
+    b.removeAttribute('data-nav'); b.removeAttribute('role');
+    b.onclick = function () { cwSocOpen(); };
+  }
+  b.style.display = '';
+}
+
+// The people who said yes, under Hosted by. Nothing is drawn when nobody did. A photo or a link that
+// is not a web address is left out rather than trusted, and the name is the only thing always shown.
+function _socByHTML(ev) {
+  var list = (ev && Array.isArray(ev.socializedBy)) ? ev.socializedBy : [];
+  var web = function (u) { u = String(u || '').trim(); return /^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : ''; };
+  var rows = list.map(function (p) {
+    if (!p) return '';
+    var name = String(p.name || '').trim();
+    if (!name) return '';
+    var photo = web(p.photo), link = web(p.link);
+    var img = photo ? '<img src="' + esc(photo) + '" alt="" onerror="this.remove()" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex:0 0 26px;">' : '';
+    var nm = link
+      ? '<a role="link" tabindex="0" data-nav="' + esc(link) + '" onclick="return _safeNavGo(this)" style="color:var(--primary);font-weight:600;cursor:pointer;">' + esc(name) + '</a>'
+      : '<span>' + esc(name) + '</span>';
+    return '<div style="display:flex;align-items:center;gap:8px;font-size:14px;">' + img + nm + '</div>';
+  }).filter(Boolean);
+  if (!rows.length) return '';
+  return '<div id="ev-socby" style="margin-top:24px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">Socialized by</p>'
+       + '<div style="display:flex;flex-direction:column;gap:8px;">' + rows.join('') + '</div></div>';
+}
+
+// The QR code is drawn inside the screen rather than over the page. #qr-modal is an overlay
+// everywhere else; here it is lifted into the screen and drawn in the flow, the same thing that was
+// done to the registration panel. It goes back to the page before the screen is rewritten, so
+// rewriting the screen can never destroy it.
+function _socReturnQr() {
+  var qr = document.getElementById('qr-modal');
+  if (qr && qr.parentNode !== document.body) { document.body.appendChild(qr); }
+}
+
+window.cwSocOpen = function () {
+  var ev = _currentEv, card = document.getElementById('card');
+  if (!ev || !card || !card.parentNode) return;
+  try { _hideRsvpPanel(); } catch (e) {}
+  try { closeQrModal(); } catch (e) {}
+  _socReturnQr();
+  _socChoice = ''; _socSaving = false;
+  var box = document.getElementById('cw-soc');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'cw-soc'; box.className = 'card';
+    card.parentNode.insertBefore(box, card.nextSibling);
+  }
+  var me = '';
+  try { me = getMemberId() || ''; } catch (e) {}
+  var hosted = ev.hostType !== 'socializer' && String(ev.host || '').trim();
+  var ask = !!me && !ev.cancelled;
+  var signin = (window.CW_SIGNIN || 'https://2gather.network/signin/');
+  var claim = 'https://2gather.network/support/?topic=claim-event&event=' + encodeURIComponent(String(ev.id));
+  // Somebody who already hosts or co-hosts this event is not asked whether they host it.
+  var k = _evRoleKnown, isHost = !!(k && k.id === String(ev.id) && k.me === me && (k.role === 'host' || k.role === 'cohost'));
+  box.innerHTML =
+    '<div class="card-body">'
+    + '<h2 class="cw-soc-h">Socialize ' + esc(ev.title || 'this event') + '</h2>'
+    + '<p class="cw-soc-lede">Help socialize this event in the way you want.' + (hosted ? ' The host stays the host.' : '') + '</p>'
+    + '<div class="cw-soc-acts">'
+    +   '<button type="button" class="btn btn-outline copy-btn-el" onclick="copyLink()">Copy link</button>'
+    +   (!ev.cancelled ? '<button type="button" class="btn btn-outline" onclick="share()">Share</button>' : '')
+    +   '<button type="button" class="btn btn-outline" onclick="openQrModal()">QR</button>'
+    + '</div>'
+    + '<div id="cw-soc-qr-slot"></div>'
+    + (ask
+      ? '<p class="cw-soc-q">Would you like to be listed as helping socialize this event, with your photo, your name and a link to your profile?</p>'
+        + '<div class="cw-soc-choices" role="group">'
+        +   '<button type="button" class="cw-soc-choice" data-shown="yes" aria-pressed="false" onclick="cwSocChoose(\'yes\')">Yes, list me</button>'
+        +   '<button type="button" class="cw-soc-choice" data-shown="no" aria-pressed="false" onclick="cwSocChoose(\'no\')">No thank you</button>'
+        + '</div>'
+        + '<p class="cw-soc-say" id="cw-soc-say" hidden></p>'
+        + '<div class="cw-soc-foot">'
+        +   '<button type="button" class="btn btn-primary" id="cw-soc-go" onclick="cwSocGo()" disabled>Socialize it</button>'
+        +   '<button type="button" class="btn btn-outline" onclick="cwSocClose()">Cancel</button>'
+        + '</div>'
+      : (!me
+        ? '<p class="cw-soc-q"><a role="link" tabindex="0" data-nav="' + esc(signin) + '" onclick="return _safeNavGo(this)" style="font-weight:700;cursor:pointer;">Sign in</a> to be listed as somebody helping spread it.</p>'
+        : '')
+        + '<div class="cw-soc-foot"><button type="button" class="btn btn-primary" onclick="cwSocClose()">Done</button></div>')
+    // ARE YOU THE HOST? Jessie: "Link 'are you the host of this event?' and put in a message
+    // explaining how they can claim this event as host and if approved, it give them the ability to
+    // edit it as they wish. and give them a link to the support page and have an option from the drop
+    // down for support page request to claim event as host". Revealed in place, and the support page
+    // arrives with Request to claim event as host chosen and this event named (support/index.html).
+    + (isHost ? '' :
+        '<div class="cw-soc-hostq">'
+      +   '<a role="button" tabindex="0" onclick="cwSocHostQ()" style="cursor:pointer;">Are you the host of this event?</a>'
+      +   '<div id="cw-soc-hostmsg" hidden>'
+      +     '<p>If you host this event, you can ask to take it on. Once a super admin approves it, it is yours to edit as you wish.</p>'
+      +     '<a role="link" tabindex="0" data-nav="' + esc(claim) + '" onclick="return cwSocToSupport(this)" style="font-weight:700;cursor:pointer;">Ask on the support page</a>'
+      +   '</div>'
+      + '</div>')
+    + '</div>';
+  // The QR code, when pressed, is drawn in the slot under the three buttons.
+  var qr = document.getElementById('qr-modal'), slot = document.getElementById('cw-soc-qr-slot');
+  if (qr && slot) { slot.appendChild(qr); }
+  card.style.display = 'none';
+  box.style.display = '';
+  // On a phone the rail sits above the panel, so the screen can open below the fold.
+  try { var t = box.getBoundingClientRect().top; if (t < 0 || t > window.innerHeight * 0.6) { box.scrollIntoView({ block: 'start' }); } } catch (e) {}
+};
+
+window.cwSocClose = function () {
+  try { closeQrModal(); } catch (e) {}
+  _socReturnQr();
+  var box = document.getElementById('cw-soc'), card = document.getElementById('card');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  if (card) { card.style.display = ''; }
+  _socChoice = ''; _socSaving = false;
+};
+
+window.cwSocChoose = function (v) {
+  if (_socSaving) return;
+  _socChoice = (v === 'yes') ? 'yes' : 'no';
+  document.querySelectorAll('#cw-soc .cw-soc-choice').forEach(function (b) {
+    var on = b.getAttribute('data-shown') === _socChoice;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  var go = document.getElementById('cw-soc-go');
+  if (go) go.disabled = false;
+  var say = document.getElementById('cw-soc-say');
+  if (say) { say.hidden = true; say.textContent = ''; }
+};
+
+window.cwSocHostQ = function () {
+  var m = document.getElementById('cw-soc-hostmsg');
+  if (m) m.hidden = !m.hidden;
+};
+
+// The support page reads the event's title from here, so the super admin sees which event without
+// the support page asking the backend for it. Same tab, so this tab's sessionStorage is the one the
+// support page opens with; nothing about a person goes into it.
+window.cwSocToSupport = function (el) {
+  try {
+    var ev = _currentEv;
+    if (ev && ev.id) sessionStorage.setItem('cw-claim-event', JSON.stringify({ id: String(ev.id), title: String(ev.title || '') }));
+  } catch (e) {}
+  return _safeNavGo(el);
+};
+
+// SOCIALIZE IT. One write, for the person at the keyboard and nobody else. While somebody is being
+// viewed, or the view is signed out, the page shows what they would see, and a write made from there
+// would be filed under the wrong person, so it is refused and says why. The answer has to say, in so
+// many words, that the person is socializing it; anything else, including the calendar feed that an
+// Apps Script without this action answers with, changes nothing on screen.
+//
+// SOCIALIZE IT, ONE REQUEST AT A TIME. It waits for the short link's request to settle first, so the
+// backend is never handed two at once (measured 2026-07-07: three of four 404ed when they arrived
+// together). The role question has already answered by the time this button can be seen.
+window.cwSocGo = async function () {
+  if (_socSaving || !_socChoice) return;
+  var ev = _currentEv;
+  var say = document.getElementById('cw-soc-say'), go = document.getElementById('cw-soc-go');
+  var tell = function (m) { if (say) { say.textContent = m; say.hidden = false; } };
+  if (!ev || !ev.id) return;
+  var real = '', viewing = false;
+  try {
+    if (window.CW && CW.realMe) real = String(CW.realMe().id || '').trim();
+    viewing = !!(window.CW && ((CW.viewingAs && String(CW.viewingAs() || '').trim()) || (CW.me && CW.me().viewing)));
+    if (window.CW && CW.signedOutView && CW.signedOutView()) real = '';
+  } catch (e) { real = ''; }
+  if (viewing) { tell('You are looking at this as somebody else, so nothing was saved.'); return; }
+  if (!real) { tell('Sign in first, then socialize it.'); return; }
+  _socSaving = true;
+  if (go) { go.disabled = true; go.textContent = 'Saving...'; }
+  var ok = null;
+  try {
+    try { await _shortLinkJob; } catch (e) {}
+    var r = await fetch(GS_URL + '?action=socialize&id=' + encodeURIComponent(String(ev.id))
+                        + '&appearId=' + encodeURIComponent(real)
+                        + '&shown=' + (_socChoice === 'yes' ? 'yes' : 'no'));
+    var t = await r.text();
+    var d = null;
+    try { d = JSON.parse(t); } catch (e) {}
+    if (d && d.status === 'ok' && d.socializing === true) ok = d;
+  } catch (e) {}
+  _socSaving = false;
+  if (!ok) {
+    if (go) { go.disabled = false; go.textContent = 'Socialize it'; }
+    tell('That did not go through. Try again.');
+    return;
+  }
+  var eid = String(ev.id);
+  _socDoneFor = eid + '|' + real;
+  var k = _evRoleKnown;
+  if (k && k.id === eid) { k.socializing = true; k.shown = ok.shown === true; }
+  cwSocClose();
+  _paintSocialize();
+};
 
 // ── Reset to the not-registered UI ──
 function applyUnregisteredUI() {
@@ -1438,11 +1741,14 @@ function _withRef(url) {
 }
 
 var _shortLink = null;
+// Kept, so a write sent from the socialize screen can wait for this one to settle rather than
+// arriving at the backend beside it (see SOCIALIZE IT, ONE REQUEST AT A TIME).
+var _shortLinkJob = Promise.resolve();
 function _primeShortLink(id) {
   _shortLink = null;
   if (!id) return;
   try {
-    fetch(GS_URL + "?action=getShortCode&id=" + encodeURIComponent(id))
+    _shortLinkJob = fetch(GS_URL + "?action=getShortCode&id=" + encodeURIComponent(id))
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d && d.status === "ok" && d.code) { _shortLink = "https://go.2gather.network/" + d.code; }
@@ -1755,6 +2061,17 @@ async function openQrModal() {
   document.getElementById("qr-event-title").textContent = _currentEv.title || "";
   document.getElementById("qr-short-url").textContent = "";
   document.getElementById("qr-modal").classList.add("open");
+
+  // THE SHORT LINK IS ALREADY HERE, most of the time. render() asks for it once, in the background
+  // (_primeShortLink), and this asked again on every press. 2026-09-10, with QR moving into the
+  // socialize screen: the second ask was a second request to the backend for an answer the page
+  // already held, and it could land beside another one.
+  if (_shortLink) {
+    _qrShortUrl = _shortLink;
+    document.getElementById("qr-short-url").textContent = _qrShortUrl;
+    renderQr(_qrShortUrl);
+    return;
+  }
 
   try {
     const res = await fetch(`${GS_URL}?action=getShortCode&id=${encodeURIComponent(_currentEv.id)}`);
@@ -2177,7 +2494,40 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
   html.cw-tplview .cw-rl-rail #ev-categories,
   html.cw-tplview .cw-rl-rail #ev-experience,
   html.cw-tplview .cw-rl-rail #ev-host,
+  html.cw-tplview .cw-rl-rail #ev-socby,
   html.cw-tplview .cw-rl-rail #ev-exchange { margin:14px 0 0; }
+  /* COPY LINK, SHARE AND QR LEAVE THE RAIL. Jessie, 2026-09-10: "I like socialize event actually
+     opening up the three options for copy share QR. and we can remove the buttons on the left to
+     make more space". They are still written into the action row for the ordinary view, and they
+     live in the socialize screen here. See SOCIALIZE THIS EVENT in the main script. */
+  html.cw-tplview .cw-rl-rail .cw-share-old { display:none !important; }
+  /* THE SOCIALIZE SCREEN takes the event card's place in the panel, at the card's width. */
+  html.cw-tplview #cw-soc { max-width:560px; margin:0; }
+  #cw-soc .card-body { padding:22px 24px 24px; }
+  #cw-soc .cw-soc-h { font-size:20px; font-weight:700; line-height:1.3; margin:0 0 8px; color:var(--dark); }
+  #cw-soc .cw-soc-lede { font-size:15px; line-height:1.6; color:#374151; margin:0 0 16px; }
+  #cw-soc .cw-soc-acts { display:flex; gap:8px; margin:0 0 6px; }
+  #cw-soc .cw-soc-acts .btn { flex:1 1 0; justify-content:center; min-width:0; padding:10px 8px;
+                              background:#fff; color:#1F699E; border:1.5px solid #1F699E; font-weight:700; white-space:nowrap; }
+  #cw-soc .cw-soc-q { font-size:14.5px; line-height:1.55; color:var(--dark); margin:18px 0 10px; }
+  #cw-soc .cw-soc-choices { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
+  #cw-soc .cw-soc-choice { flex:1 1 140px; background:#fff; color:#1F699E; border:1.5px solid #1F699E; border-radius:20px;
+                           font:inherit; font-size:14px; font-weight:700; padding:9px 14px; cursor:pointer; }
+  #cw-soc .cw-soc-choice.on { background:#1F699E; color:#fff; }
+  #cw-soc .cw-soc-say { font-size:14px; color:#c0392b; margin:0 0 12px; }
+  #cw-soc .cw-soc-foot { display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 0; }
+  #cw-soc .cw-soc-foot .btn-outline { background:#fff; color:#1F699E; border:1.5px solid #1F699E; font-weight:700; }
+  #cw-soc .cw-soc-foot .btn[disabled] { opacity:.5; cursor:default; }
+  #cw-soc .cw-soc-hostq { margin:22px 0 0; font-size:13.5px; line-height:1.55; }
+  #cw-soc .cw-soc-hostq > a { color:var(--primary); text-decoration:underline; }
+  #cw-soc #cw-soc-hostmsg { margin:8px 0 0; color:#374151; }
+  #cw-soc #cw-soc-hostmsg p { margin:0 0 6px; }
+  /* The QR code in the flow of the screen, not over the page (see _socReturnQr). */
+  #cw-soc #qr-modal.modal-overlay { position:static; inset:auto; background:none; padding:0; z-index:auto; }
+  #cw-soc #qr-modal.modal-overlay.open { display:block; margin:12px 0 0; }
+  #cw-soc #qr-modal .modal { max-width:320px !important; margin:0 auto; box-shadow:none; border:1.5px solid var(--border);
+                             border-radius:14px; padding:18px; max-height:none; }
+  #cw-soc #qr-modal .modal::before { display:none; }
   /* The card is a description now, so it stops being taller than what is in it. The empty grey
      block at its foot is 148px of bottom padding meant to clear a phone's home bar on a page that
      scrolls to the end of the card. In a panel it is a grey band under the words. */
@@ -2328,10 +2678,13 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
       });
     }
 
-    ['ev-categories', 'ev-experience', 'ev-host', 'ev-exchange'].forEach(function (id) {
+    // Socialized by follows Hosted by (Jessie, 2026-09-10; see SOCIALIZED BY at toEv).
+    ['ev-categories', 'ev-experience', 'ev-host', 'ev-socby', 'ev-exchange'].forEach(function (id) {
       take(document.getElementById(id));
     });
     paintGroups();
+    // The rail button was just moved with its row; it is drawn from what the page already knows.
+    try { if (typeof _paintSocialize === 'function') _paintSocialize(); } catch (e) {}
 
     // The rules were separating things that are no longer next to each other.
     var hr = card.querySelector('hr.divider');
@@ -2397,7 +2750,7 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
     });
     box.appendChild(list);
     // Under the actions and above what the event represents, so it is in view without scrolling.
-    var before = rail.querySelector('#ev-categories, #ev-experience, #ev-host, #ev-exchange');
+    var before = rail.querySelector('#ev-categories, #ev-experience, #ev-host, #ev-socby, #ev-exchange');
     if (before) { rail.insertBefore(box, before); } else { rail.appendChild(box); }
   }
 
