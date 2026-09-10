@@ -12,7 +12,8 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V6.03 | Date: 2026-09-10 | LAST CHANGE: Socialize this event. The rail's actions are Add to calendar and Socialize this event; Copy link, Share and QR live inside the socialize screen, which takes the place of the event in the panel. Somebody signed in can ask to be listed as helping, and once they have, the button reads "You're socializing this" and opens My events on Socialized. "Socialized by" follows Hosted by in the rail. A foot link explains how a host claims the event, through the support page. -->
+  <!-- Version: V6.04 | Date: 2026-09-10 | LAST CHANGE: the rail's tabs read Event (lit, this page), Calendar, My events, My groups. The repeat chip sits at the right of the date and, pressed, says how the series repeats ("Recurs every Friday", "Recurs 1st Tuesday of month", "Recurs 1st of month"). Bookmark sits beside the title with Register / Pay or +1 I'm going, and can be pressed as often as anybody likes: the screen flips at once and the saves go out one at a time, ending where the screen is. In your groups reads Associated group or Associated groups, each with its photo. A socialize just made is remembered for five minutes, so a reload does not offer Socialize this event again. -->
+  <!-- Previous: V6.03 | Date: 2026-09-10 | LAST CHANGE: Socialize this event. The rail's actions are Add to calendar and Socialize this event; Copy link, Share and QR live inside the socialize screen, which takes the place of the event in the panel. Somebody signed in can ask to be listed as helping, and once they have, the button reads "You're socializing this" and opens My events on Socialized. "Socialized by" follows Hosted by in the rail. A foot link explains how a host claims the event, through the support page. -->
 <!-- Previous: V6.02 | Date: 2026-09-10 | LAST CHANGE: My profile is off the tab row: Calendar, My events, My groups. -->
 <!-- Previous: V6.01 | Date: 2026-09-10 | LAST CHANGE: the rail's tabs start with Calendar, lit, because an event is a page of the calendar. Jessie: "Choose Calendar is lit". Then My events, My groups (only for somebody in a group) and My profile. On a phone the four stay on one line. -->
 <!-- Previous: V6.00 | Date: 2026-09-10 | LAST CHANGE: the template view is the event page for everybody. ?tpl=0 still shows the old card. -->
@@ -122,6 +123,10 @@
        under the title as a row. Here the wrapper draws no box of its own, so in the ordinary view
        they are still three items in the column beside the title, exactly where they were. */
     .ev-head-acts { display: contents; }
+    /* The slot beside the title (Register / Pay or +1 I'm going, then Bookmark) is a wrapper for the
+       same reason: the template view stacks it beside the title (BOOKMARK BESIDE THE TITLE, in the
+       template block), and here it draws no box, so the ordinary view's column is unchanged. */
+    .ev-head-slot { display: contents; }
     /* NO HORIZONTAL LINES. Jessie, 2026-09-09: "remove horiizontal link aftre frist set of
        buttons nad before descripton", and the standing rule is that we do not use them anywhere
        unless she asks. The class is kept so the markup does not have to change everywhere, and it
@@ -369,6 +374,12 @@ function recurToEv(r) {
     roomGated: r.roomGated==="true"||r.roomGated===true||false,
     otherExchange: r.otherExchange||"", exchangeType: r.exchangeType||"",
     recurFreq: r.recurFreq||"weekly", experience: r.experience||"",
+    // HOW THE SERIES REPEATS, CARRIED TO THE PAGE. Jessie, 2026-09-10: "when clicking on it say the
+    // day it recurrs on and if its' monthly the day or date". The weekday is the template's own
+    // rec-.dayOfWeek, and the series' first date (rec-.date) is what a monthly series counts from
+    // (getNextOccurrences on the calendar), so both ride along; ev.date is overwritten with the
+    // occurrence's own date below and cannot answer for the series.
+    dayOfWeek: r.dayOfWeek, recurAnchor: r.date||"",
     imageUrl: r.imageUrl||"", detailImageUrl: r.detailImageUrl||"", lifeStage: r.lifeStage||"", keywords: r.keywords||"", venue: r.venue||"", org: r.org||"", county: r.county||"", hostType: r.hostType||"",
     interestedEnabled: r.interestedEnabled||"off", interested: r.interested||"",
     sharedNotesEnabled: r.sharedNotesEnabled||false, sharedNotes: r.sharedNotes||"",
@@ -378,6 +389,68 @@ function recurToEv(r) {
     // Carried through for a series as for a single event (see SOCIALIZED BY, at toEv).
     socializedBy: r.socializedBy||[], socializerCount: r.socializerCount||0,
   };
+}
+
+// RECURS EVERY FRIDAY. Jessie, 2026-09-10: "when clicking on it say the day it recurrs on and if its'
+// monthly the day or date 'Recurs 1st Tuesday of month' or 'Recurs 1st of month'".
+//
+// READ FROM HOW THE SERIES IS STORED, the same words the calendar's form writes (events.recurFreq):
+// weekly and biweekly repeat on events.dayOfWeek; monthly keeps the date and monthlyNth keeps the
+// weekday and its place in the month, both counted from the series' first date (getNextOccurrences
+// on the calendar); annually and annuallyNth the same, a year apart. A plain "monthly" IS the date
+// form, so a series that does not say which kind of monthly gets the date form, from its date.
+//
+// The weekday comes from events.dayOfWeek when the row carries one, and otherwise from the date on
+// screen, which for a weekly series is a day it repeats on. A fifth weekday reads "last", because
+// the calendar falls back to the last one a month has when it has no fifth. Nothing is said when
+// the page cannot work it out, rather than a sentence that might be wrong.
+var _recurSayOpen = false;   // kept across the two or three re-renders of a load, so it stays open
+window.cwRecurSay = function (btn) {
+  var s = document.getElementById('ev-recur-say');
+  if (!s) return;
+  s.hidden = !s.hidden;
+  _recurSayOpen = !s.hidden;
+  if (btn) btn.setAttribute('aria-expanded', _recurSayOpen ? 'true' : 'false');
+};
+function _recurWords(ev) {
+  var f = String((ev && ev.recurFreq) || '').trim().toLowerCase();
+  if (!f) return '';
+  var byWeekday = /nth$/.test(f);
+  var base = f.replace(/nth$/, '');
+  var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var ord = function (n) {
+    var s = (n % 10 === 1 && n % 100 !== 11) ? 'st' : (n % 10 === 2 && n % 100 !== 12) ? 'nd' : (n % 10 === 3 && n % 100 !== 13) ? 'rd' : 'th';
+    return n + s;
+  };
+  var day = function (s) {
+    s = String(s || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+    var d = new Date(s + 'T12:00:00');
+    return isNaN(d.getTime()) ? null : d;
+  };
+  var shown = day(ev.date);
+  var anchor = day(ev.recurAnchor) || shown;   // where the series counts from
+  var dow = -1;
+  if (ev.dayOfWeek !== undefined && ev.dayOfWeek !== null && String(ev.dayOfWeek).trim() !== '' && !isNaN(Number(ev.dayOfWeek))) {
+    dow = ((Number(ev.dayOfWeek) % 7) + 7) % 7;   // 7 is Sunday too, the way getNextDate reads it
+  } else if (shown) { dow = shown.getDay(); }
+  if (base === 'daily') return 'Recurs every day';
+  if (base === 'weekly')   return dow > -1 ? 'Recurs every ' + DAYS[dow] : '';
+  if (base === 'biweekly') return dow > -1 ? 'Recurs every other ' + DAYS[dow] : '';
+  if (base === 'monthly' || base === 'annually') {
+    if (!anchor) return '';
+    var month = anchor.toLocaleDateString('en-US', { month: 'long' });
+    if (byWeekday) {
+      var nth = Math.floor((anchor.getDate() - 1) / 7) + 1;
+      var place = nth >= 5 ? 'last' : ord(nth);
+      var wd = DAYS[anchor.getDay()];
+      return base === 'monthly' ? 'Recurs ' + place + ' ' + wd + ' of month'
+                                : 'Recurs ' + place + ' ' + wd + ' of ' + month + ' every year';
+    }
+    return base === 'monthly' ? 'Recurs ' + ord(anchor.getDate()) + ' of month'
+                              : 'Recurs ' + month + ' ' + ord(anchor.getDate()) + ' every year';
+  }
+  return '';
 }
 
 const GS_URL = "https://cw-api-gate.jessieupp.workers.dev";
@@ -672,6 +745,8 @@ function toEv(r) {
     roomGated: r.roomGated==="true"||r.roomGated===true||false,
     showLinks: r.showLinks||"", otherExchange: r.otherExchange||"",
     exchangeType: r.exchangeType||"", recurFreq: r.recurFreq||"",
+    // The weekday a series repeats on (events.dayOfWeek, 0 is Sunday), read by _recurWords.
+    dayOfWeek: r.dayOfWeek,
     experience: r.experience||"", imageUrl: r.imageUrl||"", detailImageUrl: r.detailImageUrl||"", lifeStage: r.lifeStage||"", keywords: r.keywords||"", venue: r.venue||"",
     interestedEnabled: r.interestedEnabled||"off", interested: r.interested||"",
     sharedNotesEnabled: r.sharedNotesEnabled==="true"||r.sharedNotesEnabled===true||false, sharedNotes: r.sharedNotes||"",
@@ -895,8 +970,26 @@ function render(ev) {
   const _rfLabel = _rf.indexOf("annually") === 0 ? "Annually"
                  : _rf.indexOf("monthly")  === 0 ? "Monthly"
                  : _rf === "biweekly" ? "Biweekly"
+                 : _rf === "daily" ? "Daily"
                  : "Weekly";
-  const recurBadge = ev.recurFreq ? `<span class="format-badge" style="font-size:12px;padding:3px 9px;background:#f3f4f6;border-radius:20px;white-space:nowrap;color:var(--dark);">🔁 ${_rfLabel}</span>` : "";
+  // THE REPEAT SITS AT THE RIGHT OF THE DATE, AND SAYS WHEN IF YOU ASK. Jessie, 2026-09-10: "put
+  // weekly on right of date and when clicking on it say the day it recurrs on and if its' monthly
+  // the day or date 'Recurs 1st Tuesday of month' or 'Recurs 1st of month'". It was a chip on a line
+  // of its own above the date, so the two facts about when were apart and the one she wanted, which
+  // day, was not written anywhere.
+  //
+  // A BUTTON NOW, SO NO ARROWS. Pressing it opens one line under the date and pressing again closes
+  // it, in place. The repeat emoji is a pair of arrows, and nothing pressable on this site carries a
+  // directional glyph, so the chip reads Weekly on its own.
+  //
+  // THE WORDS COME FROM THE SERIES, NOT FROM A GUESS. See _recurWords. Where it has nothing to say
+  // the chip is a plain label and presses nothing.
+  const _recurSay = ev.recurFreq ? _recurWords(ev) : "";
+  const recurBadge = ev.recurFreq
+    ? (_recurSay
+      ? `<button type="button" class="format-badge ev-recur-chip" aria-expanded="${_recurSayOpen ? "true" : "false"}" aria-controls="ev-recur-say" onclick="cwRecurSay(this)" style="font:inherit;font-size:12px;font-weight:600;padding:3px 9px;background:#f3f4f6;border:none;border-radius:20px;white-space:nowrap;color:var(--dark);cursor:pointer;flex:0 0 auto;">${_rfLabel}</button>`
+      : `<span class="format-badge" style="font-size:12px;padding:3px 9px;background:#f3f4f6;border-radius:20px;white-space:nowrap;color:var(--dark);flex:0 0 auto;">${_rfLabel}</span>`)
+    : "";
 
   const roomUrl = ROOMS[ev.room] || "https://events.2gather.network/events/yvrgej/zkxbzq";
   const roomEmoji = ROOM_EMOJI[ev.room] || "🏠";
@@ -954,8 +1047,14 @@ function render(ev) {
   const sl = ev.showLinks||"";
   const _payOn = !!(ev.paymentlink && sl.includes("paymentlink"));
   const lines = [
-    (fmtBadge||recurBadge) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;">${fmtBadge}${recurBadge}</div>` : "",
-    ev.date ? `<div style="font-size:14px;font-weight:600;color:var(--dark);margin-bottom:6px;">${esc(fmtDate(ev.date,ev.time,ev.endtime))}</div>` : "",
+    fmtBadge ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;">${fmtBadge}</div>` : "",
+    // The date, with the repeat chip right after it on the same line. The date shrinks and wraps
+    // rather than the chip dropping under it, so the chip always reads as part of the date. An
+    // event with a repeat and no date keeps the chip on a line of its own.
+    ev.date
+      ? `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;"><div style="font-size:14px;font-weight:600;color:var(--dark);flex:0 1 auto;min-width:0;">${esc(fmtDate(ev.date,ev.time,ev.endtime))}</div>${recurBadge}</div>`
+      : (recurBadge ? `<div style="display:flex;margin-bottom:6px;">${recurBadge}</div>` : ""),
+    _recurSay ? `<div id="ev-recur-say" ${_recurSayOpen ? "" : "hidden"} style="font-size:14px;color:#374151;margin:-2px 0 6px;">${esc(_recurSay)}</div>` : "",
     meetingRoomLine,
     gateMsg,
     ev.venue ? `<div style="font-size:14px;color:var(--dark);margin-bottom:4px;"><strong>Venue:</strong> ${esc(ev.venue)}</div>` : "",
@@ -1027,6 +1126,10 @@ function render(ev) {
         : `<button onclick="openRsvpRegister()" class="ev-going-btn" style="background:#f9fafb;border:1.5px solid var(--border);color:var(--muted);font-weight:600;font-size:12px;padding:6px 14px;border-radius:20px;white-space:nowrap;cursor:pointer;font-family:inherit;">Sign in to RSVP</button>`)
   ) : "";
 
+  // BOOKMARK BESIDE THE TITLE. Jessie, 2026-09-10: "right align bookmark to the right of title". It
+  // sat in the row under the title, on the left. It goes in the slot beside the title now, after
+  // Register / Pay or +1 I'm going when there is one (see BOOKMARK BESIDE THE TITLE in the template
+  // block), and the row under the title keeps the day's Gather button and Edit.
   const bookmarkHTML = (_isLoggedIn && !ev.cancelled)
     ? `<button onclick="toggleEventBookmark()" id="bookmark-btn" style="background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;font-size:13px;padding:6px 14px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">Bookmark</button>`
     : "";
@@ -1123,8 +1226,8 @@ function render(ev) {
       <div class="evt-head-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
         <h1 style="margin:0;flex:1;min-width:0;">${esc(ev.title)}</h1>
         <div class="evt-head-btns" style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
-          ${payHeadHTML}${_payOn ? "" : interestHeaderHTML}
-          <div class="ev-head-acts">${joinBtn}${bookmarkHTML}${editHeadHTML}</div>
+          <div class="ev-head-slot">${payHeadHTML}${_payOn ? "" : interestHeaderHTML}${bookmarkHTML}</div>
+          <div class="ev-head-acts">${joinBtn}${editHeadHTML}</div>
         </div>
       </div>
       <div style="margin-bottom:8px;">${engagementSection}</div>
@@ -1265,6 +1368,8 @@ window.applyRegisteredUI = applyRegisteredUI;
 // bookmarked until something repainted it, so render() calls this after every write as well.
 var _bmOn = false;
 function _paintBookmark() {
+  // If the load's answer came before the event did, the event looks itself up in it now.
+  try { _bmResolveRead(); } catch (e) {}
   var b = document.getElementById('bookmark-btn');
   if (!b) return;
   b.textContent = _bmOn ? 'Bookmarked' : 'Bookmark';
@@ -1272,40 +1377,100 @@ function _paintBookmark() {
   b.style.color = _bmOn ? '#fff' : '#1F699E';
   b.style.borderColor = _bmOn ? 'var(--primary)' : '#1F699E';
 }
-window.toggleEventBookmark = async function () {
+// PRESS IT AS OFTEN AS YOU LIKE. Jessie, 2026-09-10: "When I clicked on bookmark and then bookmarked
+// off again, it doesn't allow me to bookmark again, and I should be able to." The button was switched
+// off until the save answered, and on this backend that is ten to forty seconds, so the third press
+// landed on a button that did nothing.
+//
+// It is never switched off now. Each press flips the button at once. The saves go out ONE AT A
+// TIME: when one comes back, if the button has changed since it was sent, the latest is sent, so the
+// sheet ends where the screen is and the backend is never handed two at once. Bookmark, Bookmarked,
+// Bookmark in a row sends one save and then, if the sheet is not already there, one more.
+//
+// A SAVE THAT FAILS PUTS THE BUTTON BACK to what the sheet last confirmed, quietly. The button is the
+// message; a warning over a bookmark would be louder than the thing itself.
+//
+// THE FIRST SAVE WAITS FOR THE LOAD'S OWN QUESTION (getBookmarks, below), because that answer is the
+// sheet's word on where things stand, and the two would otherwise be out at once. Once a press has
+// been made, that answer no longer moves the button; it only tells the saves what the sheet holds.
+var _bmSaved = null;       // true / false once the sheet has said, by getBookmarks or by a save
+var _bmTouched = false;    // pressed at least once on this load
+var _bmSending = false;    // a save is out (or waiting its turn behind the load's question)
+var _bmFallback = false;   // what the button showed before this run of presses, if the sheet never said
+var _bmReadIds = null;     // getBookmarks' list, kept until the event is on screen to look itself up
+var _bmReadJob = Promise.resolve();
+
+// The load's answer, applied once both it and the event are here, whichever arrives second.
+function _bmResolveRead() {
+  if (_bmSaved !== null || !_bmReadIds) return;
+  var eid = window._currentEventId || (_currentEv && _currentEv.id) || '';
+  if (!eid) return;
+  _bmSaved = _bmReadIds.indexOf(String(eid)) > -1;
+  if (!_bmTouched) { _bmOn = _bmSaved; }
+}
+
+// The calendar reads this list to draw Show bookmarked at once (see REMEMBERED BOOKMARKS there). It
+// follows what the sheet confirmed, never a press still on its way.
+function _bmRemember(me, eid, on) {
+  try {
+    var _k = 'cw-bm-events-' + me, _l = JSON.parse(localStorage.getItem(_k) || '[]');
+    if (!Array.isArray(_l)) _l = [];
+    _l = _l.filter(function (x) { return String(x) !== String(eid); });
+    if (on) _l.push(String(eid));
+    localStorage.setItem(_k, JSON.stringify(_l));
+  } catch (e) {}
+}
+
+window.toggleEventBookmark = function () {
   var me = ''; try { me = getMemberId() || ''; } catch (e) {}
   var eid = window._currentEventId || (_currentEv && _currentEv.id) || '';
   if (!me || !eid) return;
-  var b = document.getElementById('bookmark-btn');
-  var next = !_bmOn;
-  _bmOn = next; _paintBookmark();
-  if (b) b.disabled = true;
-  try {
-    await fetch(GS_URL + '?action=saveBookmark&type=Event&from=' + encodeURIComponent(me)
-                + '&to=' + encodeURIComponent(eid) + (next ? '' : '&remove=true'));
-    // The calendar reads this list to draw Show bookmarked at once (see REMEMBERED BOOKMARKS there).
-    try {
-      var _k = 'cw-bm-events-' + me, _l = JSON.parse(localStorage.getItem(_k) || '[]');
-      _l = _l.filter(function (x) { return x !== String(eid); });
-      if (next) _l.push(String(eid));
-      localStorage.setItem(_k, JSON.stringify(_l));
-    } catch (e2) {}
-  } catch (e) {
-    // Put it back rather than leaving the screen claiming something the sheet does not hold.
-    _bmOn = !next; _paintBookmark();
-  }
-  if (b) b.disabled = false;
+  if (!_bmSending) { _bmFallback = _bmOn; }
+  _bmTouched = true;
+  _bmOn = !_bmOn; _paintBookmark();
+  _bmFlush(me, eid);
 };
+
+async function _bmFlush(me, eid) {
+  if (_bmSending) return;            // the one out will look again when it returns
+  _bmSending = true;
+  try {
+    try { await _bmReadJob; } catch (e) {}
+    _bmResolveRead();
+    while (_bmSaved !== _bmOn) {
+      var want = _bmOn, ok = false;
+      try {
+        var r = await fetch(GS_URL + '?action=saveBookmark&type=Event&from=' + encodeURIComponent(me)
+                            + '&to=' + encodeURIComponent(eid) + (want ? '' : '&remove=true'));
+        var d = null;
+        try { d = await r.json(); } catch (e2) {}
+        ok = !!(r.ok && d && d.status === 'ok');
+      } catch (e) {}
+      if (!ok) {
+        _bmOn = (_bmSaved === null) ? _bmFallback : _bmSaved;
+        _paintBookmark();
+        break;
+      }
+      _bmSaved = want;
+      _bmRemember(me, eid, want);
+    }
+  } finally { _bmSending = false; }
+}
+
 // Whether it is already saved, asked once on load.
-(async function () {
+_bmReadJob = (async function () {
   try {
     var me = getMemberId() || '';
     if (!me) return;
     var r = await fetch(GS_URL + '?action=getBookmarks&type=Event&appearId=' + encodeURIComponent(me));
     var d = await r.json();
-    var eid = window._currentEventId || (_currentEv && _currentEv.id) || '';
-    if (d && Array.isArray(d.ids)) { try { localStorage.setItem('cw-bm-events-' + me, JSON.stringify(d.ids.map(String))); } catch (e2) {} }
-    if (d && Array.isArray(d.ids) && eid && d.ids.indexOf(String(eid)) > -1) { _bmOn = true; _paintBookmark(); }
+    if (d && Array.isArray(d.ids)) {
+      // No save has gone yet (they wait for this), so this is the newest word the sheet has given.
+      try { localStorage.setItem('cw-bm-events-' + me, JSON.stringify(d.ids.map(String))); } catch (e2) {}
+      _bmReadIds = d.ids.map(String);
+      _bmResolveRead();
+      _paintBookmark();
+    }
   } catch (e) {}
 })();
 
@@ -1341,6 +1506,33 @@ var _socChoice = '';     // 'yes' or 'no' once a choice is pressed; '' means non
 var _socSaving = false;  // true while the write is out, so a second press does nothing
 var _socDoneFor = '';    // "eventId|personId" once the backend has said yes on this page load
 
+// A SOCIALIZE JUST MADE OUTLIVES A RELOAD. The gate keeps getEventById's answer for a minute per
+// person (cw-api-gate CACHE_TTL), so a reload straight after Socialize it could be handed the answer
+// from before and offer "Socialize this event" again to somebody who just had. The backend said yes,
+// so this tab remembers it, with the time, and for five minutes the event reads as socialized by
+// them whatever an older answer says. sessionStorage, so it ends with the tab, and it holds only the
+// event's id, the person's id and the time. Five minutes is well past the gate's
+// minute; after that the backend's own answer decides again.
+var SOC_RECENT_MS = 5 * 60 * 1000;
+function _socRecentMap() {
+  try {
+    var m = JSON.parse(sessionStorage.getItem('cw-soc-done') || '{}');
+    return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
+  } catch (e) { return {}; }
+}
+function _socRecent(eid, me) {
+  var at = Number(_socRecentMap()[String(eid) + '|' + String(me)]) || 0;
+  return at > 0 && (Date.now() - at) < SOC_RECENT_MS;
+}
+function _socRemember(eid, me) {
+  try {
+    var m = _socRecentMap(), now = Date.now();
+    Object.keys(m).forEach(function (k) { if (!(now - (Number(m[k]) || 0) < SOC_RECENT_MS)) delete m[k]; });
+    m[String(eid) + '|' + String(me)] = now;
+    sessionStorage.setItem('cw-soc-done', JSON.stringify(m));
+  } catch (e) {}
+}
+
 // Which of the two the rail button reads, or 'unknown' while the page cannot say.
 function _socState() {
   var ev = _currentEv;
@@ -1350,6 +1542,7 @@ function _socState() {
   try { me = getMemberId() || ''; } catch (e) {}
   if (!me) return 'no';                                   // signed out: drawn at once
   if (_socDoneFor === eid + '|' + me) return 'yes';
+  if (_socRecent(eid, me)) return 'yes';                  // socialized here in the last five minutes
   var k = _evRoleKnown;
   if (k && k.id === eid && k.me === me) return k.socializing ? 'yes' : 'no';
   if (_evRoleFailed === eid + '|' + me) return 'no';     // the question failed: the door stays open
@@ -1563,6 +1756,7 @@ window.cwSocGo = async function () {
   }
   var eid = String(ev.id);
   _socDoneFor = eid + '|' + real;
+  _socRemember(eid, real);   // see A SOCIALIZE JUST MADE OUTLIVES A RELOAD
   var k = _evRoleKnown;
   if (k && k.id === eid) { k.socializing = true; k.shown = ok.shown === true; }
   cwSocClose();
@@ -2244,9 +2438,17 @@ async function init() {
       RECURRING_EVENTS = allRows
         .filter(r => String(r.id).startsWith("rec-") && r.recurFreq && r.dayOfWeek)
         .map(r => ({ ...toEv(r), dayOfWeek: parseInt(r.dayOfWeek) || 0, time: parseSheetTime(r.startTime), endtime: parseSheetTime(r.endTime) }));
-      const recurMatch = RECURRING_EVENTS.find(r =>
+      // THE SERIES THAT FALLS ON THIS DATE, WHEN SEVERAL SHARE A TITLE. Found 2026-09-10 while
+      // writing "Recurs every Friday" (Jessie: "say the day it recurrs on"): Ping Pong / Rummikub at
+      // Lake Ballinger is five rec- rows with one title, one per weekday (rec-ping1 to rec-ping5), and
+      // the first match won, so Friday's page carried Monday's row - Monday's 9 AM start in place of
+      // Friday's 10 AM, and it would have said "Recurs every Monday" on a Friday. The row whose
+      // events.dayOfWeek is this date's weekday wins; with none, the first match, as before.
+      const _sameTitle = RECURRING_EVENTS.filter(r =>
         r.title.toLowerCase().replace(/\s+/g, "-") === slug
       );
+      const _dowHere = new Date(dateStr + "T12:00:00").getDay();
+      const recurMatch = _sameTitle.find(r => ((Number(r.dayOfWeek) % 7) + 7) % 7 === _dowHere) || _sameTitle[0];
       if (recurMatch) {
         const ev = recurToEv(recurMatch);
         ev.id = id;
@@ -2373,9 +2575,11 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
   html.cw-tplview .cw-rl-tab { flex:1; background:#fff; color:var(--primary); border:1.5px solid #C9D6E2; border-radius:9px;
                                font:inherit; font-size:12.5px; font-weight:700; padding:7px 3px; cursor:pointer;
                                text-align:center; text-decoration:none; line-height:1.25; }
-  /* THE LIT TAB IS FILLED. Calendar is lit on this page (see CALENDAR IS LIT, in the rail build),
-     so the page needs the filled style the calendar's own rail uses: site blue, white words. */
+  /* THE LIT TAB IS FILLED. Event is lit on this page (see EVENT IS LIT, in the rail build), so the
+     page needs the filled style the calendar's own rail uses: site blue, white words. It is the page
+     you are on and not a link, so it does not offer a hand to press. */
   html.cw-tplview .cw-rl-tab.on { background:#1F699E; color:#fff; border-color:#1F699E; }
+  html.cw-tplview span.cw-rl-tab.on { cursor:default; }
   /* FOUR TABS ON ONE LINE ON A PHONE. With Calendar added the rail can carry four tabs, and at
      375px "My groups" broke across two lines on the calendar, the squish Jessie sent a picture of
      on 2026-09-09. Same rule as the calendar: slightly smaller, never wrapping. */
@@ -2414,11 +2618,32 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
      registration link there is no button, and the title has the whole width. */
   html.cw-tplview .ev-pay-btn { flex:0 0 auto; }
   /* +1 I'm going takes the same slot when there is no registration link, and the same rule. */
-  html.cw-tplview .evt-head-btns > .ev-going-btn { flex:0 0 auto; }
+  html.cw-tplview .ev-head-slot > .ev-going-btn { flex:0 0 auto; }
+  /* BOOKMARK BESIDE THE TITLE. Jessie, 2026-09-10: "right align bookmark to the right of title".
+     The slot beside the title holds Register / Pay or +1 I'm going, then Bookmark, STACKED, one
+     under the other and the same width, so two pills take the width of one and the title keeps the
+     rest; it wraps rather than being squeezed. With only Bookmark the slot is that one pill. The row
+     under the title keeps the day's Gather button and Edit, with Edit at its right end. */
+  html.cw-tplview .ev-head-slot { display:flex; flex-direction:column; align-items:stretch; gap:8px; flex:0 0 auto; }
+  html.cw-tplview .ev-head-slot:empty { display:none; }
+  html.cw-tplview .ev-head-slot > * { text-align:center; justify-content:center; }
+  /* A ROW THAT HOLDS NOTHING YOU CAN SEE TAKES NO SPACE. With Bookmark gone up beside the title, the
+     row under it is often just Edit, still hidden for somebody who may not edit, and an empty row
+     still pushed the description down by a gap. Edit is written with display:none and revealed by
+     _paintEventRole; until then the row is not drawn. */
+  html.cw-tplview .ev-head-acts:has(> #ev-edit-head:only-child[style*="display:none"]),
+  html.cw-tplview .ev-head-acts:has(> #ev-edit-head:only-child[style*="display: none"]) { display:none; }
+  /* ON A PHONE the slot drops under the title as it did, and its two pills share one line. */
+  @media (max-width:768px) {
+    html.cw-tplview .ev-head-slot { flex-direction:row; flex-wrap:wrap; }
+    html.cw-tplview .ev-head-slot > * { flex:1 1 auto; }
+  }
   /* +1 AND BOOKMARK, ONE ROW UNDER THE TITLE, BOTH OUTLINES, so Register / Pay is the one filled
      button in the head. The pill is the Bookmark pill exactly, the size included, so the two read as
      a pair. The day's Gather here button rides in the same row, first, and keeps its fill: on the day
-     of an online event it is the way in. */
+     of an online event it is the way in.
+     2026-09-10, later: Bookmark left this row for the slot beside the title (BOOKMARK BESIDE THE
+     TITLE, above), so the row holds the day's Gather button and Edit. */
   html.cw-tplview .ev-head-acts { display:flex; flex:0 0 100%; flex-wrap:wrap; align-items:center; gap:8px; }
   html.cw-tplview .ev-head-acts:empty { display:none; }
   /* You're going keeps its fill, which is how Bookmarked shows too: an outline is something you can
@@ -2491,6 +2716,15 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
     width:100%; display:flex; align-items:center; justify-content:flex-start; text-align:left;
     padding:11px 14px; font-size:14px; line-height:1.2; cursor:pointer;
   }
+  /* Each associated group carries its photo in a small square on the left (see paintGroups). The
+     row's padding comes in on the left so the square sits the same distance from the edge as from
+     the top and bottom, the way the rows in My events do. */
+  html.cw-tplview .cw-rl-rail #cw-tpl-groups .btn { gap:10px; padding:6px 14px 6px 6px; }
+  html.cw-tplview .cw-rl-rail #cw-tpl-groups .cw-rl-gimg {
+    flex:0 0 32px; width:32px; height:32px; border-radius:6px; background:#EEF3F8; overflow:hidden; display:block;
+  }
+  html.cw-tplview .cw-rl-rail #cw-tpl-groups .cw-rl-gimg img { width:100%; height:100%; object-fit:cover; display:block; }
+  html.cw-tplview .cw-rl-rail #cw-tpl-groups .cw-rl-gname { flex:1 1 auto; min-width:0; }
   html.cw-tplview .cw-rl-rail #ev-categories,
   html.cw-tplview .cw-rl-rail #ev-experience,
   html.cw-tplview .cw-rl-rail #ev-host,
@@ -2571,12 +2805,21 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
     // represents the page you're on." An event is a page of the calendar, the way the trail reads
     // Events / the event's name, so Calendar comes first and filled, exactly as on the calendar,
     // and pressing it goes back there. A visitor who is signed out still gets no tabs at all.
+    //
+    // EVENT IS LIT, AND CALENDAR GOES TO THE CALENDAR. Jessie, 2026-09-10, later the same day, on this
+    // page: "actually make calendar go to the calendar, and this particular event should just have a
+    // button called 'Event' and it's selected", and her rule from My events: "put selected one on
+    // left". A lit Calendar on a page that is not the calendar said you were somewhere you were not,
+    // and pressing the lit tab to leave is backwards. So the row is Event, lit and first, the page
+    // you are on, which goes nowhere; then Calendar, an ordinary tab back to the calendar; then My
+    // events; then My groups, for somebody in a group. A visitor signed out still gets no tabs.
     var me = '';
     try { me = (typeof getMemberId === 'function' ? (getMemberId() || '') : ''); } catch (e) {}
     if (me) {
       var seg = document.createElement('div'); seg.className = 'cw-rl-seg'; seg.id = 'cw-tpl-seg';
       seg.innerHTML =
-        '<a class="cw-rl-tab on" role="link" tabindex="0" aria-current="page" data-nav="https://2gather.network/events/" onclick="return _safeNavGo(this)">Calendar</a>' +
+        '<span class="cw-rl-tab on" aria-current="page">Event</span>' +
+        '<a class="cw-rl-tab" role="link" tabindex="0" data-nav="https://2gather.network/events/" onclick="return _safeNavGo(this)">Calendar</a>' +
         '<a class="cw-rl-tab" role="link" tabindex="0" data-nav="https://2gather.network/myevents/" onclick="return _safeNavGo(this)">My events</a>';
       // NO MY PROFILE IN THE ROW. Jessie, 2026-09-10, on My events: "remove my profile", then on the calendar: "i said to take my profile off of here". The top bar's own menu carries the profile. My groups, when it comes, goes last.
       rail.appendChild(seg);
@@ -2588,12 +2831,15 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
         fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(me))
           .then(function (r) { return r.json(); })
           .then(function (d) {
-            // The same answer names the groups for "In your groups", so that section costs no call.
+            // The same answer names the groups for "Associated groups", so that section costs no call.
             _myGroupsAnswer = ((d && d.groups) || []).map(function (g) {
               var id = String(g.groupID || g.groupId || g.id || '').trim();
-              return { id: id, name: String(g.groupName || g.name || g.title || id).trim() || id };
+              // The group's picture rides in the same answer (getMyGroups sends Groups.groupImage as
+              // image), so the photo beside each associated group costs nothing either.
+              return { id: id, name: String(g.groupName || g.name || g.title || id).trim() || id,
+                       image: String(g.image || g.groupImage || '').trim() };
             }).filter(function (g) { return g.id; });
-            // Nor does it name Appear Network under In your groups: a group everybody is in says nothing.
+            // Nor does it name Appear Network under Associated groups: a group everybody is in says nothing.
             if (window.cwCountedGroups) { _myGroupsAnswer = window.cwCountedGroups(_myGroupsAnswer); }
             paintGroups();
             // Appear Network, which everybody is in, does not count (window.cwCountedGroups, in the
@@ -2607,7 +2853,7 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
             a.setAttribute('data-nav', 'https://2gather.network/mygroups');
             a.setAttribute('onclick', 'return _safeNavGo(this)');
             a.textContent = 'My groups';
-            seg.insertBefore(a, seg.children[2] || null);   // last, after Calendar and My events
+            seg.appendChild(a);   // last, after Event, Calendar and My events
           })
           .catch(function () {});
       } catch (e) {}
@@ -2692,7 +2938,8 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
     var dr = document.getElementById('ev-desc-rule');
     if (dr) { dr.style.display = 'none'; }
   }
-  // IN YOUR GROUPS. Jessie, 2026-09-10: "if it's associated to a group, say which groups I belong to
+  // IN YOUR GROUPS (headed Associated group or Associated groups since later on 2026-09-10, with
+  // each group's photo; see below). Jessie, 2026-09-10: "if it's associated to a group, say which groups I belong to
   // are associated with this event somewhere in left panel and give me the ability to go to any of
   // them landing on the group calendar".
   //
@@ -2733,10 +2980,17 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
     box.className = 'cw-rl-moved';
     var head = document.createElement('p');
     head.style.cssText = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;';
-    head.textContent = hits.length === 1 ? 'In your group' : 'In your groups';
+    // ASSOCIATED GROUP, OR GROUPS. Jessie, 2026-09-10: "In your group to Associated group or
+    // Associated groups if mutliple". Still only groups this person is in; the heading changed, not
+    // who is shown.
+    head.textContent = hits.length === 1 ? 'Associated group' : 'Associated groups';
     box.appendChild(head);
     var list = document.createElement('div');
     list.className = 'cw-rl-glist';
+    // THE GROUP'S PHOTO ON THE LEFT OF ITS NAME. Jessie, 2026-09-10: "add groiup photo on left of
+    // group title on event page". A small square, like the photo beside each event in My events, and
+    // a group with no picture, or one that does not load, keeps the empty square so every name
+    // starts in the same place. Only a web address is used as a picture.
     hits.forEach(function (g) {
       var a = document.createElement('a');
       a.className = 'btn btn-outline';
@@ -2745,7 +2999,19 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
       a.setAttribute('title', "See this group's events");
       a.setAttribute('data-nav', 'https://2gather.network/group?id=' + encodeURIComponent(g.id) + '&view=events');
       a.setAttribute('onclick', 'return _safeNavGo(this)');
-      a.textContent = g.name;
+      var sq = document.createElement('span');
+      sq.className = 'cw-rl-gimg';
+      if (/^https?:\/\/\S+$/i.test(g.image || '')) {
+        var im = document.createElement('img');
+        im.src = g.image; im.alt = '';
+        im.onerror = function () { this.remove(); };
+        sq.appendChild(im);
+      }
+      var nm = document.createElement('span');
+      nm.className = 'cw-rl-gname';
+      nm.textContent = g.name;
+      a.appendChild(sq);
+      a.appendChild(nm);
       list.appendChild(a);
     });
     box.appendChild(list);
