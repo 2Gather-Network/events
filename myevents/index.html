@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.19 | Date: 2026-09-10 | LAST CHANGE: on a phone, Show cancelled and Show bookmarked fold away with the list and come back when it opens. -->
+<!-- Version: M3.20 | Date: 2026-09-10 | LAST CHANGE: the section's name in the panel is a 20px heading again, with the line under it: 21 events hosted, 243 events socialized Thank you!, events you are attending, or what fills the section when it is empty. -->
+<!-- Previous: M3.19 | Date: 2026-09-10 | LAST CHANGE: on a phone, Show cancelled and Show bookmarked fold away with the list and come back when it opens. -->
 <!-- Previous: M3.18 | Date: 2026-09-10 | LAST CHANGE: on a phone, opening an event folds the rest of the list behind an Events (N) bar like the calendar's Filters bar, with the open event under it, and the page starts at that bar. -->
 <!-- Previous: M3.17 | Date: 2026-09-10 | LAST CHANGE: each event name is 14px bold, the size of its date line. -->
 <!-- Previous: M3.16 | Date: 2026-09-10 | LAST CHANGE: ?pane=socialized (or attending, hosting) opens that section on arrival. An event somebody socialized from its own page is listed under Socialized and opens its public page, and it never opens the edit form, because they do not host it. -->
@@ -413,8 +414,17 @@
   /* The two ways out, inside the panel and against its right edge. */
   .panel-top { display:flex; align-items:center; justify-content:space-between; gap:10px;
                flex-wrap:wrap; margin-bottom:12px; }
-  .pane-head { font-size:12px; font-weight:800; margin:0; color:var(--muted);
-               text-transform:uppercase; letter-spacing:.06em; }
+  /* THE SECTION'S NAME IS A HEADING AGAIN, WITH ITS LINE UNDER IT. Jessie, 2026-09-10, with a picture of
+     the panel reading HOSTING in small grey capitals: "header doen't match ohter headers - it's way too
+     small and there isn't any sentence like there used to be?", then "attending/hosting/socialized had
+     explanations before". They did, on the page this one replaced (e94c92f): the name at 20px bold and
+     under it her own lines, "157 events hosted" and "157 events socialized ... Thank you!". Both are
+     back, the same size and words. The line waits for the count, so it never says a number it does
+     not know yet. */
+  .pane-head { font-size:20px; font-weight:800; margin:0; color:var(--ink, #1A2E42); }
+  .pane-say { flex:1 0 100%; font-size:14px; color:var(--muted); line-height:1.55; margin:0; }
+  .pane-say:empty { display:none; }
+  .pane-say a { color:var(--primary); font-weight:700; }
   /* The pill sits under the title rather than above it, so the panel reads title, then state. */
   #manage-status { margin-bottom:12px; }
   .panel-btn { background:var(--primary); color:#fff; border:0; padding:11px 20px; border-radius:26px;
@@ -794,6 +804,7 @@
       <div class="panel-top" id="panel-top" style="display:none;">
         <h2 id="pane-head" class="pane-head">Hosting</h2>
         <button type="button" class="panel-btn" onclick="openPostEvent()">Post event</button>
+        <p id="pane-say" class="pane-say"></p>
       </div>
       <div id="manage-status"><span class="cw-loading">Loading information...</span></div>
       <script>
@@ -8534,11 +8545,33 @@ function selectInterestSuggestion(val) {
   function _paintPaneHead(p) {
     var h = document.getElementById('pane-head');
     if (h) { h.textContent = PANE_NAME[p] || ''; }
+    _paintPaneSay(p);
     // THE LABEL WAITS TOO. Jessie, 2026-09-10: "hosting word shoudln't show while waitin for edit
     // event tto show". Arriving with ?id= means an event is opening, so naming the list you came
     // from, beside a breathing pill, says the wrong thing about what the panel is doing.
     var t = document.getElementById('panel-top');
     if (t && !_openingEvent) { t.style.display = ''; }
+  }
+
+  // THE LINE UNDER THE HEADING, in her words from 2026-09-10 (see THE SECTION'S NAME IS A HEADING
+  // AGAIN in the stylesheet). The number is the one on the section's own pill, so the two never
+  // disagree, and while the pill is still blank the line is too. With none, it says what fills the
+  // section, as the page before this one did.
+  function _paintPaneSay(p) {
+    var el = document.getElementById('pane-say');
+    if (!el) return;
+    var pill = document.querySelector('.manage-tab[data-pane="' + p + '"] span');
+    var n = pill ? parseInt(pill.textContent, 10) : NaN;
+    if (isNaN(n)) { el.innerHTML = ''; return; }
+    var ev = function (k) { return k + ' event' + (k === 1 ? '' : 's'); };
+    var say = {
+      attending:  n ? ev(n) + ' you are attending \ud83c\udf31' : 'Your events show up here after you register for one.',
+      hosting:    n ? ev(n) + ' hosted \ud83c\udf31' : 'Your hosted events show up here.',
+      socialized: n ? ev(n) + ' socialized \ud83c\udf89 Thank you!'
+                    : 'Your socialized events show up here. Post a new event or <a href="https://2gather.network/events">share an existing one</a>.',
+      all:        n + ' public event' + (n === 1 ? '' : 's') + ' still to come'
+    };
+    el.innerHTML = say[p] || '';
   }
 
   window.manageTab = function (p) {
@@ -8744,6 +8777,7 @@ function selectInterestSuggestion(val) {
       }
       b.textContent = rows.filter(function (r) { return inPane(r, p); }).length;
     });
+    try { _paintPaneSay(pane); } catch (e) {}
   }
 
   // One row builder. The three orderings each end by drawing rows, and three copies of this markup
