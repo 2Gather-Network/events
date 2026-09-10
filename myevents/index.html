@@ -39,7 +39,10 @@
      It breathes rather than spins, because a spinner beside a backend that takes seconds reads as
      something being wrong. */
   /* The same pill My groups uses in its header, so the two pages read as one product. */
-  .me-panel-top { display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .me-panel-top { display:flex; align-items:center; justify-content:space-between; gap:12px;
+                  flex-wrap:wrap; margin-bottom:14px; }
+  .me-panel-head { font-size:20px; font-weight:800; margin:0; color:var(--ink, #1A2E42); }
+  .me-panel-btns { display:flex; gap:10px; flex-wrap:wrap; }
   .me-panel-btn { background:var(--primary, #1F699E); color:#fff; border:0; padding:8px 16px;
                   border-radius:20px; font-family:inherit; font-size:13.5px; font-weight:700;
                   cursor:pointer; text-decoration:none; display:inline-block; }
@@ -518,6 +521,22 @@ window._safeNavGo=function(el){try{var u=el&&el.getAttribute&&el.getAttribute('d
 document.addEventListener('keydown',function(e){if(e.key!=='Enter'&&e.key!==' ')return;var t=e.target;if(t&&t.tagName==='A'&&!t.hasAttribute('href')&&t.hasAttribute('data-nav')){e.preventDefault();_safeNavGo(t);}});
 
 async function fetchEvents() {
+  // BOTH CALLS AT ONCE. Jessie, 2026-09-10: "took 10 seconds to load. not good."
+  //
+  // The public feed is 515 KB and getMyEvents is 402 KB. This asked for the first, waited for all
+  // of it, and only then asked for the second, so the page paid for both in series. They do not
+  // depend on each other - the merge below needs both, and neither needs the other to be sent.
+  //
+  // Started together, the wait is the slower of the two rather than the sum.
+  var _who = '';
+  try { _who = (window.CW && window.CW.me) ? String(window.CW.me().id || "").trim() : ""; } catch (e) {}
+  if (!_who) { try { _who = String(localStorage.getItem("cw-id") || localStorage.getItem("appear-id") || "").trim(); } catch (e) {} }
+  var _minePromise = _who
+    ? fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(_who) + "&t=" + Date.now())
+        .then(function (r) { return r.json(); })
+        .catch(function () { return null; })
+    : Promise.resolve(null);
+
   const res = await fetch(GS_URL + "?t=" + Date.now());
   const data = await res.json();
   // AND YOUR OWN PRIVATE ONES, which the public feed strips.
@@ -531,11 +550,9 @@ async function fetchEvents() {
     // Asked of CW rather than of a variable somewhere else in the file, so there is no chance of
     // reading one that has not been assigned yet. CW.me() is the person being looked at, which is
     // whose events this page is showing.
-    var whoNow = (window.CW && window.CW.me) ? String(window.CW.me().id || "").trim() : "";
-    if (!whoNow) { try { whoNow = String(localStorage.getItem("cw-id") || localStorage.getItem("appear-id") || "").trim(); } catch (e) {} }
+    var whoNow = _who;
     if (whoNow) {
-      const mineRes = await fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(whoNow) + "&t=" + Date.now());
-      const mine = await mineRes.json();
+      const mine = await _minePromise;
       if (mine && mine.status === "ok" && Array.isArray(mine.events) && mine.events.length) {
         // YOUR OWN ROW WINS, rather than only filling gaps. Jessie, 2026-09-07: "none of my groups
         // are showing up", with Attending 0, Hosting 0 and Socialized 0 for somebody who owns 296.
@@ -2145,8 +2162,11 @@ async function renderMyEventsList(memberId, data) {
       + renderRail()
       + '<div>'
       +   '<div class="me-panel-top">'
-      +     '<a class="me-panel-btn" role="link" tabindex="0" data-nav="https://2gather.network/events" onclick="return _safeNavGo(this)">Find an event</a>'
-      +     '<a class="me-panel-btn" role="link" tabindex="0" data-nav="https://2gather.network/myevents/manage/" onclick="return _safeNavGo(this)">Post an event</a>'
+      +     '<h2 class="me-panel-head">My events</h2>'
+      +     '<div class="me-panel-btns">'
+      +       '<a class="me-panel-btn" role="link" tabindex="0" data-nav="https://2gather.network/events" onclick="return _safeNavGo(this)">Find an event</a>'
+      +       '<a class="me-panel-btn" role="link" tabindex="0" data-nav="https://2gather.network/myevents/manage/" onclick="return _safeNavGo(this)">Post an event</a>'
+      +     '</div>'
       +   '</div>'
       +   renderDetail()
       + '</div></div>';
