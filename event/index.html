@@ -12,7 +12,8 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V6.08 | Date: 2026-09-10 | LAST CHANGE: the photo previews are taken out; the photo stays at the top of the card. -->
+  <!-- Version: V6.09 | Date: 2026-09-10 | LAST CHANGE: the words in Add to calendar and Socialize this event wrap inside their buttons instead of running past the edge; Bookmark is not shown to the people who host the event, and waits for the answer that says who does. -->
+<!-- Previous: V6.08 | Date: 2026-09-10 | LAST CHANGE: the photo previews are taken out; the photo stays at the top of the card. -->
 <!-- Previous: V6.07 | Date: 2026-09-10 | LAST CHANGE: the tab row reads Event, My events, Calendar, My groups. -->
 <!-- Previous: V6.06 | Date: 2026-09-10 | LAST CHANGE: side by side, a button's words wrap inside it rather than running past its edge. -->
 <!-- Previous: V6.05 | Date: 2026-09-10 | LAST CHANGE: Event experience; category chips share lines; Add to calendar and Socialize side by side on a computer; photo previews behind ?photo=rail and ?photo=side. -->
@@ -603,7 +604,7 @@ async function _applyEventRole() {
   if (!me) { _paintSocialize(); return; }   // signed out: nothing to reveal, and nothing asked of the backend
   var eid = String(_currentEv.id);
   var k = _evRoleKnown;
-  if (k && k.id === eid && k.me === me) { _paintEventRole(k.role); _paintSocialize(); return; }
+  if (k && k.id === eid && k.me === me) { _paintEventRole(k.role); _paintSocialize(); _paintBookmarkSlot(); return; }
   var key = eid + '|' + me;
   if (_evRoleAsking === key) return;
   _evRoleAsking = key;
@@ -613,7 +614,7 @@ async function _applyEventRole() {
     var d = await r.json();
     var e1 = (d && d.event) || {};
     var role = e1.myRole || 'visitor';
-    _evRoleKnown = { id: eid, me: me, role: role,
+    _evRoleKnown = { id: eid, me: me, role: role, hosts: _hostsThis(role, e1.row, me),
                      socializing: e1.mySocializing === true, shown: e1.myShown === true };
     // Painted on the card as it stands now, not the one this call began on, which a re-render
     // may already have thrown away.
@@ -621,6 +622,35 @@ async function _applyEventRole() {
   } catch (e) { _evRoleFailed = key; }
   _evRoleAsking = '';
   _paintSocialize();
+  _paintBookmarkSlot();
+}
+
+// NO BOOKMARK FOR THE PEOPLE WHO HOST IT. Jessie, 2026-09-10: "bookmark event shoudln't show button
+// for peopel who are hosts - it's already easily accessible". A host or co-host has the event under
+// Hosting on My events, so a bookmark would be a second way to keep what is already kept.
+// Who hosts it is the same getEventById answer that shows Edit and Socialize, so Bookmark waits for it
+// too and is never shown and then taken away. If that answer fails, Bookmark shows, the same as
+// Socialize does.
+// A SUPER ADMIN IS ASKED ABOUT FIRST (_roleOnEvent_ in Code.js), so the answer reads 'super' on her own
+// events as well. The event's row comes back with that answer, and its events.guestID and
+// events.coHostIDs are checked against the ids this browser holds for her.
+function _hostsThis(role, row, me) {
+  if (role === 'host' || role === 'cohost') return true;
+  if (role !== 'super' || !row) return false;
+  var n = function (v) { return String(v || '').trim().split('.').join('').toLowerCase(); };
+  var mine = {};
+  [me, (typeof getRealMemberId === 'function' ? getRealMemberId() : '')].forEach(function (x) { if (n(x)) mine[n(x)] = 1; });
+  if (mine[n(row.guestID)]) return true;
+  return String(row.coHostIDs || '').split('|').some(function (x) { return !!n(x) && !!mine[n(x)]; });
+}
+function _paintBookmarkSlot() {
+  var b = document.getElementById('bookmark-btn');
+  if (!b || !_currentEv) return;
+  var eid = String(_currentEv.id), k = _evRoleKnown;
+  var known = !!(k && k.id === eid);
+  var failed = !!_evRoleFailed && _evRoleFailed.indexOf(eid + '|') === 0;
+  if (!known && !failed) return;   // still asking: nothing shown yet
+  b.style.display = (known && k.hosts) ? 'none' : '';
 }
 
 function _superViewer() {
@@ -1135,7 +1165,7 @@ function render(ev) {
   // Register / Pay or +1 I'm going when there is one (see BOOKMARK BESIDE THE TITLE in the template
   // block), and the row under the title keeps the day's Gather button and Edit.
   const bookmarkHTML = (_isLoggedIn && !ev.cancelled)
-    ? `<button onclick="toggleEventBookmark()" id="bookmark-btn" style="background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;font-size:13px;padding:6px 14px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">Bookmark</button>`
+    ? `<button onclick="toggleEventBookmark()" id="bookmark-btn" style="display:none;background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;font-size:13px;padding:6px 14px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">Bookmark</button>`
     : "";
 
   // EDIT SITS BESIDE +1 AND BOOKMARK, FILLED BLUE. Jessie, 2026-09-10: "If i'm the host/co-host i
@@ -2752,7 +2782,12 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
     html.cw-tplview .cw-rl-rail .actions > .btn:not([style*="display: none"]):not([style*="display:none"]) { flex:1 1 0 !important; min-width:0; font-size:13px; padding:8px 10px; }
     /* NO WORD CUT OFF. Side by side, "Socialize this event" ran past its button's edge (Jessie's
        picture, 2026-09-10). The words wrap onto a second line inside the button instead. */
-    html.cw-tplview .cw-rl-rail .actions > .btn > span:not(.cw-ico) { white-space:normal; overflow-wrap:anywhere; line-height:1.2; }
+    html.cw-tplview .cw-rl-rail .actions > .btn > span:not(.cw-ico) { white-space:normal; overflow-wrap:anywhere; line-height:1.2; flex:0 1 auto; min-width:0; }
+    /* AND THEY ARE ALLOWED TO. Jessie, 2026-09-10, the same picture a second time: "still off". The
+       wrap was allowed but never happened: the row's "> * { flex:0 0 auto }" above told the words
+       they could not be narrower than one line, so "Socialize this event" stayed 120px wide in a
+       button with 101px inside it (measured in the browser at 1280 wide) and ran 9px past the edge.
+       The words may now shrink, so they go onto a second line inside the button. */
     html.cw-tplview .cw-rl-rail .actions > .btn .cw-ico { margin-right:8px !important; }
   }
   /* THE SOCIALIZE SCREEN takes the event card's place in the panel, at the card's width. */
