@@ -10,8 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.5 | Date: 2026-09-10 | LAST CHANGE: closing the after-posting summary stays on /myevents/ with no id in the address, and it no longer tells people to enter a PIN. -->
-<!-- Previous: M3.4 | Date: 2026-09-10 | LAST CHANGE: posting opens at once. Arriving at /myevents/new/ (or the old ?post=1) puts the two questions in the panel before either long call answers, the address reads /myevents/new/ while they are open, and the waiting pill moved into the rail beside the list it is about. -->
+<!-- Version: M3.6 | Date: 2026-09-10 | LAST CHANGE: Show bookmarked. Under Attending, a switch beside Show cancelled narrows the list to just the events this person bookmarked. It is drawn only once the bookmarks have answered and at least one of them can be shown, and it starts off, so Attending means attending until somebody asks otherwise. -->
+<!-- Previous: M3.5 | Date: 2026-09-10 | LAST CHANGE: closing the after-posting summary stays on /myevents/ with no id in the address, and it no longer tells people to enter a PIN. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -419,6 +419,8 @@
   .cancel-toggle.on .cancel-knob { left:17px; }
   .cancel-toggle.on { color:var(--primary,#1F699E); font-weight:700; }
   .cancel-toggle input:focus-visible + .cancel-track { outline:2px solid var(--primary); outline-offset:2px; }
+  /* Show cancelled and Show bookmarked, side by side under the list, wrapping on a narrow rail. */
+  .rail-switches { display:flex; flex-wrap:wrap; column-gap:18px; }
   .manage-rail { background:#fff; border-radius:14px; padding:12px; height:fit-content; }
   /* A super admin is shown every event on the site, so this scrolls rather than running the page
      off the bottom. */
@@ -679,11 +681,24 @@
       <!-- AND CANCELLED AT THE END, AS A SWITCH. Jessie, 2026-09-10: "move Show cancelled to end
            of list of evnets and make it a toggle to enable disable instead". It is a way of
            looking rather than an errand, so it belongs after the thing it changes. -->
+      <!-- SHOW BOOKMARKED SITS BESIDE SHOW CANCELLED. Jessie, 2026-09-10: "show 'Show bookmarked'
+           at bottom of here too", pointing at Show cancelled under the list. Both are ways of
+           looking at the list above them, so they share one row and one look: the same switch, the
+           same small words, bold when on. The row wraps, so on a phone the second one drops under
+           the first rather than squeezing it. Each is hidden on its own until it has something to
+           show. -->
+      <div class="rail-switches">
       <label id="mine-show-cancelled-wrap" class="cancel-toggle" style="display:none;">
         <input type="checkbox" id="mine-show-cancelled-box" onchange="toggleShowCancelledMine()">
         <span class="cancel-track"><span class="cancel-knob"></span></span>
         <span id="mine-show-cancelled-label">Show cancelled</span>
       </label>
+      <label id="mine-show-bookmarked-wrap" class="cancel-toggle" style="display:none;">
+        <input type="checkbox" id="mine-show-bookmarked-box" onchange="toggleShowBookmarkedMine()">
+        <span class="cancel-track"><span class="cancel-knob"></span></span>
+        <span>Show bookmarked</span>
+      </label>
+      </div>
     </aside>
     <section class="manage-main">
       <!-- ONE WORDING EVERYWHERE. Jessie, 2026-09-08: "change loading your events to Loading
@@ -8459,8 +8474,14 @@ function selectInterestSuggestion(val) {
   var _sel4row = '';
   function rowHtml(r) {
     var when = railDate(r);
+    // A BOOKMARKED EVENT SOMEBODY ELSE HOSTS OPENS ITS OWN PAGE. 2026-09-10, with Show bookmarked.
+    // Every other row here is this person's own event and opens the editing door, /myevents/?id=.
+    // A bookmark is usually somebody else's event, and that door would answer "That event belongs
+    // to somebody else" to a person who only wanted to look at it again. So it opens the public
+    // door, /event/?id=, in the same tab like every other row.
+    var door = r._bmPublic ? 'https://2gather.network/event/?id=' : 'https://2gather.network/myevents/?id=';
     return '<button type="button" class="manage-row' + (String(r.id) === String(_sel4row) ? ' on' : '') + '"'
-         + ' onclick="location.href=\'https://2gather.network/myevents/?id=' + encodeURIComponent(String(r.id)) + '\'">'
+         + ' onclick="location.href=\'' + door + encodeURIComponent(String(r.id)) + '\'">'
          + '<b>' + (window.esc ? esc(r.title || 'Untitled') + '</b>' : (r.title || 'Untitled') + '</b>')
          + '<span>' + when + '</span></button>';
   }
@@ -8491,6 +8512,69 @@ function selectInterestSuggestion(val) {
     wrap.style.display = _cancelledRows.length ? 'flex' : 'none';
   }
 
+  // SHOW BOOKMARKED NARROWS ATTENDING TO JUST THE BOOKMARKS. Jessie, 2026-09-10: "Book marked
+  // events will just filter out all the attending. To just bookmarked." and "show 'Show
+  // bookmarked' at bottom of here too".
+  //
+  // The retired list page put every bookmark into Attending, so an event somebody had only kept
+  // for later read as one they were going to. That page is gone, and this one never counted
+  // bookmarks at all; neither will it now. Attending shows what a person is going to, and the
+  // Attending count counts only that. A bookmark is not a promise to turn up.
+  //
+  // Turned on, the list is the bookmarked events and nothing else. An event somebody is both
+  // attending and bookmarked is in both views, because it is both. Turned off, it is Attending
+  // again.
+  //
+  // It belongs to Attending only. A bookmark is nearly always somebody else's event, which is what
+  // Attending is for; Hosting and Socialized are your own.
+  //
+  // DRAWN ONLY WHEN IT OPENS ONTO SOMETHING. The switch stays hidden until getBookmarks has answered
+  // AND at least one bookmark can actually be listed, so it is never drawn and then taken away and
+  // never a door onto an empty list. A bookmark is listed from this person's own events if it is
+  // one of theirs, otherwise from the public calendar this page already loads. A private event
+  // somebody else hosts is not in that calendar, so it cannot be listed here, and a cancelled one
+  // is left out, the same as everywhere else on this rail.
+  //
+  // IT STARTS OFF ON EVERY VISIT, unlike Show cancelled. It changes what the word Attending means,
+  // so arriving to find it quietly still on would be the page saying something she had not asked
+  // it to say today.
+  var _bookmarkIds = null;     // null until getBookmarks answers; [] when it answers with none
+  var _showBookmarked = false;
+  var _mineRows = [];          // this person's own events, from the getMyEvents answer
+  var _railPainted = false;    // the rail has been drawn from a real answer (kept or fresh)
+  window.toggleShowBookmarkedMine = function () {
+    _showBookmarked = !_showBookmarked;
+    paintRail(allRows, selId);
+  };
+  function _bookmarkedRows() {
+    if (!_bookmarkIds || !_bookmarkIds.length) return [];
+    var mine = {}, feed = {};
+    (_mineRows || []).forEach(function (r) { if (r && r.id) mine[String(r.id).trim()] = r; });
+    try {
+      (typeof events !== 'undefined' ? events : []).concat(typeof RECURRING_EVENTS !== 'undefined' ? RECURRING_EVENTS : [])
+        .forEach(function (r) { if (r && r.id) feed[String(r.id).trim()] = r; });
+    } catch (e) {}
+    var out = [], seen = {};
+    _bookmarkIds.forEach(function (id) {
+      var k = String(id || '').trim();
+      if (!k || seen[k]) return;
+      seen[k] = 1;
+      var r = mine[k], pub = false;
+      if (!r && feed[k]) { r = feed[k]; pub = true; }
+      if (!r || r.cancelled) return;
+      out.push(Object.assign({}, r, { _bmPublic: pub }));
+    });
+    return out;
+  }
+  function _paintBookmarkBtn(n) {
+    var wrap = document.getElementById('mine-show-bookmarked-wrap');
+    var box  = document.getElementById('mine-show-bookmarked-box');
+    if (!wrap || !box) return;
+    box.checked = !!_showBookmarked;
+    wrap.classList.toggle('on', !!_showBookmarked);
+    wrap.style.display = (pane === 'attending' && n > 0) ? 'flex' : 'none';
+  }
+
   function paintRail(rows, sel) {
     if (!list) return;
     allRows = rows; selId = sel || selId; _sel4row = selId;
@@ -8502,7 +8586,15 @@ function selectInterestSuggestion(val) {
       rows = rows.concat(_cancelledRows);
     }
     _paintCancelBtn();
-    rows = rows.filter(function (r) { return inPane(r, pane) || r.cancelled; });
+    // Show bookmarked replaces the Attending list rather than adding to it: "filter out all the
+    // attending. To just bookmarked." Jessie, 2026-09-10. See SHOW BOOKMARKED above.
+    var _bmNow = _bookmarkedRows();
+    _paintBookmarkBtn(_bmNow.length);
+    if (pane === 'attending' && _showBookmarked && _bmNow.length) {
+      rows = _bmNow;
+    } else {
+      rows = rows.filter(function (r) { return inPane(r, pane) || r.cancelled; });
+    }
     // Search and sort narrow what the tab already chose; they never reach outside it.
     if (_q.trim()) {
       var needle = _q.trim().toLowerCase();
@@ -8688,7 +8780,7 @@ function selectInterestSuggestion(val) {
     var KEEP = 'cw-manage-rail-' + me;
     var kept = null;
     try { kept = JSON.parse(sessionStorage.getItem(KEEP) || 'null'); } catch (e) {}
-    if (kept && kept.length) { paintRail(kept, wantId); }
+    if (kept && kept.length) { _railPainted = true; _mineRows = kept; paintRail(kept, wantId); }
 
     // ── THE FORM NO LONGER WAITS ON THE LIST ────────────────────────────────────────────────────
     // Jessie, 2026-09-08: "seonc load about 5 seconds after first one 45 seconds." Both of those
@@ -8705,6 +8797,33 @@ function selectInterestSuggestion(val) {
     var railJob = fetch(GS_URL + '?action=getMyEvents&appearId=' + encodeURIComponent(me) + '&t=' + Date.now())
                     .then(function (r) { return r.json(); })
                     .catch(function () { return null; });
+
+    // THE BOOKMARKS ARE ASKED FOR ONCE getMyEvents HAS ANSWERED, for Show bookmarked (see SHOW
+    // BOOKMARKED above). 2026-09-10. Nothing on this page read bookmarks before: the retired list
+    // page did, and its call left with it. This is the same small question the event page asks for
+    // its Bookmark button, answering with ids only. AFTER, not beside: two requests arriving at the
+    // Apps Script backend together is how it drops them (measured 2026-07-07, three of four 404ed),
+    // and only the switch waits for this, never the list. If it fails, or answers with none, the
+    // switch is simply never drawn.
+    //
+    // The rail is repainted when it lands only if the rail has already been drawn from a real
+    // answer. Painting before that would replace "Loading information..." with "Nothing here.",
+    // which is the page saying something before it knows. The calendar landing repaints it too,
+    // because a bookmark on somebody else's event can only be listed once the calendar is in.
+    railJob.then(function () {
+      return fetch(GS_URL + '?action=getBookmarks&type=Event&appearId=' + encodeURIComponent(me));
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (bd) {
+        _bookmarkIds = (bd && bd.status === 'ok' && Array.isArray(bd.ids)) ? bd.ids.filter(Boolean) : [];
+        if (_railPainted) { paintRail(allRows, selId); }
+      })
+      .catch(function () {});
+    try {
+      if (window._feedJob && window._feedJob.then) {
+        window._feedJob.then(function () { if (_railPainted && _bookmarkIds && _bookmarkIds.length) { paintRail(allRows, selId); } });
+      }
+    } catch (e) {}
 
     if (wantId) {
       try {
@@ -8733,7 +8852,7 @@ function selectInterestSuggestion(val) {
     // happened is better still.
     var rows = [], failed = false;
     var d = await railJob;   // started above, alongside the one-event read
-    if (d && d.status === 'ok' && Array.isArray(d.events)) { rows = d.events; } else { failed = true; }
+    if (d && d.status === 'ok' && Array.isArray(d.events)) { rows = d.events; _mineRows = d.events; } else { failed = true; }
     // The cancellations arrive beside the events rather than among them, so they can be shown on
     // request and can never turn up by accident. Jessie, 2026-09-09: "My events too".
     _cancelledRows = (d && Array.isArray(d.cancelled)) ? d.cancelled.map(function (r) {
@@ -8797,6 +8916,7 @@ function selectInterestSuggestion(val) {
         b.classList.toggle('on', b.getAttribute('data-pane') === pane);
       });
     }
+    if (!failed) { _railPainted = true; }
     paintRail(rows, wantId);
 
     if (!wantId) {
