@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V5.98 | Date: 2026-09-10 | LAST CHANGE: Post an event goes to /myevents/new/ rather than the calendar's overlay form.
+/*  Version: V5.99 | Date: 2026-09-10 | LAST CHANGE: cwCountedGroups leaves out groups everybody is in (Appear Network), so My groups is drawn only for somebody who joined one.
+    V5.98 | Date: 2026-09-10 | LAST CHANGE: Post an event goes to /myevents/new/ rather than the calendar's overlay form.
     V5.50 | Date: 2026-08-26 | LAST CHANGE: the bar runs edge to edge on every page.
     V5.42 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 full-bleed also stretches a centred flex item.
     V5.41 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 previews the full-bleed bar.
@@ -47,6 +48,19 @@
     } catch (e) { return SIGNIN; }
   })();
   window.CW_SIGNUP = window.CW_SIGNUP || 'https://2gather.network/signup/';
+  // GROUPS EVERYBODY IS IN DO NOT MAKE SOMEBODY "IN A GROUP". Jessie, 2026-09-10: "Dont' show my
+  // groups unless they are part of a group AND don't count beYd4M39RCqGSbP4KsNqGQ as part of a group
+  // - htat's an appear group and everyone included in site". Appear Network holds everybody on the
+  // site, so counting it drew My groups for everybody. Listed once, here, because every page loads
+  // this file; the rails ask cwCountedGroups rather than keeping a copy of the list.
+  window.CW_EVERYONE_GROUPS = window.CW_EVERYONE_GROUPS || ['beYd4M39RCqGSbP4KsNqGQ'];
+  window.cwCountedGroups = window.cwCountedGroups || function (list) {
+    var skip = window.CW_EVERYONE_GROUPS || [];
+    return (list || []).filter(function (g) {
+      var id = String((g && (g.groupID || g.groupId || g.id)) || g || '').trim();
+      return id && skip.indexOf(id) === -1;
+    });
+  };
   var HIDE_INSIDE_GLIDE = true;   // inside the Glide frame Glide already draws its own bar
 
   // ---- addresses, all of them, in one place ---------------------------------
