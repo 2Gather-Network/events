@@ -12,8 +12,8 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V5.55 | Date: 2026-09-10 | LAST CHANGE: Jessie's review of the template view. +1 and Bookmark go back into the card beside the title, with Edit as a filled blue button next to them for a host, co-host or super admin. "Save for later" reads Bookmark / Bookmarked with a site-blue outline. The meta reads "In person:", "Hybrid:", "Online:" in bold like "Venue:", with no pin emoji. In the template view Register / Pay is a dark navy button at the top right of the card rather than a link in the meta, every rail icon sits in a fixed 22px box so the labels line up, and the rail names the viewer's own groups this event belongs to, each opening that group's events, from the getMyGroups answer the rail already asks for. The host's organization sits on its own line. Bare web addresses in a description are links, on screen only. -->
-  <!-- Previous: V5.54 | Date: 2026-09-08 | LAST CHANGE: the event page renders by role. Edit is shown to a host, a co-host or a super admin and to nobody else, revealed only once the backend has said so rather than drawn on a guess, and it opens 2gather.network/myevents/?id= rather than the calendar page. The role rides along on getEventById, which the gate already forwards and caches per person, so it costs one small cached call and no new action. -->
+  <!-- Version: V5.56 | Date: 2026-09-10 | LAST CHANGE: the card head in the template view is Design 2 of three, Jessie's pick: "do this one: 2 · Register / Pay beside the title, Edit in a host line". A pale blue line above the title tells a host, co-host or super admin why they can edit ("You host this event", "You co-host this event", "You can edit this event") with a small Edit button, drawn only once getEventById has said so and never for a visitor. Register / Pay is the one button beside the title and never shrinks; the title wraps. +1 I'm going and Bookmark are a pair of site-blue outlines in a row under the title, so nothing tall stands beside it. On a phone Register / Pay drops under the title. The role answer is kept for the event, so a re-render no longer hides and redraws Edit. The ordinary view is unchanged. -->
+  <!-- Previous: V5.55 | Date: 2026-09-10 | LAST CHANGE: Jessie's review of the template view. +1 and Bookmark go back into the card beside the title, with Edit as a filled blue button next to them for a host, co-host or super admin. "Save for later" reads Bookmark / Bookmarked with a site-blue outline. The meta reads "In person:", "Hybrid:", "Online:" in bold like "Venue:", with no pin emoji. In the template view Register / Pay is a dark navy button at the top right of the card rather than a link in the meta, every rail icon sits in a fixed 22px box so the labels line up, and the rail names the viewer's own groups this event belongs to, each opening that group's events, from the getMyGroups answer the rail already asks for. The host's organization sits on its own line. Bare web addresses in a description are links, on screen only. -->
   <meta charset="UTF-8">
   <script>
   /* Forward the Lake Ballinger event to its Glide page (m97sjwa3 only). Runs before render, so no flash. */
@@ -103,6 +103,10 @@
        ordinary view before the template block below is read. */
     .ev-pay-btn { display: none; }
     html:not(.cw-tplview) .cw-edit-head { display: none !important; }
+    /* +1, Bookmark and the day's Gather button sit in one wrapper so the template view can lift them
+       under the title as a row. Here the wrapper draws no box of its own, so in the ordinary view
+       they are still three items in the column beside the title, exactly where they were. */
+    .ev-head-acts { display: contents; }
     /* NO HORIZONTAL LINES. Jessie, 2026-09-09: "remove horiizontal link aftre frist set of
        buttons nad before descripton", and the standing rule is that we do not use them anywhere
        unless she asks. The class is kept so the markup does not have to change everywhere, and it
@@ -458,20 +462,47 @@ function _descHTML(raw) {
 //
 // The answer rides along on getEventById, which the gate already forwards and already caches with
 // appearId as part of the key, so this is one small cached call and no new action to deploy.
+//
+// THE HOST LINE SAYS WHY, IN WORDS THAT ARE TRUE FOR THIS PERSON. Jessie, 2026-09-10: "do this one:
+// 2 · Register / Pay beside the title, Edit in a host line". The line above the title carries
+// cw-edit-btn, so it is revealed here with Edit and by nothing else. myRole is 'host', 'cohost' or
+// 'super', and a super admin who does not host this event must not be told they do, so each gets its
+// own sentence. The backend asks super admin first (_roleOnEvent_ in Code.js), so a super admin reads
+// "You can edit this event" on their own events as well, which is still true.
+//
+// THE ANSWER IS KEPT FOR THIS EVENT. render() rewrites the card two or three times on a load (the
+// categories arriving, the Shared by name), and each rewrite put the line back to hidden until
+// getEventById answered again, so the title jumped down, up and down. Once the backend has said,
+// the rewrite is painted from that answer in the same moment, and nothing is asked twice.
+var _evRoleKnown = null;   // { id, me, role } once getEventById has answered
+function _paintEventRole(role) {
+  if (!(role === 'host' || role === 'cohost' || role === 'super')) return;
+  var words = document.getElementById('ev-host-line-words');
+  if (words) {
+    words.textContent = role === 'host' ? 'You host this event'
+                      : role === 'cohost' ? 'You co-host this event'
+                      : 'You can edit this event';
+  }
+  document.querySelectorAll('.cw-edit-btn').forEach(function (b) { b.style.display = ''; });
+}
 async function _applyEventRole() {
   var btns = document.querySelectorAll('.cw-edit-btn');
   if (!btns.length || !_currentEv || !_currentEv.id) return;
   var me = '';
   try { me = getMemberId() || ''; } catch (e) {}
   if (!me) return;   // signed out: nothing to reveal, and nothing asked of the backend
+  var eid = String(_currentEv.id);
+  var k = _evRoleKnown;
+  if (k && k.id === eid && k.me === me) { _paintEventRole(k.role); return; }
   try {
-    var r = await fetch(GS_URL + '?action=getEventById&id=' + encodeURIComponent(_currentEv.id)
+    var r = await fetch(GS_URL + '?action=getEventById&id=' + encodeURIComponent(eid)
                         + '&appearId=' + encodeURIComponent(me));
     var d = await r.json();
     var role = (d && d.event && d.event.myRole) || 'visitor';
-    if (role === 'host' || role === 'cohost' || role === 'super') {
-      btns.forEach(function (b) { b.style.display = ''; });
-    }
+    _evRoleKnown = { id: eid, me: me, role: role };
+    // Painted on the card as it stands now, not the one this call began on, which a re-render
+    // may already have thrown away.
+    _paintEventRole(role);
   } catch (e) {}
 }
 
@@ -927,11 +958,11 @@ function render(ev) {
   const interestHeaderHTML = (hasInterest && !ev.cancelled) ? (
     _isLoggedIn
       ? (_isLakeBallinger
-        ? `<button onclick="window.location.href='https://lakeballingerhub.com'" id="interest-btn" style="background:var(--primary);color:#fff;border:none;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">Visit event hub</button>`
-        : `<button onclick="openRsvpModal()" id="interest-btn" style="background:var(--primary);color:#fff;border:none;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">+1 I'm going</button>`)
+        ? `<button onclick="window.location.href='https://lakeballingerhub.com'" id="interest-btn" class="ev-going-btn" style="background:var(--primary);color:#fff;border:none;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">Visit event hub</button>`
+        : `<button onclick="openRsvpModal()" id="interest-btn" class="ev-going-btn" style="background:var(--primary);color:#fff;border:none;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">+1 I'm going</button>`)
       : (_isLakeBallinger
-        ? `<a href="https://lakeballingerhub.com" style="display:inline-block;background:var(--primary);color:#fff;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;white-space:nowrap;text-decoration:none;">Visit event hub</a>`
-        : `<button onclick="openRsvpRegister()" style="background:#f9fafb;border:1.5px solid var(--border);color:var(--muted);font-weight:600;font-size:12px;padding:6px 14px;border-radius:20px;white-space:nowrap;cursor:pointer;font-family:inherit;">Sign in to RSVP</button>`)
+        ? `<a href="https://lakeballingerhub.com" class="ev-going-btn" style="display:inline-block;background:var(--primary);color:#fff;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;white-space:nowrap;text-decoration:none;">Visit event hub</a>`
+        : `<button onclick="openRsvpRegister()" class="ev-going-btn" style="background:#f9fafb;border:1.5px solid var(--border);color:var(--muted);font-weight:600;font-size:12px;padding:6px 14px;border-radius:20px;white-space:nowrap;cursor:pointer;font-family:inherit;">Sign in to RSVP</button>`)
   ) : "";
 
   const bookmarkHTML = (_isLoggedIn && !ev.cancelled)
@@ -947,8 +978,21 @@ function render(ev) {
   // until getEventById says host, co-host or super admin, never drawn on a guess. The CSS decides
   // which copy a view shows (this one in the template view, the action row's in the ordinary one),
   // so the reveal logic did not have to change.
+  //
+  // EDIT MOVES INTO A HOST LINE ABOVE THE TITLE. Jessie, 2026-09-10, asked first to "give me 3
+  // desiogns for this to be better" and then, of the three: "do this one: 2 · Register / Pay beside
+  // the title, Edit in a host line". Four pills in a column beside a one-line title left a white hole
+  // under it, three styles of pill competed, and Edit, which only a host can use, sat among the
+  // things a visitor does. So Edit leaves the visitors' buttons and gets a line of its own saying
+  // why this person can see it.
+  //
+  // THE LINE IS THE EDIT BUTTON, AS FAR AS THE REVEAL IS CONCERNED. It carries cw-edit-btn and starts
+  // at display:none, so _applyEventRole reveals the whole line in the same stroke that has always
+  // revealed Edit, and never for a visitor or somebody signed out. Its words are empty until then and
+  // are written by the same answer, the moment before it is shown (see _paintEventRole). Template
+  // view only: cw-edit-head keeps it out of the ordinary view, whose Edit is still in the action row.
   const editHeadHTML = !ev.cancelled
-    ? `<button class="cw-edit-btn cw-edit-head" onclick="openEditDirect()" title="Edit this event" style="display:none;background:#1F699E;border:1.5px solid #1F699E;color:#fff;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">Edit</button>`
+    ? `<div class="cw-edit-btn cw-edit-head ev-host-line" style="display:none;"><span id="ev-host-line-words"></span><button class="cw-edit-btn cw-edit-head" onclick="openEditDirect()" title="Edit this event" style="display:none;background:#1F699E;border:1.5px solid #1F699E;color:#fff;font-weight:700;font-size:12px;padding:4px 14px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;flex-shrink:0;">Edit</button></div>`
     : "";
 
   // REGISTER / PAY IS A BUTTON AT THE TOP RIGHT, in the template view. Jessie, 2026-09-10: "put
@@ -960,6 +1004,10 @@ function render(ev) {
   // the site's dark blue rather than a new one, and it is clearly darker than the #1F699E pills
   // beside it, so it does not read as the same button drawn slightly wrong. Same tab, like the
   // link it replaces. Hidden outside the template view, where the meta line still carries it.
+  //
+  // BESIDE THE TITLE NOW, AND ALONE THERE. Jessie, 2026-09-10: "do this one: 2 · Register / Pay
+  // beside the title, Edit in a host line". It is the one filled button in the head, so +1 and
+  // Bookmark became outlines under the title rather than a column beside it.
   const payHeadHTML = _payOn
     ? `<a class="ev-pay-btn" href="${esc(ev.paymentlink)}" rel="noopener" style="background:#1A2E42;border:1.5px solid #1A2E42;color:#fff;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;white-space:nowrap;text-decoration:none;font-family:inherit;">Register / Pay</a>`
     : "";
@@ -1004,13 +1052,11 @@ function render(ev) {
     ${ev.isPrivate ? `<div style="background:#FFF8E7;border-bottom:1px solid #F0B429;padding:8px 24px;font-size:12px;font-weight:700;color:#7B5800;letter-spacing:0.05em;">🔒 PRIVATE EVENT - Share this link only with your guests</div>` : ""}
     <div class="card-body">
       <div class="evt-head-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+        ${editHeadHTML}
         <h1 style="margin:0;flex:1;min-width:0;">${esc(ev.title)}</h1>
         <div class="evt-head-btns" style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
           ${payHeadHTML}
-          ${joinBtn}
-          ${interestHeaderHTML}
-          ${bookmarkHTML}
-          ${editHeadHTML}
+          <div class="ev-head-acts">${joinBtn}${interestHeaderHTML}${bookmarkHTML}</div>
         </div>
       </div>
       <div style="margin-bottom:8px;">${engagementSection}</div>
@@ -1991,10 +2037,40 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
   /* 2026-09-10: +1 and Bookmark went back into the card (below), and Sign in to RSVP went with
      them, so this follows it there. Still blue for the same reason, sized as the pill beside the
      title rather than as a rail row. */
-  html.cw-tplview .evt-head-btns [onclick*="openRsvpRegister"] {
-    background:#1F699E !important; color:#fff !important; border:1.5px solid #1F699E !important;
-    font-size:13px !important; font-weight:700 !important; padding:7px 16px !important;
-    border-radius:20px !important;
+  /* 2026-09-10, later: an outline now, drawn by the .ev-going-btn rule below with +1 I'm going.
+     Still the site blue at 1.5px, so it reads as a button you can press and not as one switched off. */
+  /* THE CARD HEAD, DESIGN 2. Jessie, 2026-09-10: "give me 3 desiogns for this to be better", and of
+     the three, "do this one: 2 · Register / Pay beside the title, Edit in a host line".
+     Top to bottom: the host line (only for somebody who may edit), then the title with Register / Pay
+     beside it, then +1 I'm going and Bookmark as a pair of outlines, then the description. Nothing
+     tall stands beside the title any more, so there is no white hole under it.
+     The button column stops drawing a box of its own here, so its buttons join the head row
+     directly and each takes its own place in it; the ordinary view keeps the column. */
+  html.cw-tplview .evt-head-btns { display:contents !important; }
+  /* ONE BUTTON BESIDE THE TITLE, AND IT NEVER SHRINKS. The title wraps instead. With no
+     registration link there is no button, and the title has the whole width. */
+  html.cw-tplview .ev-pay-btn { flex:0 0 auto; }
+  /* +1 AND BOOKMARK, ONE ROW UNDER THE TITLE, BOTH OUTLINES, so Register / Pay is the one filled
+     button in the head. The pill is the Bookmark pill exactly, the size included, so the two read as
+     a pair. The day's Gather here button rides in the same row, first, and keeps its fill: on the day
+     of an online event it is the way in. */
+  html.cw-tplview .ev-head-acts { display:flex; flex:0 0 100%; flex-wrap:wrap; align-items:center; gap:8px; }
+  html.cw-tplview .ev-head-acts:empty { display:none; }
+  /* You're going keeps its fill, which is how Bookmarked shows too: an outline is something you can
+     do, a filled pill is something done. The going chip is disabled, so :not([disabled]) leaves it
+     alone, and +1 I'm going comes back as an outline if the RSVP is cancelled. */
+  html.cw-tplview .ev-head-acts .ev-going-btn:not([disabled]) {
+    background:#fff !important; color:#1F699E !important; border:1.5px solid #1F699E !important;
+    font-size:13px !important; font-weight:700 !important; padding:6px 14px !important;
+    border-radius:20px !important; line-height:normal;
+  }
+  /* THE HOST LINE, full width above the title. Hidden until _applyEventRole reveals it, which it
+     does only for a host, a co-host or a super admin, and never for a visitor or somebody signed
+     out. The display below only applies once that inline display:none is lifted. */
+  html.cw-tplview .ev-host-line {
+    display:flex; flex:0 0 100%; align-items:center; justify-content:space-between; gap:10px;
+    background:#EAF2F8; color:#1A4A70; border-radius:10px; padding:6px 10px; box-sizing:border-box;
+    font-size:13px; font-weight:600; line-height:1.3;
   }
   /* +1 I'M GOING AND BOOKMARK STAY IN THE CARD, BESIDE THE TITLE. Jessie, 2026-09-10: "put this
      back into pane where it was". The rail took them on the morning of the 10th along with the
@@ -2008,12 +2084,10 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
   /* Register / Pay is the button at the top right of the card here, so its meta line goes. */
   html.cw-tplview .ev-pay-btn { display:inline-flex; align-items:center; justify-content:center; }
   html.cw-tplview .ev-pay-line { display:none; }
-  /* On a phone the head buttons already drop under the title (the 768px rule in the first style
-     block). Here there can be four of them, and four pills stacked one per line push the
-     description a screen down, so they wrap in a row instead, Register / Pay still first. */
-  @media (max-width:768px) {
-    html.cw-tplview .evt-head-btns { flex-direction:row !important; flex-wrap:wrap; }
-  }
+  /* ON A PHONE the 768px rule in the first style block turns the head row into a column, so the
+     Design 2 head simply stacks in the same order: the host line on top, the title, Register / Pay
+     under it at the full width, then +1 and Bookmark side by side. It needs no rule of its own here;
+     the one that laid a column of four pills out as a row went with the column. */
   /* EMOJI AND WORD ON ONE LINE. Jessie: "words in buttons not looking aligned with emojis". The
      buttons carried their own gaps - some 6px, one none at all, one an SVG a different height from
      the text - so five rows had five different distances between the picture and the word and none
@@ -2155,8 +2229,9 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
     // then who it belongs to.
     //
     // +1 I'm going and Bookmark are NOT taken any more. Jessie, later the same day: "put this back
-    // into pane where it was". They stay in the card's head row, beside the title, where render()
-    // writes them, with Edit and Register / Pay in the same column.
+    // into pane where it was". They stay in the card's head row, where render() writes them: since
+    // Design 2 (2026-09-10) in a row under the title, with Register / Pay beside the title and Edit
+    // in the host line above it.
     var meta = document.getElementById('ev-meta');
     if (meta) { take(meta); }
 
