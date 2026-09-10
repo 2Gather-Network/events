@@ -533,9 +533,32 @@ document.addEventListener('keydown',function(e){if(e.key!=='Enter'&&e.key!==' ')
 async function fetchMine(who) {
   if (!who) return { events: [] };
   try {
-    const r = await fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(who) + "&t=" + Date.now());
+    // Her own events and her saved ones, asked for together rather than one after the other.
+    const [r, br] = await Promise.all([
+      fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(who) + "&t=" + Date.now()),
+      fetch(GS_URL + "?action=getBookmarks&type=Event&appearId=" + encodeURIComponent(who)).catch(function(){ return null; })
+    ]);
     const d = await r.json();
-    if (d && d.status === "ok" && Array.isArray(d.events)) { return { events: d.events }; }
+    if (d && d.status === "ok" && Array.isArray(d.events)) {
+      // SAVED EVENTS APPEAR UNDER ATTENDING, which is what this page has always promised.
+      // getMyEvents answers with what she hosts or socialized, so a saved event she has nothing
+      // to do with is not in it - those come from the public feed, by id.
+      try {
+        const bd = br ? await br.json() : null;
+        const want = (bd && Array.isArray(bd.ids)) ? bd.ids.filter(Boolean) : [];
+        const have = {};
+        d.events.forEach(function (x) { if (x && x.id) have[String(x.id)] = 1; });
+        const missing = want.filter(function (id) { return !have[String(id)]; });
+        if (missing.length) {
+          const pub = await (await fetch(GS_URL + "?t=" + Date.now())).json();
+          (pub.events || []).forEach(function (x) {
+            if (x && x.id && missing.indexOf(String(x.id)) > -1) { x.bookmarked = true; d.events.push(x); }
+          });
+        }
+        d.events.forEach(function (x) { if (x && x.id && want.indexOf(String(x.id)) > -1) { x.bookmarked = true; } });
+      } catch (e) {}
+      return { events: d.events };
+    }
   } catch (e) {}
   // If that one call fails, fall back to the old pair rather than showing her nothing.
   return await fetchEvents();
@@ -1881,7 +1904,11 @@ async function renderMyEventsList(memberId, data) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) e.date = dateStr;
     return e;
   }).filter(Boolean);
-  var attending = allEv.filter(function(e) { return activeIds.indexOf(String(e.id)) > -1; }).concat(occurrences);
+  // Registered for it, OR saved it for later. Both are "I want this in my list", which is what
+  // Attending has always been for and what the empty line has always promised.
+  var attending = allEv.filter(function(e) {
+    return activeIds.indexOf(String(e.id)) > -1 || e.bookmarked === true;
+  }).concat(occurrences);
   // WHO MADE AN EVENT, in order of how much the answer can be trusted.
   //
   // userID is the only one that means "this person made this". It is written when an event is
@@ -2113,7 +2140,7 @@ async function renderMyEventsList(memberId, data) {
     // saveBookmark exists on the attendees and profile pages and bookmarks a PERSON. There has
     // never been a way to bookmark an event, so this line promised something that does not exist,
     // to the one person standing in an empty list wondering what to do.
-    return 'Your events show up here after you register for one. <a href="https://2gather.network/events" style="color:var(--primary);font-weight:700;">Find an event</a>.';
+    return 'Events you save or register for show up here. <a href="https://2gather.network/events" style="color:var(--primary);font-weight:700;">Find an event</a>.';
   };
 
   const renderDetail = function(){

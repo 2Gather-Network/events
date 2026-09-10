@@ -865,6 +865,10 @@ function render(ev) {
         : `<button onclick="openRsvpRegister()" style="background:#f9fafb;border:1.5px solid var(--border);color:var(--muted);font-weight:600;font-size:12px;padding:6px 14px;border-radius:20px;white-space:nowrap;cursor:pointer;font-family:inherit;">Sign in to RSVP</button>`)
   ) : "";
 
+  const bookmarkHTML = (_isLoggedIn && !ev.cancelled)
+    ? `<button onclick="toggleEventBookmark()" id="bookmark-btn" style="background:#fff;border:1.5px solid var(--border);color:var(--muted);font-weight:700;font-size:13px;padding:6px 14px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">Save for later</button>`
+    : "";
+
   const engagementSection = (hasInterest || hasNotes) && !ev.cancelled ? `
     <div id="engagement-section" style="margin:0 0 18px;">
       ${hasInterest ? `
@@ -909,6 +913,7 @@ function render(ev) {
         <div class="evt-head-btns" style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
           ${joinBtn}
           ${interestHeaderHTML}
+          ${bookmarkHTML}
         </div>
       </div>
       <div style="margin-bottom:8px;">${engagementSection}</div>
@@ -1024,6 +1029,53 @@ function applyRegisteredUI() {
   maybeShowIntakePrompt();
 }
 window.applyRegisteredUI = applyRegisteredUI;
+
+// ── SAVE FOR LATER ───────────────────────────────────────────────────────────────────────────
+// Jessie, 2026-09-10: "how do you bookmark an evnet?" then "build this".
+//
+// saveBookmark already wrote From | To | Type into one tab and only ever wrote people. It takes a
+// type now, so an event bookmark is a row in the same place rather than a new tab, a new action
+// and a new thing to keep in step.
+//
+// The button says what it does rather than naming the mechanism: "Save for later", and "Saved"
+// once it is. Pressing it again removes it.
+var _bmOn = false;
+function _paintBookmark() {
+  var b = document.getElementById('bookmark-btn');
+  if (!b) return;
+  b.textContent = _bmOn ? 'Saved' : 'Save for later';
+  b.style.background = _bmOn ? 'var(--primary)' : '#fff';
+  b.style.color = _bmOn ? '#fff' : 'var(--muted)';
+  b.style.borderColor = _bmOn ? 'var(--primary)' : 'var(--border)';
+}
+window.toggleEventBookmark = async function () {
+  var me = ''; try { me = getMemberId() || ''; } catch (e) {}
+  var eid = window._currentEventId || (_currentEv && _currentEv.id) || '';
+  if (!me || !eid) return;
+  var b = document.getElementById('bookmark-btn');
+  var next = !_bmOn;
+  _bmOn = next; _paintBookmark();
+  if (b) b.disabled = true;
+  try {
+    await fetch(GS_URL + '?action=saveBookmark&type=Event&from=' + encodeURIComponent(me)
+                + '&to=' + encodeURIComponent(eid) + (next ? '' : '&remove=true'));
+  } catch (e) {
+    // Put it back rather than leaving the screen claiming something the sheet does not hold.
+    _bmOn = !next; _paintBookmark();
+  }
+  if (b) b.disabled = false;
+};
+// Whether it is already saved, asked once on load.
+(async function () {
+  try {
+    var me = getMemberId() || '';
+    if (!me) return;
+    var r = await fetch(GS_URL + '?action=getBookmarks&type=Event&appearId=' + encodeURIComponent(me));
+    var d = await r.json();
+    var eid = window._currentEventId || (_currentEv && _currentEv.id) || '';
+    if (d && Array.isArray(d.ids) && eid && d.ids.indexOf(String(eid)) > -1) { _bmOn = true; _paintBookmark(); }
+  } catch (e) {}
+})();
 
 // ── Reset to the not-registered UI ──
 function applyUnregisteredUI() {
