@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.20 | Date: 2026-09-10 | LAST CHANGE: the section's name in the panel is a 20px heading again, with the line under it: 21 events hosted, 243 events socialized Thank you!, events you are attending, or what fills the section when it is empty. -->
+<!-- Version: M3.21 | Date: 2026-09-10 | LAST CHANGE: on a phone, while the posting questions or the form are open, the event list folds behind the Events bar, and a form opened by the picture or paste step is scrolled into view, so it is no longer pushed off the screen when the list arrives. -->
+<!-- Previous: M3.20 | Date: 2026-09-10 | LAST CHANGE: the section's name in the panel is a 20px heading again, with the line under it: 21 events hosted, 243 events socialized Thank you!, events you are attending, or what fills the section when it is empty. -->
 <!-- Previous: M3.19 | Date: 2026-09-10 | LAST CHANGE: on a phone, Show cancelled and Show bookmarked fold away with the list and come back when it opens. -->
 <!-- Previous: M3.18 | Date: 2026-09-10 | LAST CHANGE: on a phone, opening an event folds the rest of the list behind an Events (N) bar like the calendar's Filters bar, with the open event under it, and the page starts at that bar. -->
 <!-- Previous: M3.17 | Date: 2026-09-10 | LAST CHANGE: each event name is 14px bold, the size of its date line. -->
@@ -8920,7 +8921,13 @@ function selectInterestSuggestion(val) {
     var rail = list && list.closest ? list.closest('.manage-rail') : null;
     if (!btn || !rail) return;
     var n = list.querySelectorAll('.manage-row').length;
-    var has = n > 1 && !!list.querySelector('.manage-row.on');
+    // POSTING FOLDS IT TOO. Jessie, 2026-09-10, after pressing I'm sharing and giving it a picture:
+    // "I put in a image of the event for it to pass, and then it never went to the form". It did go
+    // to the form (the same picture path filled the form in two seconds when tested), but on a phone
+    // the form opens under this list, and the list arrives 17 to 25 seconds after the questions, so
+    // it landed on top and pushed the form off the screen. While the questions or the form are open,
+    // the list folds behind the same bar, and none of it shows until the bar is pressed.
+    var has = n > 1 && (!!list.querySelector('.manage-row.on') || _postingOpen());
     rail.classList.toggle('cw-has-sel', has);
     rail.classList.toggle('cw-folded', has && !_foldOpen);
     btn.setAttribute('aria-expanded', _foldOpen ? 'true' : 'false');
@@ -8934,6 +8941,12 @@ function selectInterestSuggestion(val) {
     }
   }
   window.manageFold = function () { _foldOpen = !_foldOpen; _paintFold(); };
+  function _postingOpen() {
+    return ['choice-modal', 'post-modal'].some(function (id) {
+      var el = document.getElementById(id);
+      return !!el && el.classList.contains('open') && el.classList.contains('cw-mounted');
+    });
+  }
   function paintRail(rows, sel) { _paintRailRows(rows, sel); _paintFold(); }
   function _paintRailRows(rows, sel) {
     if (!list) return;
@@ -9032,8 +9045,27 @@ function selectInterestSuggestion(val) {
       var out = _origOpenModal.apply(this, arguments);
       try { mountForm(); } catch (e) {}
       try { var cm = document.getElementById('choice-modal'); if (cm) cm.classList.remove('open'); } catch (e) {}
+      // AND ON A PHONE THE PAGE GOES TO IT. See POSTING FOLDS IT TOO in _paintFold. Not when an event
+      // was opened from its address, which starts at the fold bar instead.
+      try {
+        _foldOpen = false; _paintFold();
+        if (!wantId && window.innerWidth <= 860) {
+          var pm = document.getElementById('post-modal');
+          if (pm) { setTimeout(function () { try { pm.scrollIntoView({ block: 'start' }); } catch (e) {} }, 0); }
+        }
+      } catch (e) {}
       return out;
     };
+  }
+  // The questions fold the list the same way, and closing either puts it back.
+  if (typeof window.openChoiceModal === 'function' && !window.openChoiceModal._cwFolds) {
+    var _origChoice = window.openChoiceModal;
+    window.openChoiceModal = function () {
+      var out = _origChoice.apply(this, arguments);
+      try { _foldOpen = false; _paintFold(); } catch (e) {}
+      return out;
+    };
+    window.openChoiceModal._cwFolds = true;
   }
 
   // ── /myevents/new/ IS THE ADDRESS OF POSTING ─────────────────────────────────────────────────
@@ -9079,6 +9111,7 @@ function selectInterestSuggestion(val) {
     var wrapped = function () {
       var out = orig.apply(this, arguments);
       _leaveNewIfDone();
+      setTimeout(function () { try { _paintFold(); } catch (e) {} }, 0);
       return out;
     };
     wrapped._cwLeavesNew = true;
