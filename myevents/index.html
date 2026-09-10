@@ -2020,8 +2020,10 @@ async function renderMyEventsList(memberId, data) {
     };
     var items = evs.length
       ? evs.map(function(e, i){
-          var on = (_sel === String(e.id)) || (_sel === null && i === 0);
-          if (on) _sel = String(e.id);
+          // The first event is no longer chosen for her. Pressing a section changes the list and
+          // nothing else, and the panel beside it says which section she is in until she picks
+          // one. Jessie, 2026-09-10: "clicking hosting opened first event... not how i want it".
+          var on = (_sel !== null && _sel === String(e.id));
           return '<div onclick="myEvPick(\'' + esc(String(e.id)) + '\')" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;cursor:pointer;'
             + (on ? 'background:#EEF6FF;' : '') + '">'
             + evThumb(e, 'ev-thumb').replace('class="ev-thumb"', 'style="width:34px;height:34px;"')
@@ -2077,9 +2079,21 @@ async function renderMyEventsList(memberId, data) {
 
   const renderDetail = function(){
     var evs = bucket();
-    var e = evs.filter(function(x){ return String(x.id) === String(_sel); })[0] || evs[0];
-    if (!e) return '<div style="background:#fff;border-radius:14px;padding:24px 28px;min-height:340px;">'
-      + '<div style="font-size:14px;color:var(--muted);line-height:1.55;">' + emptyLine() + '</div></div>';
+    // Only what she chose. No fallback to the first, because a fallback IS choosing for her.
+    var e = _sel === null ? null : (evs.filter(function(x){ return String(x.id) === String(_sel); })[0] || null);
+    if (!e) {
+      // WHICH SECTION, AND WHAT TO DO NEXT. Not an empty white box, and not somebody else's event
+      // opened on her behalf.
+      var _names = { attending: 'Attending', hosting: 'Hosting', socialized: 'Socialized' };
+      var _n = evs.length;
+      var _say = _n
+        ? ('Pick one of the ' + _n + ' below to see it.')
+        : emptyLine();
+      return '<div style="background:#fff;border-radius:14px;padding:24px 28px;min-height:340px;">'
+        + '<div style="font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;'
+        + 'color:var(--muted);margin-bottom:8px;">' + (_names[_pane] || '') + '</div>'
+        + '<div style="font-size:14px;color:var(--muted);line-height:1.55;">' + _say + '</div></div>';
+    }
     var when = e.date ? fmtDate(e.date, e.time, e.endtime) : 'Date to be announced';
     var loc = e.venue || e.location || '';
     // ABSOLUTE, AND CARRYING NOBODY. It built "event.html?id=..." relative to whatever page you
