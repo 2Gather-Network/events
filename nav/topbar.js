@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V6.00 | Date: 2026-09-10 | LAST CHANGE: Change view offers Signed out, and the strip says "Viewing signed out" with Back to me.
+/*  Version: V6.01 | Date: 2026-09-10 | LAST CHANGE: your own profile page asks a signed-out visitor to sign in, as My events and My groups already do.
+    V6.00 | Date: 2026-09-10 | LAST CHANGE: Change view offers Signed out, and the strip says "Viewing signed out" with Back to me.
     V5.99 | Date: 2026-09-10 | LAST CHANGE: cwCountedGroups leaves out groups everybody is in (Appear Network), so My groups is drawn only for somebody who joined one.
     V5.98 | Date: 2026-09-10 | LAST CHANGE: Post an event goes to /myevents/new/ rather than the calendar's overlay form.
     V5.50 | Date: 2026-08-26 | LAST CHANGE: the bar runs edge to edge on every page.
@@ -719,6 +720,16 @@
   function askToSignIn() {
     var path = (window.location.pathname || '').toLowerCase();
     var gated = MINE_ONLY.some(function (p) { return path.indexOf(p) === 0; });
+    // MY PROFILE TOO, WHEN IT IS YOUR OWN. Jessie, 2026-09-10, looking at /ikigai/ signed out: "shouldn't
+    // see this - ask to sign in". It drew the profile tabs and an empty "This is me" card. A shared
+    // profile link (?show=) is somebody else's profile and stays open to look at, like a group's page.
+    if (!gated && path.indexOf('/ikigai') === 0) {
+      // Any of the parameters the profile page opens somebody by (see _idFromUrl in ikigai) means it
+      // is opening a named profile, not your own, so it is not asked here.
+      var _q = ''; try { var _sp = new URLSearchParams(window.location.search);
+        _q = ['show', 'id', 'CWid', 'me', 'memberCard', 'appearId'].map(function (k) { return _sp.get(k) || ''; }).join(''); } catch (e) {}
+      gated = !_q;
+    }
     if (!gated || me()) return;
 
     // Straight to sign-in, carrying where they were headed so they land back here.
