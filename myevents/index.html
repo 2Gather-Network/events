@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.3 | Date: 2026-09-08 | LAST CHANGE: the panel buttons line up with the rail pills. The panel carries an invisible heading the same size as MY EVENTS and both columns share a top padding, so they align by construction rather than by a guessed number. -->
+<!-- Version: M3.4 | Date: 2026-09-10 | LAST CHANGE: posting opens at once. Arriving at /myevents/new/ (or the old ?post=1) puts the two questions in the panel before either long call answers, the address reads /myevents/new/ while they are open, and the waiting pill moved into the rail beside the list it is about. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -627,10 +627,14 @@
            in there?" Same three pills, same borders, same count underneath, so the two rails read
            as one thing. What the three filter is hers to say; these are the three that every event
            in the list can actually be. -->
+      <!-- NO COUNT UNTIL THE ANSWER. 2026-09-10, found while making posting open before the list.
+           Each pill was written with a 0 under it, so for the 17 to 25 seconds getMyEvents takes
+           the rail said Hosting 0 to somebody hosting dozens - a page asserting something before it
+           knows. The space is held and left blank until paintCounts fills it. -->
       <div class="manage-seg">
-        <button type="button" class="manage-tab" data-pane="attending" onclick="manageTab('attending')">Attending<span>0</span></button>
-        <button type="button" class="manage-tab on" data-pane="hosting" onclick="manageTab('hosting')">Hosting<span>0</span></button>
-        <button type="button" class="manage-tab" data-pane="socialized" onclick="manageTab('socialized')">Socialized<span>0</span></button>
+        <button type="button" class="manage-tab" data-pane="attending" onclick="manageTab('attending')">Attending<span>&nbsp;</span></button>
+        <button type="button" class="manage-tab on" data-pane="hosting" onclick="manageTab('hosting')">Hosting<span>&nbsp;</span></button>
+        <button type="button" class="manage-tab" data-pane="socialized" onclick="manageTab('socialized')">Socialized<span>&nbsp;</span></button>
         <!-- ALL, AND ONLY FOR THE PAIR. Jessie, 2026-09-09: "what if I wanna look at all events?
              from the interface I'm in? and be able to edit anything from there?" and "Just say all
              as a pill because that's too big of a word, and it would squish everything."
@@ -640,7 +644,7 @@
              Hidden until the answer says the person holds BOTH superadmin and support. Never drawn
              and then taken away. -->
         <button type="button" class="manage-tab" id="manage-tab-all" data-pane="all"
-                onclick="manageTab('all')" style="display:none;">All<span>0</span></button>
+                onclick="manageTab('all')" style="display:none;">All<span>&nbsp;</span></button>
       </div>
       <!-- SEARCH AND SORT, the pair from My events. Jessie, 2026-09-08: "i didn't see this updated
            yet - where is it?" They were built on My events, and this page is becoming My events,
@@ -663,7 +667,14 @@
            and "same with socializing". At the foot of a rail holding 265 rows it was a button
            nobody scrolled to; above the list it is the first thing after the filters. -->
       <button type="button" class="manage-new" id="manage-new-btn" onclick="manageNewClick()">Post a new event</button>
-      <div id="manage-list"></div>
+      <!-- THE WAIT SITS BESIDE THE LIST IT IS ABOUT. Approved by Jessie 2026-09-10, after arriving at
+           /myevents/?post=1 showed "Loading information..." for a long time above the Post an event
+           form. The pill was in
+           the panel, but what it was waiting for was this list: getMyEvents, 17 to 25 seconds for
+           anybody. So it sat over a form that was ready to use and read as the form not being ready.
+           It lives here now, where the rows will land, and the first paint of the rail replaces it.
+           A failed call still says so, here, in its place. -->
+      <div id="manage-list"><div class="manage-hint"><span class="cw-loading">Loading information...</span></div></div>
       <!-- AND CANCELLED AT THE END, AS A SWITCH. Jessie, 2026-09-10: "move Show cancelled to end
            of list of evnets and make it a toggle to enable disable instead". It is a way of
            looking rather than an errand, so it belongs after the thing it changes. -->
@@ -681,6 +692,21 @@
         <button type="button" class="panel-btn" onclick="openPostEvent()">Post event</button>
       </div>
       <div id="manage-status"><span class="cw-loading">Loading information...</span></div>
+      <script>
+        // THE PANEL WAITS ONLY WHEN IT IS WAITING. Approved by Jessie 2026-09-10, after the long
+        // "Loading information..." above the form. Arriving with ?id= the panel really is waiting,
+        // for the one event it is about to open, so its pill stays. Arriving any other way the
+        // panel has nothing to wait for - the questions open at once, or it is the empty panel -
+        // and the only thing loading is the list, which carries its own pill in the rail. Hidden
+        // here, straight after the element, so it is never drawn and then taken away.
+        (function () {
+          try {
+            if (!new URLSearchParams(location.search).get('id')) {
+              document.getElementById('manage-status').style.display = 'none';
+            }
+          } catch (e) {}
+        })();
+      </script>
       <!-- WHAT THE PANEL SHOWS WHEN NOTHING IS CHOSEN. Jessie, 2026-09-08: "nothing in the right
            rail... except 3 buttons find an event and post an event and we'll figure out the rest
            of hte content later." -->
@@ -2030,7 +2056,13 @@ function closeChoiceModal() {
   try {
     var cm = document.getElementById('choice-modal'); if (cm) { cm.classList.remove('cw-mounted'); }
     var doors = document.getElementById('panel-doors'); if (doors) { doors.style.display = ''; }
-    var top = document.getElementById('panel-top'); if (top && !_openingEvent) { top.style.display = ''; }
+    // ASKED HERE, NOT BORROWED. 2026-09-10, found while making ?post=1 open the questions at once.
+    // This read _openingEvent, which lives inside the page's boot closure further down and so does
+    // not exist out here. The line threw, the catch swallowed it, and the two lines after it never
+    // ran: Cancel left the panel empty instead of putting back its heading or the form underneath.
+    var _opening = false;
+    try { _opening = !!new URLSearchParams(location.search).get('id'); } catch (e2) {}
+    var top = document.getElementById('panel-top'); if (top && !_opening) { top.style.display = ''; }
     // Whatever was in the panel comes back, so Cancel returns you to the form you were editing.
     var _form = document.getElementById('post-modal');
     if (_form && _form.dataset.cwHidden !== undefined) { _form.style.display = _form.dataset.cwHidden; delete _form.dataset.cwHidden; }
@@ -2598,6 +2630,12 @@ async function loadEvents() {
     await loadCategories();
     renderServingFilter();
     renderServingForm();
+    // THE CATEGORY CHIPS ARE DRAWN AGAIN WHEN THE CATEGORIES ARRIVE. 2026-09-10, when posting
+    // stopped waiting for this function (Jessie approved the form opening at once that day). The
+    // chips are built from CATEGORIES when the form opens, and a form opened before getCategories
+    // answers - a cache miss has measured 60 seconds - drew none and never drew them later. Picks
+    // already made are kept, since the chips read them from selectedCats. Same line in both copies.
+    try { buildFormChips(); } catch (e) {}
     const data = await fetchEvents();
     const allRows = (data.events || []).filter(r => r.id).map(sheetToEv);
     RECURRING_EVENTS = allRows.filter(e => e.id.startsWith("rec-") && e.recurFreq && e.dayOfWeek);
@@ -6799,13 +6837,21 @@ if (_editWanted) {
   try { document.documentElement.classList.add('cw-editing'); } catch (e) {}
 }
 
-loadEvents().then(() => {
+// Kept, so the Post button can wait for the calendar if it is pressed before the calendar lands.
+// See THE POST BUTTON WAITS in the boot at the foot of this file.
+var _feedJob = loadEvents();
+_feedJob.then(() => {
   // ?post=1 OPENS THE FORM. The welcome screen has a "Post an event" door and there was no address
   // that lands on the form, only a page with a button on it somewhere. A switch on the page that
   // already has the thing, rather than a second page. Jessie, 2026-09-06.
-  try {
-    if (new URLSearchParams(window.location.search).get("post") === "1") { openModal(); }
-  } catch (e) {}
+  //
+  // NOT FROM HERE ANY MORE. Jessie, 2026-09-10, approving that posting opens without waiting. This
+  // line opened the form only once the whole public calendar had loaded - about 520KB, 6 to 16
+  // seconds on a cache miss - and the boot at the foot of the file opened the two questions once
+  // getMyEvents had answered, 17 to 25 seconds. Both fired, whichever came first was replaced by
+  // the other, and "Loading information..." sat above it all. The boot now opens the questions on
+  // arrival and nothing here does. Her 2026-09-06 decision stands: it is still a switch on this
+  // page, and /myevents/new/ is only an address that forwards to it.
   // auto-open edit if redirected from event.html with verified PIN
   const editId = new URLSearchParams(window.location.search).get("edit");
   if (editId) {
@@ -8503,6 +8549,82 @@ function selectInterestSuggestion(val) {
     };
   }
 
+  // ── /myevents/new/ IS THE ADDRESS OF POSTING ─────────────────────────────────────────────────
+  // Jessie, 2026-09-10: "why this url? https://2gather.network/myevents/?post=1 instead of just
+  // myevents/new". No reason worth keeping. Her 2026-09-06 decision stays - a switch on the page
+  // that already has the form, not a second page - so /myevents/new/ is a small file that forwards
+  // here with ?post=1, and this page then writes /myevents/new/ back into the address bar. What she
+  // sees and copies is the clean address, a reload goes through the forwarder and lands back in the
+  // questions, and there is still one page and one form. ?post=1 keeps working for links already sent.
+  //
+  // THE ADDRESS STOPS SAYING /new/ WHEN POSTING STOPS. Cancel, a finished post, or the paste box
+  // closed with nothing else open all put it back to /myevents/ with the same other parameters, so
+  // a reload does not drop her back into a flow she has left. Opening an event is a page load of
+  // /myevents/?id=, so it never carries /new/ at all.
+  //
+  // It is checked a tick later rather than at the moment of closing, because moving on inside the
+  // flow also closes things - I'm hosting closes the questions and opens the form in the same
+  // breath - and that is not leaving.
+  function _newAddress(on) {
+    try {
+      var p = new URLSearchParams(location.search);
+      p.delete('post');
+      var rest = p.toString();
+      var to = (on ? '/myevents/new/' : '/myevents/') + (rest ? '?' + rest : '') + location.hash;
+      if (to !== location.pathname + location.search + location.hash) { history.replaceState(history.state, '', to); }
+    } catch (e) {}
+  }
+  function _leaveNewIfDone() {
+    setTimeout(function () {
+      try {
+        if (location.pathname.indexOf('/myevents/new') !== 0) return;
+        var open = ['choice-modal', 'post-modal', 'paste-modal'].some(function (id) {
+          var el = document.getElementById(id);
+          return el && el.classList.contains('open');
+        });
+        if (!open) { _newAddress(false); }
+      } catch (e) {}
+    }, 0);
+  }
+  ['closeChoiceModal', 'closeModal', 'closePasteModal'].forEach(function (name) {
+    var orig = window[name];
+    if (typeof orig !== 'function' || orig._cwLeavesNew) return;
+    var wrapped = function () {
+      var out = orig.apply(this, arguments);
+      _leaveNewIfDone();
+      return out;
+    };
+    wrapped._cwLeavesNew = true;
+    window[name] = wrapped;
+  });
+
+  // THE POST BUTTON WAITS, THE FORM DOES NOT. Jessie, 2026-09-10, approving that posting opens
+  // without waiting. The form needs nothing from the calendar to open or to be filled in. It does
+  // need it at the moment of posting: submitEvent refuses a second event with the same title on
+  // the same date, and a room already booked at that time, and both are checked against the
+  // calendar. Pressed before the calendar has landed, both checks would pass against an empty list.
+  // So a new post pressed that early waits for the calendar, says so on the button, then runs
+  // exactly as it always did. Pressed later, which is nearly always, it waits for nothing.
+  // Edits are left alone: they open from their own read and are checked against the event itself.
+  if (typeof window.submitEvent === 'function' && !window.submitEvent._cwWaitsForFeed) {
+    var _origSubmit = window.submitEvent;
+    var _waitingSubmit = async function () {
+      var self = this, args = arguments;
+      var fresh = false;
+      try { fresh = !editingId && isLoadingData && !!window._feedJob; } catch (e) {}
+      if (fresh) {
+        var b = document.getElementById('submit-btn');
+        var was = b ? b.textContent : '';
+        if (b) { b.disabled = true; b.textContent = 'Checking...'; }
+        try { await window._feedJob; } catch (e) {}
+        if (b) { b.disabled = false; b.textContent = was; }
+      }
+      return _origSubmit.apply(self, args);
+    };
+    _waitingSubmit._cwWaitsForFeed = true;
+    window.submitEvent = _waitingSubmit;
+  }
+
   (async function () {
     // THE READ FOLLOWS THE PERSON BEING LOOKED AT. THE WRITES DO NOT.
     //
@@ -8522,6 +8644,29 @@ function selectInterestSuggestion(val) {
     var me = '';
     try { me = (typeof getMemberId === 'function' && getMemberId()) || ''; } catch (e) {}
     if (!me) { say('Sign in to post or edit an event.'); if (list) list.innerHTML = ''; return; }
+
+    // ── POSTING OPENS BEFORE ANYTHING IS ASKED ─────────────────────────────────────────────────
+    // Jessie, 2026-09-10, approving it: arriving to post, the two questions open at once. They
+    // opened only after getMyEvents had answered, 17 to 25 seconds for anybody, with "Loading
+    // information..." over the panel the whole time.
+    //
+    // Nothing in them needs that answer, or the calendar. The questions are two buttons. The form
+    // behind them reads the group from the address and fetches its own group list and name, as it
+    // does from the Post button. The categories come from getCategories, which the calendar asks
+    // first and the gate usually answers from its cache, and they are drawn into the form whenever
+    // they land (see loadEvents). The one thing that needs the calendar is pressing Post,
+    // which checks for a duplicate title and a booked room - see THE POST BUTTON WAITS above.
+    // getMyEvents only fills the rail, and the rail says it is loading, in the rail.
+    //
+    // ?groupId= and ?groupName= come through from a group's own panel and the form already reads
+    // them from the address, so an event posted from a group belongs to it without anybody choosing
+    // it. That is why the address below keeps every parameter but post=1.
+    var wantPost = false;
+    try { wantPost = !wantId && new URLSearchParams(location.search).get('post') === '1'; } catch (e) {}
+    if (wantPost) {
+      try { openChoiceModal(); } catch (e) {}
+      _newAddress(true);
+    }
 
     // IT IS KEPT, BECAUSE IT COSTS THIRTY SECONDS. Jessie, 2026-09-08: "still it's loading VERY
     // long." Measured the same evening: one call timed out at 90 seconds and returned nothing, the
@@ -8594,10 +8739,26 @@ function selectInterestSuggestion(val) {
     if (failed) {
       // With something kept, the rail is already drawn and useful, so the failure is a note rather
       // than an empty screen. With nothing kept, it is the whole story.
-      if (kept && kept.length) { say('Could not refresh your events just now, so this list may be a little behind.'); }
+      //
+      // SAID IN THE RAIL, BECAUSE IT IS ABOUT THE RAIL. 2026-09-10, when posting stopped waiting
+      // on this answer. Both notes were written into the panel, which with the questions or the
+      // form already open put a sentence about the list on top of a form that works. The note
+      // about a list that may be behind goes above that list now. The rail's own "Could not reach
+      // the server" is the failure when posting; the panel line is kept for every other arrival,
+      // where the panel has nothing else in it and the event it may be opening depends on this.
+      if (kept && kept.length) {
+        try {
+          var _rn = document.getElementById('rail-note');
+          if (!_rn && list && list.parentNode) {
+            _rn = document.createElement('div'); _rn.id = 'rail-note'; _rn.className = 'manage-hint';
+            list.parentNode.insertBefore(_rn, list);
+          }
+          if (_rn) { _rn.textContent = 'Could not refresh your events just now, so this list may be a little behind.'; }
+        } catch (e) {}
+      }
       else {
         if (list) list.innerHTML = '<div class="manage-hint">Could not reach the server. <a href="" onclick="location.reload();return false;">Try again</a></div>';
-        say('Could not load your events, so nothing here is trustworthy yet. Reload and try again.');
+        if (!wantPost) { say('Could not load your events, so nothing here is trustworthy yet. Reload and try again.'); }
       }
       if (!wantId) return;
     }
@@ -8640,12 +8801,10 @@ function selectInterestSuggestion(val) {
       // ?post=1 arrives asking to post, so it opens the questions rather than the doors. Added
       // 2026-09-08 for the Post a new event button on My groups, which had nowhere to send
       // somebody that started the flow.
-      var wantPost = false;
-      try { wantPost = new URLSearchParams(location.search).get('post') === '1'; } catch (e) {}
-      // ?groupId= and ?groupName= come through from a group's own panel and the form already reads
-      // them, so an event posted from a group belongs to it without anybody choosing it. Nothing
-      // to do here beyond letting the flow start; the form does the rest.
-      if (wantPost) { try { openChoiceModal(); return; } catch (e) {} }
+      // THEY ARE ALREADY OPEN. Since 2026-09-10 the questions open on arrival, before this answer
+      // (see POSTING OPENS BEFORE ANYTHING IS ASKED). Opening them again here would pull her back
+      // out of a form she has moved on to, so the rail is painted and nothing else is touched.
+      if (wantPost) { return; }
       // NOTHING IS SAID HERE. Jessie, 2026-09-08: "remoev Pick an event on the left to edit it."
       // The rail is right there with the events in it, so a line telling her to look at it was
       // narrating the screen rather than adding to it.
