@@ -10,7 +10,9 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.62 | Date: 2026-09-10 | LAST CHANGE: the Feeling filter reads Experience, and its question reads What would you like to experience? -->
+<!-- Version: V13.64 | Date: 2026-09-10 | LAST CHANGE: every caret on the filter buttons, Filters included, is one size, 16px. -->
+<!-- Previous: V13.63 | Date: 2026-09-10 | LAST CHANGE: All categories is a row like the others with its number on the right; Experience shows Clear only while one is picked; Host has two boxes, a person's name and an organization's name. -->
+<!-- Previous: V13.62 | Date: 2026-09-10 | LAST CHANGE: the Feeling filter reads Experience, and its question reads What would you like to experience? -->
 <!-- Previous: V13.61 | Date: 2026-09-10 | LAST CHANGE: My profile is off the tab row: Calendar, My events, My groups. -->
 <!-- Previous: V13.60 | Date: 2026-09-10 | LAST CHANGE: Search by is gone. Feeling, Venue and Host are three filters of their own after Format, each reading (All) until something is chosen, each opening its own panel under its button, and Reset clears all three. -->
 <!-- Previous: V13.59 | Date: 2026-09-10 | LAST CHANGE: posting a new event no longer asks for a 4-digit PIN, and the summary after posting no longer lists an Edit passcode. -->
@@ -333,7 +335,11 @@
      (feeling/venue/host) doesn't work. just makes dark blue button". It worked. It could not be
      read. Three classes beats two, which settles it rather than relying on the order. */
   .fbar-btn.fbar-adv.on, .fbar-btn.fbar-adv.on b{color:#fff;}
-  .fbar-car{display:inline-block;transition:transform .12s;}
+  /* ONE CARET SIZE FOR EVERY BUTTON THAT OPENS SOMETHING. Jessie, 2026-09-10: "make carrot bigger for
+     filtesr - Does it match the same size as the other carrots?" and "use the same size as ohter
+     filtesr". Each caret took its button's own type size, 14px on Filters and 13px on the rest, and
+     beside Filters' heavier words it read as the smaller one. A fixed 16px for all of them. */
+  .fbar-car{display:inline-block;font-size:16px;line-height:1;vertical-align:-1px;transition:transform .12s;}
   .fbar-car.up{transform:rotate(180deg);}
   /* THE OLD CONTROLS ARE HIDDEN FROM THE FIRST PAINT, not when the events arrive.
      fbarBoot runs after loadEvents resolves, and hiding these was part of it, so every visitor saw
@@ -856,8 +862,21 @@
       </div>
       <div id="fp-host" style="flex:1;min-width:160px;position:relative;">
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:5px;">Host</label>
-        <input class="input" id="host-filter" type="text" placeholder="Search hosts..." autocomplete="off" oninput="onHostInput()" onfocus="onHostInput()" onblur="setTimeout(()=>hideDropdown('host-suggestions'),200)" style="padding:7px 12px;font-size:13px;width:100%;">
-        <div id="host-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+        <!-- TWO BOXES, A PERSON AND AN ORGANIZATION. Jessie, 2026-09-10: "Host search - make
+             'Search person's name as host' and below that 'Search organization's name' so 2
+             differnet text boxes". The one box matched events.host alone, so an organization could
+             only be found through the search box at the top, which also matches titles and
+             descriptions. Each box now reads its own column, events.host and events.org, lists its
+             own names, and an event must match both when both are filled. Each sits in its own
+             wrapper so its list of names drops from under that box and not the other. -->
+        <div style="position:relative;">
+          <input class="input" id="host-filter" type="text" placeholder="Search person's name as host" autocomplete="off" oninput="onHostInput()" onfocus="onHostInput()" onblur="setTimeout(()=>hideDropdown('host-suggestions'),200)" style="padding:7px 12px;font-size:13px;width:100%;">
+          <div id="host-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+        </div>
+        <div style="position:relative;margin-top:8px;">
+          <input class="input" id="org-filter" type="text" placeholder="Search organization's name" autocomplete="off" oninput="onOrgInput()" onfocus="onOrgInput()" onblur="setTimeout(()=>hideDropdown('org-suggestions'),200)" style="padding:7px 12px;font-size:13px;width:100%;">
+          <div id="org-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+        </div>
       </div>
       <div id="fp-date" style="flex:1;min-width:160px;">
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);display:block;margin-bottom:5px;">Show</label>
@@ -1914,6 +1933,9 @@ function toggleMoodFilter(m) {
     btn.style.border = "none";
     btn.style.fontWeight = "600";
   }
+  // Experience's Clear appears with the first pick and goes with the last. 2026-09-10, see
+  // CLEAR ONLY WHEN THERE IS SOMETHING TO CLEAR at _syncFeelingClear.
+  try { if (typeof _syncFeelingClear === "function") _syncFeelingClear(); } catch(e) {}
   try { renderEvents(); } catch(e) {}
 }
 let activeTab    = "upcoming";
@@ -2598,11 +2620,16 @@ function populateHostFilter() {}
 
 let _venueList = [];
 let _hostList = [];
+let _orgList = [];
 let _activeFormat = "all";
 
 function buildFilterLists() {
   _venueList = [...new Set(events.map(e => e.venue).filter(Boolean))].sort();
   _hostList  = [...new Set(events.map(e => e.host).filter(Boolean))].sort();
+  // THE ORGANIZATION BOX LISTS ORGANIZATIONS. Jessie, 2026-09-10, asking for a second Host box,
+  // "Search organization's name". Drawn from events.org the same way the host list is drawn from
+  // events.host, so each box offers only names that its own column holds.
+  _orgList   = [...new Set(events.map(e => String(e.org || "").trim()).filter(Boolean))].sort();
 }
 
 function showSuggestions(inputId, suggestionsId, list) {
@@ -2635,6 +2662,7 @@ function hideDropdown(id) {
 
 function onVenueInput() { showSuggestions("venue-filter", "venue-suggestions", _venueList); renderEvents(); }
 function onHostInput()  { showSuggestions("host-filter",  "host-suggestions",  _hostList);  renderEvents(); }
+function onOrgInput()   { showSuggestions("org-filter",   "org-suggestions",   _orgList);   renderEvents(); }
 
 function setFilterFormat(fmt) {
   _activeFormat = fmt;
@@ -2848,10 +2876,22 @@ function renderPills() {
       try { localStorage.setItem("db-cats", "[]"); } catch (e) {}
       renderPills(); renderEvents(); try { fbarDraw(); } catch (e) {}
     });
+    // A ROW LIKE THE OTHERS, WITH ITS NUMBER ON THE RIGHT. Jessie, 2026-09-10, of All categories
+    // drawn as a full-width blue bar above the rows: "make all categories same size as others and
+    // add # events to right". It had no number beside it, so it stretched across the whole panel
+    // where every other pill stops short of its number. It now carries the same number slot the
+    // rows do, filled by the same pass (_applyChipDims) in the same form, and keeps the same blue
+    // "on" look a chosen row has while no category is picked.
+    allBtn.setAttribute("data-cat-all", "1");
+    allBtn.style.whiteSpace = "normal";
+    allBtn.style.lineHeight = "1.35";
+    var allNum = document.createElement("span");
+    allNum.className = "cat-n";
+    allNum.style.cssText = "font-size:12px;color:var(--muted);flex-shrink:0;";
     var allRow = document.createElement("div");
     allRow.className = "cat-row";
     allRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
-    allRow.appendChild(allBtn);
+    allRow.appendChild(allBtn); allRow.appendChild(allNum);
     c.appendChild(allRow);
   }
   // BUSIEST FIRST, EMPTY ONES LAST. Jessie, 2026-09-08: "sort categories from highest nubmers to
@@ -2942,6 +2982,8 @@ function populateVenueSuggestions() {
 function resetFilters() {
   document.getElementById("search-input").value = "";
   document.getElementById("host-filter").value = "";
+  // Both Host boxes, the person and the organization. 2026-09-10.
+  const orgFilterEl = document.getElementById("org-filter"); if (orgFilterEl) orgFilterEl.value = "";
   const venueFilterEl = document.getElementById("venue-filter"); if(venueFilterEl) venueFilterEl.value = "";
   const panel = document.getElementById("filter-panel"); if(panel) panel.style.display = "none";
   const btn = document.getElementById("filter-panel-btn"); if(btn) { btn.style.background = "var(--cw-blue)"; btn.style.color = "#fff"; }
@@ -3529,8 +3571,15 @@ function _passesEventFilters(e, opts) {
       matchLocation = loc.includes(state.toLowerCase()) || (stateAbbr && loc.includes(", " + stateAbbr.toLowerCase())) || (stateAbbr && loc.includes(" " + stateAbbr.toLowerCase() + " ")) || (stateAbbr && new RegExp("\\b" + stateAbbr + "\\b","i").test(e.location||""));
     }
   }
-  const activeHost = document.getElementById("host-filter")?.value || "";
+  // A PERSON AND AN ORGANIZATION, EACH AGAINST ITS OWN COLUMN. Jessie, 2026-09-10: "make \"Search
+  // person's name as host\" and below that \"Search organization's name\" so 2 differnet text boxes".
+  // The person's box reads events.host, the organization's reads events.org, and when both are
+  // filled an event has to match both. Both are trimmed, so a stray space cannot narrow the
+  // calendar while the Host button reads (All), which is what it trims to.
+  const activeHost = (document.getElementById("host-filter")?.value || "").trim();
   const matchHost  = !activeHost || (e.host||"").toLowerCase().includes(activeHost.toLowerCase());
+  const activeOrg  = (document.getElementById("org-filter")?.value || "").trim();
+  const matchOrg   = !activeOrg || String(e.org||"").toLowerCase().includes(activeOrg.toLowerCase());
   const activeVenue = (document.getElementById("venue-filter")?.value || "").trim();
   const matchVenue = !activeVenue || (e.venue||"").toLowerCase().includes(activeVenue.toLowerCase());
   const fmt = typeof _activeFormat !== "undefined" ? _activeFormat : "all";
@@ -3558,7 +3607,7 @@ function _passesEventFilters(e, opts) {
     matchMood = false;
     _selectedMoods.forEach(function(m){ if (expList.indexOf(m) !== -1) matchMood = true; });
   }
-  return matchCat && matchQ && matchTab && matchMode && matchLocation && matchHost && matchDate && matchVenue && matchFormat && matchServingFilter(e) && locWhereOK && matchMood;
+  return matchCat && matchQ && matchTab && matchMode && matchLocation && matchHost && matchOrg && matchDate && matchVenue && matchFormat && matchServingFilter(e) && locWhereOK && matchMood;
 }
 
 // V12.80: dim category pills and mood chips that would return zero events under the current
@@ -3629,6 +3678,18 @@ function _applyChipDims(baseListForCat, baseListForMood, everything) {
       .forEach(function (lbl) { catTotals[lbl] = (catTotals[lbl] || 0) + 1; });
   });
   document.querySelectorAll("#cat-pills .cat-pill").forEach(function(btn) {
+    // ALL CATEGORIES COUNTS EVERY EVENT. Jessie, 2026-09-10: "add # events to right". The same two
+    // numbers as each row, from the same two lists: what survives every other filter (the list
+    // the rows count from) of everything there is (the list the rows total against), in the same
+    // 667/839 form, one number when they are equal. It is never greyed, because everything is
+    // always a choice.
+    if (btn.getAttribute("data-cat-all")) {
+      btn.classList.remove("dim");
+      var gotAll = (baseListForCat || []).length, allAll = (everything || []).length;
+      var numAll = btn.parentElement && btn.parentElement.querySelector(".cat-n");
+      if (numAll) { numAll.textContent = (gotAll === allAll ? String(allAll) : gotAll + "/" + allAll); }
+      return;
+    }
     var lbl = btn.getAttribute("data-cat-label");
     if (!lbl || lbl === "all") { btn.classList.remove("dim"); return; }
     var got = catCounts[lbl] || 0, all = catTotals[lbl] || 0;
@@ -7584,6 +7645,22 @@ function _fbarClearFeelings() {
     if (typeof _selectedMoods === "undefined" || !_selectedMoods) return;
     Array.from(_selectedMoods).forEach(function (m) { toggleMoodFilter(m); });
   } catch (e) {}
+  _syncFeelingClear();
+}
+
+// CLEAR ONLY WHEN THERE IS SOMETHING TO CLEAR. Jessie, 2026-09-10, of the Experience panel: "show
+// clear only if they have something selected". With nothing picked the button did nothing, and a
+// button that does nothing still reads as something to press. toggleMoodFilter is the only thing
+// that picks or unpicks an experience, and Reset and the Clear itself go through it, so it calls
+// this every time and the button follows the picks. The whole row of tools goes, not only the
+// button, so no empty gap is left under the chips.
+function _syncFeelingClear() {
+  try {
+    var t = document.getElementById("fbar-tools-feeling");
+    if (!t) return;
+    var n = (typeof _selectedMoods !== "undefined" && _selectedMoods) ? _selectedMoods.size : 0;
+    t.style.display = n ? "" : "none";
+  } catch (e) {}
 }
 
 // WHO YOUR GROUPS ARE, asked for once and only when you press the control. getMyGroups measures
@@ -7764,7 +7841,14 @@ function _fbarValue(key) {
       return ((document.getElementById("venue-filter") || {}).value || "").trim() || "All";
     }
     if (key === "host") {
-      return ((document.getElementById("host-filter") || {}).value || "").trim() || "All";
+      // EITHER BOX TURNS HOST ON. Jessie, 2026-09-10, splitting it into "Search person's name as
+      // host" and "Search organization's name". One filled says what is typed in it; both filled
+      // say 2, for the reason Categories and Experience give a number once there are several - two
+      // names do not fit on one button.
+      var _hp = ((document.getElementById("host-filter") || {}).value || "").trim();
+      var _ho = ((document.getElementById("org-filter") || {}).value || "").trim();
+      if (_hp && _ho) return "2";
+      return _hp || _ho || "All";
     }
     if (key === "feeling") {
       var ms = (typeof _selectedMoods !== "undefined" && _selectedMoods) ? Array.from(_selectedMoods) : [];
@@ -7802,6 +7886,11 @@ function fbarClear(key) {
     if (key === "venue" || key === "host") {
       var _tx = document.getElementById(key + "-filter"); if (_tx) { _tx.value = ""; }
       try { hideDropdown(key + "-suggestions"); } catch (e) {}
+    }
+    // HOST'S CLEAR EMPTIES BOTH ITS BOXES, the person's name and the organization's. 2026-09-10.
+    if (key === "host") {
+      var _txo = document.getElementById("org-filter"); if (_txo) { _txo.value = ""; }
+      try { hideDropdown("org-suggestions"); } catch (e) {}
     }
   } catch (e) {}
   renderEvents();
@@ -8054,7 +8143,7 @@ function fbarResetAll() {
   // the feelings, which Search by's own Clear used to cover. With Feeling a filter of its own,
   // Reset has to clear it like every other. 2026-09-10.
   _fbarClearFeelings();
-  try { hideDropdown("venue-suggestions"); hideDropdown("host-suggestions"); } catch (e) {}
+  try { hideDropdown("venue-suggestions"); hideDropdown("host-suggestions"); hideDropdown("org-suggestions"); } catch (e) {}
   // SHOW BOOKMARKED GOES OFF. 2026-09-10. Jessie asked for it as a way of narrowing all three
   // sections, so it is part of the view Reset puts back to everything. Show cancelled is left as it
   // is, because it is remembered as a way of looking rather than a narrowing.
@@ -8228,6 +8317,8 @@ function fbarBoot() {
     tools.innerHTML = (c.key === "feeling" || c.key === "venue" || c.key === "host")
       ? '<button onclick="fbarClear(\'' + c.key + '\')">\u00d7 Clear</button>'
       : '';
+    // Experience's Clear is found by this id, so it can come and go. See _syncFeelingClear.
+    if (c.key === "feeling") { tools.id = "fbar-tools-feeling"; }
     // AT THE BOTTOM, not the top. Hide is what you press when you have finished with a panel, so
     // it belongs at the end of the thing rather than above it. Jessie, 2026-09-06.
     //
@@ -8235,6 +8326,7 @@ function fbarBoot() {
     // last on the screen as well as last in the markup.
     panel.appendChild(tools);
   });
+  _syncFeelingClear();   // none picked on arrival, so Experience's Clear starts hidden
 
   // The category chips were drawn once, before the categories had loaded, so the panel held only
   // the "Show all categories" pill. Redrawn here, after the move and after the data. 2026-09-06.
