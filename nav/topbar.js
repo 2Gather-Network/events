@@ -51,10 +51,13 @@
   // ---- addresses, all of them, in one place ---------------------------------
   var LOGO     = 'https://2gather.network/images/2gather_logo.png';
   var EVENTS   = 'https://2gather.network/events';
-  // MY EVENTS IS THE MANAGE PAGE NOW, 2026-09-08, on her word: "yes Shall I point My events
-  // at /manage/?" Same rail, same three tabs, and the panel holds the form instead of a modal.
-  // /myevents/ still works and is still linked from elsewhere; it is only what this word points at.
-  var MYEVENTS = 'https://2gather.network/myevents/manage/';
+  // MY EVENTS IS ONE PAGE AND ONE NAME, 2026-09-10. The editing page was built at /myevents/manage/
+  // beside a list at /myevents/, and the pair was mistaken for a security split. It was not one:
+  // both need you signed in as yourself and both show only your own events. Jessie: "so yes let's
+  // make that one if it's not a securit boundary and it should be called myevents just like
+  // mygroups". So this word points at /myevents/, matching /mygroups/, and the old address
+  // forwards. The real pair is /event/?id= against /myevents/?id=, and that one stays two.
+  var MYEVENTS = 'https://2gather.network/myevents/';
   var POST     = 'https://2gather.network/events?action=post';
   var MYGROUPS = 'https://2gather.network/mygroups';
   var START    = 'https://2gather.network/groups/create';
