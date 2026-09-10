@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.21 | Date: 2026-09-10 | LAST CHANGE: on a phone, while the posting questions or the form are open, the event list folds behind the Events bar, and a form opened by the picture or paste step is scrolled into view, so it is no longer pushed off the screen when the list arrives. -->
+<!-- Version: M3.22 | Date: 2026-09-10 | LAST CHANGE: on a phone, posting a new event shows only the form, with a My events button above it; the form's white card runs to the end instead of stopping one screen down, and the date and time boxes stay inside it. -->
+<!-- Previous: M3.21 | Date: 2026-09-10 | LAST CHANGE: on a phone, while the posting questions or the form are open, the event list folds behind the Events bar, and a form opened by the picture or paste step is scrolled into view, so it is no longer pushed off the screen when the list arrives. -->
 <!-- Previous: M3.20 | Date: 2026-09-10 | LAST CHANGE: the section's name in the panel is a 20px heading again, with the line under it: 21 events hosted, 243 events socialized Thank you!, events you are attending, or what fills the section when it is empty. -->
 <!-- Previous: M3.19 | Date: 2026-09-10 | LAST CHANGE: on a phone, Show cancelled and Show bookmarked fold away with the list and come back when it opens. -->
 <!-- Previous: M3.18 | Date: 2026-09-10 | LAST CHANGE: on a phone, opening an event folds the rest of the list behind an Events (N) bar like the calendar's Filters bar, with the open event under it, and the page starts at that bar. -->
@@ -497,6 +498,18 @@
      others fold behind one bar, drawn like the calendar's Filters bar, with the open event under it
      in blue. Pressing the bar opens the list again. Only where the list stacks above the event. */
   .manage-fold { display:none; }
+  /* POSTING ON A PHONE IS THE WHOLE PAGE. Jessie, 2026-09-10, with the rail still above the form: "All
+     I wanna see is the post form at the top and maybe a button to get back to my events". While a new
+     event is being posted (the two questions, the paste step or the form, never an edit), the rail
+     goes and one My events button sits above the form. It leaves by reloading My events. */
+  .post-back { display:none; }
+  @media (max-width:860px) {
+    .manage-grid.cw-posting > .manage-rail { display:none; }
+    .manage-grid.cw-posting .post-back {
+      display:inline-block; margin:0 0 14px; background:#fff; color:var(--primary);
+      border:1.5px solid var(--primary); border-radius:9px; font:inherit; font-size:13px;
+      font-weight:700; padding:7px 16px; cursor:pointer; }
+  }
   @media (max-width:860px) {
     .manage-rail.cw-has-sel .manage-fold {
       display:block; width:100%; margin:0 0 6px; background:#fff; border:2px solid #154F74; color:#1F699E;
@@ -612,6 +625,13 @@
                          box-shadow:none; transform:none; max-height:none; overflow:visible; }
     #post-modal .modal-scroll-body, #post-modal .modal-form { padding:0; }
     #post-modal .input, #post-modal .textarea, #post-modal img { max-width:100%; }
+    /* An iPhone draws date and time boxes at their own width, wider than the card, with the value
+       centered. Same picture as above. They are held to the card's width and read from the left. */
+    #post-modal input[type="date"], #post-modal input[type="time"] {
+      -webkit-appearance:none; appearance:none; display:block; box-sizing:border-box;
+      width:100%; min-width:0; max-width:100%; }
+    #post-modal input[type="date"]::-webkit-date-and-time-value,
+    #post-modal input[type="time"]::-webkit-date-and-time-value { text-align:left; }
     .manage-body { padding:14px 12px 40px; }
     .manage-main { padding:16px 14px; }
     .manage-rail { padding:10px; }
@@ -802,6 +822,7 @@
     <section class="manage-main">
       <!-- ONE WORDING EVERYWHERE. Jessie, 2026-09-08: "change loading your events to Loading
            information", which is what the group admin screen settled on the same evening. -->
+      <button type="button" class="post-back" id="post-back" onclick="managePostBack()">My events</button>
       <div class="panel-top" id="panel-top" style="display:none;">
         <h2 id="pane-head" class="pane-head">Hosting</h2>
         <button type="button" class="panel-btn" onclick="openPostEvent()">Post event</button>
@@ -2935,6 +2956,16 @@ function showLoading(on) {
 
 function fixModalForMobile() {
   if (window.innerWidth >= 768) return;
+  // NOT HERE. Jessie, 2026-09-10, on a phone, scrolled to the date and times: "it gets wonky at the
+  // end". This sized the form to the screen's height, which is right for the calendar page, where
+  // the form is a sheet that scrolls inside itself. On My events the form is the page and scrolls
+  // with it, so the white card stopped one screen down and every field after it hung out below the
+  // card over the blue. It also jumped the page back to the top a moment after opening.
+  if (document.getElementById("form-host")) {
+    const m = document.querySelector("#post-modal .modal-form");
+    if (m) { m.style.maxHeight = ""; m.style.height = ""; }
+    return;
+  }
   const modal = document.querySelector("#post-modal .modal-form");
   const scrollBody = document.querySelector("#post-modal .modal-scroll-body");
   if (!modal || !scrollBody) return;
@@ -8916,7 +8947,24 @@ function selectInterestSuggestion(val) {
   // in the stylesheet. Folded whenever an event is open and it is in the list; opened by the bar,
   // by choosing a section, or by searching, all of which are asking to see the list.
   var _foldOpen = false, _foldScrolled = false;
+  function _postingNew() {
+    var on = function (id, mounted) {
+      var el = document.getElementById(id);
+      return !!el && el.classList.contains('open') && (!mounted || el.classList.contains('cw-mounted'));
+    };
+    var editing = false;
+    try { editing = !!editingId; } catch (e) {}
+    return on('choice-modal', true) || on('paste-modal', false) || (on('post-modal', true) && !editing);
+  }
+  window.managePostBack = function () {
+    try { if (formDirty && !confirm('You have unsaved changes. Close anyway?')) return; } catch (e) {}
+    location.href = 'https://2gather.network/myevents/';
+  };
   function _paintFold() {
+    try {
+      var grid = document.querySelector('.manage-grid');
+      if (grid) { grid.classList.toggle('cw-posting', _postingNew()); }
+    } catch (e) {}
     var btn = document.getElementById('manage-fold');
     var rail = list && list.closest ? list.closest('.manage-rail') : null;
     if (!btn || !rail) return;
