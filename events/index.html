@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.68 | Date: 2026-09-11 | LAST CHANGE: for a visitor, the wish list box that opens on a first visit stays away too. -->
+<!-- Version: V13.69 | Date: 2026-09-11 | LAST CHANGE: posting waits for the save, then opens the event's own page; the Event posted! pop-up is gone, and the picture, co-hosts and socializer saves go out one after another before the page moves. If the save is refused, the form stays and says why. -->
+<!-- Previous: V13.68 | Date: 2026-09-11 | LAST CHANGE: for a visitor, the wish list box that opens on a first visit stays away too. -->
 <!-- Previous: V13.67 | Date: 2026-09-11 | LAST CHANGE: a visitor sees the calendar and nothing that needs an account: no tab row, no +, no Interests or wish list, no Group events; the kept groups list is tied to the person it belongs to, so a visitor never sees somebody else's groups. -->
 <!-- Previous: V13.66 | Date: 2026-09-10 | LAST CHANGE: while sharing somebody else's event, the registration/payment link choice hides with its i, so no i is left alone on a line. -->
 <!-- Previous: V13.65 | Date: 2026-09-10 | LAST CHANGE: the i beside Recommended matches is the same round i as the one beside the +, and it sits right after the heading; the count moves to its own line on a phone. -->
@@ -2736,6 +2737,20 @@ async function apiAdd(ev) {
   var _add = { action:"add", event: row };
   try { if (_hostFoundEmail && String(row.hostType||"").toLowerCase() === "socializer") { _add.hostFoundEmail = _hostFoundEmail; } } catch (e) {}
   return jsonp(_add);
+}
+// THE SAME ADD, WAITING AS LONG AS IT TAKES. Jessie, 2026-09-11, "105 yes": after posting, the page
+// waits for the save and then opens the event. jsonp gives up at 20 seconds and the backend measures
+// 9 to 39, so a slow save would read as a failed one. This asks the same thing through fetch, which
+// waits, and hands back the backend's own answer. Built on apiAdd's row so the two cannot differ.
+async function apiAddWait(ev) {
+  var row = evToSheet(ev);
+  if (!row.userID) {
+    try { var _mine = getRealMemberId() || ""; row.userID = _mine; row.guestID = _mine; } catch (e) {}
+  }
+  var q = "?action=add&event=" + encodeURIComponent(JSON.stringify(row));
+  try { if (_hostFoundEmail && String(row.hostType||"").toLowerCase() === "socializer") { q += "&hostFoundEmail=" + encodeURIComponent(_hostFoundEmail); } } catch (e) {}
+  var r = await fetch(GS_URL + q);
+  return r.json();
 }
 // WHO IS EDITING, SENT WITH THE EDIT. The row records what changed; this says who changed it.
 // Jessie, 2026-09-09: an event recorded nothing at all, which is exactly where the All pill has
@@ -5549,7 +5564,7 @@ function _sendCoHosts(eventId) {
   var me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
   var emails = _coHostAdds.map(function (c) { return c.email; }).join("|");
   _coHostAdds = [];
-  fetch(GS_URL + "?action=setEventCoHosts&op=set&emails=" + encodeURIComponent(emails)
+  return fetch(GS_URL + "?action=setEventCoHosts&op=set&emails=" + encodeURIComponent(emails)
         + "&eventId=" + encodeURIComponent(eventId) + "&appearId=" + encodeURIComponent(me))
     .catch(function () {});
 }
@@ -5831,7 +5846,7 @@ function _sendCover(eventId) {
   if (!me) return;
   var blob = _coverBlob;
   _coverBlob = null;
-  fetch("https://cw-photos.jessieupp.workers.dev/upload-event?id=" + encodeURIComponent(eventId)
+  return fetch("https://cw-photos.jessieupp.workers.dev/upload-event?id=" + encodeURIComponent(eventId)
         + "&host=" + encodeURIComponent(me), {
     method: "POST",
     headers: { "Content-Type": blob.type || "image/jpeg", "x-cw-token": _coverToken() },
@@ -6577,18 +6592,44 @@ async function submitEvent() {
     let log = []; try { log = JSON.parse(localStorage.getItem(RL_KEY)||"[]"); } catch {}
     log.push(Date.now()); localStorage.setItem(RL_KEY, JSON.stringify(log));
     const submitBtn = document.getElementById("submit-btn");
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Posted ✓"; setTimeout(() => { submitBtn.disabled = false; submitBtn.textContent = "Post event"; }, 10000); }
-    events.unshift(newEv); clearDraft(); clearEditDraft(); closeModal(); renderEvents(); showSummary(newEv);
-    apiAdd(newEv).catch(() => {});
-    _sendCover(newId);
-    _sendCoHosts(newId);
-    // V12.60: posted via "I'm sharing an event I'm not hosting" -> record the poster as a socializer
-    // of this event (not its host). The host field holds the real host/org they entered.
-    if (window._isSharing) {
-      var _me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
-      if (_me) fetch(GS_URL + "?action=saveSocializer&appearId=" + encodeURIComponent(_me) + "&eventId=" + encodeURIComponent(newId) + "&refCode=&via=share").catch(function(){});
-    }
+    // POSTING ENDS ON THE EVENT. Jessie, 2026-09-10, after posting on her phone: "I want to see the
+    // event that I actually posted", and "105 yes" on 2026-09-11. This used to show an "Event posted!"
+    // pop-up at once, before the save had finished, still telling people to keep an edit PIN that no
+    // longer exists, and closing it went to My events with the new event somewhere in a list.
+    // Now the button reads Posting... until the backend says the event is saved, then the picture, the
+    // co-hosts and the socializer line go out ONE AFTER ANOTHER (never at once, and none cut off by
+    // leaving the page), and the page opens the event's own page, where Add to calendar, Socialize
+    // this event and Edit already are. If the backend says no, the form stays as it was and says why.
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Posting..."; }
+    var _wasSharing = !!window._isSharing;
     window._isSharing = false;
+    events.unshift(newEv);
+    (async function () {
+      var ans = null, failed = false;
+      try { ans = await apiAddWait(newEv); } catch (e) { failed = true; }
+      if (failed || !ans || ans.status !== "ok") {
+        events = events.filter(function (x) { return x.id !== newId; });
+        window._isSharing = _wasSharing;
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Post event"; }
+        errEl.textContent = failed
+          ? "That did not post. Check your connection and press Post event again."
+          : ("That did not post. " + ((ans && ans.message) || "Please try again."));
+        errEl.style.display = "block";
+        errEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
+        return;
+      }
+      clearDraft(); clearEditDraft();
+      try { await _sendCover(newId); } catch (e) {}
+      try { await _sendCoHosts(newId); } catch (e) {}
+      // V12.60: posted via "I'm sharing an event I'm not hosting" -> record the poster as a socializer
+      // of this event (not its host). The host field holds the real host/org they entered.
+      if (_wasSharing) {
+        var _me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
+        if (_me) { try { await fetch(GS_URL + "?action=saveSocializer&appearId=" + encodeURIComponent(_me) + "&eventId=" + encodeURIComponent(newId) + "&refCode=&via=share"); } catch (e) {} }
+      }
+      formDirty = false;
+      window.location.href = "https://2gather.network/event/?id=" + encodeURIComponent(newId);
+    })();
   }
 }
 
