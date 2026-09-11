@@ -12,7 +12,8 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V6.11 | Date: 2026-09-11 | LAST CHANGE: Socialize this event shows at once instead of after the backend answers; this device remembers the events you socialized, and the button changes only if the answer disagrees. -->
+  <!-- Version: V6.12 | Date: 2026-09-11 | LAST CHANGE: the socialize screen is Copy link, Share and QR, one List me as helping switch, and Done. Pressing any of the three saves you as helping; the switch saves whether you are listed. -->
+<!-- Previous: V6.11 | Date: 2026-09-11 | LAST CHANGE: Socialize this event shows at once instead of after the backend answers; this device remembers the events you socialized, and the button changes only if the answer disagrees. -->
 <!-- Previous: V6.10 | Date: 2026-09-11 | LAST CHANGE: the old PIN box, ?manage=1 and the master passcode are gone from the page. Editing is the Edit button, for hosts, co-hosts and super admins. -->
 <!-- Previous: V6.09 | Date: 2026-09-10 | LAST CHANGE: the words in Add to calendar and Socialize this event wrap inside their buttons instead of running past the edge; Bookmark is not shown to the people who host the event, and waits for the answer that says who does. -->
 <!-- Previous: V6.08 | Date: 2026-09-10 | LAST CHANGE: the photo previews are taken out; the photo stays at the top of the card. -->
@@ -1661,7 +1662,8 @@ window.cwSocOpen = function () {
   try { _hideRsvpPanel(); } catch (e) {}
   try { closeQrModal(); } catch (e) {}
   _socReturnQr();
-  _socChoice = ''; _socSaving = false;
+  // _socSaving is left alone: a save still out when the screen reopens must finish before another goes.
+  _socChoice = ''; _socPending = false;
   var box = document.getElementById('cw-soc');
   if (!box) {
     box = document.createElement('div');
@@ -1676,31 +1678,38 @@ window.cwSocOpen = function () {
   var claim = 'https://2gather.network/support/?topic=claim-event&event=' + encodeURIComponent(String(ev.id));
   // Somebody who already hosts or co-hosts this event is not asked whether they host it.
   var k = _evRoleKnown, isHost = !!(k && k.id === String(ev.id) && k.me === me && (k.role === 'host' || k.role === 'cohost'));
+  // The switch starts where the backend last said, and off when it has not said: being listed is an
+  // invitation, so it is never switched on for anybody.
+  var listed = !!(k && k.id === String(ev.id) && k.me === me && k.shown);
+  _socListed = listed;
   box.innerHTML =
     '<div class="card-body">'
     + '<h2 class="cw-soc-h">Socialize ' + esc(ev.title || 'this event') + '</h2>'
     + '<p class="cw-soc-lede">Help socialize this event in the way you want.' + (hosted ? ' The host stays the host.' : '') + '</p>'
+    // ONE PRESS, ONE SWITCH. Jessie, 2026-09-11, with a picture of this screen: "Too many choices here /
+    // Don't make me think", and "Socialize it button turns grey and not sure how that even benefits",
+    // then "119 yes". It asked for four decisions: the three ways to share, Yes, list me or No thank
+    // you, then Socialize it (grey until the second was answered) or Cancel. Now pressing Copy link,
+    // Share or QR is itself what saves you as helping, once per event, the switch says whether you are
+    // listed, and Done goes back to the event.
     + '<div class="cw-soc-acts">'
-    +   '<button type="button" class="btn btn-outline copy-btn-el" onclick="copyLink()">Copy link</button>'
-    +   (!ev.cancelled ? '<button type="button" class="btn btn-outline" onclick="share()">Share</button>' : '')
-    +   '<button type="button" class="btn btn-outline" onclick="openQrModal()">QR</button>'
+    +   '<button type="button" class="btn btn-outline copy-btn-el" onclick="cwSocAct(\'copy\')">Copy link</button>'
+    +   (!ev.cancelled ? '<button type="button" class="btn btn-outline" onclick="cwSocAct(\'share\')">Share</button>' : '')
+    +   '<button type="button" class="btn btn-outline" onclick="cwSocAct(\'qr\')">QR</button>'
     + '</div>'
     + '<div id="cw-soc-qr-slot"></div>'
     + (ask
-      ? '<p class="cw-soc-q">Would you like to be listed as helping socialize this event, with your photo, your name and a link to your profile?</p>'
-        + '<div class="cw-soc-choices" role="group">'
-        +   '<button type="button" class="cw-soc-choice" data-shown="yes" aria-pressed="false" onclick="cwSocChoose(\'yes\')">Yes, list me</button>'
-        +   '<button type="button" class="cw-soc-choice" data-shown="no" aria-pressed="false" onclick="cwSocChoose(\'no\')">No thank you</button>'
-        + '</div>'
-        + '<p class="cw-soc-say" id="cw-soc-say" hidden></p>'
-        + '<div class="cw-soc-foot">'
-        +   '<button type="button" class="btn btn-primary" id="cw-soc-go" onclick="cwSocGo()" disabled>Socialize it</button>'
-        +   '<button type="button" class="btn btn-outline" onclick="cwSocClose()">Cancel</button>'
-        + '</div>'
+      ? '<label class="cw-soc-switch' + (listed ? ' on' : '') + '" id="cw-soc-switch">'
+        +   '<input type="checkbox" id="cw-soc-list"' + (listed ? ' checked' : '') + ' onchange="cwSocList(this.checked)">'
+        +   '<span class="cw-soc-track"><span class="cw-soc-knob"></span></span>'
+        +   '<span>List me as helping</span>'
+        + '</label>'
+        + '<p class="cw-soc-note">Your photo and name show under Socialized by, with a link to your profile.</p>'
       : (!me
         ? '<p class="cw-soc-q"><a role="link" tabindex="0" data-nav="' + esc(signin) + '" onclick="return _safeNavGo(this)" style="font-weight:700;cursor:pointer;">Sign in</a> to be listed as somebody helping spread it.</p>'
-        : '')
-        + '<div class="cw-soc-foot"><button type="button" class="btn btn-primary" onclick="cwSocClose()">Done</button></div>')
+        : ''))
+    + '<p class="cw-soc-say" id="cw-soc-say" hidden></p>'
+    + '<div class="cw-soc-foot"><button type="button" class="btn btn-primary" onclick="cwSocDone()">Done</button></div>'
     // ARE YOU THE HOST? Jessie: "Link 'are you the host of this event?' and put in a message
     // explaining how they can claim this event as host and if approved, it give them the ability to
     // edit it as they wish. and give them a link to the support page and have an option from the drop
@@ -1730,21 +1739,7 @@ window.cwSocClose = function () {
   var box = document.getElementById('cw-soc'), card = document.getElementById('card');
   if (box) { box.style.display = 'none'; box.innerHTML = ''; }
   if (card) { card.style.display = ''; }
-  _socChoice = ''; _socSaving = false;
-};
-
-window.cwSocChoose = function (v) {
-  if (_socSaving) return;
-  _socChoice = (v === 'yes') ? 'yes' : 'no';
-  document.querySelectorAll('#cw-soc .cw-soc-choice').forEach(function (b) {
-    var on = b.getAttribute('data-shown') === _socChoice;
-    b.classList.toggle('on', on);
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
-  });
-  var go = document.getElementById('cw-soc-go');
-  if (go) go.disabled = false;
-  var say = document.getElementById('cw-soc-say');
-  if (say) { say.hidden = true; say.textContent = ''; }
+  _socChoice = '';
 };
 
 window.cwSocHostQ = function () {
@@ -1763,53 +1758,75 @@ window.cwSocToSupport = function (el) {
   return _safeNavGo(el);
 };
 
-// SOCIALIZE IT. One write, for the person at the keyboard and nobody else. While somebody is being
-// viewed, or the view is signed out, the page shows what they would see, and a write made from there
-// would be filed under the wrong person, so it is refused and says why. The answer has to say, in so
-// many words, that the person is socializing it; anything else, including the calendar feed that an
-// Apps Script without this action answers with, changes nothing on screen.
+// THE SAVE. One write, for the person at the keyboard and nobody else. While somebody is being viewed,
+// or the view is signed out, the page shows what they would see, and a write made from there would be
+// filed under the wrong person, so it is refused and says why. The answer has to say, in so many
+// words, that the person is socializing it; anything else changes nothing on screen.
 //
-// SOCIALIZE IT, ONE REQUEST AT A TIME. It waits for the short link's request to settle first, so the
-// backend is never handed two at once (measured 2026-07-07: three of four 404ed when they arrived
-// together). The role question has already answered by the time this button can be seen.
-window.cwSocGo = async function () {
-  if (_socSaving || !_socChoice) return;
-  var ev = _currentEv;
-  var say = document.getElementById('cw-soc-say'), go = document.getElementById('cw-soc-go');
-  var tell = function (m) { if (say) { say.textContent = m; say.hidden = false; } };
-  if (!ev || !ev.id) return;
+// ONE REQUEST AT A TIME. It waits for the short link's request first, and a second press while one is
+// out is kept and sent when the first comes back, only if the switch has moved since, so the backend is
+// never handed two at once and the sheet ends where the switch is.
+var _socListed = false, _socPending = false;
+function _socWho() {
   var real = '', viewing = false;
   try {
     if (window.CW && CW.realMe) real = String(CW.realMe().id || '').trim();
     viewing = !!(window.CW && ((CW.viewingAs && String(CW.viewingAs() || '').trim()) || (CW.me && CW.me().viewing)));
     if (window.CW && CW.signedOutView && CW.signedOutView()) real = '';
   } catch (e) { real = ''; }
-  if (viewing) { tell('You are looking at this as somebody else, so nothing was saved.'); return; }
-  if (!real) { tell('Sign in first, then socialize it.'); return; }
+  return { real: real, viewing: viewing };
+}
+function _socTell(m) {
+  var say = document.getElementById('cw-soc-say');
+  if (say) { say.textContent = m || ''; say.hidden = !m; }
+}
+async function _socSave() {
+  var ev = _currentEv;
+  if (!ev || !ev.id || ev.cancelled) return;
+  var w = _socWho();
+  if (!w.real) return;                    // signed out: sharing still works, nothing is saved
+  if (w.viewing) { _socTell('You are looking at this as somebody else, so nothing was saved.'); return; }
+  if (_socSaving) { _socPending = true; return; }
   _socSaving = true;
-  if (go) { go.disabled = true; go.textContent = 'Saving...'; }
-  var ok = null;
+  var want = _socListed, ok = null;
   try {
     try { await _shortLinkJob; } catch (e) {}
     var r = await fetch(GS_URL + '?action=socialize&id=' + encodeURIComponent(String(ev.id))
-                        + '&appearId=' + encodeURIComponent(real)
-                        + '&shown=' + (_socChoice === 'yes' ? 'yes' : 'no'));
-    var t = await r.text();
+                        + '&appearId=' + encodeURIComponent(w.real)
+                        + '&shown=' + (want ? 'yes' : 'no'));
     var d = null;
-    try { d = JSON.parse(t); } catch (e) {}
+    try { d = JSON.parse(await r.text()); } catch (e) {}
     if (d && d.status === 'ok' && d.socializing === true) ok = d;
   } catch (e) {}
   _socSaving = false;
-  if (!ok) {
-    if (go) { go.disabled = false; go.textContent = 'Socialize it'; }
-    tell('That did not go through. Try again.');
-    return;
-  }
+  if (!ok) { _socTell('That did not save. Try again.'); _socPending = false; return; }
   var eid = String(ev.id);
-  _socDoneFor = eid + '|' + real;
-  _socRemember(eid, real);   // see A SOCIALIZE JUST MADE OUTLIVES A RELOAD
+  _socDoneFor = eid + '|' + w.real;
+  _socRemember(eid, w.real);   // see A SOCIALIZE JUST MADE OUTLIVES A RELOAD
   var k = _evRoleKnown;
   if (k && k.id === eid) { k.socializing = true; k.shown = ok.shown === true; }
+  _socTell('');
+  if (_socPending) { _socPending = false; if (_socListed !== want) { _socSave(); } }
+}
+function _socAlready() {
+  var ev = _currentEv, w = _socWho();
+  if (!ev || !w.real) return false;
+  return _socDoneFor === String(ev.id) + '|' + w.real || _socState() === 'yes';
+}
+// Copy link, Share and QR do what they always did, and the first of them saves you as helping.
+window.cwSocAct = function (what) {
+  if (what === 'copy') { try { copyLink(); } catch (e) {} }
+  else if (what === 'share') { try { share(); } catch (e) {} }
+  else if (what === 'qr') { try { openQrModal(); } catch (e) {} }
+  if (!_socAlready()) { _socSave(); }
+};
+window.cwSocList = function (on) {
+  _socListed = !!on;
+  var sw = document.getElementById('cw-soc-switch');
+  if (sw) sw.classList.toggle('on', _socListed);
+  _socSave();
+};
+window.cwSocDone = function () {
   cwSocClose();
   _paintSocialize();
 };
@@ -2777,6 +2794,18 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
   #cw-soc .cw-soc-foot .btn-outline { background:#fff; color:#1F699E; border:1.5px solid #1F699E; font-weight:700; }
   #cw-soc .cw-soc-foot .btn[disabled] { opacity:.5; cursor:default; }
   #cw-soc .cw-soc-hostq { margin:22px 0 0; font-size:13.5px; line-height:1.55; }
+  /* ONE SWITCH. See ONE PRESS, ONE SWITCH in the script. */
+  #cw-soc .cw-soc-switch { position:relative; display:flex; align-items:center; gap:10px; margin:18px 0 4px;
+                           font-size:15px; font-weight:600; color:var(--dark); cursor:pointer; }
+  #cw-soc .cw-soc-switch input { position:absolute; opacity:0; width:0; height:0; }
+  #cw-soc .cw-soc-track { width:40px; height:22px; border-radius:12px; background:#DDE4EE; position:relative;
+                          flex-shrink:0; transition:background .15s; }
+  #cw-soc .cw-soc-knob { position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%;
+                         background:#fff; transition:left .15s; }
+  #cw-soc .cw-soc-switch.on .cw-soc-track { background:#1F699E; }
+  #cw-soc .cw-soc-switch.on .cw-soc-knob { left:20px; }
+  #cw-soc .cw-soc-switch input:focus-visible + .cw-soc-track { outline:2px solid #1F699E; outline-offset:2px; }
+  #cw-soc .cw-soc-note { font-size:13px; color:var(--muted); line-height:1.5; margin:0 0 4px 50px; }
   #cw-soc .cw-soc-hostq > a { color:var(--primary); text-decoration:underline; }
   #cw-soc #cw-soc-hostmsg { margin:8px 0 0; color:#374151; }
   #cw-soc #cw-soc-hostmsg p { margin:0 0 6px; }
