@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.30 | Date: 2026-09-11 | LAST CHANGE: a deleted event leaves the kept My events list at once, so it is not drawn again until the backend answers. -->
+<!-- Version: M3.31 | Date: 2026-09-11 | LAST CHANGE: for ten minutes after this tab posts, saves, deletes or socializes, My events asks for its list past the gate's kept copy, so a deleted event does not come back. -->
+<!-- Previous: M3.30 | Date: 2026-09-11 | LAST CHANGE: a deleted event leaves the kept My events list at once, so it is not drawn again until the backend answers. -->
 <!-- Previous: M3.29 | Date: 2026-09-11 | LAST CHANGE: Delete says Deleting..., waits for the answer and says if it did not delete; phone look (&look=2): editing an event is one column with Event info at the top and Cancel and Save changes in a bar at the bottom, the list out of the way. -->
 <!-- Previous: M3.28 | Date: 2026-09-11 | LAST CHANGE: phone look (&look=2): nothing runs past the right edge; the sections shrink to share the row, All shows no number, and the order list gives way to search and the +. -->
 <!-- Previous: M3.27 | Date: 2026-09-11 | LAST CHANGE: a phone look behind &look=2 for review: My events, Calendar and My groups in a bar at the bottom; the four sections in one row with the section's line under them; a round + beside search and order; each event with its date or Today/Tomorrow, its place and a Shared or Weekly chip, opening its event page. -->
@@ -3034,7 +3035,11 @@ async function apiUpdateWait(ev) {
 // event page in this tab (cw-ev-fresh), which draws it at once and then asks the backend for the real
 // one past the gate's copy. The same row goes into My events' kept list, so a new or changed event is
 // in the right section straight away rather than after the list's own 20 to 30 seconds.
+// THIS TAB HAS JUST WRITTEN. Set after a post, a save or a delete lands, and read by My events to ask
+// for its list past the gate's kept copy (see ASKED PAST THE GATE AFTER A WRITE in My events).
+function _cwWrote() { try { sessionStorage.setItem("cw-wrote-at", String(Date.now())); } catch (e) {} }
 function _cwHandOff(ev, isNew) {
+  _cwWrote();
   try {
     var row = evToSheet(ev), now = new Date().toISOString();
     if (isNew) { row.createdAt = now; }
@@ -6516,6 +6521,7 @@ async function deleteEvent() {
     return;
   }
   events = events.filter(e => e.id !== editingId);
+  _cwWrote();
   // AND IT LEAVES THE KEPT LIST TOO. Jessie, 2026-09-11: "said deletign and hten test stil shows here
   // after". The delete landed (events.archived reads true), but My events draws the list it kept for the
   // tab first, and that copy still held the event until the backend's own list came back. The event
@@ -9587,7 +9593,17 @@ function selectInterestSuggestion(val) {
     //
     // So the form opens from that, and the list loads behind it for the rail. Two questions asked
     // at once instead of one big one asked first.
-    var railJob = fetch(GS_URL + '?action=getMyEvents&appearId=' + encodeURIComponent(me) + '&t=' + Date.now())
+    // ASKED PAST THE GATE AFTER A WRITE. Jessie, 2026-09-11, after deleting test event: "You say it's
+    // deleted, but I don't see it as a host. So it's not deleted according to me. What do we need to do
+    // to fix this on the front end?" The delete had landed; the Cloudflare gate keeps a copy of this
+    // list and handed back the one from before it (266 events with test event, where the backend's own
+    // answer had 265 without). For ten minutes after this tab posts, saves, deletes or socializes, the
+    // list is asked for past the gate's copy. The rest of the time the gate's quick copy is used, and the
+    // lasting fix is the gate throwing its copy away when a write passes through it (queue item 128).
+    var _wroteAt = 0;
+    try { _wroteAt = Number(sessionStorage.getItem('cw-wrote-at')) || 0; } catch (e) {}
+    var _pastGate = (Date.now() - _wroteAt) < 10 * 60 * 1000;
+    var railJob = fetch(GS_URL + '?action=getMyEvents&appearId=' + encodeURIComponent(me) + (_pastGate ? '&nocache=1' : '') + '&t=' + Date.now())
                     .then(function (r) { return r.json(); })
                     .catch(function () { return null; });
 
