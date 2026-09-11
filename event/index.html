@@ -12,7 +12,8 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V6.14 | Date: 2026-09-11 | LAST CHANGE: phone look (&look=2): the repeat note keeps its own look, and the venue and address read as one line beside one mark. -->
+  <!-- Version: V6.15 | Date: 2026-09-11 | LAST CHANGE: an event just posted or saved in this tab is drawn at once from the copy the form left, then refreshed from the backend past the kept copy at the gate. -->
+<!-- Previous: V6.14 | Date: 2026-09-11 | LAST CHANGE: phone look (&look=2): the repeat note keeps its own look, and the venue and address read as one line beside one mark. -->
 <!-- Previous: V6.13 | Date: 2026-09-11 | LAST CHANGE: a phone look behind &look=2 for review: one column (photo, title with Bookmark, Hosted by, date and place rows, Add to calendar and Socialize, About, then the rest) and a bar at the bottom with Register / Pay or +1 and Edit. Today and Tomorrow for the date. Without &look=2 nothing changes. -->
 <!-- Previous: V6.12 | Date: 2026-09-11 | LAST CHANGE: the socialize screen is Copy link, Share and QR, one List me as helping switch, and Done. Pressing any of the three saves you as helping; the switch saves whether you are listed. -->
 <!-- Previous: V6.11 | Date: 2026-09-11 | LAST CHANGE: Socialize this event shows at once instead of after the backend answers; this device remembers the events you socialized, and the button changes only if the answer disagrees. -->
@@ -702,10 +703,12 @@ function viewerKnown() {
    override rows, which the gate works out from the id.
    If the slimmed answer comes back empty or the call fails, fall back to the
    full feed, so a gate problem can never turn into "Event not found". */
-async function fetchEvents(id) {
+async function fetchEvents(id, fresh) {
   if (id) {
     try {
-      const res = await fetch(GS_URL + "?action=eventBundle&id=" + encodeURIComponent(id) + "&t=" + Date.now());
+      // fresh: past the gate's kept copy, because this tab has just saved the event (see A SAVED EVENT
+      // SHOWS AT ONCE) and the kept copy may be from before the save.
+      const res = await fetch(GS_URL + "?action=eventBundle&id=" + encodeURIComponent(id) + (fresh ? "&nocache=1" : "") + "&t=" + Date.now());
       if (res.ok) {
         const data = await res.json();
         if (data && data.events && data.events.length) return data;
@@ -2494,9 +2497,21 @@ async function init() {
     }
   }
 
+  // A SAVED EVENT SHOWS AT ONCE. Jessie, 2026-09-11, after saving: "it should immedaitely show the
+  // event - but still hasn't shown". The form that just posted or saved this event left its copy in
+  // this tab (cw-ev-fresh, see THE SAVED EVENT GOES WITH YOU in the form). It is drawn straight away,
+  // then the backend's own copy is asked for past the gate and drawn over it when it lands. Only for
+  // ten minutes, only for this event, and it never stands in for an event that turns out not to exist.
+  let _fresh = null;
   try {
-    const data = await fetchEvents(id);
+    const _h = JSON.parse(sessionStorage.getItem("cw-ev-fresh") || "null");
+    if (_h && String(_h.id) === id && _h.row && (Date.now() - (Number(_h.at) || 0)) < 10 * 60 * 1000) { _fresh = _h.row; }
+  } catch (e) {}
+  if (_fresh) { try { render(toEv(_fresh)); } catch (e) {} }
+  try {
+    const data = await fetchEvents(id, !!_fresh);
     let ev = (data.events||[]).filter(r=>r.id).map(toEv).find(e=>e.id===id);
+    if (ev && _fresh) { try { sessionStorage.removeItem("cw-ev-fresh"); } catch (e) {} }
     // NOT IN THE PUBLIC FEED IS NOT THE SAME AS NOT THERE. A private event is stripped before the
     // feed is sent, so its own host opening it was told "Event not found." Jessie, 2026-09-07.
     // getMyEvents answers with one person's own events, private ones included, so this asks it
@@ -2514,6 +2529,7 @@ async function init() {
         }
       } catch (e) {}
     }
+    if (!ev && _fresh) { return; }   // the backend has not caught up yet: the saved copy stays
     if (!ev) { showError("Event not found."); return; }
     // A SHARE ARRIVES AS A CODE. ?via= carried the sharer's id and is still read, because links
     // built before tonight are in circulation, but nothing hands one out any more.
@@ -2531,6 +2547,7 @@ async function init() {
     }
     render(ev);
   } catch(e) {
+    if (_fresh) return;   // the saved copy is on screen; a failed refresh does not take it away
     showError("Could not load event. Please try again.");
   }
 }

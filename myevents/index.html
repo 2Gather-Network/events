@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.24 | Date: 2026-09-11 | LAST CHANGE: posting waits for the save, then opens the event's own page; the Event posted! pop-up is gone, and the picture, co-hosts and socializer saves go out one after another before the page moves. If the save is refused, the form stays and says why. -->
+<!-- Version: M3.25 | Date: 2026-09-11 | LAST CHANGE: the sort list opens on Newest posted and adds Recently updated; the sort and the search stay as you left them when you open an event; Save changes reads Saving..., cannot be pressed twice, waits for the answer and opens the event with the saved copy; a new or changed event joins its section at once. -->
+<!-- Previous: M3.24 | Date: 2026-09-11 | LAST CHANGE: posting waits for the save, then opens the event's own page; the Event posted! pop-up is gone, and the picture, co-hosts and socializer saves go out one after another before the page moves. If the save is refused, the form stays and says why. -->
 <!-- Previous: M3.23 | Date: 2026-09-10 | LAST CHANGE: while sharing somebody else's event, the registration/payment link choice hides with its i, so no i is left alone on a line. -->
 <!-- Previous: M3.22 | Date: 2026-09-10 | LAST CHANGE: on a phone, posting a new event shows only the form, with a My events button above it; the form's white card runs to the end instead of stopping one screen down, and the date and time boxes stay inside it. -->
 <!-- Previous: M3.21 | Date: 2026-09-10 | LAST CHANGE: on a phone, while the posting questions or the form are open, the event list folds behind the Events bar, and a form opened by the picture or paste step is scrolled into view, so it is no longer pushed off the screen when the list arrives. -->
@@ -780,6 +781,8 @@
         </div>
         <select id="rail-sort" onchange="manageSort(this.value)" aria-label="Sort events"
                 style="border:1.5px solid var(--border);border-radius:18px;background:#fff;font-family:inherit;font-size:13px;padding:7px 8px;color:var(--dark);cursor:pointer;">
+          <option value="new">Newest posted</option>
+          <option value="upd">Recently updated</option>
           <option value="soon">Soonest first</option>
           <option value="late">Furthest out</option>
           <option value="az">A to Z</option>
@@ -2955,6 +2958,46 @@ async function apiUpdate(ev) {
   try { _by = getRealMemberId() || ""; } catch (e) {}
   try { _as = (window.CW && CW.me && CW.me().id) || _by; } catch (e) { _as = _by; }
   return jsonp({ action:"update", event:evToSheet(ev), appearId:_by, actingAs:_as });
+}
+// THE SAME UPDATE, WAITING AS LONG AS IT TAKES. See THE SAME ADD, WAITING AS LONG AS IT TAKES.
+async function apiUpdateWait(ev) {
+  var _by = "", _as = "";
+  try { _by = getRealMemberId() || ""; } catch (e) {}
+  try { _as = (window.CW && CW.me && CW.me().id) || _by; } catch (e) { _as = _by; }
+  var r = await fetch(GS_URL + "?action=update&event=" + encodeURIComponent(JSON.stringify(evToSheet(ev)))
+                      + "&appearId=" + encodeURIComponent(_by) + "&actingAs=" + encodeURIComponent(_as));
+  return r.json();
+}
+// THE SAVED EVENT GOES WITH YOU. Jessie, 2026-09-11, after saving an event: "it should immedaitely
+// show the event - but still hasn't shown". The event page asked the backend for it, 10 to 40 seconds,
+// and the gate could hand back the copy from before the save. The copy just saved is left for the
+// event page in this tab (cw-ev-fresh), which draws it at once and then asks the backend for the real
+// one past the gate's copy. The same row goes into My events' kept list, so a new or changed event is
+// in the right section straight away rather than after the list's own 20 to 30 seconds.
+function _cwHandOff(ev, isNew) {
+  try {
+    var row = evToSheet(ev), now = new Date().toISOString();
+    if (isNew) { row.createdAt = now; }
+    row.updatedAt = now;
+    if (ev.hostType && !row.hostType) { row.hostType = ev.hostType; }
+    sessionStorage.setItem("cw-ev-fresh", JSON.stringify({ id: String(ev.id), at: Date.now(), row: row }));
+    var me = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
+    if (!me) return;
+    var key = "cw-manage-rail-" + me;
+    var kept = JSON.parse(sessionStorage.getItem(key) || "null");
+    if (!Array.isArray(kept)) return;   // nothing kept yet: My events asks the backend anyway
+    var slim = { id: row.id, title: row.title, date: row.date, hostType: row.hostType || "", cancelled: !!ev.cancelled,
+                 recurFreq: row.recurFreq || "", dayOfWeek: row.dayOfWeek || "", imageUrl: row.imageUrl || "",
+                 socializedByMe: false, createdAt: row.createdAt || "", updatedAt: now };
+    var i = -1;
+    for (var k = 0; k < kept.length; k++) { if (kept[k] && String(kept[k].id) === String(row.id)) { i = k; break; } }
+    if (i > -1) {
+      slim.createdAt = kept[i].createdAt || "";
+      slim.socializedByMe = !!kept[i].socializedByMe;
+      kept[i] = Object.assign({}, kept[i], slim);
+    } else { kept.push(slim); }
+    sessionStorage.setItem(key, JSON.stringify(kept));
+  } catch (e) {}
 }
 // DELETING SAYS WHO IS DELETING, the same as saving does. It said nothing at all until
 // 2026-09-10, so the backend had no way to refuse somebody taking another person's event off the
@@ -6233,23 +6276,32 @@ async function submitEvent() {
       const beforeEv = idx > -1 ? { ...events[idx] } : null;
       const updatedEv = idx > -1 ? { ...events[idx], ...eventData } : null;
       if (updatedEv) events[idx] = updatedEv;
-      closeModal(); renderEvents();
+      // SAVE SAYS IT IS SAVING, ONCE. Jessie, 2026-09-11: "hwen editing the evnet the save button didn't
+      // do anytnig and I didn't know why it was saving. after 3 presses, it finally went to loading
+      // evnet for way too long." The form closed itself first, which on My events leaves it in view,
+      // so nothing seemed to happen while the save went out, and every press sent another. The button
+      // now reads Saving... and cannot be pressed again, the page waits for the backend's own answer
+      // however long it takes, and only then opens the event, handing it the saved copy (see THE SAVED
+      // EVENT GOES WITH YOU). A refusal or a lost connection puts the button back and says so.
+      const _saveBtn = document.getElementById("submit-btn");
+      const _saveWas = _saveBtn ? _saveBtn.textContent : "Save changes";
+      if (_saveBtn) { _saveBtn.disabled = true; _saveBtn.textContent = "Saving..."; }
       if (updatedEv) {
         var _saveRes = null;
-        try { _saveRes = await apiUpdate(updatedEv); } catch(e) { console.warn("Update save failed", e); }
-        // THE SHEET CAN SAY NO NOW, so the page has to listen. Until 2026-09-10 the backend wrote
-        // whatever it was handed, so this closed the form and walked to the event without ever
-        // asking whether the save landed. With a gate on the other end, saying "saved" and showing
-        // the old event is worse than saying nothing: the person believes their change is in.
-        if (_saveRes && _saveRes.status === 'error') {
+        try { _saveRes = await apiUpdateWait(updatedEv); } catch(e) { _saveRes = { status: "error", message: "That did not save. Check your connection and press Save changes again." }; }
+        if (!_saveRes || _saveRes.status !== "ok") {
           if (idx > -1 && beforeEv) { events[idx] = beforeEv; }
-          renderEvents();
-          showToast(_saveRes.message || "That event belongs to somebody else.");
+          if (_saveBtn) { _saveBtn.disabled = false; _saveBtn.textContent = _saveWas; }
+          errEl.textContent = (_saveRes && _saveRes.message) || "That did not save. Please try again.";
+          errEl.style.display = "block";
+          errEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
           return;
         }
+        _cwHandOff(updatedEv, false);
       }
-      const base = "https://2gather.network/";
-      window.location.href = base + "event.html?id=" + encodeURIComponent(savedId);
+      // THE SHEET CAN SAY NO (2026-09-10), and the check above listens for it before anything moves.
+      formDirty = false;
+      window.location.href = "https://2gather.network/event/?id=" + encodeURIComponent(savedId);
     }
   } else {
     // V12.61: Daily -> create one normal event per day from the start date through the last day
@@ -6313,6 +6365,7 @@ async function submitEvent() {
         return;
       }
       clearDraft(); clearEditDraft();
+      _cwHandOff(newEv, true);
       try { await _sendCover(newId); } catch (e) {}
       try { await _sendCoHosts(newId); } catch (e) {}
       // V12.60: posted via "I'm sharing an event I'm not hosting" -> record the poster as a socializer
@@ -8597,9 +8650,29 @@ function selectInterestSuggestion(val) {
     try { c.go(); } catch (e) { location.href = 'https://2gather.network/myevents/'; }
   };
 
-  var _q = '', _sort = 'soon';
+  // NEWEST POSTED FIRST, AND THE LIST STAYS HOW YOU LEFT IT. Jessie, 2026-09-11: "i also need to be able
+  // to sort my evnets based on date published or date updated - can you add these 2 to hte sort list
+  // and make teh deafult latest event published show first? and when I click on it the sort stayst eh
+  // same? ... I wanna stay where my initial search looked like until I changed the sorting."
+  // Pressing an event opens it by loading the page again, which put the order back to Soonest first
+  // and emptied the search box. Both are kept for the tab now and put back on arrival.
+  // Newest posted reads events.createdAt where a row has one, and otherwise the row's place on the
+  // events tab, where every new event is added at the bottom. Recently updated reads events.updatedAt,
+  // which the backend writes on every save once the column exists (queue item 122), then falls back
+  // to the same.
+  var _q = '', _sort = 'new';
+  try {
+    _q = sessionStorage.getItem('cw-me-q') || '';
+    var _s0 = sessionStorage.getItem('cw-me-sort');
+    if (_s0 && /^(new|upd|soon|late|az)$/.test(_s0)) { _sort = _s0; }
+  } catch (e) {}
+  (function () {
+    var sel = document.getElementById('rail-sort'); if (sel) { sel.value = _sort; }
+    var box = document.getElementById('rail-filter'); if (box && _q) { box.value = _q; }
+  })();
   window.manageSearch = function (v) {
     _q = String(v || '');
+    try { sessionStorage.setItem('cw-me-q', _q); } catch (e) {}
     _foldOpen = true;
     paintRail(allRows, selId);
     var box = document.getElementById('rail-filter');
@@ -8607,7 +8680,11 @@ function selectInterestSuggestion(val) {
     // cursor back or typing stops after one letter.
     if (box) { box.value = _q; box.focus(); try { box.setSelectionRange(_q.length, _q.length); } catch (e) {} }
   };
-  window.manageSort = function (v) { _sort = v || 'soon'; paintRail(allRows, selId); };
+  window.manageSort = function (v) {
+    _sort = v || 'new';
+    try { sessionStorage.setItem('cw-me-sort', _sort); } catch (e) {}
+    paintRail(allRows, selId);
+  };
 
   var PANE_NAME = { attending: 'Attending', hosting: 'Hosting', socialized: 'Socialized', all: 'All events' };
 
@@ -9039,7 +9116,11 @@ function selectInterestSuggestion(val) {
       return !!el && el.classList.contains('open') && el.classList.contains('cw-mounted');
     });
   }
-  function paintRail(rows, sel) { _paintRailRows(rows, sel); _paintFold(); }
+  function paintRail(rows, sel) {
+    // Each row's place in the answer, which is its place on the events tab: see NEWEST POSTED FIRST.
+    try { (rows || []).forEach(function (r, i) { if (r && typeof r === 'object') { r._pos = i; } }); } catch (e) {}
+    _paintRailRows(rows, sel); _paintFold();
+  }
   function _paintRailRows(rows, sel) {
     if (!list) return;
     allRows = rows; selId = sel || selId; _sel4row = selId;
@@ -9093,6 +9174,19 @@ function selectInterestSuggestion(val) {
     var today = new Date(); today.setHours(0, 0, 0, 0);
     var when = function (r) { var d = new Date(String(r.date || '')); return isNaN(d) ? null : d; };
     var rank = function (r) { var d = when(r); if (!d) return 1; return d >= today ? 0 : 2; };
+    // Posted and updated: the newest first. See NEWEST POSTED FIRST.
+    var stamp = function (v) { var t = new Date(String(v || '')).getTime(); return isNaN(t) ? 0 : t; };
+    if (_sort === 'new' || _sort === 'upd') {
+      rows = rows.slice().sort(function (a, b) {
+        var ta = _sort === 'upd' ? (stamp(a.updatedAt) || stamp(a.createdAt)) : stamp(a.createdAt);
+        var tb = _sort === 'upd' ? (stamp(b.updatedAt) || stamp(b.createdAt)) : stamp(b.createdAt);
+        if (ta !== tb && ta && tb) return tb - ta;
+        if (ta && !tb) return -1;
+        if (tb && !ta) return 1;
+        return (Number(b._pos) || 0) - (Number(a._pos) || 0);
+      });
+      list.innerHTML = rows.map(rowHtml).join(''); return;
+    }
     if (_sort === 'az') {
       rows = rows.slice().sort(function (a, b) { return String(a.title || '').localeCompare(String(b.title || '')); });
       list.innerHTML = rows.map(rowHtml).join(''); return;
@@ -9508,7 +9602,9 @@ function selectInterestSuggestion(val) {
           // would file a socialized event under Hosting until the fresh answer moved it.
           return { id: r.id, title: r.title, date: r.date, hostType: r.hostType,
                    cancelled: r.cancelled, recurFreq: r.recurFreq, dayOfWeek: r.dayOfWeek,
-                   imageUrl: r.imageUrl, socializedByMe: r.socializedByMe === true };
+                   imageUrl: r.imageUrl, socializedByMe: r.socializedByMe === true,
+                   // createdAt and updatedAt added 2026-09-11 for Newest posted and Recently updated.
+                   createdAt: r.createdAt || '', updatedAt: r.updatedAt || '' };
         })));
       } catch (e) {}
     }
