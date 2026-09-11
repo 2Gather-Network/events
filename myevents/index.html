@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.34 | Date: 2026-09-11 | LAST CHANGE: the phone look is published: every phone sees the list with the pages at the bottom and the round +, and editing as one column with Cancel and Save changes in the bar. A computer is unchanged; &look=1 shows the old phone layout. -->
+<!-- Version: M3.35 | Date: 2026-09-11 | LAST CHANGE: past events stay out of Attending, Hosting and Socialized until Show past events is switched on, at the bottom with the other switches. -->
+<!-- Previous: M3.34 | Date: 2026-09-11 | LAST CHANGE: the phone look is published: every phone sees the list with the pages at the bottom and the round +, and editing as one column with Cancel and Save changes in the bar. A computer is unchanged; &look=1 shows the old phone layout. -->
 <!-- Previous: M3.33 | Date: 2026-09-11 | LAST CHANGE: the order list is a round icon with up and down arrows, on a phone and a computer; it opens the same choices. -->
 <!-- Previous: M3.32 | Date: 2026-09-11 | LAST CHANGE: reading a flyer or page puts a person in Host and an organization in Org, and never writes over your own name when sharing. -->
 <!-- Previous: M3.31 | Date: 2026-09-11 | LAST CHANGE: for ten minutes after this tab posts, saves, deletes or socializes, My events asks for its list past the gate's kept copy, so a deleted event does not come back. -->
@@ -883,6 +884,14 @@
            the first rather than squeezing it. Each is hidden on its own until it has something to
            show. -->
       <div class="rail-switches">
+      <!-- SHOW PAST EVENTS, OFF UNTIL ASKED FOR. Jessie, 2026-09-11, scrolling past Earth Fair and February's
+           walks: "Don't default the showing past events / What happened to the options for past events ? Maybe
+           we say show past [events] at the bottom with the toggle just as well". -->
+      <label id="mine-show-past-wrap" class="cancel-toggle" style="display:none;">
+        <input type="checkbox" id="mine-show-past-box" onchange="toggleShowPastMine()">
+        <span class="cancel-track"><span class="cancel-knob"></span></span>
+        <span>Show past events</span>
+      </label>
       <label id="mine-show-cancelled-wrap" class="cancel-toggle" style="display:none;">
         <input type="checkbox" id="mine-show-cancelled-box" onchange="toggleShowCancelledMine()">
         <span class="cancel-track"><span class="cancel-knob"></span></span>
@@ -9188,6 +9197,21 @@ function selectInterestSuggestion(val) {
     _paintCancelBtn();
     paintRail(allRows, selId);
   }
+  var _showPast = false, _pastHidden = 0;
+  try { _showPast = sessionStorage.getItem('cw-me-past') === '1'; } catch (e) {}
+  window.toggleShowPastMine = function () {
+    _showPast = !_showPast;
+    try { sessionStorage.setItem('cw-me-past', _showPast ? '1' : '0'); } catch (e) {}
+    paintRail(allRows, selId);
+  };
+  function _paintPastBtn() {
+    var wrap = document.getElementById('mine-show-past-wrap'), box = document.getElementById('mine-show-past-box');
+    if (!wrap) return;
+    var show = _showPast || _pastHidden > 0;
+    wrap.style.display = show ? '' : 'none';
+    wrap.classList.toggle('on', _showPast);
+    if (box) box.checked = _showPast;
+  }
   function _paintCancelBtn() {
     var wrap = document.getElementById('mine-show-cancelled-wrap');
     var box  = document.getElementById('mine-show-cancelled-box');
@@ -9372,8 +9396,19 @@ function selectInterestSuggestion(val) {
         return;
       }
       rows = own;
+      if (pane === 'attending') {   // past registrations too wait for Show past events
+        var _upA = rows.filter(isUpcoming); _pastHidden = rows.length - _upA.length;
+        if (!_showPast) { rows = _upA; }
+        _paintPastBtn();
+      }
     } else {
       rows = rows.filter(function (r) { return inPane(r, pane) || r.cancelled; });
+      // Past events stay out until Show past events is on (see SHOW PAST EVENTS). "Past" is isUpcoming's
+      // opposite, so an undated, to-be-announced or repeating event always counts as still to come.
+      var _upOnly = rows.filter(isUpcoming);
+      _pastHidden = rows.length - _upOnly.length;
+      if (!_showPast) { rows = _upOnly; }
+      _paintPastBtn();
     }
     // Search and sort narrow what the tab already chose; they never reach outside it.
     if (_q.trim()) {
