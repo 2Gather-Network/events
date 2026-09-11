@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.28 | Date: 2026-09-11 | LAST CHANGE: phone look (&look=2): nothing runs past the right edge; the sections shrink to share the row, All shows no number, and the order list gives way to search and the +. -->
+<!-- Version: M3.29 | Date: 2026-09-11 | LAST CHANGE: Delete says Deleting..., waits for the answer and says if it did not delete; phone look (&look=2): editing an event is one column with Event info at the top and Cancel and Save changes in a bar at the bottom, the list out of the way. -->
+<!-- Previous: M3.28 | Date: 2026-09-11 | LAST CHANGE: phone look (&look=2): nothing runs past the right edge; the sections shrink to share the row, All shows no number, and the order list gives way to search and the +. -->
 <!-- Previous: M3.27 | Date: 2026-09-11 | LAST CHANGE: a phone look behind &look=2 for review: My events, Calendar and My groups in a bar at the bottom; the four sections in one row with the section's line under them; a round + beside search and order; each event with its date or Today/Tomorrow, its place and a Shared or Weekly chip, opening its event page. -->
 <!-- Previous: M3.26 | Date: 2026-09-11 | LAST CHANGE: a picture uploaded to an event is saved with the whole event, never with every other field blank; a picture uploaded while editing is sent too. -->
 <!-- Previous: M3.25 | Date: 2026-09-11 | LAST CHANGE: the sort list opens on Newest posted and adds Recently updated; the sort and the search stay as you left them when you open an event; Save changes reads Saving..., cannot be pressed twice, waits for the answer and opens the event with the saved copy; a new or changed event joins its section at once. -->
@@ -544,7 +545,21 @@
     html.cw-me2 .manage-row.on .mrow-chip { background:#fff; }
     html.cw-me2 .manage-grid.cw-me2-noev:not(.cw-posting) > .manage-main { display:none; }
     html.cw-me2 #manage-list { max-height:none; }
+    /* EDITING ON A PHONE LOOKS LIKE THE EVENT. Jessie, 2026-09-11: "we need a mobile version for editing
+       an event that matches the event so give me a live link that I can test before publishing". Like
+       the event page: one column, a way back to the event at the top, and the thing to do in a bar at
+       the bottom (Save changes, with Cancel beside it). Delete and Clone stay at the end of the form. */
+    html.cw-me2 .manage-grid.cw-me2-edit > .manage-rail { display:none; }
+    html.cw-me2 #cw-me-back { display:inline-block; margin:0 0 14px; background:#fff; color:var(--primary);
+      border:1.5px solid var(--primary); border-radius:9px; font:inherit; font-size:13px; font-weight:700; padding:7px 16px; cursor:pointer; }
+    html.cw-me2 #cw-me-actbar { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:45; gap:10px; align-items:center;
+      padding:10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background:#fff; border-top:1px solid var(--border); }
+    html.cw-me2 #cw-me-actbar > button { flex:1 1 0; height:46px; border-radius:20px !important; font:inherit; font-size:14.5px !important;
+      font-weight:700; white-space:nowrap; padding:0 12px !important; margin:0 !important; }
+    html.cw-me2 #cw-me-actbar > .cw-me-cancel { background:#fff; color:var(--primary); border:1.5px solid #D5DDE5; }
+    html.cw-me2 #cw-me-actbar > #submit-btn { background:var(--primary) !important; border:1.5px solid var(--primary) !important; color:#fff !important; }
   }
+  #cw-me-back, #cw-me-actbar { display:none; }
   /* POSTING ON A PHONE IS THE WHOLE PAGE. Jessie, 2026-09-10, with the rail still above the form: "All
      I wanna see is the post form at the top and maybe a button to get back to my events". While a new
      event is being posted (the two questions, the paste step or the form, never an edit), the rail
@@ -6478,8 +6493,28 @@ async function deleteEvent() {
   const input = prompt(`Type "delete" to archive "${ev.title}". This removes it from the calendar but keeps it in your records.`);
   if (!input || input.trim().toLowerCase() !== "delete") return;
   const goneEv = ev;
+  // DELETE SAYS IT IS DELETING, WAITS, AND SAYS IF IT DID NOT. Jessie, 2026-09-11, of test event: "I was
+  // going to delete it and I can't." The delete gave up after 20 seconds without a word when the
+  // backend was slow, so nothing happened and nothing said so. It now waits for the backend's own
+  // answer, the button reads Deleting..., and a failure says so and puts the button back.
+  const _delBtn = document.getElementById("delete-btn");
+  const _delWas = _delBtn ? _delBtn.textContent : "";
+  if (_delBtn) { _delBtn.disabled = true; _delBtn.textContent = "Deleting..."; }
+  let delRes = null;
+  try {
+    var _by = "", _as = "";
+    try { _by = getRealMemberId() || ""; } catch (e) {}
+    try { _as = (window.CW && CW.me && CW.me().id) || _by; } catch (e) { _as = _by; }
+    const _r = await fetch(GS_URL + "?action=delete&id=" + encodeURIComponent(editingId)
+                           + "&appearId=" + encodeURIComponent(_by) + "&actingAs=" + encodeURIComponent(_as));
+    delRes = await _r.json();
+  } catch (e) { delRes = { status: "error", message: "That did not delete. Check your connection and try again." }; }
+  if (!delRes || delRes.status !== "ok") {
+    if (_delBtn) { _delBtn.disabled = false; _delBtn.textContent = _delWas; }
+    showToast((delRes && delRes.message) || "That did not delete. Please try again.");
+    return;
+  }
   events = events.filter(e => e.id !== editingId);
-  const delRes = await apiDelete(editingId);
   // A REFUSED DELETE PUTS THE EVENT BACK. Added 2026-09-10 with the gate. The row is dropped from
   // the list first so the calendar answers straight away, which means a no from the sheet has to
   // undo that rather than leave the person looking at a calendar the sheet does not agree with.
@@ -8599,6 +8634,27 @@ function selectInterestSuggestion(val) {
     modal.classList.add('open');
     modal.classList.add('cw-mounted');
     modal.style.display = '';
+    try { _me2Bar(); } catch (e) {}
+  }
+  // The bar at the bottom while the form is open in the phone look (see EDITING ON A PHONE LOOKS LIKE THE
+  // EVENT): Cancel, then the form's own Save changes or Post event button, moved in rather than copied.
+  function _me2Bar() {
+    if (!document.documentElement.classList.contains('cw-me2')) return;
+    var bar = document.getElementById('cw-me-actbar');
+    if (!bar) {
+      bar = document.createElement('div'); bar.id = 'cw-me-actbar';
+      var cancel = document.createElement('button');
+      cancel.type = 'button'; cancel.className = 'cw-me-cancel'; cancel.textContent = 'Cancel';
+      cancel.onclick = function () {
+        try { if (formDirty && !confirm('You have unsaved changes. Close anyway?')) return; } catch (e) {}
+        formDirty = false;
+        location.href = wantId ? 'https://2gather.network/event/?id=' + encodeURIComponent(wantId) : 'https://2gather.network/myevents/?look=2';
+      };
+      bar.appendChild(cancel);
+      document.body.appendChild(bar);
+    }
+    var sb = document.getElementById('submit-btn');
+    if (sb && sb.parentNode !== bar) { bar.appendChild(sb); }
   }
 
   // A DATE A PERSON CAN READ. The rows come back as 2026-10-30T00:00:00.000Z, which is the
@@ -8735,7 +8791,23 @@ function selectInterestSuggestion(val) {
       plus.onclick = function () { try { openChoiceModal(); } catch (e) {} };
       sort.parentNode.appendChild(plus);
     }
-    if (!wantId) { var g = document.querySelector('.manage-grid'); if (g) { g.classList.add('cw-me2-noev'); } }
+    var g = document.querySelector('.manage-grid');
+    if (!wantId) { if (g) { g.classList.add('cw-me2-noev'); } }
+    else if (g) {
+      // Editing: the event's own page is the way back, as its own button above the form.
+      g.classList.add('cw-me2-edit');
+      var main = document.querySelector('.manage-main');
+      if (main) {
+        var back = document.createElement('button');
+        back.type = 'button'; back.id = 'cw-me-back'; back.textContent = 'Event info';
+        back.onclick = function () {
+          try { if (formDirty && !confirm('You have unsaved changes. Close anyway?')) return; } catch (e) {}
+          formDirty = false;
+          location.href = 'https://2gather.network/event/?id=' + encodeURIComponent(wantId);
+        };
+        main.insertBefore(back, main.firstChild);
+      }
+    }
   })();
   var _q = '', _sort = 'new';
   try {

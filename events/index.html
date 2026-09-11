@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.71 | Date: 2026-09-11 | LAST CHANGE: a picture uploaded to an event is saved with the whole event, never with every other field blank; a picture uploaded while editing is sent too. -->
+<!-- Version: V13.72 | Date: 2026-09-11 | LAST CHANGE: Delete says Deleting..., waits for the answer and says if it did not delete. -->
+<!-- Previous: V13.71 | Date: 2026-09-11 | LAST CHANGE: a picture uploaded to an event is saved with the whole event, never with every other field blank; a picture uploaded while editing is sent too. -->
 <!-- Previous: V13.70 | Date: 2026-09-11 | LAST CHANGE: Save changes reads Saving..., cannot be pressed twice, waits for the answer and opens the event with the saved copy; a new or changed event joins My events at once. -->
 <!-- Previous: V13.69 | Date: 2026-09-11 | LAST CHANGE: posting waits for the save, then opens the event's own page; the Event posted! pop-up is gone, and the picture, co-hosts and socializer saves go out one after another before the page moves. If the save is refused, the form stays and says why. -->
 <!-- Previous: V13.68 | Date: 2026-09-11 | LAST CHANGE: for a visitor, the wish list box that opens on a first visit stays away too. -->
@@ -6739,8 +6740,28 @@ async function deleteEvent() {
   const input = prompt(`Type "delete" to archive "${ev.title}". This removes it from the calendar but keeps it in your records.`);
   if (!input || input.trim().toLowerCase() !== "delete") return;
   const goneEv = ev;
+  // DELETE SAYS IT IS DELETING, WAITS, AND SAYS IF IT DID NOT. Jessie, 2026-09-11, of test event: "I was
+  // going to delete it and I can't." The delete gave up after 20 seconds without a word when the
+  // backend was slow, so nothing happened and nothing said so. It now waits for the backend's own
+  // answer, the button reads Deleting..., and a failure says so and puts the button back.
+  const _delBtn = document.getElementById("delete-btn");
+  const _delWas = _delBtn ? _delBtn.textContent : "";
+  if (_delBtn) { _delBtn.disabled = true; _delBtn.textContent = "Deleting..."; }
+  let delRes = null;
+  try {
+    var _by = "", _as = "";
+    try { _by = getRealMemberId() || ""; } catch (e) {}
+    try { _as = (window.CW && CW.me && CW.me().id) || _by; } catch (e) { _as = _by; }
+    const _r = await fetch(GS_URL + "?action=delete&id=" + encodeURIComponent(editingId)
+                           + "&appearId=" + encodeURIComponent(_by) + "&actingAs=" + encodeURIComponent(_as));
+    delRes = await _r.json();
+  } catch (e) { delRes = { status: "error", message: "That did not delete. Check your connection and try again." }; }
+  if (!delRes || delRes.status !== "ok") {
+    if (_delBtn) { _delBtn.disabled = false; _delBtn.textContent = _delWas; }
+    showToast((delRes && delRes.message) || "That did not delete. Please try again.");
+    return;
+  }
   events = events.filter(e => e.id !== editingId);
-  const delRes = await apiDelete(editingId);
   // A REFUSED DELETE PUTS THE EVENT BACK. Added 2026-09-10 with the gate. The row is dropped from
   // the list first so the calendar answers straight away, which means a no from the sheet has to
   // undo that rather than leave the person looking at a calendar the sheet does not agree with.
