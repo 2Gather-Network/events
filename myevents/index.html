@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.25 | Date: 2026-09-11 | LAST CHANGE: the sort list opens on Newest posted and adds Recently updated; the sort and the search stay as you left them when you open an event; Save changes reads Saving..., cannot be pressed twice, waits for the answer and opens the event with the saved copy; a new or changed event joins its section at once. -->
+<!-- Version: M3.26 | Date: 2026-09-11 | LAST CHANGE: a picture uploaded to an event is saved with the whole event, never with every other field blank; a picture uploaded while editing is sent too. -->
+<!-- Previous: M3.25 | Date: 2026-09-11 | LAST CHANGE: the sort list opens on Newest posted and adds Recently updated; the sort and the search stay as you left them when you open an event; Save changes reads Saving..., cannot be pressed twice, waits for the answer and opens the event with the saved copy; a new or changed event joins its section at once. -->
 <!-- Previous: M3.24 | Date: 2026-09-11 | LAST CHANGE: posting waits for the save, then opens the event's own page; the Event posted! pop-up is gone, and the picture, co-hosts and socializer saves go out one after another before the page moves. If the save is refused, the form stays and says why. -->
 <!-- Previous: M3.23 | Date: 2026-09-10 | LAST CHANGE: while sharing somebody else's event, the registration/payment link choice hides with its i, so no i is left alone on a line. -->
 <!-- Previous: M3.22 | Date: 2026-09-10 | LAST CHANGE: on a phone, posting a new event shows only the form, with a My events button above it; the form's white card runs to the end instead of stopping one screen down, and the date and time boxes stay inside it. -->
@@ -5589,7 +5590,13 @@ function _sendCover(eventId) {
       if (!p || p.status !== "ok" || !p.url) return;
       var idx = events.findIndex(function (e) { return e.id === eventId; });
       if (idx > -1) { events[idx].imageUrl = p.url; renderEvents(); }
-      return apiUpdate({ id: eventId, imageUrl: p.url });
+      // THE WHOLE EVENT, WITH ITS NEW PICTURE. Found 2026-09-11: this sent { id, imageUrl } alone, and
+      // evToSheet fills every field it is not given with "", so the backend wrote blanks over the
+      // title, date, description, place and the rest of the event, keeping only the few fields it
+      // refuses to blank. It sends the event as the page holds it now, with the picture added.
+      var _full = idx > -1 ? events[idx] : null;
+      if (!_full) return null;
+      return apiUpdate(Object.assign({}, _full, { imageUrl: p.url }));
     })
     .catch(function () {});
 }
@@ -6297,7 +6304,11 @@ async function submitEvent() {
           errEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
           return;
         }
-        _cwHandOff(updatedEv, false);
+        // A PICTURE UPLOADED WHILE EDITING GOES TOO. Jessie, 2026-09-11: "when I added an image to an
+        // existing event I socialized, it didn't keep." Only a new post sent an uploaded picture; an edit
+        // kept it in the page and dropped it. It is sent now, after the save, one request after the other.
+        try { await _sendCover(savedId); } catch (e) {}
+        _cwHandOff(events[idx] || updatedEv, false);
       }
       // THE SHEET CAN SAY NO (2026-09-10), and the check above listens for it before anything moves.
       formDirty = false;

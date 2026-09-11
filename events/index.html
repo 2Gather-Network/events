@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.70 | Date: 2026-09-11 | LAST CHANGE: Save changes reads Saving..., cannot be pressed twice, waits for the answer and opens the event with the saved copy; a new or changed event joins My events at once. -->
+<!-- Version: V13.71 | Date: 2026-09-11 | LAST CHANGE: a picture uploaded to an event is saved with the whole event, never with every other field blank; a picture uploaded while editing is sent too. -->
+<!-- Previous: V13.70 | Date: 2026-09-11 | LAST CHANGE: Save changes reads Saving..., cannot be pressed twice, waits for the answer and opens the event with the saved copy; a new or changed event joins My events at once. -->
 <!-- Previous: V13.69 | Date: 2026-09-11 | LAST CHANGE: posting waits for the save, then opens the event's own page; the Event posted! pop-up is gone, and the picture, co-hosts and socializer saves go out one after another before the page moves. If the save is refused, the form stays and says why. -->
 <!-- Previous: V13.68 | Date: 2026-09-11 | LAST CHANGE: for a visitor, the wish list box that opens on a first visit stays away too. -->
 <!-- Previous: V13.67 | Date: 2026-09-11 | LAST CHANGE: a visitor sees the calendar and nothing that needs an account: no tab row, no +, no Interests or wish list, no Group events; the kept groups list is tied to the person it belongs to, so a visitor never sees somebody else's groups. -->
@@ -5898,7 +5899,13 @@ function _sendCover(eventId) {
       if (!p || p.status !== "ok" || !p.url) return;
       var idx = events.findIndex(function (e) { return e.id === eventId; });
       if (idx > -1) { events[idx].imageUrl = p.url; renderEvents(); }
-      return apiUpdate({ id: eventId, imageUrl: p.url });
+      // THE WHOLE EVENT, WITH ITS NEW PICTURE. Found 2026-09-11: this sent { id, imageUrl } alone, and
+      // evToSheet fills every field it is not given with "", so the backend wrote blanks over the
+      // title, date, description, place and the rest of the event, keeping only the few fields it
+      // refuses to blank. It sends the event as the page holds it now, with the picture added.
+      var _full = idx > -1 ? events[idx] : null;
+      if (!_full) return null;
+      return apiUpdate(Object.assign({}, _full, { imageUrl: p.url }));
     })
     .catch(function () {});
 }
@@ -6601,7 +6608,11 @@ async function submitEvent() {
           errEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
           return;
         }
-        _cwHandOff(updatedEv, false);
+        // A PICTURE UPLOADED WHILE EDITING GOES TOO. Jessie, 2026-09-11: "when I added an image to an
+        // existing event I socialized, it didn't keep." Only a new post sent an uploaded picture; an edit
+        // kept it in the page and dropped it. It is sent now, after the save, one request after the other.
+        try { await _sendCover(savedId); } catch (e) {}
+        _cwHandOff(events[idx] || updatedEv, false);
       }
       // THE SHEET CAN SAY NO (2026-09-10), and the check above listens for it before anything moves.
       formDirty = false;
