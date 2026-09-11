@@ -12,7 +12,8 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V6.09 | Date: 2026-09-10 | LAST CHANGE: the words in Add to calendar and Socialize this event wrap inside their buttons instead of running past the edge; Bookmark is not shown to the people who host the event, and waits for the answer that says who does. -->
+  <!-- Version: V6.10 | Date: 2026-09-11 | LAST CHANGE: the old PIN box, ?manage=1 and the master passcode are gone from the page. Editing is the Edit button, for hosts, co-hosts and super admins. -->
+<!-- Previous: V6.09 | Date: 2026-09-10 | LAST CHANGE: the words in Add to calendar and Socialize this event wrap inside their buttons instead of running past the edge; Bookmark is not shown to the people who host the event, and waits for the answer that says who does. -->
 <!-- Previous: V6.08 | Date: 2026-09-10 | LAST CHANGE: the photo previews are taken out; the photo stays at the top of the card. -->
 <!-- Previous: V6.07 | Date: 2026-09-10 | LAST CHANGE: the tab row reads Event, My events, Calendar, My groups. -->
 <!-- Previous: V6.06 | Date: 2026-09-10 | LAST CHANGE: side by side, a button's words wrap inside it rather than running past its edge. -->
@@ -260,21 +261,6 @@
     <div style="display:flex;gap:8px;">
       <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="downloadQr()">Download PNG</button>
       <button class="btn btn-outline" onclick="closeQrModal()">Close</button>
-    </div>
-  </div>
-</div>
-<div class="modal-overlay" id="edit-pin-modal">
-  <div class="modal">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div class="modal-title" style="margin-bottom:0;">✏️ Edit this event</div>
-      <button onclick="closeEditPin()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;padding:4px;">×</button>
-    </div>
-    <p style="font-size:14px;color:var(--muted);margin-bottom:16px;">Enter the 4-digit PIN you set when posting this event.</p>
-    <input class="modal-input" id="edit-pin-input" type="tel" maxlength="4" placeholder="••••" style="letter-spacing:0.3em;text-align:center;font-size:20px;margin-bottom:8px;" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
-    <p class="error-msg" id="edit-pin-error" style="margin-bottom:12px;">Incorrect PIN. Please try again.</p>
-    <div class="modal-actions">
-      <button class="btn btn-primary" style="flex:1;" onclick="submitEditPin()">Unlock</button>
-      <button class="btn btn-outline" onclick="closeEditPin()">Cancel</button>
     </div>
   </div>
 </div>
@@ -1110,6 +1096,8 @@ function render(ev) {
   ].filter(Boolean).join("");
 
   const urlIdForPotluck = new URLSearchParams(window.location.search).get("id") || ev.id;
+  // Set only by the PIN box, which is gone (see NO MASTER CODE), so this stays false and the host's
+  // contribution list, a feature on hold, stays hidden.
   let _editVerified = false;
   try { _editVerified = !!sessionStorage.getItem("ev-edit-verified-" + urlIdForPotluck); } catch(e) {}
   const potluckSection = (_editVerified && !ev.cancelled) ? `
@@ -2276,7 +2264,11 @@ async function saveSharedNotes() {
   if (btn) { btn.disabled = false; btn.textContent = "Save"; }
 }
 
-const MASTER_PASSCODE = "6090";
+// NO MASTER CODE IN THIS PAGE. Jessie, 2026-09-11: "95 yes". The old "enter your PIN to edit" box,
+// reached with ?manage=1, carried the master passcode in plain text for anybody reading the source.
+// Since the host check went on (queue item 13) that box led nowhere that edits anything, so the box,
+// its three functions, the ?manage=1 opener and the code all came out. Editing is the Edit button,
+// shown to a host, co-host or super admin by the backend's own answer (see _paintEventRole).
 
 // ── QR Code ─────────────────────────────────────────────────────
 let _qrShortUrl = null;
@@ -2351,46 +2343,6 @@ function downloadQr() {
   link.click();
 }
 
-function openEditPin() {
-  if (!_currentEv) return;
-  document.getElementById("edit-pin-input").value = "";
-  document.getElementById("edit-pin-error").style.display = "none";
-  document.getElementById("edit-pin-modal").classList.add("open");
-  setTimeout(() => document.getElementById("edit-pin-input").focus(), 100);
-}
-
-function closeEditPin() {
-  document.getElementById("edit-pin-modal").classList.remove("open");
-}
-
-function submitEditPin() {
-  const pin = document.getElementById("edit-pin-input").value.trim();
-  const ev = _currentEv;
-  if (!ev) return;
-  const errEl = document.getElementById("edit-pin-error");
-  if (pin !== String(ev.passcode) && pin !== MASTER_PASSCODE) {
-    errEl.style.display = "block";
-    document.getElementById("edit-pin-input").value = "";
-    document.getElementById("edit-pin-input").focus();
-    return;
-  }
-  // v4.17: use URL occurrence ID, not ev.id (which may be a stale template ID like "kickoff-001")
-  const urlId = new URLSearchParams(window.location.search).get("id") || ev.id;
-  try { sessionStorage.setItem("ev-edit-verified-" + urlId, pin); } catch(e) {}
-  closeEditPin();
-  const base = "https://2gather.network/";
-  const editUrl = base + "events.html?edit=" + encodeURIComponent(urlId) + "&pin=" + encodeURIComponent(pin);
-  if (window.self !== window.top) {
-    // V5.38: the postMessage partner went with the event-view iframe (events V12.29), so
-    // navigating the top window is the only path now. It used to sit in a bare catch that
-    // swallowed a blocked navigation - the outer catch only fired if postMessage threw - so
-    // a blocked top-nav left the person on a correct PIN with nothing happening.
-    try { window.top.location.href = editUrl; }
-    catch (e) { window.location.href = editUrl; }
-  } else {
-    window.location.href = editUrl;
-  }
-}
 
 function openReadNotes() {
   if (!_currentEv || !_currentEv.sharedNotes) return;
@@ -2401,15 +2353,6 @@ function closeReadNotes() {
   document.getElementById("read-notes-modal").classList.remove("open");
 }
 
-let _autoManageDone = false;
-function maybeAutoOpenManage() {
-  if (_autoManageDone) return;
-  _autoManageDone = true;
-  const wantsManage = new URLSearchParams(window.location.search).get("manage");
-  if (wantsManage === "1") {
-    setTimeout(() => { try { openEditPin(); } catch(e) {} }, 300);
-  }
-}
 
 async function init() {
   // categories are loaded from render() AFTER the event fetch — NEVER concurrent with it (this GAS backend 404s under concurrency)
@@ -2454,7 +2397,6 @@ async function init() {
           if (new Date(nextDate + "T00:00:00") >= _today) ev.occurrenceNote = noteRow.description;
         }
         render(ev);
-        maybeAutoOpenManage();
         return;
       }
     } catch(e) {}
@@ -2496,7 +2438,6 @@ async function init() {
           if (new Date(dateStr + "T00:00:00") >= _today) ev.occurrenceNote = noteRow.description;
         }
         render(ev);
-        maybeAutoOpenManage();
         return;
       }
     } catch(e) {
@@ -2541,7 +2482,6 @@ async function init() {
       window._sharedByCard = viaCard;
     }
     render(ev);
-    maybeAutoOpenManage();
   } catch(e) {
     showError("Could not load event. Please try again.");
   }
