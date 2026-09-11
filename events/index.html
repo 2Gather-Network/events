@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.66 | Date: 2026-09-10 | LAST CHANGE: while sharing somebody else's event, the registration/payment link choice hides with its i, so no i is left alone on a line. -->
+<!-- Version: V13.67 | Date: 2026-09-11 | LAST CHANGE: a visitor sees the calendar and nothing that needs an account: no tab row, no +, no Interests or wish list, no Group events; the kept groups list is tied to the person it belongs to, so a visitor never sees somebody else's groups. -->
+<!-- Previous: V13.66 | Date: 2026-09-10 | LAST CHANGE: while sharing somebody else's event, the registration/payment link choice hides with its i, so no i is left alone on a line. -->
 <!-- Previous: V13.65 | Date: 2026-09-10 | LAST CHANGE: the i beside Recommended matches is the same round i as the one beside the +, and it sits right after the heading; the count moves to its own line on a phone. -->
 <!-- Previous: V13.64 | Date: 2026-09-10 | LAST CHANGE: every caret on the filter buttons, Filters included, is one size, 16px. -->
 <!-- Previous: V13.63 | Date: 2026-09-10 | LAST CHANGE: All categories is a row like the others with its number on the right; Experience shows Clear only while one is picked; Host has two boxes, a person's name and an organization's name. -->
@@ -400,6 +401,8 @@
     width:22px;height:22px;flex-shrink:0;line-height:1;font-size:12px;font-weight:700;
     cursor:pointer;padding:0;font-family:inherit;}
   .fbar-i:hover{border-color:var(--primary);color:var(--primary);}
+  /* See A VISITOR SEES THE CALENDAR in the script. */
+  html.cw-visitor #post-event-btn, html.cw-visitor #cw-rl-seg { display:none !important; }
   /* ── THE TEMPLATE ON THE CALENDAR, behind ?v=rail ────────────────────────────────────────────
      Jessie, 2026-09-08: "How about we just use our template instead and using what we're doing
      right now and put the my groups on the left rail?", then "all filers" and the three pills:
@@ -1785,6 +1788,14 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
 </div>
 
 <script>
+// A VISITOR SEES THE CALENDAR, and nothing that needs an account. Jessie, 2026-09-10, on the calendar
+// signed out: "recommend what shouldn't show here for signed out p- i see alot", and "96 yes" on
+// 2026-09-11 to the recommendation: the tab row goes (a visitor has no events, groups or profile, and
+// the event page already shows them no tabs), the + goes (posting needs an account, and Sign in is at
+// the top right), and Group events and Interests go (see AND IT BELONGS TO ONE PERSON and A VISITOR HAS
+// NO WISH LIST). Marked on the page here, before anything is drawn, so none of it is drawn and then
+// taken away.
+try { if (!getMemberId()) document.documentElement.classList.add("cw-visitor"); } catch (e) {}
 var CATEGORIES = [];
 var ROOMS = [];
 var SERVING = [];
@@ -7444,6 +7455,11 @@ function _splitList(v) {
 }
 
 function loadInterests() {
+  // A VISITOR HAS NO WISH LIST. Topics come from a person's profile and are kept under their id, so
+  // somebody signed out has none, and a list left on the device under no name is not theirs to be
+  // filtered by. Without topics the wish list, Recommended matches and the Interests count stay away.
+  // See A VISITOR SEES THE CALENDAR. "96 yes", 2026-09-11.
+  try { if (!getMemberId()) return []; } catch (e) {}
   try { return JSON.parse(localStorage.getItem(_interestsKey()) || "[]"); } catch(e) { return []; }
 }
 // ON SOMEBODY'S BEHALF, rather than refusing. Until 2026-09-07 every topic change refused while
@@ -7687,15 +7703,30 @@ function _syncFeelingClear() {
 // was added to what gets fetched - because the copy already kept in her tab was saved BEFORE that
 // field existed, and a cached answer of the old shape wins over code that knows better. A new name
 // means an old copy is simply never found.
+// AND IT BELONGS TO ONE PERSON. Jessie, 2026-09-10, on the calendar in the signed-out view: "how can
+// they select any of these intesrests, see group evnets iwthout knowing my groups?" The kept copy was
+// the tab's, not anybody's, and was reused whoever was looking, so a visitor saw the groups of whoever
+// had last been signed in in that tab. It is kept with the id it belongs to now and used only for that
+// id; for nobody it is never used. v3, so the old copies with no owner are never read. "96 yes", 2026-09-11.
+function _myGroupsOwner() {
+  try { return String((typeof getMemberId === "function" ? getMemberId() : "") || "").trim().split(".").join("").toLowerCase(); }
+  catch (e) { return ""; }
+}
 var _myGroups = (function () {
   try {
-    var raw = sessionStorage.getItem("cw-mygroups-v2");
+    var who = _myGroupsOwner();
+    if (!who) return null;
+    var raw = sessionStorage.getItem("cw-mygroups-v3");
     var v = raw ? JSON.parse(raw) : null;
-    return (v && v.length) ? v : null;
+    return (v && v.who === who && v.list && v.list.length) ? v.list : null;
   } catch (e) { return null; }
 })();
 function _keepMyGroups(list) {
-  try { sessionStorage.setItem("cw-mygroups-v2", JSON.stringify(list || [])); } catch (e) {}
+  try {
+    var who = _myGroupsOwner();
+    if (who) { sessionStorage.setItem("cw-mygroups-v3", JSON.stringify({ who: who, list: list || [] })); }
+    sessionStorage.removeItem("cw-mygroups-v2");
+  } catch (e) {}
 }
 var _myGroupsBusy = false;
 var _myGroupPick = {};       // the ones ticked. Empty means this control is filtering nothing.
@@ -7981,7 +8012,8 @@ function fbarDraw() {
   // so the Filters button can never say a different number from the buttons it folds away.
   var _onCount = 0;
   var _ctlHtml = FBAR_CONTROLS.filter(function (c) {
-    return c.key !== "mygroups" || _signedIn;      // nothing it could mean signed out
+    // Interests too, for a visitor: see A VISITOR HAS NO WISH LIST.
+    return (c.key !== "mygroups" && c.key !== "interests") || _signedIn;      // nothing it could mean signed out
   }).map(function (c) {
     var v = _fbarValue(c.key);
     // My groups says a number even when it is filtering nothing, because the number is how many
