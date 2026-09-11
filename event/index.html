@@ -12,7 +12,8 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V6.21 | Date: 2026-09-11 | LAST CHANGE: Event info on the first tab and no My groups tab, on a phone and a computer; Register instead of Register / Pay; on a computer the head holds Register, the round bookmark mark and a pencil on white in one line beside the title; the experience chips are white with a light grey line, like the categories, and not bold. -->
+  <!-- Version: V6.22 | Date: 2026-09-11 | LAST CHANGE: Bookmark shows Bookmarked at once from the list this browser keeps, and the backend's answer only corrects it; the bookmark question goes after the role question rather than beside it, and is asked again if it fails. -->
+<!-- Previous: V6.21 | Date: 2026-09-11 | LAST CHANGE: Event info on the first tab and no My groups tab, on a phone and a computer; Register instead of Register / Pay; on a computer the head holds Register, the round bookmark mark and a pencil on white in one line beside the title; the experience chips are white with a light grey line, like the categories, and not bold. -->
 <!-- Previous: V6.20 | Date: 2026-09-11 | LAST CHANGE: the place is one line on a phone and a computer: the venue and its city (T-Mobile Park, Seattle), linked to the address on the map, in the same tab. No more Venue: and In person: lines. -->
 <!-- Previous: V6.19 | Date: 2026-09-11 | LAST CHANGE: phone bar: Add to calendar is a blue pill with white words and no icon, the shape of Register; the pencil button has a light grey line. -->
 <!-- Previous: V6.18 | Date: 2026-09-11 | LAST CHANGE: phone: Edit is a pencil on a white button, and Add to calendar sits in the bottom bar beside Register. -->
@@ -603,7 +604,7 @@ async function _applyEventRole() {
   if (!me) { _paintSocialize(); return; }   // signed out: nothing to reveal, and nothing asked of the backend
   var eid = String(_currentEv.id);
   var k = _evRoleKnown;
-  if (k && k.id === eid && k.me === me) { _paintEventRole(k.role); _paintSocialize(); _paintBookmarkSlot(); return; }
+  if (k && k.id === eid && k.me === me) { _paintEventRole(k.role); _paintSocialize(); _paintBookmarkSlot(); _bmReadStart(); return; }
   var key = eid + '|' + me;
   _paintSocialize();   // at once, from what this device knows (SHOWN AT ONCE)
   if (_evRoleAsking === key) return;
@@ -626,6 +627,7 @@ async function _applyEventRole() {
   _evRoleAsking = '';
   _paintSocialize();
   _paintBookmarkSlot();
+  _bmReadStart();   // the bookmark question goes after this one, never beside it
 }
 
 // NO BOOKMARK FOR THE PEOPLE WHO HOST IT. Jessie, 2026-09-10: "bookmark event shoudln't show button
@@ -1429,6 +1431,21 @@ var _bmOn = false;
 function _paintBookmark() {
   // If the load's answer came before the event did, the event looks itself up in it now.
   try { _bmResolveRead(); } catch (e) {}
+  // BOOKMARKED AT ONCE, FROM WHAT THIS BROWSER KNOWS. Jessie, 2026-09-11: "When I refreshed the page,
+  // the bookmark doesn't load right away, so it looks like I didn't bookmark it even though I did. And
+  // then a few seconds later, the bookmark icon bolds. On the second refresh, it never bolds." The
+  // button started as not bookmarked and waited for the backend. It starts from the list this browser
+  // keeps (cw-bm-events-, written from every answer and every save the sheet confirmed), and the
+  // backend's answer only corrects it.
+  try {
+    if (_bmSaved === null && !_bmTouched) {
+      var _me0 = getMemberId() || '', _e0 = window._currentEventId || (_currentEv && _currentEv.id) || '';
+      if (_me0 && _e0) {
+        var _l0 = JSON.parse(localStorage.getItem('cw-bm-events-' + _me0) || '[]');
+        _bmOn = Array.isArray(_l0) && _l0.map(String).indexOf(String(_e0)) > -1;
+      }
+    }
+  } catch (e) {}
   var b = document.getElementById('bookmark-btn');
   if (!b) return;
   b.textContent = _bmOn ? 'Bookmarked' : 'Bookmark';
@@ -1517,21 +1534,34 @@ async function _bmFlush(me, eid) {
 }
 
 // Whether it is already saved, asked once on load.
-_bmReadJob = (async function () {
-  try {
-    var me = getMemberId() || '';
-    if (!me) return;
-    var r = await fetch(GS_URL + '?action=getBookmarks&type=Event&appearId=' + encodeURIComponent(me));
-    var d = await r.json();
-    if (d && Array.isArray(d.ids)) {
-      // No save has gone yet (they wait for this), so this is the newest word the sheet has given.
-      try { localStorage.setItem('cw-bm-events-' + me, JSON.stringify(d.ids.map(String))); } catch (e2) {}
-      _bmReadIds = d.ids.map(String);
-      _bmResolveRead();
-      _paintBookmark();
-    }
-  } catch (e) {}
-})();
+// ASKED AFTER THE ROLE QUESTION, NOT BESIDE IT, AND ASKED AGAIN IF IT FAILS. It went out the moment the
+// page loaded, at the same time as the event and the role question, and Apps Script drops requests that
+// arrive together (measured 2026-07-07), so on some loads it never came back and the button never
+// filled. _applyEventRole starts it once its own question has answered or failed; a failure is tried
+// once more two seconds later.
+var _bmReadStarted = false, _bmReadGo = null;
+_bmReadJob = new Promise(function (resolve) { _bmReadGo = resolve; }).then(async function () {
+  var me = getMemberId() || '';
+  if (!me) return;
+  for (var attempt = 0; attempt < 2; attempt++) {
+    try {
+      var r = await fetch(GS_URL + '?action=getBookmarks&type=Event&appearId=' + encodeURIComponent(me));
+      var d = await r.json();
+      if (d && Array.isArray(d.ids)) {
+        // No save has gone yet (they wait for this), so this is the newest word the sheet has given.
+        try { localStorage.setItem('cw-bm-events-' + me, JSON.stringify(d.ids.map(String))); } catch (e2) {}
+        _bmReadIds = d.ids.map(String);
+        _bmResolveRead();
+        _paintBookmark();
+        return;
+      }
+    } catch (e) {}
+    await new Promise(function (ok) { setTimeout(ok, 2000); });
+  }
+});
+function _bmReadStart() { if (_bmReadStarted) return; _bmReadStarted = true; try { _bmReadGo(); } catch (e) {} }
+// Signed out, or if the role question never runs, it still starts, a little later.
+setTimeout(_bmReadStart, 15000);
 
 // ── SOCIALIZE THIS EVENT ─────────────────────────────────────────────────────────────────────
 // Jessie, 2026-09-10: "wher is the socialixe button ? how can i socialize this evnet if i wanted
