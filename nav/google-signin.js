@@ -1,4 +1,4 @@
-/*  Version: V1.04 | Date: 2026-09-12 | LAST CHANGE: the page's own notes (You are signed out on this device.) step aside while Signing you in... shows. V1.03: on for everybody, no ?google=1 needed. V1.02: a breathing Signing you in... pill while the backend checks; lands on /events/. V1.01: the Client ID is in. V1.00: Sign in with Google, for Sign in and Sign up, behind ?google=1.
+/*  Version: V1.05 | Date: 2026-09-12 | LAST CHANGE: Google's one-tap on Sign in signs in by itself somebody who said yes before. V1.04: the page's own notes (You are signed out on this device.) step aside while Signing you in... shows. V1.03: on for everybody, no ?google=1 needed. V1.02: a breathing Signing you in... pill while the backend checks; lands on /events/. V1.01: the Client ID is in. V1.00: Sign in with Google, for Sign in and Sign up, behind ?google=1.
 
     SIGN IN WITH GOOGLE. Jessie, 2026-09-12: "add gmail sign in next", then, of the design (row 149), "149 yes".
     One file for both pages, so the button, its Client ID and what happens after it live in one place.
@@ -177,10 +177,14 @@
     s.async = true;
     s.onload = function () {
       try {
-        google.accounts.id.initialize({ client_id: CLIENT_ID, callback: handle, ux_mode: 'popup', auto_select: false });
+        // SIGNED IN BY ITSELF, IF THEY SAID YES BEFORE. Jessie, 2026-09-12: "3 A yes", Google on both sites signing
+        // in without a press somebody who has used it before. auto_select with Google's one-tap does that; anybody
+        // else sees Google's one-tap card offering it, on this sign-in page only.
+        google.accounts.id.initialize({ client_id: CLIENT_ID, callback: handle, ux_mode: 'popup', auto_select: true, cancel_on_tap_outside: true });
         var w = Math.min(400, Math.max(200, Math.round(slot.getBoundingClientRect().width || 320)));
         google.accounts.id.renderButton(slot.querySelector('.cw-g-btn'),
           { theme: 'outline', size: 'large', shape: 'pill', text: opts.mode === 'signup' ? 'signup_with' : 'continue_with', width: w });
+        if (opts.mode === 'signin') { try { google.accounts.id.prompt(); } catch (e) {} }
       } catch (e) { say('Google sign-in did not load. Use the emailed code.'); }
     };
     s.onerror = function () { say('Google sign-in did not load. Use the emailed code.'); };
