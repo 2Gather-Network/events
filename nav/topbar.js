@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V6.01 | Date: 2026-09-10 | LAST CHANGE: your own profile page asks a signed-out visitor to sign in, as My events and My groups already do.
+/*  Version: V6.02 | Date: 2026-09-12 | LAST CHANGE: on creating.works, a page that sets window.CW_SHOW_BAR gets the bar, with the Creating.Works ring mark, "Because creating works." and no sign-in pills when signed out. Nothing changes on 2gather.network.
+    Version: V6.01 | Date: 2026-09-10 | LAST CHANGE: your own profile page asks a signed-out visitor to sign in, as My events and My groups already do.
     V6.00 | Date: 2026-09-10 | LAST CHANGE: Change view offers Signed out, and the strip says "Viewing signed out" with Back to me.
     V5.99 | Date: 2026-09-10 | LAST CHANGE: cwCountedGroups leaves out groups everybody is in (Appear Network), so My groups is drawn only for somebody who joined one.
     V5.98 | Date: 2026-09-10 | LAST CHANGE: Post an event goes to /myevents/new/ rather than the calendar's overlay form.
@@ -67,6 +68,19 @@
 
   // ---- addresses, all of them, in one place ---------------------------------
   var LOGO     = 'https://2gather.network/images/2gather_logo.png';
+  // THE CREATING.WORKS MARK, for the bar on creating.works: the gradient ring and the four curved
+  // arrows from the original creating.works home page (now /vision/). Inline, so there is no image to
+  // host. Jessie, 2026-09-12: "show the icon for creating works on the left".
+  var CW_LOGO  = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+    '<stop offset="0" stop-color="#10B981"/><stop offset="1" stop-color="#3B82F6"/></linearGradient></defs>' +
+    '<circle cx="18" cy="18" r="16" fill="none" stroke="url(#g)" stroke-width="2.5"/>' +
+    '<g transform="translate(9 9)" fill="none" stroke="#10B981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M3.5 7 Q3.5 3.5 7 3.5 H11"/><path d="M9.5 2 L11.5 3.5 L9.5 5"/>' +
+    '<path d="M11 3.5 Q14.5 3.5 14.5 7 V11"/><path d="M13 9.5 L14.5 11.5 L16 9.5"/>' +
+    '<path d="M14.5 11 Q14.5 14.5 11 14.5 H7"/><path d="M8.5 13 L6.5 14.5 L8.5 16"/>' +
+    '<path d="M7 14.5 Q3.5 14.5 3.5 11 V7"/><path d="M5 8.5 L3.5 6.5 L2 8.5"/></g></svg>');
+  function onCreatingWorks() { try { return (window.location.hostname || '').toLowerCase().indexOf('creating.works') > -1; } catch (e) { return false; } }
   var EVENTS   = 'https://2gather.network/events';
   // MY EVENTS IS ONE PAGE AND ONE NAME, 2026-09-10. The editing page was built at /myevents/manage/
   // beside a list at /myevents/, and the pair was mistaken for a security split. It was not one:
@@ -302,6 +316,10 @@
     } else if (!atDoor && me()) {
       photo = '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost cwtb-mine" data-nav="' +
               link(PROFILE, 'CWid') + '" onclick="return _safeNavGo(this)">My profile</a>';
+    } else if (onCreatingWorks()) {
+      // NO DOORS ON CREATING.WORKS. A sign-in on 2gather.network cannot come back here, because each
+      // site keeps its own, and the creating.works pages that draw this bar sign people in themselves.
+      photo = '';
     } else {
       photo = '<a role="link" tabindex="0" class="cwtb-signin" data-nav="' +
               (window.CW_SIGNIN || 'https://2gather.network/signin/') +
@@ -315,10 +333,14 @@
     el.id = 'cw-topbar';
     el.innerHTML =
       '<div class="cwtb-bar">' +
-        '<a role="link" tabindex="0" class="cwtb-mark" data-nav="' + link(EVENTS, 'memberCard') +
+        // On creating.works the mark is Creating.Works and so are its words. Jessie, 2026-09-12: "instead
+        // of gathering for the common good, show the icon for creating works on the left and say Because
+        // creating works."
+        '<a role="link" tabindex="0" class="cwtb-mark" data-nav="' +
+          (onCreatingWorks() ? 'https://creating.works/' : link(EVENTS, 'memberCard')) +
           '" onclick="return _safeNavGo(this)">' +
-          '<span class="cwtb-glyph"><img src="' + LOGO + '" alt=""></span>' +
-          '<span class="cwtb-word">Gathering for the common good.</span></a>' +
+          '<span class="cwtb-glyph"><img src="' + (onCreatingWorks() ? CW_LOGO : LOGO) + '" alt=""></span>' +
+          '<span class="cwtb-word">' + (onCreatingWorks() ? 'Because creating works.' : 'Gathering for the common good.') + '</span></a>' +
         '<div class="cwtb-tabs">' + tabs + '</div>' +
         photo +
       '</div>' + rows;
@@ -830,7 +852,9 @@
     // own furniture, so a second bar would be one too many. ?topbar=1 draws it there
     // when we want to look at how it would sit.
     try {
-      if (window.location.hostname.indexOf('creating.works') > -1 &&
+      // A creating.works page that wants the bar says so with window.CW_SHOW_BAR, which the home page
+      // and ops do. Jessie, 2026-09-12: "add the pill on the right hand side of who I am".
+      if (window.location.hostname.indexOf('creating.works') > -1 && !window.CW_SHOW_BAR &&
           new URLSearchParams(window.location.search).get('topbar') !== '1') { return; }
     } catch (e) {}
     if (document.getElementById('cw-topbar') || hidden() || !SHOW_EVERYWHERE) return;
