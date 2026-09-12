@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.91 | Date: 2026-09-12 | LAST CHANGE: signed out, Show cancelled is not shown and cancelled events stay hidden. V13.90: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. V13.89: phone: an event's whole title shows in its row, so a long one never runs over the date. -->
+<!-- Version: V13.92 | Date: 2026-09-12 | LAST CHANGE: your groups are asked for once, shared by Group events and the Groups filter, asked again if the answer fails, and a failure says Your groups did not load with Try again instead of You are not in a group yet. V13.91: signed out, Show cancelled is not shown and cancelled events stay hidden. V13.90: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. V13.89: phone: an event's whole title shows in its row, so a long one never runs over the date. -->
 <!-- Previous: V13.88 | Date: 2026-09-12 | LAST CHANGE: the filters in a bottom sheet are published for every phone (?sheet=0 shows the old folding filters). -->
 <!-- Previous: V13.87 | Date: 2026-09-12 | LAST CHANGE: phone, behind ?sheet=1: the starting United States is not counted as a filter, so Clear filters greys when nothing is chosen. -->
 <!-- Previous: V13.86 | Date: 2026-09-12 | LAST CHANGE: phone, behind ?sheet=1: the sheet is white with its lines 16px from the edges. -->
@@ -7964,7 +7964,53 @@ function _keepMyGroups(list) {
   } catch (e) {}
 }
 var _myGroupsBusy = false;
-var _myGroupPick = {};       // the ones ticked. Empty means this control is filtering nothing.
+var _myGroupPick = {};
+// ONE QUESTION ABOUT YOUR GROUPS, AND NO GUESS WHEN IT FAILS. Jessie, 2026-09-12, with two pictures of the Groups
+// filter, "Looking up your groups..." and then "You are not in a group yet.": "I thought it took way too long to
+// load and then it says I don't have any groups and that is false". Asked directly, her groups came back, 27 of
+// them, after 33 seconds. Two faults. The calendar asks for your groups as it opens, and opening Groups asked a
+// second time instead of waiting for that answer, which the backend then answers one after the other. And a
+// request that failed, or an answer that was not a list of groups, was taken as no groups at all. Now there is
+// one request, shared by Group events, the Groups filter, Only from my groups and ?mygroups=1; it is asked once
+// more if it fails; "You are not in a group yet." is said only when the backend says so; and a failure says it did
+// not load, with Try again.
+var _myGroupsJob = null, _myGroupsFailed = false;
+function _mapMyGroups(groups) {
+  return (groups || []).map(function (g) {
+    var id = String(g.groupID || g.groupId || g.id || "").trim();
+    // THE PICTURE COMES WITH IT. Jessie, 2026-09-08: "no photos yet".
+    return { id: id,
+             name: String(g.groupName || g.name || g.title || id).trim() || id,
+             image: String(g.groupImage || g.image || "").trim() };
+  }).filter(function (g) { return g.id; });
+}
+function _loadMyGroups() {
+  if (_myGroupsJob) return _myGroupsJob;
+  var me = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
+  if (!me) { _myGroups = []; return Promise.resolve(_myGroups); }
+  _myGroupsBusy = true; _myGroupsFailed = false;
+  try { fbarDraw(); } catch (e) {}
+  var ask = function () {
+    return fetch(GS_URL + "?action=getMyGroups&appearId=" + encodeURIComponent(me))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (!d || !Array.isArray(d.groups)) { throw new Error("not a list of groups"); } return d.groups; });
+  };
+  // Registered so getBookmarks waits for it. 2026-09-10, see ONE QUESTION AT A TIME.
+  _myGroupsJob = _cwPersonJob(ask().catch(function () { return ask(); })
+    .then(function (groups) {
+      _myGroups = _mapMyGroups(groups);
+      try { _keepMyGroups(_myGroups); } catch (e) {}
+    })
+    .catch(function () { _myGroupsFailed = true; })
+    .then(function () {
+      _myGroupsBusy = false; _myGroupsJob = null;
+      try { renderGroupEvents(); } catch (e) {}
+      try { fbarDraw(); } catch (e) {}
+      return _myGroups;
+    }));
+  return _myGroupsJob;
+}
+function fbarRetryMyGroups() { _myGroupsFailed = false; _loadMyGroups(); }       // the ones ticked. Empty means this control is filtering nothing.
 
 function _myGroupPickCount() { return Object.keys(_myGroupPick).length; }
 
@@ -7974,30 +8020,8 @@ function _myGroupPickCount() { return Object.keys(_myGroupPick).length; }
 function fbarOpenMyGroups() {
   _fbarOpen = (_fbarOpen === "mygroups") ? "" : "mygroups";
   fbarDraw();
-  if (_fbarOpen !== "mygroups" || _myGroups !== null || _myGroupsBusy) return;
-  var me = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
-  if (!me) { _myGroups = []; fbarDraw(); return; }
-  _myGroupsBusy = true;
-  fbarDraw();                                  // says it is looking, rather than claiming a number
-  // Registered so getBookmarks waits for it. 2026-09-10, see ONE QUESTION AT A TIME.
-  _cwPersonJob(fetch(GS_URL + "?action=getMyGroups&appearId=" + encodeURIComponent(me))
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      _myGroups = ((d && d.groups) || []).map(function (g) {
-        var id = String(g.groupID || g.groupId || g.id || "").trim();
-        // THE PICTURE COMES WITH IT. Jessie, 2026-09-08: "no photos yet". getMyGroups returns a
-        // group image and all three of these mappings dropped it, so every place that wanted to
-        // draw a group had a name and nothing else to draw with.
-        return { id: id,
-                 name: String(g.groupName || g.name || g.title || id).trim() || id,
-                 image: String(g.groupImage || g.image || "").trim() };
-      }).filter(function (g) { return g.id; });
-      try { _keepMyGroups(_myGroups); } catch (e) {}
-      // The section could not draw before this answer existed, so it draws now.
-      try { renderGroupEvents(); } catch (e) {}
-    })
-    .catch(function () { _myGroups = []; })
-    .then(function () { _myGroupsBusy = false; fbarDraw(); }));
+  if (_fbarOpen !== "mygroups" || _myGroups !== null) return;
+  _loadMyGroups();                             // the one already asking, if the calendar has started it
 }
 
 // ?mygroups=1 ARRIVES WITH ALL OF THEM TICKED. Added 2026-09-08 for the panel button Jessie asked
@@ -8010,35 +8034,16 @@ function fbarOpenMyGroups() {
 function _pickAllMyGroups() {
   var me = (typeof getMemberId === "function") ? (getMemberId() || "") : "";
   if (!me) return;
-  _myGroupsBusy = true;
-  try { fbarDraw(); } catch (e) {}
-  // Registered so getBookmarks waits for it. 2026-09-10, see ONE QUESTION AT A TIME.
-  _cwPersonJob(fetch(GS_URL + "?action=getMyGroups&appearId=" + encodeURIComponent(me))
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      _myGroups = ((d && d.groups) || []).map(function (g) {
-        var id = String(g.groupID || g.groupId || g.id || "").trim();
-        // THE PICTURE COMES WITH IT. Jessie, 2026-09-08: "no photos yet". getMyGroups returns a
-        // group image and all three of these mappings dropped it, so every place that wanted to
-        // draw a group had a name and nothing else to draw with.
-        return { id: id,
-                 name: String(g.groupName || g.name || g.title || id).trim() || id,
-                 image: String(g.groupImage || g.image || "").trim() };
-      }).filter(function (g) { return g.id; });
-      try { _keepMyGroups(_myGroups); } catch (e) {}
-      // The section could not draw before this answer existed, so it draws now.
-      try { renderGroupEvents(); } catch (e) {}
-      _myGroups.forEach(function (g) { _myGroupPick[g.id] = true; });
-      // Somebody who came for their groups' events came to see them, not to press a second button.
-      try { window._allEventsShown = true; } catch (e) {}
-    })
-    .catch(function () { _myGroups = []; })
-    .then(function () {
-      _myGroupsBusy = false;
-      try { renderEvents(); } catch (e) {}
-      try { fbarDraw(); } catch (e) {}
-      try { _showAllEvents(); } catch (e) {}
-    }));
+  var pick = function () {
+    (_myGroups || []).forEach(function (g) { _myGroupPick[g.id] = true; });
+    // Somebody who came for their groups' events came to see them, not to press a second button.
+    if (_myGroups && _myGroups.length) { try { window._allEventsShown = true; } catch (e) {} }
+    try { renderEvents(); } catch (e) {}
+    try { fbarDraw(); } catch (e) {}
+    try { _showAllEvents(); } catch (e) {}
+  };
+  if (_myGroups && _myGroups.length) { pick(); return; }
+  _loadMyGroups().then(pick);
 }
 
 // One or several. The menu stays open, because picking three groups should not be three openings.
@@ -8275,6 +8280,7 @@ function fbarDraw() {
       var _gLbl = _myGroupPickCount() > 0 ? String(_myGroupPickCount()) : "All";
       var items = "";
       if (_myGroupsBusy) items = '<div class="fbar-mnote">Looking up your groups...</div>';
+      else if (_myGroupsFailed && _myGroups === null) items = '<div class="fbar-mnote">Your groups did not load. <a role="button" tabindex="0" onclick="fbarRetryMyGroups()" style="color:var(--primary);font-weight:700;cursor:pointer;">Try again</a></div>';
       else if (_myGroups === null) items = '<div class="fbar-mnote">Open to load your groups.</div>';
       else if (!_myGroups.length) items = '<div class="fbar-mnote">You are not in a group yet.</div>';
       else items = _myGroups.map(function (g) {
@@ -9615,31 +9621,8 @@ function _railKeepInView(key) {
       try { if (typeof _myGroups !== 'undefined' && _myGroups && _myGroups.length) { place(_myGroups); return; } } catch (e) {}
       var me = (typeof getMemberId === 'function') ? (getMemberId() || '') : '';
       if (!me) return;
-      // Registered so getBookmarks waits for it. 2026-09-10, see ONE QUESTION AT A TIME.
-      _cwPersonJob(fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(me))
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          var list = ((d && d.groups) || []).map(function (g) {
-            var id = String(g.groupID || g.groupId || g.id || '').trim();
-            // THE PICTURE COMES WITH IT. Jessie, 2026-09-08: "no photos yet". getMyGroups returns a
-        // group image and all three of these mappings dropped it, so every place that wanted to
-        // draw a group had a name and nothing else to draw with.
-        return { id: id,
-                 name: String(g.groupName || g.name || g.title || id).trim() || id,
-                 image: String(g.groupImage || g.image || "").trim() };
-          }).filter(function (g) { return g.id; });
-      try { _keepMyGroups(_myGroups); } catch (e) {}
-      // The section could not draw before this answer existed, so it draws now.
-      try { renderGroupEvents(); } catch (e) {}
-          // It fills the shared list rather than keeping a private copy, so the Group events
-          // section and the Groups filter both have it. Keeping it private is why _myGroups was
-          // still null after this had already answered, and the section had nothing to draw with.
-          try { _myGroups = list; _keepMyGroups(list); } catch (e) {}
-          try { renderGroupEvents(); } catch (e) {}
-          try { fbarDraw(); } catch (e) {}
-          place(list);
-        })
-        .catch(function () {}));
+      // The shared request (see ONE QUESTION ABOUT YOUR GROUPS), so opening Groups meanwhile waits for this one.
+      _loadMyGroups().then(function (list) { if (list) place(list); });
     })();
   }
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', go); }
