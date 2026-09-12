@@ -1,4 +1,4 @@
-/*  Version: V1.03 | Date: 2026-09-12 | LAST CHANGE: on for everybody, no ?google=1 needed. V1.02: a breathing Signing you in... pill while the backend checks; lands on /events/. V1.01: the Client ID is in. V1.00: Sign in with Google, for Sign in and Sign up, behind ?google=1.
+/*  Version: V1.04 | Date: 2026-09-12 | LAST CHANGE: the page's own notes (You are signed out on this device.) step aside while Signing you in... shows. V1.03: on for everybody, no ?google=1 needed. V1.02: a breathing Signing you in... pill while the backend checks; lands on /events/. V1.01: the Client ID is in. V1.00: Sign in with Google, for Sign in and Sign up, behind ?google=1.
 
     SIGN IN WITH GOOGLE. Jessie, 2026-09-12: "add gmail sign in next", then, of the design (row 149), "149 yes".
     One file for both pages, so the button, its Client ID and what happens after it live in one place.
@@ -127,6 +127,14 @@
         slot.insertBefore(w, slot.querySelector('.cw-g-or'));
       }
       w.style.display = on ? 'flex' : 'none';
+      // Jessie, 2026-09-12, with "You are signed out on this device." still showing under a Signing you in... pill:
+      // "you are signed oiut of this device should dissapr while I'm signing in and says singing you in". The page's
+      // own notes step aside while it signs in, and come back if it does not.
+      [].slice.call(document.querySelectorAll('.say')).forEach(function (el) {
+        if (slot.contains(el)) return;
+        if (on) { if (el.style.display !== 'none') { el.setAttribute('data-cw-g-was', el.style.display || ''); el.style.display = 'none'; } }
+        else if (el.hasAttribute('data-cw-g-was')) { el.style.display = el.getAttribute('data-cw-g-was'); el.removeAttribute('data-cw-g-was'); }
+      });
     }
 
     // AN ADDRESS WE DO NOT KNOW IS ASKED. Nothing is created until Create my account is pressed, and the terms
