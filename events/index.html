@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.92 | Date: 2026-09-12 | LAST CHANGE: your groups are asked for once, shared by Group events and the Groups filter, asked again if the answer fails, and a failure says Your groups did not load with Try again instead of You are not in a group yet. V13.91: signed out, Show cancelled is not shown and cancelled events stay hidden. V13.90: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. V13.89: phone: an event's whole title shows in its row, so a long one never runs over the date. -->
+<!-- Version: V13.93 | Date: 2026-09-12 | LAST CHANGE: your groups are remembered on this device and shown at once, while the backend is asked in the background. V13.92: your groups are asked for once, shared by Group events and the Groups filter, asked again if the answer fails, and a failure says Your groups did not load with Try again instead of You are not in a group yet. V13.91: signed out, Show cancelled is not shown and cancelled events stay hidden. V13.90: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. V13.89: phone: an event's whole title shows in its row, so a long one never runs over the date. -->
 <!-- Previous: V13.88 | Date: 2026-09-12 | LAST CHANGE: the filters in a bottom sheet are published for every phone (?sheet=0 shows the old folding filters). -->
 <!-- Previous: V13.87 | Date: 2026-09-12 | LAST CHANGE: phone, behind ?sheet=1: the starting United States is not counted as a filter, so Clear filters greys when nothing is chosen. -->
 <!-- Previous: V13.86 | Date: 2026-09-12 | LAST CHANGE: phone, behind ?sheet=1: the sheet is white with its lines 16px from the edges. -->
@@ -7947,11 +7947,18 @@ function _myGroupsOwner() {
   try { return String((typeof getMemberId === "function" ? getMemberId() : "") || "").trim().split(".").join("").toLowerCase(); }
   catch (e) { return ""; }
 }
+// REMEMBERED ON THIS DEVICE. Jessie, 2026-09-12, "151 yes", to: remember your groups on each device and show them at
+// once, asking the backend in the background. The backend measured 9 to 63 seconds for them that day. So the list is
+// kept in this browser's localStorage, still only for the id it belongs to (AND IT BELONGS TO ONE PERSON above), shown
+// the moment the calendar opens, and replaced by the backend's answer when it comes. Only a new device, or a browser
+// that was cleared, waits. v4; the tab-only v3 copy is read once as a fallback.
 var _myGroups = (function () {
   try {
     var who = _myGroupsOwner();
     if (!who) return null;
-    var raw = sessionStorage.getItem("cw-mygroups-v3");
+    var raw = null;
+    try { raw = localStorage.getItem("cw-mygroups-v4"); } catch (e) {}
+    if (!raw) raw = sessionStorage.getItem("cw-mygroups-v3");
     var v = raw ? JSON.parse(raw) : null;
     return (v && v.who === who && v.list && v.list.length) ? v.list : null;
   } catch (e) { return null; }
@@ -7959,7 +7966,8 @@ var _myGroups = (function () {
 function _keepMyGroups(list) {
   try {
     var who = _myGroupsOwner();
-    if (who) { sessionStorage.setItem("cw-mygroups-v3", JSON.stringify({ who: who, list: list || [] })); }
+    if (who) { localStorage.setItem("cw-mygroups-v4", JSON.stringify({ who: who, list: list || [], at: Date.now() })); }
+    sessionStorage.removeItem("cw-mygroups-v3");
     sessionStorage.removeItem("cw-mygroups-v2");
   } catch (e) {}
 }
@@ -8279,7 +8287,7 @@ function fbarDraw() {
       // kind of control and gave no clue that it was filtering nothing.
       var _gLbl = _myGroupPickCount() > 0 ? String(_myGroupPickCount()) : "All";
       var items = "";
-      if (_myGroupsBusy) items = '<div class="fbar-mnote">Looking up your groups...</div>';
+      if (_myGroupsBusy && !(_myGroups && _myGroups.length)) items = '<div class="fbar-mnote">Looking up your groups...</div>';
       else if (_myGroupsFailed && _myGroups === null) items = '<div class="fbar-mnote">Your groups did not load. <a role="button" tabindex="0" onclick="fbarRetryMyGroups()" style="color:var(--primary);font-weight:700;cursor:pointer;">Try again</a></div>';
       else if (_myGroups === null) items = '<div class="fbar-mnote">Open to load your groups.</div>';
       else if (!_myGroups.length) items = '<div class="fbar-mnote">You are not in a group yet.</div>';
@@ -9618,7 +9626,9 @@ function _railKeepInView(key) {
       // and draws nothing now; the groups answer is still asked for, because Group events and the Groups
       // filter read it.
       function place(list) { void list; }
-      try { if (typeof _myGroups !== 'undefined' && _myGroups && _myGroups.length) { place(_myGroups); return; } } catch (e) {}
+      // Remembered groups show at once (see REMEMBERED ON THIS DEVICE); the backend is still asked, and its answer
+      // replaces them.
+      try { if (typeof _myGroups !== 'undefined' && _myGroups && _myGroups.length) { place(_myGroups); } } catch (e) {}
       var me = (typeof getMemberId === 'function') ? (getMemberId() || '') : '';
       if (!me) return;
       // The shared request (see ONE QUESTION ABOUT YOUR GROUPS), so opening Groups meanwhile waits for this one.
