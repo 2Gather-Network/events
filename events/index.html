@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.94 | Date: 2026-09-12 | LAST CHANGE: the event form saves the Last day of a repeating event (events.recurEnd) and the bulletin board tick (events.hasBB), which it had loaded but never saved; both form copies. V13.93: your groups are remembered on this device and shown at once, while the backend is asked in the background. V13.92: your groups are asked for once, shared by Group events and the Groups filter, asked again if the answer fails, and a failure says Your groups did not load with Try again instead of You are not in a group yet. V13.91: signed out, Show cancelled is not shown and cancelled events stay hidden. V13.90: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. V13.89: phone: an event's whole title shows in its row, so a long one never runs over the date. -->
+<!-- Version: V13.95 | Date: 2026-09-12 | LAST CHANGE: a group chosen in Groups narrows Recommended matches too, and with a group chosen a section with nothing from it is not shown; when none has anything, one line says so. V13.94: the event form saves the Last day of a repeating event (events.recurEnd) and the bulletin board tick (events.hasBB), which it had loaded but never saved; both form copies. V13.93: your groups are remembered on this device and shown at once, while the backend is asked in the background. V13.92: your groups are asked for once, shared by Group events and the Groups filter, asked again if the answer fails, and a failure says Your groups did not load with Try again instead of You are not in a group yet. V13.91: signed out, Show cancelled is not shown and cancelled events stay hidden. V13.90: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. V13.89: phone: an event's whole title shows in its row, so a long one never runs over the date. -->
 <!-- Previous: V13.88 | Date: 2026-09-12 | LAST CHANGE: the filters in a bottom sheet are published for every phone (?sheet=0 shows the old folding filters). -->
 <!-- Previous: V13.87 | Date: 2026-09-12 | LAST CHANGE: phone, behind ?sheet=1: the starting United States is not counted as a filter, so Clear filters greys when nothing is chosen. -->
 <!-- Previous: V13.86 | Date: 2026-09-12 | LAST CHANGE: phone, behind ?sheet=1: the sheet is white with its lines 16px from the edges. -->
@@ -440,6 +440,11 @@
      calendar". A cancellation matters to its host and the people going, who are signed in; signed out, the
      switch is not shown and cancelled events stay hidden, whatever this browser last chose (see the script). */
   html.cw-visitor #show-cancelled-btn { display:none !important; }
+  /* See A GROUP CHOSEN, EMPTY SECTIONS GO in the script. */
+  html.cw-gp-fy-empty #for-you-section, html.cw-gp-ge-empty #group-events-wrap, html.cw-gp-up-empty #upcoming-box { display:none !important; }
+  #cw-grp-none { display:none; background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:24px;
+    font-size:14px; color:var(--muted); }
+  html.cw-gp-ge-empty.cw-gp-up-empty #cw-grp-none { display:block; }
   /* ── THE TEMPLATE ON THE CALENDAR, behind ?v=rail ────────────────────────────────────────────
      Jessie, 2026-09-08: "How about we just use our template instead and using what we're doing
      right now and put the my groups on the left rail?", then "all filers" and the three pills:
@@ -3531,6 +3536,7 @@ function renderGroupEvents() {
   // Belonging to a group with nothing in it is not the same as belonging to none. The first is an
   // empty room somebody can fill, and hiding it hides that. The second is not theirs to fill, and
   // that one stays hidden.
+  _grpEmpty('ge', !picked.length && _myGroupPickCount() > 0);
   if (!picked.length) {
     wrap.style.display = "";
     var c0 = document.getElementById("group-events-count");
@@ -4196,6 +4202,7 @@ function renderEvents() {
   grid.innerHTML = "";
   var _lm = document.getElementById("load-more-wrap");   // drop it now; re-added below only if needed
   if (_lm) _lm.remove();
+  _grpEmpty('up', list.length === 0 && !isLoadingData && _myGroupPickCount() > 0);
   if (list.length === 0) {
     if (isLoadingData) {
       // ACROSS THE WHOLE WIDTH. The grid lays out cards in columns, so this sat in the first one
@@ -8030,6 +8037,27 @@ function _loadMyGroups() {
 function fbarRetryMyGroups() { _myGroupsFailed = false; _loadMyGroups(); }       // the ones ticked. Empty means this control is filtering nothing.
 
 function _myGroupPickCount() { return Object.keys(_myGroupPick).length; }
+// A GROUP CHOSEN, EMPTY SECTIONS GO. Jessie, 2026-09-12, with Climate Group chosen in Groups: "if i choose a group
+// and there are no matches, dont' show any matches then. also calendar shouldn't show if there are no events in
+// tehh calendar htat are not part of my groups". With a group chosen, Recommended matches, Group events and
+// Upcoming events each go when they have nothing from it, rather than showing an empty box, Be the first, or No
+// events here. When all of them have gone, one line says so, so the page never reads as broken. With no group
+// chosen, every section behaves as before.
+function _grpEmpty(which, empty) {
+  try {
+    document.documentElement.classList.toggle('cw-gp-' + which + '-empty', !!empty);
+    var el = document.getElementById('cw-grp-none');
+    if (!el) {
+      var fy = document.getElementById('for-you-section');
+      if (!fy || !fy.parentNode) return;
+      el = document.createElement('div');
+      el.id = 'cw-grp-none';
+      fy.parentNode.insertBefore(el, fy);
+    }
+    var n = _myGroupPickCount();
+    el.textContent = n > 1 ? 'Nothing coming up for the groups you chose.' : 'Nothing coming up for the group you chose.';
+  } catch (e) {}
+}
 
 // Opening it is what asks. Nothing is fetched at boot, because getMyGroups measures about five
 // seconds and Apps Script runs our calls one at a time, so asking at boot would slow the calendar
@@ -8955,7 +8983,14 @@ function renderForYou() {
   //
   // Recommendations are what was chosen FOR the person. A group filter narrows the calendar, not
   // who they are. Every other filter still applies, because those are things they asked for.
-  const _fyKept0 = _allMatched.filter(function (ev) {
+  // A GROUP CHOSEN NARROWS THE MATCHES TOO. Jessie, 2026-09-12, with Climate Group chosen and three Ping Pong
+  // matches from no group of hers still showing: "if i choose a group and there are no matches, dont' show any
+  // matches then." This reverses the 2026-09-08 rule above: with a group chosen in Groups, only matches from that
+  // group are kept, and with none the section is not shown (see A GROUP CHOSEN, EMPTY SECTIONS GO). With no group
+  // chosen, as before.
+  const _fyKept0 = (_myGroupPickCount() > 0) ? _allMatched.filter(function (ev) {
+    try { return _passesEventFilters(ev); } catch (e) { return true; }
+  }) : _allMatched.filter(function (ev) {
     var keep = true;
     var saved = null;
     try { saved = _myGroupPick; _myGroupPick = {}; } catch (e) {}
@@ -8969,6 +9004,7 @@ function renderForYou() {
   const _fyKept = _recMyGroupsOn ? _fyKept0.filter(_evInMyGroups) : _fyKept0;
   const _fyTotal = _fyKept.length;
   const _fyHidden = _fyAll - _fyTotal;
+  _grpEmpty('fy', _myGroupPickCount() > 0 && _fyTotal === 0);
   // A phone shows none until Show all is pressed; a desktop shows five.
   // THE SAME FIVE ON EVERY SCREEN. A phone used to draw none until Show all was pressed, because
   // the block sat above the calendar and a wall of cards pushed the events off the page. The block
