@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V6.04 | Date: 2026-09-12 | LAST CHANGE: Sign up reads white on the event page, where a page rule had made it blue on blue; each page keeps its address in the tab as it is left, so Support and FAQ can name the page before. V6.03: the Creating.Works mark is the gradient ring with 🌱 inside, in place of the arrows. Jessie: "A - update now".
+/*  Version: V6.05 | Date: 2026-09-12 | LAST CHANGE: window.CW_REDRAW_BAR redraws the bar, so a page that signs somebody in without leaving (the creating.works home page) shows their pill at once.
+    Version: V6.04 | Date: 2026-09-12 | LAST CHANGE: Sign up reads white on the event page, where a page rule had made it blue on blue; each page keeps its address in the tab as it is left, so Support and FAQ can name the page before. V6.03: the Creating.Works mark is the gradient ring with 🌱 inside, in place of the arrows. Jessie: "A - update now".
     Version: V6.02 | Date: 2026-09-12 | LAST CHANGE: on creating.works, a page that sets window.CW_SHOW_BAR gets the bar, with the Creating.Works ring mark, "Because creating works." and no sign-in pills when signed out. Nothing changes on 2gather.network.
     Version: V6.01 | Date: 2026-09-10 | LAST CHANGE: your own profile page asks a signed-out visitor to sign in, as My events and My groups already do.
     V6.00 | Date: 2026-09-10 | LAST CHANGE: Change view offers Signed out, and the strip says "Viewing signed out" with Back to me.
@@ -880,6 +881,17 @@
     watchForPhoto();
     fetchPhotoOnce();
     askToSignIn();
+    // REDRAW AFTER A SIGN-IN ON THE SAME PAGE. Jessie, 2026-09-12: "should show my face/name in top
+    // right pill before loading information". The creating.works home page signs people in without
+    // leaving the page, and the bar had been drawn for somebody signed out. It hands over the photo
+    // and name it got with the sign-in and calls this, so the pill appears at once.
+    window.CW_REDRAW_BAR = function () {
+      try {
+        var old = document.getElementById('cw-topbar');
+        if (old && old.parentNode) { old.parentNode.removeChild(old); }
+        draw(); applyFullBleed(); watchForPhoto(); fetchPhotoOnce();
+      } catch (e) {}
+    };
   }
 
   if (document.readyState === 'loading') {
