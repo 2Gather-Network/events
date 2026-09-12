@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V1.06 | Date: 2026-09-12 | LAST CHANGE: a trail at the top, naming the page you came from, when you came from one of ours. -->
+<!-- Version: V1.07 | Date: 2026-09-12 | LAST CHANGE: the trail also works in Brave, from the page the site kept as you left it; arriving from Request to be host, Back and Cancel go to that event. V1.06: a trail at the top, naming the page you came from, when you came from one of ours. -->
 <!-- Previous: V1.05 | Date: 2026-09-11 | LAST CHANGE: while a message sends, the page says you can close it and it will still arrive, and the send carries on if you do. -->
 <!-- Previous: V1.04 | Date: 2026-09-11 | LAST CHANGE: an FAQs button above the feedback panel on the right, and the questions card at the bottom is gone. -->
 <!-- Previous: V1.03 | Date: 2026-09-11 | LAST CHANGE: the home-screen steps moved to the questions page, and a card here links to it. Jessie: "remove the together on your home screen and put it in FAQs and then link to the FAQs from the support page". -->
@@ -68,6 +68,10 @@
   /* A button on the blue is white with brand-blue lettering. */
   .faq-btn{background:#fff;color:var(--brand);border:0;padding:11px 20px;border-radius:26px;font-family:inherit;
            font-size:15px;font-weight:700;text-decoration:none;display:inline-block;}
+  /* BACK TO THE EVENT. Back sits on the blue like FAQs; Cancel sits beside Send it, white with blue lettering and
+     edged, so Send it stays the one filled button. See BACK AND CANCEL GO TO THE EVENT in the script. */
+  #claim-back{background:#fff;color:var(--brand);padding:11px 20px;border-radius:26px;font-size:15px;}
+  #claim-cancel{background:#fff;color:var(--brand);box-shadow:inset 0 0 0 1.5px var(--brand);margin-left:10px;}
   /* THE TRAIL. Jessie, 2026-09-12: "make breadcrumbs on FAQs and support pages". The site's trail (My groups,
      the event page): white on the blue, 14px, the page you came from as a link and this page in bold, and
      drawn only when you arrived from one of our own pages, so it never offers a way back you did not come. */
@@ -84,8 +88,9 @@
 
   <!-- FAQS, ABOVE THE PANEL ON THE RIGHT. Jessie, 2026-09-11: "put above give feedback panel", "FAQs
        white button with blue lettering right justified over panel" and "remove: bottom part". -->
-  <div style="display:flex;justify-content:flex-end;margin:0 0 12px;">
-    <a class="faq-btn" href="https://2gather.network/faq/">FAQs</a>
+  <div style="display:flex;align-items:center;margin:0 0 12px;">
+    <button type="button" id="claim-back" hidden>Back</button>
+    <a class="faq-btn" href="https://2gather.network/faq/" style="margin-left:auto;">FAQs</a>
   </div>
 
   <div class="card">
@@ -129,7 +134,7 @@
       <textarea id="msg" placeholder="Write as much or as little as you like."></textarea>
     </div>
 
-    <button id="send">Send it</button>
+    <button id="send">Send it</button><button type="button" id="claim-cancel" hidden>Cancel</button>
     <div class="say" id="say"></div>
     <!-- BELOW the button on purpose. Above it, before somebody has written anything, "check the
          status page" reads as go and look at a list before bothering us. Below it, it reads as
@@ -250,6 +255,17 @@ window._safeNavGo = window._safeNavGo || function (el) {
     }
   }
 
+  // BACK AND CANCEL GO TO THE EVENT. Jessie, 2026-09-12, with a picture of this page arrived at from Request to be
+  // host: "make a back button and cancel button here iand both go to last event they were on". Shown only when an
+  // event came with the request; both open that event, and nothing is sent.
+  if (CLAIM_EVENT) {
+    var _toEvent = function () { window.location.href = 'https://2gather.network/event/?id=' + encodeURIComponent(CLAIM_EVENT); };
+    ['claim-back', 'claim-cancel'].forEach(function (bid) {
+      var b = document.getElementById(bid);
+      if (b) { b.hidden = false; b.addEventListener('click', _toEvent); }
+    });
+  }
+
   var say = document.getElementById('say');
   function tell(msg, good) {
     say.style.display = 'block';
@@ -344,6 +360,20 @@ window._safeNavGo = window._safeNavGo || function (el) {
 // has no href, so an id in that address never shows on hover (the hrefless rule).
 (function () {
   var ref = ''; try { ref = String(document.referrer || ''); } catch (e) {}
+  // Brave leaves the referrer empty, so the page before is also read from what the top bar kept as it was left
+  // (THE PAGE YOU WERE ON, KEPT BY THE SITE in nav/topbar.js), and last from the event a host request names.
+  if (!/^https:\/\/2gather\.network\//.test(ref)) {
+    try {
+      var kept = JSON.parse(sessionStorage.getItem('cw-prev-page') || 'null');
+      if (kept && kept.href && Date.now() - Number(kept.at || 0) < 120000) { ref = String(kept.href); }
+    } catch (e) {}
+  }
+  if (!/^https:\/\/2gather\.network\//.test(ref)) {
+    try {
+      var ev0 = new URLSearchParams(location.search).get('event');
+      if (ev0) { ref = 'https://2gather.network/event/?id=' + encodeURIComponent(ev0); }
+    } catch (e) {}
+  }
   var m = ref.match(/^https:\/\/2gather\.network(\/[^?#]*)/);
   if (!m) return;
   var path = m[1], label = '';

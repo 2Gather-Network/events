@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V6.03 | Date: 2026-09-12 | LAST CHANGE: the Creating.Works mark is the gradient ring with 🌱 inside, in place of the arrows. Jessie: "A - update now".
+/*  Version: V6.04 | Date: 2026-09-12 | LAST CHANGE: Sign up reads white on the event page, where a page rule had made it blue on blue; each page keeps its address in the tab as it is left, so Support and FAQ can name the page before. V6.03: the Creating.Works mark is the gradient ring with 🌱 inside, in place of the arrows. Jessie: "A - update now".
     Version: V6.02 | Date: 2026-09-12 | LAST CHANGE: on creating.works, a page that sets window.CW_SHOW_BAR gets the bar, with the Creating.Works ring mark, "Because creating works." and no sign-in pills when signed out. Nothing changes on 2gather.network.
     Version: V6.01 | Date: 2026-09-10 | LAST CHANGE: your own profile page asks a signed-out visitor to sign in, as My events and My groups already do.
     V6.00 | Date: 2026-09-10 | LAST CHANGE: Change view offers Signed out, and the strip says "Viewing signed out" with Back to me.
@@ -109,6 +109,17 @@
      blank for exactly that reason.
      The bar knows the page it is drawn on, so it says so. The PATHNAME only, never the query, so
      an id in an address can never travel into a ticket. */
+  /* THE PAGE YOU WERE ON, KEPT BY THE SITE. Jessie, 2026-09-12: "We still don't see breadcrumbs on the support
+     page or the FAQs page." Their trail named the page before from document.referrer, which her Brave leaves
+     empty (see WHERE THEY WERE, CARRIED RATHER THAN GUESSED). Every page with this bar now writes its own
+     address into this tab's sessionStorage as it is left, so the next page can read where you came from without
+     the browser's help. This tab only, and only ever read back on this site. */
+  try {
+    window.addEventListener('pagehide', function () {
+      try { sessionStorage.setItem('cw-prev-page', JSON.stringify({ href: String(window.location.href), at: Date.now() })); } catch (e) {}
+    });
+  } catch (e) {}
+
   function supportUrl() {
     var here = '';
     try { here = String(window.location.pathname || '').trim(); } catch (e) {}
@@ -486,6 +497,10 @@
       '.cwtb-signin:hover{background:#F7FBFF;}' +
       '.cwtb-ghost{background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55);margin-left:8px;}' +
       '.cwtb-ghost:hover{background:rgba(255,255,255,.12);}' +
+      // SIGN UP YOU CAN READ. Jessie, 2026-09-12, with a picture of the bar on an event signed out: "the sign up is
+      // odd". The event page colors every link that is not a button blue (a:not(.btn)), which outranks one class,
+      // so Sign up was blue on the blue bar. Two classes outrank it, on every page.
+      '.cwtb-signin.cwtb-ghost{color:#fff;}' +
       '.cwtb-ask{padding:48px 20px;display:flex;justify-content:center;}' +
       '.cwtb-ask-card{background:#fff;border-radius:16px;padding:34px 34px 30px;max-width:460px;width:100%;}' +
       '.cwtb-ask-card h1{font-size:22px;font-weight:800;color:#1A2E42;margin:0 0 8px;line-height:1.3;}' +
