@@ -1,4 +1,4 @@
-/*  Version: V1.01 | Date: 2026-09-12 | LAST CHANGE: the Client ID is in. V1.00: Sign in with Google, for Sign in and Sign up, behind ?google=1.
+/*  Version: V1.03 | Date: 2026-09-12 | LAST CHANGE: on for everybody, no ?google=1 needed. V1.02: a breathing Signing you in... pill while the backend checks; lands on /events/. V1.01: the Client ID is in. V1.00: Sign in with Google, for Sign in and Sign up, behind ?google=1.
 
     SIGN IN WITH GOOGLE. Jessie, 2026-09-12: "add gmail sign in next", then, of the design (row 149), "149 yes".
     One file for both pages, so the button, its Client ID and what happens after it live in one place.
@@ -9,15 +9,17 @@
     Create my account or Use a different account, with the terms and 18 or over ticked first, and nothing is
     created until Create my account is pressed. The emailed code stays for everybody else.
 
-    Only with ?google=1 in the address until Jessie has tried it; nobody else sees any of it.
+    Behind ?google=1 until Jessie tried it on 2026-09-12; on for everybody since (see FOR EVERYBODY).
 */
 (function () {
   // The same Client ID as GOOGLE_CLIENT_ID in Code.js (Google Cloud, OAuth client "2Gather sign-in"). Not a secret.
   var CLIENT_ID = '702611145180-r2f9ntdg8sg7u3o7ktdfnvdgaafukm9n.apps.googleusercontent.com';
   var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
 
+  // FOR EVERYBODY. Jessie, 2026-09-12, after her own test worked: "publish to main site google". It was behind
+  // ?google=1 until then; ?google=0 still hides it, in case it has to be taken away from one screen.
   function wanted() {
-    try { return new URLSearchParams(location.search).get('google') === '1'; } catch (e) { return false; }
+    try { return new URLSearchParams(location.search).get('google') !== '0'; } catch (e) { return true; }
   }
   function refParam() {
     try {
@@ -65,7 +67,13 @@
       + '.cw-g-new .tick{display:flex;align-items:flex-start;gap:10px;font-size:14px;font-weight:500;margin:0 0 10px;line-height:1.45;cursor:pointer;}'
       + '.cw-g-new .tick a{color:#1F699E;font-weight:700;}'
       + '.cw-g-new .tick input{width:18px;height:18px;flex-shrink:0;margin:1px 0 0;accent-color:#1F699E;}'
-      + '.cw-g-new .cw-g-other{background:#fff;color:#1F699E;box-shadow:inset 0 0 0 1.5px #1F699E;margin-top:10px;}';
+      + '.cw-g-new .cw-g-other{background:#fff;color:#1F699E;box-shadow:inset 0 0 0 1.5px #1F699E;margin-top:10px;}'
+      // The breathing pill the rest of the site waits with (mygroups/index.html, WAITING IS THE BLINKING PILL).
+      + '.cw-g-wait{display:none;justify-content:center;margin-top:12px;}'
+      + '.cw-g-pill{display:inline-flex;align-items:center;gap:8px;background:#1F699E;color:#fff;font-size:13px;font-weight:700;'
+      +   'padding:8px 16px;border-radius:20px;white-space:nowrap;animation:cw-g-breathe 1.6s ease-in-out infinite;}'
+      + '@keyframes cw-g-breathe{0%,100%{opacity:1}50%{opacity:.62}}'
+      + '@media (prefers-reduced-motion: reduce){.cw-g-pill{animation:none;}}';
     document.head.appendChild(st);
   }
 
@@ -94,15 +102,31 @@
       say('');
       var btn = slot.querySelector('.cw-g-btn');
       if (btn) btn.style.opacity = '.5';
+      // SAID WHILE IT WAITS. Jessie, 2026-09-12, after her first Google sign-in: "ok it worked but took about 10
+      // seconsd - maybe give a indicator Loading site... ?" The backend checks Google's note and finds the person,
+      // which takes seconds, so the breathing pill says so until the page moves on.
+      waiting(true);
       ask('googleSignin').then(function (d) {
+        if (d && d.status === 'ok' && d.appearId) { finish(d, opts.next || '/events/'); return; }
+        waiting(false);
         if (btn) btn.style.opacity = '';
-        if (d && d.status === 'ok' && d.appearId) { finish(d, opts.next || '/welcome/'); return; }
         if (d && d.status === 'new') { askNew(d); return; }
         say((d && d.message) || 'That did not go through. Try again, or use the emailed code.');
       }).catch(function () {
+        waiting(false);
         if (btn) btn.style.opacity = '';
         say('That did not go through. Try again, or use the emailed code.');
       });
+    }
+    function waiting(on) {
+      var w = slot.querySelector('.cw-g-wait');
+      if (!w) {
+        w = document.createElement('div');
+        w.className = 'cw-g-wait';
+        w.innerHTML = '<span class="cw-g-pill">Signing you in...</span>';
+        slot.insertBefore(w, slot.querySelector('.cw-g-or'));
+      }
+      w.style.display = on ? 'flex' : 'none';
     }
 
     // AN ADDRESS WE DO NOT KNOW IS ASKED. Nothing is created until Create my account is pressed, and the terms
@@ -131,9 +155,9 @@
       box.querySelector('.cw-g-create').onclick = function () {
         if (!box.querySelector('.cw-g-agree').checked) { say2('Please read the terms and tick the box to agree.'); return; }
         if (!box.querySelector('.cw-g-age').checked) { say2('Please confirm you are 18 or over.'); return; }
-        var b = this; b.disabled = true; b.textContent = 'One moment…'; say2('');
+        var b = this; b.disabled = true; b.textContent = 'Creating your account...'; say2('');
         ask('googleSignup', '&terms=1&age=1').then(function (r) {
-          if (r && r.status === 'ok' && r.appearId) { finish(r, opts.nextNew || '/profile-edit/'); return; }
+          if (r && r.status === 'ok' && r.appearId) { finish(r, opts.nextNew || '/events/'); return; }
           b.disabled = false; b.textContent = 'Create my account';
           say2((r && r.message) || 'That did not go through. Try once more.');
         }).catch(function () { b.disabled = false; b.textContent = 'Create my account'; say2('That did not go through. Try once more.'); });
