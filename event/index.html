@@ -12,7 +12,7 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V6.33 | Date: 2026-09-11 | LAST CHANGE: phone: room under the groups box before the description. V6.32: the groups sit under the buttons and above the categories, on a phone as on a computer, and the box carries the event's group link too. V6.31: phone: a group name in the group row is underlined like the place link. V6.30: the title row and the row of things to do take the card's width, so the marks reach the right edge; the Virtual chip goes when the Online row says it. V6.29: three rows (when, where, group) with grey marks, then the pencil, Add to calendar and Register under them; the bottom bar keeps only the page buttons; the group row names the viewer's groups, linked. -->
+  <!-- Version: V6.34 | Date: 2026-09-11 | LAST CHANGE: List me as helping stays where you left it: the switch follows the backend's answer when it arrives, this device remembers it, the page asks past the gate for five minutes after a socialize, and Copy link waits for the answer rather than sending an untouched switch; the socialize screen has a clearer edge. V6.33: phone: room under the groups box before the description. V6.32: the groups sit under the buttons and above the categories, on a phone as on a computer, and the box carries the event's group link too. V6.31: phone: a group name in the group row is underlined like the place link. V6.30: the title row and the row of things to do take the card's width, so the marks reach the right edge; the Virtual chip goes when the Online row says it. V6.29: three rows (when, where, group) with grey marks, then the pencil, Add to calendar and Register under them; the bottom bar keeps only the page buttons; the group row names the viewer's groups, linked. -->
 <!-- Previous: V6.27 | Date: 2026-09-11 | LAST CHANGE: phone: Event info, My events and Calendar sit at the bottom under the row of things to do, as on My events; the calendar mark sits beside the date, not the first line. -->
 <!-- Previous: V6.26 | Date: 2026-09-11 | LAST CHANGE: a deleted event says This event was deleted instead of drawing the event. -->
 <!-- Previous: V6.25 | Date: 2026-09-11 | LAST CHANGE: a socialize marks the tab as having written, so My events asks past the gate for its list. -->
@@ -603,6 +603,7 @@ function _paintEventRole(role) {
 // whatever the card is by the time it answers.
 var _evRoleAsking = '';   // "eventId|personId" while getEventById is out
 var _evRoleFailed = '';   // the same key, when it failed: the rail then offers Socialize this event
+var _evRoleWait = null;   // settles when that getEventById has answered or failed (the socialize save waits on it)
 async function _applyEventRole() {
   if (!_currentEv || !_currentEv.id) return;
   var me = '';
@@ -615,9 +616,14 @@ async function _applyEventRole() {
   _paintSocialize();   // at once, from what this device knows (SHOWN AT ONCE)
   if (_evRoleAsking === key) return;
   _evRoleAsking = key;
+  var _evRoleDone = null;
+  _evRoleWait = new Promise(function (res) { _evRoleDone = res; });
   try {
+    // PAST THE GATE AFTER A SOCIALIZE HERE. The gate keeps this per-person answer for a minute and a
+    // write does not clear the per-person copy, so for five minutes after a socialize on this tab the
+    // page asks past it, and the switch is not handed the answer from before the save.
     var r = await fetch(GS_URL + '?action=getEventById&id=' + encodeURIComponent(eid)
-                        + '&appearId=' + encodeURIComponent(me));
+                        + '&appearId=' + encodeURIComponent(me) + (_socRecent(eid, me) ? '&nocache=1' : ''));
     var d = await r.json();
     var e1 = (d && d.event) || {};
     var role = e1.myRole || 'visitor';
@@ -625,12 +631,15 @@ async function _applyEventRole() {
                      socializing: e1.mySocializing === true, shown: e1.myShown === true };
     // The answer keeps this device's list true. A socialize made in the last five minutes may not be
     // in an answer the gate kept from before it, so that one is left alone.
-    if (e1.mySocializing === true || !_socRecent(eid, me)) { _socMineSet(eid, me, e1.mySocializing === true); }
+    if (e1.mySocializing === true || !_socRecent(eid, me)) { _socMineSet(eid, me, e1.mySocializing === true, e1.myShown === true); }
+    // A socialize screen already open moves to the answer, unless the switch was pressed meanwhile.
+    if (!_socListTouched && document.getElementById('cw-soc-list')) { _socPaintSwitch(e1.myShown === true); }
     // Painted on the card as it stands now, not the one this call began on, which a re-render
     // may already have thrown away.
     _paintEventRole(role);
   } catch (e) { _evRoleFailed = key; }
   _evRoleAsking = '';
+  if (_evRoleDone) { _evRoleDone(); }
   _paintSocialize();
   _paintBookmarkSlot();
   _bmReadStart();   // the bookmark question goes after this one, never beside it
@@ -1633,15 +1642,23 @@ function _socMine() {
     return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
   } catch (e) { return {}; }
 }
-function _socMineSet(eid, me, on) {
+// LISTED IS REMEMBERED WITH IT. Jessie, 2026-09-11, with a picture of the socialize screen: "Once I say
+// list me as a socializer, make sure that stays toggled on because when I went back to it was toggled
+// off". The save had worked (the backend said listed); the switch was drawn before the backend's answer
+// came and never moved when it did. Each line now reads 2 for socializing and listed, 1 for socializing
+// and not listed, so the switch starts where this device last saw it.
+function _socMineListed(eid, me) {
+  return _socMine()[String(eid) + '|' + String(me)] === 2;
+}
+function _socMineSet(eid, me, on, listed) {
   try {
     var m = _socMine(), k = String(eid) + '|' + String(me);
-    if (on) { m[k] = 1; } else { delete m[k]; }
+    if (on) { m[k] = listed ? 2 : 1; } else { delete m[k]; }
     localStorage.setItem('cw-soc-mine', JSON.stringify(m));
   } catch (e) {}
 }
-function _socRemember(eid, me) {
-  _socMineSet(eid, me, true);
+function _socRemember(eid, me, listed) {
+  _socMineSet(eid, me, true, listed);
   try {
     var m = _socRecentMap(), now = Date.now();
     Object.keys(m).forEach(function (k) { if (!(now - (Number(m[k]) || 0) < SOC_RECENT_MS)) delete m[k]; });
@@ -1769,10 +1786,13 @@ window.cwSocOpen = function () {
   var claim = 'https://2gather.network/support/?topic=claim-event&event=' + encodeURIComponent(String(ev.id));
   // Somebody who already hosts or co-hosts this event is not asked whether they host it.
   var k = _evRoleKnown, isHost = !!(k && k.id === String(ev.id) && k.me === me && (k.role === 'host' || k.role === 'cohost'));
-  // The switch starts where the backend last said, and off when it has not said: being listed is an
-  // invitation, so it is never switched on for anybody.
-  var listed = !!(k && k.id === String(ev.id) && k.me === me && k.shown);
+  // The switch starts where the backend last said, or where this device last saw it while the backend
+  // has not said (see LISTED IS REMEMBERED WITH IT), and off when neither knows: being listed is an
+  // invitation, so it is never switched on for anybody who did not switch it on.
+  var _known = !!(k && k.id === String(ev.id) && k.me === me);
+  var listed = _known ? !!k.shown : (!!me && _socMineListed(ev.id, me));
   _socListed = listed;
+  _socListTouched = false;
   box.innerHTML =
     '<div class="card-body">'
     + '<h2 class="cw-soc-h">Socialize ' + esc(ev.title || 'this event') + '</h2>'
@@ -1857,7 +1877,14 @@ window.cwSocToSupport = function (el) {
 // ONE REQUEST AT A TIME. It waits for the short link's request first, and a second press while one is
 // out is kept and sent when the first comes back, only if the switch has moved since, so the backend is
 // never handed two at once and the sheet ends where the switch is.
-var _socListed = false, _socPending = false;
+var _socListed = false, _socPending = false, _socListTouched = false;
+function _socPaintSwitch(on) {
+  _socListed = !!on;
+  var cb = document.getElementById('cw-soc-list');
+  if (cb) { cb.checked = _socListed; }
+  var sw = document.getElementById('cw-soc-switch');
+  if (sw) { sw.classList.toggle('on', _socListed); }
+}
 function _socWho() {
   var real = '', viewing = false;
   try {
@@ -1879,6 +1906,10 @@ async function _socSave() {
   if (w.viewing) { _socTell('You are looking at this as somebody else, so nothing was saved.'); return; }
   if (_socSaving) { _socPending = true; return; }
   _socSaving = true;
+  // NEVER UNLIST ON A GUESS. Copy link pressed before the backend has said whether this person is
+  // listed would send the switch as drawn, off, and a missing or "no" shown takes them off the list.
+  // So an untouched switch waits for the answer first; the answer moves the switch (above).
+  if (!_socListTouched && _evRoleAsking && _evRoleWait) { try { await _evRoleWait; } catch (e) {} }
   var want = _socListed, ok = null;
   try {
     try { await _shortLinkJob; } catch (e) {}
@@ -1893,7 +1924,7 @@ async function _socSave() {
   if (!ok) { _socTell('That did not save. Try again.'); _socPending = false; return; }
   var eid = String(ev.id);
   _socDoneFor = eid + '|' + w.real;
-  _socRemember(eid, w.real);   // see A SOCIALIZE JUST MADE OUTLIVES A RELOAD
+  _socRemember(eid, w.real, ok.shown === true);   // see A SOCIALIZE JUST MADE OUTLIVES A RELOAD
   try { sessionStorage.setItem('cw-wrote-at', String(Date.now())); } catch (e) {}   // My events asks past the gate next (ASKED PAST THE GATE AFTER A WRITE)
   var k = _evRoleKnown;
   if (k && k.id === eid) { k.socializing = true; k.shown = ok.shown === true; }
@@ -1913,6 +1944,7 @@ window.cwSocAct = function (what) {
   if (!_socAlready()) { _socSave(); }
 };
 window.cwSocList = function (on) {
+  _socListTouched = true;
   _socListed = !!on;
   var sw = document.getElementById('cw-soc-switch');
   if (sw) sw.classList.toggle('on', _socListed);
@@ -3032,6 +3064,10 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
     html.cw-look2 body { padding-bottom:84px; }
   }
   #cw-soc .card-body { padding:22px 24px 24px; }
+  /* A CLEARER EDGE. Jessie, 2026-09-11, of the socialize screen on her phone: "it kinda looks confusing
+     that you are having a window over a window, so make the border around the socializing window, a
+     little bit more apparent". A darker line and a soft shadow, so it reads as one thing laid on the page. */
+  #cw-soc.card { border:1.5px solid #9FB4C9; box-shadow:0 4px 16px rgba(16, 40, 70, .14); }
   #cw-soc .cw-soc-h { font-size:20px; font-weight:700; line-height:1.3; margin:0 0 8px; color:var(--dark); }
   #cw-soc .cw-soc-lede { font-size:15px; line-height:1.6; color:#374151; margin:0 0 16px; }
   #cw-soc .cw-soc-acts { display:flex; gap:8px; margin:0 0 6px; }
