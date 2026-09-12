@@ -1,4 +1,4 @@
-/*  Version: V1.00 | Date: 2026-09-12 | LAST CHANGE: Sign in with Google, for Sign in and Sign up, behind ?google=1.
+/*  Version: V1.01 | Date: 2026-09-12 | LAST CHANGE: the Client ID is in. V1.00: Sign in with Google, for Sign in and Sign up, behind ?google=1.
 
     SIGN IN WITH GOOGLE. Jessie, 2026-09-12: "add gmail sign in next", then, of the design (row 149), "149 yes".
     One file for both pages, so the button, its Client ID and what happens after it live in one place.
@@ -12,8 +12,8 @@
     Only with ?google=1 in the address until Jessie has tried it; nobody else sees any of it.
 */
 (function () {
-  // The same Client ID as GOOGLE_CLIENT_ID in Code.js. Not a secret. Empty until the Google Cloud setting is made.
-  var CLIENT_ID = '';
+  // The same Client ID as GOOGLE_CLIENT_ID in Code.js (Google Cloud, OAuth client "2Gather sign-in"). Not a secret.
+  var CLIENT_ID = '702611145180-r2f9ntdg8sg7u3o7ktdfnvdgaafukm9n.apps.googleusercontent.com';
   var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
 
   function wanted() {
