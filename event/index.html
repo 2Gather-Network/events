@@ -12,7 +12,7 @@
 -->
 <html lang="en">
 <head>
-  <!-- Version: V6.42 | Date: 2026-09-11 | LAST CHANGE: computer: the grey Hosted by line under the title goes; Hosted by is said once, in the rail above Socialized by. The phone keeps its line. V6.41: computer: the pencil, Add to calendar and Register start at the left of the column. V6.40: computer: the two-column design with the phone's pieces is the event page for every computer (&desk=0 shows the old one), with smaller buttons and Hosted by above Socialized by; the one-column design went; a phone is untouched. V6.39: phone: the pencil shows again for a host or super admin (a rail rule had hidden it since V6.29); the same fix shows it in both computer designs. V6.38: the pencil in both computer designs. V6.37: two computer designs to compare, behind &desk=1 (the phone look in one column) and &desk=2 (two columns, the left in the phone's order); nobody sees either without the parameter. V6.36: Are you the host of this event? is asked only on an event shared by a socializer or one with no host account on file. V6.35: the event, photo and all, stays on the page while the socialize screen is open. V6.34: List me as helping stays where you left it: the switch follows the backend's answer when it arrives, this device remembers it, the page asks past the gate for five minutes after a socialize, and Copy link waits for the answer rather than sending an untouched switch; the socialize screen has a clearer edge. V6.33: phone: room under the groups box before the description. V6.32: the groups sit under the buttons and above the categories, on a phone as on a computer, and the box carries the event's group link too. V6.31: phone: a group name in the group row is underlined like the place link. V6.30: the title row and the row of things to do take the card's width, so the marks reach the right edge; the Virtual chip goes when the Online row says it. V6.29: three rows (when, where, group) with grey marks, then the pencil, Add to calendar and Register under them; the bottom bar keeps only the page buttons; the group row names the viewer's groups, linked. -->
+  <!-- Version: V6.43 | Date: 2026-09-12 | LAST CHANGE: a dated copy of a weekly event asks who may edit of the series' own row, so its host and a super admin get the pencil on every date; signed out, no trail, and a Calendar button where the page buttons sit. V6.42: computer: the grey Hosted by line under the title goes; Hosted by is said once, in the rail above Socialized by. The phone keeps its line. V6.41: computer: the pencil, Add to calendar and Register start at the left of the column. V6.40: computer: the two-column design with the phone's pieces is the event page for every computer (&desk=0 shows the old one), with smaller buttons and Hosted by above Socialized by; the one-column design went; a phone is untouched. V6.39: phone: the pencil shows again for a host or super admin (a rail rule had hidden it since V6.29); the same fix shows it in both computer designs. V6.38: the pencil in both computer designs. V6.37: two computer designs to compare, behind &desk=1 (the phone look in one column) and &desk=2 (two columns, the left in the phone's order); nobody sees either without the parameter. V6.36: Are you the host of this event? is asked only on an event shared by a socializer or one with no host account on file. V6.35: the event, photo and all, stays on the page while the socialize screen is open. V6.34: List me as helping stays where you left it: the switch follows the backend's answer when it arrives, this device remembers it, the page asks past the gate for five minutes after a socialize, and Copy link waits for the answer rather than sending an untouched switch; the socialize screen has a clearer edge. V6.33: phone: room under the groups box before the description. V6.32: the groups sit under the buttons and above the categories, on a phone as on a computer, and the box carries the event's group link too. V6.31: phone: a group name in the group row is underlined like the place link. V6.30: the title row and the row of things to do take the card's width, so the marks reach the right edge; the Virtual chip goes when the Online row says it. V6.29: three rows (when, where, group) with grey marks, then the pencil, Add to calendar and Register under them; the bottom bar keeps only the page buttons; the group row names the viewer's groups, linked. -->
 <!-- Previous: V6.27 | Date: 2026-09-11 | LAST CHANGE: phone: Event info, My events and Calendar sit at the bottom under the row of things to do, as on My events; the calendar mark sits beside the date, not the first line. -->
 <!-- Previous: V6.26 | Date: 2026-09-11 | LAST CHANGE: a deleted event says This event was deleted instead of drawing the event. -->
 <!-- Previous: V6.25 | Date: 2026-09-11 | LAST CHANGE: a socialize marks the tab as having written, so My events asks past the gate for its list. -->
@@ -622,10 +622,18 @@ async function _applyEventRole() {
     // PAST THE GATE AFTER A SOCIALIZE HERE. The gate keeps this per-person answer for a minute and a
     // write does not clear the per-person copy, so for five minutes after a socialize on this tab the
     // page asks past it, and the switch is not handed the answer from before the save.
-    var r = await fetch(GS_URL + '?action=getEventById&id=' + encodeURIComponent(eid)
+    // ASKED ABOUT THE SERIES. A dated copy of a weekly event (recurring-...-2026-09-14) is not a row on the
+    // events tab, so the backend answered "not found" and the page took everybody for a visitor: no pencil
+    // for the host or a super admin on any date of a series. Found 2026-09-12 asking the backend with
+    // Jessie's id: the StairClimb said super, Ping Pong on the 11th and the 14th said not found. She said
+    // "121 fix". So who may edit is asked of the series' own row. Socializing stays about the date, as it
+    // was, so only the role and the host facts are taken from the series' answer.
+    var askId = (_currentEv.seriesId && eid.indexOf('recurring-') === 0) ? String(_currentEv.seriesId) : eid;
+    var r = await fetch(GS_URL + '?action=getEventById&id=' + encodeURIComponent(askId)
                         + '&appearId=' + encodeURIComponent(me) + (_socRecent(eid, me) ? '&nocache=1' : ''));
     var d = await r.json();
     var e1 = (d && d.event) || {};
+    if (askId !== eid) { e1 = { myRole: e1.myRole, row: e1.row, hostOnFile: e1.hostOnFile }; }
     var role = e1.myRole || 'visitor';
     _evRoleKnown = { id: eid, me: me, role: role, hosts: _hostsThis(role, e1.row, me),
                      hostOnFile: e1.hostOnFile,   // true, false, or undefined from a backend before 2026-09-11
@@ -985,7 +993,11 @@ function render(ev) {
     // through a door they were not invited through. Drawn only when the referrer is one of ours.
     var _sameSite = false;
     try { _sameSite = String(document.referrer || '').indexOf('2gather.network') > -1; } catch (e) {}
-    _tnEv.innerHTML = !_sameSite ? '' : ('<div style="font-size:13px;color:#fff;margin:24px 0 24px;">'
+    // NOT FOR SOMEBODY SIGNED OUT. Jessie, 2026-09-12, with a picture of the StairClimb signed out on her phone:
+    // "Signed out version - remove breadcrumbs as they are not needed", then "137 add calendar button to signed
+    // out" and "137 yes": signed out, the way back is a Calendar button where the page buttons sit (see SIGNED
+    // OUT, ONE BUTTON), on a phone and a computer. Signed in, the trail is unchanged.
+    _tnEv.innerHTML = (!_sameSite || !_myId) ? '' : ('<div style="font-size:13px;color:#fff;margin:24px 0 24px;">'
       + '<a href="' + _cameFrom.href + '" style="color:#fff;text-decoration:none;">' + esc(_cameFrom.label) + '</a>'
       + '<span style="color:rgba(255,255,255,.55);padding:0 6px;">/</span>'
       + '<span style="color:#fff;font-weight:800;">' + esc(ev.title || 'This event') + '</span>'
@@ -2584,6 +2596,7 @@ async function init() {
         const ev = recurToEv(recEv);
         ev.id = occId;
         ev.date = nextDate;
+        ev.seriesId = tmpl.id;   // see ASKED ABOUT THE SERIES
         const cancelRow = allRows.find(r => String(r.id) === "cancelled-" + occId);
         if (cancelRow) ev.cancelled = true;
         const noteRow = allRows.map(toEv).find(e => e.id === "occ-note-" + occId);
@@ -2624,6 +2637,7 @@ async function init() {
         const ev = recurToEv(recurMatch);
         ev.id = id;
         ev.date = dateStr;
+        ev.seriesId = recurMatch.id;   // the series' own row, which the backend can find (see ASKED ABOUT THE SERIES)
         // Check if this specific occurrence was cancelled
         const cancelRow = allRows.find(r => String(r.id) === "cancelled-" + id);
         if (cancelRow) ev.cancelled = true;
@@ -3259,6 +3273,14 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
           })
           .catch(function () {});
       } catch (e) {}
+    } else {
+      // SIGNED OUT, ONE BUTTON: CALENDAR. Jessie, 2026-09-12: "137 add calendar button to signed out", then
+      // "137 yes" to it sitting where the page buttons sit for somebody signed in, in place of the trail: the
+      // bar at the bottom on a phone, the top of the left column on a computer. The calendar is open to
+      // everybody, so this is a door a visitor is already invited through; My events is not drawn.
+      var seg0 = document.createElement('div'); seg0.className = 'cw-rl-seg'; seg0.id = 'cw-tpl-seg';
+      seg0.innerHTML = '<a class="cw-rl-tab" role="link" tabindex="0" data-nav="https://2gather.network/events/" onclick="return _safeNavGo(this)">Calendar</a>';
+      rail.appendChild(seg0);
     }
 
     // NO SECTION LABEL. Jessie, 2026-09-10: "remove this evnet". The rail holds one event's
