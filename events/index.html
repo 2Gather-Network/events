@@ -10,7 +10,8 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.83 | Date: 2026-09-12 | LAST CHANGE: a chosen cover picture is made at most 1600px as a JPEG before it goes up, so a phone photo is no longer refused (row 143). -->
+<!-- Version: V13.84 | Date: 2026-09-12 | LAST CHANGE: an Only from my groups switch at the top of Recommended matches, on the right, for somebody in a group. -->
+<!-- Previous: V13.83 | Date: 2026-09-12 | LAST CHANGE: a chosen cover picture is made at most 1600px as a JPEG before it goes up, so a phone photo is no longer refused (row 143). -->
 <!-- Previous: V13.82 | Date: 2026-09-12 | LAST CHANGE: the cover picture's "over 5MB" line is red. -->
 <!-- Previous: V13.81 | Date: 2026-09-12 | LAST CHANGE: Groups sits under Location in the filters; no My groups tab on the calendar, on a phone or a computer. -->
 <!-- Previous: V13.80 | Date: 2026-09-12 | LAST CHANGE: phone: no My groups in the bar at the bottom of the calendar; the bar is Calendar and My events. -->
@@ -773,6 +774,14 @@
          onto two lines to make room for the count, a wrapped heading keeps its full width, so the i landed
          mid-row, and the flex row squeezed it narrower than tall. Now the heading stays on one line, the i is
          the same fbar-i as the one beside the +, and the count drops to its own line when there is no room. -->
+    <!-- ONLY FROM MY GROUPS. Jessie, 2026-09-12: "groups are the most important here because this is who I trust and
+         I'm a part of so maybe above recommended matches we have a toggle that says show matches only from my groups",
+         then, of the drawing: "only add toggle to top of recommendated matches right justified as big as other toggles".
+         The same switch as Show cancelled, on its own line so it never fights the count for the right edge. Drawn only
+         for somebody in a group other than Appear Network, once their groups are known; off on every visit. -->
+    <div id="rec-mygroups-row" style="display:none;justify-content:flex-end;margin:0 0 4px;">
+      <button type="button" class="fbar-switch" id="rec-mygroups-btn" role="switch" aria-checked="false" onclick="recMyGroupsToggle()"><span class="cancel-track"><span class="cancel-knob"></span></span><span>Only from my groups</span></button>
+    </div>
     <div id="rec-head" style="display:none;align-items:center;flex-wrap:wrap;column-gap:8px;row-gap:2px;margin-bottom:2px;">
       <span style="font-size:15px;font-weight:800;color:var(--dark);white-space:nowrap;">Recommended matches</span>
       <button class="fbar-i" onclick="toggleRecWhy()" aria-label="Why these are here">i</button>
@@ -3455,6 +3464,7 @@ function loadMoreEvents() {
 // Each card carries its group's own small picture beside its name - "show small image of group next
 // to each" - because a list of group names is the hardest thing to scan and the pictures exist.
 function renderGroupEvents() {
+  try { _paintRecMyGroups(); } catch (e) {}   // the groups answer is in: the Only from my groups switch can show
   var wrap = document.getElementById("group-events-wrap");
   var gg = document.getElementById("group-events-grid");
   var grid = document.getElementById("event-grid");
@@ -8754,6 +8764,38 @@ function _fyPaintEditing() {
   if (_fyEditing) { renderEnjoyPills(); }
 }
 
+// ONLY FROM MY GROUPS: the switch above Recommended matches (see its note in the page). Off on every visit.
+var _recMyGroupsOn = false;
+function _recMyGroupKeys() {
+  var list = [];
+  try { list = (typeof _myGroups !== "undefined" && _myGroups) ? _myGroups : []; } catch (e) {}
+  if (window.cwCountedGroups) { list = window.cwCountedGroups(list); }   // Appear Network does not count
+  var k = {};
+  (list || []).forEach(function (g) { if (g && g.id) { k[String(g.id).trim().split(".").join("").toLowerCase()] = 1; } });
+  return k;
+}
+// The same comparison Group events makes: trimmed, dots out, lower case, and events.groupId pipe separated.
+function _evInMyGroups(ev) {
+  var mine = _recMyGroupKeys();
+  return String((ev && ev.groupId) || "").split("|").some(function (v) {
+    var k = String(v || "").trim().split(".").join("").toLowerCase();
+    return !!(k && mine[k]);
+  });
+}
+function _paintRecMyGroups() {
+  var row = document.getElementById("rec-mygroups-row"), b = document.getElementById("rec-mygroups-btn");
+  if (!row || !b) return;
+  var show = Object.keys(_recMyGroupKeys()).length > 0 && !document.documentElement.classList.contains("cw-visitor");
+  if (!show) { _recMyGroupsOn = false; }
+  row.style.display = show ? "flex" : "none";
+  b.classList.toggle("on", _recMyGroupsOn);
+  b.setAttribute("aria-checked", _recMyGroupsOn ? "true" : "false");
+}
+function recMyGroupsToggle() {
+  _recMyGroupsOn = !_recMyGroupsOn;
+  try { renderForYou(); } catch (e) { _paintRecMyGroups(); }
+}
+
 function renderForYou() {
   const interests = loadInterests();
   updatePullProfileLink();   // link state is independent of which render branch runs below
@@ -8871,7 +8913,7 @@ function renderForYou() {
   //
   // Recommendations are what was chosen FOR the person. A group filter narrows the calendar, not
   // who they are. Every other filter still applies, because those are things they asked for.
-  const _fyKept = _allMatched.filter(function (ev) {
+  const _fyKept0 = _allMatched.filter(function (ev) {
     var keep = true;
     var saved = null;
     try { saved = _myGroupPick; _myGroupPick = {}; } catch (e) {}
@@ -8879,6 +8921,10 @@ function renderForYou() {
     try { if (saved) { _myGroupPick = saved; } } catch (e) {}
     return keep;
   });
+  // ONLY FROM MY GROUPS (see the switch above the heading). The one thing that narrows recommendations by group,
+  // and only because the person asked for it with the switch.
+  _paintRecMyGroups();
+  const _fyKept = _recMyGroupsOn ? _fyKept0.filter(_evInMyGroups) : _fyKept0;
   const _fyTotal = _fyKept.length;
   const _fyHidden = _fyAll - _fyTotal;
   // A phone shows none until Show all is pressed; a desktop shows five.
@@ -8908,6 +8954,13 @@ function renderForYou() {
     // dates, so nought means none of her bookmarks match her topics in this view. Saying "No
     // upcoming events match your topics yet" would be false, and opening the topics panel to ask
     // for one would answer a question nobody asked. Reset turns the switch off with the rest.
+    if (_recMyGroupsOn) {
+      resultsEl.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:8px 0;">None of your matches come from your groups. <a onclick="recMyGroupsToggle()" style="color:var(--primary);font-weight:700;cursor:pointer;">Show all matches</a></div>`;
+      var _fyMoreG = document.getElementById("for-you-more");
+      if (_fyMoreG) { _fyMoreG.style.display = "none"; _fyMoreG.innerHTML = ""; }
+      _fyNothingToShow = false;
+      return;
+    }
     if (_bmFilterOn()) {
       resultsEl.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:8px 0;">None of the events you bookmarked match your topics here. <a onclick="fbarResetAll()" style="color:var(--primary);font-weight:700;cursor:pointer;">Reset</a></div>`;
       var _fyMoreB = document.getElementById("for-you-more");
