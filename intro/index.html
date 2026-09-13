@@ -3,7 +3,8 @@
   Copyright 2026 DayBalancer LLC. All rights reserved.
   hello@creating.works
 -->
-<!-- Version: V1.46 | Date: 2026-08-30 | LAST CHANGE: browse the categories one level at a time behind ?browse=1, built from the reference sheet -->
+<!-- Version: V1.47 | Date: 2026-09-13 | LAST CHANGE: appreciation is read back instead of erased on every save; nothing saves until the saved answers have arrived; offers keep their kind, My haves show among them and things and spaces save to ikigai.haves as the profile does. Made in the creating.works chat at Jessie's request: "Is the gather form updated as well on all these things? Fix too if not". -->
+<!-- Previous: V1.46 | Date: 2026-08-30 | LAST CHANGE: browse the categories one level at a time behind ?browse=1, built from the reference sheet -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -1698,6 +1699,7 @@
       gpShowStep(GP_LAST);
       return;
     }
+    if (!window._gpLoaded) { gpLoadNote(); return; }   // 2026-09-13: never a save of empty boxes over saved answers
     // 2026-08-30: this was gp-intro-go until the footer became a step bar. A null here threw
     // before the fetch, so pressing save did nothing at all and said nothing either.
     var btn = document.getElementById('gp-step-next');
@@ -1715,7 +1717,7 @@
       + '&appreciation=' + encodeURIComponent(picked(_gpThanksPicked, '|'))
       + '&languages=' + encodeURIComponent(picked(_gpLangPicked, ', '))
       + '&methods=' + encodeURIComponent(picked(_gpMethodPicked, '|'));
-    GP_INTRO_Q.forEach(function(q){ qs += '&' + q.key + '=' + encodeURIComponent(val(q.key)); });
+    GP_INTRO_Q.forEach(function(q){ qs += '&' + q.key + '=' + encodeURIComponent(q.key === 'introOffer' ? gpOfferParts().introOffer : val(q.key)); });
     // The tags, beside the sentence rather than instead of it. Without these somebody can answer
     // every question and stay invisible to matching, because matching reads these columns and
     // never reads the sentence. Pipe separated, which is how every other list on ikigai is held.
@@ -1732,9 +1734,10 @@
     };
     qs += '&needsTags='     + encodeURIComponent(tagFor('introNeed'))
         + '&interestsTags=' + encodeURIComponent(tagFor('introEnjoy'))
-        + '&skillsTags='    + encodeURIComponent(tagFor('introSkills'))
+        + '&skillsTags='    + encodeURIComponent(gpSkillsWithOffers(tagFor('introSkills')))
         + '&valuesTags='    + encodeURIComponent(tagFor('introValues'))
         + '&location='      + encodeURIComponent(gpLocString(_gpLoc));
+    if (window._gpLoaded) qs += '&havesTags=' + encodeURIComponent(gpOfferParts().havesTags);
     fetch(GS_URL + '?' + qs)
       .then(function(r){ return r.json(); })
       .then(function(d){
@@ -1824,9 +1827,45 @@
     try { return !!(window.CW && CW.me && CW.me().viewing); } catch (e) { return false; }
   }
 
+  // ── 2026-09-13, from the creating.works chat at Jessie's request ("Fix too if not"). The same three faults were
+  // fixed in creating.works/work/, which was copied from this page. ─────────────────────────────────────────────
+  // NOTHING SAVES BEFORE THE SAVED ANSWERS ARRIVE. Every save writes every box, blanks included, so a Next pressed
+  // while they were still loading (up to 40 seconds) wrote empty boxes over real answers.
+  function gpLoadNote(){
+    var st = document.getElementById('gp-intro-status'); if (!st) return;
+    st.style.color = window._gpLoadFailed ? '#7A2410' : '#6B7A8D';
+    st.textContent = window._gpLoadFailed ? 'Your saved answers did not load, so nothing here saves. A reload tries again.'
+                                          : 'Your saved answers are still loading and this saves as soon as they arrive.';
+  }
+  // OFFERS GO WHERE THE PROFILE KEEPS THEM. An offer is a skill, a thing or a space (Jessie: "skills are one subset of
+  // offers"). Things and spaces are ikigai.haves, My haves on the profile; a new skill offered here also joins
+  // ikigai.skills. What was loaded goes back exactly as it arrived, kind and all, which the old save lost by sending
+  // the box's cleaned names.
+  function gpOfferParts(){
+    var el = document.getElementById('gp-intro-introOffer');
+    var orig = _gpOrig.introOffer || {}, hn = window._gpHaveNames || {};
+    var items = String((el && el.value) || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean)
+      .map(function(w){ return orig[w.toLowerCase()] || w; });
+    var haves = [], skills = [];
+    items.forEach(function(raw){
+      var bits = raw.split(':'), name = String(bits[0] || '').trim().replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
+      var kind = bits.length > 1 ? String(bits[bits.length - 1]).trim().toLowerCase() : '';
+      if (hn[name] || kind === 'thing' || kind === 'space') haves.push(raw);
+      else if (kind === 'skill' && !orig[name]) skills.push(raw);
+    });
+    return { introOffer: items.join(', '), havesTags: haves.join('|'), offerSkills: skills };
+  }
+  function gpSkillsWithOffers(base){
+    var seen = {}, out = String(base || '').split('|').map(function(x){ return x.trim(); }).filter(Boolean);
+    out.forEach(function(x){ seen[x.split(':')[0].trim().toLowerCase()] = 1; });
+    gpOfferParts().offerSkills.forEach(function(x){ var n = x.split(':')[0].trim().toLowerCase(); if (!seen[n]) { seen[n] = 1; out.push(x); } });
+    return out.join('|');
+  }
+
   function gpQuietSave(){
     if (!GP_BROWSE || !meId) return;
     if (gpViewingSomebodyElse()) return;
+    if (!window._gpLoaded) { window._gpWantedSave = true; gpLoadNote(); return; }
     var val = function(k){ var el = document.getElementById('gp-intro-' + k); return el ? String(el.value || '').trim() : ''; };
     var picked = function(map, sep){ return Object.keys(map).filter(function(k){ return map[k]; }).join(sep); };
     var tagFor = function(k){
@@ -1843,12 +1882,13 @@
       + '&appreciation=' + encodeURIComponent(picked(_gpThanksPicked, '|'))
       + '&languages='    + encodeURIComponent(picked(_gpLangPicked, ', '))
       + '&methods='      + encodeURIComponent(picked(_gpMethodPicked, '|'));
-    GP_INTRO_Q.forEach(function(q){ qs += '&' + q.key + '=' + encodeURIComponent(val(q.key)); });
+    GP_INTRO_Q.forEach(function(q){ qs += '&' + q.key + '=' + encodeURIComponent(q.key === 'introOffer' ? gpOfferParts().introOffer : val(q.key)); });
     qs += '&needsTags='     + encodeURIComponent(tagFor('introNeed'))
         + '&interestsTags=' + encodeURIComponent(tagFor('introEnjoy'))
-        + '&skillsTags='    + encodeURIComponent(tagFor('introSkills'))
+        + '&skillsTags='    + encodeURIComponent(gpSkillsWithOffers(tagFor('introSkills')))
         + '&valuesTags='    + encodeURIComponent(tagFor('introValues'))
         + '&location='      + encodeURIComponent(gpLocString(_gpLoc));
+    if (window._gpLoaded) qs += '&havesTags=' + encodeURIComponent(gpOfferParts().havesTags);
     fetch(GS_URL + '?' + qs).catch(function(){});
   }
 
@@ -1915,6 +1955,7 @@
           // does. Splitting it on commas too tore that in half and invented a person who enjoys
           // "Participant".
           [[String(have[GP_OLDER[q.key]] || ''), '|'],
+           [q.key === 'introOffer' ? String(have.haves || '') : '', '|'],   // My haves, from the profile
            [String(have[q.key] || ''), ',']].forEach(function(pair){
             pair[0].split(pair[1]).forEach(function(part){
               var w = clean(part);
@@ -1939,6 +1980,15 @@
         String(have.methods || '').split('|').forEach(function(m){
           var v = String(m).trim(); if (v) { _gpMethodPicked[v] = true; any = true; }
         });
+        // APPRECIATION IS READ BACK (2026-09-13). It never was, so this opened empty and every save erased it.
+        String(have.appreciation || '').split('|').forEach(function(a){
+          var v = String(a).trim(); if (v) { _gpThanksPicked[v] = true; any = true; }
+        });
+        window._gpHaveNames = {};
+        String(have.haves || '').split('|').forEach(function(h){
+          var n = String(h).split(':')[0].trim().replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
+          if (n) window._gpHaveNames[n] = 1;
+        });
         GP_INTRO_Q.forEach(function(q){
           var el = document.getElementById('gp-intro-' + q.key);
           var typed = el ? String(el.value || '').trim() : '';
@@ -1948,8 +1998,10 @@
         if (gpLocString(_gpLoc)) any = true;
         window._gpLoaded = true;
         if (any) { gpRenderIntro(use); }
+        // A Next pressed while loading saves now, with the saved answers in.
+        if (window._gpWantedSave) { window._gpWantedSave = false; var _st = document.getElementById('gp-intro-status'); if (_st) _st.textContent = ''; gpQuietSave(); }
       })
-      .catch(function(){});
+      .catch(function(){ window._gpLoadFailed = true; gpLoadNote(); });
   }
 </script>
 </body>
