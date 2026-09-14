@@ -431,7 +431,7 @@
     // every later field holding whatever it held before. Starting empty means a partial load
     // shows nothing rather than showing somebody else's answers.
     NEEDS_ADDED = []; ENJOY_ADDED = []; SKILLS_ADDED = []; SKILL_METHODS_ON = [];
-    VALUES_ADDED = []; DOMAINS_ADDED = []; EXPRESSION_ADDED = ['']; SECTIONS[4].data = [];
+    VALUES_ADDED = []; DOMAINS_ADDED = []; WORK_VALUES_ADDED = []; EXPRESSION_ADDED = ['']; SECTIONS[4].data = [];
     try{
       // A found profile is authoritative — empty fields mean empty, not the demo seed.
       _loaded={ postal:d.postal||'', retired:d.retired||'', bringType:d.bringType||'', wantsSignupList:d.wantsSignupList||'', languages:d.languages||'', photoURL:d.photoURL||'' };
@@ -440,7 +440,20 @@
       _said={ need:String(d.introNeed||'').trim(), enjoy:String(d.introEnjoy||'').trim(),
               skills:String(d.introSkills||'').trim(), values:String(d.introValues||'').trim(),
               offer:String(d.introOffer||'').trim() };
-      NEEDS_ADDED = parseNeedsStr(d.needs||'').map(function(n){ return { item:n.item, type:(n.ntype==='skill'?'person':n.ntype==='space'?'space':'thing'), category:n.category||'', level:'', local:!!n.local, detail:n.detail||'' }; });
+      // WORK VALUES. Jessie, 2026-09-14, of her answers to creating.works' "What would work give you?" showing under
+      // Things: "Those should fall under VALUES - but under a heading Work values in the values page. Money should be a
+      // thing yes". They live in ikigai.workValues. Answers saved before that sit in ikigai.needs marked :work; those that
+      // are not a kind of thing are read as work values here, and the next save moves them. Money and the other kinds of
+      // thing stay needs, and keep their :work mark so creating.works still finds them.
+      WORK_VALUES_ADDED = String(d.workValues||'').split('|').map(function(x){ return x.trim(); }).filter(Boolean);
+      var _thingKinds = {'money':1,'physical goods':1,'consumables':1,'living things':1};
+      NEEDS_ADDED = parseNeedsStr(d.needs||'').filter(function(n){
+        if (n.ntype === 'work' && !_thingKinds[String(n.item||'').trim().toLowerCase()]) {
+          if (WORK_VALUES_ADDED.map(function(x){ return x.toLowerCase(); }).indexOf(String(n.item).trim().toLowerCase()) < 0) WORK_VALUES_ADDED.push(String(n.item).trim());
+          return false;
+        }
+        return true;
+      }).map(function(n){ return { item:n.item, type:(n.ntype==='skill'?'person':n.ntype==='space'?'space':'thing'), category:n.category||'', level:'', local:!!n.local, detail:n.detail||'', work:(n.ntype==='work') }; });
       ENJOY_ADDED = parseTagStr(d.interests||'','level').map(function(x){ return { t:x.item, sel:(x.level?String(x.level).split(',').map(function(s){return s.trim();}).filter(Boolean):[]) }; });
       SKILLS_ADDED = parseTagStr(d.skills||'','level').map(function(x){ return { t:x.item, cat:x.category||'', level:x.level||'' }; });
       SKILL_METHODS_ON = (d.methods||'').split('|').filter(Boolean);
@@ -1013,6 +1026,8 @@
   var DOMAIN_IDEAS = [];
   var VALUES_ADDED = [];
   var DOMAINS_ADDED = [];
+  // WORK VALUES, 2026-09-14 (see WORK VALUES below renderValues): what somebody wants work to give them, from ikigai.workValues.
+  var WORK_VALUES_ADDED = [];
 
   function renderValues(){
     listEl.className='list flow'; listEl.innerHTML='';
@@ -1044,7 +1059,7 @@
     // what was already added, so a word already among somebody's values (older answers hold sector words there) showed
     // lit as a domain and could not be added as one. Each heading keeps its own list now: v| for values, d| for domains.
     var VAL_ON={};
-    function valKey(typeLabel, name){ return (typeLabel==='Domain'?'d|':'v|')+String(name).trim().toLowerCase(); }
+    function valKey(typeLabel, name){ return (typeLabel==='Domain'?'d|':typeLabel==='Work value'?'w|':'v|')+String(name).trim().toLowerCase(); }
     function syncValChips(){
       ideasZone.querySelectorAll('.cat').forEach(function(el){
         if(el.classList.contains('more')) return;
@@ -1061,6 +1076,8 @@
       var x=document.createElement('button'); x.className='practice-item-x'; x.innerHTML='&times;'; x.onclick=function(){ delete VAL_ON[key]; card.remove(); sectn.refresh(); syncValChips(); };
       head.appendChild(nm); head.appendChild(x); card.appendChild(head);
       var cat=document.createElement('div'); cat.className='practice-item-cat'; cat.textContent=typeLabel; card.appendChild(cat);
+      // A work value has no Exploring, Engaged or Leading: it is what somebody wants from work, not how far along they are.
+      if (typeLabel === 'Work value') { sectn.grid.appendChild(card); sectn.refresh(); syncValChips(); return; }
       var opts=document.createElement('div'); opts.className='practice-options';
       ['Exploring','Engaged','Leading'].forEach(function(lv){ var b=document.createElement('button'); b.className='practice-btn'+(level===lv?' selected':''); b.textContent=lv; b.onclick=function(){ var was=b.classList.contains('selected'); opts.querySelectorAll('.practice-btn').forEach(function(z){z.classList.remove('selected');}); if(!was){ b.classList.add('selected'); level=lv; } else { level=''; } }; opts.appendChild(b); });
       card.appendChild(opts);
@@ -1071,6 +1088,12 @@
     var dSec=addedSection('Added domains','dom-arrow');
     VALUES_ADDED.forEach(function(it){ addCard(vSec, it.t, 'Value', it.lvl); });
     DOMAINS_ADDED.forEach(function(it){ addCard(dSec, it.t, 'Domain', it.lvl); });
+    // Work values, under their own heading, only for somebody who has some (see WORK VALUES).
+    if (WORK_VALUES_ADDED.length) {
+      var wSec=addedSection('Work values','wv-arrow');
+      WORK_VALUES_ADDED.forEach(function(t){ addCard(wSec, t, 'Work value', ''); });
+      wSec.refresh();
+    }
     // A HEADING WITH NOTHING UNDER IT STILL SAYS WHAT IT IS. Jessie, 2026-09-14, with a picture of the Values step and
     // a blank blue bar under Added values: "for some reason the domains subheading is not showing up correctly". A
     // heading was only written when a card went in, so somebody with no domains got a bar with no words.
@@ -1524,7 +1547,7 @@
       // section it always did; only the drawing order moved.
       +pvSection('What I enjoy',1,enjoy,pvSaid('enjoy')+expr)
       +pvSection('My skills',2,'',methods+skills+pvSaid('skills'))
-      +pvSection('What I care about',3,'',vals+doms+pvSaid('values'))
+      +pvSection('What I care about',3,'',vals+doms+pvWrap((WORK_VALUES_ADDED||[]).map(function(t){ return pvTag(t); }).join(''), 'Work values')+pvSaid('values'))
       +pvSection('My haves',4,haves,pvSaid('offer'))
       +pvSection("What I'm seeking",0,seeking,pvSaid('need'))
       +'</div>';
@@ -1931,11 +1954,11 @@
         var ms=[]; listEl.querySelectorAll('.method-item.on .method-text').forEach(function(m){ ms.push(m.textContent); });
         SKILL_METHODS_ON=ms;
       } else if(sec.custom==='values'){
-        var vals=[],doms=[]; listEl.querySelectorAll('.practice-grid .practice-item').forEach(function(c){
+        var vals=[],doms=[],wvs=[]; listEl.querySelectorAll('.practice-grid .practice-item').forEach(function(c){
           var nm=c.querySelector('.practice-item-name'); if(!nm) return;
           var ty=c.querySelector('.practice-item-cat'), lv=c.querySelector('.practice-btn.selected');
-          var o={t:nm.textContent, lvl:lv?lv.textContent:''}; if(ty&&ty.textContent==='Domain') doms.push(o); else vals.push(o); });
-        VALUES_ADDED=vals; DOMAINS_ADDED=doms;
+          var o={t:nm.textContent, lvl:lv?lv.textContent:''}; if(ty&&ty.textContent==='Domain') doms.push(o); else if(ty&&ty.textContent==='Work value') wvs.push(o.t); else vals.push(o); });
+        VALUES_ADDED=vals; DOMAINS_ADDED=doms; WORK_VALUES_ADDED=wvs;
       }
     }catch(e){}
   }
@@ -1947,7 +1970,7 @@
       needs: NEEDS_ADDED.map(function(n){
         var nm = String(n.item||'').trim() || String(n.detail||'').trim();
         if(!nm) return '';
-        var nt=(n.type==='person'?'skill':n.type==='space'?'space':'thing');
+        var nt=n.work?'work':(n.type==='person'?'skill':n.type==='space'?'space':'thing');   // :work kept (see WORK VALUES)
         var extra = (String(n.item||'').trim() && n.detail) ? '~'+encodeURIComponent(n.detail) : '';
         return nm+(n.local?':local':'')+':'+nt+(n.category?':'+n.category:'')+extra;
       }).filter(Boolean).join('|'),
@@ -1955,6 +1978,7 @@
       skills: SKILLS_ADDED.map(function(x){ return x.t+':'+(x.cat||'')+':'+(x.level||''); }).join('|'),
       values: VALUES_ADDED.map(function(x){ return x.t+':Value:'+(x.lvl||''); }).join('|'),
       domains: DOMAINS_ADDED.map(function(x){ return x.t+(x.lvl?':'+x.lvl:''); }).join('|'),
+      workValues: (WORK_VALUES_ADDED||[]).join('|'),
       methods: (SKILL_METHODS_ON||[]).join('|'),
       expression: EXPRESSION_ADDED.filter(Boolean).join('|'),
       haves: (SECTIONS[4].data||[]).map(function(h){ return (h.text||'')+(h.cats&&h.cats[0]?':'+h.cats[0]:''); }).filter(function(s){ return s && s.charAt(0)!==':'; }).join('|')
@@ -2001,7 +2025,7 @@
     var u=GS_URL+'?action=saveIntake&appearId='+encodeURIComponent(_id)+'&secure=1&editToken='+encodeURIComponent(_editToken)
 
       +'&needs='+encodeURIComponent(d.needs)+'&interests='+encodeURIComponent(d.interests)+'&skills='+encodeURIComponent(d.skills)
-      +'&values='+encodeURIComponent(d.values)+'&domains='+encodeURIComponent(d.domains)+'&methods='+encodeURIComponent(d.methods)
+      +'&values='+encodeURIComponent(d.values)+'&domains='+encodeURIComponent(d.domains)+'&workValues='+encodeURIComponent(d.workValues)+'&methods='+encodeURIComponent(d.methods)
       +'&expression='+encodeURIComponent(d.expression)+'&haves='+encodeURIComponent(d.haves)
       +'&retired='+encodeURIComponent(_loaded.retired||'')+'&bringType='+encodeURIComponent(_loaded.bringType||'')
       +'&wantsSignupList='+encodeURIComponent(_loaded.wantsSignupList||'')+'&languages='+encodeURIComponent(_loaded.languages||'')+'&postal='+encodeURIComponent(_loaded.postal||'')
@@ -2194,98 +2218,27 @@
   });
 </script>
 <!-- THE PROFILE IN THE TEMPLATE, A LIVE MOCKUP. Jessie, 2026-09-14: "https://2gather.network/ikigai/ Can we use our
-     template to make this page have a rail? Can you make a mock-up live page? For me to look at". Only with ?look=rail in
-     the address, so nobody else sees it until she says. The page's own content is untouched: it is moved into the
-     template's white panel (cw-rl-main), and the rail (cw-rl-rail) carries what the calendar's and My events' rails do,
-     where you are first (Calendar and My events), then what is on this page (its sections, each a press away), then the
-     places this page already offered (My groups, My account, Support, Sign out). -->
+     template to make this page have a rail? Can you make a mock-up live page? For me to look at". Only with ?look=rail.
+     The rail is nav/profile-rail.js, the same one My account draws ("the rail should stay the same when toggling to my
+     account"): My events and My groups, then My profile, My account, Support and Sign out. The profile is untouched and
+     sits in the white panel beside it. "renove my photo when i'm looikig at my own profile": your own photo is not shown
+     beside your own name; somebody else's still is. -->
 <style>
-  html.cw-ikrail .wrap{max-width:1200px;}
-  html.cw-ikrail .cw-rl{display:grid;grid-template-columns:320px minmax(0,1fr);gap:18px;align-items:start;}
-  html.cw-ikrail .cw-rl-rail{background:#fff;border-radius:14px;padding:12px;position:sticky;top:16px;}
-  html.cw-ikrail .cw-rl-main{background:#fff;border-radius:14px;padding:4px 22px 18px;min-height:420px;min-width:0;}
-  html.cw-ikrail .cw-rl-main .pv-card{background:transparent;padding:0;border-radius:0;}
-  html.cw-ikrail .cw-rl-main .breadcrumb:empty{display:none;}
-  html.cw-ikrail .ik-seg{display:flex;gap:6px;margin:4px 2px 14px;}
-  html.cw-ikrail .ik-seg a{flex:1;background:#fff;color:var(--brand);border:1.5px solid #C9D6E2;border-radius:9px;font-size:13px;
-    font-weight:700;padding:8px 4px;text-align:center;text-decoration:none;cursor:pointer;}
-  html.cw-ikrail .ik-head{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:6px 6px 8px;}
-  html.cw-ikrail .ik-secs{display:flex;flex-direction:column;gap:6px;margin:0 0 16px;}
-  html.cw-ikrail .ik-secs button{all:unset;box-sizing:border-box;display:block;width:100%;background:var(--panel);border:1.5px solid var(--panel-line);
-    color:var(--brand);font-weight:700;font-size:14px;padding:10px 14px;border-radius:10px;cursor:pointer;}
-  html.cw-ikrail .ik-secs button:hover,html.cw-ikrail .ik-secs button:focus-visible{border-color:var(--brand);}
-  html.cw-ikrail .ik-secs button.on{background:var(--brand);border-color:var(--brand);color:#fff;}
-  /* The places this page already offered, now in the rail rather than on the blue. */
-  html.cw-ikrail #ik-rail #pe-shell .tabs{flex-direction:column;gap:6px;margin:0;}
-  html.cw-ikrail #ik-rail #pe-shell .tab{background:#fff;color:var(--brand);border:1.5px solid #C9D6E2;border-radius:10px;text-align:left;
-    font-size:14px;padding:9px 14px;width:100%;}
-  html.cw-ikrail #ik-rail #pe-shell .tab.on{background:var(--brand);color:#fff;border-color:var(--brand);}
-  @media(max-width:860px){
-    html.cw-ikrail .cw-rl{grid-template-columns:1fr;}
-    html.cw-ikrail .cw-rl-rail{position:static;}
-    html.cw-ikrail .ik-secs{flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:2px;}
-    html.cw-ikrail .ik-secs button{width:auto;white-space:nowrap;}
-    html.cw-ikrail #ik-rail #pe-shell .tabs{flex-direction:row;flex-wrap:wrap;}
-    html.cw-ikrail #ik-rail #pe-shell .tab{width:auto;}
-    html.cw-ikrail .cw-rl-main{padding:4px 14px 14px;}
-  }
+  html.cw-prail-on .wrap{max-width:1200px;}
+  html.cw-prail-on .cw-prail-main .pv-card{background:transparent;padding:0;border-radius:0;}
+  html.cw-prail-on .cw-prail-main .breadcrumb:empty{display:none;}
+  html.cw-prail-on #pe-shell{display:none;}
+  html.cw-prail-on.cw-own .pv-face{display:none;}
 </style>
+<script src="https://2gather.network/nav/profile-rail.js?v=1"></script>
 <script>
 (function(){
-  if (_param('look') !== 'rail') return;
-  document.documentElement.classList.add('cw-ikrail');
-  var rail, secBox;
-  function build(){
-    if (document.getElementById('ik-rail')) return;
-    var wrap = document.querySelector('.wrap'); if (!wrap) return;
-    var grid = document.createElement('div'); grid.className = 'cw-rl';
-    rail = document.createElement('aside'); rail.className = 'cw-rl-rail'; rail.id = 'ik-rail';
-    var main = document.createElement('section'); main.className = 'cw-rl-main';
-    while (wrap.firstChild) main.appendChild(wrap.firstChild);
-    grid.appendChild(rail); grid.appendChild(main); wrap.appendChild(grid);
-    rail.innerHTML = '<div class="ik-seg">'
-      + '<a role="link" tabindex="0" data-nav="https://2gather.network/events/" onclick="return _peNav(this)">Calendar</a>'
-      + '<a role="link" tabindex="0" data-nav="https://2gather.network/myevents/" onclick="return _peNav(this)">My events</a></div>'
-      // Jessie, 2026-09-14, with a picture of the rail: "remove on this page on the rail / Just keep "Your places" nad
-      // remove "your placews" form the header". So no section buttons, and the places sit under Calendar and My events
-      // with no heading.
-      + '';
-    var shell = document.getElementById('pe-shell');
-    // "Loading your information..." is written into the shell for the blue; it goes to the panel instead.
-    var boot = document.getElementById('pe-booting');
-    if (boot) { boot.style.color = 'var(--muted)'; boot.style.padding = '40px 10px'; main.insertBefore(boot, main.firstChild); }
-    if (shell) rail.appendChild(shell);
-    secBox = document.getElementById('ik-secs');
-  }
-  // One button per section the profile drew, so a long profile is a press away from any part of it.
-  function paintSections(){
-    if (!secBox) return;
-    var secs = [].slice.call(document.querySelectorAll('#profile-view .pv-section'));
-    secBox.innerHTML = '';
-    secs.forEach(function(sec, i){
-      var lab = sec.querySelector('.pv-section-label'); if (!lab) return;
-      var b = document.createElement('button'); b.type = 'button'; b.textContent = lab.textContent.trim();
-      b.onclick = function(){
-        [].forEach.call(secBox.children, function(x){ x.classList.remove('on'); }); b.classList.add('on');
-        sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      };
-      secBox.appendChild(b);
-    });
-    var head = secBox.previousElementSibling;
-    if (head) head.style.display = secs.length ? '' : 'none';
-    secBox.style.display = secs.length ? '' : 'none';
-  }
-  // My events is already at the top of the rail, beside Calendar, so it is not offered twice.
-  function dropRepeat(){
-    [].forEach.call(document.querySelectorAll('#ik-rail #pe-shell .tab'), function(t){
-      if (t.textContent.trim() === 'My events') t.remove();
-    });
-  }
-  build();
-  var _rpv = window.renderProfileView;
-  if (typeof _rpv === 'function') {
-    window.renderProfileView = function(){ var r = _rpv.apply(this, arguments); build(); paintSections(); dropRepeat(); return r; };
-  }
+  if (_param('look') !== 'rail' || !window.cwProfileRail) return;
+  if (!_viewingSomeoneElse) document.documentElement.classList.add('cw-own');
+  var main = cwProfileRail({ active: 'profile', wrap: document.querySelector('.wrap'), viewingSomeoneElse: _viewingSomeoneElse });
+  // "Loading your information..." is written for the blue; in the template it sits in the panel.
+  var boot = document.getElementById('pe-booting');
+  if (boot && main) { boot.style.color = 'var(--muted)'; boot.style.padding = '40px 10px'; main.insertBefore(boot, main.firstChild); }
 })();
 </script>
 <script src="https://2gather.network/nav/topbar.js?v=6.01" defer></script>
