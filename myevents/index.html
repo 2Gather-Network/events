@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.46 | Date: 2026-09-14 | LAST CHANGE: adding or removing a topic on the wish list changes that one topic on the sheet (row 165); both copies. M3.45: on a phone, the two posting questions and the paste step have no grab-handle line either. M3.44: Show bookmarked shows at once from the bookmarks this device remembers, a failed answer is asked once more and never hides it, and a bookmark on one date of a weekly event is listed; the round Top button sits above any bar at the bottom of the screen, so it no longer covers Post event. M3.43: posting on a phone: no My events button above the form, no grab-handle line at the top, and the date box as tall as the others. M3.42: the event form saves the Last day of a repeating event (events.recurEnd) and the bulletin board tick (events.hasBB), which it had loaded but never saved; both form copies. M3.41: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. M3.40: no My groups page button, and no groups request behind it. -->
+<!-- Version: M3.47 | Date: 2026-09-14 | LAST CHANGE: no master code in the page; super admin comes from the signed-in person (row 116); both copies. M3.46: adding or removing a topic on the wish list changes that one topic on the sheet (row 165); both copies. M3.45: on a phone, the two posting questions and the paste step have no grab-handle line either. M3.44: Show bookmarked shows at once from the bookmarks this device remembers, a failed answer is asked once more and never hides it, and a bookmark on one date of a weekly event is listed; the round Top button sits above any bar at the bottom of the screen, so it no longer covers Post event. M3.43: posting on a phone: no My events button above the form, no grab-handle line at the top, and the date box as tall as the others. M3.42: the event form saves the Last day of a repeating event (events.recurEnd) and the bulletin board tick (events.hasBB), which it had loaded but never saved; both form copies. M3.41: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. M3.40: no My groups page button, and no groups request behind it. -->
 <!-- Previous: M3.39 | Date: 2026-09-12 | LAST CHANGE: the page buttons read Calendar, My events, My groups, in the same places as on the calendar. -->
 <!-- Previous: M3.38 | Date: 2026-09-12 | LAST CHANGE: a chosen cover picture is made at most 1600px as a JPEG before it goes up, so a phone photo is no longer refused (row 143). -->
 <!-- Previous: M3.37 | Date: 2026-09-12 | LAST CHANGE: the cover picture's "over 5MB" line is red. -->
@@ -4398,9 +4398,19 @@ function openEdit(id) {
 
 function closePasscodeModal() { document.getElementById("passcode-modal").classList.remove("open"); pendingEditId = null; }
 
-const MASTER_PASSCODE = "6090";
-const MASTER_HOST     = "jessie upp";
-let   isMasterUser    = false;
+// NO MASTER CODE IN THE PAGE (row 116, 2026-09-14). Jessie: "116 yes". The master code sat here in plain text, readable by
+// anybody with View Source: it opened any event's edit form from the old PIN steps, listed every event in Find my
+// event, marked a super admin for the repeating-event choices, and was written as events.passcode on repeating
+// templates, cancellation markers and occurrence notes. Who may save is the backend's host check (row 13), so the
+// code unlocked nothing that mattered and advertised a door. Super admin now comes from the signed-in person, the way
+// the rest of the site decides it (the top bar's answer, kept as cw-super), and never while viewing as somebody.
+// Both copies of the form.
+function _signedInSuper() {
+  try {
+    if (typeof isViewingSomeoneElse === "function" && isViewingSomeoneElse()) return false;
+    return localStorage.getItem("cw-super") === "yes";
+  } catch (e) { return false; }
+}
 
 function verifyPasscode() {
   document.getElementById("p-code").blur(); // dismiss keyboard on mobile
@@ -4408,19 +4418,11 @@ function verifyPasscode() {
   const idToEdit = pendingEditId;
   const errEl    = document.getElementById("passcode-error");
   if (!entered) { errEl.textContent = "Please enter your PIN."; errEl.style.display = "block"; return; }
-  if (entered === MASTER_PASSCODE) {
-    sessionStorage.setItem('db-master-session', '1');
-    const found = findEvById(idToEdit);
-    isMasterUser = !!(found && (found.ev.host || "").trim().toLowerCase() === MASTER_HOST);
-    closePasscodeModal();
-    try { loadEditForm(idToEdit); } catch(e) { console.warn("loadEditForm failed", e); }
-    return;
-  }
   const found = findEvById(idToEdit);
   if (!found) { errEl.textContent = "Event not found. Please try again."; errEl.style.display = "block"; return; }
   const ev = found.ev;
   if (found.isRecurring || !ev.passcode) {
-    errEl.textContent = "Use your master PIN to edit this event.";
+    errEl.textContent = "Open My events to edit this event.";
     errEl.style.display = "block";
     document.getElementById("p-code").value = ""; document.getElementById("p-code").focus(); return;
   }
@@ -4748,7 +4750,7 @@ function loadEditForm(id) {
   openMoreOptions(); // always show details when editing
   const occNoteField = document.getElementById("occurrence-note-field");
   const occNoteEl = document.getElementById("f-occurrence-note");
-  if (occNoteField) occNoteField.style.display = (found.isRecurring && isMasterUser) ? "block" : "none";
+  if (occNoteField) occNoteField.style.display = (found.isRecurring && _signedInSuper()) ? "block" : "none";
   if (occNoteEl) { const noteRow = events.find(e => e.id === "occ-note-" + editingId); occNoteEl.value = noteRow ? (noteRow.description || "") : ""; }
   recurFreq = ev.recurFreq || (found.isRecurring ? "weekly" : null);
   var _rend = document.getElementById("f-recur-end"); if (_rend) _rend.value = ev.recurEnd || "";
@@ -5763,7 +5765,7 @@ function copyBulkEmail(btn) {
   catch (e) { done(); }
 }
 
-function closeModal() { formDirty = false; document.getElementById("post-modal").classList.remove("open"); isMasterUser = false; selectedExchangeTypes = new Set(); recurFreq = null; clearEditDraft(); const rc = document.getElementById("f-recurring"); if (rc) rc.checked = false; const rw = document.getElementById("recurring-freq-wrap"); if (rw) rw.style.display = "none"; const cb = document.getElementById("clone-btn"); if (cb) cb.textContent = "⧉ Clone"; const cw = document.getElementById("clone-count-wrap"); if (cw) cw.style.display = "none"; }
+function closeModal() { formDirty = false; document.getElementById("post-modal").classList.remove("open"); selectedExchangeTypes = new Set(); recurFreq = null; clearEditDraft(); const rc = document.getElementById("f-recurring"); if (rc) rc.checked = false; const rw = document.getElementById("recurring-freq-wrap"); if (rw) rw.style.display = "none"; const cb = document.getElementById("clone-btn"); if (cb) cb.textContent = "⧉ Clone"; const cw = document.getElementById("clone-count-wrap"); if (cw) cw.style.display = "none"; }
 
 (function() {
   document.querySelectorAll(".modal-overlay").forEach(overlay => {
@@ -5840,8 +5842,7 @@ async function findMyEvents() {
   if (findBtn) { findBtn.disabled = false; findBtn.textContent = "Find events"; }
 
   const today = new Date(); today.setHours(0,0,0,0);
-  const isMaster = pin === MASTER_PASSCODE;
-  const allMatched = isMaster ? events : events.filter(e => String(e.passcode) === pin);
+  const allMatched = events.filter(e => e.passcode && String(e.passcode) === pin);
   const matched = allMatched.filter(e => !e.date || new Date(e.date) >= today);
 
   if (matched.length === 0) {
@@ -5869,8 +5870,6 @@ async function findMyEvents() {
 function editFromFind(id, pin) {
   const ev = events.find(e => e.id === id);
   if (!ev) return;
-  isMasterUser = pin === MASTER_PASSCODE && (ev.host||"").trim().toLowerCase() === MASTER_HOST;
-  if (pin === MASTER_PASSCODE) sessionStorage.setItem('db-master-session', '1');
   closeFindModal();
   loadEditForm(id);
 }
@@ -5916,15 +5915,13 @@ function confirmFindPin() {
   const ev = events.find(e => e.id === targetId);
   if (!ev) return;
   const errEl = document.getElementById("find-pin-error");
-  if (pin !== String(ev.passcode) && pin !== MASTER_PASSCODE) {
+  if (!ev.passcode || pin !== String(ev.passcode)) {
     errEl.textContent = "Incorrect PIN. Please try again.";
     errEl.style.display = "block";
     document.getElementById("find-pin-input").value = "";
     document.getElementById("find-pin-input").focus();
     return;
   }
-  isMasterUser = pin === MASTER_PASSCODE && (ev.host||"").trim().toLowerCase() === MASTER_HOST;
-  if (pin === MASTER_PASSCODE) sessionStorage.setItem('db-master-session', '1');
   closeFindPinModal();
   closeFindModal();
   loadEditForm(targetId);
@@ -6362,7 +6359,7 @@ async function submitEvent() {
     keywords: document.getElementById("f-keywords")?.value.trim() || "",
     showLinks: _showLinksValue(),
     recurFreq: (document.getElementById("f-recurring")?.checked) ? (recurFreq || "") : "",   // isMasterUser dropped 2026-09-07, the row is everybody's now
-    recurring: !!(isMasterUser && document.getElementById("f-recurring")?.checked && recurFreq),
+    recurring: !!(_signedInSuper() && document.getElementById("f-recurring")?.checked && recurFreq),
     interestedEnabled, sharedNotesEnabled,
     host_note: document.getElementById("f-host-note")?.value.trim() || "",
     cancelled: document.getElementById("f-cancelled")?.checked || false,
@@ -6403,7 +6400,7 @@ async function submitEvent() {
       // Use RECURRING_EVENTS to find the rec- template row (rec- rows are filtered out of events[])
       const recTemplate = RECURRING_EVENTS.find(r => r.title.toLowerCase() === title.toLowerCase());
       const existingRecRow = recTemplate || events.find(e => e.title.toLowerCase() === title.toLowerCase() && !e.id.startsWith("recurring-"));
-      const recSheetData = { ...eventData, title, passcode: MASTER_PASSCODE, going: 0, date: "" };
+      const recSheetData = { ...eventData, title, passcode: "", going: 0, date: "" };
       if (existingRecRow) {
         apiUpdate({ ...existingRecRow, ...recSheetData }).catch(() => {});
       } else {
@@ -6417,7 +6414,7 @@ async function submitEvent() {
         cancelledOccurrences.add(editingId);
         localStorage.setItem("db-cancelled-occurrences", JSON.stringify([...cancelledOccurrences]));
         const occDate = editingId.slice(-10);
-        apiAdd({ id:"cancelled-"+editingId, title:(title||"")+" [CANCELLED]", date:occDate, host:eventData.host||host, passcode:MASTER_PASSCODE, going:0, categories:"", format:"", description:"" }).catch(()=>{});
+        apiAdd({ id:"cancelled-"+editingId, title:(title||"")+" [CANCELLED]", date:occDate, host:eventData.host||host, passcode:"", going:0, categories:"", format:"", description:"" }).catch(()=>{});
         closeModal(); renderEvents(); showToast("This occurrence has been cancelled.");
         setTimeout(() => {
           const base = "https://2gather.network/";
@@ -6432,7 +6429,7 @@ async function submitEvent() {
       const noteId = "occ-note-" + editingId;
       const existingNoteRow = events.find(e => e.id === noteId);
       if (occNoteVal) {
-        const noteEvData = { id: noteId, title: (title||"") + " (note)", date: editingId.slice(-10), description: occNoteVal, categories: "", format: "", host: host, passcode: "6090", going: 0 };
+        const noteEvData = { id: noteId, title: (title||"") + " (note)", date: editingId.slice(-10), description: occNoteVal, categories: "", format: "", host: host, passcode: "", going: 0 };
         if (existingNoteRow) { const nIdx = events.findIndex(e => e.id === noteId); if (nIdx > -1) events[nIdx] = { ...events[nIdx], description: occNoteVal }; apiUpdate(evToSheet(noteEvData)).catch(() => {}); }
         else { events.push(noteEvData); apiAdd(evToSheet(noteEvData)).catch(() => {}); }
       } else if (existingNoteRow) { events = events.filter(e => e.id !== noteId); apiDelete(noteId).catch(() => {}); }
@@ -6478,7 +6475,7 @@ async function submitEvent() {
   } else {
     // V12.61: Daily -> create one normal event per day from the start date through the last day
     // (admin-only; the recurring section is master-only). No template - just plain dated events.
-    if (recurFreq === "daily" && document.getElementById("f-recurring")?.checked && isMasterUser && date !== "TBD") {
+    if (recurFreq === "daily" && document.getElementById("f-recurring")?.checked && _signedInSuper() && date !== "TBD") {
       const _end = document.getElementById("f-recur-end")?.value || date;
       const _days = [];
       for (let _d = new Date(date+"T00:00:00"); _d <= new Date(_end+"T00:00:00") && _days.length < 60; _d.setDate(_d.getDate()+1)) {
@@ -6803,7 +6800,7 @@ function useMyLocation(btnId) {
 }
 
 function onCloneBtnClick() {
-  if (isMasterUser) {
+  if (_signedInSuper()) {
     const wrap = document.getElementById("clone-count-wrap");
     const btn  = document.getElementById("clone-btn");
     if (wrap && wrap.style.display !== "inline-flex") {
@@ -6820,7 +6817,7 @@ function onCloneBtnClick() {
 function cloneEvent() {
   const ev = events.find(e => e.id === editingId);
   if (!ev) return;
-  const count = isMasterUser ? parseInt(document.getElementById("clone-count")?.value || "1") : 1;
+  const count = _signedInSuper() ? parseInt(document.getElementById("clone-count")?.value || "1") : 1;
   if (count > 1) {
     closeModal();
     openBulkCloneModal(ev, count);
