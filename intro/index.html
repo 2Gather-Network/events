@@ -3,7 +3,7 @@
   Copyright 2026 DayBalancer LLC. All rights reserved.
   hello@creating.works
 -->
-<!-- Version: V1.54 | Date: 2026-09-15 | LAST CHANGE: ?look=rail, a live mockup: the rail (Welcome, Joy, Skills, Attention towards, Needs, Offerings, Open to work once ticked, Your answers), no header, every question one size, languages and appreciation with the skills, who you like spending time with under what you care about; &v=2 adds sectors, My purpose and Your answers under four headings. V1.53: nobody is told they have no photo before the lookup says so; the photo the top bar knows is used at once; "Your photo is needed" goes once a photo shows. V1.52: an example already chosen is not shown a second time under the list of answers. Jessie: "Duplicates showing". -->
+<!-- Version: V1.55 | Date: 2026-09-15 | LAST CHANGE: intro rail v2: What is your purpose? offers statements drawn from your answers, as creating.works/work does; a list of choices (sectors, who you spend time with, open to work) is asked twice and then says it did not load, with Try again, instead of Loading the choices for ever. V1.54: ?look=rail, a live mockup: the rail (Welcome, Joy, Skills, Attention towards, Needs, Offerings, Open to work once ticked, Your answers), no header, every question one size, languages and appreciation with the skills, who you like spending time with under what you care about; &v=2 adds sectors, My purpose and Your answers under four headings. V1.53: nobody is told they have no photo before the lookup says so; the photo the top bar knows is used at once; "Your photo is needed" goes once a photo shows. V1.52: an example already chosen is not shown a second time under the list of answers. Jessie: "Duplicates showing". -->
 <!-- Previous: V1.51 | Date: 2026-09-13 | LAST CHANGE: until the saved answers arrive the card shows a breathing Loading information and no empty questions. Jessie: "shouldn't it not show unanswered pages and instead show a breathing loading info button?". -->
 <!-- Previous: V1.50 | Date: 2026-09-13 | LAST CHANGE: "Who would you most like your work to serve?" under What comes most naturally to you?, saved to ikigai.servesWho. Jessie: "Yes addd this below Facilitation and coaching question". -->
 <!-- Previous: V1.49 | Date: 2026-09-13 | LAST CHANGE: Which types of non-paid work? has + Other. Jessie: "Make a chip for other like we normally do". -->
@@ -449,10 +449,7 @@
       w.appendChild(gpBlock('Which types of non-paid work?', 'Pick as many as fit.', _upBody));
       return true;
     };
-    if (!fill()) {
-      w.innerHTML = '<div style="padding:18px 0;"><span style="display:inline-flex;background:#1F699E;color:#fff;font-size:13px;font-weight:700;padding:8px 16px;border-radius:20px;">Loading the choices</span></div>';
-      gpRefOnce().then(function(){ fill(); });
-    }
+    gpChoicesOr(w, fill);   // asked twice, then "The choices did not load" with Try again (see gpChoicesOr)
     return w;
   }
 
@@ -498,10 +495,7 @@
       w.appendChild(gpBlock(GP_RAIL ? 'Who do you like spending time with most?' : 'Who would you most like your work to serve?', 'Pick as many as fit or add your own.', body));
       return true;
     };
-    if (!fill()) {
-      w.innerHTML = '<div style="padding:18px 0;"><span style="display:inline-flex;background:#1F699E;color:#fff;font-size:13px;font-weight:700;padding:8px 16px;border-radius:20px;">Loading the choices</span></div>';
-      gpRefOnce().then(function(){ fill(); });
-    }
+    gpChoicesOr(w, fill);   // asked twice, then "The choices did not load" with Try again (see gpChoicesOr)
     return w;
   }
 
@@ -637,9 +631,30 @@
     _gpRefP = fetch(GS_URL + '?action=getReferenceData')
       .then(function(r){ return r.json(); })
       // Kept where the tag options can read it, so a question can be tagged along its own axis.
-      .then(function(rd){ window._gpRd = rd; return rd; })
-      .catch(function(){ return {}; });
+      // An error answer is not kept over a good one, and a failed ask is not remembered, so the next ask goes again.
+      .then(function(rd){ if (rd && Array.isArray(rd.skills)) { window._gpRd = rd; } else { _gpRefP = null; } return rd; })
+      .catch(function(){ _gpRefP = null; return {}; });
     return _gpRefP;
+  }
+  // THE CHOICES NEVER SIT ON "LOADING" FOR EVER. Jessie, 2026-09-15, with a picture of Which sectors do you work in, or
+  // want to? on intro rail v2: "didn't load". The list waited on one ask for the choices, which Apps Script answers in about
+  // 30 seconds when nothing is kept, and a failed ask left the pill there with nothing coming. Now: asked twice, then it
+  // says so with Try again. fill() draws the list into box and answers true once it could.
+  function gpChoicesOr(box, fill){
+    if (fill()) return;
+    var loading = '<div style="padding:18px 0;"><span class="cw-loading" style="display:inline-flex;background:#1F699E;color:#fff;font-size:13px;font-weight:700;padding:8px 16px;border-radius:20px;">Loading the choices</span></div>';
+    var tries = 0;
+    var go = function(){
+      box.innerHTML = loading;
+      gpRefOnce().then(function(){
+        if (fill()) return;
+        if (++tries < 2) { _gpRefP = null; setTimeout(go, 1500); return; }
+        box.innerHTML = '<div style="padding:12px 0;font-size:14px;color:#1A2E42;">The choices did not load. '
+          + '<button type="button" style="font:inherit;font-size:13px;font-weight:700;padding:5px 12px;border-radius:20px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;margin-left:4px;">Try again</button></div>';
+        box.querySelector('button').onclick = function(){ tries = 0; _gpRefP = null; go(); };
+      });
+    };
+    go();
   }
 
   // One flat list of {word, cat} per question, which is all the search needs.
@@ -2114,6 +2129,57 @@
     return out.join('|');
   }
   function gpRailPurpose(){ var el = document.getElementById('gp-purpose-box'); return el ? String(el.value || '').trim() : String(window._gpPurpose || ''); }
+  // The same statements as creating.works/work's Your purpose (cwPurposeOptions there): one thing that comes naturally, one
+  // group, one thing cared about, cycling so every answer shows in at least one, up to four; only when all three have an
+  // answer. Sector words are left out of the cared-about part, since they have their own question here.
+  function gpPurposeLow(w){ w = String(w || '').trim(); return (w.length > 1 && w.charAt(1) === w.charAt(1).toLowerCase()) ? w.charAt(0).toLowerCase() + w.slice(1) : w; }
+  function gpPurposeOptions(){
+    var what = Object.keys(_gpMethodPicked || {}).filter(function(k){ return _gpMethodPicked[k]; })
+      .map(function(m){ return String(m).replace(/^[^\p{L}\p{N}]+/u, '').trim(); }).filter(Boolean);
+    var who = Object.keys(_gpServe).filter(function(k){ return _gpServe[k]; }).map(gpPurposeLow);
+    var cv = document.getElementById('gp-intro-introValues');
+    var careTags = String((cv && cv.value) || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean).join('|');
+    var cares = gpSplitCare(careTags).values.split('|').map(function(t){ return gpPurposeLow(String(t).split(':')[0]); }).filter(Boolean);
+    if (!what.length || !who.length || !cares.length) return [];
+    var n = Math.min(4, Math.max(what.length, who.length, cares.length)), out = [];
+    for (var i = 0; i < n; i++) {
+      var s = what[i % what.length] + ', for ' + who[i % who.length] + ', in service to ' + cares[i % cares.length];
+      if (out.indexOf(s) < 0) out.push(s);
+    }
+    return out;
+  }
+  // Picking a statement puts it in the box on its own line and picking it again takes it out; anything typed stays.
+  function gpPaintPurposePicks(){
+    var box = document.getElementById('gp-purpose-picks'), ta = document.getElementById('gp-purpose-box');
+    if (!box || !ta) return;
+    var opts = gpPurposeOptions(), key = opts.join('\n');
+    var lines = function(){ return String(ta.value || '').split('\n').map(function(x){ return x.trim(); }).filter(Boolean); };
+    if (box.getAttribute('data-key') !== key) {
+      box.setAttribute('data-key', key);
+      box.innerHTML = opts.length
+        ? '<div style="font-size:13.5px;color:#6B7A8D;margin:0 0 10px;">We drew these from your answers. Pick one or more and change any of it to say it your way.</div>'
+          + '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">'
+          + opts.map(function(o, i){ return '<button type="button" data-gp-purpose="' + i + '" style="font:inherit;font-size:14px;text-align:left;padding:10px 14px;border-radius:12px;cursor:pointer;line-height:1.45;">' + String(o).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</button>'; }).join('')
+          + '</div>'
+        : '<div style="font-size:13.5px;color:#6B7A8D;margin:0 0 8px;">Say what you are making, for whom, and in service to what.</div>';
+      box.querySelectorAll('[data-gp-purpose]').forEach(function(b){
+        b.onclick = function(){
+          var s = opts[parseInt(b.getAttribute('data-gp-purpose'), 10)], l = lines(), at = l.indexOf(s);
+          if (at > -1) l.splice(at, 1); else l.push(s);
+          ta.value = l.join('\n');
+          gpPaintPurposePicks();
+        };
+      });
+    }
+    var l = lines();
+    box.querySelectorAll('[data-gp-purpose]').forEach(function(b){
+      var on = l.indexOf(opts[parseInt(b.getAttribute('data-gp-purpose'), 10)]) > -1;
+      b.style.background = on ? '#1F699E' : '#fff';
+      b.style.color = on ? '#fff' : '#1F699E';
+      b.style.border = on ? '1px solid #1F699E' : '1px solid #C9DFF3';
+      b.style.fontWeight = on ? '700' : '600';
+    });
+  }
   function gpRailExtraQs(){
     if (!GP_RAIL || !window._gpLoaded) return '';
     var qs = '&workValuesTags=' + encodeURIComponent(Object.keys(_gpWork).filter(function(k){ return _gpWork[k] && !GP_THING_KINDS[k.toLowerCase()]; }).join('|'));
@@ -2145,15 +2211,24 @@
         Object.keys(_gpSectors).forEach(function(n){ if (_gpSectors[n] && list.indexOf(n) < 0) list.push(n); });
         sec.innerHTML = ''; sec.appendChild(gpPickRow(list, _gpSectors, 8).row); return true;
       };
-      if (!fillSec()) { sec.innerHTML = '<span class="cw-loading">Loading the choices</span>'; gpRefOnce().then(function(){ fillSec(); }); }
+      gpChoicesOr(sec, fillSec);
       var secB = gpRailBlock('gp-sectors-block', 3, 'Which sectors do you work in, or want to?', 'Pick as many as fit. They show as Sectors on your profile.', sec);
       after(serve, secB);
       var pb = document.createElement('textarea');
       pb.id = 'gp-purpose-box'; pb.rows = 3; pb.className = 'cw-intro-box';
-      pb.placeholder = 'In your own words: what you are here to do, and for whom.';
+      pb.placeholder = 'Example: Facilitating and coaching, for families new to the area, in service to community health';
       pb.value = String(window._gpPurpose || '');
       pb.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:12px 14px;font:inherit;font-size:14.5px;color:#1A2E42;line-height:1.5;resize:vertical;';
-      after(secB, gpRailBlock('gp-purpose-block', 3, 'What is your purpose?', 'A sentence or two. It shows as My purpose on your profile.', pb));
+      // STATEMENTS DRAWN FROM THE ANSWERS, as creating.works/work offers them. Jessie, 2026-09-15, with pictures of this
+      // question and of Your purpose on https://creating.works/work/: "didn't show exacmple purpose statements like we did".
+      var pp = document.createElement('div'); pp.id = 'gp-purpose-picks';
+      var pbody = document.createElement('div'); pbody.appendChild(pp); pbody.appendChild(pb);
+      pb.addEventListener('input', gpPaintPurposePicks);
+      after(secB, gpRailBlock('gp-purpose-block', 3, 'What is your purpose?', 'A sentence or two. It shows as My purpose on your profile.', pbody));
+      // Every pick on the screen can change the statements, so they are drawn again after any press or typing.
+      var _ppT = null, _ppLater = function(){ clearTimeout(_ppT); _ppT = setTimeout(gpPaintPurposePicks, 0); };
+      document.addEventListener('click', _ppLater); document.addEventListener('input', _ppLater);
+      gpPaintPurposePicks();
     }
     // Needs, then Offerings, each on its own screen; the tick for open to work under the offer.
     set(byKey('introNeed'), 4);
