@@ -267,6 +267,13 @@ function _profileUrl(appearId){
 // Reached from intake's "See the group" link as attendees.html?id={EVENT}&memberCard={PERSON}
 var params=new URLSearchParams(window.location.search);
 var _eventId=(params.get('id')||params.get('eventId')||params.get('event')||'').trim();
+// A GROUP'S BULLETIN BOARD (?group=<groupId>, a live mockup, 2026-09-14). Jessie: "create a live mockup for a group page -
+// if someone clicked on 'Show me our group bulletin board' make it look like this: https://2gather.network/attendees/?id=m97sjwa3".
+// The same board, fed by the group's own answer: getGroupBundle hands back attendees, me and meRegistered in the shape
+// getEventProfiles does, so this is one page with two sources rather than a second copy to keep in step. What people offer
+// and need is only in the answer for the group's members (a visitor gets names and photos), as on the group page.
+var _groupId=(params.get('group')||'').trim();
+if(_groupId){ _eventId=''; }
 var _myId=(window.CW&&CW.me)?CW.me().id:(params.get('memberCard')||params.get('appearId')||params.get('me')||'').trim();
 var _matchMode=false;
 var _searchQ='';
@@ -279,6 +286,11 @@ var SECTION_META={
   values:{title:'Values of our bulletin board',needsMode:false},
   needs:{title:'What are bulletin board needs',needsMode:true}
 };
+if(_groupId){
+  SECTION_META.interests.title='Recreational interests of our group';
+  SECTION_META.values.title='Values of our group';
+  SECTION_META.needs.title='What our group needs';
+}
 
 // member: {appearId, photo, pageLink, name, skills[], interests[], values[], needs[]}
 var _members=[];
@@ -389,7 +401,26 @@ async function loadEvent(){
 }
 
 // ── Members ──
+async function loadGroupMembers(){
+  try{
+    var res=await fetch(GS_URL+'?action=getGroupBundle&groupId='+encodeURIComponent(_groupId)+(_myId?'&me='+encodeURIComponent(_myId):''));
+    var d=await res.json();
+    if(!d) return;
+    var g=d.group||{};
+    var titleEl=document.getElementById('event-title'), metaEl=document.getElementById('event-meta');
+    if(titleEl) titleEl.textContent='Group: '+(g.name||'');
+    var n=(d.attendees||[]).length;
+    if(metaEl) metaEl.textContent=n+(n===1?' member':' members');
+    window._groupName=g.name||'';
+    (d.attendees||[]).forEach(function(p){ _photoMap[normId(p.appearId)]={photo:p.photo||'',pageLink:p.pageLink||''}; });
+    (d.attendees||[]).forEach(function(p){ processRow(p, p.appearId); });
+    if(d.me){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
+    _meRegistered=true;   // a group has nothing to register for
+    computeGlobals(); buildChips(); renderAll();
+  }catch(e){}
+}
 async function loadMembers(){
+  if(_groupId){ return loadGroupMembers(); }
   // Fast path: ONE batched call (getEventProfiles) instead of getAttendees + one getIntake per person
   // (which 404s under concurrency). Falls back to the legacy per-person path if getEventProfiles
   // isn't deployed yet (the GAS returns its events-list fallback, with no .attendees).
@@ -1121,6 +1152,7 @@ window.hubRegister=function(){
 };
 function renderProfileCta(){
   var el=document.getElementById('profile-cta'); if(!el) return;
+  if(_groupId){ el.innerHTML=''; return; }   // nothing to register for on a group's board
   var BTN='display:inline-flex;align-items:center;gap:8px;background:#fff;color:#2d5282;border:1.5px solid #2d5282;border-radius:24px;padding:12px 22px;font-size:16px;font-weight:700;text-decoration:none;';
   // "Learn more" -> the real event page (info=1 bypasses the Glide forward).
   // Hidden once a member ID is attached (they arrived identified); still on the QR panel.
@@ -1183,6 +1215,10 @@ function renderHubNav(){
   // The person is here for THIS event, not to be pulled sideways into My groups, browsing all
   // events, or posting a new one. My groups / + Post an event / Group events live on group.html.
   var links='';
+  // On a group's board the way back is the group itself.
+  if(_groupId){
+    links+='<a role="link" tabindex="0" data-nav="https://2gather.network/group/?id='+encodeURIComponent(_groupId)+'" onclick="return _safeNavGo(this)" style="'+WB+'">Back to '+escHTML(window._groupName||'the group')+'</a>';
+  }
   if(_myId && _myData){
     var _pm=_photoMap[normId(_myId)]||{};
     var _pic=_pm.photo
@@ -1198,7 +1234,14 @@ function updateHeaderButton(){
   btn.style.display=_myData?'':'none';
 }
 (async function init(){
-  document.title='Bulletin board';                              // descriptive title for bookmarking
+  document.title=_groupId?'Group bulletin board':'Bulletin board';   // descriptive title for bookmarking
+  if(_groupId){
+    // The four headings are written into the page for an event; a group's board says "our group".
+    [['interests','Recreational interests of our group'],['values','Values of our group'],['needs','What our group needs']].forEach(function(t){
+      var h=document.getElementById(t[0]+'-body'); h=h&&h.parentNode&&h.parentNode.querySelector('.q-title'); if(h) h.textContent=t[1];
+    });
+    var _ph=document.getElementById('search-input'); if(_ph) _ph.placeholder='Search skills, interests, values...';
+  }
   var _sb=document.getElementById('hub-share-btn'); if(_sb && _eventId!=='m97sjwa3') _sb.style.display='none';   // QR share button is Lake-Ballinger-only
   if(!_myId){ var _tb=document.querySelector('.top-bar'); if(_tb) _tb.style.display='none'; }   // search is signed-in-only (has memberCard)
   renderHubNav();                                          // in-app nav above the header (blue body)
@@ -1206,9 +1249,9 @@ function updateHeaderButton(){
   var enrich=Promise.all([loadRefData(), loadCategories()]); // heavy — don't block first paint
   await loadMembers();                                     // first paint + sets _myData (do I have a profile?)
   renderProfileCta();                                      // "Build my event profile" when I have an ID but no profile
-  renderHubNav();                                          // re-render: "Event profile" nav now knows if I have a profile
+  renderHubNav();                                          // re-render: "Event profile" nav now knows if I have a profile (and a group's board its name)
   updateHeaderButton();                                    // "My matches" only when I have a completed event profile
-  if(_myData) loadContributions();                         // potluck / who's-bringing-what only for people with a profile
+  if(_myData && _eventId) loadContributions();                         // potluck / who's-bringing-what only for people with a profile
   await enrich;
   buildChips(); renderAll();                               // re-render with categories + exclusions
 })();
