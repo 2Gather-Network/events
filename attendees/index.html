@@ -9,7 +9,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V2.87 | Date: 2026-09-15 | LAST CHANGE: each card on the board fills four rows instead of showing 10; Show all on skills lists languages first, then the categories, then every skill (event and group boards alike). V2.86 | Date: 2026-09-14 | LAST CHANGE: ?group=<groupId> shows a group's bulletin board from the group's own answer (a live mockup, opened from Show me our group bulletin board on the group page with ?look=board). V2.85: Date TBD - the hub header reads "Date to be announced" (fmtDate guard) when the event's date is "TBD" instead of showing a blank/invalid date. Matches the Date TBD work in events.html V12.51. (V2.84: viewer &me= for Bookmark-to-meet + signed-out CTA.) -->
+<!-- Version: V2.88 | Date: 2026-09-15 | LAST CHANGE: search reads the whole profile (place, languages and the person's own words once the backend sends them) on the board and in My matches; Show bookmarked beside the faces narrows everything to the people you bookmarked. V2.87 | Date: 2026-09-15 | LAST CHANGE: each card on the board fills four rows instead of showing 10; Show all on skills lists languages first, then the categories, then every skill (event and group boards alike). V2.86 | Date: 2026-09-14 | LAST CHANGE: ?group=<groupId> shows a group's bulletin board from the group's own answer (a live mockup, opened from Show me our group bulletin board on the group page with ?look=board). V2.85: Date TBD - the hub header reads "Date to be announced" (fmtDate guard) when the event's date is "TBD" instead of showing a blank/invalid date. Matches the Date TBD work in events.html V12.51. (V2.84: viewer &me= for Bookmark-to-meet + signed-out CTA.) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -150,6 +150,12 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .show-all-pill:hover{background:#1e3a5f;}
 .back-hub{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#fff;background:rgba(255,255,255,0.16);border:1px solid rgba(255,255,255,0.45);border-radius:20px;padding:8px 16px;cursor:pointer;text-decoration:none;margin-bottom:14px;}
 .back-hub:hover{background:rgba(255,255,255,0.26);}
+.bm-people-switch{display:inline-flex;align-items:center;gap:8px;margin-left:12px;background:none;border:0;padding:0;font:inherit;font-size:13px;font-weight:600;color:#4B5A6D;cursor:pointer;vertical-align:middle;}
+.bm-people-switch .bm-track{position:relative;width:34px;height:20px;border-radius:10px;background:#D5DDE5;transition:background .15s;flex:0 0 34px;}
+.bm-people-switch .bm-knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:left .15s;}
+.bm-people-switch.on{color:#1A2E42;font-weight:700;}
+.bm-people-switch.on .bm-track{background:#1F699E;}
+.bm-people-switch.on .bm-knob{left:16px;}
 @media(max-width:640px){
   .event-header-row{flex-direction:column;align-items:stretch;}
   .hub-btn-group{align-self:flex-start;}
@@ -182,7 +188,7 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
       <div class="hub-search-slot">
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
-          <input type="text" id="search-input" placeholder="Search skills, interests, values..." oninput="filterAll(this.value)">
+          <input type="text" id="search-input" placeholder="Search anything in a profile" oninput="filterAll(this.value)">
         </div>
       </div>
       <div class="hub-btn-group">
@@ -503,7 +509,11 @@ function processRow(data, appearId){
   if(_members.some(function(m){return normId(m.appearId)===normId(appearId);})) return;
   var pm=_photoMap[normId(appearId)]||{};
   // Searchable blob: include Main AND ikigai tokens so search finds people via either source.
-  var search=String([data.first,data.name,data.languages,data.advocating,
+  // SEARCH READS THE WHOLE PROFILE. Jessie, 2026-09-15: "for search let me look for all fields of a profile including
+  // location language etc". The place and the person's own words (searchText: what they have, work values, purpose,
+  // whom they serve, their intro answers) come from the backend for this and are never drawn.
+  var extra=String([data.first,data.name,data.languages,data.location,data.searchText].filter(Boolean).join(' | ')).toLowerCase();
+  var search=String([data.first,data.name,data.languages,data.advocating,data.location,data.searchText,
     data.skills,data.interests,data.values,data.domains,data.needs,data.hobbies,data.professionalServices,
     data.ikigaiSkills,data.ikigaiInterests,data.ikigaiValues,data.ikigaiDomains,data.ikigaiNeeds
   ].filter(Boolean).join(' ')).toLowerCase();
@@ -529,6 +539,7 @@ function processRow(data, appearId){
     pageLink:pm.pageLink||'',
     name:data.first||data.name||appearId,   // first name once getEventProfiles returns it; the id is only a last resort
     search:search,
+    extra:extra,
     skills:        ikSkills.length
                    ? unionByItem(mainSkills, ikSkills)
                    : unionByItem(mainSkills, mainProfSvc),
@@ -646,10 +657,15 @@ function renderGuestPhotos(){
     var nm=(m.name||m.first||'').toLowerCase().trim();
     if(nm==='test' || nm.indexOf('test ')===0) return false;
     if(_searchQ && (!m.search || m.search.indexOf(_searchQ)===-1)) return false;
+    if(!_personShown(m.appearId)) return false;
     if(!m.photo) return false;
     return true;
   });
-  if(!visible.length){ el.style.display='none'; return; }
+  if(!visible.length){
+    // With Show bookmarked on and nobody left, the switch stays so it can be turned off again.
+    if(_bmOnly){ el.style.display=''; el.innerHTML='<div class="gp-count">Nobody bookmarked here yet'+_bmSwitchHTML()+'</div>'; return; }
+    el.style.display='none'; return;
+  }
   if(!_shuffledMembers || _shuffledMembers.length !== visible.length){
     var _shuf=shuffle(visible.slice());
     // Partition: viewer first (if present), then people with any profile info, then empty profiles.
@@ -676,7 +692,7 @@ function renderGuestPhotos(){
     ? Math.min(_photosShown, initialCap)
     : Math.min(_photosShown, n);
   var slice=ordered.slice(0, showCount);
-  var head='<div class="gp-count">'+n+' '+(n===1?'person':'people')+(_groupId?' in this group':' here')+'</div>';
+  var head='<div class="gp-count">'+n+' '+(n===1?'person':'people')+(_bmOnly?' bookmarked':(_groupId?' in this group':' here'))+_bmSwitchHTML()+'</div>';
   var cells=slice.map(function(m){
     var display=m.name||m.appearId||'';
     var inner=m.photo
@@ -863,8 +879,10 @@ function renderMatchesPanel(){
   var matches=computeMyMatches();
   var total=matches.length;
   var q=_matchesQ;
+  if(_bmOnly) matches=matches.filter(function(m){ return _personShown(m.appearId); });
   var filtered=q ? matches.filter(function(m){
     if((m.name||'').toLowerCase().indexOf(q)>-1) return true;
+    var mm=_memberFor(m.appearId); if(mm && mm.search && mm.search.indexOf(q)>-1) return true;
     for(var i=0;i<m.sharedList.length;i++){ if(m.sharedList[i].item.toLowerCase().indexOf(q)>-1) return true; }
     for(var j=0;j<m.compList.length;j++){ if(m.compList[j].item.toLowerCase().indexOf(q)>-1) return true; }
     for(var k=0;k<m.coseekList.length;k++){ if(m.coseekList[k].item.toLowerCase().indexOf(q)>-1) return true; }
@@ -874,7 +892,7 @@ function renderMatchesPanel(){
   var titleLine=q ? n+' of '+total+' '+(total===1?'match':'matches') : total+' '+(total===1?'person':'people')+' match you';
   var head='<div class="mp-head"><div><div class="mp-title">'+titleLine+'</div>'+(total?'<div class="mp-sub">Most matches first</div>':'')+'</div></div>';
   var key='<div class="mp-key"><span class="mp-key-item"><span class="mp-key-dot comp"></span>Offer/need match</span><span class="mp-key-item"><span class="mp-key-dot coseek"></span>You both need this</span><span class="mp-key-item"><span class="mp-key-dot share"></span>In common</span></div>';
-  var search=total>5 ? '<div class="mp-search-wrap"><input type="text" class="mp-search" placeholder="Search skills, interests, or needs" oninput="filterMatches(this.value)" value="'+escHTML(_matchesQ)+'"></div>' : '';
+  var search=total>5 ? '<div class="mp-search-wrap"><input type="text" class="mp-search" placeholder="Search anything in a profile" oninput="filterMatches(this.value)" value="'+escHTML(_matchesQ)+'"></div>' : '';
   if(!total){
     var msg=_myData ? 'Nobody in this event shares or complements your profile yet.' : 'Fill out your event profile to see who you match with here.';
     el.innerHTML=head+key+'<div class="mp-empty">'+escHTML(msg)+'</div>';
@@ -912,12 +930,35 @@ function renderMatchesPanel(){
   if(sf && q){ sf.focus(); var v=sf.value; sf.value=''; sf.value=v; }
 }
 window.filterMatches=function(q){ _matchesQ=(q||'').toLowerCase().trim(); renderMatchesPanel(); };
+// SHOW BOOKMARKED, FOR PEOPLE. Jessie, 2026-09-15: "when bookmarking people let's see people bookmarked in a group by
+// saying 'Show bookmarked' here too and it will filter". The people this person bookmarked (getBookmarks with no kind:
+// people, from the bookmarks tab) are read once; the switch sits beside the count over the faces, is drawn only when
+// somebody here is bookmarked, and narrows the faces, the four cards, Show all and My matches to them.
+var _bmPeople={}, _bmOnly=false;
+function _bmHereCount(){ var n=0; _members.forEach(function(m){ if(_bmPeople[normId(m.appearId)] && normId(m.appearId)!==normId(_myId)) n++; }); return n; }
+function _bmSwitchHTML(){
+  var n=_bmHereCount(); if(!n && !_bmOnly) return '';
+  return ' <button type="button" class="bm-people-switch'+(_bmOnly?' on':'')+'" onclick="toggleBmPeople()" role="switch" aria-checked="'+(_bmOnly?'true':'false')+'">'
+    +'<span class="bm-track"><span class="bm-knob"></span></span>Show bookmarked</button>';
+}
+window.toggleBmPeople=function(){ _bmOnly=!_bmOnly; _shuffledMembers=null; renderGuestPhotos(); renderAll(); };
+async function loadBookmarkedPeople(){
+  if(!_myId) return;
+  try{
+    var r=await fetch(GS_URL+'?action=getBookmarks&appearId='+encodeURIComponent(_myId));
+    var d=await r.json();
+    if(d && Array.isArray(d.bookmarks)){
+      _bmPeople={}; d.bookmarks.forEach(function(b){ if(b && b.appearId) _bmPeople[normId(b.appearId)]=1; });
+      renderGuestPhotos();
+    }
+  }catch(e){}
+}
 window.bookmarkMatch=function(btn, theirId){
   if(!_myId){ if(typeof showToast==='function') showToast('Sign in to bookmark'); return; }
   var orig=btn.textContent;
   btn.textContent='Bookmarking…'; btn.disabled=true;
   fetch(GS_URL+'?action=saveBookmark&from='+encodeURIComponent(_myId)+'&to='+encodeURIComponent(theirId))
-    .then(function(){ btn.textContent='Bookmarked'; })
+    .then(function(){ btn.textContent='Bookmarked'; _bmPeople[normId(theirId)]=1; renderGuestPhotos(); })
     .catch(function(){ btn.textContent=orig; btn.disabled=false; });
 };
 
@@ -940,15 +981,23 @@ window.openProfile=function(appearId,pageLink){
   if(appearId) window.location.href=_profileUrl(appearId);
 };
 
+// A chip shows when its words match the search, or when its person's profile does in a field that is not a chip
+// (where they are, their languages, their own sentences); and, with Show bookmarked on, only for people bookmarked.
+function _memberFor(id){ var k=normId(id); for(var i=0;i<_members.length;i++){ if(normId(_members[i].appearId)===k) return _members[i]; } return null; }
+function _personShown(id){ return !_bmOnly || !!_bmPeople[normId(id)]; }
+function _chipPasses(en, needsMode){
+  if(!_personShown(en.member && en.member.appearId)) return false;
+  if(!_searchQ) return true;
+  var cat=needsMode?(en.category||''):(refFor(en.item).category||'');
+  if(en.item.toLowerCase().indexOf(_searchQ)>-1 || cat.toLowerCase().indexOf(_searchQ)>-1) return true;
+  var m=_memberFor(en.member && en.member.appearId);
+  return !!(m && m.extra && m.extra.indexOf(_searchQ)>-1);
+}
 function renderSection(bodyId, countId, entries, needsMode, key){
   var body=document.getElementById(bodyId);
   var countEl=document.getElementById(countId);
   if(!body) return;
-  var filtered=entries.filter(function(en){
-    if(!_searchQ) return true;
-    var cat=needsMode?(en.category||''):(refFor(en.item).category||'');
-    return en.item.toLowerCase().indexOf(_searchQ)>-1 || cat.toLowerCase().indexOf(_searchQ)>-1;
-  });
+  var filtered=entries.filter(function(en){ return _chipPasses(en, needsMode); });
   if(countEl){
     var ppl={}; filtered.forEach(function(en){ ppl[normId(en.member.appearId)]=true; });
     var n=Object.keys(ppl).length;
@@ -1077,11 +1126,7 @@ function renderExpanded(){
   var exp=document.getElementById('expanded-view'); if(!exp) return;
   var key=_expanded, meta=SECTION_META[key]||{title:'',needsMode:false};
   var entries=_chips[key]||[];
-  var filtered=entries.filter(function(en){
-    if(!_searchQ) return true;
-    var cat=meta.needsMode?(en.category||''):(refFor(en.item).category||'');
-    return en.item.toLowerCase().indexOf(_searchQ)>-1 || cat.toLowerCase().indexOf(_searchQ)>-1;
-  });
+  var filtered=entries.filter(function(en){ return _chipPasses(en, meta.needsMode); });
   var chipsFor=function(list){
     return list.length
       ? list.map(function(en){ var mt=_matchMode?(meta.needsMode?matchNeedChip(en):matchOfferingChip(en)):''; return chipHTML(en, mt, meta.needsMode, key); }).join('')
@@ -1263,7 +1308,6 @@ function updateHeaderButton(){
     [['interests','Recreational interests of our group'],['values','Values of our group'],['needs','What our group needs']].forEach(function(t){
       var h=document.getElementById(t[0]+'-body'); h=h&&h.parentNode&&h.parentNode.querySelector('.q-title'); if(h) h.textContent=t[1];
     });
-    var _ph=document.getElementById('search-input'); if(_ph) _ph.placeholder='Search skills, interests, values...';
   }
   var _sb=document.getElementById('hub-share-btn'); if(_sb && _eventId!=='m97sjwa3') _sb.style.display='none';   // QR share button is Lake-Ballinger-only
   if(!_myId){ var _tb=document.querySelector('.top-bar'); if(_tb) _tb.style.display='none'; }   // search is signed-in-only (has memberCard)
@@ -1271,6 +1315,7 @@ function updateHeaderButton(){
   loadEvent();                                             // independent, fire-and-forget (sets host email for the envelope button)
   var enrich=Promise.all([loadRefData(), loadCategories()]); // heavy — don't block first paint
   await loadMembers();                                     // first paint + sets _myData (do I have a profile?)
+  loadBookmarkedPeople();                                  // the Show bookmarked switch, once it knows whom
   renderProfileCta();                                      // "Build my event profile" when I have an ID but no profile
   renderHubNav();                                          // re-render: "Event profile" nav now knows if I have a profile (and a group's board its name)
   updateHeaderButton();                                    // "My matches" only when I have a completed event profile
