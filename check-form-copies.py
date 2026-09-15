@@ -36,6 +36,9 @@ CHECKS = [
     # 2026-09-10: item 1's "off until they say" reached one copy's variable and nothing else.
     ('registration starts Off',       'class="format-chip selected" id="int-off"'),
     ('Hosting choice keeps it Off',   'OFF UNTIL THE HOST SAYS OTHERWISE, HERE TOO'),
+    # 2026-09-15: Post a whole calendar (super admin) went into one copy first.
+    ('Post a whole calendar panel',   'POST A WHOLE CALENDAR (super admin), 2026-09-15'),
+    ('whole calendar reads printed dates only', 'ONLY A DATE THE PAGE PRINTS'),
 ]
 
 print('%-34s %-10s %s' % ('change', 'events/', 'myevents/'))
