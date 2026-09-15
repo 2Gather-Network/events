@@ -164,6 +164,13 @@
   <div id="stage-looking" style="display:flex;justify-content:flex-start;margin:8px 0 0;">
     <span class="cw-loading">Looking up this group...</span>
   </div>
+  <!-- THE GROUP DID NOT LOAD, AND THE WAY ON. Row 148, 2026-09-14: the page waited for ever on one failed request.
+       The gate now asks Apps Script once more for any read that fails; if that fails too, this card says so, in the
+       white panel with the next step beside it, instead of the pill holding still. -->
+  <div id="stage-failed" class="card hidden">
+    <p class="lede" id="stage-failed-msg" style="margin:0 0 14px;">The group did not load.</p>
+    <button class="btn" id="stage-failed-retry" type="button">Try again</button>
+  </div>
 
   <div id="stage-pin" class="card hidden">
     <h1 id="pin-title">Group admin</h1>
@@ -579,6 +586,10 @@
                  + '&me=' + encodeURIComponent(meId) + '&nocache=1&t=' + Date.now())
       .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
+        // AN ANSWER OR NOT (row 148). Anything without a group field is a failed request, not a group: it goes to the
+        // catch, which says it did not load. A group field that is empty is an answer: there is no such group.
+        if (!d || typeof d !== 'object' || !('group' in d)) { throw new Error('no answer'); }
+        if (!d.group) { _groupFailed('We could not find this group.'); return; }
         groupData = d || {};
         var g = (d && d.group) || {};
         // Arriving straight from a link carries no role, and the page used to state
@@ -728,8 +739,35 @@
         renderMembers(_mem);
         loadWhoLeft();
       })
-      .catch(function(){});
+      .catch(function(){ _groupFailed('The group did not load.'); });
   }
+
+  // NEVER WAITING FOR EVER (row 148, 2026-09-14). A failed answer used to be swallowed here, so the pill kept saying it
+  // was looking until somebody reloaded. Only while the page is still looking: once the group has been drawn, a
+  // later refresh that fails leaves what is on screen alone.
+  function _groupFailed(msg){
+    var lk = document.getElementById('stage-looking');
+    if (!lk || lk.style.display === 'none') return;
+    lk.style.display = 'none';
+    var card = document.getElementById('stage-failed');
+    var m = document.getElementById('stage-failed-msg');
+    if (m) m.textContent = msg;
+    if (card) card.classList.remove('hidden');
+  }
+  (function(){
+    var again = document.getElementById('stage-failed-retry');
+    if (!again) return;
+    again.addEventListener('click', function(){
+      document.getElementById('stage-failed').classList.add('hidden');
+      var lk = document.getElementById('stage-looking');
+      if (lk) {
+        lk.style.display = 'flex';
+        var p = lk.querySelector('.cw-loading') || lk;
+        p.textContent = 'Looking up this group...';
+      }
+      loadGroup();
+    });
+  })();
 
   // Who left, and when. Host only on the backend, so a failure here just leaves the block hidden.
   function loadWhoLeft(){
