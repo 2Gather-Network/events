@@ -2094,6 +2094,11 @@
   // Automatic save: debounced on any edit, flushed when leaving a step or the editor.
   function autoSave(){
     if(_viewing){ setSaveStat('Looking, not editing.'); return; }
+    // NOTHING IS SAVED UNTIL THE PROFILE HAS LOADED (row 176, 2026-09-15). The boxes are emptied before the profile
+    // arrives, and a load that failed used to leave them empty while the autosave went on, writing blank values,
+    // sectors and work values over the real ones. It waits for the backend's answer: the profile, or a plain "no
+    // profile yet" for somebody new. Without either, the edits stay on the screen and nothing is written.
+    if(!window._profAnswered){ setSaveStat(window._profFetchFailed ? 'Your profile did not load, so nothing was saved. Reload the page.' : 'Saving once your profile has loaded…'); if(!window._profFetchFailed){ if(_saveTimer) clearTimeout(_saveTimer); _saveTimer=setTimeout(autoSave, 3000); } return; }
     if(!_id || !_dirty || _saving) return;
     if(!_editToken){ return; } // identity is verified before entering the editor
     _saving=true; setSaveStat('Saving…');
@@ -2187,7 +2192,7 @@
   (function(){ var em=document.getElementById('edit-mode'); if(em){ var s=document.createElement('div'); s.id='da-savestat'; s.style.cssText='font-size:13px;color:var(--muted);font-weight:600;text-align:right;min-height:16px;margin-bottom:6px;'; em.insertBefore(s, em.firstChild); } })();
 
   var _pRef=fetch(GS_URL+'?action=getReferenceData').then(function(r){return r.json();}).then(function(rd){ buildTreesFromRefData(rd); }).catch(function(){});
-  var _pProf=_id ? fetch(GS_URL+'?action=getProfile&appearId='+encodeURIComponent(_id)).then(function(r){return r.json();}).then(function(resp){ if(resp&&resp.found&&resp.data){ _profilePhoto=resp.photo||''; _profileName=resp.name||''; _pageLink=resp.pageLink||''; loadProfile(resp.data); } }).catch(function(e){ window._profFetchFailed = String(e && e.message || e); }) : Promise.resolve();
+  var _pProf=_id ? fetch(GS_URL+'?action=getProfile&appearId='+encodeURIComponent(_id)).then(function(r){return r.json();}).then(function(resp){ window._profAnswered = !!(resp && (resp.found===true || (resp.found===false && resp.status!=='error'))); if(resp&&resp.found&&resp.data){ _profilePhoto=resp.photo||''; _profileName=resp.name||''; _pageLink=resp.pageLink||''; loadProfile(resp.data); } }).catch(function(e){ window._profFetchFailed = String(e && e.message || e); }) : Promise.resolve();
   var _manageParam=_param('manage');
   // Concept A: your OWN page lands on the hub (welcome + tabs). The "This is me" card is the
   // quick view of SOMEONE ELSE, the way it appears from a bulletin board (?show=them&me=you).

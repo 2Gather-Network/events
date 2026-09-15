@@ -1861,7 +1861,8 @@
     qs += '&needsTags='     + encodeURIComponent(tagFor('introNeed'))
         + '&interestsTags=' + encodeURIComponent(tagFor('introEnjoy'))
         + '&skillsTags='    + encodeURIComponent(gpSkillsWithOffers(tagFor('introSkills')))
-        + '&valuesTags='    + encodeURIComponent(tagFor('introValues'))
+        + '&valuesTags='    + encodeURIComponent(gpSplitCare(tagFor('introValues')).values)
+        + '&domainsTags='   + encodeURIComponent(gpSplitCare(tagFor('introValues')).domains)
         + '&location='      + encodeURIComponent(gpLocString(_gpLoc));
     if (window._gpLoaded) qs += '&havesTags=' + encodeURIComponent(gpOfferParts().havesTags)
       + '&openToPaidWork=' + encodeURIComponent(gpOtwList('paid').join('|'))
@@ -1971,6 +1972,22 @@
   // offers"). Things and spaces are ikigai.haves, My haves on the profile; a new skill offered here also joins
   // ikigai.skills. What was loaded goes back exactly as it arrived, kind and all, which the old save lost by sending
   // the box's cleaned names.
+  // SECTORS GO TO SECTORS (row 176, 2026-09-15). "What do you care about?" offers the sector words too, and every pick was
+  // saved among the care-about words in ikigai.values, the very words row 158 had just moved out. A pick that is on the
+  // reference sectors list now goes to ikigai.domains (domainsTags, which the backend only ever adds to); the rest stay
+  // care-about words. A sector written the values way ("Word:Value:level") drops the Value on the way across.
+  function gpSplitCare(tags){
+    var rd = window._gpRd || {}, sec = {};
+    (rd.domains || []).forEach(function(v){ var w = String((v && v.item !== undefined) ? v.item : v).trim().toLowerCase(); if (w) sec[w] = 1; });
+    var vals = [], doms = [];
+    String(tags || '').split('|').map(function(x){ return x.trim(); }).filter(Boolean).forEach(function(t){
+      var bits = t.split(':'), w = String(bits[0] || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
+      if (!sec[w.toLowerCase()]) { vals.push(t); return; }
+      var lvl = (bits[1] === 'Value') ? (bits[2] || '') : (bits[1] || '');
+      doms.push(w + (lvl ? ':' + lvl : ''));
+    });
+    return { values: vals.join('|'), domains: doms.join('|') };
+  }
   function gpOfferParts(){
     var el = document.getElementById('gp-intro-introOffer');
     var orig = _gpOrig.introOffer || {}, hn = window._gpHaveNames || {};
@@ -1983,7 +2000,10 @@
       if (hn[name] || kind === 'thing' || kind === 'space') haves.push(raw);
       else if (kind === 'skill' && !orig[name]) skills.push(raw);
     });
-    return { introOffer: items.join(', '), havesTags: haves.join('|'), offerSkills: skills };
+    // The answer in words, the tags beside it. introOffer was written from the tag forms ("…:skill"), so a profile showed
+    // "astrology and human design readings:skill" as somebody's own sentence (row 179). Words only now.
+    var words = items.map(function(raw){ return String(raw).split(':')[0].replace(/^[^\p{L}\p{N}]+/u, '').trim(); }).filter(Boolean);
+    return { introOffer: words.join(', '), havesTags: haves.join('|'), offerSkills: skills };
   }
   function gpSkillsWithOffers(base){
     var seen = {}, out = String(base || '').split('|').map(function(x){ return x.trim(); }).filter(Boolean);
@@ -2016,7 +2036,8 @@
     qs += '&needsTags='     + encodeURIComponent(tagFor('introNeed'))
         + '&interestsTags=' + encodeURIComponent(tagFor('introEnjoy'))
         + '&skillsTags='    + encodeURIComponent(gpSkillsWithOffers(tagFor('introSkills')))
-        + '&valuesTags='    + encodeURIComponent(tagFor('introValues'))
+        + '&valuesTags='    + encodeURIComponent(gpSplitCare(tagFor('introValues')).values)
+        + '&domainsTags='   + encodeURIComponent(gpSplitCare(tagFor('introValues')).domains)
         + '&location='      + encodeURIComponent(gpLocString(_gpLoc));
     if (window._gpLoaded) qs += '&havesTags=' + encodeURIComponent(gpOfferParts().havesTags)
       + '&openToPaidWork=' + encodeURIComponent(gpOtwList('paid').join('|'))
