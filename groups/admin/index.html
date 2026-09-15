@@ -449,6 +449,16 @@
         </div>
         <button class="btn danger sm" id="danger-archive">Archive group</button>
       </div>
+      <!-- THE CODE, ONLY FOR ARCHIVING (row 162, 2026-09-14). Jessie: "code reuested only to delete a group". Pressing
+           Archive group without a fresh code shows this: the code is emailed, typed here, and the group is archived. -->
+      <div id="archive-code" class="hidden" style="margin-top:6px;">
+        <p class="sub" style="margin:0 0 10px;">Archiving needs the code we email you. It expires in 15 minutes and can only be used once.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <button class="btn sm" id="archive-send" type="button">Send code</button>
+          <input type="text" id="archive-input" inputmode="numeric" pattern="[0-9]*" placeholder="Example: 428091" style="max-width:180px;letter-spacing:.2em;text-align:center;display:none;">
+          <button class="btn danger sm" id="archive-confirm" type="button" style="display:none;">Archive group</button>
+        </div>
+      </div>
       <div id="danger-status" class="status"></div>
     </div>
       </section>
@@ -643,6 +653,10 @@
         if (!_dashOpen && getToken()) { unlockDashboard(); _dashOpen = true; }
         if (_dashOpen) {
           document.getElementById('stage-pin').classList.add('hidden');
+        } else if (_signinToken()) {
+          // SIGNED IN IS ENOUGH TO OPEN MANAGE (row 162, 2026-09-14). The code card only shows if the sign-in is
+          // refused (run out, or somebody else's device). See passFromSignin.
+          passFromSignin();
         } else {
           document.getElementById('stage-pin').classList.remove('hidden');
         }
@@ -1014,7 +1028,32 @@
   // card went live, with a picture of the pill still reading "This is taking longer than usual": the card covered a
   // request that came back failed, not one that never came back. After a minute with no answer the card shows, with
   // Try again. If the answer does arrive after that, the page takes it and the card goes.
-  setTimeout(function(){ _groupFailed('The group did not load.'); }, 60000);
+  setTimeout(function(){ if (!groupData) _groupFailed('The group did not load.'); }, 60000);
+
+  // A SIGNED-IN HOST IS NOT ASKED FOR A CODE (row 162, 2026-09-14). Jessie: "I don't wnat to have it send a code if i'm
+  // logged in aleady with a pin as a group hsot", then "code reuested only to delete a group". Signing in leaves a pass
+  // on the device (cw-token, from Google or the emailed sign-in code); the backend checks it and hands back the same
+  // Manage pass the group code gives. If it is refused, the code card shows as before. Archiving still asks for the
+  // emailed code, in the Permanent changes tab.
+  function _signinToken(){
+    try { return localStorage.getItem('cw-token') || ''; } catch (e) { return ''; }
+  }
+  function passFromSignin(){
+    var lk = document.getElementById('stage-looking');
+    if (lk) { lk.style.display = 'flex'; var p = lk.querySelector('.cw-loading') || lk; p.textContent = 'Opening Manage...'; }
+    var showCard = function(){
+      if (lk) lk.style.display = 'none';
+      document.getElementById('stage-pin').classList.remove('hidden');
+    };
+    fetch(GS_URL + '?action=groupPassFromSignin&groupId=' + encodeURIComponent(groupId)
+          + '&hostAppearId=' + encodeURIComponent(meId) + '&editToken=' + encodeURIComponent(_signinToken()))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.status === 'ok' && d.sessionToken) { setToken(d.sessionToken, d.superToken); unlockDashboard(); }
+        else { showCard(); }
+      })
+      .catch(showCard);
+  }
 
   function unlockDashboard(){
     var _lk3 = document.getElementById('stage-looking');
@@ -1061,6 +1100,7 @@
         btn.disabled = false;
         if (d && d.status === 'ok' && d.sessionToken) {
           setToken(d.sessionToken, d.superToken);
+          _keepArchiveTok(d);   // a code just entered also covers archiving for fifteen minutes (row 162)
           unlockDashboard();
         } else {
           showStatus('pin-status', 'err', (d && d.message) ? d.message : 'Invalid or expired code.');
@@ -1822,21 +1862,73 @@
       })
       .catch(function(){ showStatus('transfer-status', 'err', 'Could not reach the server. Try again in a moment.'); });
   });
-  document.getElementById('danger-archive').addEventListener('click', function(){
+  // ARCHIVING ASKS FOR THE EMAILED CODE (row 162, 2026-09-14). The code hands back an archive pass for this group,
+  // good for fifteen minutes (verifyAdminPin's archiveToken); without one, Archive group opens the code step below it.
+  var _archiveTok = '', _archiveTokUntil = 0;
+  function _keepArchiveTok(d){
+    if (d && d.archiveToken) { _archiveTok = d.archiveToken; _archiveTokUntil = Date.now() + 14*60*1000; }
+  }
+  function _doArchive(){
     if (!confirm('Archive this group? Its people stay on their own profiles, and the group stops being somewhere anybody can join or gather. This cannot be undone from here.')) return;
     var tok2 = getToken() || '';
     showStatus('danger-status', 'ok', 'Archiving…');
     fetch(GS_URL + '?action=archiveGroup&groupId=' + encodeURIComponent(groupId)
-          + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok2))
+          + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok2)
+          + '&archiveToken=' + encodeURIComponent(_archiveTok))
       .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         if (d && d.status === 'ok') {
+          document.getElementById('archive-code').classList.add('hidden');
           showStatus('danger-status', 'ok', (d.groupName || 'The group') + ' is archived.');
+        } else if (d && d.code === 'needcode') {
+          _archiveTok = ''; _archiveTokUntil = 0;
+          document.getElementById('archive-code').classList.remove('hidden');
+          showStatus('danger-status', 'err', 'That code has run out. Send a new one.');
         } else {
           showStatus('danger-status', 'err', (d && d.message) ? d.message : 'That did not go through.');
         }
       })
       .catch(function(){ showStatus('danger-status', 'err', 'Could not reach the server.'); });
+  }
+  document.getElementById('danger-archive').addEventListener('click', function(){
+    if (_archiveTok && Date.now() < _archiveTokUntil) { _doArchive(); return; }
+    document.getElementById('archive-code').classList.remove('hidden');
+  });
+  document.getElementById('archive-send').addEventListener('click', function(){
+    var b = this; b.disabled = true; setTimeout(function(){ b.disabled = false; }, 1200);
+    showStatus('danger-status', 'ok', 'Sending the code to your email…');
+    fetch(GS_URL + '?action=sendAdminPin&groupId=' + encodeURIComponent(groupId) + '&hostAppearId=' + encodeURIComponent(meId))
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
+      .then(function(d){
+        if (d && d.status === 'ok') {
+          var _to = maskEmail(d.sentTo || d.email || '');
+          showStatus('danger-status', 'ok', _to ? ('Code sent to ' + _to + '. Check your email.') : 'Code sent. Check your email.');
+          document.getElementById('archive-input').style.display = '';
+          document.getElementById('archive-confirm').style.display = '';
+        } else {
+          showStatus('danger-status', 'err', (d && d.message) ? d.message : 'Could not send the code. Try again in a moment.');
+        }
+      })
+      .catch(function(){ showStatus('danger-status', 'err', 'Could not reach the server. Try again in a moment.'); });
+  });
+  document.getElementById('archive-confirm').addEventListener('click', function(){
+    var code = document.getElementById('archive-input').value.replace(/\D/g, '');
+    if (!/^\d{4,8}$/.test(code)) { showStatus('danger-status', 'err', 'Enter the 6-digit code from your email.'); return; }
+    var b = this; b.disabled = true;
+    fetch(GS_URL + '?action=verifyAdminPin&groupId=' + encodeURIComponent(groupId) + '&hostAppearId=' + encodeURIComponent(meId) + '&code=' + encodeURIComponent(code))
+      .then(function(r){ return r.json(); }).then(keepFreshToken)
+      .then(function(d){
+        b.disabled = false;
+        if (d && d.status === 'ok' && d.archiveToken) {
+          if (d.sessionToken) setToken(d.sessionToken, d.superToken);
+          _keepArchiveTok(d);
+          document.getElementById('archive-input').value = '';
+          _doArchive();
+        } else {
+          showStatus('danger-status', 'err', (d && d.message) ? d.message : 'Invalid or expired code.');
+        }
+      })
+      .catch(function(){ b.disabled = false; showStatus('danger-status', 'err', 'Could not reach the server. Try again in a moment.'); });
   });
 
 })();
