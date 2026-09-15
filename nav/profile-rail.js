@@ -1,4 +1,5 @@
-/*  Version: V1.00 | Date: 2026-09-14 | LAST CHANGE: one rail for My profile and My account, in the template.
+/*  Version: V1.01 | Date: 2026-09-15 | LAST CHANGE: My permissions between My profile and My account, a preview for a super admin only.
+    V1.00 | Date: 2026-09-14 | LAST CHANGE: one rail for My profile and My account, in the template.
 
     ONE RAIL FOR YOUR OWN PAGES. Jessie, 2026-09-14, of the profile in the template (?look=rail): "Should be in thsi order:
     My profile / My account / Support / Sign out", "Top two shouls change from Calendar My events to My events and My
@@ -62,6 +63,10 @@
     var list = document.createElement('div'); list.className = 'cw-prail-list';
     var items = [
       { key: 'profile', label: 'My profile', url: 'https://2gather.network/ikigai/' },
+      // MY PERMISSIONS, below My profile and above My account. Jessie, 2026-09-15: "have this as an opt-in within permissions
+      // tab which will be added below My profile and above my account say "My permissions"". A preview while it is designed:
+      // shown only to a super admin (the top bar's cw-super), and it opens the Permissions step on the intro, which saves nothing.
+      { key: 'permissions', label: 'My permissions', url: 'https://2gather.network/intro/?perm=1&step=permissions', superOnly: true },
       { key: 'account', label: 'My account', url: 'https://2gather.network/account/' },
       { key: 'support', label: 'Support', url: 'https://2gather.network/support?from=' + encodeURIComponent(location.pathname) },
       // Sign out acts on whoever is really signed in, so it is not offered while looking at somebody else.
@@ -69,6 +74,7 @@
     ];
     items.forEach(function (it) {
       if (it.out && opts.viewingSomeoneElse) return;
+      if (it.superOnly) { var _su = ''; try { _su = localStorage.getItem('cw-super') || ''; } catch (e) {} if (_su !== 'yes' || opts.viewingSomeoneElse) return; }
       var b = document.createElement('button'); b.type = 'button'; b.textContent = it.label;
       if (it.key === opts.active) { b.className = 'on'; b.setAttribute('aria-current', 'page'); }
       b.onclick = function () {
