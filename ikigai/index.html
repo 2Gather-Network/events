@@ -406,7 +406,34 @@
       .replace(/,\s*$/, '')
       .trim();
   }
-  function pvSaid(key){ var v=_pvTidy(_said&&_said[key]); return v?'<div class="pv-said">'+esc(v)+'</div>':''; }
+  // WORDS SAVED IN TAG FORM READ AS WORDS (2026-09-15). Jessie, on kendall patterson's profile: "My haves/what i'm
+  // seeking not showing up correctly in pills: astrology and human design readings:skill, workshop space:space". An intro
+  // page saved the answer in the shape of a tag list, type and all, and this printed it as it came. The type words come
+  // off ("item:skill", "item:local:space", "massage therapy:work:skill"), the list reads with commas, and a line that
+  // only repeats the pills above it is not drawn at all.
+  var _TAG_TYPES='(?:skill|space|thing|person|work|stuff|money|time|care|local)';
+  function _untag(v){
+    var t=String(v||'');
+    if(t.indexOf(':')<0) return t;
+    return t.split('|').map(function(x){ return x.replace(new RegExp('(?::'+_TAG_TYPES+')+(?::[^|]*)?$','i'),'').trim(); })
+            .filter(Boolean).join(', ');
+  }
+  function _tagShaped(v){
+    var parts=String(v||'').split('|').filter(Boolean);
+    return parts.length>0 && parts.every(function(x){ return new RegExp(':'+_TAG_TYPES+'(?::|$)','i').test(x); });
+  }
+  function pvSaid(key, pills){
+    var v=_pvTidy(_untag(_said&&_said[key]));
+    if(!v) return '';
+    if(pills && pills.length){
+      var have={}; pills.forEach(function(n){ have[String(n||'').toLowerCase().replace(/^📍\s*/,'').trim()]=1; });
+      var bits=v.split(/\s*,\s*/).filter(Boolean);
+      if(bits.length && bits.every(function(b){ return have[b.toLowerCase()]; })) return '';
+    }
+    return '<div class="pv-said">'+esc(v)+'</div>';
+  }
+  // A word's first letter as a capital, for words people typed in lower case. Nothing else in the word changes.
+  function _capFirst(v){ v=String(v||''); return v ? v.charAt(0).toUpperCase()+v.slice(1) : v; }
   var EXPRESSION_ADDED = [''];
   function parseNeedsStr(str){
     if(!str) return [];
@@ -755,7 +782,7 @@
       panel.appendChild(line); panel.appendChild(results); panel.appendChild(acts);
       catzone.appendChild(panel); inp.focus();
       matchExisting(inp, results, enjoyItemPool, function(hit){ if(hit.drill){ panel.remove(); renderNav(hit.drill); return; } addJoyCard(hit.name, [], true); inp.value=''; results.innerHTML=''; inp.focus(); });
-      function commit(){ var v=inp.value.trim(); if(!v) return; addJoyCard(v, [], true); inp.value=''; results.innerHTML=''; inp.focus(); }
+      function commit(){ var v=_capFirst(inp.value.trim()); if(!v) return; addJoyCard(v, [], true); inp.value=''; results.innerHTML=''; inp.focus(); }
       add.onclick=commit;
       inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); commit(); } });
       done.onclick=function(){ panel.remove(); };
@@ -889,7 +916,7 @@
         var line=document.createElement('div'); line.className='addown-line'; line.style.marginTop='10px';
         var inp=document.createElement('input'); inp.type='text'; inp.className='need-own'; inp.placeholder='Which language?';
         var add=document.createElement('button'); add.className='addown-btn'; add.textContent='Add';
-        function commit(){ var v=inp.value.trim(); if(!v) return; var h=langList(); h.push(v); setLangs(h); renderLangPicker(); }
+        function commit(){ var v=_capFirst(inp.value.trim()); if(!v) return; var h=langList(); h.push(v); setLangs(h); renderLangPicker(); }
         add.onclick=commit;
         inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); commit(); } });
         line.appendChild(inp); line.appendChild(add); langZone.appendChild(line); inp.focus();
@@ -965,7 +992,7 @@
       panel.appendChild(line); panel.appendChild(results); panel.appendChild(acts);
       catzone.appendChild(panel); inp.focus();
       matchExisting(inp, results, skillItemPool, function(hit){ addSkillCard(hit.name, hit.cat, ''); inp.value=''; results.innerHTML=''; inp.focus(); });
-      function commit(){ var v=inp.value.trim(); if(!v) return; addSkillCard(v, path[0]||'', ''); inp.value=''; results.innerHTML=''; inp.focus(); }
+      function commit(){ var v=_capFirst(inp.value.trim()); if(!v) return; addSkillCard(v, path[0]||'', ''); inp.value=''; results.innerHTML=''; inp.focus(); }
       add.onclick=commit;
       inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); commit(); } });
       done.onclick=function(){ panel.remove(); };
@@ -1115,7 +1142,7 @@
       ideasZone.appendChild(panel); inp.focus();
       function put(v){ if(mode==='domains') addCard(dSec, v, 'Domain', ''); else addCard(vSec, v, 'Value', ''); }
       matchExisting(inp, results, valueIdeaPool, function(hit){ put(hit.name); inp.value=''; results.innerHTML=''; inp.focus(); });
-      function commit(){ var v=inp.value.trim(); if(!v) return; put(v); inp.value=''; results.innerHTML=''; inp.focus(); }
+      function commit(){ var v=_capFirst(inp.value.trim()); if(!v) return; put(v); inp.value=''; results.innerHTML=''; inp.focus(); }
       add.onclick=commit;
       inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); commit(); } });
       done.onclick=function(){ panel.remove(); };
@@ -1180,7 +1207,7 @@
     // in `detail` with the name left empty: the card showed it, because the card falls back to
     // detail, and the save wrote the name, which was blank. Jessie typed "test add", saw it on
     // the screen, and the sheet received a need with no name at all. 2026-09-01.
-    function ownCommit(){ var v=ownInp.value.trim(); if(!v) return; ownInp.value=''; openAddEditor({item:v,type:'person',category:'',level:'',detail:'',local:true}); }
+    function ownCommit(){ var v=_capFirst(ownInp.value.trim()); if(!v) return; ownInp.value=''; openAddEditor({item:v,type:'person',category:'',level:'',detail:'',local:true}); }
     ownBtn.onclick=ownCommit;
     ownInp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); ownCommit(); } });
     var orSub=document.createElement('div'); orSub.className='enjoy-sub'; orSub.textContent='Or browse by what kind of thing it is.'; listEl.appendChild(orSub);
@@ -1275,7 +1302,7 @@
       panel.appendChild(line); panel.appendChild(results); panel.appendChild(acts);
       host.appendChild(panel); inp.focus();
       matchExisting(inp, results, function(){ var out=[]; SKILL_CATS.forEach(function(c){ (SKILL_TREE[c]||[]).forEach(function(it){ out.push({name:it, tag:c}); }); }); return out; }, function(hit){ panel.remove(); onAdd(hit.name); });
-      function commit(){ var v=inp.value.trim(); if(!v) return; panel.remove(); onAdd(v); }
+      function commit(){ var v=_capFirst(inp.value.trim()); if(!v) return; panel.remove(); onAdd(v); }
       add.onclick=commit;
       inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); commit(); } });
       done.onclick=function(){ panel.remove(); };
@@ -1420,7 +1447,9 @@
   function _noCats(list, get){ return (list||[]).filter(function(x){ return !_isCat(get(x)); }); }
   function pvTag(name, opts){
     opts=opts||{};
-    var lv=opts.level?'<span class="lv">'+esc(opts.level)+'</span>':'';
+    name=_capFirst(name);   // "baking" reads Baking; the stored word is not changed (2026-09-15)
+    // A type word saved where a level goes ("item:skill") is not a level, so it is not shown as one.
+    var lv=(opts.level && !new RegExp('^'+_TAG_TYPES+'$','i').test(String(opts.level).trim()))?'<span class="lv">'+esc(opts.level)+'</span>':'';
     var sb=opts.sub?'<span class="sub">'+esc(opts.sub)+'</span>':'';
     return '<div class="pv-tag'+(opts.cls?' '+opts.cls:'')+'">'+esc(name)+lv+sb+'</div>';
   }
@@ -1525,7 +1554,16 @@
     // Sectors on the screen. The stored column is still called domains and is not touched here,
     // so this is a heading change and nothing else. Jessie, 2026-09-02.
     var doms=pvWrap(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl}); }).join(''), 'Sectors');
-    var haves=SECTIONS[4].data.map(function(h){ return pvTag(h.text||'A have', {sub:(h.cats&&h.cats[0])||''}); }).join('');
+    var _haveList=SECTIONS[4].data.map(function(h){ return {t:h.text||'A have', sub:(h.cats&&h.cats[0])||''}; });
+    // Nothing in the haves list but an answer written as tags: those are the haves, drawn as pills (display only).
+    if(!_haveList.length && _tagShaped(_said&&_said.offer)){
+      _haveList=_untag(_said.offer).split(/\s*,\s*/).filter(Boolean).map(function(t){ return {t:t, sub:''}; });
+    }
+    var haves=_haveList.map(function(h){ return pvTag(h.t, {sub:h.sub}); }).join('');
+    var _pillsEnjoy=_noCats(ENJOY_ADDED,function(x){return x.t;}).map(function(x){ return x.t; });
+    var _pillsSkills=_noCats(SKILLS_ADDED,function(x){return x.t;}).map(function(x){ return x.t; }).concat(SKILL_METHODS_ON, _langs);
+    var _pillsHaves=_haveList.map(function(h){ return h.t; });
+    var _pillsNeeds=NEEDS_ADDED.map(function(n){ return n.item; });
     pv.innerHTML='<div class="pv-card">'
       // The whole name, and nothing to press. This is the page somebody else sees, so there is no
       // photo to change, nothing to bookmark and no controls of any kind. Jessie, 2026-09-02.
@@ -1545,11 +1583,11 @@
       // it on 2026-09-03: a profile opens with what a person brings and closes with what they
       // are looking for. The step numbers are untouched, so every Edit button still opens the
       // section it always did; only the drawing order moved.
-      +pvSection('What I enjoy',1,enjoy,pvSaid('enjoy')+expr)
-      +pvSection('My skills',2,'',methods+skills+pvSaid('skills'))
-      +pvSection('What I care about',3,'',vals+doms+pvWrap((WORK_VALUES_ADDED||[]).map(function(t){ return pvTag(t); }).join(''), 'Work values')+pvSaid('values'))
-      +pvSection('My haves',4,haves,pvSaid('offer'))
-      +pvSection("What I'm seeking",0,seeking,pvSaid('need'))
+      +pvSection('What I enjoy',1,enjoy,pvSaid('enjoy',_pillsEnjoy)+expr)
+      +pvSection('My skills',2,'',methods+skills+pvSaid('skills',_pillsSkills))
+      +pvSection('What I care about',3,'',vals+doms+pvWrap((WORK_VALUES_ADDED||[]).map(function(t){ return pvTag(t); }).join(''), 'Work values')+pvSaid('values',_noCats(VALUES_ADDED,function(x){return x.t;}).map(function(x){return x.t;}).concat(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(x){return x.t;}),WORK_VALUES_ADDED||[])))
+      +pvSection('My haves',4,haves,pvSaid('offer',_pillsHaves))
+      +pvSection("What I'm seeking",0,seeking,pvSaid('need',_pillsNeeds))
       +'</div>';
     pv.querySelectorAll('.pv-edit').forEach(function(b){ if(b.id==='pv-photo-btn'||b.id==='pv-bookmark'||b.id==='pv-edit-mine') return; b.onclick=function(){ requestEdit(parseInt(b.getAttribute('data-step'),10)); }; });
     var _em=document.getElementById('pv-edit-mine');
