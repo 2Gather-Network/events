@@ -3,7 +3,7 @@
   Copyright 2026 DayBalancer LLC. All rights reserved.
   hello@creating.works
 -->
-<!-- Version: V1.52 | Date: 2026-09-13 | LAST CHANGE: an example already chosen is not shown a second time under the list of answers. Jessie: "Duplicates showing". -->
+<!-- Version: V1.53 | Date: 2026-09-15 | LAST CHANGE: nobody is told they have no photo before the lookup says so; the photo the top bar knows is used at once; "Your photo is needed" goes once a photo shows. V1.52: an example already chosen is not shown a second time under the list of answers. Jessie: "Duplicates showing". -->
 <!-- Previous: V1.51 | Date: 2026-09-13 | LAST CHANGE: until the saved answers arrive the card shows a breathing Loading information and no empty questions. Jessie: "shouldn't it not show unanswered pages and instead show a breathing loading info button?". -->
 <!-- Previous: V1.50 | Date: 2026-09-13 | LAST CHANGE: "Who would you most like your work to serve?" under What comes most naturally to you?, saved to ikigai.servesWho. Jessie: "Yes addd this below Facilitation and coaching question". -->
 <!-- Previous: V1.49 | Date: 2026-09-13 | LAST CHANGE: Which types of non-paid work? has + Other. Jessie: "Make a chip for other like we normally do". -->
@@ -1276,6 +1276,9 @@
     var f = document.getElementById('gp-photo-face'); if (!f) return;
     f.innerHTML = '<img src="' + url + '" alt="" style="width:100%;height:100%;object-fit:cover;">';
     var b = document.getElementById('gp-photo-btn'); if (b) b.textContent = 'Change photo';
+    // "Your photo is needed" is for somebody without one. Jessie, 2026-09-15, with her photo showing: "the message still
+    // shows".
+    var need = document.getElementById('gp-photo-need'); if (need) need.style.display = 'none';
     // Step 0 will not let anybody past without one, so the moment a face lands the door opens.
     window._gpPhotoUp = true;
     if (typeof gpStepPaint === 'function') gpStepPaint();
@@ -1364,7 +1367,7 @@
       + (GP_BROWSE ? 'A professional photo helps members recognize you when you show up.</div>'
                    : 'A professional photo helps people recognize you when you show up.</div>')
       + (GP_BROWSE
-          ? '<div style="font-size:13.5px;color:#6B7A8D;line-height:1.5;margin-bottom:8px;">'
+          ? '<div id="gp-photo-need" style="font-size:13.5px;color:#6B7A8D;line-height:1.5;margin-bottom:8px;">'
             + (GP_FOR === 'event'
                 ? 'Your photo is needed to register for an event that has a bulletin board.'
                 : 'Your photo is needed to join a group.')
@@ -1419,6 +1422,14 @@
       // A photo seen before paints at once, so a return visit never waits at all.
       var _seen = '';
       try { _seen = localStorage.getItem('cw-photo-' + meId) || ''; } catch (e) {}
+      // Or the one the top bar already shows for this person, which it keeps from signing in. Jessie, 2026-09-15: "it's
+      // asking me for a photo and I have a photo already" - hers is on Info, not in the photo store, so it waited for the
+      // slow lookup while the bar above already had it.
+      try {
+        if (!_seen && String(localStorage.getItem('cw-photo-for') || '').split('.').join('').toLowerCase() === String(meId).split('.').join('').toLowerCase()) {
+          _seen = localStorage.getItem('cw-photo') || '';
+        }
+      } catch (e) {}
       // On the next tick, because gpPhotoShow finds the circle by id and this block is not on
       // the page yet. Painting straight away looked instant and drew nothing at all.
       if (_seen) setTimeout(function(){ _settle(_seen); }, 0);
@@ -1434,9 +1445,14 @@
           .catch(function(){ _settle(''); });
       };
       _probe.src = _direct;
-      // Nobody waits forever. After eight seconds we say we do not have one, which is at worst
-      // an invitation to add a photo they already have.
-      setTimeout(function(){ _settle(''); }, 6000);
+      // NOBODY IS TOLD THEY HAVE NO PHOTO BEFORE WE KNOW. This said so after six seconds whatever the lookup was still
+      // doing, and the lookup takes up to a minute, so somebody with a photo was asked to add one (Jessie, 2026-09-15). After
+      // six seconds the button is offered, and the words say we are still looking; only the lookup's answer says none.
+      setTimeout(function(){
+        if (_settled) return;
+        _btn2.style.display = '';
+        if (_hint) _hint.textContent = 'Still looking for your photo. You can add one now if you like.';
+      }, 6000);
     } else if (meId) {
       fetch(GS_URL + '?action=lookupProfile&appearId=' + encodeURIComponent(meId))
         .then(function(r){ return r.json(); })
