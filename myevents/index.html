@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.45 | Date: 2026-09-14 | LAST CHANGE: on a phone, the two posting questions and the paste step have no grab-handle line either. M3.44: Show bookmarked shows at once from the bookmarks this device remembers, a failed answer is asked once more and never hides it, and a bookmark on one date of a weekly event is listed; the round Top button sits above any bar at the bottom of the screen, so it no longer covers Post event. M3.43: posting on a phone: no My events button above the form, no grab-handle line at the top, and the date box as tall as the others. M3.42: the event form saves the Last day of a repeating event (events.recurEnd) and the bulletin board tick (events.hasBB), which it had loaded but never saved; both form copies. M3.41: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. M3.40: no My groups page button, and no groups request behind it. -->
+<!-- Version: M3.46 | Date: 2026-09-14 | LAST CHANGE: adding or removing a topic on the wish list changes that one topic on the sheet (row 165); both copies. M3.45: on a phone, the two posting questions and the paste step have no grab-handle line either. M3.44: Show bookmarked shows at once from the bookmarks this device remembers, a failed answer is asked once more and never hides it, and a bookmark on one date of a weekly event is listed; the round Top button sits above any bar at the bottom of the screen, so it no longer covers Post event. M3.43: posting on a phone: no My events button above the form, no grab-handle line at the top, and the date box as tall as the others. M3.42: the event form saves the Last day of a repeating event (events.recurEnd) and the bulletin board tick (events.hasBB), which it had loaded but never saved; both form copies. M3.41: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. M3.40: no My groups page button, and no groups request behind it. -->
 <!-- Previous: M3.39 | Date: 2026-09-12 | LAST CHANGE: the page buttons read Calendar, My events, My groups, in the same places as on the calendar. -->
 <!-- Previous: M3.38 | Date: 2026-09-12 | LAST CHANGE: a chosen cover picture is made at most 1600px as a JPEG before it goes up, so a phone photo is no longer refused (row 143). -->
 <!-- Previous: M3.37 | Date: 2026-09-12 | LAST CHANGE: the cover picture's "over 5MB" line is red. -->
@@ -7461,7 +7461,11 @@ function loadInterests() {
 //   The actor's own profile is untouched, because nothing in this path writes to it at all.
 //
 // `phrase` is only for the sentence in the confirm, so it can say Add or Remove and the word.
-function saveInterests(arr, phrase) {
+// ONE TOPIC ADDED OR TAKEN AWAY (row 165, 2026-09-14). `change` says which, {op:'add'|'remove', items:[...]}, and the
+// backend makes that change to what the sheet holds, then answers with the whole list, which replaces the one kept
+// here. Sending only the list let a page that had not loaded somebody's topics write a short list over the real one:
+// Jessie's six became "Climb". The list is still sent too, so an older backend behaves exactly as before.
+function saveInterests(arr, phrase, change) {
   var onBehalf = isViewingSomeoneElse();
   if (onBehalf && !_confirmOnBehalf(phrase)) { return; }
   // Kept so the chip draws at once, and PUT BACK if the backend says it could not save. Apps
@@ -7482,6 +7486,7 @@ function saveInterests(arr, phrase) {
     // anyting angain."
     fetch(GS_URL + "?action=saveInterests&appearId=" + encodeURIComponent(memberId)
       + "&interests=" + encodeURIComponent(arr.join("|"))
+      + (change && change.op ? "&op=" + encodeURIComponent(change.op) + "&topics=" + encodeURIComponent((change.items || []).join("|")) : "")
       + (onBehalf ? "&actingAs=" + encodeURIComponent(actor || "") : ""))
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -7496,6 +7501,11 @@ function saveInterests(arr, phrase) {
             alert("That did not save.\n\nThere is no profile row to write to for " + _who
               + ", so the topic is on screen and nowhere else. Tell me and I will look at the row.");
           } catch (e) {}
+        }
+        // The sheet's own list, after the change, is the truth: it replaces what this page was holding.
+        else if (d && d.status === "ok" && Array.isArray(d.topics)) {
+          try { localStorage.setItem(_interestsKey(), JSON.stringify(d.topics)); } catch (e) {}
+          try { renderForYou(); renderEnjoyPills(); if (typeof fbarDraw === "function") fbarDraw(); } catch (e) {}
         }
       })
       .catch(function () {});
@@ -7548,7 +7558,7 @@ function pullProfileInterests() {
   var added = 0;
   _myEnjoy.forEach(function(v){ if (v && existing.indexOf(v.toLowerCase()) === -1) { arr.push(v); existing.push(v.toLowerCase()); added++; } });
   if (!added) { updatePullProfileLink(); return; }
-  saveInterests(arr, 'Add ' + added + (added === 1 ? ' topic to' : ' topics to'));
+  saveInterests(arr, 'Add ' + added + (added === 1 ? ' topic to' : ' topics to'), { op: 'add', items: arr.slice(arr.length - added) });
   renderEnjoyPills();
   renderForYou();
   if (typeof showToast === "function") showToast("Added " + added + " from your event profile");
@@ -8521,14 +8531,14 @@ function renderEnjoyPills() {
 function addEnjoy(item) {
   const arr = loadInterests();
   const have = arr.map(function (s) { return String(s).toLowerCase(); });
-  if (have.indexOf(String(item).toLowerCase()) === -1) { arr.push(item); saveInterests(arr, 'Add "' + item + '" to'); }
+  if (have.indexOf(String(item).toLowerCase()) === -1) { arr.push(item); saveInterests(arr, 'Add "' + item + '" to', { op: 'add', items: [item] }); }
   renderEnjoyPills();
   renderForYou();
 }
 
 function removeInterest(kw) {
   const arr = loadInterests().filter(k => k !== kw);
-  saveInterests(arr, 'Remove "' + kw + '" from');
+  saveInterests(arr, 'Remove "' + kw + '" from', { op: 'remove', items: [kw] });
   renderEnjoyPills();   // one fewer topic can mean one more thing to offer from the profile
   renderForYou();   // matches sit right below the open panel now, so keep them current
 }
@@ -8570,7 +8580,7 @@ function addInterest() {
   const arr = loadInterests();
   const existing = arr.map(s => s.toLowerCase());
   vals.forEach(v => { if (!existing.includes(v.toLowerCase())) { arr.push(v); existing.push(v.toLowerCase()); } });
-  saveInterests(arr, 'Add "' + vals.join('", "') + '" to');
+  saveInterests(arr, 'Add "' + vals.join('", "') + '" to', { op: 'add', items: vals });
   input.value = "";
   document.getElementById("interests-autocomplete").style.display = "none";
   renderEnjoyPills();
