@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V13.98 | Date: 2026-09-12 | LAST CHANGE: category pills on Upcoming events cards as small as Recommended matches pills. V13.97: a line above the groups on Group events cards. V13.96: the switch above Recommended matches reads Show events only in my groups; the nothing-for-your-group line sits at the top of the panel, with Be the first, Post an event and, on a computer, Clear filters. V13.95: a group chosen in Groups narrows Recommended matches too, and with a group chosen a section with nothing from it is not shown; when none has anything, one line says so. V13.94: the event form saves the Last day of a repeating event (events.recurEnd) and the bulletin board tick (events.hasBB), which it had loaded but never saved; both form copies. V13.93: your groups are remembered on this device and shown at once, while the backend is asked in the background. V13.92: your groups are asked for once, shared by Group events and the Groups filter, asked again if the answer fails, and a failure says Your groups did not load with Try again instead of You are not in a group yet. V13.91: signed out, Show cancelled is not shown and cancelled events stay hidden. V13.90: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. V13.89: phone: an event's whole title shows in its row, so a long one never runs over the date. -->
+<!-- Version: V13.99 | Date: 2026-09-14 | LAST CHANGE: a failed bookmarks answer is asked once more and never hides Show bookmarked or wipes the bookmarks this device remembers; the round Top button sits above any bar at the bottom of the screen. V13.98: category pills on Upcoming events cards as small as Recommended matches pills. V13.97: a line above the groups on Group events cards. V13.96: the switch above Recommended matches reads Show events only in my groups; the nothing-for-your-group line sits at the top of the panel, with Be the first, Post an event and, on a computer, Clear filters. V13.95: a group chosen in Groups narrows Recommended matches too, and with a group chosen a section with nothing from it is not shown; when none has anything, one line says so. V13.94: the event form saves the Last day of a repeating event (events.recurEnd) and the bulletin board tick (events.hasBB), which it had loaded but never saved; both form copies. V13.93: your groups are remembered on this device and shown at once, while the backend is asked in the background. V13.92: your groups are asked for once, shared by Group events and the Groups filter, asked again if the answer fails, and a failure says Your groups did not load with Try again instead of You are not in a group yet. V13.91: signed out, Show cancelled is not shown and cancelled events stay hidden. V13.90: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. V13.89: phone: an event's whole title shows in its row, so a long one never runs over the date. -->
 <!-- Previous: V13.88 | Date: 2026-09-12 | LAST CHANGE: the filters in a bottom sheet are published for every phone (?sheet=0 shows the old folding filters). -->
 <!-- Previous: V13.87 | Date: 2026-09-12 | LAST CHANGE: phone, behind ?sheet=1: the starting United States is not counted as a filter, so Clear filters greys when nothing is chosen. -->
 <!-- Previous: V13.86 | Date: 2026-09-12 | LAST CHANGE: phone, behind ?sheet=1: the sheet is white with its lines 16px from the edges. -->
@@ -3934,7 +3934,8 @@ function _paintShowCancelled() {
 // IT STARTS OFF ON EVERY VISIT, unlike Show cancelled. It hides most of the calendar, so a reload
 // that quietly kept it on would be the page hiding things nobody asked it to hide today.
 //
-// INVITATION ONLY. It is not drawn until getBookmarks has answered AND at least one bookmark is an
+// INVITATION ONLY. It is not drawn until the bookmarks are known (remembered on this device or
+// answered by getBookmarks, see _bmAskWhenQuiet) AND at least one bookmark is an
 // event this calendar can show: public, not cancelled, not over. Never drawn and then removed,
 // never a door onto nothing. Somebody signed out is never asked about, so it is never drawn.
 var _showBookmarked = false;
@@ -4017,22 +4018,33 @@ function _bmAskWhenQuiet() {
     return Promise.all(jobs.map(function (p) { return Promise.resolve(p).catch(function () {}); }))
       .then(function () { return (_cwPersonJobs.length > jobs.length) ? quiet() : null; });
   }
+  // A FAILED ANSWER IS NOT "NO BOOKMARKS". Jessie, 2026-09-14: "Where did the show bookmarks go on my
+  // events and also calendar?" (row 160). An answer without status ok, or a 404, was read as an empty
+  // list: the switch went and the list this browser remembered was written over with nothing. Only an
+  // answer that says ok and carries a list is an answer. Anything else is a failure: it is asked once
+  // more, alone, a moment later, and if that fails too the remembered list stands, switch and all.
+  // The same shape as getRegistrations on My events and the groups on this page (row 151).
+  function ask() {
+    return fetch(GS_URL + "?action=getBookmarks&type=Event&appearId=" + encodeURIComponent(me))
+      .then(function (r) { if (!r.ok) { throw new Error("HTTP " + r.status); } return r.json(); })
+      .then(function (bd) {
+        if (!(bd && bd.status === "ok" && Array.isArray(bd.ids))) { throw new Error("no answer"); }
+        return bd;
+      });
+  }
   ready.then(quiet)
-    .then(function () {
-      return fetch(GS_URL + "?action=getBookmarks&type=Event&appearId=" + encodeURIComponent(me));
-    })
-    .then(function (r) { return r.json(); })
+    .then(ask)
+    .catch(function () { return new Promise(function (ok) { setTimeout(ok, 1500); }).then(ask); })
     .then(function (bd) {
       // Parsed the way My events parses it.
-      _bmIds = (bd && bd.status === "ok" && Array.isArray(bd.ids))
-        ? bd.ids.map(function (x) { return String(x == null ? "" : x).trim(); }).filter(Boolean) : [];
+      _bmIds = bd.ids.map(function (x) { return String(x == null ? "" : x).trim(); }).filter(Boolean);
       _bmSet = {};
       _bmIds.forEach(function (k) { _bmSet[k] = 1; });
       try { localStorage.setItem('cw-bm-events-' + me, JSON.stringify(_bmIds)); } catch (e) {}
       if (_showBookmarked) { try { renderEvents(); } catch (e) {} }
       try { fbarDraw(); } catch (e) {}
     })
-    .catch(function () {});             // no answer: the switch is simply never drawn
+    .catch(function () {});             // two failures: whatever this browser remembered stays drawn
 }
 
 function _cancelLine(ev) {
@@ -9489,8 +9501,44 @@ function selectInterestSuggestion(val) {
   b.style.cssText = "position:fixed;bottom:20px;right:20px;z-index:9999;display:none;width:52px;height:52px;border-radius:50%;border:none;background:var(--cw-blue);color:#fff;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,0.28);";
   b.onclick = function(){ window.scrollTo({ top:0, behavior:"smooth" }); };
   document.body.appendChild(b);
-  function upd(){ b.style.display = (window.scrollY > 500) ? "block" : "none"; }
-  window.addEventListener("scroll", upd, { passive:true });
+  // LIFTED ABOVE ANY BAR AT THE BOTTOM. Jessie, 2026-09-14, with a picture of Post an event on her phone, the round
+  // Top sitting on Post event: "yes to both" (row 157). It sat 20px from the bottom whatever else was there. Now it
+  // looks at what is under it at the bottom edge of the screen, and if that is a bar pinned there (fixed or sticky,
+  // in the lower half), it sits 12px above the bar. It measures rather than knowing the bars by name, so a bar added
+  // later is cleared too and there is no list to keep in step. The same block is in the calendar and My events.
+  function barTop(){
+    var h = window.innerHeight, top = h;
+    try {
+      var els = document.elementsFromPoint(Math.max(0, window.innerWidth - 46), h - 2);
+      for (var i = 0; i < els.length; i++) {
+        for (var el = els[i]; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+          if (el === b) break;
+          var pos = getComputedStyle(el).position;
+          if (pos !== "fixed" && pos !== "sticky") continue;
+          var r = el.getBoundingClientRect();
+          if (r.top > h / 2 && r.bottom >= h - 3 && r.top < top) top = r.top;
+          break;
+        }
+      }
+    } catch (e) {}
+    return top;
+  }
+  var _q = false;
+  function upd(){
+    _q = false;
+    var show = window.scrollY > 500;
+    b.style.display = show ? "block" : "none";
+    if (!show) return;
+    var t = barTop(), h = window.innerHeight;
+    b.style.bottom = (t < h ? Math.round(h - t + 12) : 20) + "px";
+  }
+  function soon(){ if (!_q) { _q = true; requestAnimationFrame(upd); } }
+  window.addEventListener("scroll", soon, { passive:true });
+  window.addEventListener("resize", soon);
+  // A bar can arrive without a scroll (the form opening, a sheet sliding up), so while the button shows it looks
+  // again after every press and once a second.
+  document.addEventListener("click", function(){ setTimeout(soon, 60); }, true);
+  setInterval(function(){ if (b.style.display !== "none") soon(); }, 1000);
   upd();
 })();
 </script>

@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: M3.43 | Date: 2026-09-14 | LAST CHANGE: posting on a phone: no My events button above the form, no grab-handle line at the top, and the date box as tall as the others. M3.42: the event form saves the Last day of a repeating event (events.recurEnd) and the bulletin board tick (events.hasBB), which it had loaded but never saved; both form copies. M3.41: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. M3.40: no My groups page button, and no groups request behind it. -->
+<!-- Version: M3.44 | Date: 2026-09-14 | LAST CHANGE: Show bookmarked shows at once from the bookmarks this device remembers, a failed answer is asked once more and never hides it, and a bookmark on one date of a weekly event is listed; the round Top button sits above any bar at the bottom of the screen, so it no longer covers Post event. M3.43: posting on a phone: no My events button above the form, no grab-handle line at the top, and the date box as tall as the others. M3.42: the event form saves the Last day of a repeating event (events.recurEnd) and the bulletin board tick (events.hasBB), which it had loaded but never saved; both form copies. M3.41: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. M3.40: no My groups page button, and no groups request behind it. -->
 <!-- Previous: M3.39 | Date: 2026-09-12 | LAST CHANGE: the page buttons read Calendar, My events, My groups, in the same places as on the calendar. -->
 <!-- Previous: M3.38 | Date: 2026-09-12 | LAST CHANGE: a chosen cover picture is made at most 1600px as a JPEG before it goes up, so a phone photo is no longer refused (row 143). -->
 <!-- Previous: M3.37 | Date: 2026-09-12 | LAST CHANGE: the cover picture's "over 5MB" line is red. -->
@@ -8702,8 +8702,44 @@ function selectInterestSuggestion(val) {
   b.style.cssText = "position:fixed;bottom:20px;right:20px;z-index:9999;display:none;width:52px;height:52px;border-radius:50%;border:none;background:var(--cw-blue);color:#fff;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,0.28);";
   b.onclick = function(){ window.scrollTo({ top:0, behavior:"smooth" }); };
   document.body.appendChild(b);
-  function upd(){ b.style.display = (window.scrollY > 500) ? "block" : "none"; }
-  window.addEventListener("scroll", upd, { passive:true });
+  // LIFTED ABOVE ANY BAR AT THE BOTTOM. Jessie, 2026-09-14, with a picture of Post an event on her phone, the round
+  // Top sitting on Post event: "yes to both" (row 157). It sat 20px from the bottom whatever else was there. Now it
+  // looks at what is under it at the bottom edge of the screen, and if that is a bar pinned there (fixed or sticky,
+  // in the lower half), it sits 12px above the bar. It measures rather than knowing the bars by name, so a bar added
+  // later is cleared too and there is no list to keep in step. The same block is in the calendar and My events.
+  function barTop(){
+    var h = window.innerHeight, top = h;
+    try {
+      var els = document.elementsFromPoint(Math.max(0, window.innerWidth - 46), h - 2);
+      for (var i = 0; i < els.length; i++) {
+        for (var el = els[i]; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+          if (el === b) break;
+          var pos = getComputedStyle(el).position;
+          if (pos !== "fixed" && pos !== "sticky") continue;
+          var r = el.getBoundingClientRect();
+          if (r.top > h / 2 && r.bottom >= h - 3 && r.top < top) top = r.top;
+          break;
+        }
+      }
+    } catch (e) {}
+    return top;
+  }
+  var _q = false;
+  function upd(){
+    _q = false;
+    var show = window.scrollY > 500;
+    b.style.display = show ? "block" : "none";
+    if (!show) return;
+    var t = barTop(), h = window.innerHeight;
+    b.style.bottom = (t < h ? Math.round(h - t + 12) : 20) + "px";
+  }
+  function soon(){ if (!_q) { _q = true; requestAnimationFrame(upd); } }
+  window.addEventListener("scroll", soon, { passive:true });
+  window.addEventListener("resize", soon);
+  // A bar can arrive without a scroll (the form opening, a sheet sliding up), so while the button shows it looks
+  // again after every press and once a second.
+  document.addEventListener("click", function(){ setTimeout(soon, 60); }, true);
+  setInterval(function(){ if (b.style.display !== "none") soon(); }, 1000);
   upd();
 })();
 </script>
@@ -9164,26 +9200,11 @@ function selectInterestSuggestion(val) {
   function _attendingRows() {
     if (_regFailed || _feedFailed) return false;
     if (_regIds === null || !_feedIn) return null;
-    var m = _idMaps();
-    var tpl = [];
-    try { tpl = (typeof RECURRING_EVENTS !== 'undefined' && RECURRING_EVENTS) || []; } catch (e) {}
-    var slugOf = function (t) { return String(t || '').toLowerCase().replace(/\s+/g, '-'); };
+    var m = _idMaps(), tpl = _recurringTemplates();
     var out = [];
     _regIds.forEach(function (k) {
-      var r = m.mine[k], pub = false;
-      if (!r && m.feed[k]) { r = m.feed[k]; pub = true; }
-      if (!r && k.indexOf('recurring-') === 0 && !m.feed['cancelled-' + k]) {
-        var slug = k.replace(/^recurring-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
-        var t = tpl.filter(function (x) { return x.id === 'rec-' + slug || slugOf(x.title) === slug; })[0];
-        var day = k.slice(-10);
-        if (t && /^\d{4}-\d{2}-\d{2}$/.test(day)) {
-          r = Object.assign({}, t, { id: k, date: day, recurFreq: '' });
-          pub = true;
-        }
-      }
-      if (!r) return;
-      try { if (_isCancelledEvent(r)) return; } catch (x) { if (r.cancelled) return; }
-      out.push(Object.assign({}, r, { _bmPublic: pub }));
+      var r = _listedFor(k, m, tpl);   // the same finder as Show bookmarked
+      if (r) out.push(r);
     });
     return out;
   }
@@ -9349,18 +9370,41 @@ function selectInterestSuggestion(val) {
     } catch (e) {}
     return { mine: mine, feed: feed };
   }
+  // ONE EVENT, FOUND BY THE ID SOMEBODY HOLDS FOR IT, the same way for Show bookmarked and Attending. Among this
+  // person's own events first, then on the calendar; a date of a weekly event (recurring-<title>-<date>) is rebuilt
+  // from its series, because the calendar holds only the series. Null when it cannot be listed or is cancelled.
+  // 2026-09-14 (row 160): Show bookmarked had its own shorter copy without the weekly rebuild, so a bookmark on one
+  // Tuesday of a weekly event, which is what the event page's Bookmark button saves, was never listed here.
+  function _listedFor(k, m, tpl) {
+    var slugOf = function (t) { return String(t || '').toLowerCase().replace(/\s+/g, '-'); };
+    var r = m.mine[k], pub = false;
+    if (!r && m.feed[k]) { r = m.feed[k]; pub = true; }
+    if (!r && k.indexOf('recurring-') === 0 && !m.feed['cancelled-' + k]) {
+      var slug = k.replace(/^recurring-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
+      var t = tpl.filter(function (x) { return x.id === 'rec-' + slug || slugOf(x.title) === slug; })[0];
+      var day = k.slice(-10);
+      if (t && /^\d{4}-\d{2}-\d{2}$/.test(day)) {
+        r = Object.assign({}, t, { id: k, date: day, recurFreq: '' });
+        pub = true;
+      }
+    }
+    if (!r) return null;
+    try { if (_isCancelledEvent(r)) return null; } catch (x) { if (r.cancelled) return null; }
+    return Object.assign({}, r, { _bmPublic: pub });
+  }
+  function _recurringTemplates() {
+    try { return (typeof RECURRING_EVENTS !== 'undefined' && RECURRING_EVENTS) || []; } catch (e) { return []; }
+  }
   function _bookmarkedRows() {
     if (!_bookmarkIds || !_bookmarkIds.length) return [];
-    var m = _idMaps(), mine = m.mine, feed = m.feed;
+    var m = _idMaps(), tpl = _recurringTemplates();
     var out = [], seen = {};
     _bookmarkIds.forEach(function (id) {
       var k = String(id || '').trim();
       if (!k || seen[k]) return;
       seen[k] = 1;
-      var r = mine[k], pub = false;
-      if (!r && feed[k]) { r = feed[k]; pub = true; }
-      if (!r || r.cancelled) return;
-      out.push(Object.assign({}, r, { _bmPublic: pub }));
+      var r = _listedFor(k, m, tpl);
+      if (r) out.push(r);
     });
     return out;
   }
@@ -9713,6 +9757,18 @@ function selectInterestSuggestion(val) {
     var KEEP = 'cw-manage-rail-' + me;
     var kept = null;
     try { kept = JSON.parse(sessionStorage.getItem(KEEP) || 'null'); } catch (e) {}
+    // THE BOOKMARKS THIS DEVICE REMEMBERS, READ BEFORE THE FIRST PAINT. Jessie, 2026-09-14: "Where did the show
+    // bookmarks go on my events and also calendar?" (row 160). The switch waited for getMyEvents and then getBookmarks,
+    // half a minute or more, and a failure meant it never showed. The calendar and the event page's Bookmark button
+    // keep the last list they were given under cw-bm-events-<id>, so this page reads the same list and the switch
+    // shows in Attending as soon as one of them can be listed. The fresh answer replaces it when it lands (see THE
+    // BOOKMARKS ARE ASKED FOR). A list this device was given is a thing it knows; with none kept, nothing is drawn.
+    try {
+      var _bmKept = JSON.parse(localStorage.getItem('cw-bm-events-' + me) || 'null');
+      if (Array.isArray(_bmKept) && _bmKept.length) {
+        _bookmarkIds = _bmKept.map(function (x) { return String(x == null ? '' : x).trim(); }).filter(Boolean);
+      }
+    } catch (e) {}
     if (kept && kept.length) { _railPainted = true; _mineRows = kept; paintRail(kept, wantId); }
 
     // ── THE FORM NO LONGER WAITS ON THE LIST ────────────────────────────────────────────────────
@@ -9746,19 +9802,31 @@ function selectInterestSuggestion(val) {
     // page did, and its call left with it. This is the same small question the event page asks for
     // its Bookmark button, answering with ids only. AFTER, not beside: two requests arriving at the
     // Apps Script backend together is how it drops them (measured 2026-07-07, three of four 404ed),
-    // and only the switch waits for this, never the list. If it fails, or answers with none, the
-    // switch is simply never drawn.
+    // and only the switch waits for this, never the list. If it answers with none, the switch is not
+    // drawn; if it fails, see below.
     //
     // The rail is repainted when it lands only if the rail has already been drawn from a real
     // answer. Painting before that would replace "Loading information..." with "Nothing here.",
     // which is the page saying something before it knows. The calendar landing repaints it too,
     // because a bookmark on somebody else's event can only be listed once the calendar is in.
-    var bookmarksJob = railJob.then(function () {
-      return fetch(GS_URL + '?action=getBookmarks&type=Event&appearId=' + encodeURIComponent(me));
-    })
-      .then(function (r) { return r.json(); })
+    //
+    // A FAILED ANSWER IS NOT "NO BOOKMARKS" (row 160, 2026-09-14). Only an answer that says ok and carries a list
+    // replaces what is known, and it is kept on this device for the next visit and for the calendar. Anything else
+    // is asked once more, alone, a moment later, the way the registrations are below; if that fails too, the
+    // remembered list stands.
+    var _askBm = function () {
+      return fetch(GS_URL + '?action=getBookmarks&type=Event&appearId=' + encodeURIComponent(me))
+        .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); })
+        .then(function (bd) {
+          if (!(bd && bd.status === 'ok' && Array.isArray(bd.ids))) { throw new Error('no answer'); }
+          return bd;
+        });
+    };
+    var bookmarksJob = railJob.then(_askBm)
+      .catch(function () { return new Promise(function (ok) { setTimeout(ok, 1500); }).then(_askBm); })
       .then(function (bd) {
-        _bookmarkIds = (bd && bd.status === 'ok' && Array.isArray(bd.ids)) ? bd.ids.filter(Boolean) : [];
+        _bookmarkIds = bd.ids.map(function (x) { return String(x == null ? '' : x).trim(); }).filter(Boolean);
+        try { localStorage.setItem('cw-bm-events-' + me, JSON.stringify(_bookmarkIds)); } catch (e) {}
         if (_railPainted) { paintRail(allRows, selId); }
       })
       .catch(function () {});
