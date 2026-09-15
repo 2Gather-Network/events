@@ -4,7 +4,7 @@
     My profile / My account / Support / Sign out", "Top two shouls change from Calendar My events to My events and My
     groups", "my account should look exactllyt eh same rail, excep the pane shouodl change" and "the rail should stay the
     same when toggling to my account". So both pages draw this one rail from this one file, and only the panel beside it
-    is theirs. A live mockup: each page calls it only with ?look=rail in its address, and its links keep ?look=rail.
+    is theirs. Published 2026-09-15 ("publish new look for profile/account pages too"): each page draws it unless ?look=list.
 
     cwProfileRail({ active: 'profile' | 'account', wrap: element, viewingSomeoneElse: bool }) moves everything in wrap
     into the white panel and draws the rail beside it. It returns the panel. Nothing is fetched.
@@ -61,8 +61,8 @@
 
     var list = document.createElement('div'); list.className = 'cw-prail-list';
     var items = [
-      { key: 'profile', label: 'My profile', url: 'https://2gather.network/ikigai/?look=rail' },
-      { key: 'account', label: 'My account', url: 'https://2gather.network/account/?look=rail' },
+      { key: 'profile', label: 'My profile', url: 'https://2gather.network/ikigai/' },
+      { key: 'account', label: 'My account', url: 'https://2gather.network/account/' },
       { key: 'support', label: 'Support', url: 'https://2gather.network/support?from=' + encodeURIComponent(location.pathname) },
       // Sign out acts on whoever is really signed in, so it is not offered while looking at somebody else.
       { key: 'signout', label: 'Sign out', out: true }
