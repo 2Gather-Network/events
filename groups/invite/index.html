@@ -85,6 +85,22 @@
     </div>
   </div>
 
+  <!-- A QR CODE FOR THE GROUP. Jessie, 2026-09-15, on this page on her phone: "Add QR code here". For inviting somebody who
+       is standing in front of you: they scan it and land on the group's page, where they can join or ask to. The link carries
+       the group only, never a person's id. -->
+  <div class="card" id="qr-card">
+    <div class="q" style="margin-top:0;">Or share a QR code</div>
+    <p class="lede" id="qr-lede" style="margin:4px 0 16px;">Anyone who scans it opens the group's page, where they can ask to join.</p>
+    <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+      <canvas id="qr-canvas" width="200" height="200" style="width:200px;height:200px;border:1px solid var(--line);border-radius:12px;padding:8px;background:#fff;"></canvas>
+      <div style="flex:1;min-width:200px;">
+        <div id="qr-link" style="font-size:14px;color:var(--soft);overflow-wrap:anywhere;margin-bottom:12px;"></div>
+        <button class="btn ghost" type="button" id="qr-copy">Copy link</button>
+        <div id="qr-note" style="font-size:13px;color:var(--muted);margin-top:8px;min-height:18px;"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="card" id="sent-card" style="display:none;">
     <div class="q" style="margin-top:0;">Already invited</div>
     <div id="sent-list"></div>
@@ -99,7 +115,8 @@
   var groupId = (params.get('id') || params.get('groupId') || '').trim();
   var meId = CW.me().id;
 
-  var groupHref = 'https://2gather.network/group?id=' + encodeURIComponent(groupId) + '&CWid=' + encodeURIComponent(meId);
+  // The group only: a person's id never rides in a link we build (design checklist, 2026-08-26).
+  var groupHref = 'https://2gather.network/group/?id=' + encodeURIComponent(groupId);
   document.getElementById('crumb-back').setAttribute('data-nav', groupHref);
   document.getElementById('skip-btn').setAttribute('data-nav', groupHref);
 
@@ -115,8 +132,32 @@
     .then(function(d){
       var nm = (d && d.group && d.group.name) || '';
       if (nm) document.getElementById('page-title').textContent = 'Invite people to ' + nm;
+      if (nm) document.getElementById('qr-lede').textContent = 'Anyone who scans it opens ' + nm + '\u2019s page, where they can ask to join.';
     })
     .catch(function(){});
+
+  // The QR code and the link it holds.
+  (function(){
+    var link = groupHref;
+    document.getElementById('qr-link').textContent = link;
+    var draw = function(){
+      if (!window.QRious) {
+        var sc = document.createElement('script');
+        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
+        sc.onload = draw;
+        sc.onerror = function(){ document.getElementById('qr-note').textContent = 'The QR code did not load. The link below works the same.'; };
+        document.head.appendChild(sc);
+        return;
+      }
+      new QRious({ element: document.getElementById('qr-canvas'), value: link, size: 400, foreground: '#1A2E42', background: '#ffffff', level: 'M' });
+    };
+    draw();
+    document.getElementById('qr-copy').addEventListener('click', function(){
+      var note = document.getElementById('qr-note');
+      var done = function(){ note.textContent = 'Link copied.'; };
+      try { navigator.clipboard.writeText(link).then(done, function(){ note.textContent = link; }); } catch (e) { note.textContent = link; }
+    });
+  })();
 
   var lookupInput = document.getElementById('lookup-input');
   var lookupResults = document.getElementById('lookup-results');
@@ -254,8 +295,11 @@
           var row = document.createElement('div');
           row.setAttribute('style', 'display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--border,#DDE4EE);font-size:14px;');
           var nm = document.createElement('span');
-          nm.setAttribute('style', 'flex:1;min-width:0;font-weight:600;color:var(--ink,#1A2E42);');
-          nm.textContent = v.name || v.appearId || 'Someone';
+          nm.setAttribute('style', 'flex:1;min-width:0;font-weight:600;color:var(--ink,#1A2E42);overflow-wrap:anywhere;');
+          // Never a bare id on screen: the backend sends the id as the name when it has no name.
+          var _nmv = String(v.name || '').trim(), _idv = String(v.appearId || '').trim();
+          var _isId = !_nmv || _nmv === _idv || (/^[A-Za-z0-9_.-]{15,}$/.test(_nmv) && !/\s/.test(_nmv));
+          nm.textContent = _isId ? 'Somebody whose name is not on file' : _nmv;
           var when = document.createElement('span');
           when.setAttribute('style', 'color:var(--muted,#6B7A8D);white-space:nowrap;');
           when.textContent = fmtWhen(v.sentAt);
@@ -298,13 +342,13 @@
           loadSent();
         } else {
           sendBtn.disabled = false;
-          var msg = (d && d.message) ? d.message : 'Backend not wired yet. Your list is still here — try again after Jessie pastes the inviteToGroup action.';
+          var msg = (d && d.message) ? d.message : 'Those invitations did not send. Your list is still here, so press Send invitations again.';
           showStatus('err', msg);
         }
       })
       .catch(function(){
         sendBtn.disabled = false;
-        showStatus('err', 'Backend not wired yet. Your list is still here — try again after Jessie pastes the inviteToGroup action.');
+        showStatus('err', 'Those invitations did not send. Your list is still here, so press Send invitations again.');
       });
   });
 })();
