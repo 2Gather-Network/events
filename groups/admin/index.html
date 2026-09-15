@@ -692,6 +692,12 @@
           var el = document.getElementById(id);
           if (el) el.classList.remove('waiting');
         });
+        // AND THE PILL GOES. Jessie, 2026-09-15: "loading info button keeps showing". Taking the waiting class off let the
+        // panel draw, and left "Loading information..." sitting above it for the rest of the visit.
+        ['info-waiting', 'invite-waiting'].forEach(function(id){
+          var w = document.getElementById(id);
+          if (w) w.style.display = 'none';
+        });
         _drawHostsLive(g.hosts);
         _drawCoHosts();
         _drawResources(g.resources || '');
@@ -728,11 +734,36 @@
           if (who) { out.push(who); }
           box.value = out.join('\n');
 
-          var qr = document.getElementById('invite-qr');
-          if (qr && g.groupQR) {
-            qr.src = g.groupQR;
-            document.getElementById('invite-qr-wrap').classList.remove('hidden');
-          }
+          // THE CODE IS DRAWN HERE. Jessie, 2026-09-15: "add QR code to desktop version too". It used to appear only for a
+          // group with a picture of a code already stored (groups.groupQR), which almost none have, so the block stayed
+          // hidden. It is drawn from the group's own link, the same one in the message above, as on the Invite people page.
+          (function(){
+            var wrap = document.getElementById('invite-qr-wrap');
+            var qr = document.getElementById('invite-qr');
+            if (!wrap || !qr) return;
+            if (g.groupQR) { qr.src = g.groupQR; wrap.classList.remove('hidden'); return; }
+            var cv = document.getElementById('invite-qr-canvas');
+            if (!cv) {
+              cv = document.createElement('canvas');
+              cv.id = 'invite-qr-canvas';
+              cv.setAttribute('style', qr.getAttribute('style') || '');
+              qr.parentNode.insertBefore(cv, qr);
+              qr.style.display = 'none';
+            }
+            var draw = function(){
+              if (!window.QRious) {
+                var sc = document.createElement('script');
+                sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
+                sc.onload = draw;
+                sc.onerror = function(){ wrap.classList.add('hidden'); };
+                document.head.appendChild(sc);
+                return;
+              }
+              new QRious({ element: cv, value: link, size: 400, foreground: '#1A2E42', background: '#ffffff', level: 'M' });
+              wrap.classList.remove('hidden');
+            };
+            draw();
+          })();
         })();
         // Off unless the host turned it on. A group that never chose stays closed.
         // YES IS THE DEFAULT. Jessie, 2026-09-08: "make yes the default selected". This read
