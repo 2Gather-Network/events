@@ -1563,6 +1563,97 @@ function pick(el, key){
       .catch(function(){});
   })();
 
+  // A PHOTO BEFORE GOING IN (row 171, 2026-09-14). Jessie: "before someone goes into any group again wihtotu a photo, can
+  // you pause to ask them to add one? Explain: 'A professional photo helps people recognize you when you show up.'", then
+  // "171 stop": no way past it. Joining has needed a photo since row 166; this is for people already in a group without
+  // one. Whether they have one comes in the group's own answer (d.me.photo: Info.guestPhotoURL or ikigai.photoURL, the
+  // rule joining uses), so it costs no request. Never while viewing as somebody, never before that answer is in, never for
+  // somebody it has no profile for, and never for a visitor at the door (joining asks there). The photo is chosen, cut
+  // square and sent from here the way the profile page does it, then saved as ikigai.photoURL alone, and the group opens.
+  function _gpPhotoToken() {
+    try {
+      var norm = String(meId || '').split('.').join('').toLowerCase();
+      var raw = localStorage.getItem('cw-edit-' + norm);
+      if (raw) { var o = JSON.parse(raw); if (o && o.t) return o.t; }
+      return localStorage.getItem('cw-token') || '';
+    } catch (e) { return ''; }
+  }
+  function _gpPhotoGate(d, inGroup) {
+    var norm = String(meId || '').split('.').join('').toLowerCase();
+    try {
+      if (!meId || !inGroup || !d || !d.me || d.me.photo) return;
+      if (window.CW && CW.viewingAs && String(CW.viewingAs() || '').trim()) return;
+      if (sessionStorage.getItem('cw-photo-added-' + norm)) return;   // added a moment ago; the answer may be older
+    } catch (e) { return; }
+    var layout = document.getElementById('gp-layout');
+    if (!layout || document.getElementById('gp-photo-gate')) return;
+    var box = document.createElement('div');
+    box.id = 'gp-photo-gate';
+    box.setAttribute('style', 'background:#fff;border-radius:14px;padding:28px 28px 24px;margin-bottom:14px;');
+    box.innerHTML = '<div style="font-size:22px;font-weight:800;color:#1A2E42;line-height:1.25;">Add your photo</div>'
+      + '<div style="font-size:15px;color:#4B5A6D;margin-top:8px;line-height:1.5;">A professional photo helps people recognize you when you show up.</div>'
+      + '<button type="button" class="btn" id="gp-photo-choose" style="margin-top:18px;">Choose a photo</button>'
+      + '<div id="gp-photo-stat" style="margin-top:10px;font-size:14px;color:#6B7A8D;line-height:1.5;"></div>';
+    layout.parentNode.insertBefore(box, layout);
+    layout.style.display = 'none';
+    // The header's Gather opens the group's room, which is going in too, so it waits with the rest.
+    if (!document.getElementById('gp-photo-wait-css')) {
+      var css = document.createElement('style'); css.id = 'gp-photo-wait-css';
+      css.textContent = 'html.gp-photo-wait #gp-gather-btn{display:none!important}';
+      document.head.appendChild(css);
+    }
+    document.documentElement.classList.add('gp-photo-wait');
+    var btn = document.getElementById('gp-photo-choose');
+    var stat = document.getElementById('gp-photo-stat');
+    var say = function (m) { stat.textContent = m || ''; };
+    var fail = function (m) { btn.disabled = false; say(m || 'That did not go through. Try again.'); };
+    btn.onclick = function () {
+      var inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = function () { var f = inp.files && inp.files[0]; if (f) shrink(f); };
+      inp.click();
+    };
+    function shrink(file) {
+      btn.disabled = true; say('Getting it ready…');
+      var img = new Image();
+      img.onload = function () {
+        try {
+          // Square from the middle, the crop a round frame makes anyway; 600px is the most it is ever shown at.
+          var side = Math.min(img.width, img.height);
+          var c = document.createElement('canvas'); c.width = 600; c.height = 600;
+          c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 600, 600);
+          c.toBlob(function (blob) { if (!blob) { fail('That picture could not be read.'); return; } send(blob); }, 'image/jpeg', 0.85);
+        } catch (e) { fail('That picture could not be read.'); }
+        finally { try { URL.revokeObjectURL(img.src); } catch (e) {} }
+      };
+      img.onerror = function () { fail('That picture could not be read. Try a JPG or PNG.'); };
+      img.src = URL.createObjectURL(file);
+    }
+    function send(blob) {
+      say('Sending…');
+      var tok = _gpPhotoToken();
+      fetch('https://cw-photos.jessieupp.workers.dev/upload?id=' + encodeURIComponent(meId), {
+        method: 'POST', headers: { 'Content-Type': 'image/jpeg', 'x-cw-token': tok }, body: blob
+      }).then(function (r) { return r.json(); }).then(function (p) {
+        if (!p || p.status !== 'ok' || !p.url) { fail((p && p.message) || 'That did not go through. Try again.'); return; }
+        say('Saving…');
+        return fetch(GS_URL + '?action=saveIntake&appearId=' + encodeURIComponent(meId) + '&secure=1&editToken=' + encodeURIComponent(tok)
+                     + '&photoURL=' + encodeURIComponent(p.url))
+          .then(function (r) { return r.json(); })
+          .then(function (s) {
+            if (!s || s.status === 'error') { fail((s && s.message) || 'Your photo did not save. Try again.'); return; }
+            try { sessionStorage.setItem('cw-photo-added-' + norm, p.url); } catch (e) {}
+            d.me.photo = p.url;
+            box.remove();
+            layout.style.display = '';
+            document.documentElement.classList.remove('gp-photo-wait');
+            var myAv = document.getElementById('gp-myprofile-avatar');
+            if (myAv) { myAv.innerHTML = '<img src="' + p.url + '?v=' + Date.now() + '" alt="" style="width:100%;height:100%;object-fit:cover;">'; }
+          });
+      }).catch(function () { fail('That did not go through. Check your connection and try again.'); });
+    }
+  }
+
   var _justJoined = /[?&]joined=1/.test(location.search);
   fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId)
         + (meId ? '&me=' + encodeURIComponent(meId) : '')
@@ -1842,6 +1933,7 @@ var myPill = document.getElementById('gp-myprofile-pill');
         // page only obeys, and being an operator never puts anybody in the member list.
         if (d.meIsOperator) _viewerInGroup = true;
       }
+      _gpPhotoGate(d, _viewerInGroup);   // row 171: no way into the group without a photo
 
       // The host, by name, under the search on All members. A photo in a strip does not tell
        // anybody who to ask, and a member should not have to guess. Jessie, 2026-09-01.
