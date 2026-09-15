@@ -1655,11 +1655,37 @@ function pick(el, key){
   }
 
   var _justJoined = /[?&]joined=1/.test(location.search);
+  // A GROUP THAT DID NOT LOAD SAYS SO (row 178, 2026-09-15). Jessie: "group doestn' load anymore", the evening the
+  // backend answered Climate Group with Google's error page after 69 seconds. The page asked once and, when that answer
+  // failed, did nothing: a blank group. It asks once more three seconds later; if that fails too, or nothing has come
+  // back after 45 seconds, the top of the page says so with Try again. An answer that lands late takes the message away.
+  // Only a failed ANSWER retries: a fault while drawing the group is not a reason to draw it twice.
+  var _gpAnswered = false;
+  function _gpSay(msg) {
+    var old = document.getElementById('gp-load-fail');
+    if (!msg) { if (old) old.remove(); return; }
+    var layout = document.getElementById('gp-layout');
+    if (!layout) return;
+    var box = old || document.createElement('div');
+    box.id = 'gp-load-fail';
+    box.setAttribute('role', 'status');
+    box.setAttribute('style', 'background:#fff;border-radius:14px;padding:18px 22px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;');
+    box.innerHTML = '';
+    var t = document.createElement('div'); t.setAttribute('style', 'font-size:15px;font-weight:700;color:#1A2E42;'); t.textContent = msg;
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = 'Try again';
+    b.onclick = function () { location.reload(); };
+    box.appendChild(t); box.appendChild(b);
+    if (!old) layout.parentNode.insertBefore(box, layout);
+  }
+  setTimeout(function () { if (!_gpAnswered) _gpSay('This group is taking longer than usual to load.'); }, 45000);
+  function _gpLoad(attempt) {
   fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId)
         + (meId ? '&me=' + encodeURIComponent(meId) : '')
-        + (_justJoined ? '&nocache=1&t=' + Date.now() : ''))
+        + ((_justJoined || attempt) ? '&nocache=1&t=' + Date.now() : ''))
     .then(function(r){ return r.json(); })
     .then(function(d){
+      if (_gpAnswered) return;   // the other attempt got here first
+      _gpAnswered = true; _gpSay('');
       if (!d) return;
       var attendees = (d.attendees||[]).filter(function(p){ return p.photo || p.first || p.name; });
       // Put the viewer first in the members strip when they are in the group (Jessie 2026-08-21).
@@ -2325,8 +2351,14 @@ var myPill = document.getElementById('gp-myprofile-pill');
           gpShow('concierge');
         }
       }
+    }, function(){
+      if (_gpAnswered) return;
+      if (!attempt) { setTimeout(function(){ _gpLoad(1); }, 3000); }
+      else { _gpSay('This group did not load.'); }
     })
     .catch(function(){});
+  }
+  _gpLoad(0);
 })();
 </script>
 <script src="/nav/topbar.js?v=6.01" defer></script>
