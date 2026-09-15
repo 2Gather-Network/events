@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V14.02 | Date: 2026-09-14 | LAST CHANGE: no master code in the page: the old PIN steps no longer accept it, Find my event no longer lists every event for it, repeating events and cancellations are no longer written with it, and super admin comes from the signed-in person (row 116); both copies. V14.01: adding or removing a topic on the wish list changes that one topic on the sheet and shows the list the sheet then holds, so a list not yet loaded can never be written over the real one (row 165). V14.00: Group events is not drawn while the calendar is still loading, so it never says Nothing on the calendar for your groups before it knows. V13.99: a failed bookmarks answer is asked once more and never hides Show bookmarked or wipes the bookmarks this device remembers; the round Top button sits above any bar at the bottom of the screen. V13.98: category pills on Upcoming events cards as small as Recommended matches pills. V13.97: a line above the groups on Group events cards. V13.96: the switch above Recommended matches reads Show events only in my groups; the nothing-for-your-group line sits at the top of the panel, with Be the first, Post an event and, on a computer, Clear filters. V13.95: a group chosen in Groups narrows Recommended matches too, and with a group chosen a section with nothing from it is not shown; when none has anything, one line says so. V13.94: the event form saves the Last day of a repeating event (events.recurEnd) and the bulletin board tick (events.hasBB), which it had loaded but never saved; both form copies. V13.93: your groups are remembered on this device and shown at once, while the backend is asked in the background. V13.92: your groups are asked for once, shared by Group events and the Groups filter, asked again if the answer fails, and a failure says Your groups did not load with Try again instead of You are not in a group yet. V13.91: signed out, Show cancelled is not shown and cancelled events stay hidden. V13.90: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. V13.89: phone: an event's whole title shows in its row, so a long one never runs over the date. -->
+<!-- Version: V14.03 | Date: 2026-09-14 | LAST CHANGE: editing an event that already repeats keeps its repeat choices and its schedule with or without a group; saving a group-less series no longer stops it repeating (row 168); both copies. V14.02: no master code in the page: the old PIN steps no longer accept it, Find my event no longer lists every event for it, repeating events and cancellations are no longer written with it, and super admin comes from the signed-in person (row 116); both copies. V14.01: adding or removing a topic on the wish list changes that one topic on the sheet and shows the list the sheet then holds, so a list not yet loaded can never be written over the real one (row 165). V14.00: Group events is not drawn while the calendar is still loading, so it never says Nothing on the calendar for your groups before it knows. V13.99: a failed bookmarks answer is asked once more and never hides Show bookmarked or wipes the bookmarks this device remembers; the round Top button sits above any bar at the bottom of the screen. V13.98: category pills on Upcoming events cards as small as Recommended matches pills. V13.97: a line above the groups on Group events cards. V13.96: the switch above Recommended matches reads Show events only in my groups; the nothing-for-your-group line sits at the top of the panel, with Be the first, Post an event and, on a computer, Clear filters. V13.95: a group chosen in Groups narrows Recommended matches too, and with a group chosen a section with nothing from it is not shown; when none has anything, one line says so. V13.94: the event form saves the Last day of a repeating event (events.recurEnd) and the bulletin board tick (events.hasBB), which it had loaded but never saved; both form copies. V13.93: your groups are remembered on this device and shown at once, while the backend is asked in the background. V13.92: your groups are asked for once, shared by Group events and the Groups filter, asked again if the answer fails, and a failure says Your groups did not load with Try again instead of You are not in a group yet. V13.91: signed out, Show cancelled is not shown and cancelled events stay hidden. V13.90: opened from the home screen, the page buttons sit above the phone's going-home line (viewport-fit=cover); in Safari or Brave nothing changes. V13.89: phone: an event's whole title shows in its row, so a long one never runs over the date. -->
 <!-- Previous: V13.88 | Date: 2026-09-12 | LAST CHANGE: the filters in a bottom sheet are published for every phone (?sheet=0 shows the old folding filters). -->
 <!-- Previous: V13.87 | Date: 2026-09-12 | LAST CHANGE: phone, behind ?sheet=1: the starting United States is not counted as a filter, so Clear filters greys when nothing is chosen. -->
 <!-- Previous: V13.86 | Date: 2026-09-12 | LAST CHANGE: phone, behind ?sheet=1: the sheet is white with its lines 16px from the edges. -->
@@ -5017,6 +5017,7 @@ function loadEditForm(id) {
   if (occNoteField) occNoteField.style.display = (found.isRecurring && _signedInSuper()) ? "block" : "none";
   if (occNoteEl) { const noteRow = events.find(e => e.id === "occ-note-" + editingId); occNoteEl.value = noteRow ? (noteRow.description || "") : ""; }
   recurFreq = ev.recurFreq || (found.isRecurring ? "weekly" : null);
+  _seriesFreqOnLoad = recurFreq;   // row 168: what it arrived as, so the group rule cannot empty it
   var _rend = document.getElementById("f-recur-end"); if (_rend) _rend.value = ev.recurEnd || "";
   const recurCb = document.getElementById("f-recurring");
   if (recurCb) { recurCb.checked = !!recurFreq; }
@@ -5137,6 +5138,13 @@ function _freqLabel(f) {
 // one is not, because a control that vanishes with no explanation is the fault this repository
 // records most often. Unticking on the way out matters: somebody who ticked it, then changed the
 // group to none, would otherwise have posted a series they could no longer see the controls for.
+// A SERIES THAT ALREADY REPEATS KEEPS REPEATING (row 168, 2026-09-14). Jessie, editing Wellness Wednesdays: "i don't
+// see anything about recurring evnet htough I have it checked". The group rule below was written for STARTING a
+// series. Applied to the 106 of 133 series that have no group, it hid their choices, and when the person's groups
+// finished loading it emptied recurFreq, so Save changes would have written the series as not repeating. The
+// frequency an event arrived with is kept here, and while it is being edited the choices show and it is never
+// emptied for want of a group.
+var _seriesFreqOnLoad = null;
 function _syncRecurringGate() {
   var row = document.getElementById('recurring-field');
   if (!row) return;
@@ -5158,13 +5166,15 @@ function _syncRecurringGate() {
     note.textContent = 'Repeating events belong to a group. Available under additional details below.';
     row.appendChild(note);
   }
-  note.style.display = (on && !gid) ? 'block' : 'none';
+  var kept = false;
+  try { kept = !!(editingId && _seriesFreqOnLoad); } catch (e) {}
+  note.style.display = (on && !gid && !kept) ? 'block' : 'none';
 
   var wrap = document.getElementById('recurring-freq-wrap');
-  if (wrap) wrap.style.display = (on && gid) ? 'flex' : 'none';
+  if (wrap) wrap.style.display = (on && (gid || kept)) ? 'flex' : 'none';
   // A series whose group is taken away stops being a series, rather than saving a frequency with
-  // nothing to hang it on.
-  if (!gid && recurFreq) { recurFreq = null; }
+  // nothing to hang it on. Not one that already repeated before this edit (row 168).
+  if (!gid && !kept && recurFreq) { recurFreq = null; }
 }
 
 function toggleRecurring() {
@@ -6057,7 +6067,7 @@ function copyBulkEmail(btn) {
   catch (e) { done(); }
 }
 
-function closeModal() { formDirty = false; document.getElementById("post-modal").classList.remove("open"); selectedExchangeTypes = new Set(); recurFreq = null; clearEditDraft(); const rc = document.getElementById("f-recurring"); if (rc) rc.checked = false; const rw = document.getElementById("recurring-freq-wrap"); if (rw) rw.style.display = "none"; const cb = document.getElementById("clone-btn"); if (cb) cb.textContent = "⧉ Clone"; const cw = document.getElementById("clone-count-wrap"); if (cw) cw.style.display = "none"; }
+function closeModal() { formDirty = false; document.getElementById("post-modal").classList.remove("open"); _seriesFreqOnLoad = null; selectedExchangeTypes = new Set(); recurFreq = null; clearEditDraft(); const rc = document.getElementById("f-recurring"); if (rc) rc.checked = false; const rw = document.getElementById("recurring-freq-wrap"); if (rw) rw.style.display = "none"; const cb = document.getElementById("clone-btn"); if (cb) cb.textContent = "⧉ Clone"; const cw = document.getElementById("clone-count-wrap"); if (cw) cw.style.display = "none"; }
 
 (function() {
   document.querySelectorAll(".modal-overlay").forEach(overlay => {
