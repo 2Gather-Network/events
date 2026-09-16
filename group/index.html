@@ -2207,7 +2207,24 @@ var myPill = document.getElementById('gp-myprofile-pill');
           box.appendChild(b);
           // Straight back from the questions: pick up where he was rather than making him press
           // Join and type the passcode a second time. Doug, 2026-08-31.
-          if (/[?&]joining=1/.test(location.search)) { setTimeout(askPasscode, 0); }
+          if (/[?&]joining=1/.test(location.search)) {
+            // Straight in, if the passcode they already typed is still in this tab. Only the question
+            // is shown when it is not - another tab, a reload of the address by hand, or a browser that
+            // will not keep it.
+            var _kept = '';
+            try { _kept = String(sessionStorage.getItem('cw-joining-code-' + groupId) || ''); } catch (e) {}
+            if (_kept) {
+              box.innerHTML = '';
+              var _w = document.createElement('div');
+              _w.style.cssText = 'font-size:15px;color:#4B5A6D;line-height:1.55;';
+              _w.textContent = 'Taking you into the group...';
+              box.appendChild(_w);
+              try { sessionStorage.removeItem('cw-joining-code-' + groupId); } catch (e) {}
+              setTimeout(function(){ tryJoin(_kept, { disabled: false }); }, 0);
+            } else {
+              setTimeout(askPasscode, 0);
+            }
+          }
 
           function say(msg, bad){
             if (!stat) return;
@@ -2291,6 +2308,16 @@ var myPill = document.getElementById('gp-myprofile-pill');
                   // joining without a second lookup, and the page already knows it.
                   // Come back knowing he was halfway through joining, so the passcode question
                   // is open rather than a Join button he has to press all over again.
+                  // AND THE PASSCODE COMES BACK WITH THEM. Jessie, 2026-09-16: "asks for other passocde
+                  // after joining groupand answering questions - send them to thej group right away".
+                  // The passcode was RIGHT - that is the only reason the backend answered
+                  // profile-incomplete rather than refusing it - and then it was thrown away, so
+                  // somebody who had just typed it and answered ten questions was asked for it again.
+                  //
+                  // Kept in this tab only, never in the address: an address is written down in
+                  // histories and pasted into messages, and a group's passcode is a key. sessionStorage
+                  // dies with the tab, and it is cleared the moment it is used.
+                  try { sessionStorage.setItem('cw-joining-code-' + groupId, code); } catch (e) {}
                   var _backTo = location.pathname + location.search
                               + (location.search ? '&' : '?') + 'joining=1';
                   window.location.href = 'https://2gather.network/intro/?for=group&next='
@@ -2371,4 +2398,5 @@ var myPill = document.getElementById('gp-myprofile-pill');
 
   hello@creating.works
 -->
+<!-- Version: GR1.00 | Date: 2026-09-16 | LAST CHANGE: somebody joining a group is taken into it as soon as they finish the questions, instead of being asked for the passcode a second time. The passcode they typed was right - that is the only reason the backend sent them to the questions rather than refusing them - and it was thrown away. It is kept for that tab only, never in the address, and cleared the moment it is used. This page had no version stamp until today. -->
 </html>
