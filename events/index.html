@@ -2289,14 +2289,18 @@ function clearPasteImage() {
   }
   document.addEventListener("paste", function (e) {
     if (!_pasteScreenOpen() && !_coverBoxOpen()) return;
-    var t = e.target, tag = t && t.tagName ? String(t.tagName).toLowerCase() : "";
-    if (tag === "textarea" || tag === "input" || (t && t.isContentEditable)) {
-      // Typing into the text box: only take over when the clipboard holds a picture and no text.
-      var hasText = false;
-      try { hasText = !!(e.clipboardData && String(e.clipboardData.getData("text") || "").trim()); } catch (err) {}
-      if (hasText) return;
-    }
-    var items = (e.clipboardData && e.clipboardData.items) || [];
+    var cd = e.clipboardData;
+    if (!cd) return;
+    var text = "";
+    try { text = String(cd.getData("text") || "").trim(); } catch (err) {}
+
+    // A PICTURE COPIED OFF A WEB PAGE COMES IN THREE SHAPES, and only one of them is a file. Jessie,
+    // 2026-09-16, with a flyer copied from Beacon Food Forest's page: "i have hte photo on my clipbaord
+    // and pasting it here but it doesn' tpaste into that field". Right-click Copy Image gives a real
+    // image file; some pages give only the address of the picture, as text or inside a scrap of HTML.
+    // All three are taken now, and a plain web address that is NOT a picture is left alone so pasting
+    // a link into the box still works.
+    var items = cd.items || [];
     var file = null;
     for (var i = 0; i < items.length; i++) {
       if (items[i] && String(items[i].type || "").indexOf("image/") === 0) {
@@ -2304,7 +2308,33 @@ function clearPasteImage() {
         if (file) break;
       }
     }
-    if (!file) return;
+
+    if (!file) {
+      // No file. Look for the address of a picture, in the text or in the copied HTML.
+      var url = "";
+      if (/^https?:\/\/\S+$/i.test(text) && /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|#|$)/i.test(text)) { url = text; }
+      if (!url) {
+        var html = "";
+        try { html = String(cd.getData("text/html") || ""); } catch (err) {}
+        var m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+        if (m && /^https?:\/\//i.test(m[1])) { url = m[1]; }
+      }
+      if (!url) return;
+      var box = document.getElementById("f-image-url");
+      if (!box || !_coverBoxOpen()) return;
+      e.preventDefault();
+      box.value = url;
+      try { _coverPreview(url); } catch (err) {}
+      var lab = document.getElementById("cover-file-name");
+      if (lab) { lab.style.color = ""; lab.style.fontWeight = ""; lab.textContent = "Picture taken from the page you copied it from."; }
+      return;
+    }
+
+    // A real picture on the clipboard wins over any text beside it, unless the box being typed into is
+    // the cover's own address box and what was copied is a plain web address somebody means to paste.
+    var t = e.target, tag = t && t.tagName ? String(t.tagName).toLowerCase() : "";
+    if ((tag === "textarea" || (t && t.isContentEditable)) && text) { return; }
+    if (tag === "input" && t.id !== "f-image-url" && text) { return; }
     e.preventDefault();
     // THE COVER IMAGE FIRST. Jessie meant the picture on the event itself, not the flyer reader: the
     // form's Cover image box says "Paste an image link, or upload one" and a picture on the clipboard
