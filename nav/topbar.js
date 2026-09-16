@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V6.05 | Date: 2026-09-15 | LAST CHANGE: /ikigai/?p= is a public profile (row 195), so a signed-out visitor opening a shared profile is not sent to sign in.
+/*  Version: V6.06 | Date: 2026-09-15 | LAST CHANGE: the bar's own spacing line no longer throws (it read w and d, defined 480 lines below it, so it had failed on every page since 2026-09-02); the corrected behaviour is behind ?bar=1 until it has been compared, because turning it on moves the bar up, adds room under it and drops its shadow on every page at once. V6.05: /ikigai/?p= is a public profile (row 195), so a signed-out visitor opening a shared profile is not sent to sign in.
     Version: V6.04 | Date: 2026-09-12 | LAST CHANGE: Sign up reads white on the event page, where a page rule had made it blue on blue; each page keeps its address in the tab as it is left, so Support and FAQ can name the page before. V6.03: the Creating.Works mark is the gradient ring with 🌱 inside, in place of the arrows. Jessie: "A - update now".
     Version: V6.02 | Date: 2026-09-12 | LAST CHANGE: on creating.works, a page that sets window.CW_SHOW_BAR gets the bar, with the Creating.Works ring mark, "Because creating works." and no sign-in pills when signed out. Nothing changes on 2gather.network.
     Version: V6.01 | Date: 2026-09-10 | LAST CHANGE: your own profile page asks a signed-out visitor to sign in, as My events and My groups already do.
@@ -439,11 +439,25 @@
     // adds its height to that same spacing to make room for itself, and this line used to
     // cancel the lot, so the blue menu slid back up underneath the white strip and the two
     // shared one band of screen. Take the strip's share off first. Jessie, 2026-09-02.
-    var reserved = parseFloat(
-      w.getComputedStyle(d.documentElement).getPropertyValue('--cw-adminbar')
-    ) || 0;
+    // ROW 198, 2026-09-15. This function has thrown here on every page since 2026-09-02: it reads `w` and `d`, and the
+    // wrapper that defines those starts at line 906, hundreds of lines BELOW this. So it is a ReferenceError every time,
+    // and the three statements after it have never once run. The bar still stretched edge to edge, because that happens
+    // above the throw; what it never got was its spacing or its shadow.
+    //
+    // FIXED, AND BEHIND ?bar=1 UNTIL SHE HAS SEEN IT. Turning the throw off turns all three on at once, on every page:
+    // the bar would rise by each page's own top padding, gain 18px underneath, and lose its shadow. Jessie said yes to
+    // "fix the line and leave the 18px off so every page keeps the spacing it has" - but that premise was mine and it
+    // was wrong, because marginTop and the shadow switch on too. So the corrected behaviour is opt-in, to be compared
+    // side by side on any page, and becomes everybody's on her word.
+    var docEl = (typeof document !== 'undefined') ? document.documentElement : null;
+    var reserved = docEl ? (parseFloat(
+      window.getComputedStyle(docEl).getPropertyValue('--cw-adminbar')
+    ) || 0) : 0;
+    var wantNew = false;
+    try { wantNew = new URLSearchParams(window.location.search).get('bar') === '1'; } catch (e) {}
+    if (!wantNew) return;                       // exactly what every page has looked like since 2026-09-02
     host.style.marginTop   = '-' + Math.max(0, (parseFloat(cs.paddingTop) || 0) - reserved) + 'px';
-    host.style.marginBottom = '18px';
+    host.style.marginBottom = '0px';            // the 18px stays off, as she asked; it is its own change
     var bar = host.querySelector('.cwtb-bar');
     if (bar) bar.style.boxShadow = 'none';
   }
