@@ -9,7 +9,8 @@
 
   hello@creating.works
 */
-/*  Version: V6.04 | Date: 2026-09-12 | LAST CHANGE: Sign up reads white on the event page, where a page rule had made it blue on blue; each page keeps its address in the tab as it is left, so Support and FAQ can name the page before. V6.03: the Creating.Works mark is the gradient ring with 🌱 inside, in place of the arrows. Jessie: "A - update now".
+/*  Version: V6.05 | Date: 2026-09-15 | LAST CHANGE: /ikigai/?p= is a public profile (row 195), so a signed-out visitor opening a shared profile is not sent to sign in.
+    Version: V6.04 | Date: 2026-09-12 | LAST CHANGE: Sign up reads white on the event page, where a page rule had made it blue on blue; each page keeps its address in the tab as it is left, so Support and FAQ can name the page before. V6.03: the Creating.Works mark is the gradient ring with 🌱 inside, in place of the arrows. Jessie: "A - update now".
     Version: V6.02 | Date: 2026-09-12 | LAST CHANGE: on creating.works, a page that sets window.CW_SHOW_BAR gets the bar, with the Creating.Works ring mark, "Because creating works." and no sign-in pills when signed out. Nothing changes on 2gather.network.
     Version: V6.01 | Date: 2026-09-10 | LAST CHANGE: your own profile page asks a signed-out visitor to sign in, as My events and My groups already do.
     V6.00 | Date: 2026-09-10 | LAST CHANGE: Change view offers Signed out, and the strip says "Viewing signed out" with Back to me.
@@ -762,7 +763,10 @@
       // Any of the parameters the profile page opens somebody by (see _idFromUrl in ikigai) means it
       // is opening a named profile, not your own, so it is not asked here.
       var _q = ''; try { var _sp = new URLSearchParams(window.location.search);
-        _q = ['show', 'id', 'CWid', 'me', 'memberCard', 'appearId'].map(function (k) { return _sp.get(k) || ''; }).join(''); } catch (e) {}
+        // p= is the public profile (row 195, 2026-09-15): a shared address naming somebody by their
+        // six-character code, meant to be opened signed out. Without it here the sign-in gate below
+        // sent every visitor to a shared profile straight to the door.
+        _q = ['show', 'id', 'CWid', 'me', 'memberCard', 'appearId', 'p'].map(function (k) { return _sp.get(k) || ''; }).join(''); } catch (e) {}
       gated = !_q;
     }
     if (!gated || me()) return;

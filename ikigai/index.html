@@ -202,6 +202,15 @@
   .pv-some{margin-top:10px;text-align:right;font-size:13px;color:var(--soft);}
   .pv-said{margin-top:12px;font-size:14.5px;line-height:1.55;color:var(--ink);}
   .pv-some b{text-transform:uppercase;font-size:10px;letter-spacing:.08em;color:var(--brand);font-weight:800;}
+  /* Copy link, Share and QR on your own profile (row 195, 2026-09-15). */
+  .pv-share{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 0 4px;}
+  .pv-share button{display:inline-flex;align-items:center;gap:6px;background:#fff;color:var(--brand);border:1.5px solid var(--panel-line);border-radius:20px;padding:7px 15px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;}
+  .pv-share button:hover{background:var(--panel);}
+  .pv-share .pv-share-note{flex-basis:100%;font-size:13.5px;color:var(--soft);line-height:1.5;margin-top:2px;}
+  .pv-share .pv-share-note a{color:var(--brand);font-weight:700;}
+  .pv-qr{flex-basis:100%;margin-top:10px;}
+  .pv-qr canvas{display:block;border:1px solid var(--line);border-radius:12px;}
+  .pv-qr .pv-qr-url{margin-top:6px;font-size:13px;color:var(--soft);word-break:break-all;}
   .pv-bm{display:flex;align-items:center;gap:12px;padding:12px 0 0;}
   .pv-bm-av{width:44px;height:44px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;flex-shrink:0;}
   .pv-bm-name{font-size:16px;font-weight:700;color:var(--ink);flex:1;}
@@ -362,6 +371,10 @@
   // when deciding whether to offer Edit. Keeping WHETHER the address named anybody is what
   // makes that decision safe: with no parameter at all the id came off this device, so it is
   // this device's person whichever key happens to hold it. Jessie, 2026-09-02.
+  // THE PUBLIC PROFILE (row 195, 2026-09-15). ?p=<code> is somebody's shared profile: six characters
+  // worked out from their id, never the id itself. It is its own page, drawn further down this file
+  // from the backend's publicProfile answer, so everything the signed-in page does is skipped.
+  var _pubCode = (_param('p')||'').trim().toLowerCase();
   var _idFromUrl = _param('id')||_param('show')||_param('CWid')||_param('me')||_param('memberCard')||_param('appearId')||'';
   var _id = _idFromUrl;
   // Ids are stripped from the address now, so arriving with a clean one is normal rather than
@@ -1592,6 +1605,9 @@
       +pvFace()
       +'</div>'
       +'</div>'
+      // COPY LINK, SHARE AND QR, row 195. Only on your own profile: it is your link to give out,
+      // and a visitor has nothing to share that is theirs.
+      +(_viewingSomeoneElse?'':'<div id="pv-share" class="pv-share"></div>')
 
       // What somebody is seeking sits at the FOOT of the profile, not the head. Jessie asked for
       // it on 2026-09-03: a profile opens with what a person brings and closes with what they
@@ -1622,11 +1638,91 @@
         .then(function(){ _bm.textContent='\u{1F516} Bookmarked'; })
         .catch(function(){ _bm.disabled=false; _bm.textContent='That did not save. Try again.'; });
     };
+    drawShare();
     var _pb=document.getElementById('pv-photo-btn'); if(_pb) _pb.onclick=choosePhoto;
     var _pp=document.getElementById('pv-photo'); if(_pp) _pp.onclick=choosePhoto;
     var _pm=document.getElementById('pv-manage'); if(_pm) _pm.onclick=function(){ window.location.href='https://creating.works/profile'+(_id?'?CWid='+encodeURIComponent(_id):''); };
     var _pg=document.getElementById('pv-groups'); if(_pg) _pg.onclick=function(){ showManage('groups'); };
   }
+  // THE LINK YOU HAND OUT, row 195, 2026-09-15. Jessie: "the profile URL should be shareable and is
+  // identifiable to that person, even when signed out ... but should uphold our privacy concerns".
+  //
+  // The address is 2gather.network/ikigai/?p=<code>, six characters worked out here FROM the id, the
+  // same six the event page's share links carry as r= and the same six the backend works out. Nothing
+  // is stored and nothing has to be asked for, so the button works the instant the page has a person,
+  // and a link handed out today still resolves in a year.
+  function _pubCodeFor(id){
+    var v=String(id||'').split('.').join('').toLowerCase();
+    var h=5381;
+    for(var i=0;i<v.length;i++){ h=((h*33)^v.charCodeAt(i))>>>0; }
+    return ('000000'+h.toString(36)).slice(-6);
+  }
+  function _myPublicLink(){
+    var code=_pubCodeFor(_id);
+    return code?('https://2gather.network/ikigai/?p='+code):'';
+  }
+  function drawShare(){
+    var box=document.getElementById('pv-share');
+    if(!box) return;
+    var url=_myPublicLink();
+    if(!url){ box.style.display='none'; return; }
+    box.innerHTML='<button type="button" id="pv-copy">🔗 Copy link</button>'
+      +(navigator.share?'<button type="button" id="pv-share-btn">Share</button>':'')
+      +'<button type="button" id="pv-qr-btn">QR code</button>'
+      +'<div class="pv-share-note" id="pv-share-note"></div>'
+      +'<div class="pv-qr" id="pv-qr" style="display:none;"><canvas id="pv-qr-canvas"></canvas><div class="pv-qr-url">'+esc(url)+'</div></div>';
+    // WHETHER THE LINK ACTUALLY SHOWS ANYTHING. A page must not claim this before it knows, so the
+    // line is drawn only once the profile has come back and said so. visPublic rides on getProfile
+    // already, through Info, so this costs no second request.
+    var raw=window._profRaw||null;
+    var note=document.getElementById('pv-share-note');
+    if(raw && String(raw.visPublic||'').trim().toUpperCase()!=='TRUE'){
+      note.innerHTML='Your public profile is off, so anybody opening this link is told it is not being shared. '
+        +'Turn it on, and choose what shows, under <a href="https://2gather.network/intro/?perm=1&step=permissions">My permissions</a>.';
+    }
+    var copy=function(btn,done){
+      var ok=function(){ var was=btn.textContent; btn.textContent=done; setTimeout(function(){ btn.textContent=was; },2000); };
+      // Brave and an insecure page both refuse the clipboard, so there is a way that always works.
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(ok).catch(function(){ _copyFallback(url,ok); });
+      } else { _copyFallback(url,ok); }
+    };
+    document.getElementById('pv-copy').onclick=function(){ copy(this,'Link copied'); };
+    var sb=document.getElementById('pv-share-btn');
+    if(sb) sb.onclick=function(){
+      var btn=this;
+      navigator.share({ title:(_profileName||'My profile')+' on 2Gather', url:url })
+        .catch(function(){ copy(btn,'Link copied'); });
+    };
+    document.getElementById('pv-qr-btn').onclick=function(){
+      var qr=document.getElementById('pv-qr');
+      if(qr.style.display!=='none'){ qr.style.display='none'; this.textContent='QR code'; return; }
+      qr.style.display='block'; this.textContent='Hide QR code';
+      _drawQr(url);
+    };
+  }
+  function _copyFallback(text,ok){
+    try{
+      var t=document.createElement('textarea');
+      t.value=text; t.style.cssText='position:fixed;opacity:0;';
+      document.body.appendChild(t); t.select(); document.execCommand('copy');
+      document.body.removeChild(t); ok();
+    }catch(e){}
+  }
+  // The same library and the same call the event page and the group invitation use, loaded only
+  // when somebody actually asks for a QR code.
+  function _drawQr(url){
+    if(!window.QRious){
+      var sc=document.createElement('script');
+      sc.src='https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
+      sc.onload=function(){ _drawQr(url); };
+      sc.onerror=function(){ var q=document.getElementById('pv-qr'); if(q) q.innerHTML='<div class="pv-qr-url">The QR code did not load. The link above still works.</div>'; };
+      document.head.appendChild(sc);
+      return;
+    }
+    new QRious({ element:document.getElementById('pv-qr-canvas'), value:url, size:220, foreground:'#1A2E42', background:'#ffffff', level:'H', padding:14 });
+  }
+
   // Where you came from, named, so the way back is the way you arrived rather than a guess.
   // Only our own pages are offered: a referrer from anywhere else is ignored rather than turned
   // into a link somebody did not ask for. Jessie, 2026-09-02.
@@ -2200,8 +2296,8 @@
   // Subtle save-status line at the top of the editor.
   (function(){ var em=document.getElementById('edit-mode'); if(em){ var s=document.createElement('div'); s.id='da-savestat'; s.style.cssText='font-size:13px;color:var(--muted);font-weight:600;text-align:right;min-height:16px;margin-bottom:6px;'; em.insertBefore(s, em.firstChild); } })();
 
-  var _pRef=fetch(GS_URL+'?action=getReferenceData').then(function(r){return r.json();}).then(function(rd){ buildTreesFromRefData(rd); }).catch(function(){});
-  var _pProf=_id ? fetch(GS_URL+'?action=getProfile&appearId='+encodeURIComponent(_id)).then(function(r){return r.json();}).then(function(resp){ window._profAnswered = !!(resp && (resp.found===true || (resp.found===false && resp.status!=='error'))); if(resp&&resp.found&&resp.data){ _profilePhoto=resp.photo||''; _profileName=resp.name||''; _pageLink=resp.pageLink||''; loadProfile(resp.data); } }).catch(function(e){ window._profFetchFailed = String(e && e.message || e); }) : Promise.resolve();
+  var _pRef=_pubCode?Promise.resolve():fetch(GS_URL+'?action=getReferenceData').then(function(r){return r.json();}).then(function(rd){ buildTreesFromRefData(rd); }).catch(function(){});
+  var _pProf=(_id && !_pubCode) ? fetch(GS_URL+'?action=getProfile&appearId='+encodeURIComponent(_id)).then(function(r){return r.json();}).then(function(resp){ window._profAnswered = !!(resp && (resp.found===true || (resp.found===false && resp.status!=='error'))); if(resp&&resp.found&&resp.data){ _profilePhoto=resp.photo||''; _profileName=resp.name||''; _pageLink=resp.pageLink||''; loadProfile(resp.data); } }).catch(function(e){ window._profFetchFailed = String(e && e.message || e); }) : Promise.resolve();
   var _manageParam=_param('manage');
   // Concept A: your OWN page lands on the hub (welcome + tabs). The "This is me" card is the
   // quick view of SOMEONE ELSE, the way it appears from a bulletin board (?show=them&me=you).
@@ -2237,12 +2333,13 @@
   // A BREATHING PILL, IN THE PANEL. Jessie, 2026-09-15: "Make loading info a breathing pill". The rail moves it into the
   // white panel (below). The wait itself is the backend: the profile comes from Apps Script reading Info and ikigai.
   _bootNote.innerHTML = '<span class="pe-loading">' + (_viewingSomeoneElse ? 'Loading information…' : 'Loading your information…') + '</span>';
-  (document.getElementById('pe-shell') || document.body).appendChild(_bootNote);
+  if(!_pubCode){ (document.getElementById('pe-shell') || document.body).appendChild(_bootNote); }
   function _bootDone(){
     var n = document.getElementById('pe-booting');
     if (n && n.parentNode) { n.parentNode.removeChild(n); }
   }
   Promise.all([_pRef,_pProf]).then(function(){
+    if(_pubCode) return;
     // A call that failed used to be swallowed by an empty catch, so the page drew a card with
     // nothing in it. An empty profile and a profile that did not load look identical on screen
     // and mean opposite things, and Apps Script answers with an HTML error page often enough
@@ -2301,7 +2398,9 @@
 (function(){
   // THE LOOK FOR EVERYBODY NOW. Jessie, 2026-09-15: "publish new look for profile/account pages too". ?look=list shows
   // the old page for one load, for a comparison.
-  if (_param('look') === 'list' || !window.cwProfileRail) return;
+  // The public page is its own thing: no rail, because every button on the rail belongs to the
+  // person whose profile it is, and a visitor is not that person (row 195).
+  if (_pubCode || _param('look') === 'list' || !window.cwProfileRail) return;
   if (!_viewingSomeoneElse) document.documentElement.classList.add('cw-own');
   var main = cwProfileRail({ active: 'profile', wrap: document.querySelector('.wrap'), viewingSomeoneElse: _viewingSomeoneElse });
   // "Loading your information..." is written for the blue; in the template it sits in the panel.
@@ -2309,4 +2408,111 @@
   if (boot && main) { boot.style.color = 'var(--muted)'; boot.style.padding = '40px 10px'; main.insertBefore(boot, main.firstChild); }
 })();
 </script>
-<script src="https://2gather.network/nav/topbar.js?v=6.01" defer></script>
+<!-- ─────────────────────────────────────────────────────────────────────────────────────────────
+     THE PUBLIC PROFILE, row 195, 2026-09-15. Jessie: "the profile URL should be shareable and is
+     identifiable to that person, even when signed out ... but should uphold our privacy concerns".
+
+     2gather.network/ikigai/?p=<code>. The code is six characters worked out FROM the id, the same
+     six the share links carry as r=, so the address names one person and cannot be turned back into
+     an id. Nothing here asks who is looking, and nothing here is drawn unless that person turned
+     their public profile on and said, section by section, what a stranger may see.
+
+     It draws only what the backend sends. A section the person kept back arrives as an empty list
+     and is not drawn at all, so an empty heading can never imply there is something behind it.
+     ───────────────────────────────────────────────────────────────────────────────────────────── -->
+<style>
+  html.cw-pub .wrap{max-width:820px;}
+  html.cw-pub #pe-shell,html.cw-pub #edit-mode,html.cw-pub #manage-mode,html.cw-pub .breadcrumb{display:none !important;}
+  .cw-pub-place{font-size:14.5px;font-weight:600;color:var(--soft);margin:2px 0 0;}
+  .cw-pub-foot{margin:16px 2px 0;color:#fff;font-size:13.5px;font-weight:600;opacity:.9;}
+  .cw-pub-foot a{color:#fff;}
+  .cw-pub-empty{background:#fff;border-radius:14px;padding:28px 24px;font-size:15.5px;color:var(--ink);line-height:1.55;}
+</style>
+<script>
+(function(){
+  if(!_pubCode) return;
+  document.documentElement.classList.add('cw-pub');
+  var pv=document.getElementById('profile-view');
+  // A page that has not heard back says it is looking. It never says "not shared" until the
+  // backend has actually answered that.
+  pv.innerHTML='<div style="padding:8px 2px;"><span class="pe-loading">Loading this profile…</span></div>';
+
+  function tag(text,sub){
+    return '<div class="pv-tag">'+esc(text)+(sub?'<span class="sub">'+esc(sub)+'</span>':'')+'</div>';
+  }
+  function tags(list){
+    list=(list||[]).filter(Boolean);
+    return list.length?list.map(function(t){ return tag(t); }).join(''):'';
+  }
+  function wrap(inner,subHead){
+    if(!inner) return '';
+    return (subHead?'<div class="pv-sub-h">'+esc(subHead)+'</div>':'')+'<div class="pv-tags">'+inner+'</div>';
+  }
+  function section(label,inner){
+    if(!inner) return '';
+    return '<div class="pv-section"><div class="pv-section-header"><div class="pv-section-label">'+esc(label)+'</div></div>'+inner+'</div>';
+  }
+  function face(d){
+    if(d.photo) return '<div class="pv-face"><img src="'+esc(String(d.photo))+'" alt=""></div>';
+    var nm=String(d.name||'').trim();
+    if(!nm) return '';
+    var ini=nm.split(/\s+/).slice(0,2).map(function(w){ return w.charAt(0).toUpperCase(); }).join('');
+    return ini?'<div class="pv-face">'+esc(ini)+'</div>':'';
+  }
+
+  function draw(d){
+    var nm=String(d.name||'').trim();
+    // A name typed in lower case reads with capitals, the same as everywhere else on this page.
+    if(nm && nm===nm.toLowerCase()) nm=nm.replace(/(^|\s)(\S)/g,function(m,a,b){ return a+b.toUpperCase(); });
+    document.title=(nm||'A profile')+' · 2Gather';
+    var skills=tags((d.skills||[]).concat(d.languages||[]));
+    var care=tags(d.careAbout);
+    var sectors=tags(d.sectors);
+    var work=tags(d.workExperience);
+    var purpose=String(d.purpose||'').trim();
+    var careInner=wrap(care,'')+wrap(sectors,'Sectors')+wrap(work,'Work values')
+      +(purpose?'<div class="pv-sub-h">My purpose</div><div class="pv-said" style="font-style:normal;">'+esc(purpose).split('\n').join('<br>')+'</div>':'');
+    var haves=tags(d.offerings);
+    var openTo=tags(d.openToWork);
+    var havesInner=wrap(haves,'')+wrap(openTo,'Open to work');
+    pv.innerHTML='<div class="pv-card">'
+      +'<div class="pv-head"><div><h2 class="pv-title">'+(nm?esc(nm):'A profile')+' 🌱</h2>'
+      +(d.place?'<p class="cw-pub-place">'+esc(d.place)+'</p>':'')+'</div>'
+      +'<div class="pv-head-right">'+face(d)+'</div></div>'
+      +section("What I'm seeking",wrap(tags(d.needs),''))
+      +section('What I enjoy',wrap(tags(d.enjoy),''))
+      +section('My skills',wrap(skills,''))
+      +section('What I care about',careInner)
+      +section('My haves',havesInner)
+      +'</div>'
+      +'<p class="cw-pub-foot">This is what '+(nm?esc(nm):'this person')+' chose to show. '
+      +'<a href="https://2gather.network/">2Gather</a></p>';
+  }
+
+  function notShared(){
+    document.title='A profile · 2Gather';
+    pv.innerHTML='<div class="cw-pub-empty"><strong>This profile is not being shared.</strong><br>'
+      +'The link works, but the person it belongs to has not turned their public profile on. '
+      +'If it is yours, open <a href="https://2gather.network/ikigai/">your profile</a> and turn it on under My permissions.</div>';
+  }
+  function didNotLoad(){
+    pv.innerHTML='<div class="cw-pub-empty"><strong>This profile did not load.</strong><br>'
+      +'That is us, not the link. Reload the page to try again.</div>';
+  }
+
+  fetch(GS_URL+'?action=publicProfile&p='+encodeURIComponent(_pubCode))
+    .then(function(r){ return r.json(); })
+    .then(function(resp){
+      // A request that failed is never an answer. Only found:false, actually sent back, means
+      // the profile is not shared.
+      if(resp && resp.found===true && resp.data){ draw(resp.data); return; }
+      // Only an answer that actually says found:false means "not shared". Anything else — an error,
+      // an HTML page from Apps Script, the backend answering a different action because this one is
+      // not deployed yet — is a request that did not work, and a page never turns that into a fact.
+      if(resp && resp.found===false && resp.status==='ok'){ notShared(); return; }
+      didNotLoad();
+    })
+    .catch(function(){ didNotLoad(); });
+})();
+</script>
+<script src="https://2gather.network/nav/topbar.js?v=6.05" defer></script>
