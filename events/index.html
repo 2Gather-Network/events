@@ -2265,6 +2265,46 @@ function clearPasteImage() {
   if (btn) { btn.disabled = false; btn.textContent = "🖼️ Upload image"; }
 }
 
+// A PICTURE PASTED STRAIGHT FROM THE CLIPBOARD. Jessie, 2026-09-16: "is htere a away to paste
+// something from my clipboard into the image upload section for events?" There was not: the control
+// was a button that opens the file chooser and nothing on the page listened for a paste, so copying a
+// flyer and pressing Cmd+V did nothing at all.
+//
+// It goes through handlePasteImage untouched, so the size limit, the shrinking, the HEIC message and
+// everything downstream are the same code that a chosen file uses. A paste carrying TEXT is left alone
+// for the box that reads pasted text; only a paste carrying an image is taken.
+//
+// The listener sits on the document because the control is a hidden file input with nothing to focus,
+// and a paste anywhere on the posting screen is plainly meant for it. It does nothing while the paste
+// screen is not open, and nothing when the cursor is in a box somebody is typing in.
+(function () {
+  function _pasteScreenOpen() {
+    var el = document.getElementById("paste-image-btn");
+    return !!(el && el.offsetParent !== null);
+  }
+  document.addEventListener("paste", function (e) {
+    if (!_pasteScreenOpen()) return;
+    var t = e.target, tag = t && t.tagName ? String(t.tagName).toLowerCase() : "";
+    if (tag === "textarea" || tag === "input" || (t && t.isContentEditable)) {
+      // Typing into the text box: only take over when the clipboard holds a picture and no text.
+      var hasText = false;
+      try { hasText = !!(e.clipboardData && String(e.clipboardData.getData("text") || "").trim()); } catch (err) {}
+      if (hasText) return;
+    }
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    var file = null;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i] && String(items[i].type || "").indexOf("image/") === 0) {
+        file = items[i].getAsFile();
+        if (file) break;
+      }
+    }
+    if (!file) return;
+    e.preventDefault();
+    try { handlePasteImage({ files: [file] }); } catch (err) {}
+  });
+})();
+
 function handlePasteImage(input) {
   var file = input.files && input.files[0];
   if (!file) return;
@@ -2605,6 +2645,12 @@ async function bulkPost() {
     var row = evToSheet({ id: e.id, title: e.title, date: e.date, time: e.time, endtime: e.endtime, format: e.format,
       venue: e.venue, location: e.location, description: e.description, categories: e.categories,
       imageUrl: _bulk.image || "",
+      // WHERE SOMEBODY GOES TO REGISTER. Jessie, 2026-09-16: "put the link in registration which we
+      // already have as a field". events.paymentlink is the form's Payment or registration link, and
+      // the event page draws a Register button from it, so this is the field that already means what
+      // she asked for. The event's own page when the calendar printed one, otherwise the calendar page.
+      // showLinks has to name it or the button never draws.
+      paymentlink: e.link || _bulk.source, showLinks: "paymentlink",
       cooplink: e.link || _bulk.source, host: _who.host, org: _who.org, hostType: "socializer", isPrivate: false, going: 0 });
     Object.keys(row).forEach(function (k) { if (row[k] === "" || row[k] === null) delete row[k]; });
     row.going = 0; row.isPrivate = false;
