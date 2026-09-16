@@ -10,6 +10,7 @@
 
   hello@creating.works
 -->
+<!-- Version: A1.00 | Date: 2026-09-16 | LAST CHANGE: Manage stops asking past the gate on every visit. It sent nocache=1 every time, so it never once used the copy the gate was already holding and paid Apps Script in full - measured on Snohomish Creates at 63 seconds and an error page, then 5.9, then 0.11 from the kept copy. The copy is safe: the gate clears a group's bundle whenever anybody writes to that group, and the key carries who is asking. And one failure is no longer the end: it asks once more before saying the group did not load. This page had no version stamp until today. -->
 <html>
 <head>
 <meta charset="utf-8">
@@ -595,10 +596,27 @@
     // THE SIGN-IN PASS GOES WITH IT (row 162, 2026-09-14): a host gets the Manage pass back in this same answer, so
     // opening Manage is one request to Apps Script instead of three. keepFreshToken stores it.
     var _st = _signinToken();
-    return fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId)
-                 + '&me=' + encodeURIComponent(meId) + (_st ? '&editToken=' + encodeURIComponent(_st) : '')
-                 + '&nocache=1&t=' + Date.now())
-      .then(function(r){ return r.json(); }).then(keepFreshToken)
+    // NOT PAST THE GATE ANY MORE. Jessie, 2026-09-16: "takes long to load - why?", then "The group did
+    // not load." This page sent nocache=1 on every visit, so it never once used the copy the gate was
+    // already holding and paid Apps Script in full every time. Measured that afternoon on Snohomish
+    // Creates: 63 seconds and an error page, then 5.9 seconds, then 0.11 from the kept copy.
+    //
+    // The copy is safe to use: the gate clears a group's bundle whenever anybody writes to that group,
+    // so a name, a passcode or a new member is never stale for more than the thirty seconds it lives
+    // anyway - and the key carries who is asking and their pass, so one host's copy is only ever theirs.
+    //
+    // AND ONE MORE TRY BEFORE GIVING UP. A single failure used to become "The group did not load."
+    // Apps Script sends its own error page when it is overloaded, which is exactly the moment a second
+    // ask usually works, and the second ask is nearly free because the first one warmed the copy.
+    var _url = GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId)
+                 + '&me=' + encodeURIComponent(meId) + (_st ? '&editToken=' + encodeURIComponent(_st) : '');
+    var _ask = function(){
+      return fetch(_url + '&t=' + Date.now()).then(function(r){ return r.json(); });
+    };
+    return _ask()
+      .catch(function(){ return new Promise(function(res){ setTimeout(res, 1200); }).then(_ask); })
+      .then(function(d){ if (!d || typeof d !== 'object' || !('group' in d)) { return _ask(); } return d; })
+      .then(keepFreshToken)
       .then(function(d){
         // AN ANSWER OR NOT (row 148). Anything without a group field is a failed request, not a group: it goes to the
         // catch, which says it did not load. A group field that is empty is an answer: there is no such group.
