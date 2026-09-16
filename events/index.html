@@ -2559,18 +2559,48 @@ async function bulkRead() {
   btn.disabled = false;
 }
 
+// WHO RUNS THESE EVENTS: A PERSON OR AN ORGANIZATION. Jessie, 2026-09-16: "222 go for the organization
+// only if its' a groiup name and a host name if it's a first/last name". The one box used to write the
+// same text into BOTH events.host and events.org, so an imported calendar read "Hosted by Edmonds
+// Waterfront Center" and the host column stopped holding a person. Three things read that column as a
+// person: the Hosted by line, "Are you the host of this event?", and Request to be host.
+//
+// A first and last name is TWO words, each starting with a capital, with no digits, no punctuation that
+// belongs to a name of a place, and no word from the list below. Everything else is an organization.
+// It is a guess and it will be wrong for a two-word organization nobody listed here; the value is on the
+// event and can be edited, and whichever field is not used is left EMPTY rather than filled with the other.
+var BULK_ORG_WORDS = ("center centre club forest collective foundation church temple mosque synagogue library "
+  + "society association school college university academy group inc llc ltd co company corp council network "
+  + "institute community coalition alliance union guild trust project initiative works studio studios lab labs "
+  + "farm farms garden gardens market coop cooperative chapter district city county parish committee board "
+  + "clinic clinics bank pantry kitchen brewery cafe shop store gym hospital chamber exchange commons creates "
+  + "collaborative campus center ministry mission fellowship troop chapter lodge center guild center "
+  + "department bureau services service partners partnership ministries hall house museum theater theatre "
+  + "gallery park recreation commission hub").split(" ");
+function bulkWhoRuns(v) {
+  var s = String(v || "").trim().replace(/\s+/g, " ");
+  if (!s) return { host: "", org: "" };
+  var words = s.split(" ");
+  var looksLikeAPerson = words.length === 2
+    && !/[0-9@&/,]/.test(s)
+    && words.every(function (w) { return /^[A-Z][A-Za-z'\u2019.\-]*$/.test(w); })
+    && !words.some(function (w) { return BULK_ORG_WORDS.indexOf(w.toLowerCase().replace(/[.\-']/g, "")) > -1; });
+  return looksLikeAPerson ? { host: s, org: "" } : { host: "", org: s };
+}
+
 async function bulkPost() {
   var me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
   var tok = (typeof _coverToken === "function") ? _coverToken() : "";
   if (!me || !tok) { _bulkMsg("Sign in again first, then press Post events.", true); return; }
   var org = (document.getElementById("bulk-org").value || "").trim();
+  var _who = bulkWhoRuns(org);
   var picked = _bulk.found.filter(function (e) { return e.pick && !e.past && !e.posted; });
   if (!picked.length) return;
   if (!_bulk.batch) _bulk.batch = "imp-" + _bulkToday() + "-" + _bulkId().slice(0, 4);
   var rows = picked.map(function (e) {
     var row = evToSheet({ id: e.id, title: e.title, date: e.date, time: e.time, endtime: e.endtime, format: e.format,
       venue: e.venue, location: e.location, description: e.description, categories: e.categories,
-      cooplink: e.link || _bulk.source, host: org, org: org, hostType: "socializer", isPrivate: false, going: 0 });
+      cooplink: e.link || _bulk.source, host: _who.host, org: _who.org, hostType: "socializer", isPrivate: false, going: 0 });
     Object.keys(row).forEach(function (k) { if (row[k] === "" || row[k] === null) delete row[k]; });
     row.going = 0; row.isPrivate = false;
     return row;
