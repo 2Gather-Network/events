@@ -1643,6 +1643,7 @@
         .catch(function(){ _bm.disabled=false; _bm.textContent='That did not save. Try again.'; });
     };
     drawShare();
+    try { drawInCommon(); } catch(e){}
     var _pb=document.getElementById('pv-photo-btn'); if(_pb) _pb.onclick=choosePhoto;
     var _pp=document.getElementById('pv-photo'); if(_pp) _pp.onclick=choosePhoto;
     var _pm=document.getElementById('pv-manage'); if(_pm) _pm.onclick=function(){ window.location.href='https://creating.works/profile'+(_id?'?CWid='+encodeURIComponent(_id):''); };
@@ -1725,6 +1726,86 @@
       return;
     }
     new QRious({ element:document.getElementById('pv-qr-canvas'), value:url, size:220, foreground:'#1A2E42', background:'#ffffff', level:'H', padding:14 });
+  }
+
+  // ── WHAT WE HAVE IN COMMON, on a profile (row 192, 2026-09-16) ────────────────────────────────
+  // Jessie: "what we have in common is a button that reads 2 profiles (visitor and profile being
+  // visited) to create commonalities which we had at one point or antoher." We do have it: the
+  // group page and the attendees board have crossed one person's answers against another's since
+  // August. What it has never had is a place on a profile, comparing exactly two people.
+  //
+  // The rules are the group page's own. A word knows which field it came from, and the sentence
+  // says only what that field supports: a skill is something somebody can actually do for you, what
+  // they enjoy or care about is worth asking about and is not an offer, and a need on both sides is
+  // two people looking for the same thing. The group page's frequency damping is left out on
+  // purpose: it exists to stop a word half the group shares forming a card, and with two people
+  // there is no group to measure against.
+  //
+  // It is drawn only on somebody else's profile, and only once both profiles are actually here.
+  // A viewer whose own profile does not load sees nothing at all rather than a wrong answer.
+  var IC_KIND = { skills:'offer', professionalServices:'offer', haves:'offer',
+                  interests:'enjoy', hobbies:'enjoy',
+                  values:'value', domains:'value',
+                  needs:'need' };
+  function icWords(row, field){
+    var v = row ? row[field] : '';
+    return String(v == null ? '' : v).split(/[|,]/)
+      .map(function(x){ return String(x).split(':')[0].trim(); })
+      .filter(Boolean);
+  }
+  function icBuckets(row){
+    var out = { offer:{}, enjoy:{}, value:{}, need:{} };
+    Object.keys(IC_KIND).forEach(function(f){
+      icWords(row, f).forEach(function(w){ out[IC_KIND[f]][w.toLowerCase()] = w; });
+    });
+    return out;
+  }
+  function drawInCommon(){
+    if (!_viewingSomeoneElse) return;
+    var theirs = window._profRaw; if (!theirs) return;
+    var mine = '';
+    try { mine = (window.CW && CW.realMe) ? String(CW.realMe().id || '') : ''; } catch(e){}
+    if (!mine) return;                       // signed out: nothing to compare against
+    var pv = document.getElementById('profile-view'); if (!pv) return;
+    fetch(GS_URL + '?action=getProfile&appearId=' + encodeURIComponent(mine))
+      .then(function(r){ return r.json(); })
+      .then(function(resp){
+        if (!resp || !resp.found || !resp.data) return;   // say nothing rather than guess
+        var A = icBuckets(resp.data), B = icBuckets(theirs);
+        var nm = String(_profileName || 'they').trim().split(/\s+/)[0] || 'they';
+        var esc2 = esc, rows = [], seen = {};
+        var add = function(pri, mark, text){
+          var k = String(text).toLowerCase();
+          if (seen[k]) return; seen[k] = 1;
+          rows.push({ pri: pri, mark: mark, text: text });
+        };
+        var cross = function(a, b, fn){
+          Object.keys(a).forEach(function(k){ if (b[k]) fn(a[k]); });
+        };
+        // A real offer first, then two people looking for the same thing, then common ground.
+        cross(B.offer, A.need,  function(w){ add(1, '✨', esc2(nm) + ' can help with <b>' + esc2(w) + '</b>'); });
+        cross(A.offer, B.need,  function(w){ add(1, '✨', 'You can help ' + esc2(nm) + ' with <b>' + esc2(w) + '</b>'); });
+        cross(A.need,  B.need,  function(w){ add(2, '💡', 'You and ' + esc2(nm) + ' are both looking for <b>' + esc2(w) + '</b>'); });
+        cross(A.enjoy, B.enjoy, function(w){ add(3, '✨', 'You and ' + esc2(nm) + ' enjoy <b>' + esc2(w) + '</b>'); });
+        cross(A.value, B.value, function(w){ add(3, '✨', 'You and ' + esc2(nm) + ' both care about <b>' + esc2(w) + '</b>'); });
+        cross(A.offer, B.offer, function(w){ add(4, '✨', 'You and ' + esc2(nm) + ' both work in <b>' + esc2(w) + '</b>'); });
+        if (!rows.length) return;            // nothing shared is not a section, it is silence
+        rows.sort(function(x, y){ return x.pri - y.pri; });
+        var html = '<div class="pv-section" id="pv-incommon"><div class="pv-section-header">'
+          + '<div class="pv-section-label">What we have in common</div></div>'
+          + '<div style="display:flex;flex-direction:column;gap:8px;">'
+          + rows.slice(0, 12).map(function(r){
+              return '<div style="font-size:14.5px;color:var(--ink);line-height:1.5;">' + r.mark + ' ' + r.text + '</div>';
+            }).join('')
+          + '</div>'
+          + (rows.length > 12 ? '<div style="font-size:12.5px;color:var(--muted);margin-top:8px;">and ' + (rows.length - 12) + ' more</div>' : '')
+          + '</div>';
+        var card = pv.querySelector('.pv-card');
+        var first = card ? card.querySelector('.pv-section') : null;
+        if (card && first) first.insertAdjacentHTML('beforebegin', html);
+        else if (card) card.insertAdjacentHTML('beforeend', html);
+      })
+      .catch(function(){});
   }
 
   // Where you came from, named, so the way back is the way you arrived rather than a guess.
