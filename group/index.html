@@ -1709,15 +1709,44 @@ function pick(el, key){
     if (!old) layout.parentNode.insertBefore(box, layout);
   }
   setTimeout(function () { if (!_gpAnswered) _gpSay('This group is taking longer than usual to load.'); }, 45000);
-  function _gpLoad(attempt) {
-  fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId)
+  var _GP_KEY = 'cw-gp-bundle-' + groupId + '|' + (meId || '');
+  function _gpKeep(d) {
+    try { localStorage.setItem(_GP_KEY, JSON.stringify({ at: Date.now(), d: d })); } catch (e) {}
+  }
+  function _gpRead() {
+    try {
+      var raw = localStorage.getItem(_GP_KEY);
+      if (!raw) return null;
+      var o = JSON.parse(raw);
+      return (o && o.d) ? o.d : null;
+    } catch (e) { return null; }
+  }
+  function _gpUpdating(on) {
+    var el = document.getElementById('gp-updating');
+    if (!on) { if (el) el.remove(); return; }
+    if (el) return;
+    var layout = document.getElementById('gp-layout');
+    if (!layout || !layout.parentNode) return;
+    el = document.createElement('div');
+    el.id = 'gp-updating';
+    el.setAttribute('role', 'status');
+    el.setAttribute('style', 'max-width:1040px;margin:0 auto 10px;font-size:13px;'
+      + 'color:rgba(255,255,255,.75);');
+    el.textContent = 'Showing this group as you last saw it. Checking for anything new.';
+    layout.parentNode.insertBefore(el, layout);
+  }
+  function _gpLoad(attempt, remembered) {
+  (remembered
+    ? Promise.resolve(remembered)
+    : fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId)
         + (meId ? '&me=' + encodeURIComponent(meId) : '')
         + ((_justJoined || attempt) ? '&nocache=1&t=' + Date.now() : ''))
-    .then(function(r){ return r.json(); })
+        .then(function(r){ return r.json(); }))
     .then(function(d){
       if (_gpAnswered) return;   // the other attempt got here first
       _gpAnswered = true; _gpSay('');
       if (!d) return;
+      _gpKeep(d);   // kept for the next visit, so that one draws at once
       var attendees = (d.attendees||[]).filter(function(p){ return p.photo || p.first || p.name; });
       // Put the viewer first in the members strip when they are in the group (Jessie 2026-08-21).
       if (meId) {
@@ -2464,7 +2493,47 @@ var myPill = document.getElementById('gp-myprofile-pill');
     })
     .catch(function(){});
   }
-  _gpLoad(0);
+  // THE GROUP AS YOU LAST SAW IT, WHILE THE REAL ANSWER IS STILL COMING. Jessie, 2026-09-17:
+  // "can't we just show what is in the cache FIRST when i refresh and then it updates in the
+  // background anything new? i don't like having to wait everytime 10 seconds for this page".
+  // getGroupBundle carries the group, the member photos and whether you are in it. It is
+  // person-specific, so the Cloudflare gate never keeps it, by the rule that a stale answer about
+  // a person is worse than a slow one, and every single load sat on "Looking up this group" for
+  // ten seconds and more. This device keeps the last good answer, per group and per viewer, and
+  // draws it the moment the page opens with a quiet line saying it is checking, so the page is
+  // never claiming to be settled before it knows. The real call still goes out every time. Same
+  // shape the calendar uses for your groups (V13.93). A first visit to a group is unchanged.
+  (function(){
+    var seen = _gpRead();
+    if (!seen) { _gpLoad(0); return; }
+    _gpLoad(0, seen);
+    _gpUpdating(true);
+    var before = JSON.stringify(seen);
+    var reKey = 'cw-gp-refreshed-' + groupId;
+    fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId)
+          + (meId ? '&me=' + encodeURIComponent(meId) : '') + '&nocache=1&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        _gpUpdating(false);
+        if (!d) return;
+        _gpKeep(d);
+        if (JSON.stringify(d) === before) {
+          try { sessionStorage.removeItem(reKey); } catch (e) {}
+          return;
+        }
+        // NOTHING IS DRAWN TWICE OVER A PAGE ALREADY DRAWN. The panels on this page append rather
+        // than replace, so a second pass would leave two of several of them. Where the answer
+        // differs from what was shown, the page is loaded once more instead, and that load paints
+        // straight from the copy just kept, so it is quick. Once per tab at most, in case some
+        // part of the answer changes on every call and would otherwise loop.
+        try {
+          if (sessionStorage.getItem(reKey)) return;
+          sessionStorage.setItem(reKey, '1');
+        } catch (e) {}
+        location.reload();
+      })
+      .catch(function(){ _gpUpdating(false); });
+  })();
 })();
 </script>
 <script src="/nav/topbar.js?v=6.01" defer></script>
