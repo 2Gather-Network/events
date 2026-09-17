@@ -396,7 +396,7 @@
 
         <div id="gp-events" style="display:none;background:#fff;border-radius:14px;padding:24px 28px;">
           <div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:12px;">Group events</div>
-          <div id="gp-events-list" style="font-size:14px;color:#6B7A8D;">Loading\u2026</div>
+          <div id="gp-events-list" style="font-size:14px;color:#6B7A8D;">Loading&hellip;</div>
           <div style="margin-top:14px;"><button class="btn" onclick="gpPost()">+ Post event</button></div>
         </div>
 
@@ -663,6 +663,48 @@ function pick(el, key){
           return;
         }
         box.innerHTML = '';
+        // ── GROUP EVENTS AS CARDS, ?gcards=1, a live mockup ──────────────────────────────────────
+        // Jessie, 2026-09-17: "show events like we do in cards like we do on socialized events".
+        // The same three-across grid the Socialized cards use, drawn from the events this group
+        // already has, so nothing extra is asked of the backend. Nobody sees it without the
+        // parameter, and the list underneath is untouched.
+        var _asCards = false;
+        try { _asCards = new URLSearchParams(location.search).get('gcards') === '1'; } catch (e) {}
+        if (_asCards) {
+          box.className = 'grid-2';
+          box.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;';
+          mine.slice(0, 40).forEach(function (ev) {
+            var c = document.createElement('div');
+            c.style.cssText = 'border:1px solid #E3EAF0;border-radius:12px;overflow:hidden;background:#fff;'
+              + 'display:flex;flex-direction:column;';
+            var img = ev.imageUrl || ev.detailImageUrl || '';
+            var head = img
+              ? '<img src="' + img + '" alt="" style="width:100%;height:112px;object-fit:cover;display:block;" '
+                + 'onerror="this.style.display=\'none\'">'
+              : '';
+            var socs = (Array.isArray(ev.socializedBy) ? ev.socializedBy : []).filter(function (x) { return x && x.name; });
+            var shown = socs.slice(0, 3).map(function (x) { return x.name; });
+            var more = socs.length - shown.length;
+            c.innerHTML = head
+              + '<div style="padding:12px 12px 14px;display:flex;flex-direction:column;gap:6px;">'
+              +   '<div style="font-weight:700;color:#1A2E42;font-size:15px;line-height:1.3;">' + _escHtml(ev.title || 'Event') + '</div>'
+              +   '<div style="font-size:13px;color:#6B7A8D;">' + _escHtml(gpWhen(ev)) + '</div>'
+              +   (shown.length ? '<div style="font-size:12px;color:#6B7A8D;">Socialized by ' + _escHtml(shown.join(', '))
+                    + (more > 0 ? ' and ' + more + ' more' : '') + '</div>' : '')
+              + '</div>';
+            var a = document.createElement('a');
+            a.className = 'btn';
+            a.setAttribute('role', 'link'); a.setAttribute('tabindex', '0');
+            a.setAttribute('data-nav', 'https://2gather.network/event/?id=' + encodeURIComponent(ev.id)
+              + (meId ? '&memberCard=' + encodeURIComponent(meId) : ''));
+            a.setAttribute('onclick', 'return _safeNavGo(this)');
+            a.textContent = 'View event';
+            a.style.cssText = 'margin:0 12px 12px;text-align:center;';
+            c.appendChild(a);
+            box.appendChild(c);
+          });
+          return;
+        }
         mine.slice(0, 40).forEach(function(ev){
           var row = document.createElement('div');
           row.style.cssText = 'padding:12px 0;border-top:1px solid #f0f1f5;';
@@ -2723,5 +2765,5 @@ var myPill = document.getElementById('gp-myprofile-pill');
 
   hello@creating.works
 -->
-<!-- Version: GR1.05 | Date: 2026-09-17 | LAST CHANGE: every socializer is named, with commas. Her words: "If more than one person is socializing an event (which they can), note this with commas like Socialized by Jessie Upp, Karin Bigelow etc". It named one, or two joined by "and", or one plus a count - three shapes for one list. Three names with commas now, then a count, so a long list cannot run over the card. GR1.04: where you are in a group survives a refresh and has an address. Her words: "on refresh - let me stay on the breadcrumb i 'm on - update this" and "Do thsi everywhere". Pressing a panel writes ?view= into the address and remembers it on this device, so a link can point straight at Group events or Matches and a refresh comes back where you were. The address wins over what is remembered. onboard and intro are never remembered, because they are gates rather than places, and the membership check still runs whatever the address says, so no address can let anybody in. GR1.03: ?ebm=1, a live mockup: two event sections under Matches, kept apart on purpose. Her words: "add event matches in this section too based on events posted from any member related to this group", then "make evnets by members a different section though / so it's distinct from events FOR the group". Events for this group is exact, from events.groupId. Events by people in this group is matched on the host NAME and says so on screen, because the public calendar feed does not carry who posted an event and the built version has to ask the backend by id. Nobody sees either without the parameter. GR1.02: the join box says so when you are looking at the page as somebody else. Nothing saves in that mode, by design, so a person missing a photo could never be given one and the passcode came back for ever with nothing saying why. GR1.01: coming back from the questions and still not able to join, the page says WHICH of the four things joining needs is missing - what you enjoy, your skills, what you care about, a photo - and offers the way to add it, instead of sending somebody round the same questions again. The backend has been naming it all along and nothing was reading it. GR1.00: somebody joining a group is taken into it as soon as they finish the questions, instead of being asked for the passcode a second time. The passcode they typed was right - that is the only reason the backend sent them to the questions rather than refusing them - and it was thrown away. It is kept for that tab only, never in the address, and cleared the moment it is used. This page had no version stamp until today. -->
+<!-- Version: GR1.06 | Date: 2026-09-17 | LAST CHANGE: two things. Group events said "Loading\u2026" out loud - a JavaScript escape written into HTML text, where it is just seven letters. It reads Loading&hellip; now, and a sweep found it was the only one of its kind in real markup on the whole site; every other \uXXXX is inside a JavaScript string, where it means what it says. And ?gcards=1, a live mockup: Group events drawn as cards like the Socialized cards on My events, her "show events like we do in cards like we do on socialized events", with the picture, the date, who socialized it and View event. Nobody sees it without the parameter and the list underneath is untouched. GR1.05: every socializer is named, with commas. Her words: "If more than one person is socializing an event (which they can), note this with commas like Socialized by Jessie Upp, Karin Bigelow etc". It named one, or two joined by "and", or one plus a count - three shapes for one list. Three names with commas now, then a count, so a long list cannot run over the card. GR1.04: where you are in a group survives a refresh and has an address. Her words: "on refresh - let me stay on the breadcrumb i 'm on - update this" and "Do thsi everywhere". Pressing a panel writes ?view= into the address and remembers it on this device, so a link can point straight at Group events or Matches and a refresh comes back where you were. The address wins over what is remembered. onboard and intro are never remembered, because they are gates rather than places, and the membership check still runs whatever the address says, so no address can let anybody in. GR1.03: ?ebm=1, a live mockup: two event sections under Matches, kept apart on purpose. Her words: "add event matches in this section too based on events posted from any member related to this group", then "make evnets by members a different section though / so it's distinct from events FOR the group". Events for this group is exact, from events.groupId. Events by people in this group is matched on the host NAME and says so on screen, because the public calendar feed does not carry who posted an event and the built version has to ask the backend by id. Nobody sees either without the parameter. GR1.02: the join box says so when you are looking at the page as somebody else. Nothing saves in that mode, by design, so a person missing a photo could never be given one and the passcode came back for ever with nothing saying why. GR1.01: coming back from the questions and still not able to join, the page says WHICH of the four things joining needs is missing - what you enjoy, your skills, what you care about, a photo - and offers the way to add it, instead of sending somebody round the same questions again. The backend has been naming it all along and nothing was reading it. GR1.00: somebody joining a group is taken into it as soon as they finish the questions, instead of being asked for the passcode a second time. The passcode they typed was right - that is the only reason the backend sent them to the questions rather than refusing them - and it was thrown away. It is kept for that tab only, never in the address, and cleared the moment it is used. This page had no version stamp until today. -->
 </html>
