@@ -677,6 +677,33 @@ function pick(el, key){
           when.style.cssText = 'font-size:13px;color:#6B7A8D;margin-top:2px;';
           when.textContent = gpWhen(ev);
           row.appendChild(a); row.appendChild(when);
+          // WHO SOCIALIZED IT, WITH THEIR FACE. Jessie, 2026-09-17: "add Socialized by wiht name
+          // and photo here". The feed this tile already reads carries socializedBy as
+          // { name, photo, link } and socializerCount, so nothing extra is asked of the backend.
+          // Drawn only where somebody has actually socialized it, so an event with none keeps
+          // the two lines it has rather than gaining an empty one.
+          var socs = (Array.isArray(ev.socializedBy) ? ev.socializedBy : [])
+            .filter(function(s){ return s && s.name; });
+          if (socs.length) {
+            var socLine = document.createElement('div');
+            socLine.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:6px;'
+              + 'font-size:12px;color:#6B7A8D;';
+            socs.slice(0, 3).forEach(function(s){
+              if (!s.photo) return;
+              var im = document.createElement('img');
+              im.src = s.photo; im.alt = '';
+              im.style.cssText = 'width:18px;height:18px;border-radius:50%;object-fit:cover;'
+                + 'display:block;flex:none;';
+              socLine.appendChild(im);
+            });
+            var lead = socs[0].name;
+            var rest = socs.length - 1;
+            var socTxt = document.createElement('span');
+            socTxt.textContent = 'Socialized by ' + lead
+              + (rest === 1 ? ' and ' + socs[1].name : rest > 1 ? ' and ' + rest + ' more' : '');
+            socLine.appendChild(socTxt);
+            row.appendChild(socLine);
+          }
           box.appendChild(row);
         });
       })
@@ -691,7 +718,14 @@ function pick(el, key){
     var bits = [];
     var d = String(ev.date || '').trim();
     if (d) {
-      var t = new Date(d);
+      // LOCAL MIDNIGHT, NOT UTC MIDNIGHT. The sheet holds 2026-09-17T00:00:00.000Z, and
+      // new Date() on that is midnight in London, which is the evening before in Seattle, so
+      // every date on this tile printed one day early. Jessie, 2026-09-17, six events posted
+      // for 9/17 through 10/10 and every one of them drawn a day back. gpLoadEvents, which
+      // splits upcoming from past, already read it this way, so the tile was sorting by the
+      // right day and printing the one before it. attendees.html fixed the same shift in its
+      // own fmtDate long ago; this file never got it.
+      var t = new Date(d.split('T')[0] + 'T00:00:00');
       bits.push(isNaN(t.getTime()) ? d : t.toLocaleDateString(undefined,
         { weekday:'short', month:'short', day:'numeric' }));
     } else if (ev.recurFreq && ev.dayOfWeek !== '' && ev.dayOfWeek !== null && ev.dayOfWeek !== undefined) {
