@@ -91,7 +91,7 @@
   // POSTING IS AT /myevents/new/. 2026-09-10, Jessie's "64 yes". This went to the calendar's
   // ?action=post, which opens the form as an overlay once the whole calendar has loaded;
   // /myevents/new/ opens the same two questions in the page at once.
-  var POST     = 'https://2gather.network/myevents/new/';
+  var POST     = 'https://2gather.network/myevents/#new';
   var MYGROUPS = 'https://2gather.network/mygroups';
   var START    = 'https://2gather.network/groups/create';
   var JOIN     = 'https://2gather.network/mygroups?join=1';
