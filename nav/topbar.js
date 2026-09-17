@@ -9,7 +9,10 @@
 
   hello@creating.works
 */
-/*  Version: V6.06 | Date: 2026-09-15 | LAST CHANGE: the bar's own spacing line no longer throws (it read w and d, defined 480 lines below it, so it had failed on every page since 2026-09-02); the corrected behaviour is behind ?bar=1 until it has been compared, because turning it on moves the bar up, adds room under it and drops its shadow on every page at once. V6.05: /ikigai/?p= is a public profile (row 195), so a signed-out visitor opening a shared profile is not sent to sign in.
+/*  Version: V6.07 | Date: 2026-09-17 | LAST CHANGE: on a phone opened from the home screen, the admin strip leaves room for the
+    status bar (env(safe-area-inset-top)); on the events calendar, which asks for the whole screen with viewport-fit=cover, the
+    clock and the signal bars sat on top of "Jessie Upp" and Change view. Elsewhere the inset is zero and nothing moves.
+    Version: V6.06 | Date: 2026-09-15 | LAST CHANGE: the bar's own spacing line no longer throws (it read w and d, defined 480 lines below it, so it had failed on every page since 2026-09-02); the corrected behaviour is behind ?bar=1 until it has been compared, because turning it on moves the bar up, adds room under it and drops its shadow on every page at once. V6.05: /ikigai/?p= is a public profile (row 195), so a signed-out visitor opening a shared profile is not sent to sign in.
     Version: V6.04 | Date: 2026-09-12 | LAST CHANGE: Sign up reads white on the event page, where a page rule had made it blue on blue; each page keeps its address in the tab as it is left, so Support and FAQ can name the page before. V6.03: the Creating.Works mark is the gradient ring with 🌱 inside, in place of the arrows. Jessie: "A - update now".
     Version: V6.02 | Date: 2026-09-12 | LAST CHANGE: on creating.works, a page that sets window.CW_SHOW_BAR gets the bar, with the Creating.Works ring mark, "Because creating works." and no sign-in pills when signed out. Nothing changes on 2gather.network.
     Version: V6.01 | Date: 2026-09-10 | LAST CHANGE: your own profile page asks a signed-out visitor to sign in, as My events and My groups already do.
@@ -956,7 +959,8 @@
     // fixed, not sticky: sticky is in the flow, so the strip pushed the whole page down and the
     // group's own header slid under it. Over the page, not shoving it. Jessie, 2026-09-01.
     bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;display:flex;align-items:center;gap:10px;'
-      + 'flex-wrap:wrap;gap:10px 16px;padding:7px 14px;font:600 13px/1.4 "DM Sans",system-ui,sans-serif;'
+      + 'flex-wrap:wrap;gap:10px 16px;padding:calc(7px + env(safe-area-inset-top, 0px)) 14px 7px;'
+      + 'font:600 13px/1.4 "DM Sans",system-ui,sans-serif;'
       + 'background:#fff;color:#1A2E42;border-bottom:1px solid #E3EAF0;'
       // White throughout, as asked. Standing in somebody else's shoes still has to be
       // impossible to miss, so that state keeps an amber edge and an amber name.
