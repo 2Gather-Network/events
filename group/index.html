@@ -923,8 +923,43 @@ function pick(el, key){
     btn.style.display = (view === 'members') ? 'none' : '';
   }
 
+  // WHERE YOU ARE SURVIVES A REFRESH, AND HAS AN ADDRESS. Jessie, 2026-09-17: "on refresh - let me
+  // stay on the breadcrumb i'm on - update this", showing "My groups / Climate Group / Group events",
+  // and "Do thsi everywhere". My groups, My events and Manage a group already do it.
+  //
+  // Two things at once, and they are the same thing: the view goes into the address, so a link can
+  // point at Group events rather than at a group somebody then has to click through, and it is
+  // remembered on this device, so a refresh with no view in the address comes back where you were.
+  //
+  // onboard and intro are never remembered. They are gates, not places: onboard is what somebody
+  // outside the group sees and intro is the joining questions, and being returned to either by a
+  // refresh would be wrong. The membership check below still runs whatever the address says, so an
+  // address naming a members-only view can never let anybody in.
+  var _GP_VIEW_KEY = 'cw-group-view';
+  function _gpViewKey(){ return _GP_VIEW_KEY + ':' + String(groupId || ''); }
+  function _gpRememberView(view){
+    if (view === 'onboard' || view === 'intro') return;
+    try { window.localStorage.setItem(_gpViewKey(), view); } catch (e) {}
+    try {
+      var u = new URL(window.location.href);
+      if (view === 'concierge') { u.searchParams.delete('view'); }
+      else { u.searchParams.set('view', view); }
+      window.history.replaceState(null, '', u.toString());
+    } catch (e) {}
+  }
+  function _gpOpeningView(){
+    var asked = '';
+    try { asked = String(new URLSearchParams(location.search).get('view') || '').trim(); } catch (e) {}
+    if (asked && GP_MEMBERS_ONLY[asked]) return asked;          // the address wins
+    try {
+      var kept = window.localStorage.getItem(_gpViewKey());
+      if (kept && GP_MEMBERS_ONLY[kept] && kept !== 'onboard' && kept !== 'intro') return kept;
+    } catch (e) {}
+    return 'concierge';
+  }
   window.gpShow = function(view){
     if (GP_MEMBERS_ONLY[view] && !window._gpAlreadyIn) { view = 'onboard'; }
+    _gpRememberView(view);
     try { gpSyncManage(view); } catch (err) {}
     var ids = ['gp-concierge','gp-onboard','gp-feed','gp-messages','gp-invites','gp-events','gp-search','gp-members','gp-intro'];
     ids.forEach(function(i){ var el = document.getElementById(i); if (el) el.style.display = 'none'; });
@@ -2617,7 +2652,8 @@ var myPill = document.getElementById('gp-myprofile-pill');
         } else {
           // Said out loud now. It used to rely on the concierge being on screen already, which
           // is what made the first paint a claim rather than an answer.
-          gpShow('concierge');
+          // And it opens where you were: the address first, then this device's memory, then home.
+          gpShow(_gpOpeningView());
         }
       }
     }, function(){
@@ -2683,5 +2719,5 @@ var myPill = document.getElementById('gp-myprofile-pill');
 
   hello@creating.works
 -->
-<!-- Version: GR1.03 | Date: 2026-09-17 | LAST CHANGE: ?ebm=1, a live mockup: two event sections under Matches, kept apart on purpose. Her words: "add event matches in this section too based on events posted from any member related to this group", then "make evnets by members a different section though / so it's distinct from events FOR the group". Events for this group is exact, from events.groupId. Events by people in this group is matched on the host NAME and says so on screen, because the public calendar feed does not carry who posted an event and the built version has to ask the backend by id. Nobody sees either without the parameter. GR1.02: the join box says so when you are looking at the page as somebody else. Nothing saves in that mode, by design, so a person missing a photo could never be given one and the passcode came back for ever with nothing saying why. GR1.01: coming back from the questions and still not able to join, the page says WHICH of the four things joining needs is missing - what you enjoy, your skills, what you care about, a photo - and offers the way to add it, instead of sending somebody round the same questions again. The backend has been naming it all along and nothing was reading it. GR1.00: somebody joining a group is taken into it as soon as they finish the questions, instead of being asked for the passcode a second time. The passcode they typed was right - that is the only reason the backend sent them to the questions rather than refusing them - and it was thrown away. It is kept for that tab only, never in the address, and cleared the moment it is used. This page had no version stamp until today. -->
+<!-- Version: GR1.04 | Date: 2026-09-17 | LAST CHANGE: where you are in a group survives a refresh and has an address. Her words: "on refresh - let me stay on the breadcrumb i 'm on - update this" and "Do thsi everywhere". Pressing a panel writes ?view= into the address and remembers it on this device, so a link can point straight at Group events or Matches and a refresh comes back where you were. The address wins over what is remembered. onboard and intro are never remembered, because they are gates rather than places, and the membership check still runs whatever the address says, so no address can let anybody in. GR1.03: ?ebm=1, a live mockup: two event sections under Matches, kept apart on purpose. Her words: "add event matches in this section too based on events posted from any member related to this group", then "make evnets by members a different section though / so it's distinct from events FOR the group". Events for this group is exact, from events.groupId. Events by people in this group is matched on the host NAME and says so on screen, because the public calendar feed does not carry who posted an event and the built version has to ask the backend by id. Nobody sees either without the parameter. GR1.02: the join box says so when you are looking at the page as somebody else. Nothing saves in that mode, by design, so a person missing a photo could never be given one and the passcode came back for ever with nothing saying why. GR1.01: coming back from the questions and still not able to join, the page says WHICH of the four things joining needs is missing - what you enjoy, your skills, what you care about, a photo - and offers the way to add it, instead of sending somebody round the same questions again. The backend has been naming it all along and nothing was reading it. GR1.00: somebody joining a group is taken into it as soon as they finish the questions, instead of being asked for the passcode a second time. The passcode they typed was right - that is the only reason the backend sent them to the questions rather than refusing them - and it was thrown away. It is kept for that tab only, never in the address, and cleared the moment it is used. This page had no version stamp until today. -->
 </html>
