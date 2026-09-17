@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: G1.04 | Date: 2026-09-16 | LAST CHANGE: under the two doors, one line adding up every group you are in with each person counted ONCE - a person in three of your groups is one person, which is why the page cannot add it up itself and the backend counts it in a read of its own, asked after the cards are drawn. Until it answers the line says nothing rather than a number it is guessing. And the button on a card you host reads "Manage". Needs the deploy. G1.03: a group card you host carries Manage group beside Open group, outlined as the second of the pair, going to the same page the rail's Manage tile opens. Only where you host it, because Manage refuses anybody else and a button that exists to say no is worse than none. G1.02: the search box has a line round it, the same grey every other box on the site has, her pick of three shown side by side. G1.01: while no group is open the panel shows every group as a card, the way My events shows every event - picture, name, the line about it, then how many people, offers and needs it holds, with a pill for a group you host and one for anybody waiting to join. It is the page for everybody now, on her word; ?look=list brings back the empty panel with only the two doors. It is the same list the rail is drawn from rather than a copy, so search and sort still drive one thing, and a card's button presses the rail's own row. G1.00: ?look=cards, a live mockup: while no group is open, the panel shows every group as a card the way My events shows every event - picture, name, the line about it, then how many people, offers and needs it holds, with a pill for a group you host and one for anybody waiting to join. Nobody sees it without the parameter, and it is the same list the rail is drawn from rather than a copy, so search and sort still drive one thing. This page had no version stamp until today. -->
+<!-- Version: G1.05 | Date: 2026-09-16 | LAST CHANGE: the totals line and every card count what people actually offer. An offer was ikigai.haves alone, which is things and spaces, so 699 people came to 0 offers against 469 needs; it is now skills, languages, spaces, things and offered time, which is what Offerings means everywhere else on the site (her word: "offers full"). And a card no longer prints "0 offers - 0 needs" it has not counted: getMyGroups reports those as zero for every group and always has, so the card says how many people and waits, and the two numbers arrive from the same read that fills the totals line - no second call, and getMyGroups never reads ikigai. Switching tab or searching keeps the numbers rather than blanking them. Needs the deploy. G1.04: under the two doors, one line adding up every group you are in with each person counted ONCE - a person in three of your groups is one person, which is why the page cannot add it up itself and the backend counts it in a read of its own, asked after the cards are drawn. Until it answers the line says nothing rather than a number it is guessing. And the button on a card you host reads "Manage". Needs the deploy. G1.03: a group card you host carries Manage group beside Open group, outlined as the second of the pair, going to the same page the rail's Manage tile opens. Only where you host it, because Manage refuses anybody else and a button that exists to say no is worse than none. G1.02: the search box has a line round it, the same grey every other box on the site has, her pick of three shown side by side. G1.01: while no group is open the panel shows every group as a card, the way My events shows every event - picture, name, the line about it, then how many people, offers and needs it holds, with a pill for a group you host and one for anybody waiting to join. It is the page for everybody now, on her word; ?look=list brings back the empty panel with only the two doors. It is the same list the rail is drawn from rather than a copy, so search and sort still drive one thing, and a card's button presses the rail's own row. G1.00: ?look=cards, a live mockup: while no group is open, the panel shows every group as a card the way My events shows every event - picture, name, the line about it, then how many people, offers and needs it holds, with a pill for a group you host and one for anybody waiting to join. Nobody sees it without the parameter, and it is the same list the rail is drawn from rather than a copy, so search and sort still drive one thing. This page had no version stamp until today. -->
 <html>
 <head>
 <meta charset="utf-8">
@@ -226,6 +226,24 @@
   // group the way My events shows every event. ?look=list brings back the empty panel with only the
   // two doors on it.
   var GCARDS = (function(){ try { return new URLSearchParams(location.search).get('look') !== 'list'; } catch (e) { return true; } })();
+  // The per-group counts from getGroupTotals, kept so that switching tab or typing in the search
+  // redraws the cards with their numbers already on rather than blanking them for eight seconds.
+  var _gtPer = null;
+  function _gkey(gid) { return String(gid || '').split('.').join('').toLowerCase(); }
+  function _gstTail(gid) {
+    var p = _gtPer && _gtPer[_gkey(gid)];
+    return p ? ' \u00b7 <b>' + p.offers + '</b> offers \u00b7 <b>' + p.needs + '</b> needs' : '';
+  }
+  function _gfillCards() {
+    if (!_gtPer) return;
+    var els = document.querySelectorAll('#gcards .gst[data-gid]');
+    for (var i = 0; i < els.length; i++) {
+      var p = _gtPer[_gkey(els[i].getAttribute('data-gid'))];
+      if (!p) continue;
+      var head = els[i].innerHTML.split('\u00b7')[0];
+      els[i].innerHTML = head.replace(/\s+$/, '') + ' \u00b7 <b>' + p.offers + '</b> offers \u00b7 <b>' + p.needs + '</b> needs';
+    }
+  }
   function gpaintCards(list) {
     var detail = document.getElementById('detail');
     if (!detail) return;
@@ -239,7 +257,11 @@
       c.innerHTML = '<img class="gimg" src="' + esc(groupImg(g)) + '" alt="" onerror="this.style.visibility=\'hidden\'">'
         + '<div class="gnm">' + esc(g.name || 'Group') + '</div>'
         + (g.intro ? '<div class="gin">' + esc(String(g.intro)) + '</div>' : '')
-        + '<div class="gst"><b>' + n(g.members) + '</b> people \u00b7 <b>' + n(g.offers) + '</b> offers \u00b7 <b>' + n(g.needs) + '</b> needs</div>'
+        // A CARD NEVER PRINTS A ZERO IT HAS NOT COUNTED. getMyGroups reports offers and needs as 0
+        // for every group and always has, so the card said "0 offers - 0 needs" about groups full of
+        // both. They are counted by getGroupTotals, which reads ikigai once for the totals line
+        // anyway, and land here a moment later. Until then the card says how many people and stops.
+        + '<div class="gst" data-gid="' + esc(String(g.groupId || '')) + '"><b>' + n(g.members) + '</b> people' + _gstTail(g.groupId) + '</div>'
         + (n(g.pending) ? '<div><span class="gpill">' + n(g.pending) + ' waiting to join</span></div>' : '')
         + (String(g.role || '') === 'host' ? '<div><span class="gpill">You host this</span></div>' : '')
         // MANAGE GROUP ON A CARD YOU HOST. Jessie, 2026-09-16: "add manage group button to each card".
@@ -289,6 +311,13 @@
         var n = function (v) { var x = parseInt(v, 10); return isNaN(x) ? 0 : x; };
         line.innerHTML = 'Across your ' + n(d.groups) + ' groups: <b>' + n(d.people)
           + '</b> people, <b>' + n(d.offers) + '</b> offers, <b>' + n(d.needs) + '</b> needs.';
+        // The same read counted each group on its own, so the cards are filled from this answer
+        // instead of asking a second time.
+        if (d.perGroup) {
+          _gtPer = {};
+          for (var k in d.perGroup) { if (d.perGroup.hasOwnProperty(k)) _gtPer[_gkey(k)] = d.perGroup[k]; }
+          _gfillCards();
+        }
       })
       .catch(function () {});                          // a failed count is not a zero
   }
@@ -804,8 +833,10 @@
       return '<option value="' + o.key + '"' + (_sortChosen && o.key === _sort ? ' selected' : '') + '>' + esc(o.label) + '</option>';
     }).join('');
   }
-  // Hosting a group and belonging to one are different relationships, so they get their own
-  // lists rather than one pile. A group you host is never also listed under Member.
+  // Hosting a group and belonging to one are different relationships, but they are not separate
+  // piles: a host belongs to the group they host. Jessie, 2026-09-16, pressing the two tabs: "it
+  // doesn't show anything different bcz all host are members of groups too". That is the design,
+  // and the comment that used to sit here said the opposite of the line below it.
   function _isHosted(g){ var r = String(g.role || '').toLowerCase(); return r === 'host' || r === 'cohost'; }
   // Hosting a group means belonging to it, so Member is every group you are in and Host is the
   // subset you run. They overlap on purpose: a host is not a different kind of person.
