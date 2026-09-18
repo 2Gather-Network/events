@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: A1.02 | Date: 2026-09-18 | LAST CHANGE: the heading reads "Manage <group>" rather than "Host of <group>". Jessie, 2026-09-18: "Host of Climate Group to Manage Climate Group". This reverses her own wording of 2026-09-08 and both are kept in the code on purpose: what changed is what the screen is for. It is the one place a host does things to the group, so the heading names the job rather than the person's rank - and who she is to the group is already said by being able to open it at all, while the trail above says which group. Co-host and Super admin read the same way now, which is the point: the screen is Manage, whoever opened it. A1.01 | Date: 2026-09-17 | LAST CHANGE: the tab you were last on survives a refresh - Members, Requests, Invite or Group info, remembered on this device. Her words, of My groups: "please do this on other pages too". Permanent changes is deliberately NOT remembered: everything on it is destructive and none of it can be taken back, so somebody goes there on purpose or not at all. It is put back by pressing the tab, so the one switcher stays the only thing that moves a tab. A1.00: Manage stops asking past the gate on every visit. It sent nocache=1 every time, so it never once used the copy the gate was already holding and paid Apps Script in full - measured on Snohomish Creates at 63 seconds and an error page, then 5.9, then 0.11 from the kept copy. The copy is safe: the gate clears a group's bundle whenever anybody writes to that group, and the key carries who is asking. And one failure is no longer the end: it asks once more before saying the group did not load. This page had no version stamp until today. -->
+<!-- Version: A1.03 | Date: 2026-09-18 | LAST CHANGE: a person on the Members list can be taken out of the group. Jessie, 2026-09-18: "as manager let me click on any of htese peopel to manage their meembership - add a 'remove access' or 'delete' - research what slack or meetup does here for managing members", then yes to Remove first with a message and a reason, "but for super admin deelete option so we can test". WHAT THE RESEARCH SAID: Slack removes somebody from a channel and leaves the rest, and deletes nothing of theirs ever; Meetup removes and lets them ask to rejoin, or bans so they cannot. Neither product deletes a person. So Manage on a row opens a sentence - "Take <name> out of this group? They stop being a member and can ask to join again." - an optional reason they will see, and Remove or Cancel. Remove keeps the membership row and writes removed into its status, so the record of who was in this group when survives. DELETE IS SUPER ADMIN ONLY, on its own line, in red, saying that it takes the rows out altogether so the person has never joined, that nothing undoes it and that it is meant for testing; a host never sees it. Both need the backend actions removeMember and deleteMember, which are WRITTEN AND NOT DEPLOYED - until Jessie deploys, pressing either says it did not go through and nothing changes. A1.02 | Date: 2026-09-18 | LAST CHANGE: the heading reads "Manage <group>" rather than "Host of <group>". Jessie, 2026-09-18: "Host of Climate Group to Manage Climate Group". This reverses her own wording of 2026-09-08 and both are kept in the code on purpose: what changed is what the screen is for. It is the one place a host does things to the group, so the heading names the job rather than the person's rank - and who she is to the group is already said by being able to open it at all, while the trail above says which group. Co-host and Super admin read the same way now, which is the point: the screen is Manage, whoever opened it. A1.01 | Date: 2026-09-17 | LAST CHANGE: the tab you were last on survives a refresh - Members, Requests, Invite or Group info, remembered on this device. Her words, of My groups: "please do this on other pages too". Permanent changes is deliberately NOT remembered: everything on it is destructive and none of it can be taken back, so somebody goes there on purpose or not at all. It is put back by pressing the tab, so the one switcher stays the only thing that moves a tab. A1.00: Manage stops asking past the gate on every visit. It sent nocache=1 every time, so it never once used the copy the gate was already holding and paid Apps Script in full - measured on Snohomish Creates at 63 seconds and an error page, then 5.9, then 0.11 from the kept copy. The copy is safe: the gate clears a group's bundle whenever anybody writes to that group, and the key carries who is asking. And one failure is no longer the end: it asks once more before saying the group did not load. This page had no version stamp until today. -->
 <html>
 <head>
 <meta charset="utf-8">
@@ -1776,10 +1776,113 @@
       view.setAttribute('onclick', 'return _safeNavGo(this)');
       view.style.cursor = 'pointer';
       acts.appendChild(view);
+      // ── TAKING SOMEBODY OUT IS TAKING AWAY ACCESS, NOT DELETING A PERSON ───────────────────
+      // Jessie, 2026-09-18: "as manager let me click on any of htese peopel to manage their
+      // meembership - add a 'remove access' or 'delete' - research what slack or meetup does here
+      // for managing members", then yes to Remove first "but for super admin deelete option so we
+      // can test".
+      //
+      // Slack removes from a channel and leaves the rest, and deletes nothing of theirs ever.
+      // Meetup removes, and they may ask to rejoin. Neither product deletes a person, so neither
+      // does this: Remove keeps the row and writes 'removed' into its status, and the record of
+      // who was in this group when survives.
+      //
+      // The reason is optional and it is kept, because Meetup lets an organiser say why and a
+      // removal with no reason is the kind of thing somebody asks about a month later.
+      //
+      // Delete is SUPER ADMIN ONLY and really does take the rows out. It is here so a test account
+      // can be put back to never having joined - her words, "so we can test" - and a host never
+      // sees it.
+      var man = document.createElement('button');
+      man.type = 'button'; man.className = 'btn ghost sm'; man.textContent = 'Manage';
+      man.addEventListener('click', function(){ _openMemberManage(row, acts, m); });
+      acts.appendChild(man);
       row.appendChild(av); row.appendChild(who); row.appendChild(acts);
       list.appendChild(row);
     });
   }
+  // The panel that opens under one person's row. One at a time: opening a second closes the first,
+  // because two half-finished removals on one screen is how the wrong person goes.
+  var _memOpen = null;
+  function _openMemberManage(row, acts, m){
+    if (_memOpen && _memOpen.parentNode) { _memOpen.parentNode.removeChild(_memOpen); }
+    var who = (m.name || m.first || 'this person');
+    var box = document.createElement('div');
+    box.setAttribute('style', 'flex:1 0 100%;margin-top:10px;padding:12px 14px;background:#F7F9FC;'
+      + 'border:1px solid #DDE4EE;border-radius:12px;');
+    var say = document.createElement('div');
+    say.setAttribute('style', 'font-size:14px;line-height:1.5;color:#1A2E42;margin-bottom:10px;');
+    say.textContent = 'Take ' + who + ' out of this group? They stop being a member and can ask to join again.';
+    var why = document.createElement('input');
+    why.type = 'text'; why.maxLength = 500;
+    why.placeholder = 'Why, if you want to say (they will see it)';
+    why.setAttribute('style', 'width:100%;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;'
+      + 'padding:9px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;margin-bottom:10px;');
+    var note = document.createElement('div');
+    note.setAttribute('style', 'font-size:13px;color:#6B7A8D;line-height:1.5;margin-bottom:10px;display:none;');
+    var bar = document.createElement('div');
+    bar.setAttribute('style', 'display:flex;gap:8px;flex-wrap:wrap;');
+    var stop = function(){ if (box.parentNode) box.parentNode.removeChild(box); _memOpen = null; };
+
+    var send = function(what, btn){
+      var all = bar.querySelectorAll('button');
+      for (var i = 0; i < all.length; i++) { all[i].disabled = true; }
+      btn.textContent = 'Working\u2026';
+      note.style.display = 'block';
+      note.textContent = 'Asking the backend. This can take up to a minute.';
+      fetch(GS_URL + '?action=' + what
+            + '&groupId=' + encodeURIComponent(groupId)
+            + '&appearId=' + encodeURIComponent(m.appearId)
+            + '&byAppearId=' + encodeURIComponent(meId)
+            + '&reason=' + encodeURIComponent(String(why.value || '').trim())
+            + '&nocache=1&t=' + Date.now())
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (!d || d.status !== 'ok') { throw new Error((d && d.message) || 'no'); }
+          // The row goes, and the count with it, rather than the page claiming something it has
+          // not re-read. Everything else on this screen re-reads on its own next visit.
+          if (row.parentNode) row.parentNode.removeChild(row);
+          _memOpen = null;
+        })
+        .catch(function(err){
+          for (var j = 0; j < all.length; j++) { all[j].disabled = false; }
+          btn.textContent = (what === 'deleteMember') ? 'Delete' : 'Remove';
+          note.textContent = String((err && err.message) || 'That did not go through.') === 'no'
+            ? 'That did not go through. Try again in a moment.'
+            : String(err && err.message || 'That did not go through.');
+        });
+    };
+
+    var go = document.createElement('button');
+    go.type = 'button'; go.className = 'btn'; go.textContent = 'Remove';
+    go.addEventListener('click', function(){ send('removeMember', go); });
+    var no = document.createElement('button');
+    no.type = 'button'; no.className = 'btn ghost'; no.textContent = 'Cancel';
+    no.addEventListener('click', stop);
+    bar.appendChild(go); bar.appendChild(no);
+
+    if (_role === 'superadmin') {
+      // Its own line, and it says what it does. A super admin is the only person who can put an
+      // account back to never having joined, and there is no undo.
+      var hardSay = document.createElement('div');
+      hardSay.setAttribute('style', 'font-size:13px;color:#7A2410;line-height:1.5;margin:12px 0 8px;');
+      hardSay.textContent = 'Super admin only: Delete takes the rows out altogether, so this person '
+        + 'has never joined this group. Nothing can undo it, and it is meant for testing.';
+      var hard = document.createElement('button');
+      hard.type = 'button'; hard.className = 'btn';
+      hard.setAttribute('style', 'background:#B4462F;');
+      hard.textContent = 'Delete';
+      hard.addEventListener('click', function(){ send('deleteMember', hard); });
+      box.appendChild(say); box.appendChild(why); box.appendChild(note);
+      box.appendChild(bar); box.appendChild(hardSay); box.appendChild(hard);
+    } else {
+      box.appendChild(say); box.appendChild(why); box.appendChild(note); box.appendChild(bar);
+    }
+    row.appendChild(box);
+    _memOpen = box;
+    try { why.focus(); } catch (e) {}
+  }
+
   // A new search starts from the first page again, otherwise a narrow result would arrive
   // already scrolled past.
   document.getElementById('mem-search').addEventListener('input', function(){
