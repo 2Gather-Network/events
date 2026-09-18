@@ -1,5 +1,5 @@
 /* Where a person belongs the moment we know who they are.
-   Version: V2.00 | Date: 2026-08-30
+   Version: V2.01 | Date: 2026-09-17
 
    Somebody signing in for the first time and somebody signing in for the hundredth are the
    same request as far as the code is concerned, so the difference has to be read from what
@@ -21,6 +21,17 @@
               'introNeed', 'introEnjoy', 'introSkills', 'introValues', 'introOffer'];
 
   function blank(v) { return !String(v == null ? '' : v).trim(); }
+
+  // DID THEY ASK FOR SOMEWHERE? A group, an event, posting, or a group's own doors. The calendar is
+  // what `next` says when nobody named anywhere, so it does not count as asking.
+  function _asked(next) {
+    try {
+      var u = String(next || '');
+      if (!u) return false;
+      var path = u.split('#')[0].split('?')[0].replace(/^https?:\/\/[^/]+/, '');
+      return /^\/(group|groups|event|myevents|ikigai|commons)(\/|$)/.test(path);
+    } catch (e) { return false; }
+  }
 
   CW.firstStop = function (id, next, done) {
     var settled = false;
@@ -47,7 +58,17 @@
         //
         // A new person lands on the doors instead and picks. Join a group and Start a group are
         // two of them, and that path asks the questions when it needs to.
-        finish(spoken ? next : 'https://2gather.network/welcome/');
+        // A REAL DESTINATION BEATS /welcome/. Jessie, 2026-09-17: "i want people to go directly to
+        // hte group they were invited to and they click join and it then asks them to sign in/up",
+        // and "if they dn't get a referral or a direct link to a group or event then go to weolcome".
+        //
+        // Until tonight an empty profile overruled everything, so somebody invited to a group did
+        // exactly the right thing - opened the group, pressed Join, signed up, and was then thrown
+        // to /welcome/ at the last step, with the group they were joining discarded. A new person's
+        // profile is empty BY DEFINITION, so the people this hurt were the only people it was for.
+        //
+        // /welcome/ catches somebody who arrived with nowhere in particular to be.
+        finish((spoken || _asked(next)) ? next : 'https://2gather.network/welcome/');
       })
       .catch(function () { clearTimeout(timer); finish(next); });
   };
