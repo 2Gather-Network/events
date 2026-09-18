@@ -97,9 +97,40 @@
   /* Take the person out of the address bar without reloading, and without losing a
      group id or an event id, which are not people. history.replaceState so the version
      carrying the id is not left sitting in the back button either. */
+  /* AN ID NAMING SOMEBODY ELSE BECOMES THEIR CODE. Jessie, 2026-09-18: "All I know is if I go to a
+     URL with the ID exposed in the domain, I don't ever want to see that again. This shouldn't
+     happen, right?" Right.
+
+     WHO above takes out the ids that say "this is me" - CWid, memberCard, appearId, me - and has
+     since August. `show` was never in that list, because deleting it would lose WHICH person the
+     address is opening. So it stayed, and it is the one she kept seeing.
+
+     It is not deleted, it is translated: ?show=<id> becomes ?v=<code>, the same six characters
+     2gather.network/ikigai/?p= reads and a share link carries as r=. Worked out FROM the id, so
+     nothing is stored and nothing is asked for - and it happens here, in the file every page loads
+     before its own scripts run, so it covers every old link in anybody's history, in a message or
+     in a screenshot, not only the links we go on to fix.
+
+     `id` is deliberately NOT translated: on /group/ and /event/ it names a group or an event, not
+     a person, and those are not people. */
+  function codeFor(id) {
+    var v = String(id || '').split('.').join('').toLowerCase();
+    if (!v) { return ''; }
+    var h = 5381;
+    for (var i = 0; i < v.length; i++) { h = ((h * 33) ^ v.charCodeAt(i)) >>> 0; }
+    return ('000000' + h.toString(36)).slice(-6);
+  }
+
   function strip() {
     ls(function () {
       var url = new URL(w.location.href), hit = false;
+      var shown = String(url.searchParams.get('show') || '').trim();
+      if (shown) {
+        var code = codeFor(shown);
+        url.searchParams.delete('show');
+        if (code && !url.searchParams.get('v')) { url.searchParams.set('v', code); }
+        hit = true;
+      }
       for (var i = 0; i < WHO.length; i++) {
         if (url.searchParams.has(WHO[i])) { url.searchParams.delete(WHO[i]); hit = true; }
       }
