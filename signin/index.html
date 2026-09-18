@@ -10,7 +10,7 @@
 
   hello@creating.works
 -->
-<!-- Version: V1.05 | Date: 2026-09-12 | LAST CHANGE: signing in lands on the calendar (/events/), not /welcome/. V1.04: no "One profile across" line under the heading. V1.03: Continue with Google above the email box, behind ?google=1 (row 149; nav/google-signin.js). -->
+<!-- Version: V1.06 | Date: 2026-09-18 | LAST CHANGE: signing in comes back to the group you pressed Join on, whichever door you came through. Jessie, 2026-09-18: "fix the sign in process next so when i come from a group invite with my ID it lands me in the group after i sign in/up". Two things were dropping it. "Sign up instead." on this page went to /signup/ with nothing on it, so switching doors threw the group away - it carries it now. And any door reached without ?next= knew nothing at all, so this page reads what pressing Join wrote down (CW.whereWasI in nav/firststop.js: our own paths only, kept half an hour, and forgotten when somebody actually arrives somewhere). The address still wins. A brand-new Google account goes there too, not to the calendar, because it is the same question. V1.05 | Date: 2026-09-12 | LAST CHANGE: signing in lands on the calendar (/events/), not /welcome/. V1.04: no "One profile across" line under the heading. V1.03: Continue with Google above the email box, behind ?google=1 (row 149; nav/google-signin.js). -->
 <!-- Previous: V1.02 | Date: 2026-08-30 | LAST CHANGE: the bar comes off, so signing in is the only thing on the page -->
 <html lang="en">
 <head>
@@ -51,7 +51,7 @@
   .step0{display:none;}
 </style>
   <script src="/nav/identity.js?v=14"></script>
-  <script src="/nav/firststop.js?v=2"></script>
+  <script src="/nav/firststop.js?v=3"></script>
   <script src="/nav/google-signin.js?v=5"></script>
 </head>
 <body>
@@ -73,7 +73,7 @@
       <input id="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com">
       <button id="send">Send my code</button>
       <div class="say" id="say1"></div>
-      <p class="quiet">New here? <a role="link" tabindex="0" data-nav="/signup/"
+      <p class="quiet">New here? <a role="link" tabindex="0" id="to-signup" data-nav="/signup/"
         onclick="return _safeNavGo(this)">Sign up instead.</a></p>
     </div>
 
@@ -113,11 +113,26 @@ window._safeNavGo = window._safeNavGo || function (el) {
   // THE LANDING PAGE IS THE CALENDAR. Jessie, 2026-09-12, after signing in with Google: "landing page should be
   // /events/", then "welcome is not landing page". Somebody signed in without being sent from anywhere lands on the
   // calendar; anybody sent from a page still goes back to it. This replaces the doors (/welcome/, 2026-08-30).
-  var next = String(params.get('next') || '/events/');
-  if (next.charAt(0) !== '/' || next.indexOf('//') === 0) { next = '/events/'; }
+  // WHERE THEY WERE GOING, WHEN THE ADDRESS DOES NOT SAY. Jessie, 2026-09-18: "fix the sign in
+  // process next so when i come from a group invite with my ID it lands me in the group after i
+  // sign in/up". Pressing Join on a group writes the group down (nav/firststop.js), so a door
+  // reached with nothing on it still knows where the person was going. The address always wins;
+  // reading the note takes it, so it is used once and never again.
+  var asked = String(params.get('next') || '');
+  if (!asked) { try { asked = (window.CW && CW.whereWasI && CW.whereWasI()) || ''; } catch (e) {} }
+  var next = asked || '/events/';
+  if (next.charAt(0) !== '/' || next.indexOf('//') === 0) { next = '/events/'; asked = ''; }
   // Never send somebody back to this page. Signing in and landing on sign-in reads as
   // the code having failed, and it is how a person ends up going round twice.
-  if (next.indexOf('/signin') === 0) { next = '/events/'; }
+  if (next.indexOf('/signin') === 0) { next = '/events/'; asked = ''; }
+
+  // SWITCHING DOORS MUST NOT THROW THE GROUP AWAY. "Sign up instead." went to /signup/ with
+  // nothing on it, so somebody invited to a group who pressed Join, then found they were new,
+  // arrived signed up on the calendar. It carries where they were going now.
+  try {
+    var _su = document.getElementById('to-signup');
+    if (_su && asked) { _su.setAttribute('data-nav', '/signup/?next=' + encodeURIComponent(next)); }
+  } catch (e) {}
 
   var email = '';
   // SIGN IN WITH GOOGLE, for everybody since 2026-09-12 (row 149; see nav/google-signin.js). Where somebody was
@@ -130,7 +145,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
   //
   // The calendar is still where a brand-new person lands when nothing sent them anywhere - somebody who
   // came to sign up on their own has no group to go back to.
-  var nextNew = params.get('next') ? next : '/events/';
+  var nextNew = asked ? next : '/events/';
   try { cwGoogleMount({ slot: document.getElementById('cw-g-slot'), card: document.querySelector('.card'), mode: 'signin', next: next, nextNew: nextNew }); } catch (e) {}
 
   function tell(which, msg, good) {

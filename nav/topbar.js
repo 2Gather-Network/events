@@ -12,6 +12,7 @@
 /*  Version: V6.07 | Date: 2026-09-17 | LAST CHANGE: on a phone opened from the home screen, the admin strip leaves room for the
     status bar (env(safe-area-inset-top)); on the events calendar, which asks for the whole screen with viewport-fit=cover, the
     clock and the signal bars sat on top of "Jessie Upp" and Change view. Elsewhere the inset is zero and nothing moves.
+    Version: V6.08 | Date: 2026-09-18 | LAST CHANGE: the bar's Sign up carries you back where you were, as its Sign in already did. Jessie, 2026-09-18: "fix the sign in process next so when i come from a group invite with my ID it lands me in the group after i sign in/up". CW_SIGNIN has carried ?next= since V5.00 and CW_SIGNUP right beside it carried nothing at all, so the person an invite is FOR - somebody new, who presses Sign up rather than Sign in - was the one person the bar dropped. (The number skips V6.07: the file said V6.06 while every page asked for ?v=6.07, so both now read 6.08 and agree.)
     Version: V6.06 | Date: 2026-09-15 | LAST CHANGE: the bar's own spacing line no longer throws (it read w and d, defined 480 lines below it, so it had failed on every page since 2026-09-02); the corrected behaviour is behind ?bar=1 until it has been compared, because turning it on moves the bar up, adds room under it and drops its shadow on every page at once. V6.05: /ikigai/?p= is a public profile (row 195), so a signed-out visitor opening a shared profile is not sent to sign in.
     Version: V6.04 | Date: 2026-09-12 | LAST CHANGE: Sign up reads white on the event page, where a page rule had made it blue on blue; each page keeps its address in the tab as it is left, so Support and FAQ can name the page before. V6.03: the Creating.Works mark is the gradient ring with 🌱 inside, in place of the arrows. Jessie: "A - update now".
     Version: V6.02 | Date: 2026-09-12 | LAST CHANGE: on creating.works, a page that sets window.CW_SHOW_BAR gets the bar, with the Creating.Works ring mark, "Because creating works." and no sign-in pills when signed out. Nothing changes on 2gather.network.
@@ -55,7 +56,16 @@
       return SIGNIN + '?next=' + encodeURIComponent(here + window.location.search);
     } catch (e) { return SIGNIN; }
   })();
-  window.CW_SIGNUP = window.CW_SIGNUP || 'https://2gather.network/signup/';
+  // Sign up, the same way. It sat here as a bare address for as long as Sign in has carried one,
+  // which made the bar remember where you were only if you already had an account.
+  window.CW_SIGNUP = window.CW_SIGNUP || (function () {
+    var SIGNUP = 'https://2gather.network/signup/';
+    try {
+      var here = window.location.pathname || '';
+      if (here.indexOf('/signup') === 0 || here.indexOf('/signin') === 0) { return SIGNUP; }
+      return SIGNUP + '?next=' + encodeURIComponent(here + window.location.search);
+    } catch (e) { return SIGNUP; }
+  })();
   // GROUPS EVERYBODY IS IN DO NOT MAKE SOMEBODY "IN A GROUP". Jessie, 2026-09-10: "Dont' show my
   // groups unless they are part of a group AND don't count beYd4M39RCqGSbP4KsNqGQ as part of a group
   // - htat's an appear group and everyone included in site". Appear Network holds everybody on the
