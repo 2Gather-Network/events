@@ -212,6 +212,13 @@
     strip();
   }
 
+  /* AND ALWAYS, WHOEVER IS HERE. Every branch above turns on fromLink or stored - the ids that say
+     "this is me" - so a signed-out browser opening ?show=<somebody else> matched none of them and
+     the address was left exactly as it arrived. Jessie found it in a private window within minutes:
+     the id was still sitting in the bar.
+     strip() only rewrites when it actually finds something, so calling it again costs nothing. */
+  strip();
+
   /* ONE PERSON, ONE ID.
      Somebody who came from Appear has carried a short id in this browser ever since; everybody
      who signs up here gets a long one. Both work, because every reader now matches on either.
