@@ -1,6 +1,12 @@
 /* Creating.Works — who is looking at this page.
  *
- *  Version: V20 | Date: 2026-09-19 | LAST CHANGE: Creating.Works is on for everybody. Jessie, asked whether the wall
+ *  Version: V21 | Date: 2026-09-19 | LAST CHANGE: both sites are shut to anybody who has not proved who they are.
+ *  2Gather, in her words after trying it: "it works as it shoudld. It requires everyone to sign in to use the site. And
+ *  any page." Creating.Works is one message and no door: "Creating works
+ *  says one a message on the front end: coming soon to serve you. and nobody can even log in." So /intro/ is shut too -
+ *  it was the way in. Open there: the home page, and the terms, privacy policy and code of conduct, only because
+ *  2Gather's own pages link at them. On 2Gather the three sign-in doors stay open, and nothing else does.
+ *  V20 | Date: 2026-09-19 | LAST CHANGE: Creating.Works is on for everybody. Jessie, asked whether the wall
  *  went on for both sites: "just for creating.works". So no Creating.Works page draws for somebody who has not proved
  *  who they are - they get the Coming soon message - while 2Gather stays behind ?lock=1 until she says. ?lock=0 takes it
  *  off one device on either site, and it is the way back if anything is wrong.
@@ -305,8 +311,15 @@
        Creating.Works signs people in on its OWN page and has to: each site keeps its own storage,
        so somebody signed in on 2gather.network is a stranger here - intro/index.html says so in
        its own comment - which is why /intro/ is the open one there rather than /signin/. */
+    /* CREATING.WORKS IS ONE MESSAGE AND NO DOOR. Jessie, 2026-09-19: "Creating works says one a
+       message on the front end: coming soon to serve you. and nobody can even log in. It just says
+       one. A message on the front end coming soon to serve you." So /intro/ is shut with the rest -
+       it was the way in, and there is meant to be no way in. The three kept open are the terms, the
+       privacy policy and the code of conduct, and ONLY because 2Gather's own pages link straight at
+       them: shutting those puts somebody signing up to 2Gather on Coming soon when they press
+       Terms. Nothing else is open, the legal archive and the license included. */
     var OPEN = onCW
-      ? ['/', '/intro', '/terms-of-service', '/privacy-policy', '/code-of-conduct', '/legal', '/license', '/404']
+      ? ['/', '/terms-of-service', '/privacy-policy', '/code-of-conduct']
       : ['/signin', '/signup', '/signin-google'];
 
     /* Read first, and out of the address before anything is built from it. */
@@ -321,12 +334,10 @@
         w.history.replaceState({}, '', u.pathname + (q ? '?' + q : '') + u.hash);
       });
     }
-    /* ON FOR EVERYBODY ON CREATING.WORKS, STILL BEHIND THE PARAMETER ON 2GATHER. Jessie,
-       2026-09-19, asked whether it went on for everybody on both sites: "just for creating.works".
-       ?lock=0 still takes it off one device either way, which is the way back if anything is
-       wrong; ?lock=1 is how 2Gather is tried before it goes on for anybody. */
-    var chosen = ls(function () { return w.localStorage.getItem(LOCK_KEY); }, null);
-    if (onCW ? (chosen === '0') : (chosen !== '1')) { return; }
+    /* ON FOR EVERYBODY, BOTH SITES. Jessie, 2026-09-19, having tried it: "2gather - it works as it
+       shoudld. It requires everyone to sign in to use the site. And any page." ?lock=0 still takes
+       it off one device, which is the way back if anything is wrong. */
+    if (ls(function () { return w.localStorage.getItem(LOCK_KEY); }, null) === '0') { return; }
 
     for (var i = 0; i < OPEN.length; i++) {
       if (here === OPEN[i] || here.indexOf(OPEN[i] + '/') === 0 || here.indexOf(OPEN[i] + '.') === 0) { return; }
