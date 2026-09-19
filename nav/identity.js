@@ -1,6 +1,10 @@
 /* Creating.Works — who is looking at this page.
  *
- *  Version: V19 | Date: 2026-09-19 | LAST CHANGE: on Creating.Works a walled page answers with the message rather
+ *  Version: V20 | Date: 2026-09-19 | LAST CHANGE: Creating.Works is on for everybody. Jessie, asked whether the wall
+ *  went on for both sites: "just for creating.works". So no Creating.Works page draws for somebody who has not proved
+ *  who they are - they get the Coming soon message - while 2Gather stays behind ?lock=1 until she says. ?lock=0 takes it
+ *  off one device on either site, and it is the way back if anything is wrong.
+ *  V19 | Date: 2026-09-19 | LAST CHANGE: on Creating.Works a walled page answers with the message rather
  *  than with a page. Jessie: "creating.works should be saying a mesasge - not an actual page - what hapepned to the
  *  messeage saying coming soon to serve you?" It now lands on the home page, which says Coming soon to serve YOU. and
  *  nothing else, and that home page is never walled itself. /intro/ stays the side door and stays open.
@@ -309,8 +313,7 @@
     var asked = ls(function () { return new URLSearchParams(w.location.search).get('lock'); }, null);
     if (asked !== null) {
       ls(function () {
-        if (String(asked) === '0') { w.localStorage.removeItem(LOCK_KEY); }
-        else { w.localStorage.setItem(LOCK_KEY, '1'); }
+        w.localStorage.setItem(LOCK_KEY, String(asked) === '0' ? '0' : '1');
         if (!w.history || !w.history.replaceState) { return; }
         var u = new URL(w.location.href);
         u.searchParams.delete('lock');
@@ -318,7 +321,12 @@
         w.history.replaceState({}, '', u.pathname + (q ? '?' + q : '') + u.hash);
       });
     }
-    if (!ls(function () { return w.localStorage.getItem(LOCK_KEY) === '1'; }, false)) { return; }
+    /* ON FOR EVERYBODY ON CREATING.WORKS, STILL BEHIND THE PARAMETER ON 2GATHER. Jessie,
+       2026-09-19, asked whether it went on for everybody on both sites: "just for creating.works".
+       ?lock=0 still takes it off one device either way, which is the way back if anything is
+       wrong; ?lock=1 is how 2Gather is tried before it goes on for anybody. */
+    var chosen = ls(function () { return w.localStorage.getItem(LOCK_KEY); }, null);
+    if (onCW ? (chosen === '0') : (chosen !== '1')) { return; }
 
     for (var i = 0; i < OPEN.length; i++) {
       if (here === OPEN[i] || here.indexOf(OPEN[i] + '/') === 0 || here.indexOf(OPEN[i] + '.') === 0) { return; }
