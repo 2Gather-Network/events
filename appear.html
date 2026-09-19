@@ -23,7 +23,7 @@
 <meta charset="UTF-8">
 <!-- Who is looking at this page, and since identity.js V18 whether they may see it at all.
      First in the head, no defer and no async: it has to run before this page's own script. -->
-<script src="/nav/identity.js?v=21"></script>
+<script src="/nav/identity.js?v=22"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Community Events</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -522,7 +522,14 @@ function openEventView(id, title) {
   const base = "https://2gather.network/";
   const url = base + "event.html?id=" + encodeURIComponent(id);
   document.getElementById("event-view-frame").src = url;
-  document.getElementById("event-view-share-url").value = url;
+  // WHAT THIS MODAL HANDS OUT IS NOT WHAT IT LOADS, and it has two faults fixed together,
+  // 2026-09-19. It was copying event.html - the 799-byte page whose only job is to bounce to
+  // /event/, which Jessie had already had taken out of every other share on 2026-09-17 - and it
+  // carried no referral, so sharing from here credited nobody. The frame above still loads what it
+  // always loaded; only the address somebody is given changes.
+  var _shareOut = "https://2gather.network/event/?id=" + encodeURIComponent(id);
+  document.getElementById("event-view-share-url").value =
+    (window.CW && CW.withRef) ? CW.withRef(_shareOut) : _shareOut;
   document.getElementById("event-view-title").textContent = title || "";
   const isGlide = window.self !== window.top;
   const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -565,7 +572,14 @@ function shareEvent(id) {
   // to another. It keeps the query string, so nothing was broken - but a bounce is where "Moved"
   // showed up in Messages on 2026-09-14 (row 187), and it is one more thing between somebody and
   // the event. /event/ is the page. /event.html stays where it is for links already out there.
-  const url = "https://2gather.network/event/?id=" + encodeURIComponent(id);
+  // WHO IS SHARING RIDES ALONG. Jessie, 2026-09-19: "everything that is shareable For our share
+  // links should have a reference of who's sharing it." This button handed out the event and
+  // nothing else, while the event page's own Share credited the sharer - one event, two links.
+  // CW.withRef is the one place that adds it (nav/identity.js): a six-character code worked out
+  // from the person at the keyboard, never an id, and nothing added for somebody signed out.
+  const url = (window.CW && CW.withRef)
+    ? CW.withRef("https://2gather.network/event/?id=" + encodeURIComponent(id))
+    : "https://2gather.network/event/?id=" + encodeURIComponent(id);
   const copyFallback = () => navigator.clipboard?.writeText(url).then(() => showToast("🔗 Link copied!")).catch(() => prompt("Copy this link:", url));
   const isGlide = /glide/i.test(navigator.userAgent) || window.self !== window.top;
   if (!isGlide && navigator.share) {

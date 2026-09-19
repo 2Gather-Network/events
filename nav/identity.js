@@ -1,6 +1,10 @@
 /* Creating.Works — who is looking at this page.
  *
- *  Version: V21 | Date: 2026-09-19 | LAST CHANGE: both sites are shut to anybody who has not proved who they are.
+ *  Version: V22 | Date: 2026-09-19 | LAST CHANGE: CW.withRef - who is sharing, added to a link, in ONE place. Jessie:
+ *  "everything that is shareable For our share links should have a reference of who's sharing it." Two pages each had
+ *  their own copy and three Share buttons had none. It lives here because the code is worked out by codeFor and the
+ *  sharer is the person at the keyboard, both of which are already in this file.
+ *  V21 | Date: 2026-09-19 | LAST CHANGE: both sites are shut to anybody who has not proved who they are.
  *  2Gather, in her words after trying it: "it works as it shoudld. It requires everyone to sign in to use the site. And
  *  any page." Creating.Works is one message and no door: "Creating works
  *  says one a message on the front end: coming soon to serve you. and nobody can even log in." So /intro/ is shut too -
@@ -501,6 +505,31 @@
       });
     },
     remember: function (id) { return remember(id); },
+    /* ── WHO IS SHARING, ADDED TO A LINK, IN ONE PLACE ───────────────────────────────────────
+       Jessie, 2026-09-19: "everything that is shareable For our share links should have a
+       reference of who's sharing it. Is this accurate on the site on every page?" It was not. The
+       event page and the group invite page each carried their own copy of this, and the three
+       other Share buttons - the calendar's, My events' and Appear's - carried none, so the same
+       event credited you from one button and nobody from another.
+
+       It belongs here because the answer is already here: the six characters are worked out from
+       an id by codeFor, and the person sharing is realMe - the person at the keyboard, never
+       whoever is being viewed, or a link copied while looking at somebody else would be credited
+       to them. A CODE and never the id: an id in an address is the key to a person on this stack.
+
+       Nothing is added for somebody who is nobody, and nothing is added twice. */
+    refCode: codeFor,
+    withRef: function (url) {
+      try {
+        var u = String(url || '');
+        if (!u || /[?&]r=/.test(u)) { return u; }
+        var me = '';
+        if (!signedOutView()) { me = String((w.CW_ID || '') || fromDevice()).trim(); }
+        if (!me) { return u; }
+        var code = codeFor(me);
+        return code ? u + (u.indexOf('?') > -1 ? '&' : '?') + 'r=' + code : u;
+      } catch (e) { return String(url || ''); }
+    },
     normalise: normalise,
     /* Signing out is this list. It lived inside one page, which is why it was easy to
        get wrong; it lives here now so there is one definition of leaving. */
