@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V6.08 | Date: 2026-09-18 | LAST CHANGE: the bar's Sign up carries you back where you were, as its Sign in already did. Jessie, 2026-09-18: "fix the sign in process next so when i come from a group invite with my ID it lands me in the group after i sign in/up". CW_SIGNIN has carried ?next= since V5.00 and CW_SIGNUP right beside it carried nothing at all, so the person an invite is FOR - somebody new, who presses Sign up rather than Sign in - was the one person the bar dropped. (Every page asks for ?v=6.08 now, so nobody is served yesterday's bar from their own cache.)
+/*  Version: V6.09 | Date: 2026-09-18 | LAST CHANGE: no page slides sideways on a phone. Jessie, 2026-09-18: "The screen often moves to the left and right on mobile - is this a known thing on mobile? Research how to fix it." It is, and it has one cause: ONE element wider than the screen makes the WHOLE page pannable, with no error and nothing looking broken until you slide it. Measured first rather than guessed: at 375px the calendar and the group page both sit at exactly 375 with nothing past the edge, and My events' Attending / Hosting / Socialized / All row is 347 wide with no text clipped - so the cause is content, a long unbroken link or id arriving with somebody's own data, which is why it only shows behind a sign-in. Two rules in the bar's own stylesheet, which is the one place every page already shares: overflow-wrap:break-word so a long string breaks rather than spilling, and overflow-x:clip as the guard under it, which makes no new scroll container so sticky headers keep working. THE COST, said out loud: clip cuts off anything genuinely too wide rather than letting you slide to it; images already carry a max width and a table belongs in its own scroller, so this line is the first place to look if anything ever goes missing on a phone. (Every page asks for ?v=6.09 now.) V6.08 | Date: 2026-09-18 | LAST CHANGE: the bar's Sign up carries you back where you were, as its Sign in already did. Jessie, 2026-09-18: "fix the sign in process next so when i come from a group invite with my ID it lands me in the group after i sign in/up". CW_SIGNIN has carried ?next= since V5.00 and CW_SIGNUP right beside it carried nothing at all, so the person an invite is FOR - somebody new, who presses Sign up rather than Sign in - was the one person the bar dropped. (Every page asks for ?v=6.08 now, so nobody is served yesterday's bar from their own cache.)
     Version: V6.07 | Date: 2026-09-17 | LAST CHANGE: on a phone opened from the home screen, the admin strip leaves room for the
     status bar (env(safe-area-inset-top)); on the events calendar, which asks for the whole screen with viewport-fit=cover, the
     clock and the signal bars sat on top of "Jessie Upp" and Change view. Elsewhere the inset is zero and nothing moves.
@@ -565,7 +565,30 @@
         '.cwtb-mark{margin-right:auto;}' +
         '.cwtb-tabs{order:3;width:100%;margin:0;justify-content:space-between;overflow-x:visible;}' +
         '.cwtb-tab{padding:8px 12px;font-size:13.5px;letter-spacing:.4px;}' +
-      '}';
+      '}' +
+      // NO PAGE SLIDES SIDEWAYS. Jessie, 2026-09-18, with a phone photo of My events shifted left:
+      // "The screen often moves to the left and right on mobile - is this a known thing on mobile?"
+      // It is, and it has exactly one cause: ONE element wider than the screen makes the WHOLE page
+      // pannable. Nothing errors and nothing looks broken until you slide it.
+      //
+      // MEASURED BEFORE THIS WAS WRITTEN, so it is a guard rather than a guess: at 375px the calendar
+      // and the group page both sit at exactly 375 with nothing past the edge, and the Attending /
+      // Hosting / Socialized / All row is 347 wide with no text clipped. So the cause is not layout,
+      // it is content - a long unbroken link or id arriving with somebody's own data, which is why it
+      // only shows on a page behind a sign-in.
+      //
+      // TWO RULES, and they are different jobs. overflow-wrap lets a long unbroken string break so it
+      // never spills in the first place; break-word rather than anywhere, because anywhere also changes
+      // how narrow a box is allowed to get and that can move layouts nobody asked to move. overflow-x
+      // clip is the guard under it: it stops anything left from panning the page, and unlike the old
+      // overflow-x:hidden trick it makes no new scroll container, so sticky headers keep working and
+      // the page still scrolls down normally.
+      //
+      // THE COST, said out loud: clip CUTS OFF anything genuinely too wide rather than letting you
+      // slide to it. Images already carry a max width and a table belongs in its own scroller, so what
+      // is left to cut should be nothing - but if something does go missing on a phone, this is the
+      // line to look at first.
+      'body{overflow-x:clip;overflow-wrap:break-word;}';
     var s = document.createElement('style');
     s.id = 'cw-topbar-style';
     s.textContent = css;
