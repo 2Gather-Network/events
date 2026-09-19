@@ -1,6 +1,14 @@
 /* Creating.Works — who is looking at this page.
  *
- *  Version: V14 | Date: 2026-09-10 | LAST CHANGE: a super admin can view the site signed out, and every page asking CW is told nobody is here.
+ *  Version: V17 | Date: 2026-09-19 | LAST CHANGE: a remembered id is not a signed-in person. Jessie, 2026-09-19, after
+ *  sharing an event: "it removed the admin bar at the top but still shows him logged in a sME". Being signed in was a NAME
+ *  LEFT IN A BROWSER: cw-id was written by whatever last put a person here, and from then on every page treated the device
+ *  as that person, with nothing ever asking it to prove so. All three doors that really sign somebody in - the emailed
+ *  code, signing up, and Google - mint cw-token beside the id, so that token, unexpired and matching, IS the proof. An id
+ *  sitting alone without one is a leftover rather than a session: it is cleared, and the device is nobody until somebody
+ *  signs in through a door. This signs out anybody whose sign-in has run out, which is the point, and it is the only thing
+ *  that takes a leaked identity off somebody else's phone without them having to know to do it.
+ *  V14 | Date: 2026-09-10 | LAST CHANGE: a super admin can view the site signed out, and every page asking CW is told nobody is here.
  *  V13 | Date: 2026-09-07 | LAST CHANGE: viewing as somebody lives per tab, in sessionStorage.
  *
  * Load this FIRST in <head>, with no defer and no async:
@@ -197,7 +205,36 @@
     });
   })();
 
+  /* A REMEMBERED ID IS NOT A SIGNED-IN PERSON. Jessie, 2026-09-19, after sharing an event: "it
+     removed the admin bar at the top but still shows him logged in a sME".
+
+     Being signed in was a NAME LEFT IN A BROWSER. cw-id was written by whatever last put a person
+     here - an address that named somebody, an older copy of this file that adopted one, a page that
+     read an id and remembered it - and from then on every page treated this device as that person.
+     Nothing ever asked the device to prove it, so a name that arrived by accident stayed for ever.
+
+     All three doors that really sign somebody in - the emailed code, signing up, and Google - mint
+     cw-token and put it beside the id. So that token, unexpired, IS the proof, and an id sitting
+     alone without one is a leftover rather than a session. It is cleared rather than honoured, and
+     the device is nobody until somebody signs in through a door.
+
+     THIS SIGNS OUT ANYBODY WHOSE SIGN-IN HAS RUN OUT, which is the point, and it is the only thing
+     that takes a leaked identity off somebody else's phone without them having to know to do it. */
+  function proven(id) {
+    return ls(function () {
+      var t = String(w.localStorage.getItem('cw-token') || '');
+      if (!t) { return false; }
+      var exp = parseInt(t.split('.')[1], 10);
+      if (!exp || Date.now() > (exp - 60000)) { return false; }
+      var who = normalise(w.localStorage.getItem('cw-id') || w.localStorage.getItem('appear-id') || '');
+      return !!who && who === normalise(id);
+    }, false);
+  }
   var stored = fromDevice();
+  if (stored && !proven(stored)) {
+    ls(function () { for (var ci = 0; ci < CLEAR.length; ci++) { w.localStorage.removeItem(CLEAR[ci]); } });
+    stored = '';
+  }
   var fromLink = fromUrl();
   var found = '';
   if (fromLink && stored && normalise(fromLink) === normalise(stored)) {
