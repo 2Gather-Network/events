@@ -1,6 +1,14 @@
 /* Creating.Works — who is looking at this page.
  *
- *  Version: V17 | Date: 2026-09-19 | LAST CHANGE: a remembered id is not a signed-in person. Jessie, 2026-09-19, after
+ *  Version: V18 | Date: 2026-09-19 | LAST CHANGE: no page draws for somebody who has not proved who they are.
+ *  Jessie: "make all pages require log in. no page should be available to outsiders until we say ohterwise", then
+ *  "F all" - a shared event link and a QR code on a flyer go to the sign-in screen first and land where they were
+ *  headed afterwards. Off until ?lock=1 switches it on for one device; ?lock=0 takes it off. The doors stay open, and
+ *  so do the terms, the privacy policy and the code of conduct, because terms nobody may read are terms nobody can
+ *  agree to. THIS FILE NOW DECIDES WHETHER A PAGE MAY BE SEEN AT ALL, which the note below said it never would - that
+ *  line is out of date on purpose: a second file would be a second version number to keep in step, and the proof it
+ *  reads is already here. It is a curtain and not a door; the door is the audience guard in Code.js.
+ *  V17 | Date: 2026-09-19 | LAST CHANGE: a remembered id is not a signed-in person. Jessie, 2026-09-19, after
  *  sharing an event: "it removed the admin bar at the top but still shows him logged in a sME". Being signed in was a NAME
  *  LEFT IN A BROWSER: cw-id was written by whatever last put a person here, and from then on every page treated the device
  *  as that person, with nothing ever asking it to prove so. All three doors that really sign somebody in - the emailed
@@ -24,7 +32,7 @@
  *     fetch(url + '?CWid=' + encodeURIComponent(me.id));
  *     localStorage.setItem('draft-' + me.key, text);
  *
- * This resolves who. It never decides what a page is allowed to show.
+ * This resolves who, and since V18 it also decides whether a page may be drawn at all - see THE WALL below.
  * It does not, and cannot, carry a person between domains: a script loaded from
  * anywhere still reads the storage of the page that loaded it.
  */
@@ -255,6 +263,83 @@
      the id was still sitting in the bar.
      strip() only rewrites when it actually finds something, so calling it again costs nothing. */
   strip();
+
+  /* ── NO PAGE UNTIL SOMEBODY HAS PROVED WHO THEY ARE ──────────────────────────────────────────
+     Jessie, 2026-09-19: "make all pages require log in. no page should be available to outsiders
+     until we say ohterwise". Asked whether a shared event link, or a QR code on a flyer, should
+     stay readable to somebody with no account, she answered "F all": the sign-in screen comes
+     first, and they land where they were headed afterwards.
+
+     IT LIVES IN THIS FILE rather than in one of its own because this is the file that already
+     runs first, in the head, on every page - and the only thing that can answer the question is
+     twenty lines above: a token beside the id, unexpired, belonging to the person being drawn.
+     A second file would be a second thing to keep in step, and the version number a page asks
+     for is exactly the thing that drifts apart.
+
+     AND IT IS A CURTAIN, NOT A DOOR. It stops a browser. It does not stop a script: anybody
+     typing an address straight at the backend never loads this file at all, and a browser
+     holding a cached older copy of it has none of this either. The door is the audience guard in
+     Code.js, which is watching and still refusing nothing. That is written down here plainly so
+     nobody reads the curtain as the door, which is the exact mistake of 2026-09-19.
+
+     OFF UNTIL SHE SWITCHES IT ON. ?lock=1 turns it on for this device and nobody else's, ?lock=0
+     turns it off again, and the word is taken out of the address either way - a parameter left
+     sitting in the bar is the fault that handed her account to somebody else, and no share link
+     is going to carry this one too. */
+  var LOCK_KEY = 'cw-lock';
+  (function wall() {
+    var here = String(w.location.pathname || '/');
+    var onCW = String(w.location.hostname || '').indexOf('creating.works') >= 0;
+
+    /* THE DOORS, AND THE RECORD SOMEBODY HAS TO BE ABLE TO READ BEFORE AGREEING TO IT. Walling
+       the sign-in page would leave nobody able to sign in ever again, and terms nobody may read
+       are terms nobody can agree to. Neither names a person or carries anybody's data.
+       Creating.Works signs people in on its OWN page and has to: each site keeps its own storage,
+       so somebody signed in on 2gather.network is a stranger here - intro/index.html says so in
+       its own comment - which is why /intro/ is the open one there rather than /signin/. */
+    var OPEN = onCW
+      ? ['/intro', '/terms-of-service', '/privacy-policy', '/code-of-conduct', '/legal', '/license', '/404']
+      : ['/signin', '/signup', '/signin-google'];
+
+    /* Read first, and out of the address before anything is built from it. */
+    var asked = ls(function () { return new URLSearchParams(w.location.search).get('lock'); }, null);
+    if (asked !== null) {
+      ls(function () {
+        if (String(asked) === '0') { w.localStorage.removeItem(LOCK_KEY); }
+        else { w.localStorage.setItem(LOCK_KEY, '1'); }
+        if (!w.history || !w.history.replaceState) { return; }
+        var u = new URL(w.location.href);
+        u.searchParams.delete('lock');
+        var q = u.searchParams.toString();
+        w.history.replaceState({}, '', u.pathname + (q ? '?' + q : '') + u.hash);
+      });
+    }
+    if (!ls(function () { return w.localStorage.getItem(LOCK_KEY) === '1'; }, false)) { return; }
+
+    for (var i = 0; i < OPEN.length; i++) {
+      if (here === OPEN[i] || here.indexOf(OPEN[i] + '/') === 0 || here.indexOf(OPEN[i] + '.') === 0) { return; }
+    }
+
+    /* `found` above is the PROVED person: an id with a live token beside it. Anything less is
+       nobody, which is the whole rule. A super admin looking at the site as a signed-out visitor
+       is still proved here and is not sent anywhere, because that view is a way of looking rather
+       than a way of leaving - and bouncing her out of it would take away the way back. */
+    if (found) { return; }
+
+    /* replace rather than href, so the page nobody was allowed to see is not left sitting in the
+       back button either. */
+    /* The return address is built with the lock word taken OUT rather than trusting that the
+       rewrite above has already landed - found by running it: the first thing ?lock=1 did was
+       carry itself into next= and hand it back on the way in. */
+    var back = here;
+    ls(function () {
+      var u = new URL(w.location.href);
+      u.searchParams.delete('lock');
+      var q = u.searchParams.toString();
+      back = u.pathname + (q ? '?' + q : '') + u.hash;
+    });
+    w.location.replace(onCW ? '/intro/' : '/signin/?next=' + encodeURIComponent(back));
+  })();
 
   /* ONE PERSON, ONE ID.
      Somebody who came from Appear has carried a short id in this browser ever since; everybody
