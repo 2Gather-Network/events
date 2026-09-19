@@ -36,6 +36,21 @@
   }
   function go(url) { window.location.href = url; return false; }
 
+  // THE TOKEN THE EMAILED CODE MINTS AT SIGN-IN, checked for its expiry and for there being a person
+  // on this device at all. Copied here deliberately rather than shared with the top bar: this file is
+  // loaded on pages where that one is not, and a permission check that leans on another file being
+  // present is not a check. Jessie, 2026-09-19: "Make sure that the super admin controls are only
+  // available to authenticated super admin with pin".
+  function _cwProven() {
+    try {
+      var t = String(localStorage.getItem('cw-token') || '');
+      if (!t) return false;
+      var exp = parseInt(t.split('.')[1], 10);
+      if (!exp || Date.now() > (exp - 60000)) return false;
+      return !!String(localStorage.getItem('cw-id') || '').trim();
+    } catch (e) { return false; }
+  }
+
   window.cwProfileRail = function (opts) {
     opts = opts || {};
     var have = document.getElementById('cw-prail-main');
@@ -74,7 +89,10 @@
     ];
     items.forEach(function (it) {
       if (it.out && opts.viewingSomeoneElse) return;
-      if (it.superOnly) { var _su = ''; try { _su = localStorage.getItem('cw-super') || ''; } catch (e) {} if (_su !== 'yes' || opts.viewingSomeoneElse) return; }
+      // AND A SUPER-ONLY BUTTON NEEDS A PROVEN SESSION, not a remembered word. Same change as the top
+      // bar's admin strip in V6.11 and for the same reason: cw-super was written from an id alone and
+      // then stood for ever. No live sign-in for this device, no super-only button.
+      if (it.superOnly) { var _su = ''; try { _su = localStorage.getItem('cw-super') || ''; } catch (e) {} if (_su !== 'yes' || !_cwProven() || opts.viewingSomeoneElse) return; }
       var b = document.createElement('button'); b.type = 'button'; b.textContent = it.label;
       if (it.key === opts.active) { b.className = 'on'; b.setAttribute('aria-current', 'page'); }
       b.onclick = function () {
