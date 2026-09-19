@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V6.09 | Date: 2026-09-18 | LAST CHANGE: no page slides sideways on a phone. Jessie, 2026-09-18: "The screen often moves to the left and right on mobile - is this a known thing on mobile? Research how to fix it." It is, and it has one cause: ONE element wider than the screen makes the WHOLE page pannable, with no error and nothing looking broken until you slide it. Measured first rather than guessed: at 375px the calendar and the group page both sit at exactly 375 with nothing past the edge, and My events' Attending / Hosting / Socialized / All row is 347 wide with no text clipped - so the cause is content, a long unbroken link or id arriving with somebody's own data, which is why it only shows behind a sign-in. Two rules in the bar's own stylesheet, which is the one place every page already shares: overflow-wrap:break-word so a long string breaks rather than spilling, and overflow-x:clip as the guard under it, which makes no new scroll container so sticky headers keep working. THE COST, said out loud: clip cuts off anything genuinely too wide rather than letting you slide to it; images already carry a max width and a table belongs in its own scroller, so this line is the first place to look if anything ever goes missing on a phone. (Every page asks for ?v=6.09 now.) V6.08 | Date: 2026-09-18 | LAST CHANGE: the bar's Sign up carries you back where you were, as its Sign in already did. Jessie, 2026-09-18: "fix the sign in process next so when i come from a group invite with my ID it lands me in the group after i sign in/up". CW_SIGNIN has carried ?next= since V5.00 and CW_SIGNUP right beside it carried nothing at all, so the person an invite is FOR - somebody new, who presses Sign up rather than Sign in - was the one person the bar dropped. (Every page asks for ?v=6.08 now, so nobody is served yesterday's bar from their own cache.)
+/*  Version: V6.10 | Date: 2026-09-19 | LAST CHANGE: the real reason the screen slides on a phone - tapping a text box smaller than 16px. Jessie, 2026-09-19, with the calendar shifted sideways AFTER V6.09's clip rule went out: "Also didn't you update the mobile for all pages so it doesn't drift like this?" It did, and it could never have stopped this one: the page is not too wide, the BROWSER is zooming. iOS Safari zooms the whole page the moment you tap a text box whose letters are under 16px, and a zoomed page pans left and right. Measured: .filter-search, the search box on the calendar and on My events, is 14px - and both of her drifting screenshots have a word typed into it. So every text box, dropdown and text area is 16px on a phone now, which gives the browser no reason to zoom. NOT maximum-scale=1 in the viewport tag, the other way this is usually fixed: that takes pinch-zoom away from everybody, including anybody who needs it to read. !important because the boxes that are too small say so in their own style attribute; checkboxes, radios and sliders are left out because they have no letters. (Every page asks for ?v=6.10 now.) V6.09 | Date: 2026-09-18 | LAST CHANGE: no page slides sideways on a phone. Jessie, 2026-09-18: "The screen often moves to the left and right on mobile - is this a known thing on mobile? Research how to fix it." It is, and it has one cause: ONE element wider than the screen makes the WHOLE page pannable, with no error and nothing looking broken until you slide it. Measured first rather than guessed: at 375px the calendar and the group page both sit at exactly 375 with nothing past the edge, and My events' Attending / Hosting / Socialized / All row is 347 wide with no text clipped - so the cause is content, a long unbroken link or id arriving with somebody's own data, which is why it only shows behind a sign-in. Two rules in the bar's own stylesheet, which is the one place every page already shares: overflow-wrap:break-word so a long string breaks rather than spilling, and overflow-x:clip as the guard under it, which makes no new scroll container so sticky headers keep working. THE COST, said out loud: clip cuts off anything genuinely too wide rather than letting you slide to it; images already carry a max width and a table belongs in its own scroller, so this line is the first place to look if anything ever goes missing on a phone. (Every page asks for ?v=6.09 now.) V6.08 | Date: 2026-09-18 | LAST CHANGE: the bar's Sign up carries you back where you were, as its Sign in already did. Jessie, 2026-09-18: "fix the sign in process next so when i come from a group invite with my ID it lands me in the group after i sign in/up". CW_SIGNIN has carried ?next= since V5.00 and CW_SIGNUP right beside it carried nothing at all, so the person an invite is FOR - somebody new, who presses Sign up rather than Sign in - was the one person the bar dropped. (Every page asks for ?v=6.08 now, so nobody is served yesterday's bar from their own cache.)
     Version: V6.07 | Date: 2026-09-17 | LAST CHANGE: on a phone opened from the home screen, the admin strip leaves room for the
     status bar (env(safe-area-inset-top)); on the events calendar, which asks for the whole screen with viewport-fit=cover, the
     clock and the signal bars sat on top of "Jessie Upp" and Change view. Elsewhere the inset is zero and nothing moves.
@@ -588,7 +588,28 @@
       // slide to it. Images already carry a max width and a table belongs in its own scroller, so what
       // is left to cut should be nothing - but if something does go missing on a phone, this is the
       // line to look at first.
-      'body{overflow-x:clip;overflow-wrap:break-word;}';
+      'body{overflow-x:clip;overflow-wrap:break-word;}' +
+      // AND THE REAL REASON THE SCREEN SLIDES. Jessie, 2026-09-19, with the calendar shifted sideways
+      // AFTER the clip rule went out: "Also didn't you update the mobile for all pages so it doesn't
+      // drift like this?" It did go out, and it cannot stop this, because this is not the page being
+      // too wide - it is the BROWSER zooming in.
+      //
+      // iOS Safari zooms the whole page the moment you tap a text box whose letters are smaller than
+      // 16px, and once it has zoomed, the page pans left and right. Measured: .filter-search, the
+      // search box on both the calendar and My events, is 14px - and both of her drifting screenshots
+      // have a word typed into that box. Nothing a page can do about the pan afterwards; the fix is to
+      // give it no reason to zoom. Sixteen pixels is the whole rule.
+      //
+      // NOT maximum-scale=1 in the viewport tag, which is the other way this is usually 'fixed': that
+      // takes pinch-zoom away from everybody, including anybody who needs it to read.
+      //
+      // !important because the boxes that are too small say so in their own style attribute, and a
+      // stylesheet cannot beat that any other way. Checkboxes, radios and sliders are left out: they
+      // have no letters to zoom towards.
+      '@media(max-width:768px){' +
+        'input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea' +
+        '{font-size:16px !important;}' +
+      '}';
     var s = document.createElement('style');
     s.id = 'cw-topbar-style';
     s.textContent = css;
