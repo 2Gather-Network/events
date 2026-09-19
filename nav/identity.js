@@ -1,6 +1,10 @@
 /* Creating.Works — who is looking at this page.
  *
- *  Version: V18 | Date: 2026-09-19 | LAST CHANGE: no page draws for somebody who has not proved who they are.
+ *  Version: V19 | Date: 2026-09-19 | LAST CHANGE: on Creating.Works a walled page answers with the message rather
+ *  than with a page. Jessie: "creating.works should be saying a mesasge - not an actual page - what hapepned to the
+ *  messeage saying coming soon to serve you?" It now lands on the home page, which says Coming soon to serve YOU. and
+ *  nothing else, and that home page is never walled itself. /intro/ stays the side door and stays open.
+ *  V18 | Date: 2026-09-19 | LAST CHANGE: no page draws for somebody who has not proved who they are.
  *  Jessie: "make all pages require log in. no page should be available to outsiders until we say ohterwise", then
  *  "F all" - a shared event link and a QR code on a flyer go to the sign-in screen first and land where they were
  *  headed afterwards. Off until ?lock=1 switches it on for one device; ?lock=0 takes it off. The doors stay open, and
@@ -298,7 +302,7 @@
        so somebody signed in on 2gather.network is a stranger here - intro/index.html says so in
        its own comment - which is why /intro/ is the open one there rather than /signin/. */
     var OPEN = onCW
-      ? ['/intro', '/terms-of-service', '/privacy-policy', '/code-of-conduct', '/legal', '/license', '/404']
+      ? ['/', '/intro', '/terms-of-service', '/privacy-policy', '/code-of-conduct', '/legal', '/license', '/404']
       : ['/signin', '/signup', '/signin-google'];
 
     /* Read first, and out of the address before anything is built from it. */
@@ -338,7 +342,13 @@
       var q = u.searchParams.toString();
       back = u.pathname + (q ? '?' + q : '') + u.hash;
     });
-    w.location.replace(onCW ? '/intro/' : '/signin/?next=' + encodeURIComponent(back));
+    /* CREATING.WORKS ANSWERS WITH ITS MESSAGE, NOT WITH A PAGE. Jessie, 2026-09-19, seeing the
+       first version send her into the Start a conversation form: "creating.works should be saying
+       a mesasge - not an actual page - what hapepned to the messeage saying coming soon to serve
+       you?" So a walled page there lands on the home page, which says "Coming soon to serve YOU."
+       and nothing else - the page Doug asked for on 2026-09-14 and the one I should never have
+       walled. /intro/ stays the side door for anybody who has one, exactly as it was. */
+    w.location.replace(onCW ? '/' : '/signin/?next=' + encodeURIComponent(back));
   })();
 
   /* ONE PERSON, ONE ID.
