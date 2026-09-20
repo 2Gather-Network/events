@@ -1,5 +1,7 @@
 /* Creating.Works — who is looking at this page.
  *
+ *  Version: V23 | Date: 2026-09-19 | LAST CHANGE: signing out forgets the address the sign-in box fills in.
+ *  cw-lastEmail joins the CLEAR list, because signing out is somebody saying this device is not theirs.
  *  Version: V22 | Date: 2026-09-19 | LAST CHANGE: CW.withRef - who is sharing, added to a link, in ONE place. Jessie:
  *  "everything that is shareable For our share links should have a reference of who's sharing it." Two pages each had
  *  their own copy and three Share buttons had none. It lives here because the code is worked out by codeFor and the
@@ -60,8 +62,11 @@
 
   var WHO   = ['CWid', 'memberCard', 'appearId', 'me'];
   var KEEP  = ['cw-id', 'appear-id'];           // where a person is remembered
+  // cw-lastEmail is the address the sign-in box fills in next time (signin V1.10, 2026-09-19).
+  // Signing out is somebody saying this device is not theirs, so it goes with the rest - leaving
+  // their address in the box on a shared laptop would hand on the one thing they just took back.
   var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-photo-at', 'cw-token', 'cw-first',
-               'cw-view-as', 'cw-view-as-name', 'cw-super'];
+               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-lastEmail'];
   /* Looking at the site as somebody else, for the handful of people who run it.
      Deliberately a SEPARATE key from cw-id. Signing in and standing in somebody's shoes are
      different things, and keeping them apart is what lets every page know the difference and
