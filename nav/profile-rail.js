@@ -1,4 +1,5 @@
-/*  Version: V1.01 | Date: 2026-09-15 | LAST CHANGE: My permissions between My profile and My account, a preview for a super admin only.
+/*  Version: V1.02 | Date: 2026-09-20 | LAST CHANGE: a second shape, for the account page. shape:'account' draws ACCOUNT (My info, Global permissions, Support, Sign out) and PRODUCTS (Balance, Appear, Gather, License, each with a dot). My events, My groups and My profile come OFF it: they moved into the menu under her name in the top bar the same morning, and a shortcut in two places is a shortcut nobody can find in either. My profile still draws the rail it has always drawn - only a page asking for the account shape gets this one - and a page can hand in onPick to keep the press for itself, which is how the product panes open without a page load.
+    V1.01 | Date: 2026-09-15 | LAST CHANGE: My permissions between My profile and My account, a preview for a super admin only.
     V1.00 | Date: 2026-09-14 | LAST CHANGE: one rail for My profile and My account, in the template.
 
     ONE RAIL FOR YOUR OWN PAGES. Jessie, 2026-09-14, of the profile in the template (?look=rail): "Should be in thsi order:
@@ -26,6 +27,10 @@
       + 'html.cw-prail-on .cw-prail-list button{display:block;width:100%;box-sizing:border-box;text-align:left;background:#fff;color:#1F699E;'
       +   'border:1.5px solid #C9D6E2;border-radius:10px;font-family:inherit;font-size:14px;font-weight:700;padding:10px 14px;cursor:pointer;}'
       + 'html.cw-prail-on .cw-prail-list button.on{background:#1F699E;color:#fff;border-color:#1F699E;cursor:default;}'
+      + 'html.cw-prail-on .cw-prail-head{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#6B7A8D;margin:16px 12px 7px;}'
+      + 'html.cw-prail-on .cw-prail-dot{float:right;width:9px;height:9px;border-radius:50%;background:#B9C4D2;margin-top:6px;}'
+      + 'html.cw-prail-on .cw-prail-list button.on .cw-prail-dot{box-shadow:0 0 0 2px rgba(255,255,255,.35);}'
+      + 'html.cw-prail-on .cw-prail-dot.on{background:#C2410C;}'
       + 'html.cw-prail-on .cw-prail-list button:focus-visible,html.cw-prail-on .cw-prail-seg a:focus-visible{outline:2px solid #1F699E;outline-offset:2px;}'
       + '@media(max-width:860px){html.cw-prail-on .cw-prail{grid-template-columns:1fr;}'
       +   'html.cw-prail-on .cw-prail-rail{position:static;}'
@@ -64,6 +69,68 @@
     var main = document.createElement('section'); main.className = 'cw-prail-main'; main.id = 'cw-prail-main';
     while (wrap.firstChild) main.appendChild(wrap.firstChild);
     grid.appendChild(rail); grid.appendChild(main); wrap.appendChild(grid);
+
+    /* ── THE ACCOUNT SHAPE ─────────────────────────────────────────────────────────────────────
+       Jessie, 2026-09-20: the account page's rail becomes ACCOUNT (My info, Global permissions,
+       Support, Sign out) and PRODUCTS (Balance, Appear, Gather, License). My events, My groups and
+       My profile come OFF it, because they moved into the menu under her name in the top bar the
+       same morning, and a shortcut in two places is a shortcut nobody can find in either.
+
+       ONE FILE, TWO SHAPES. My profile still draws the rail it has always drawn; only a page that
+       asks for shape 'account' gets this one. A page can hand in onPick and keep the press for
+       itself rather than have the rail navigate away, which is how the four product panes open
+       without a page load. */
+    if (opts.shape === 'account') {
+      var GROUPS = [
+        ['ACCOUNT', [
+          { key: 'account',     label: 'My info' },
+          { key: 'permissions', label: 'Global permissions' },
+          { key: 'support',     label: 'Support', url: 'https://2gather.network/support?from=' + encodeURIComponent(location.pathname) },
+          { key: 'signout',     label: 'Sign out', out: true }
+        ]],
+        ['PRODUCTS', [
+          { key: 'balance', label: 'Balance', dot: false },
+          { key: 'appear',  label: 'Appear',  dot: false },
+          { key: 'gather',  label: 'Gather',  dot: true  },
+          { key: 'license', label: 'License', dot: true  }
+        ]]
+      ];
+      GROUPS.forEach(function (g) {
+        var head = document.createElement('div');
+        head.className = 'cw-prail-head'; head.textContent = g[0];
+        rail.appendChild(head);
+        var box = document.createElement('div'); box.className = 'cw-prail-list';
+        g[1].forEach(function (it) {
+          if (it.out && opts.viewingSomeoneElse) { return; }
+          var b = document.createElement('button'); b.type = 'button';
+          b.appendChild(document.createTextNode(it.label));
+          if (typeof it.dot === 'boolean') {
+            var d = document.createElement('span');
+            d.className = 'cw-prail-dot' + (it.dot ? ' on' : '');
+            b.appendChild(d);
+          }
+          if (it.key === opts.active) { b.className = 'on'; b.setAttribute('aria-current', 'page'); }
+          b.setAttribute('data-prail', it.key);
+          b.onclick = function () {
+            if (it.out) {
+              try { if (window.CW && window.CW.forget) { window.CW.forget(); } } catch (e) {}
+              go('https://2gather.network/signin/?out=1');
+              return;
+            }
+            if (it.url) { go(it.url); return; }
+            if (!opts.onPick) { return; }
+            var all = rail.querySelectorAll('[data-prail]');
+            for (var i = 0; i < all.length; i++) {
+              all[i].className = (all[i].getAttribute('data-prail') === it.key) ? 'on' : '';
+            }
+            opts.onPick(it.key);
+          };
+          box.appendChild(b);
+        });
+        rail.appendChild(box);
+      });
+      return main;
+    }
 
     var seg = document.createElement('div'); seg.className = 'cw-prail-seg';
     [['My events', 'https://2gather.network/myevents/'], ['My groups', 'https://2gather.network/mygroups/']].forEach(function (t) {
