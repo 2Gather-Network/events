@@ -145,7 +145,7 @@
      address is opening. So it stayed, and it is the one she kept seeing.
 
      It is not deleted, it is translated: ?show=<id> becomes ?v=<code>, the same six characters
-     2gather.network/ikigai/?p= reads and a share link carries as r=. Worked out FROM the id, so
+     2gather.network/me/?p= reads and a share link carries as r=. Worked out FROM the id, so
      nothing is stored and nothing is asked for - and it happens here, in the file every page loads
      before its own scripts run, so it covers every old link in anybody's history, in a message or
      in a screenshot, not only the links we go on to fix.
@@ -206,7 +206,7 @@
 
      localStorage can hold `appear-id` and `cw-id` with DIFFERENT ids for one person, and which
      page finds you depends on which key it reads first. That is not theoretical: on 2026-09-02
-     /ikigai/ was changed to read cw-id first and stopped finding Jessie while /profile-edit/,
+     /me/ was changed to read cw-id first and stopped finding Jessie while /profile-edit/,
      which reads appear-id, found her instantly. It was reverted, and the revert made the two
      pages agree without fixing why they could disagree.
 
@@ -216,7 +216,7 @@
 
      `cw-id` WINS, and the first version of this got it backwards.
 
-     It made appear-id win, on the reasoning that /ikigai/ and /profile-edit/ read that key first.
+     It made appear-id win, on the reasoning that /me/ and /profile-edit/ read that key first.
      But THIS file reads cw-id first, in KEEP above, and CW_ID is what the top bar, the group
      pages and the operations page all ask. So on any device where the two disagreed, the person
      the whole site thought you were changed, and Jessie's operations page stopped recognising her

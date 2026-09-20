@@ -164,7 +164,7 @@
 
     var list = document.createElement('div'); list.className = 'cw-prail-list';
     var items = [
-      { key: 'profile', label: 'My profile', url: 'https://2gather.network/ikigai/' },
+      { key: 'profile', label: 'My profile', url: 'https://2gather.network/me/' },
       // MY PERMISSIONS, below My profile and above My account. Jessie, 2026-09-15: "have this as an opt-in within permissions
       // tab which will be added below My profile and above my account say "My permissions"". A preview while it is designed:
       // shown only to a super admin (the top bar's cw-super), and it opens the Permissions step on the intro, which saves nothing.
