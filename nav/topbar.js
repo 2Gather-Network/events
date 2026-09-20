@@ -206,6 +206,13 @@
   // The fallback below only runs if identity.js failed to load, so the bar still works.
   // Whether this device knows they are in at least one group. Storage throws outright in a
   // private window, so every line of it is guarded and not knowing counts as no.
+  function hasEvents() {
+    try {
+      var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
+      var v = JSON.parse(localStorage.getItem('cw-haveevents') || 'null');
+      return !!(v && v.yes === true && norm(v.who) === norm(me()));
+    } catch (e) { return false; }
+  }
   function hasAGroup() {
     try {
       var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
@@ -377,7 +384,16 @@
        now, so that door is still one press away, and the other five stopped being hidden. */
     if (!atDoor && me()) {
       var mine = '';
-      mine += anchor('My events',  link(MYEVENTS, 'memberCard'), 'cwtb-item');
+      /* MY EVENTS ONLY IF THEY HAVE ANY. Jessie, 2026-09-20: "don't show my events unless they
+         regsitered to an event, socialized anm event or host an event" - the three things that
+         put an event on that page. Same reasoning as My groups, and the same mechanism: the bar
+         asks nothing, and My events itself writes the answer down as it loads (cw-haveevents).
+         Registering, socializing or posting all end with that page, so the flag is set by the
+         time it matters, and it is written NO as readily as YES - cancel your last registration
+         and the shortcut goes rather than pointing at an empty page. A BOOKMARK COUNTS TOO, her
+         "or bookmarked an event", so the four are registered, socialized, hosting, bookmarked -
+         everything that page can show. */
+      if (hasEvents()) { mine += anchor('My events', link(MYEVENTS, 'memberCard'), 'cwtb-item'); }
       /* MY GROUPS ONLY IF THEY ARE IN ONE. Jessie, 2026-09-20: "and dont' show my groups in menu
          unless they have a group". A door onto a page reading "you are not in any groups" is a
          door onto nothing, and it is the first thing somebody new would press.

@@ -11159,11 +11159,37 @@ function selectInterestSuggestion(val) {
           return bd;
         });
     };
+    /* WHETHER THIS PERSON HAS ANY EVENTS AT ALL, kept on the device for the top bar. Jessie,
+       2026-09-20: "don't show my events unless they regsitered to an event, socialized anm event
+       or host an event". The bar cannot ask - every read here measures 9 to 39 seconds and the bar
+       draws on every page - so the one page that already knows writes the answer down. This is the
+       same shape as cw-mygroups-v4, which the calendar keeps for My groups.
+       It writes NO as readily as YES, so somebody who cancels their last registration loses the
+       shortcut on their next visit rather than keeping a door onto an empty page. */
+    // AND A BOOKMARK COUNTS. Jessie, 2026-09-20: "or bookmarked an event". So the four things are
+    // registered, socialized, hosting, bookmarked - which is everything this page can show. The
+    // answer is written twice on purpose: once when the events land, and again once the bookmarks
+    // do, because the two arrive separately and the first answer would otherwise say no to
+    // somebody whose only events are bookmarked ones.
+    function _keepHaveEvents(any) {
+      try {
+        var was = JSON.parse(localStorage.getItem('cw-haveevents') || 'null');
+        var already = !!(was && was.yes === true && String(was.who) === String(me)
+                         && (Date.now() - (was.at || 0)) < 60000);
+        localStorage.setItem('cw-haveevents',
+          JSON.stringify({ who: me, yes: !!(any || already), at: Date.now() }));
+      } catch (e) {}
+    }
+    railJob.then(function (d) {
+      _keepHaveEvents(!!(d && d.status === 'ok' && Array.isArray(d.events) && d.events.length));
+    }).catch(function () {});
+
     var bookmarksJob = railJob.then(_askBm)
       .catch(function () { return new Promise(function (ok) { setTimeout(ok, 1500); }).then(_askBm); })
       .then(function (bd) {
         _bookmarkIds = bd.ids.map(function (x) { return String(x == null ? '' : x).trim(); }).filter(Boolean);
         try { localStorage.setItem('cw-bm-events-' + me, JSON.stringify(_bookmarkIds)); } catch (e) {}
+        try { _keepHaveEvents(_bookmarkIds.length > 0); } catch (e) {}
         if (_railPainted) { paintRail(allRows, selId); }
       })
       .catch(function () {});
