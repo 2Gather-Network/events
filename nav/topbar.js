@@ -9,7 +9,7 @@
 
   hello@creating.works
 */
-/*  Version: V6.12 | Date: 2026-09-19 | LAST CHANGE: the people picker carries the proof as well. Jessie, 2026-09-19: "they could edit my profile and look up people in the top NAV bar". findAnyone hands back names and ids for EVERYBODY, which makes it the most valuable thing behind the admin strip, and it was gated on an appear id alone exactly as the strip was - so anybody holding her id by any route could have read the whole directory. It sends the sign-in token now, and the backend refuses it without one. (Every page asks for ?v=6.12 now.) V6.11 | Date: 2026-09-19 | LAST CHANGE: the super admin strip is a PROVEN SESSION rather than a remembered word. Jessie, 2026-09-19: "Make sure that the super admin controls are only available to authenticated super admin with pin", after sharing an event and finding her own name and Change view on the screen. WHAT WAS WRONG, and it is the same fault as an id in an address: this asked the backend amISuper with an APPEAR ID AND NOTHING ELSE and wrote the answer into cw-super, where it then stood for ever - so anybody holding an id, by any route, was handed the admin strip, and the yes was never asked about again. NOW: the strip is drawn only while this device holds the token the emailed code mints at sign-in, with its own expiry, AND that token belongs to the person being drawn. No code, no strip; an expired code, no strip; a remembered yes with no live session behind it is thrown away rather than honoured. The request carries the token too, so the backend can refuse it as well - that half is written and needs one deploy. THIS WILL TAKE THE STRIP OFF HER OWN DEVICE if her sign-in has expired, and signing in again with a code brings it back, which is the point. (Every page asks for ?v=6.11 now.) V6.10 | Date: 2026-09-19 | LAST CHANGE: the real reason the screen slides on a phone - tapping a text box smaller than 16px. Jessie, 2026-09-19, with the calendar shifted sideways AFTER V6.09's clip rule went out: "Also didn't you update the mobile for all pages so it doesn't drift like this?" It did, and it could never have stopped this one: the page is not too wide, the BROWSER is zooming. iOS Safari zooms the whole page the moment you tap a text box whose letters are under 16px, and a zoomed page pans left and right. Measured: .filter-search, the search box on the calendar and on My events, is 14px - and both of her drifting screenshots have a word typed into it. So every text box, dropdown and text area is 16px on a phone now, which gives the browser no reason to zoom. NOT maximum-scale=1 in the viewport tag, the other way this is usually fixed: that takes pinch-zoom away from everybody, including anybody who needs it to read. !important because the boxes that are too small say so in their own style attribute; checkboxes, radios and sliders are left out because they have no letters. (Every page asks for ?v=6.10 now.) V6.09 | Date: 2026-09-18 | LAST CHANGE: no page slides sideways on a phone. Jessie, 2026-09-18: "The screen often moves to the left and right on mobile - is this a known thing on mobile? Research how to fix it." It is, and it has one cause: ONE element wider than the screen makes the WHOLE page pannable, with no error and nothing looking broken until you slide it. Measured first rather than guessed: at 375px the calendar and the group page both sit at exactly 375 with nothing past the edge, and My events' Attending / Hosting / Socialized / All row is 347 wide with no text clipped - so the cause is content, a long unbroken link or id arriving with somebody's own data, which is why it only shows behind a sign-in. Two rules in the bar's own stylesheet, which is the one place every page already shares: overflow-wrap:break-word so a long string breaks rather than spilling, and overflow-x:clip as the guard under it, which makes no new scroll container so sticky headers keep working. THE COST, said out loud: clip cuts off anything genuinely too wide rather than letting you slide to it; images already carry a max width and a table belongs in its own scroller, so this line is the first place to look if anything ever goes missing on a phone. (Every page asks for ?v=6.09 now.) V6.08 | Date: 2026-09-18 | LAST CHANGE: the bar's Sign up carries you back where you were, as its Sign in already did. Jessie, 2026-09-18: "fix the sign in process next so when i come from a group invite with my ID it lands me in the group after i sign in/up". CW_SIGNIN has carried ?next= since V5.00 and CW_SIGNUP right beside it carried nothing at all, so the person an invite is FOR - somebody new, who presses Sign up rather than Sign in - was the one person the bar dropped. (Every page asks for ?v=6.08 now, so nobody is served yesterday's bar from their own cache.)
+/*  Version: V6.13 | Date: 2026-09-20 | LAST CHANGE: everything of yours sits under your own name. Jessie, 2026-09-20: "yes My events, My groups, My profile, My account, Support, Sign out under top right pill", after catching me claiming the bar already carried them - it did not. The GROUPS and MORE menus came off this bar on 2026-09-07 on purpose and nothing replaced them, so My events and My groups were reachable only from each other and from the calendar, and My profile only by pressing the face. Pressing the name pill now opens those six. WHY UNDER THE NAME AND NOT BACK ON THE BAR: a menu tied to a TOPIC states an answer about how the site is arranged, which is what those two menus were doing before they were removed; a menu tied to YOU states nothing of the kind and holds only what is already yours. The face used to be a link straight to My profile - that is the first item now, so the door is still one press away and the other five stopped being hidden. The menu hangs from the pill's RIGHT edge, because lining its left edge up with a pill on the right of the bar would push it off a narrow screen. AND MY GROUPS ONLY SHOWS IF THEY ARE IN ONE, her "dont' show my groups in menu unless they have a group": a door onto a page reading "you are not in any groups" is a door onto nothing, and it would be the first thing somebody new pressed. It asks nothing to find out - the calendar already keeps the list on the device and the calendar is where signing in lands. (Every page asks for ?v=6.13 now.) V6.12 | Date: 2026-09-19 | LAST CHANGE: the people picker carries the proof as well. Jessie, 2026-09-19: "they could edit my profile and look up people in the top NAV bar". findAnyone hands back names and ids for EVERYBODY, which makes it the most valuable thing behind the admin strip, and it was gated on an appear id alone exactly as the strip was - so anybody holding her id by any route could have read the whole directory. It sends the sign-in token now, and the backend refuses it without one. (Every page asks for ?v=6.12 now.) V6.11 | Date: 2026-09-19 | LAST CHANGE: the super admin strip is a PROVEN SESSION rather than a remembered word. Jessie, 2026-09-19: "Make sure that the super admin controls are only available to authenticated super admin with pin", after sharing an event and finding her own name and Change view on the screen. WHAT WAS WRONG, and it is the same fault as an id in an address: this asked the backend amISuper with an APPEAR ID AND NOTHING ELSE and wrote the answer into cw-super, where it then stood for ever - so anybody holding an id, by any route, was handed the admin strip, and the yes was never asked about again. NOW: the strip is drawn only while this device holds the token the emailed code mints at sign-in, with its own expiry, AND that token belongs to the person being drawn. No code, no strip; an expired code, no strip; a remembered yes with no live session behind it is thrown away rather than honoured. The request carries the token too, so the backend can refuse it as well - that half is written and needs one deploy. THIS WILL TAKE THE STRIP OFF HER OWN DEVICE if her sign-in has expired, and signing in again with a code brings it back, which is the point. (Every page asks for ?v=6.11 now.) V6.10 | Date: 2026-09-19 | LAST CHANGE: the real reason the screen slides on a phone - tapping a text box smaller than 16px. Jessie, 2026-09-19, with the calendar shifted sideways AFTER V6.09's clip rule went out: "Also didn't you update the mobile for all pages so it doesn't drift like this?" It did, and it could never have stopped this one: the page is not too wide, the BROWSER is zooming. iOS Safari zooms the whole page the moment you tap a text box whose letters are under 16px, and a zoomed page pans left and right. Measured: .filter-search, the search box on the calendar and on My events, is 14px - and both of her drifting screenshots have a word typed into it. So every text box, dropdown and text area is 16px on a phone now, which gives the browser no reason to zoom. NOT maximum-scale=1 in the viewport tag, the other way this is usually fixed: that takes pinch-zoom away from everybody, including anybody who needs it to read. !important because the boxes that are too small say so in their own style attribute; checkboxes, radios and sliders are left out because they have no letters. (Every page asks for ?v=6.10 now.) V6.09 | Date: 2026-09-18 | LAST CHANGE: no page slides sideways on a phone. Jessie, 2026-09-18: "The screen often moves to the left and right on mobile - is this a known thing on mobile? Research how to fix it." It is, and it has one cause: ONE element wider than the screen makes the WHOLE page pannable, with no error and nothing looking broken until you slide it. Measured first rather than guessed: at 375px the calendar and the group page both sit at exactly 375 with nothing past the edge, and My events' Attending / Hosting / Socialized / All row is 347 wide with no text clipped - so the cause is content, a long unbroken link or id arriving with somebody's own data, which is why it only shows behind a sign-in. Two rules in the bar's own stylesheet, which is the one place every page already shares: overflow-wrap:break-word so a long string breaks rather than spilling, and overflow-x:clip as the guard under it, which makes no new scroll container so sticky headers keep working. THE COST, said out loud: clip cuts off anything genuinely too wide rather than letting you slide to it; images already carry a max width and a table belongs in its own scroller, so this line is the first place to look if anything ever goes missing on a phone. (Every page asks for ?v=6.09 now.) V6.08 | Date: 2026-09-18 | LAST CHANGE: the bar's Sign up carries you back where you were, as its Sign in already did. Jessie, 2026-09-18: "fix the sign in process next so when i come from a group invite with my ID it lands me in the group after i sign in/up". CW_SIGNIN has carried ?next= since V5.00 and CW_SIGNUP right beside it carried nothing at all, so the person an invite is FOR - somebody new, who presses Sign up rather than Sign in - was the one person the bar dropped. (Every page asks for ?v=6.08 now, so nobody is served yesterday's bar from their own cache.)
     Version: V6.07 | Date: 2026-09-17 | LAST CHANGE: on a phone opened from the home screen, the admin strip leaves room for the
     status bar (env(safe-area-inset-top)); on the events calendar, which asks for the whole screen with viewport-fit=cover, the
     clock and the signal bars sat on top of "Jessie Upp" and Change view. Elsewhere the inset is zero and nothing moves.
@@ -204,6 +204,16 @@
   // One definition of who is looking, shared with every page. nav/identity.js loads
   // synchronously ahead of this file and has already resolved and remembered them.
   // The fallback below only runs if identity.js failed to load, so the bar still works.
+  // Whether this device knows they are in at least one group. Storage throws outright in a
+  // private window, so every line of it is guarded and not knowing counts as no.
+  function hasAGroup() {
+    try {
+      var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
+      var v = JSON.parse(localStorage.getItem('cw-mygroups-v4') || 'null');
+      return !!(v && v.list && v.list.length && norm(v.who) === norm(me()));
+    } catch (e) { return false; }
+  }
+
   function me() {
     if (window.CW && window.CW.me) { return window.CW.me().id; }
     try {
@@ -332,13 +342,12 @@
     var photo;
     if (!atDoor && me() && window.CW_TOPBAR_PHOTO) {
       var nm = myName();
-      photo = '<a role="link" tabindex="0" class="cwtb-me" title="My profile" data-nav="' +
-              link(PROFILE, 'CWid') + '" onclick="return _safeNavGo(this)">' +
+      photo = '<span role="button" tabindex="0" class="cwtb-me" title="Yours" aria-expanded="false" data-menu="me">' +
               (nm ? '<span class="cwtb-me-name">' + esc2(nm) + ' \u{1F331}</span>' : '') +
-              '<span class="cwtb-face"><img src="' + window.CW_TOPBAR_PHOTO + '" alt=""></span></a>';
+              '<span class="cwtb-face"><img src="' + window.CW_TOPBAR_PHOTO + '" alt=""></span></span>';
     } else if (!atDoor && me()) {
-      photo = '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost cwtb-mine" data-nav="' +
-              link(PROFILE, 'CWid') + '" onclick="return _safeNavGo(this)">My profile</a>';
+      photo = '<span role="button" tabindex="0" class="cwtb-signin cwtb-ghost cwtb-mine" ' +
+              'aria-expanded="false" data-menu="me">Mine</span>';
     } else if (onCreatingWorks()) {
       // NO DOORS ON CREATING.WORKS. A sign-in on 2gather.network cannot come back here, because each
       // site keeps its own, and the creating.works pages that draw this bar sign people in themselves.
@@ -350,6 +359,43 @@
               '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost" data-nav="' +
               (window.CW_SIGNUP || 'https://2gather.network/signup/') +
               '" onclick="return _safeNavGo(this)">Sign up</a>';
+    }
+
+    /* ── EVERYTHING OF YOURS, UNDER YOUR OWN NAME ──────────────────────────────────────────────
+       Jessie, 2026-09-20: "yes My events, My groups, My profile, My account, Support, Sign out
+       under top right pill", after catching me saying the bar already carried them - it does not.
+       The GROUPS and MORE menus came off this bar on 2026-09-07 on purpose, and nothing replaced
+       them, so My events and My groups were reachable only from each other and from the calendar,
+       and My profile only by pressing the face.
+
+       WHY UNDER THE NAME RATHER THAN BACK ON THE BAR: a menu tied to a TOPIC states an answer about
+       how the site is arranged, which is what those two menus were doing before they were removed.
+       A menu tied to YOU states nothing of the kind - it is the pattern every other site uses, and
+       it holds only things that are already yours.
+
+       The face used to be a link straight to My profile. My profile is the first item in the menu
+       now, so that door is still one press away, and the other five stopped being hidden. */
+    if (!atDoor && me()) {
+      var mine = '';
+      mine += anchor('My events',  link(MYEVENTS, 'memberCard'), 'cwtb-item');
+      /* MY GROUPS ONLY IF THEY ARE IN ONE. Jessie, 2026-09-20: "and dont' show my groups in menu
+         unless they have a group". A door onto a page reading "you are not in any groups" is a
+         door onto nothing, and it is the first thing somebody new would press.
+
+         IT ASKS NOTHING. The calendar keeps the list of your groups on the device already
+         (cw-mygroups-v4, written by /events/ and read by the intro), and the calendar is where
+         signing in lands, so by the time anybody is moving around the site the answer is here.
+         No read, no wait, and nothing on the bar depends on a call that measures 9 to 39 seconds.
+
+         THE ONE CASE IT GETS WRONG, said out loud: a member on a brand new device who has not yet
+         opened the calendar sees no My groups until they do. That is a missing shortcut for a
+         minute, against a dead end for everybody who has no groups at all. */
+      if (hasAGroup()) { mine += anchor('My groups', link(MYGROUPS, 'memberCard'), 'cwtb-item'); }
+      mine += anchor('My profile', link(PROFILE,  'CWid'),       'cwtb-item');
+      mine += anchor('My account', link(ACCOUNT,  'CWid'),       'cwtb-item');
+      mine += anchor('Support',    link(SUPPORT,  'memberCard'), 'cwtb-item');
+      mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
+      rows += '<div class="cwtb-row cwtb-row-me" data-row="me">' + mine + '</div>';
     }
 
     var el = document.createElement('div');
@@ -378,7 +424,13 @@
       var bar = el.querySelector('.cwtb-bar');
       r.style.top = (bar.offsetHeight + 8) + 'px';
       r.style.left = '0px';
+      // THE PILL'S MENU HANGS FROM ITS RIGHT EDGE. Every other menu opens under a tab on the
+      // left of the bar; this one opens under a pill on the right, and lining its LEFT edge up
+      // with the pill would push it off the screen on a narrow window.
       var want = t.getBoundingClientRect().left - el.getBoundingClientRect().left;
+      if (r.getAttribute('data-row') === 'me') {
+        want = (t.getBoundingClientRect().right - el.getBoundingClientRect().left) - r.offsetWidth;
+      }
       var room = el.clientWidth - r.offsetWidth - 8;
       r.style.left = Math.max(8, Math.min(want, room)) + 'px';
     }
@@ -544,6 +596,7 @@
       '.cwtb-row{display:none;position:absolute;min-width:236px;background:#fff;border-radius:14px;' +
         'padding:10px 0;box-shadow:0 14px 34px rgba(15,45,70,.28);z-index:20;}' +
       '.cwtb-row.cwtb-open{display:block;}' +
+      '.cwtb-me{cursor:pointer;}' +
       '.cwtb-item{display:block;padding:13px 22px;font-size:16px;font-weight:500;color:#1A2E42;' +
         'text-decoration:none;cursor:pointer;white-space:nowrap;}' +
       '.cwtb-item:hover{background:#F7FBFF;}' +
