@@ -3,6 +3,8 @@
   Copyright 2026 DayBalancer LLC. All rights reserved.
   hello@creating.works
 -->
+<!-- Version: V1.93 | Date: 2026-09-20 | LAST CHANGE: Your answers is back on the rail, and it is last. Jessie: "my answers should be last - it waas removed but can be put back". It came off an hour earlier alongside Group permissions; Group permissions stays off, because that one is reached from Choose who sees what at the foot of Your answers and from the account rail. So the rail reads: the questions, then Your answers, then Solutions as the door out. -->
+<!-- Version: V1.92 | Date: 2026-09-20 | LAST CHANGE: Welcome leaves the rail once it is answered, and the page opens at Joy. Jessie: "welcome shouldhn't show if i laready ahve all 4 asnwersed" and "it should just go to joy". Welcome asks for a photo and a place; once both are on the record it is a step that asks nothing, and a step that asks nothing sitting at the top of a list is the first thing everybody presses. Nothing is lost: ?step=welcome still opens it, the step you are ON is always drawn, and somebody who takes their photo off meets it again by itself. Arriving with no step named now opens Welcome for somebody who still has it to answer and Joy for everybody else. The check is written as "there is at least one of these and they are all done", because .every() on an empty list answers true and a later edit moving those two questions elsewhere would otherwise have hidden Welcome from everybody for ever. -->
 <!-- Version: V1.91 | Date: 2026-09-20 | LAST CHANGE: Your answers and Group permissions come off the rail as well. Jessie: "take yiour answers and group permission off too". The rail is the questions now - Welcome through Purpose - and the way onward is Solutions at the foot. HIDDEN FROM THE RAIL, NOT REMOVED FROM THE PAGE: both are still steps, so Next still reaches them, ?step=your-answers and ?step=permissions still open them, and every piece of arithmetic that counts on them is untouched - taking them out of the list of steps would have moved GP_LAST, which is what the save on finishing hangs on. -->
 <!-- Version: V1.90 | Date: 2026-09-20 | LAST CHANGE: Balance comes off the rail and Solutions goes at the foot of it. Jessie: "remomve balance from this rail and add solutions at the bottom of purpsoe", "for real". The Balance ROW goes; the QUESTION "Seeking balance?" stays exactly where it is inside Needs and still saves to ikigai.seekingBalance, so no answer changes - what goes is a row that led to a panel reading Stay tuned. One flag, GP_BAL_ON_RAIL, and the block is left in the file unreferenced, so putting it back is one line. SOLUTIONS is a DOOR rather than a step: it leaves the page, so it is drawn after the rail loop and deliberately kept out of GP_STEP_TITLES - a fake step would have to be skipped by Next, by Back, by the reach test and by the save, and one of those would have been missed. It waits until the answers have loaded, because a door offered beside "Loading your information" opens onto a page that cannot say anything yet. -->
 <!-- Version: V1.89 | Date: 2026-09-19 | LAST CHANGE: on Group permissions, signed in and then groups, and nothing else for now. Jessie: "hide these 2 since we are only doing permissions based on signed in and will be only groups right now" and "dont' delte - just hide for now". ONE switch, GP_ONLY_SIGNED_IN, hides three things and every line of them stays in the file: the "Anyone with your profile page" tab, because both sites went behind the sign-in wall this morning so there is no anyone any more; "Share my profile page publicly", for the same reason, since we are not sharing outside; and with those gone the remaining tab is every signed-in person, which IS every group, so it now reads "Global permissions for all groups" with "These permissions will be set for all groups" beside it. The group dropdown stays exactly as it was, her "Don't remove in a group". Putting the old world back is changing true to false. -->
@@ -2805,6 +2807,15 @@
     { label: 'One language',             head: 'Which languages do you speak?', step: 2, done: function(){ return gpHasLang(); } },
     { label: 'One thing you care about', head: 'What do you care about?',       step: 3, done: function(){ return gpAnswered('introValues'); } }
   ];
+  /* Answered means every one of Welcome's own required things is answered - and it is asked this
+     way round deliberately: .every() on an empty list answers true, so a future edit that moved
+     these two off step 0 would have hidden Welcome from everybody for ever. */
+  function gpWelcomeDone(){
+    try {
+      var mine = GP_REQ_ITEMS.filter(function (r) { return r.step === 0; });
+      return mine.length > 0 && mine.every(function (r) { return r.done(); });
+    } catch (e) { return false; }
+  }
   function gpReqStepDone(n){ return GP_REQ_ITEMS.filter(function(r){ return r.step === n; }).every(function(r){ return r.done(); }); }
   function gpReqPaint(){
     var box = document.getElementById('gp-intro-qs'); if (!box) return;
@@ -3309,7 +3320,11 @@
       // A name the page does not know opens Welcome, as it always did, so a mistyped address is never a dead end.
       var _want = gpStepFromSlug(params.get('step'));
       if (_want === GP_PERM && GP_PERM === -1) _want = -1;
-      gpShowStep(_want > -1 ? _want : 0);
+      // NO STEP NAMED: Welcome for somebody who still has it to answer, Joy for everybody else.
+      // Her "it should just go to joy". A named step is still honoured exactly as it was, so a
+      // link straight to Welcome opens Welcome.
+      if (_want < 0) { _want = gpWelcomeDone() ? 1 : 0; }
+      gpShowStep(_want);
     };
     document.documentElement.classList.add('gp-rail');
     var _st = document.createElement('style');
@@ -3344,7 +3359,7 @@
       + '@media(max-width:860px){.gp-layout{grid-template-columns:1fr;}.gp-tabs{position:static;flex-direction:row;flex-wrap:wrap;}.gp-tab{width:auto;flex:1 1 40%;}}';
     document.head.appendChild(_st);
     if (!document.querySelector('script[src^="/nav/topbar.js"]')) {
-      var _tb = document.createElement('script'); _tb.src = '/nav/topbar.js?v=6.15'; _tb.defer = true; document.head.appendChild(_tb);
+      var _tb = document.createElement('script'); _tb.src = '/nav/topbar.js?v=6.16'; _tb.defer = true; document.head.appendChild(_tb);
     }
     var _card = document.querySelector('.card');
     if (_card) {
@@ -3379,7 +3394,19 @@
          arithmetic that counts on them - the save that fires on reaching the last step, the reach
          test, Back - is untouched. Taking them out of GP_STEP_TITLES would have moved GP_LAST,
          which is what the save hangs on. */
-      if (GP_RAIL_QUESTIONS_ONLY && (i === GP_LAST || i === GP_PERM)) return;
+      /* YOUR ANSWERS IS BACK, AND IT IS LAST. Jessie, 2026-09-20: "my answers should be last - it
+         waas removed but can be put back". It came off an hour earlier with Group permissions;
+         Group permissions stays off, because that one is reached from Choose who sees what at the
+         foot of Your answers and from the account rail. So the rail is the questions, then Your
+         answers, then Solutions as the door out. */
+      if (GP_RAIL_QUESTIONS_ONLY && i === GP_PERM) return;
+      /* WELCOME GOES ONCE IT IS ANSWERED. Jessie, 2026-09-20: "welcome shouldhn't show if i
+         laready ahve all 4 asnwersed" and "it should just go to joy". Welcome asks for a photo
+         and a place; once both are on the record it is a step that asks nothing, and a step that
+         asks nothing at the top of a list is the first thing everybody presses. The questions are
+         still there - ?step=welcome still opens it, and somebody who takes their photo off meets
+         it again by itself. */
+      if (i === 0 && gpWelcomeDone() && i !== _gpStep) return;
       // WELCOME ALONE WHILE IT LOADS. Jessie, 2026-09-16: "don't show riail either when loading - just
       // welcome". This is her reversing row 212 from the day before, where the steps stayed greyed so
       // the page kept its shape while it waited. Seen on the real screen, a column of pale steps beside
