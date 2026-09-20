@@ -1,4 +1,5 @@
-/*  Version: V1.03 | Date: 2026-09-20 | LAST CHANGE: My profile joins the account shape, opening the answers at Joy. My info is what is TRUE about you; My profile is what you have TOLD people.
+/*  Version: V1.04 | Date: 2026-09-20 | LAST CHANGE: My profile first, SOLUTIONS rather than PRODUCTS, Support and Sign out off, and Global permissions opens the permissions step itself. Her four, in one message. Support and Sign out moved into the name menu in the top bar this morning and the same row in two places is a row nobody finds in either. Global permissions opens that step rather than a copy of it: the way to look exactly like a screen is to BE it, and a second copy would be two screens writing one set of columns.
+    V1.03 | Date: 2026-09-20 | LAST CHANGE: My profile joins the account shape, opening the answers at Joy. My info is what is TRUE about you; My profile is what you have TOLD people.
     V1.02 | Date: 2026-09-20 | LAST CHANGE: a second shape, for the account page. shape:'account' draws ACCOUNT (My info, Global permissions, Support, Sign out) and PRODUCTS (Balance, Appear, Gather, License, each with a dot). My events, My groups and My profile come OFF it: they moved into the menu under her name in the top bar the same morning, and a shortcut in two places is a shortcut nobody can find in either. My profile still draws the rail it has always drawn - only a page asking for the account shape gets this one - and a page can hand in onPick to keep the press for itself, which is how the product panes open without a page load.
     V1.01 | Date: 2026-09-15 | LAST CHANGE: My permissions between My profile and My account, a preview for a super admin only.
     V1.00 | Date: 2026-09-14 | LAST CHANGE: one rail for My profile and My account, in the template.
@@ -83,16 +84,28 @@
        without a page load. */
     if (opts.shape === 'account') {
       var GROUPS = [
+        /* Jessie, 2026-09-20, in one message: "make my profile first on left rail", "Make PRODUCTS
+           say SOLUTIONS", "remove support and sign out on rail", "Global persmisison should look
+           lkike /intro/?perm=1&step=permissions".
+
+           MY PROFILE FIRST, because it is the one somebody comes here to open; My info is what
+           they check once a year. SUPPORT AND SIGN OUT COME OFF, because they moved into the menu
+           under her name in the top bar this morning and the same row in two places is a row
+           nobody finds in either. SOLUTIONS, not products, her word since the first draft.
+
+           AND GLOBAL PERMISSIONS OPENS THE PERMISSIONS STEP rather than a copy of it. She asked
+           twice for it to LOOK like that screen, and the way to look exactly like a screen is to
+           BE it: that one already holds the audience tray, the name and place choices, the
+           switches and a save that redraws from what the backend actually stored. Building a
+           second one here would be two screens writing one set of columns, and the first time one
+           gained a field the other had not, a save from the older screen would write an empty
+           value over a real answer. */
         ['ACCOUNT', [
-          { key: 'account',     label: 'My info' },
-          // My profile opens the ANSWERS, which are a different thing from My info: My info is
-          // what is true about you, My profile is what you have told people. 2026-09-20.
           { key: 'myprofile',   label: 'My profile', url: 'https://2gather.network/intro/?perm=1&step=joy' },
-          { key: 'permissions', label: 'Global permissions' },
-          { key: 'support',     label: 'Support', url: 'https://2gather.network/support?from=' + encodeURIComponent(location.pathname) },
-          { key: 'signout',     label: 'Sign out', out: true }
+          { key: 'account',     label: 'My info' },
+          { key: 'permissions', label: 'Global permissions', url: 'https://2gather.network/intro/?perm=1&step=permissions' }
         ]],
-        ['PRODUCTS', [
+        ['SOLUTIONS', [
           { key: 'balance', label: 'Balance', dot: false },
           { key: 'appear',  label: 'Appear',  dot: false },
           { key: 'gather',  label: 'Gather',  dot: true  },
