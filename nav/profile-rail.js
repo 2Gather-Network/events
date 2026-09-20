@@ -1,4 +1,5 @@
-/*  Version: V1.02 | Date: 2026-09-20 | LAST CHANGE: a second shape, for the account page. shape:'account' draws ACCOUNT (My info, Global permissions, Support, Sign out) and PRODUCTS (Balance, Appear, Gather, License, each with a dot). My events, My groups and My profile come OFF it: they moved into the menu under her name in the top bar the same morning, and a shortcut in two places is a shortcut nobody can find in either. My profile still draws the rail it has always drawn - only a page asking for the account shape gets this one - and a page can hand in onPick to keep the press for itself, which is how the product panes open without a page load.
+/*  Version: V1.03 | Date: 2026-09-20 | LAST CHANGE: My profile joins the account shape, opening the answers at Joy. My info is what is TRUE about you; My profile is what you have TOLD people.
+    V1.02 | Date: 2026-09-20 | LAST CHANGE: a second shape, for the account page. shape:'account' draws ACCOUNT (My info, Global permissions, Support, Sign out) and PRODUCTS (Balance, Appear, Gather, License, each with a dot). My events, My groups and My profile come OFF it: they moved into the menu under her name in the top bar the same morning, and a shortcut in two places is a shortcut nobody can find in either. My profile still draws the rail it has always drawn - only a page asking for the account shape gets this one - and a page can hand in onPick to keep the press for itself, which is how the product panes open without a page load.
     V1.01 | Date: 2026-09-15 | LAST CHANGE: My permissions between My profile and My account, a preview for a super admin only.
     V1.00 | Date: 2026-09-14 | LAST CHANGE: one rail for My profile and My account, in the template.
 
@@ -84,6 +85,9 @@
       var GROUPS = [
         ['ACCOUNT', [
           { key: 'account',     label: 'My info' },
+          // My profile opens the ANSWERS, which are a different thing from My info: My info is
+          // what is true about you, My profile is what you have told people. 2026-09-20.
+          { key: 'myprofile',   label: 'My profile', url: 'https://2gather.network/intro/?perm=1&step=joy' },
           { key: 'permissions', label: 'Global permissions' },
           { key: 'support',     label: 'Support', url: 'https://2gather.network/support?from=' + encodeURIComponent(location.pathname) },
           { key: 'signout',     label: 'Sign out', out: true }
