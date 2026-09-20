@@ -9,7 +9,7 @@
  *  V21 | Date: 2026-09-19 | LAST CHANGE: both sites are shut to anybody who has not proved who they are.
  *  2Gather, in her words after trying it: "it works as it shoudld. It requires everyone to sign in to use the site. And
  *  any page." Creating.Works is one message and no door: "Creating works
- *  says one a message on the front end: coming soon to serve you. and nobody can even log in." So /intro/ is shut too -
+ *  says one a message on the front end: coming soon to serve you. and nobody can even log in." So /ikigai/ is shut too -
  *  it was the way in. Open there: the home page, and the terms, privacy policy and code of conduct, only because
  *  2Gather's own pages link at them. On 2Gather the three sign-in doors stay open, and nothing else does.
  *  V20 | Date: 2026-09-19 | LAST CHANGE: Creating.Works is on for everybody. Jessie, asked whether the wall
@@ -19,7 +19,7 @@
  *  V19 | Date: 2026-09-19 | LAST CHANGE: on Creating.Works a walled page answers with the message rather
  *  than with a page. Jessie: "creating.works should be saying a mesasge - not an actual page - what hapepned to the
  *  messeage saying coming soon to serve you?" It now lands on the home page, which says Coming soon to serve YOU. and
- *  nothing else, and that home page is never walled itself. /intro/ stays the side door and stays open.
+ *  nothing else, and that home page is never walled itself. /ikigai/ stays the side door and stays open.
  *  V18 | Date: 2026-09-19 | LAST CHANGE: no page draws for somebody who has not proved who they are.
  *  Jessie: "make all pages require log in. no page should be available to outsiders until we say ohterwise", then
  *  "F all" - a shared event link and a QR code on a flyer go to the sign-in screen first and land where they were
@@ -319,10 +319,10 @@
        are terms nobody can agree to. Neither names a person or carries anybody's data.
        Creating.Works signs people in on its OWN page and has to: each site keeps its own storage,
        so somebody signed in on 2gather.network is a stranger here - intro/index.html says so in
-       its own comment - which is why /intro/ is the open one there rather than /signin/. */
+       its own comment - which is why /ikigai/ is the open one there rather than /signin/. */
     /* CREATING.WORKS IS ONE MESSAGE AND NO DOOR. Jessie, 2026-09-19: "Creating works says one a
        message on the front end: coming soon to serve you. and nobody can even log in. It just says
-       one. A message on the front end coming soon to serve you." So /intro/ is shut with the rest -
+       one. A message on the front end coming soon to serve you." So /ikigai/ is shut with the rest -
        it was the way in, and there is meant to be no way in. The three kept open are the terms, the
        privacy policy and the code of conduct, and ONLY because 2Gather's own pages link straight at
        them: shutting those puts somebody signing up to 2Gather on Coming soon when they press
@@ -375,7 +375,7 @@
        a mesasge - not an actual page - what hapepned to the messeage saying coming soon to serve
        you?" So a walled page there lands on the home page, which says "Coming soon to serve YOU."
        and nothing else - the page Doug asked for on 2026-09-14 and the one I should never have
-       walled. /intro/ stays the side door for anybody who has one, exactly as it was. */
+       walled. /ikigai/ stays the side door for anybody who has one, exactly as it was. */
     w.location.replace(onCW ? '/' : '/signin/?next=' + encodeURIComponent(back));
   })();
 

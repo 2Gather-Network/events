@@ -89,7 +89,7 @@
       var GROUPS = [
         /* Jessie, 2026-09-20, in one message: "make my profile first on left rail", "Make PRODUCTS
            say SOLUTIONS", "remove support and sign out on rail", "Global persmisison should look
-           lkike /intro/?perm=1&step=permissions".
+           lkike /ikigai/?perm=1&step=permissions".
 
            MY PROFILE FIRST, because it is the one somebody comes here to open; My info is what
            they check once a year. SUPPORT AND SIGN OUT COME OFF, because they moved into the menu
@@ -104,9 +104,9 @@
            gained a field the other had not, a save from the older screen would write an empty
            value over a real answer. */
         ['ACCOUNT', [
-          { key: 'myprofile',   label: 'My profile', url: 'https://2gather.network/intro/?perm=1&step=joy' },
+          { key: 'myprofile',   label: 'My profile', url: 'https://2gather.network/ikigai/?perm=1&step=joy' },
           { key: 'account',     label: 'My info' },
-          { key: 'permissions', label: 'Global permissions', url: 'https://2gather.network/intro/?perm=1&step=permissions' }
+          { key: 'permissions', label: 'Global permissions', url: 'https://2gather.network/ikigai/?perm=1&step=permissions' }
         ]],
         ['SOLUTIONS', [
           { key: 'balance', label: 'Balance', dot: false },
@@ -168,7 +168,7 @@
       // MY PERMISSIONS, below My profile and above My account. Jessie, 2026-09-15: "have this as an opt-in within permissions
       // tab which will be added below My profile and above my account say "My permissions"". A preview while it is designed:
       // shown only to a super admin (the top bar's cw-super), and it opens the Permissions step on the intro, which saves nothing.
-      { key: 'permissions', label: 'My permissions', url: 'https://2gather.network/intro/?perm=1&step=permissions', superOnly: true },
+      { key: 'permissions', label: 'My permissions', url: 'https://2gather.network/ikigai/?perm=1&step=permissions', superOnly: true },
       { key: 'account', label: 'My account', url: 'https://2gather.network/account/' },
       { key: 'support', label: 'Support', url: 'https://2gather.network/support?from=' + encodeURIComponent(location.pathname) },
       // Sign out acts on whoever is really signed in, so it is not offered while looking at somebody else.
