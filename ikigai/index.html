@@ -768,6 +768,12 @@
     word = String(word || '').trim(); if (!word) return;
     if (!_gpTags[key]) _gpTags[key] = {};
     _gpTags[key][word] = cat || '';
+    if (GP_TAGS_ON && cat && key === 'introSkills') {
+      try {
+        if (!_gpOrig[key]) { _gpOrig[key] = {}; }
+        if (!_gpOrig[key][String(word).toLowerCase()]) { _gpOrig[key][String(word).toLowerCase()] = word + ':' + cat + ':'; }
+      } catch (e) {}
+    }
     var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
     for (var i = 0; i < parts.length; i++) {
       if (parts[i].toLowerCase() === word.toLowerCase()) return;
@@ -1885,6 +1891,25 @@
     _gpOrig[key][String(word).toLowerCase()] = parts.join(':') + w.work;
     try { gpTouchSave(); } catch (e) {}
   }
+  function gpCatList(key){
+    if (key !== 'introSkills') { return []; }
+    var c = GP_CHIPS[key] || {};
+    return (c.words || []).concat(c.more || []);
+  }
+  function gpCatOf(key, word){
+    var parts = gpSplitWork(gpOrigFor(key, word)).body.split(':');
+    if (parts.length >= 3) { return String(parts[1] || '').trim(); }
+    try { return String((_gpTags[key] || {})[word] || '').trim(); } catch (e) { return ''; }
+  }
+  function gpSetCategory(key, word, cat){
+    if (!_gpOrig[key]) { _gpOrig[key] = {}; }
+    var w = gpSplitWork(gpOrigFor(key, word));
+    var parts = w.body.split(':');
+    while (parts.length < 3) { parts.push(''); }
+    parts[1] = cat;
+    _gpOrig[key][String(word).toLowerCase()] = parts.slice(0, 3).join(':') + w.work;
+    try { gpTouchSave(); } catch (e) {}
+  }
   function gpPickedWords(key){
     var el = document.getElementById('gp-intro-' + key);
     return String((el && el.value) || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
@@ -1931,6 +1956,23 @@
       nm.style.cssText = 'font-size:14.5px;font-weight:700;color:#1A2E42;min-width:132px;';
       nm.textContent = word;
       row.appendChild(nm);
+      var cats = gpCatList(key);
+      if (cats.length) {
+        var sel = document.createElement('select');
+        sel.style.cssText = 'font:inherit;font-size:13px;padding:6px 9px;border-radius:9px;border:1.5px solid #C9DFF3;background:#fff;color:#1F699E;font-weight:600;max-width:210px;';
+        var none = document.createElement('option');
+        none.value = ''; none.textContent = 'No category';
+        sel.appendChild(none);
+        var have = gpCatOf(key, word);
+        cats.forEach(function(c){
+          var op = document.createElement('option');
+          op.value = c; op.textContent = c;
+          if (c.toLowerCase() === have.toLowerCase()) { op.selected = true; }
+          sel.appendChild(op);
+        });
+        sel.onchange = function(){ gpSetCategory(key, word, sel.value); };
+        row.appendChild(sel);
+      }
       spec.list.forEach(function(lv){
         var picked = on.indexOf(lv) > -1;
         var b = gpPill(lv, picked);
