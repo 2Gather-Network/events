@@ -1268,6 +1268,22 @@
       if (typeof gpStepPaint === 'function') gpStepPaint();
     }
 
+    // RETURN DOES WHAT THE BUTTON DOES. Jessie, 2026-09-21: "also pressing return should auto add
+    // it too". Typing a word and pressing return is what everybody does, and before this it did
+    // nothing at all - which reads as the word being refused rather than as a key that is not
+    // wired. If the typed word matches something in the list, the first match is taken; otherwise
+    // it is added as their own words, exactly as pressing the blue row does.
+    search.addEventListener('keydown', function(ev){
+      if (ev.key !== 'Enter') { return; }
+      ev.preventDefault();
+      var typed = String(search.value || '').trim();
+      if (!typed) { return; }
+      var add = results.querySelector('[role="button"]');
+      if (add && add._gpAdd) { add._gpAdd(); return; }
+      if (add) { add.click(); return; }
+      gpAddNew(typed, results, function(){ search.value = ''; results.innerHTML = ''; });
+    });
+
     search.addEventListener('input', function(){
       var t = String(search.value || '').trim().toLowerCase();
       results.innerHTML = '';
@@ -1293,19 +1309,28 @@
         var r = document.createElement('div');
         r.setAttribute('role', 'button');
         r.tabIndex = 0;
-        r.style.cssText = 'border:1px solid #C9DFF3;border-radius:10px;padding:10px 12px;margin-top:6px;'
-          + 'cursor:pointer;background:#F7FBFF;';
+        // LOUD ENOUGH TO BE SEEN. Jessie, 2026-09-21: "make Add this to my list more apparenet -
+        // people don't see it - maybe blue wiht white lettering?" It was pale blue text on a paler
+        // blue card, which reads as a suggestion rather than the only way to add a word nobody has
+        // used before.
+        r.style.cssText = 'border:1.5px solid #1F699E;border-radius:10px;padding:11px 14px;margin-top:6px;'
+          + 'cursor:pointer;background:#1F699E;color:#fff;';
         var rt = document.createElement('div');
-        rt.style.cssText = 'font-size:14.5px;font-weight:700;color:#1F699E;';
+        rt.style.cssText = 'font-size:14.5px;font-weight:800;color:#fff;';
         rt.textContent = 'Add this to my list';
         var rw = document.createElement('div');
-        rw.style.cssText = 'font-size:13px;color:#6B7A8D;';
-        rw.textContent = typed;
+        rw.style.cssText = 'font-size:13px;color:#DCEBF7;';
+        rw.textContent = typed + '   \u21B5 or press return';
         r.appendChild(rt); r.appendChild(rw);
         var ask = document.createElement('div');
-        r.addEventListener('click', function(){
+        var addIt = function(){
           gpAddNew(typed, ask, function(){ search.value = ''; results.innerHTML = ''; });
-        });
+        };
+        r.addEventListener('click', addIt);
+        // RETURN ADDS IT. Her "also pressing return should auto add it too". Typing a word and
+        // pressing return is what everybody does; before this it did nothing at all, which reads
+        // as the word being refused.
+        r._gpAdd = addIt;
         results.appendChild(r);
         results.appendChild(ask);
       }
@@ -2216,16 +2241,47 @@
     try { return !!(window.CW && CW.me && CW.me().viewing); } catch (e) { return false; }
   }
 
+  // THE ONE WAY A WORD CAN VANISH, MADE IMPOSSIBLE TO MISS. Jessie, 2026-09-21, after adding a word
+  // that saved for her and not for Karin: "why not for karin?"
+  //
+  // There is exactly one path where a word appears on screen and nothing is sent: the page has not
+  // finished loading that person's answers. Saving is refused outright until it has, because a save
+  // made before the load would send a short list and wipe what was there - which is the fault that
+  // kept bringing Caterer back. Instead the save is REMEMBERED and fires the moment the answers
+  // land. If somebody closes the page before that, it never fires, and the word they can see was
+  // never sent anywhere.
+  //
+  // That window is wide, because the read behind it takes nine to thirty-nine seconds. This said so
+  // in small grey type in the status line, which is exactly where somebody who is busy typing is
+  // not looking. So it is a band across the top of the card now, and the page asks before letting
+  // anybody leave with a save still waiting.
   function gpLoadNote(){
     var st = document.getElementById('gp-intro-status'); if (!st) return;
-    st.style.color = window._gpLoadFailed ? '#7A2410' : '#6B7A8D';
-    if (window._gpLoadFailed) {
-      st.innerHTML = 'Your saved answers did not load, so nothing here saves. '
-        + '<button type="button" onclick="location.reload()" style="font:inherit;font-size:13px;font-weight:700;padding:5px 12px;border-radius:20px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;margin-left:4px;">Try again</button>';
+    var bad = !!window._gpLoadFailed;
+    st.style.cssText = 'display:block;margin:0 0 14px;padding:11px 14px;border-radius:10px;font-size:14px;'
+      + 'font-weight:700;line-height:1.5;'
+      + (bad ? 'background:#FDECE8;border:1.5px solid #E5A492;color:#7A2410;'
+             : 'background:#FFF6E0;border:1.5px solid #E8C97A;color:#6B4A00;');
+    if (bad) {
+      st.innerHTML = 'Your saved answers did not load, so NOTHING here is saving. '
+        + '<button type="button" onclick="location.reload()" style="font:inherit;font-size:13px;font-weight:700;padding:5px 12px;border-radius:20px;border:1.5px solid #7A2410;background:#fff;color:#7A2410;cursor:pointer;margin-left:4px;">Try again</button>';
     } else {
-      st.textContent = 'Your saved answers are still loading and this saves as soon as they arrive.';
+      st.innerHTML = 'Still loading your saved answers, so nothing has saved yet. '
+        + 'What you add is kept and sent the moment they arrive \u2014 stay on this page a few seconds.';
     }
   }
+  // NOBODY LEAVES WITH A SAVE STILL WAITING without being asked. This is the only place on the site
+  // that does this, and it earns it: the alternative is a word somebody typed being lost in silence.
+  (function(){
+    try {
+      window.addEventListener('beforeunload', function(ev){
+        if (!window._gpWantedSave || window._gpLoaded) { return; }
+        ev.preventDefault();
+        ev.returnValue = '';
+        return '';
+      });
+    } catch (e) {}
+  })();
   function gpSplitCare(tags){
     var rd = window._gpRd || {}, sec = {};
     (rd.domains || []).forEach(function(v){ var w = String((v && v.item !== undefined) ? v.item : v).trim().toLowerCase(); if (w) sec[w] = 1; });
