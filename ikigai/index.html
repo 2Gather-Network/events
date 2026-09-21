@@ -743,6 +743,9 @@
     }
   };
   var _gpTags = {};
+  // Which words this person typed since the page opened, so the reset below never throws away
+  // something they added while waiting for the server.
+  var _gpUserAdded = {};
   var _gpOrig = {};
 
   var _gpRefP = null;
@@ -803,6 +806,24 @@
     return out;
   }
 
+  // A CHANGE SAVES ITSELF. Jessie, 2026-09-21, after ?fresh=1 proved Caterer is genuinely still on
+  // the sheet: "caterer still shows though".
+  //
+  // gpQuietSave ran only when somebody MOVED - the rail, Next, Skip, the Solutions door. Adding or
+  // crossing off a word redrew the screen and saved nothing. So taking Caterer off and reloading
+  // without moving lost the deletion entirely, and the word came back because it had never left.
+  // That is her "deleted. said nothing. refreshed. it's back." from the start of all this.
+  //
+  // Debounced, because this backend measures nine to thirty-nine seconds and somebody adding four
+  // words in a row should cost one save rather than four. Held off until the page knows it has
+  // loaded, for the reason saving is refused before then: a save made too early sends a short list.
+  var _gpTouchT = null;
+  function gpTouchSave(){
+    if (!window._gpLoaded) { window._gpWantedSave = true; try { gpLoadNote(); } catch (e) {} return; }
+    clearTimeout(_gpTouchT);
+    _gpTouchT = setTimeout(function(){ try { gpQuietSave(); } catch (e) {} }, 1200);
+  }
+
   function gpAddWord(key, word, cat, ta){
     word = String(word || '').trim(); if (!word) return;
     if (!_gpTags[key]) _gpTags[key] = {};
@@ -813,13 +834,18 @@
     }
     parts.push(word);
     ta.value = parts.join(', ');
+    _gpUserAdded[String(key) + '|' + String(word).toLowerCase()] = 1;
     if (typeof gpStepPaint === 'function') gpStepPaint();
+    gpTouchSave();
   }
   function gpDropWord(key, word, ta){
     if (_gpTags[key]) delete _gpTags[key][word];
+    try { if (_gpChipsPicked[key]) delete _gpChipsPicked[key][word]; } catch (e) {}
+    delete _gpUserAdded[String(key) + '|' + String(word).toLowerCase()];
     var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
     ta.value = parts.filter(function(p){ return p.toLowerCase() !== String(word).toLowerCase(); }).join(', ');
     if (typeof gpStepPaint === 'function') gpStepPaint();
+    gpTouchSave();
   }
   function gpHasWord(key, word){
     return !!(_gpTags[key] && _gpTags[key][word] !== undefined);
@@ -3412,6 +3438,25 @@
   function gpApplyIntake(d, fresh){
         _gpOrig = {};
         var have = (d && d.data) || {};
+        // THE SERVER'S ANSWER WINS. Jessie, 2026-09-21: "breaking gone when i hard refeshed" - with
+        // ?fresh=1, which throws away the copy kept in this browser. That copy is applied FIRST, and
+        // these collections were only ever ADDED to, never cleared - so a word the kept copy held
+        // and the server did not survived the second pass and stayed on the screen. The box itself
+        // was right; the chips beside it were not.
+        //
+        // Cleared only on the fresh pass, and only for words this person has NOT typed since the
+        // page opened - otherwise a word added while waiting would vanish as the server answered.
+        if (fresh) {
+          try {
+            [_gpTags, _gpChipsPicked].forEach(function(store){
+              Object.keys(store || {}).forEach(function(k){
+                Object.keys(store[k] || {}).forEach(function(w){
+                  if (!_gpUserAdded[String(k) + '|' + String(w).toLowerCase()]) { delete store[k][w]; }
+                });
+              });
+            });
+          } catch (e) {}
+        }
         var use = {}, any = false;
         // WHAT IS ALREADY MARKED COMES BACK IN. Without this the page would send every skill
         // unmarked on the next save and quietly wipe an answer nobody touched.
