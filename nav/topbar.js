@@ -242,6 +242,7 @@
       var mine = '';
       if (hasEvents()) { mine += anchor('My events', link(MYEVENTS, 'memberCard'), 'cwtb-item'); }
       if (hasAGroup()) { mine += anchor('My groups', link(MYGROUPS, 'memberCard'), 'cwtb-item'); }
+      mine += anchor('My network', 'https://2gather.network/network/', 'cwtb-item');
       mine += anchor('My profile', 'https://2gather.network/ikigai/?perm=1&step=joy', 'cwtb-item');
       mine += anchor('My account', link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    link(SUPPORT,  'memberCard'), 'cwtb-item');
