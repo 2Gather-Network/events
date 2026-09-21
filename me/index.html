@@ -225,8 +225,9 @@
   .pv-some b{text-transform:uppercase;font-size:10px;letter-spacing:.08em;color:var(--brand);font-weight:800;}
   
   .pv-acts{display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 6px;}
-  .pv-pill{display:inline-flex;align-items:center;gap:6px;background:#fff;color:var(--brand);border:1.5px solid var(--brand);border-radius:20px;padding:7px 15px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;}
+  .pv-pill{display:inline-flex;align-items:center;gap:6px;background:var(--brand);color:#fff;border:1.5px solid var(--brand);border-radius:20px;padding:7px 15px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;}
   .pv-pill:disabled{opacity:.6;cursor:default;}
+  .pv-pill.bm-on{background:var(--brand);color:#fff;border-color:var(--brand);}
   .ic-card{margin:2px 0 8px;background:var(--panel);border:1px solid var(--panel-line);border-radius:14px;padding:14px 16px;}
   .ic-h{font-size:15px;font-weight:800;color:var(--ink);margin:0 0 8px;}
   .ic-row{font-size:14.5px;color:var(--ink);line-height:1.5;padding:3px 0;}
@@ -1465,14 +1466,13 @@
         })()+' 🌱</h2>'
       +'<div class="pv-head-right">'
       +(_viewingSomeoneElse?'':'<div id="pv-share" class="pv-share"></div>')
-      +(_viewingSomeoneElse?'':'<button class="pv-edit" id="pv-edit-mine">✏️ Edit</button>')
       +(_viewingSomeoneElse ? pvFace() : '')
       +'</div>'
       +'</div>'
       +(_viewingSomeoneElse
         ? '<div class="pv-acts">'
           + '<button class="pv-pill" id="pv-common">Show our commonality</button>'
-          + '<button class="pv-pill" id="pv-bookmark">\u{1F516} Bookmark</button>'
+          + '<button class="pv-pill" id="pv-bookmark">Bookmark</button>'
           + '</div><div id="pv-common-out"></div>'
         : '')
 
@@ -1486,23 +1486,10 @@
     var _em=document.getElementById('pv-edit-mine');
     if(_em) _em.onclick=function(){ window.location.href='https://2gather.network/ikigai/?perm=1&step=joy'; };
     var _bm=document.getElementById('pv-bookmark');
-    if(_bm) _bm.onclick=function(){
-      var mine=''; try{ mine=(window.CW&&CW.realMe)?String(CW.realMe().id||''):''; }catch(e){}
-      if(!mine){ _bm.textContent='Sign in to bookmark'; return; }
-      // WHOSE PAGE THIS IS, from the row that was loaded, not from _id. Arriving by /hi/<name> the
-      // address carries a six-character code and no id at all, so _id falls back to the id in this
-      // browser's own storage - the visitor's. Bookmarking anybody would have bookmarked yourself.
-      var _them=''; try{ var _r=window._profRaw||{}; _them=String(_r.appearId||_r.guestID||'').trim(); }catch(e2){}
-      if(!_them && !_viewingSomeoneElse) _them=_id;
-      if(!_them){ _bm.textContent='Still loading. Try again.'; return; }
-      _bm.disabled=true; _bm.textContent='Saving\u2026';
-      fetch(GS_URL+'?action=saveBookmark&from='+encodeURIComponent(mine)+'&to='+encodeURIComponent(_them))
-        .then(function(r){ return r.json(); })
-        .then(function(){ _bm.textContent='\u{1F516} Bookmarked'; })
-        .catch(function(){ _bm.disabled=false; _bm.textContent='That did not save. Try again.'; });
-    };
+    if(_bm){ _bmPaint(_bm); _bm.onclick=function(){ _bmToggle(_bm); }; }
     drawShare();
     try { wireInCommon(); } catch(e){}
+    try { setBreadcrumb('view'); } catch(e){}
     var _pb=document.getElementById('pv-photo-btn'); if(_pb) _pb.onclick=choosePhoto;
     var _pp=document.getElementById('pv-photo'); if(_pp) _pp.onclick=choosePhoto;
     var _pm=document.getElementById('pv-manage'); if(_pm) _pm.onclick=function(){ window.location.href='https://creating.works/profile'+(_id?'?CWid='+encodeURIComponent(_id):''); };
@@ -1628,6 +1615,50 @@
     rows.sort(function(x, y){ return x.pri - y.pri; });
     return rows;
   }
+  // BOOKMARK, THE SAME DESIGN AS AN EVENT'S. Jessie, 2026-09-21: "Bookmarked shoudl be same
+  // bookmark dseign sa an event when bookmarked". On the event page a bookmark is blue and filled
+  // once it is saved and pressing it again takes it off, so this does both rather than sticking on
+  // the word "Bookmarked" for good.
+  //
+  // IT DOES NOT ASK THE SHEET WHETHER YOU ALREADY BOOKMARKED THIS PERSON. That would be a second
+  // nine-to-thirty-nine-second read on every visit to every profile, for one word. So a fresh load
+  // says "Bookmark" whether or not you have. Saving the same pair twice does nothing - the backend
+  // finds the existing row and leaves it - so pressing it again is safe, it is only uninformed.
+  // The honest fix is for the profile read the page ALREADY makes to carry the answer.
+  var _bmOnHere = false, _bmBusy = false;
+  function _bmPaint(b){
+    if (!b) return;
+    b.textContent = _bmOnHere ? 'Bookmarked' : 'Bookmark';
+    b.title = b.textContent;
+    b.classList.toggle('bm-on', !!_bmOnHere);
+  }
+  function _bmWho(){
+    var them = '';
+    try { var r = window._profRaw || {}; them = String(r.appearId || r.guestID || '').trim(); } catch(e){}
+    if (!them && !_viewingSomeoneElse) them = _id;
+    return them;
+  }
+  function _bmToggle(b){
+    if (_bmBusy) return;
+    var mine = '';
+    try { mine = (window.CW && CW.realMe) ? String(CW.realMe().id || '') : ''; } catch(e){}
+    if (!mine) { b.textContent = 'Sign in to bookmark'; return; }
+    // WHOSE PAGE THIS IS, from the row that was loaded, not from _id. Arriving by /hi/<name> the
+    // address carries a six-character code and no id, so _id falls back to the id in this browser's
+    // own storage - the visitor's. Bookmarking anybody would have bookmarked yourself.
+    var them = _bmWho();
+    if (!them) { b.textContent = 'Still loading. Try again.'; return; }
+    var want = !_bmOnHere;
+    _bmBusy = true;
+    b.disabled = true;
+    b.textContent = want ? 'Bookmarking\u2026' : 'Removing\u2026';
+    fetch(GS_URL + '?action=saveBookmark&from=' + encodeURIComponent(mine)
+          + '&to=' + encodeURIComponent(them) + (want ? '' : '&remove=true'))
+      .then(function(r){ return r.json(); })
+      .then(function(){ _bmOnHere = want; })
+      .catch(function(){ /* A save that fails leaves the button where it was, quietly. */ })
+      .then(function(){ _bmBusy = false; b.disabled = false; _bmPaint(b); });
+  }
   var _icHtml = '', _icOpen = false;
   function icSay(html){ var o = document.getElementById('pv-common-out'); if (o) o.innerHTML = html; }
   function icCard(inner){ return '<div class="ic-card">' + inner + '</div>'; }
@@ -1737,7 +1768,15 @@
     if(back){
       sep('‹ ');
       crumb('Back to ' + back.label, function(){ window.location.href = back.url; });
+      return;
     }
+    // NOWHERE TO GO BACK TO IS NOT NOWHERE TO GO. A profile is the one address handed to people, so
+    // most arrivals have no referrer at all - a pasted link, a QR code, a message - and the crumb
+    // drew nothing at all for them. Jessie, 2026-09-21: "add breadcrumbs". When we cannot say where
+    // somebody came FROM, say where they ARE, which is the other half of what a breadcrumb is for.
+    crumb('2Gather', function(){ window.location.href = 'https://2gather.network/'; });
+    var who = String(_profileName || '').trim();
+    if (who) { sep(' / '); bc.appendChild(document.createTextNode(who)); }
   }
   function paintShellHeader(){
     var host = document.getElementById('pe-shell');
