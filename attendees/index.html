@@ -39,6 +39,10 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .event-header-left{min-width:0;flex:1;}
 .event-title{font-size:17px;font-weight:700;color:#1a1a2e;line-height:1.2;}
 .event-meta{font-size:12.5px;color:#6b7280;font-weight:600;margin-top:3px;display:flex;flex-wrap:wrap;gap:4px 14px;}
+.hub-crumbs{font-size:12.5px;color:#6b7280;font-weight:600;margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;}
+.hub-crumbs a{color:#1F699E;text-decoration:none;cursor:pointer;}
+.hub-crumbs a:hover{text-decoration:underline;}
+.hub-crumbs .now{color:#1a1a2e;}
 .btn-matches{background:#2d5282;color:#fff;border:none;border-radius:24px;padding:0 18px;height:38px;font-size:14px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;transition:background 0.15s;flex-shrink:0;}
 .btn-matches:hover{background:#1e3a5f;}
 .btn-matches.active{background:#1F699E;color:#fff;}
@@ -186,6 +190,7 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
       <div class="event-header-left">
         <div class="event-title" id="event-title">Community</div>
         <div class="event-meta" id="event-meta"></div>
+        <div class="hub-crumbs" id="hub-crumbs"></div>
       </div>
       <div class="hub-search-slot">
         <div class="search-wrap">
@@ -372,6 +377,24 @@ function dropWorkValues(list){
   });
 }
 
+// WHERE YOU ARE, IN ORDER. The last part is never a link, because a link to where you already are
+// is the thing that made the old button confusing.
+function paintCrumbs(){
+  var el=document.getElementById('hub-crumbs'); if(!el) return;
+  if(!_groupId){ el.innerHTML=''; return; }
+  var name=String(window._groupName||'').trim()||'This group';
+  var gh='https://2gather.network/group/?id='+encodeURIComponent(_groupId)+'&look=board';
+  var sep='<span aria-hidden="true">\u203A</span>';
+  var parts=['<a href="'+gh+'">'+escHTML(name)+'</a>'];
+  if(_matchMode){
+    parts.push('<a onclick="toggleMatches()">Bulletin board</a>');
+    parts.push('<span class="now">My matches</span>');
+  } else {
+    parts.push('<span class="now">Bulletin board</span>');
+  }
+  el.innerHTML=parts.join(' '+sep+' ');
+}
+
 function refFor(item){
   return _catMap[String(item||'').toLowerCase()]||{category:'',associations:''};
 }
@@ -432,15 +455,14 @@ async function loadGroupMembers(){
     var g=d.group||{};
     var titleEl=document.getElementById('event-title'), metaEl=document.getElementById('event-meta');
     if(titleEl) titleEl.textContent='Group: '+(g.name||'');
-    if(!document.getElementById('back-to-group-btn')){
-      var bg=document.createElement('button'); bg.type='button'; bg.id='back-to-group-btn'; bg.textContent='Back to group';
-      bg.setAttribute('style','background:#fff;color:#1F699E;border:1.5px solid #1F699E;border-radius:24px;padding:0 18px;height:38px;font-size:14px;font-weight:700;font-family:\'DM Sans\',sans-serif;cursor:pointer;white-space:nowrap;flex-shrink:0;');
-      bg.onclick=function(){ window.location.href='https://2gather.network/group/?id='+encodeURIComponent(_groupId)+'&look=board'; };
-      var grp=document.querySelector('.hub-btn-group'); if(grp) grp.insertBefore(bg, grp.firstChild);
-    }
+    // A PATH, NOT A BACK BUTTON. Jessie, 2026-09-21: "back to group - remove button on top since
+    // this is confusing - put breadcrumbs instead / Should be Group name > Bulletin Board > My
+    // matches as a path". A button beside My matches looked like a second thing to press rather
+    // than the way out, and neither of them said where you were.
     var n=(d.attendees||[]).length;
     if(metaEl) metaEl.textContent=n+(n===1?' member':' members');
     window._groupName=g.name||'';
+    try{ paintCrumbs(); }catch(e){}
     (d.attendees||[]).forEach(function(p){ _photoMap[normId(p.appearId)]={photo:p.photo||'',pageLink:p.pageLink||''}; });
     (d.attendees||[]).forEach(function(p){ processRow(p, p.appearId); });
     if(d.me){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
@@ -1208,6 +1230,7 @@ function toggleMatches(){
   var btn=document.getElementById('matches-btn');
   var legend=document.getElementById('match-legend');
   if(btn){ btn.classList.toggle('active',_matchMode); btn.textContent=_matchMode?'Back to bulletin board':'My matches'; }
+  try{ paintCrumbs(); }catch(e){}
   if(legend) legend.style.display='none';
   try{window.scrollTo(0,0);}catch(e){}
   renderAll();
