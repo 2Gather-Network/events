@@ -346,6 +346,10 @@ window._safeNavGo = window._safeNavGo || function (el) {
     var to = '';
     if (mine) {
       to = 'https://creating.works/profile';
+    } else if (p.vanity) {
+      // BY NAME WHEN THEY HAVE ONE. The profile page does tidy /me/?v= into /hi/<name>, but only
+      // once its own read comes back, which is up to forty seconds of a code in the address bar.
+      to = 'https://2gather.network/hi/' + encodeURIComponent(String(p.vanity).trim());
     } else {
       var c = _cwCodeFor(p.appearId || '');
       if (c) {
@@ -768,5 +772,47 @@ window._safeNavGo = window._safeNavGo || function (el) {
 </script>
 <script>try{localStorage.removeItem('cw-super')}catch(e){}</script>
 <script src="https://2gather.network/nav/topbar.js?v=6.19" defer></script>
+<script>
+// LEAVING THIS PAGE DROPS YOU OUT OF THE CALL, so nothing on it navigates away. Jessie,
+// 2026-09-21: "make sure it opens up a new tab for this page since it kicks people out", and "any
+// link clicked on this page shoudl open up a new tab from pill above".
+//
+// THIS IS A DELIBERATE EXCEPTION to the no-new-tabs rule, and the only one: on every other page a
+// new tab is an annoyance, and here the alternative is hanging up on whoever you are talking to.
+//
+// It is done in ONE place rather than on each link, because the links are not all ours - the name
+// pill, its menu and Tell us are drawn by the shared top bar, and teaching that to behave
+// differently here would change it for every page that loads it.
+//
+// Capture phase, so it runs before any onclick the element carries and before the top bar's own
+// navigation helper. Only things that actually go somewhere are touched: an anchor with an href,
+// or anything carrying data-nav. Buttons, the toggle and the fold arrow are left alone.
+(function () {
+  var go = function (url) {
+    try { window.open(url, '_blank', 'noopener'); } catch (e) { window.open(url, '_blank'); }
+  };
+  document.addEventListener('click', function (ev) {
+    var t = ev.target;
+    if (!t || !t.closest) { return; }
+    var el = t.closest('a[href],[data-nav]');
+    if (!el) { return; }
+    var url = el.getAttribute('data-nav') || el.getAttribute('href') || '';
+    url = String(url).trim();
+    if (!url || url.charAt(0) === '#' || /^javascript:/i.test(url)) { return; }
+    ev.preventDefault();
+    ev.stopPropagation();
+    go(url);
+  }, true);
+  // The shared top bar hands navigation to this helper, so the same rule applies to anything that
+  // calls it directly rather than through a click we can see.
+  window._safeNavGo = function (el) {
+    try {
+      var u = el && el.getAttribute && (el.getAttribute('data-nav') || el.getAttribute('href'));
+      if (u) { go(u); }
+    } catch (e) {}
+    return false;
+  };
+})();
+</script>
 </body>
 </html>
