@@ -52,6 +52,21 @@
     while (wrap.firstChild) main.appendChild(wrap.firstChild);
     grid.appendChild(rail); grid.appendChild(main); wrap.appendChild(grid);
 
+    if (opts.shape === 'network') {
+      var NHEAD = document.createElement('div');
+      NHEAD.className = 'cw-prail-head'; NHEAD.textContent = 'MY NETWORK';
+      rail.appendChild(NHEAD);
+      var nbox = document.createElement('div'); nbox.className = 'cw-prail-list';
+      [{ key: 'bookmarks', label: 'My bookmarks', url: 'https://2gather.network/network/' }].forEach(function (it) {
+        var nb = document.createElement('button'); nb.type = 'button'; nb.textContent = it.label;
+        if (it.key === opts.active) { nb.className = 'on'; nb.setAttribute('aria-current', 'page'); }
+        nb.onclick = function () { if (it.key === opts.active) { return; } go(it.url); };
+        nbox.appendChild(nb);
+      });
+      rail.appendChild(nbox);
+      return main;
+    }
+
     if (opts.shape === 'account') {
       var GROUPS = [
         ['ACCOUNT', [
