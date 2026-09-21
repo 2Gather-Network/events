@@ -1,23 +1,7 @@
-/*  Version: V1.05 | Date: 2026-09-12 | LAST CHANGE: Google's one-tap on Sign in signs in by itself somebody who said yes before. V1.04: the page's own notes (You are signed out on this device.) step aside while Signing you in... shows. V1.03: on for everybody, no ?google=1 needed. V1.02: a breathing Signing you in... pill while the backend checks; lands on /events/. V1.01: the Client ID is in. V1.00: Sign in with Google, for Sign in and Sign up, behind ?google=1.
-
-    SIGN IN WITH GOOGLE. Jessie, 2026-09-12: "add gmail sign in next", then, of the design (row 149), "149 yes".
-    One file for both pages, so the button, its Client ID and what happens after it live in one place.
-
-    Continue with Google sits above the email box. Google's own window asks which account and hands this page a
-    signed note saying which address it is; the backend asks Google whether the note is genuine (googleSignin in
-    Code.js). An address we know signs straight in, the same as a right code. An address we do not know is asked,
-    Create my account or Use a different account, with the terms and 18 or over ticked first, and nothing is
-    created until Create my account is pressed. The emailed code stays for everybody else.
-
-    Behind ?google=1 until Jessie tried it on 2026-09-12; on for everybody since (see FOR EVERYBODY).
-*/
 (function () {
-  // The same Client ID as GOOGLE_CLIENT_ID in Code.js (Google Cloud, OAuth client "2Gather sign-in"). Not a secret.
   var CLIENT_ID = '702611145180-r2f9ntdg8sg7u3o7ktdfnvdgaafukm9n.apps.googleusercontent.com';
   var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
 
-  // FOR EVERYBODY. Jessie, 2026-09-12, after her own test worked: "publish to main site google". It was behind
-  // ?google=1 until then; ?google=0 still hides it, in case it has to be taken away from one screen.
   function wanted() {
     try { return new URLSearchParams(location.search).get('google') !== '0'; } catch (e) { return true; }
   }
@@ -34,8 +18,6 @@
     });
   }
 
-  // Signed in: kept on this device exactly as a right code keeps it (see verify() on both pages), then on to
-  // where they were headed, or to the five questions when the profile is empty.
   function finish(d, next) {
     try {
       localStorage.setItem('cw-id', d.appearId);
@@ -56,7 +38,6 @@
     try { CW.firstStop(d.appearId, next, go); } catch (e) { go(next); }
   }
 
-  // Its own few styles, so both pages draw it the same (Sign in has no tick boxes of its own).
   function styles() {
     if (document.getElementById('cw-g-css')) return;
     var st = document.createElement('style');
@@ -68,7 +49,6 @@
       + '.cw-g-new .tick a{color:#1F699E;font-weight:700;}'
       + '.cw-g-new .tick input{width:18px;height:18px;flex-shrink:0;margin:1px 0 0;accent-color:#1F699E;}'
       + '.cw-g-new .cw-g-other{background:#fff;color:#1F699E;box-shadow:inset 0 0 0 1.5px #1F699E;margin-top:10px;}'
-      // The breathing pill the rest of the site waits with (mygroups/index.html, WAITING IS THE BLINKING PILL).
       + '.cw-g-wait{display:none;justify-content:center;margin-top:12px;}'
       + '.cw-g-pill{display:inline-flex;align-items:center;gap:8px;background:#1F699E;color:#fff;font-size:13px;font-weight:700;'
       +   'padding:8px 16px;border-radius:20px;white-space:nowrap;animation:cw-g-breathe 1.6s ease-in-out infinite;}'
@@ -102,9 +82,6 @@
       say('');
       var btn = slot.querySelector('.cw-g-btn');
       if (btn) btn.style.opacity = '.5';
-      // SAID WHILE IT WAITS. Jessie, 2026-09-12, after her first Google sign-in: "ok it worked but took about 10
-      // seconsd - maybe give a indicator Loading site... ?" The backend checks Google's note and finds the person,
-      // which takes seconds, so the breathing pill says so until the page moves on.
       waiting(true);
       ask('googleSignin').then(function (d) {
         if (d && d.status === 'ok' && d.appearId) { finish(d, opts.next || '/events/'); return; }
@@ -127,9 +104,6 @@
         slot.insertBefore(w, slot.querySelector('.cw-g-or'));
       }
       w.style.display = on ? 'flex' : 'none';
-      // Jessie, 2026-09-12, with "You are signed out on this device." still showing under a Signing you in... pill:
-      // "you are signed oiut of this device should dissapr while I'm signing in and says singing you in". The page's
-      // own notes step aside while it signs in, and come back if it does not.
       [].slice.call(document.querySelectorAll('.say')).forEach(function (el) {
         if (slot.contains(el)) return;
         if (on) { if (el.style.display !== 'none') { el.setAttribute('data-cw-g-was', el.style.display || ''); el.style.display = 'none'; } }
@@ -137,8 +111,6 @@
       });
     }
 
-    // AN ADDRESS WE DO NOT KNOW IS ASKED. Nothing is created until Create my account is pressed, and the terms
-    // and 18 or over are ticked there, as on Sign up.
     function askNew(d) {
       var card = opts.card || slot.parentNode;
       var box = document.createElement('div');
@@ -177,9 +149,6 @@
     s.async = true;
     s.onload = function () {
       try {
-        // SIGNED IN BY ITSELF, IF THEY SAID YES BEFORE. Jessie, 2026-09-12: "3 A yes", Google on both sites signing
-        // in without a press somebody who has used it before. auto_select with Google's one-tap does that; anybody
-        // else sees Google's one-tap card offering it, on this sign-in page only.
         google.accounts.id.initialize({ client_id: CLIENT_ID, callback: handle, ux_mode: 'popup', auto_select: true, cancel_on_tap_outside: true });
         var w = Math.min(400, Math.max(200, Math.round(slot.getBoundingClientRect().width || 320)));
         google.accounts.id.renderButton(slot.querySelector('.cw-g-btn'),

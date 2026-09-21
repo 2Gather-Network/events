@@ -1,19 +1,3 @@
-/*  Version: V1.05 | Date: 2026-09-20 | LAST CHANGE: the dot stands away from the word. Jessie: "Make dots a little farther away from the solutions". On a phone the rail wraps into a row of short buttons, and a floated dot with no margin sits against the last letter of Gather and License. 12px, which is the same gap the rows use between anything else.
-    V1.04 | Date: 2026-09-20 | LAST CHANGE: My profile first, SOLUTIONS rather than PRODUCTS, Support and Sign out off, and Global permissions opens the permissions step itself. Her four, in one message. Support and Sign out moved into the name menu in the top bar this morning and the same row in two places is a row nobody finds in either. Global permissions opens that step rather than a copy of it: the way to look exactly like a screen is to BE it, and a second copy would be two screens writing one set of columns.
-    V1.03 | Date: 2026-09-20 | LAST CHANGE: My profile joins the account shape, opening the answers at Joy. My info is what is TRUE about you; My profile is what you have TOLD people.
-    V1.02 | Date: 2026-09-20 | LAST CHANGE: a second shape, for the account page. shape:'account' draws ACCOUNT (My info, Global permissions, Support, Sign out) and PRODUCTS (Balance, Appear, Gather, License, each with a dot). My events, My groups and My profile come OFF it: they moved into the menu under her name in the top bar the same morning, and a shortcut in two places is a shortcut nobody can find in either. My profile still draws the rail it has always drawn - only a page asking for the account shape gets this one - and a page can hand in onPick to keep the press for itself, which is how the product panes open without a page load.
-    V1.01 | Date: 2026-09-15 | LAST CHANGE: My permissions between My profile and My account, a preview for a super admin only.
-    V1.00 | Date: 2026-09-14 | LAST CHANGE: one rail for My profile and My account, in the template.
-
-    ONE RAIL FOR YOUR OWN PAGES. Jessie, 2026-09-14, of the profile in the template (?look=rail): "Should be in thsi order:
-    My profile / My account / Support / Sign out", "Top two shouls change from Calendar My events to My events and My
-    groups", "my account should look exactllyt eh same rail, excep the pane shouodl change" and "the rail should stay the
-    same when toggling to my account". So both pages draw this one rail from this one file, and only the panel beside it
-    is theirs. Published 2026-09-15 ("publish new look for profile/account pages too"): each page draws it unless ?look=list.
-
-    cwProfileRail({ active: 'profile' | 'account', wrap: element, viewingSomeoneElse: bool }) moves everything in wrap
-    into the white panel and draws the rail beside it. It returns the panel. Nothing is fetched.
-*/
 (function () {
   function styles() {
     if (document.getElementById('cw-prail-css')) return;
@@ -33,9 +17,6 @@
       + 'html.cw-prail-on .cw-prail-head{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#6B7A8D;margin:16px 12px 7px;}'
       + 'html.cw-prail-on .cw-prail-dot{float:right;width:9px;height:9px;border-radius:50%;background:#B9C4D2;margin:6px 0 0 12px;}'
       + 'html.cw-prail-on .cw-prail-list button.on .cw-prail-dot{box-shadow:0 0 0 2px rgba(255,255,255,.35);}'
-      /* MORE ORANGE, LESS RED. Jessie, 2026-09-20: "make these dots more organe than red". #C2410C
-         is the accessible orange-red she picked yesterday and against white it reads as red; this
-         is the same family, two steps warmer. */
       + 'html.cw-prail-on .cw-prail-dot.on{background:#E2711D;}'
       + 'html.cw-prail-on .cw-prail-list button:focus-visible,html.cw-prail-on .cw-prail-seg a:focus-visible{outline:2px solid #1F699E;outline-offset:2px;}'
       + '@media(max-width:860px){html.cw-prail-on .cw-prail{grid-template-columns:1fr;}'
@@ -47,11 +28,6 @@
   }
   function go(url) { window.location.href = url; return false; }
 
-  // THE TOKEN THE EMAILED CODE MINTS AT SIGN-IN, checked for its expiry and for there being a person
-  // on this device at all. Copied here deliberately rather than shared with the top bar: this file is
-  // loaded on pages where that one is not, and a permission check that leans on another file being
-  // present is not a check. Jessie, 2026-09-19: "Make sure that the super admin controls are only
-  // available to authenticated super admin with pin".
   function _cwProven() {
     try {
       var t = String(localStorage.getItem('cw-token') || '');
@@ -76,34 +52,8 @@
     while (wrap.firstChild) main.appendChild(wrap.firstChild);
     grid.appendChild(rail); grid.appendChild(main); wrap.appendChild(grid);
 
-    /* ── THE ACCOUNT SHAPE ─────────────────────────────────────────────────────────────────────
-       Jessie, 2026-09-20: the account page's rail becomes ACCOUNT (My info, Global permissions,
-       Support, Sign out) and PRODUCTS (Balance, Appear, Gather, License). My events, My groups and
-       My profile come OFF it, because they moved into the menu under her name in the top bar the
-       same morning, and a shortcut in two places is a shortcut nobody can find in either.
-
-       ONE FILE, TWO SHAPES. My profile still draws the rail it has always drawn; only a page that
-       asks for shape 'account' gets this one. A page can hand in onPick and keep the press for
-       itself rather than have the rail navigate away, which is how the four product panes open
-       without a page load. */
     if (opts.shape === 'account') {
       var GROUPS = [
-        /* Jessie, 2026-09-20, in one message: "make my profile first on left rail", "Make PRODUCTS
-           say SOLUTIONS", "remove support and sign out on rail", "Global persmisison should look
-           lkike /ikigai/?perm=1&step=permissions".
-
-           MY PROFILE FIRST, because it is the one somebody comes here to open; My info is what
-           they check once a year. SUPPORT AND SIGN OUT COME OFF, because they moved into the menu
-           under her name in the top bar this morning and the same row in two places is a row
-           nobody finds in either. SOLUTIONS, not products, her word since the first draft.
-
-           AND GLOBAL PERMISSIONS OPENS THE PERMISSIONS STEP rather than a copy of it. She asked
-           twice for it to LOOK like that screen, and the way to look exactly like a screen is to
-           BE it: that one already holds the audience tray, the name and place choices, the
-           switches and a save that redraws from what the backend actually stored. Building a
-           second one here would be two screens writing one set of columns, and the first time one
-           gained a field the other had not, a save from the older screen would write an empty
-           value over a real answer. */
         ['ACCOUNT', [
           { key: 'myprofile',   label: 'My profile', url: 'https://2gather.network/ikigai/?perm=1&step=joy' },
           { key: 'account',     label: 'My info' },
@@ -166,20 +116,13 @@
     var list = document.createElement('div'); list.className = 'cw-prail-list';
     var items = [
       { key: 'profile', label: 'My profile', url: 'https://2gather.network/me/' },
-      // MY PERMISSIONS, below My profile and above My account. Jessie, 2026-09-15: "have this as an opt-in within permissions
-      // tab which will be added below My profile and above my account say "My permissions"". A preview while it is designed:
-      // shown only to a super admin (the top bar's cw-super), and it opens the Permissions step on the intro, which saves nothing.
       { key: 'permissions', label: 'My permissions', url: 'https://2gather.network/ikigai/?perm=1&step=permissions', superOnly: true },
       { key: 'account', label: 'My account', url: 'https://2gather.network/account/' },
       { key: 'support', label: 'Support', url: 'https://2gather.network/support?from=' + encodeURIComponent(location.pathname) },
-      // Sign out acts on whoever is really signed in, so it is not offered while looking at somebody else.
       { key: 'signout', label: 'Sign out', out: true }
     ];
     items.forEach(function (it) {
       if (it.out && opts.viewingSomeoneElse) return;
-      // AND A SUPER-ONLY BUTTON NEEDS A PROVEN SESSION, not a remembered word. Same change as the top
-      // bar's admin strip in V6.11 and for the same reason: cw-super was written from an id alone and
-      // then stood for ever. No live sign-in for this device, no super-only button.
       if (it.superOnly) { var _su = ''; try { _su = localStorage.getItem('cw-super') || ''; } catch (e) {} if (_su !== 'yes' || !_cwProven() || opts.viewingSomeoneElse) return; }
       var b = document.createElement('button'); b.type = 'button'; b.textContent = it.label;
       if (it.key === opts.active) { b.className = 'on'; b.setAttribute('aria-current', 'page'); }

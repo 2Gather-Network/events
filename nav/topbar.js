@@ -9,55 +9,19 @@
 
   hello@creating.works
 */
-/*  Version: V6.18 | Date: 2026-09-20 | LAST CHANGE: the super admin strip is hidden from everybody, on purpose and temporarily. Jessie, 2026-09-20: "hide the super admin top nav from everyone until we resolved htis", while we are still finding out why James Marohn shows as a super admin. n174_whyIsJamesSuper proved the backend grants him nothing - his Info row 340 carries an empty rolesCW, the SUPER_ADMINS box names only Jessie, and _isSuperAdmin_ answers false for both of his ids - so the word is being held in a browser rather than in the data, and the data side cannot take it back. CW_ADMIN_OFF does two things, and the second is the one that makes it true: it returns before the strip is drawn, AND it clears cw-super, because events/, event/ and myevents/ each read cw-super === "yes" directly for their own super-only controls and would otherwise have stayed live behind a hidden strip. WHAT IT COSTS, said out loud: Jessie loses Change view and the people picker until this comes off, which is the point of hiding it from everyone rather than from him. ONE LINE BACK: CW_ADMIN_OFF to false, and the yes is re-fetched from amISuper on the next load. (Every page asks for ?v=6.18 now.) V6.17 | Date: 2026-09-20 | LAST CHANGE: the profile page is /me/. Jessie: "change ikigai to /me first and then we can do the next step". Every link in this file points at the new address, and the sign-in test names both, because /ikigai/ forwards to /me/ and the test has to hold for the instant before the forward lands. (Every page asks for ?v=6.17 now.) V6.16 | Date: 2026-09-20 | LAST CHANGE: My profile opens at Joy rather than Welcome. Jessie: "it should just go to joy". Welcome asks for a photo and a place, which anybody pressing their own name has long since given; the intro drops that step from its rail once it is answered (V1.92), and this door matches. V6.15 | Date: 2026-09-20 | LAST CHANGE: My profile in the name menu opens the answers rather than the view of them. Jessie: "have my profile go to https://2gather.network/ikigai/?perm=1&step=welcome". Somebody who presses their own name and then My profile has come to CHANGE something; the page showing what they look like to everybody else is the one they arrive at from a link or a search. (Every page asks for ?v=6.15 now.) V6.14 | Date: 2026-09-20 | LAST CHANGE: the name menu is built when it is OPENED rather than when the bar is drawn. Jessie: "so why isn't evnents back in the bar?" The bar draws in the first instant of a page; whether somebody has any events is written SECONDS later, when the calendar's reads come back. Built at draw time the menu could only ever show the answer from a previous visit - the very page that LEARNS you have events would still hide them, and you would have to load another page before the shortcut appeared. Built at open time it is right the moment the answer lands. (Every page asks for ?v=6.14 now.) V6.13 | Date: 2026-09-20 | LAST CHANGE: everything of yours sits under your own name. Jessie, 2026-09-20: "yes My events, My groups, My profile, My account, Support, Sign out under top right pill", after catching me claiming the bar already carried them - it did not. The GROUPS and MORE menus came off this bar on 2026-09-07 on purpose and nothing replaced them, so My events and My groups were reachable only from each other and from the calendar, and My profile only by pressing the face. Pressing the name pill now opens those six. WHY UNDER THE NAME AND NOT BACK ON THE BAR: a menu tied to a TOPIC states an answer about how the site is arranged, which is what those two menus were doing before they were removed; a menu tied to YOU states nothing of the kind and holds only what is already yours. The face used to be a link straight to My profile - that is the first item now, so the door is still one press away and the other five stopped being hidden. The menu hangs from the pill's RIGHT edge, because lining its left edge up with a pill on the right of the bar would push it off a narrow screen. AND MY GROUPS ONLY SHOWS IF THEY ARE IN ONE, her "dont' show my groups in menu unless they have a group": a door onto a page reading "you are not in any groups" is a door onto nothing, and it would be the first thing somebody new pressed. It asks nothing to find out - the calendar already keeps the list on the device and the calendar is where signing in lands. (Every page asks for ?v=6.13 now.) V6.12 | Date: 2026-09-19 | LAST CHANGE: the people picker carries the proof as well. Jessie, 2026-09-19: "they could edit my profile and look up people in the top NAV bar". findAnyone hands back names and ids for EVERYBODY, which makes it the most valuable thing behind the admin strip, and it was gated on an appear id alone exactly as the strip was - so anybody holding her id by any route could have read the whole directory. It sends the sign-in token now, and the backend refuses it without one. (Every page asks for ?v=6.12 now.) V6.11 | Date: 2026-09-19 | LAST CHANGE: the super admin strip is a PROVEN SESSION rather than a remembered word. Jessie, 2026-09-19: "Make sure that the super admin controls are only available to authenticated super admin with pin", after sharing an event and finding her own name and Change view on the screen. WHAT WAS WRONG, and it is the same fault as an id in an address: this asked the backend amISuper with an APPEAR ID AND NOTHING ELSE and wrote the answer into cw-super, where it then stood for ever - so anybody holding an id, by any route, was handed the admin strip, and the yes was never asked about again. NOW: the strip is drawn only while this device holds the token the emailed code mints at sign-in, with its own expiry, AND that token belongs to the person being drawn. No code, no strip; an expired code, no strip; a remembered yes with no live session behind it is thrown away rather than honoured. The request carries the token too, so the backend can refuse it as well - that half is written and needs one deploy. THIS WILL TAKE THE STRIP OFF HER OWN DEVICE if her sign-in has expired, and signing in again with a code brings it back, which is the point. (Every page asks for ?v=6.11 now.) V6.10 | Date: 2026-09-19 | LAST CHANGE: the real reason the screen slides on a phone - tapping a text box smaller than 16px. Jessie, 2026-09-19, with the calendar shifted sideways AFTER V6.09's clip rule went out: "Also didn't you update the mobile for all pages so it doesn't drift like this?" It did, and it could never have stopped this one: the page is not too wide, the BROWSER is zooming. iOS Safari zooms the whole page the moment you tap a text box whose letters are under 16px, and a zoomed page pans left and right. Measured: .filter-search, the search box on the calendar and on My events, is 14px - and both of her drifting screenshots have a word typed into it. So every text box, dropdown and text area is 16px on a phone now, which gives the browser no reason to zoom. NOT maximum-scale=1 in the viewport tag, the other way this is usually fixed: that takes pinch-zoom away from everybody, including anybody who needs it to read. !important because the boxes that are too small say so in their own style attribute; checkboxes, radios and sliders are left out because they have no letters. (Every page asks for ?v=6.10 now.) V6.09 | Date: 2026-09-18 | LAST CHANGE: no page slides sideways on a phone. Jessie, 2026-09-18: "The screen often moves to the left and right on mobile - is this a known thing on mobile? Research how to fix it." It is, and it has one cause: ONE element wider than the screen makes the WHOLE page pannable, with no error and nothing looking broken until you slide it. Measured first rather than guessed: at 375px the calendar and the group page both sit at exactly 375 with nothing past the edge, and My events' Attending / Hosting / Socialized / All row is 347 wide with no text clipped - so the cause is content, a long unbroken link or id arriving with somebody's own data, which is why it only shows behind a sign-in. Two rules in the bar's own stylesheet, which is the one place every page already shares: overflow-wrap:break-word so a long string breaks rather than spilling, and overflow-x:clip as the guard under it, which makes no new scroll container so sticky headers keep working. THE COST, said out loud: clip cuts off anything genuinely too wide rather than letting you slide to it; images already carry a max width and a table belongs in its own scroller, so this line is the first place to look if anything ever goes missing on a phone. (Every page asks for ?v=6.09 now.) V6.08 | Date: 2026-09-18 | LAST CHANGE: the bar's Sign up carries you back where you were, as its Sign in already did. Jessie, 2026-09-18: "fix the sign in process next so when i come from a group invite with my ID it lands me in the group after i sign in/up". CW_SIGNIN has carried ?next= since V5.00 and CW_SIGNUP right beside it carried nothing at all, so the person an invite is FOR - somebody new, who presses Sign up rather than Sign in - was the one person the bar dropped. (Every page asks for ?v=6.08 now, so nobody is served yesterday's bar from their own cache.)
-    Version: V6.07 | Date: 2026-09-17 | LAST CHANGE: on a phone opened from the home screen, the admin strip leaves room for the
-    status bar (env(safe-area-inset-top)); on the events calendar, which asks for the whole screen with viewport-fit=cover, the
-    clock and the signal bars sat on top of "Jessie Upp" and Change view. Elsewhere the inset is zero and nothing moves.
-    Version: V6.06 | Date: 2026-09-15 | LAST CHANGE: the bar's own spacing line no longer throws (it read w and d, defined 480 lines below it, so it had failed on every page since 2026-09-02); the corrected behaviour is behind ?bar=1 until it has been compared, because turning it on moves the bar up, adds room under it and drops its shadow on every page at once. V6.05: /me/?p= is a public profile (row 195), so a signed-out visitor opening a shared profile is not sent to sign in.
-    Version: V6.04 | Date: 2026-09-12 | LAST CHANGE: Sign up reads white on the event page, where a page rule had made it blue on blue; each page keeps its address in the tab as it is left, so Support and FAQ can name the page before. V6.03: the Creating.Works mark is the gradient ring with 🌱 inside, in place of the arrows. Jessie: "A - update now".
-    Version: V6.02 | Date: 2026-09-12 | LAST CHANGE: on creating.works, a page that sets window.CW_SHOW_BAR gets the bar, with the Creating.Works ring mark, "Because creating works." and no sign-in pills when signed out. Nothing changes on 2gather.network.
-    Version: V6.01 | Date: 2026-09-10 | LAST CHANGE: your own profile page asks a signed-out visitor to sign in, as My events and My groups already do.
-    V6.00 | Date: 2026-09-10 | LAST CHANGE: Change view offers Signed out, and the strip says "Viewing signed out" with Back to me.
-    V5.99 | Date: 2026-09-10 | LAST CHANGE: cwCountedGroups leaves out groups everybody is in (Appear Network), so My groups is drawn only for somebody who joined one.
-    V5.98 | Date: 2026-09-10 | LAST CHANGE: Post an event goes to /myevents/new/ rather than the calendar's overlay form.
-    V5.50 | Date: 2026-08-26 | LAST CHANGE: the bar runs edge to edge on every page.
-    V5.42 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 full-bleed also stretches a centred flex item.
-    V5.41 | Date: 2026-08-26 | LAST CHANGE: ?chrome=2 previews the full-bleed bar.
-    V5.40 | Date: 2026-08-26 | LAST CHANGE: your own id comes out of show= as well.
-    V5.31 | Date: 2026-08-26 | LAST CHANGE: the front door never shows a face.
-    V5.30 | Date: 2026-08-26 | LAST CHANGE: Creating.Works pages strip their ids too.
-    V5.20 | Date: 2026-08-26 | LAST CHANGE: ids come out of the address bar everywhere, and your photo follows you.
-    V5.00 | Date: 2026-08-26 | LAST CHANGE: Sign in is ours, and it carries you back where you were.
-    V4.51 | Date: 2026-08-26 | LAST CHANGE: a page that is somebody's own asks first and draws nothing else.
-    V4.12 | Date: 2026-08-26 | LAST CHANGE: a page's own mark hides when the bar draws one.
-
-    ONE FILE, EVERY PAGE. Each 2Gather page loads /nav/topbar.js and nothing else.
-    Change a label, a link or the order here and every page changes with it.
-
-    The rule the bar follows: a tab names a place, and its menu is what you do there.
-    ?topbar=0 hides the bar on a page, for when something needs looking at without it.
-*/
 (function () {
   'use strict';
 
-  var SHOW_EVERYWHERE   = true;   // the bar draws on every page that loads this file
+  var SHOW_EVERYWHERE   = true;   
 
-  // Where "Sign in" goes. Today it is Glide, which is the last dependency we have on
-  // it. When our own sign-in page exists, this one line points every page at it, on
-  // both domains, because every page reads it from here rather than holding its own
-  // copy. Pages read window.CW_SIGNIN, so it is set before anything draws.
   window.CW_SIGNIN = window.CW_SIGNIN || (function () {
     var SIGNIN = 'https://2gather.network/signin/';
     try {
       var here = window.location.pathname || '';
-      // Already on sign-in: carrying this page as the way back would send somebody
-      // who just entered a code straight back to entering a code.
       if (here.indexOf('/signin') === 0) { return SIGNIN; }
       return SIGNIN + '?next=' + encodeURIComponent(here + window.location.search);
     } catch (e) { return SIGNIN; }
   })();
-  // Sign up, the same way. It sat here as a bare address for as long as Sign in has carried one,
-  // which made the bar remember where you were only if you already had an account.
   window.CW_SIGNUP = window.CW_SIGNUP || (function () {
     var SIGNUP = 'https://2gather.network/signup/';
     try {
@@ -66,11 +30,6 @@
       return SIGNUP + '?next=' + encodeURIComponent(here + window.location.search);
     } catch (e) { return SIGNUP; }
   })();
-  // GROUPS EVERYBODY IS IN DO NOT MAKE SOMEBODY "IN A GROUP". Jessie, 2026-09-10: "Dont' show my
-  // groups unless they are part of a group AND don't count beYd4M39RCqGSbP4KsNqGQ as part of a group
-  // - htat's an appear group and everyone included in site". Appear Network holds everybody on the
-  // site, so counting it drew My groups for everybody. Listed once, here, because every page loads
-  // this file; the rails ask cwCountedGroups rather than keeping a copy of the list.
   window.CW_EVERYONE_GROUPS = window.CW_EVERYONE_GROUPS || ['beYd4M39RCqGSbP4KsNqGQ'];
   window.cwCountedGroups = window.cwCountedGroups || function (list) {
     var skip = window.CW_EVERYONE_GROUPS || [];
@@ -79,14 +38,9 @@
       return id && skip.indexOf(id) === -1;
     });
   };
-  var HIDE_INSIDE_GLIDE = true;   // inside the Glide frame Glide already draws its own bar
+  var HIDE_INSIDE_GLIDE = true;   
 
-  // ---- addresses, all of them, in one place ---------------------------------
   var LOGO     = 'https://2gather.network/images/2gather_logo.png';
-  // THE CREATING.WORKS MARK, for the bar on creating.works: the gradient ring from the original
-  // creating.works home page with the seedling inside. Jessie, 2026-09-12: "show the icon for creating
-  // works on the left", then "put 🌱 inside circle instead", then "A - update now" for the emoji over a
-  // drawn seedling, so it matches the seedling beside the name in the pill. Inline, nothing to host.
   var CW_LOGO  = 'data:image/svg+xml,' + encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
     '<stop offset="0" stop-color="#10B981"/><stop offset="1" stop-color="#3B82F6"/></linearGradient></defs>' +
@@ -94,40 +48,19 @@
     '<text x="18" y="24.5" text-anchor="middle" font-size="17">\u{1F331}</text></svg>');
   function onCreatingWorks() { try { return (window.location.hostname || '').toLowerCase().indexOf('creating.works') > -1; } catch (e) { return false; } }
   var EVENTS   = 'https://2gather.network/events';
-  // MY EVENTS IS ONE PAGE AND ONE NAME, 2026-09-10. The editing page was built at /myevents/manage/
-  // beside a list at /myevents/, and the pair was mistaken for a security split. It was not one:
-  // both need you signed in as yourself and both show only your own events. Jessie: "so yes let's
-  // make that one if it's not a securit boundary and it should be called myevents just like
-  // mygroups". So this word points at /myevents/, matching /mygroups/, and the old address
-  // forwards. The real pair is /event/?id= against /myevents/?id=, and that one stays two.
   var MYEVENTS = 'https://2gather.network/myevents/';
-  // POSTING IS AT /myevents/new/. 2026-09-10, Jessie's "64 yes". This went to the calendar's
-  // ?action=post, which opens the form as an overlay once the whole calendar has loaded;
-  // /myevents/new/ opens the same two questions in the page at once.
   var POST     = 'https://2gather.network/myevents/#new';
   var MYGROUPS = 'https://2gather.network/mygroups';
   var START    = 'https://2gather.network/groups/create';
   var JOIN     = 'https://2gather.network/mygroups?join=1';
   var FINDTIME = 'https://2gather.network/find-a-time';
-  var COMMONS  = 'https://events.2gather.network/events/yvrgej/zkxbzq';   // The Commons room, still
-                                                                          // reachable from a group's Gather button
+  var COMMONS  = 'https://events.2gather.network/events/yvrgej/zkxbzq';   
   var PROFILE  = 'https://2gather.network/profile';
   var EDITME   = 'https://2gather.network/profile-edit';
   var ACCOUNT  = 'https://2gather.network/account';
   var ABOUT    = 'https://2gather.network/about';
   var SUPPORT  = 'https://2gather.network/support';
 
-  /* WHERE THEY WERE, CARRIED RATHER THAN GUESSED. The support form recorded the page somebody came
-     from by reading document.referrer, and a referrer is not a record: it is empty on a tab opened
-     directly, and Brave strips it. Jessie's own test on 2026-09-07 arrived with ticketFromPage
-     blank for exactly that reason.
-     The bar knows the page it is drawn on, so it says so. The PATHNAME only, never the query, so
-     an id in an address can never travel into a ticket. */
-  /* THE PAGE YOU WERE ON, KEPT BY THE SITE. Jessie, 2026-09-12: "We still don't see breadcrumbs on the support
-     page or the FAQs page." Their trail named the page before from document.referrer, which her Brave leaves
-     empty (see WHERE THEY WERE, CARRIED RATHER THAN GUESSED). Every page with this bar now writes its own
-     address into this tab's sessionStorage as it is left, so the next page can read where you came from without
-     the browser's help. This tab only, and only ever read back on this site. */
   try {
     window.addEventListener('pagehide', function () {
       try { sessionStorage.setItem('cw-prev-page', JSON.stringify({ href: String(window.location.href), at: Date.now() })); } catch (e) {}
@@ -140,57 +73,21 @@
     return here ? (SUPPORT + '?from=' + encodeURIComponent(here)) : SUPPORT;
   }
 
-  // carry says which name that destination reads the person by.
-  // ONLY THE PHOTO. Jessie, 2026-09-08: "since 2gather is synchronous adn appear is asynchronous
-  // groups are begin decided as more appear. so leat's make the top nav bar only the pphoto and
-  // when clicking on it , it goes to my profile. remove groups and evnets from top."
-  //
-  // Groups are being decided as an Appear thing rather than a 2Gather one, which is decision B6 in
-  // the decisions doc arriving in the product. A Groups menu on this bar states an answer that has
-  // not been given. Events came off with it, because a bar with one menu on it is a bar that has
-  // not decided what it is.
-  //
-  // The menus are kept below rather than deleted, so putting one back is uncommenting rather than
-  // rewriting. Everything in them is still reachable: Find an event and My events from the calendar
-  // and My events themselves, and My profile from the photo.
   var NAV = [];
   var NAV_PARKED = [
 
     { key: 'events', label: 'Events', items: [
-      // FIND AN EVENT, because that is what somebody opening this menu is trying to do. "Calendar
-      // of events" names the thing rather than the errand. Jessie, 2026-09-07.
       { label: 'Find an event',      url: EVENTS,   carry: 'memberCard' },
-      // MY EVENTS CARRIES NOBODY. It used to send the person as `id`, and that id then decided
-      // whose list the page drew - which meant that while somebody was using View as someone, an
-      // id in the address would have overridden the person they were looking at. The page asks
-      // the device now, and the device is what knows both halves. It also keeps a person's id out
-      // of an address for no reason, which is the rule everywhere else here.
       { label: 'My events',          url: MYEVENTS },
       { label: 'Post an event',      url: POST,     carry: 'memberCard' }
-      // My event profile came off this menu on 2026-09-07. The profile is not an events thing and
-      // it is already on More, so it was the same door listed twice.
     ]},
     { key: 'groups', label: 'Groups', items: [
-      // Host a group is third, because joining one is what most people are here to do and hosting
-      // is the smaller door. It was called Start a group. Jessie, 2026-09-07.
       { label: 'My groups',    url: MYGROUPS, carry: 'CWid' },
       { label: 'Join a group',  url: JOIN,    carry: 'CWid' },
       { label: 'Host a group',  url: START,   carry: 'CWid' }
     ]},
     { key: 'more', label: 'More', items: [
       { label: 'Where do I start?',  url: 'https://2gather.network/welcome/' },
-      // Find a Time came off the More menu 2026-08-30. Its home is a Tools tab on the profile,
-      // beside Appear and DayBalancer, which is not built yet. The page still works at its own
-      // address; it is only the menu entry that has gone.
-      // { label: 'Find a Time (Beta)', url: FINDTIME },
-      // My profile went back here on 2026-09-04 at Jessie's word, replacing My account, which
-      // had replaced it on 2026-09-02 on the reasoning that the account page's own tabs already
-      // reach the profile. The traffic goes the other way: the profile is the room people want
-      // and the account is the settings behind it.
-      //
-      // The account page keeps its doors from the commons and from the editor, but it no longer
-      // has one on the top bar. Flagged to Jessie the same day rather than fixed here, because
-      // adding one is a second change nobody asked for.
       { label: 'My profile',         url: PROFILE,  carry: 'CWid' },
       { label: 'About',              url: ABOUT },
       { label: 'Support',            url: supportUrl() },
@@ -198,14 +95,6 @@
     ]}
   ];
 
-  // ---- who is looking -------------------------------------------------------
-  // Only these names carry a person. `id` is a group id on group.html and an
-  // event id on event.html, so it is never read here.
-  // One definition of who is looking, shared with every page. nav/identity.js loads
-  // synchronously ahead of this file and has already resolved and remembered them.
-  // The fallback below only runs if identity.js failed to load, so the bar still works.
-  // Whether this device knows they are in at least one group. Storage throws outright in a
-  // private window, so every line of it is guarded and not knowing counts as no.
   function hasEvents() {
     try {
       var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
@@ -232,9 +121,6 @@
     catch (e) { return ''; }
   }
 
-  // WHO IS SIGNED IN, whatever is on screen. Everything that DISPLAYS asks me(); an id put into an
-  // address is not a display, it is a bearer token that the block further down remembers on this
-  // device as who you are.
   function realId() {
     try {
       if (window.CW && window.CW.realMe) {
@@ -245,15 +131,6 @@
     return me();
   }
 
-  // THE ADDRESS CARRIES THE PERSON SIGNED IN, never the person being looked at.
-  //
-  // These links were built from me(), which is the person being viewed while View as someone is
-  // on. So every "my" link in this bar carried Doug's id, the strip below remembered it, and one
-  // click left Jessie's browser holding his id in both keys as who she is, on every page. She
-  // found it on 2026-09-07 by his face still being in the bar after Back to me.
-  //
-  // The pages still show what he sees, because they ask CW.me() and the viewing key travels with
-  // the device rather than in the address.
   function link(url, carry) {
     var who = realId();
     if (!who || !carry) return url;
@@ -267,7 +144,6 @@
     return '';
   }
 
-  // ---- navigation, same tab, no url on hover --------------------------------
   if (!window._safeNavGo) {
     window._safeNavGo = function (el) {
       try {
@@ -287,7 +163,6 @@
               ' style="margin-left:5px;vertical-align:middle;"><path d="M1 1.5L5.5 5.5L10 1.5"' +
               ' stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-  // ---- draw -----------------------------------------------------------------
   function draw() {
     var open = here(), tabs = '', rows = '', i, j, n;
 
@@ -300,7 +175,7 @@
         for (j = 0; j < n.items.length; j++) {
           var it = n.items[j];
           if (it.signOut) {
-            if (!me()) { continue; }   // nothing to leave
+            if (!me()) { continue; }   
             row += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">' + it.label + '</a>';
             continue;
           }
@@ -312,30 +187,10 @@
       }
     }
 
-    // Three states, and no empty circle among them. With a photo, the photo. Known
-    // but no photo yet, the words instead, which the photo replaces when it arrives.
-    // Not known, the two doors.
-    // On the sign-in page itself there is no face to show, whatever the device
-    // remembers. Somebody standing at the front door is not through it yet.
     var atDoor = (window.location.pathname || '').toLowerCase().indexOf('/signin') === 0;
 
-    // THE NAME SITS BESIDE THE FACE, IN ONE PILL. Jessie, 2026-09-08: "put my name to the left of
-    // my photo in top right photo as we did in the same pill", and she picked the version carrying
-    // the seedling: "C - pill with the greeting". The seedling comes up from the My account
-    // heading, which goes once this is in, so nothing is lost in the move.
-    //
-    // The name is whatever the bar already knows. It is fetched for the person being LOOKED AT, so
-    // while viewing as somebody else it is their name, and cw-name-for says whose - which is why
-    // it is checked rather than trusted. Without a name the pill is just the face, which is what
-    // it was before.
-    //
-    // On a phone the name is hidden by CSS rather than left out, so nothing has to be redrawn when
-    // the window changes size. A long name would otherwise push this bar onto two rows, which
-    // already happened once to GROUPS and MORE at 375px.
     function myName() {
       try {
-        // window, not w. `w` is a local in another function further down this file and is not in
-        // scope here; reaching for it would throw and take the whole bar with it, on every page.
         var n = String(window.CW_NAME || window.localStorage.getItem('cw-name') || '').trim();
         var forWho = String(window.localStorage.getItem('cw-name-for') || '').trim();
         if (!n) return '';
@@ -356,8 +211,6 @@
       photo = '<span role="button" tabindex="0" class="cwtb-signin cwtb-ghost cwtb-mine" ' +
               'aria-expanded="false" data-menu="me">Mine</span>';
     } else if (onCreatingWorks()) {
-      // NO DOORS ON CREATING.WORKS. A sign-in on 2gather.network cannot come back here, because each
-      // site keeps its own, and the creating.works pages that draw this bar sign people in themselves.
       photo = '';
     } else {
       photo = '<a role="link" tabindex="0" class="cwtb-signin" data-nav="' +
@@ -368,59 +221,14 @@
               '" onclick="return _safeNavGo(this)">Sign up</a>';
     }
 
-    /* ── EVERYTHING OF YOURS, UNDER YOUR OWN NAME ──────────────────────────────────────────────
-       Jessie, 2026-09-20: "yes My events, My groups, My profile, My account, Support, Sign out
-       under top right pill", after catching me saying the bar already carried them - it does not.
-       The GROUPS and MORE menus came off this bar on 2026-09-07 on purpose, and nothing replaced
-       them, so My events and My groups were reachable only from each other and from the calendar,
-       and My profile only by pressing the face.
-
-       WHY UNDER THE NAME RATHER THAN BACK ON THE BAR: a menu tied to a TOPIC states an answer about
-       how the site is arranged, which is what those two menus were doing before they were removed.
-       A menu tied to YOU states nothing of the kind - it is the pattern every other site uses, and
-       it holds only things that are already yours.
-
-       The face used to be a link straight to My profile. My profile is the first item in the menu
-       now, so that door is still one press away, and the other five stopped being hidden. */
     if (!atDoor && me()) {
       rows += '<div class="cwtb-row cwtb-row-me" data-row="me"></div>';
     }
 
-    /* THE MENU IS BUILT WHEN IT IS OPENED, not when the bar is drawn. Jessie, 2026-09-20: "so why
-       isn't evnents back in the bar?" - because the bar draws in the first instant of a page and
-       the answer it needs is written SECONDS LATER, when the calendar's reads come back. Built at
-       draw time, the menu could only ever show yesterday's answer, and the very page that learns
-       you have events would still hide them; you would have to load another page to see the
-       shortcut appear. Built at open time it is right the moment the flag lands. */
     function fillMine() {
       var mine = '';
-      /* MY EVENTS ONLY IF THEY HAVE ANY. Jessie, 2026-09-20: "don't show my events unless they
-         regsitered to an event, socialized anm event or host an event" - the three things that
-         put an event on that page. Same reasoning as My groups, and the same mechanism: the bar
-         asks nothing, and My events itself writes the answer down as it loads (cw-haveevents).
-         Registering, socializing or posting all end with that page, so the flag is set by the
-         time it matters, and it is written NO as readily as YES - cancel your last registration
-         and the shortcut goes rather than pointing at an empty page. A BOOKMARK COUNTS TOO, her
-         "or bookmarked an event", so the four are registered, socialized, hosting, bookmarked -
-         everything that page can show. */
       if (hasEvents()) { mine += anchor('My events', link(MYEVENTS, 'memberCard'), 'cwtb-item'); }
-      /* MY GROUPS ONLY IF THEY ARE IN ONE. Jessie, 2026-09-20: "and dont' show my groups in menu
-         unless they have a group". A door onto a page reading "you are not in any groups" is a
-         door onto nothing, and it is the first thing somebody new would press.
-
-         IT ASKS NOTHING. The calendar keeps the list of your groups on the device already
-         (cw-mygroups-v4, written by /events/ and read by the intro), and the calendar is where
-         signing in lands, so by the time anybody is moving around the site the answer is here.
-         No read, no wait, and nothing on the bar depends on a call that measures 9 to 39 seconds.
-
-         THE ONE CASE IT GETS WRONG, said out loud: a member on a brand new device who has not yet
-         opened the calendar sees no My groups until they do. That is a missing shortcut for a
-         minute, against a dead end for everybody who has no groups at all. */
       if (hasAGroup()) { mine += anchor('My groups', link(MYGROUPS, 'memberCard'), 'cwtb-item'); }
-      /* MY PROFILE OPENS THE ANSWERS, not the view of them. Jessie, 2026-09-20: "have my profile go
-         to https://2gather.network/ikigai/?perm=1&step=welcome". Somebody pressing their own name
-         and then My profile has come to CHANGE something; the page that shows what they look like
-         to everybody else is the one they arrive at from a link or a search. */
       mine += anchor('My profile', 'https://2gather.network/ikigai/?perm=1&step=joy', 'cwtb-item');
       mine += anchor('My account', link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    link(SUPPORT,  'memberCard'), 'cwtb-item');
@@ -432,9 +240,6 @@
     el.id = 'cw-topbar';
     el.innerHTML =
       '<div class="cwtb-bar">' +
-        // On creating.works the mark is Creating.Works and so are its words. Jessie, 2026-09-12: "instead
-        // of gathering for the common good, show the icon for creating works on the left and say Because
-        // creating works."
         '<a role="link" tabindex="0" class="cwtb-mark" data-nav="' +
           (onCreatingWorks() ? 'https://creating.works/' : link(EVENTS, 'memberCard')) +
           '" onclick="return _safeNavGo(this)">' +
@@ -445,18 +250,13 @@
       '</div>' + rows;
 
     document.body.insertBefore(el, document.body.firstChild);
-    // A page that draws its own mark and tagline would show them twice now
     document.documentElement.className += ' cwtb-drawn';
 
-    // one menu open at a time, as a panel under the tab that opened it
     var triggers = el.querySelectorAll('[data-menu]');
     function place(t, r) {
       var bar = el.querySelector('.cwtb-bar');
       r.style.top = (bar.offsetHeight + 8) + 'px';
       r.style.left = '0px';
-      // THE PILL'S MENU HANGS FROM ITS RIGHT EDGE. Every other menu opens under a tab on the
-      // left of the bar; this one opens under a pill on the right, and lining its LEFT edge up
-      // with the pill would push it off the screen on a narrow window.
       var want = t.getBoundingClientRect().left - el.getBoundingClientRect().left;
       if (r.getAttribute('data-row') === 'me') {
         want = (t.getBoundingClientRect().right - el.getBoundingClientRect().left) - r.offsetWidth;
@@ -466,8 +266,6 @@
     }
     function show(key) {
       var t, r, k;
-      // while a menu is open, the page's own tab stops looking selected, so only
-      // the tab you opened is lit
       el.className = key ? 'cwtb-menuing' : '';
       for (var a = 0; a < triggers.length; a++) {
         t = triggers[a];
@@ -477,15 +275,12 @@
         t.setAttribute('aria-expanded', on ? 'true' : 'false');
         t.className = t.className.replace(/ ?cwtb-lit/, '') + (on ? ' cwtb-lit' : '');
         if (r) {
-          // Fill it now, so an answer that arrived after the bar was drawn is in it.
           if (on && k === 'me') { r.innerHTML = fillMine(); wireSignOut(r); }
           r.className = 'cwtb-row' + (k === 'me' ? ' cwtb-row-me' : '') + (on ? ' cwtb-open' : '');
           if (on) { place(t, r); }
         }
       }
     }
-    // Leaving is one definition, in identity.js, so this asks it rather than clearing keys of
-    // its own and drifting from what signing out means everywhere else.
     function wireSignOut(root) {
       var outs = root.querySelectorAll('[data-signout]');
       for (var o = 0; o < outs.length; o++) {
@@ -518,46 +313,24 @@
     }
   }
 
-  // The bar runs edge to edge (Jessie 2026-08-26, approved on the event page). It is a child of
-  // <body>, so any page that pads its body pushes the bar in from the edges and the shadow
-  // turns that gutter into a frame. This reads the container's own padding and cancels it,
-  // which works whatever padding a given page uses. Deliberately not width:100vw — that
-  // counts the scrollbar and gives desktop a horizontal scroll.
   function fullBleed() {
     var host = document.getElementById('cw-topbar');
     if (!host) return;
     var p  = host.parentElement || document.body;
     var cs = window.getComputedStyle(p);
-    // A page that centres its children with flex makes the bar a flex item, which shrinks to
-    // its own content. Stretching it back is what actually widens the bar; the negative
-    // margins below only cancel the container's padding.
     host.style.alignSelf = 'stretch';
     host.style.width     = 'auto';
     host.style.marginLeft  = '-' + (parseFloat(cs.paddingLeft) || 0) + 'px';
     host.style.marginRight = '-' + (parseFloat(cs.paddingRight) || 0) + 'px';
-    // Only the page's OWN top spacing is cancelled. The admin strip floats above everything and
-    // adds its height to that same spacing to make room for itself, and this line used to
-    // cancel the lot, so the blue menu slid back up underneath the white strip and the two
-    // shared one band of screen. Take the strip's share off first. Jessie, 2026-09-02.
-    // ROW 198, 2026-09-15. This function has thrown here on every page since 2026-09-02: it reads `w` and `d`, and the
-    // wrapper that defines those starts at line 906, hundreds of lines BELOW this. So it is a ReferenceError every time,
-    // and the three statements after it have never once run. The bar still stretched edge to edge, because that happens
-    // above the throw; what it never got was its spacing or its shadow.
-    //
-    // FIXED, AND BEHIND ?bar=1 UNTIL SHE HAS SEEN IT. Turning the throw off turns all three on at once, on every page:
-    // the bar would rise by each page's own top padding, gain 18px underneath, and lose its shadow. Jessie said yes to
-    // "fix the line and leave the 18px off so every page keeps the spacing it has" - but that premise was mine and it
-    // was wrong, because marginTop and the shadow switch on too. So the corrected behaviour is opt-in, to be compared
-    // side by side on any page, and becomes everybody's on her word.
     var docEl = (typeof document !== 'undefined') ? document.documentElement : null;
     var reserved = docEl ? (parseFloat(
       window.getComputedStyle(docEl).getPropertyValue('--cw-adminbar')
     ) || 0) : 0;
     var wantNew = false;
     try { wantNew = new URLSearchParams(window.location.search).get('bar') === '1'; } catch (e) {}
-    if (!wantNew) return;                       // exactly what every page has looked like since 2026-09-02
+    if (!wantNew) return;                       
     host.style.marginTop   = '-' + Math.max(0, (parseFloat(cs.paddingTop) || 0) - reserved) + 'px';
-    host.style.marginBottom = '0px';            // the 18px stays off, as she asked; it is its own change
+    host.style.marginBottom = '0px';            
     var bar = host.querySelector('.cwtb-bar');
     if (bar) bar.style.boxShadow = 'none';
   }
@@ -572,8 +345,6 @@
     var css =
       '#cw-topbar{font-family:"DM Sans","Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;' +
         'position:relative;z-index:5;}' +
-      // The admin strip stacked to nearly 200px on a narrow window, because every button became
-      // its own row and pushed the whole site down. It stays one or two tight lines now.
       '@media (max-width:700px){#cw-viewas{font-size:11.5px !important;gap:6px 8px !important;' +
         'padding:5px 8px !important;}' +
         '#cw-viewas button{padding:3px 8px !important;font-size:11.5px !important;}' +
@@ -585,10 +356,6 @@
         'align-items:center;justify-content:center;}' +
       '.cwtb-glyph img{width:30px;height:30px;object-fit:contain;display:block;}' +
       '.cwtb-word{color:rgba(255,255,255,.85);font-size:13px;font-weight:400;}' +
-      // min-width:0 is what makes the overflow-x above actually work. Without it a flex item
-      // refuses to shrink below its content, so on a narrow screen the tabs did not scroll and
-      // did not wrap, they simply sat underneath the sign-in buttons. Jessie, 2026-09-02:
-      // "Top menu bar not functional for mobile users." 2026-09-03.
       '.cwtb-tabs{display:flex;align-items:center;gap:4px;margin-left:auto;margin-right:6px;min-width:0;' +
         'overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;}' +
       '.cwtb-tabs::-webkit-scrollbar{display:none;}' +
@@ -612,16 +379,12 @@
       '.cwtb-signin:hover{background:#F7FBFF;}' +
       '.cwtb-ghost{background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55);margin-left:8px;}' +
       '.cwtb-ghost:hover{background:rgba(255,255,255,.12);}' +
-      // SIGN UP YOU CAN READ. Jessie, 2026-09-12, with a picture of the bar on an event signed out: "the sign up is
-      // odd". The event page colors every link that is not a button blue (a:not(.btn)), which outranks one class,
-      // so Sign up was blue on the blue bar. Two classes outrank it, on every page.
       '.cwtb-signin.cwtb-ghost{color:#fff;}' +
       '.cwtb-ask{padding:48px 20px;display:flex;justify-content:center;}' +
       '.cwtb-ask-card{background:#fff;border-radius:16px;padding:34px 34px 30px;max-width:460px;width:100%;}' +
       '.cwtb-ask-card h1{font-size:22px;font-weight:800;color:#1A2E42;margin:0 0 8px;line-height:1.3;}' +
       '.cwtb-ask-card p{font-size:15px;color:#6B7A8D;line-height:1.55;margin:0 0 22px;}' +
       '.cwtb-ask-row{display:flex;gap:10px;flex-wrap:wrap;}' +
-      // A page's own link colour was bleeding into these, so the filled button lost its text.
       '.cwtb-ask-go{background:#1F699E !important;color:#fff !important;font-size:15px;font-weight:700;' +
         'padding:12px 24px;border-radius:24px;text-decoration:none !important;cursor:pointer;' +
         'display:inline-block;line-height:1.2;}' +
@@ -635,65 +398,19 @@
       '.cwtb-item{display:block;padding:13px 22px;font-size:16px;font-weight:500;color:#1A2E42;' +
         'text-decoration:none;cursor:pointer;white-space:nowrap;}' +
       '.cwtb-item:hover{background:#F7FBFF;}' +
-      // a page that draws its own mark and tagline would show them twice
       '.cwtb-drawn .cw-dupe-brand{display:none !important;}' +
       '.cwtb-lit{background:rgba(255,255,255,.20);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);}' +
       '#cw-topbar.cwtb-menuing .cwtb-tab.cwtb-on:not(.cwtb-lit){background:transparent;box-shadow:none;}' +
       '@media(max-width:700px){.cwtb-bar{gap:8px;padding:0 10px;height:54px;}' +
         '.cwtb-word{display:none;}.cwtb-tabs{margin-left:auto;}' +
         '.cwtb-tab{padding:8px 10px;font-size:13px;letter-spacing:.3px;}}' +
-      // A PHONE GETS TWO ROWS. On an iPhone the bar held a logo, three tabs and two buttons in
-      // 375 pixels: GROUPS was cut in half, MORE was gone entirely, and the sign-in buttons were
-      // drawn on top of both, so Groups and More could not be reached at all. Squeezing them
-      // further would have made every one of them too small to hit. So the logo and the sign-in
-      // buttons keep the first row and the three tabs get the second, spread across the width.
-      // Nothing is hidden and nothing new is built. 2026-09-03.
       '@media(max-width:560px){' +
         '.cwtb-bar{flex-wrap:wrap;height:auto;min-height:54px;padding:6px 10px 8px;row-gap:4px;}' +
         '.cwtb-mark{margin-right:auto;}' +
         '.cwtb-tabs{order:3;width:100%;margin:0;justify-content:space-between;overflow-x:visible;}' +
         '.cwtb-tab{padding:8px 12px;font-size:13.5px;letter-spacing:.4px;}' +
       '}' +
-      // NO PAGE SLIDES SIDEWAYS. Jessie, 2026-09-18, with a phone photo of My events shifted left:
-      // "The screen often moves to the left and right on mobile - is this a known thing on mobile?"
-      // It is, and it has exactly one cause: ONE element wider than the screen makes the WHOLE page
-      // pannable. Nothing errors and nothing looks broken until you slide it.
-      //
-      // MEASURED BEFORE THIS WAS WRITTEN, so it is a guard rather than a guess: at 375px the calendar
-      // and the group page both sit at exactly 375 with nothing past the edge, and the Attending /
-      // Hosting / Socialized / All row is 347 wide with no text clipped. So the cause is not layout,
-      // it is content - a long unbroken link or id arriving with somebody's own data, which is why it
-      // only shows on a page behind a sign-in.
-      //
-      // TWO RULES, and they are different jobs. overflow-wrap lets a long unbroken string break so it
-      // never spills in the first place; break-word rather than anywhere, because anywhere also changes
-      // how narrow a box is allowed to get and that can move layouts nobody asked to move. overflow-x
-      // clip is the guard under it: it stops anything left from panning the page, and unlike the old
-      // overflow-x:hidden trick it makes no new scroll container, so sticky headers keep working and
-      // the page still scrolls down normally.
-      //
-      // THE COST, said out loud: clip CUTS OFF anything genuinely too wide rather than letting you
-      // slide to it. Images already carry a max width and a table belongs in its own scroller, so what
-      // is left to cut should be nothing - but if something does go missing on a phone, this is the
-      // line to look at first.
       'body{overflow-x:clip;overflow-wrap:break-word;}' +
-      // AND THE REAL REASON THE SCREEN SLIDES. Jessie, 2026-09-19, with the calendar shifted sideways
-      // AFTER the clip rule went out: "Also didn't you update the mobile for all pages so it doesn't
-      // drift like this?" It did go out, and it cannot stop this, because this is not the page being
-      // too wide - it is the BROWSER zooming in.
-      //
-      // iOS Safari zooms the whole page the moment you tap a text box whose letters are smaller than
-      // 16px, and once it has zoomed, the page pans left and right. Measured: .filter-search, the
-      // search box on both the calendar and My events, is 14px - and both of her drifting screenshots
-      // have a word typed into that box. Nothing a page can do about the pan afterwards; the fix is to
-      // give it no reason to zoom. Sixteen pixels is the whole rule.
-      //
-      // NOT maximum-scale=1 in the viewport tag, which is the other way this is usually 'fixed': that
-      // takes pinch-zoom away from everybody, including anybody who needs it to read.
-      //
-      // !important because the boxes that are too small say so in their own style attribute, and a
-      // stylesheet cannot beat that any other way. Checkboxes, radios and sliders are left out: they
-      // have no letters to zoom towards.
       '@media(max-width:768px){' +
         'input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea' +
         '{font-size:16px !important;}' +
@@ -704,13 +421,7 @@
     document.head.appendChild(s);
   }
 
-  // ---- the person's own photo, and the pill it replaces ---------------------
-  // The page fetches the photo after it loads, so watch for it rather than
-  // reading once. The old My profile pill comes off while the bar is up,
-  // because the photo in the bar is that same link.
   function adopt() {
-    // Inside the pill the face is a span, so this fills THAT rather than replacing the pill and
-    // taking the name with it.
     var face = document.querySelector('#cw-topbar .cwtb-me .cwtb-face') ||
                document.querySelector('#cw-topbar .cwtb-face') ||
                document.querySelector('#cw-topbar .cwtb-mine');
@@ -725,16 +436,6 @@
       if (img && img.getAttribute('src')) { src = img.getAttribute('src'); }
     }
     if (src) {
-      // THE PILL SURVIVES THE PHOTO ARRIVING. Jessie, 2026-09-08: "top photo isn't a pill."
-      //
-      // Most pages never fetch a face, so the bar draws the fallback anchor first and this fills it
-      // in when the photo turns up. It did that by turning that anchor INTO a bare face - which on
-      // every page where the photo arrives late is every page, threw away the pill and the name
-      // with it. The pill was only ever visible on the rare page that already had a photo at draw
-      // time, which is why it looked like it had not been built.
-      //
-      // Two shapes to fill: the span inside a pill that is already there, or the fallback anchor,
-      // which is rebuilt AS the pill.
       var inPill = face.parentNode && face.parentNode.className &&
                    String(face.parentNode.className).indexOf('cwtb-me') > -1;
       if (inPill || face.className.indexOf('cwtb-face') > -1) {
@@ -760,16 +461,9 @@
     return false;
   }
 
-  // The bar wants a face on every page, and most pages never fetch one. So it is
-  // looked up once, kept on the device beside the id it belongs to, and reused.
-  // One small public read, and only when we do not already have it.
   function fetchPhotoOnce() {
     var who = me();
     if (!who) return;
-    // Showing the remembered picture straight away is right. Never asking again was not: once
-    // a wrong or out-of-date one was on a device it stayed there for good, and somebody who
-    // changed their photo on Appear kept seeing the old one with no way to correct it. The
-    // remembered one still paints instantly; it is simply checked again once a day behind it.
     var fresh = false;
     try {
       if (localStorage.getItem('cw-photo-for') === who && localStorage.getItem('cw-photo')) {
@@ -787,14 +481,6 @@
         .then(function (d) {
           if (!d || !d.photo) return;
           window.CW_TOPBAR_PHOTO = d.photo;
-          // The name rides along with the photo, out of a call already being made, so the admin
-          // strip can say who you are rather than a sentence about it.
-          //
-          // AND IT IS KEPT BESIDE WHOSE NAME IT IS. This is fetched for the person being LOOKED AT,
-          // so while viewing Doug it holds Doug's name. Without a key saying so, Back to me left
-          // the strip reading "You are Doug Breitbart" until the next fetch returned. The photo has
-          // had cw-photo-for for exactly this reason since the day it was written; the name went in
-          // without one. Jessie, 2026-09-07: "didn't change over when i went back to me, maybe?"
           try {
             if (d.name) {
               window.CW_NAME = d.name;
@@ -802,7 +488,6 @@
               localStorage.setItem('cw-name-for', who);
             }
           } catch (e) {}
-          // Tell the strip, which drew before this answer arrived.
           try { if (window.CW_REDRAW_ADMIN) { window.CW_REDRAW_ADMIN(); } } catch (e) {}
           try {
             localStorage.setItem('cw-photo', d.photo);
@@ -824,37 +509,16 @@
     }, 400);
   }
 
-  // ---- taking the id out of the address bar ---------------------------------
-  // Somebody arrives at /mygroups?CWid=w.hss. We read the id, remember it on this
-  // device under the key the pages already fall back to, then rewrite the address
-  // to /mygroups with nothing after it. No reload, and the history entry is
-  // replaced rather than added, so the version carrying the id is not left behind
-  // either. Everything else in the query stays, because a group id or an event id
-  // is not a person.
-  //
-  // ?mask=1 turns it on for one page while we watch it work. MASK_BY_DEFAULT makes
-  // it the rule everywhere.
   var MASK_BY_DEFAULT = true;
   var WHO_PARAMS = ['CWid', 'memberCard', 'appearId', 'me'];
 
   function remember(id) {
     if (!id) return;
-    // NEVER WHILE LOOKING AT SOMEBODY ELSE. This writes an id onto this device permanently, as who
-    // you are, on every page, and nothing afterwards says it happened: Back to me clears the
-    // viewing key and cannot undo a write to the id itself. It is tested on the raw key rather
-    // than on CW.me().viewing, because once the device has been stamped the two ids match and
-    // viewing reads false, which is exactly the state this has to refuse in.
-    // AND IT READS THE KEY ITSELF WHEN CW IS NOT THERE. identity.js is what defines CW, and it is
-    // not on every page that loads this file: on creating.works the bar is up and identity.js is
-    // not, so asking CW would have answered "nobody is being viewed" on exactly the pages with no
-    // other protection. Those are the pages where this guard is the only one.
     try {
       var seen = (window.CW && window.CW.viewingAs)
         ? String(window.CW.viewingAs() || '').trim()
-        : String(sessionStorage.getItem('cw-view-as') || '').trim();   // per tab since 2026-09-07
+        : String(sessionStorage.getItem('cw-view-as') || '').trim();   
       if (seen) { return; }
-      // NOR WHILE THE VIEW IS SIGNED OUT. 2026-09-10, Jessie: "add a signed out view to here". A
-      // visitor has no id to remember, and her real one is left exactly as it was.
       var out = (window.CW && window.CW.signedOutView)
         ? window.CW.signedOutView()
         : sessionStorage.getItem('cw-view-out') === '1';
@@ -886,8 +550,6 @@
     if (!window.history || !window.history.replaceState) return;
 
     for (var j = 0; j < WHO_PARAMS.length; j++) { p.delete(WHO_PARAMS[j]); }
-    // `show` is who is being looked at, so it stays, unless that is the person looking,
-    // in which case it is their own id sitting in their own address bar.
     var shown = p.get('show');
     if (shown && String(shown).split('.').join('').toLowerCase() ===
                  String(id).split('.').join('').toLowerCase()) { p.delete('show'); }
@@ -897,15 +559,6 @@
     try { window.history.replaceState(null, '', clean); } catch (e) {}
   }
 
-  // ---- pages that are somebody's own -----------------------------------------
-  // My groups signed out used to draw its heading, its buttons and an empty card,
-  // which is a page pretending to be about you while knowing nothing about you.
-  // Our own sign-in page exists now, so these paths go straight there carrying
-  // where the person was headed. Asking on a card first only added a click.
-  // Every path here needs to know who you are before it is worth drawing. A group's
-  // own page is deliberately NOT here: somebody invited to a group should be able to
-  // look at it, see a few faces and first names, and then be asked to sign in when
-  // they act. Looking is not the same as doing.
   var MINE_ONLY = [
     '/mygroups', '/myevents',
     '/groups/create', '/groups/invite', '/groups/host', '/groups/request',
@@ -915,33 +568,18 @@
   function askToSignIn() {
     var path = (window.location.pathname || '').toLowerCase();
     var gated = MINE_ONLY.some(function (p) { return path.indexOf(p) === 0; });
-    // MY PROFILE TOO, WHEN IT IS YOUR OWN. Jessie, 2026-09-10, looking at /me/ signed out: "shouldn't
-    // see this - ask to sign in". It drew the profile tabs and an empty "This is me" card. A shared
-    // profile link (?show=) is somebody else's profile and stays open to look at, like a group's page.
-    // /me/ since 2026-09-20; /ikigai still named because that address forwards here and the test
-    // has to hold for the instant before the forward lands.
     if (!gated && (path.indexOf('/me') === 0 || path.indexOf('/ikigai') === 0)) {
-      // Any of the parameters the profile page opens somebody by (see _idFromUrl in ikigai) means it
-      // is opening a named profile, not your own, so it is not asked here.
       var _q = ''; try { var _sp = new URLSearchParams(window.location.search);
-        // p= is the public profile (row 195, 2026-09-15): a shared address naming somebody by their
-        // six-character code, meant to be opened signed out. Without it here the sign-in gate below
-        // sent every visitor to a shared profile straight to the door.
         _q = ['show', 'id', 'CWid', 'me', 'memberCard', 'appearId', 'p'].map(function (k) { return _sp.get(k) || ''; }).join(''); } catch (e) {}
       gated = !_q;
     }
     if (!gated || me()) return;
 
-    // Straight to sign-in, carrying where they were headed so they land back here.
-    // replace() rather than href, so Back returns to wherever they came from
-    // instead of bouncing them forward into this same redirect again.
     var go = window.CW_SIGNIN || '';
     if (go.indexOf('/signin') > -1) {
       try { window.location.replace(go); return; } catch (e) {}
     }
 
-    // Only if that address is missing or is not our own sign-in page. Nobody should
-    // be left staring at a page that knows nothing about them.
     var what = path.indexOf('/myevents') === 0 ? 'your events'
              : path.indexOf('/mygroups') === 0 ? 'your groups'
              : 'this';
@@ -967,9 +605,6 @@
     document.body.appendChild(ask);
   }
 
-  // ---- the tab, and what a shared link says --------------------------------
-  // Pages rename themselves as they load, so keep the tool on the end of
-  // whatever they set. Runs with or without the bar.
   function titleGuard() {
     var host = (window.location.hostname || '').toLowerCase();
     var tool = host.indexOf('2gather') > -1 ? '2Gather'
@@ -988,10 +623,6 @@
     } catch (e) {}
   }
 
-  // ---- the tab icon ---------------------------------------------------------
-  // Every 2Gather page, groups included, shows the 2Gather mark. Creating.Works
-  // shows the seedling and an Appear page shows a globe. Appear's own pages are
-  // built in Glide and set their icon there, so this only reaches ours.
   function emoji(ch) {
     return 'data:image/svg+xml,' + encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
@@ -1025,13 +656,7 @@
     titleGuard();
     setTimeout(stripId, 0);
 
-    // Creating.Works loads this file for the tab icon, the title and the strip, and
-    // not for the bar. Those pages are reached from inside 2Gather and carry their
-    // own furniture, so a second bar would be one too many. ?topbar=1 draws it there
-    // when we want to look at how it would sit.
     try {
-      // A creating.works page that wants the bar says so with window.CW_SHOW_BAR, which the home page
-      // and ops do. Jessie, 2026-09-12: "add the pill on the right hand side of who I am".
       if (window.location.hostname.indexOf('creating.works') > -1 && !window.CW_SHOW_BAR &&
           new URLSearchParams(window.location.search).get('topbar') !== '1') { return; }
     } catch (e) {}
@@ -1052,38 +677,16 @@
   } else { go(); }
 })();
 
-/* ── Viewing as somebody else ─────────────────────────────────────────────────
- * For the handful of people who run this. Standing in somebody's shoes is the only honest way
- * to answer "what does this look like for them", and guessing from the data never is.
- *
- * Three rules it keeps.
- *   It is never invisible. While it is on, an amber bar sits above everything saying whose
- *   view this is, on every page, with a way out.
- *   It is never a write. It sets its own key rather than cw-id, so CW.me().viewing is true and
- *   anything that saves can refuse. Signing out ends it.
- *   It is never open. The bar only appears at all once the backend has said this person is a
- *   super admin, and the backend decides that from a list only it can see.
- */
 (function (w, d) {
   'use strict';
   if (!w.CW || !w.CW.realMe) { return; }
 
   var GS = 'https://cw-api-gate.jessieupp.workers.dev';
-  /* THE PERSON AT THE KEYBOARD, NOT realMe(). Jessie, 2026-09-10, asking for a signed-out view
-     with "a way back to herself". While it is on, realMe() answers nobody on every page, and this
-     strip asked realMe() whether to draw at all, so it would have vanished and taken the way back
-     with it. atKeyboard() is the one question in identity.js that still answers her, and this strip
-     is the only thing that asks it. An older identity.js without it still gets realMe(). */
   var me = w.CW.atKeyboard ? w.CW.atKeyboard() : w.CW.realMe();
   if (!me.known) { return; }
 
   function ls(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
 
-  /* ITS OWN COPY, because this is a different closure. The first version called supportUrl() from
-     the file's other IIFE, where it is not in scope, so paint() threw a ReferenceError and the
-     whole admin strip stopped drawing on every page. Jessie, 2026-09-07: "my super admin at top is
-     missing from this page". Found in the console rather than guessed at. A helper crossing a
-     closure boundary is not shared, it is undefined. */
   function _supportHere() {
     var here = '';
     try { here = String(w.location.pathname || '').trim(); } catch (e) {}
@@ -1100,36 +703,17 @@
 
     var bar = d.createElement('div');
     bar.id = 'cw-viewas';
-    // fixed, not sticky: sticky is in the flow, so the strip pushed the whole page down and the
-    // group's own header slid under it. Over the page, not shoving it. Jessie, 2026-09-01.
     bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;display:flex;align-items:center;gap:10px;'
       + 'flex-wrap:wrap;gap:10px 16px;padding:calc(7px + env(safe-area-inset-top, 0px)) 14px 7px;'
       + 'font:600 13px/1.4 "DM Sans",system-ui,sans-serif;'
       + 'background:#fff;color:#1A2E42;border-bottom:1px solid #E3EAF0;'
-      // White throughout, as asked. Standing in somebody else's shoes still has to be
-      // impossible to miss, so that state keeps an amber edge and an amber name.
       + ((seen || out) ? 'box-shadow:inset 4px 0 0 #B8862F;' : '');
 
-    // Two clusters: who you are looking as on the left, the things you run on the right.
-    // Without this they queued up in one row and the bar read as a pile rather than a strip.
     var left = d.createElement('div');
     left.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;';
     var right = d.createElement('div');
     right.style.cssText = 'display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-left:auto;';
     bar.appendChild(left); bar.appendChild(right);
-    // Being fixed takes it out of the flow, so the page must be told to leave room for it.
-    // Measured after it is on screen, because its height depends on how the words wrap, and
-    // measured AGAIN on every resize: on a phone this strip wraps onto two rows, and a single
-    // measurement taken before the font loaded left the page short by a row. Jessie, 2026-09-02.
-    //
-    // The number is published as --cw-adminbar as well as applied, because the blue menu below
-    // pulls itself up by the page's top spacing to run edge to edge, and it was cancelling
-    // exactly this. One number, written once, read by both, so they cannot disagree.
-    // reserve is a resize listener AND it fires a resize below, so it called itself until the
-    // browser gave up: "Maximum call stack size exceeded", four times over, on every page.
-    // Found on 2026-09-03 by opening the profile and reading the console after an unrelated
-    // change. The dispatch stays, because other things on the page listen for it. This flag
-    // stops reserve acting on its own event, which is the only part that was wrong.
     var reserving = false;
     function reserve() {
       if (reserving) { return; }
@@ -1139,45 +723,21 @@
         if (!h) { return; }
         d.documentElement.style.setProperty('--cw-adminbar', h + 'px');
         d.body.style.paddingTop = h + 'px';
-        // Told DIRECTLY, not through a resize event and a listener. 2026-09-03.
-        //
-        // The blue menu cancels the page's own top spacing to run edge to edge, and it takes the
-        // strip's share off first so it does not slide up underneath. That arithmetic is only
-        // right if it runs AFTER --cw-adminbar is set. Going through an event left the order to
-        // chance: if the menu recalculated while the variable still read zero, it pulled itself
-        // up by the strip's whole height and sat under it, which clips the logo row.
-        //
-        // Jessie caught it on a phone on 2026-09-03 and I could not reproduce it on the same
-        // width, which is what a race looks like. Calling fullBleed by name removes the ordering
-        // question rather than making the odds better. The resize event still goes out, because
-        // other things listen for it.
         try { fullBleed(); } catch (e2) {}
         w.dispatchEvent(new Event('resize'));
       } catch (e) {
       } finally {
-        // finally, not a line after the catch. There is a `return` inside the try for the case
-        // where the bar has no height yet, and reaching it any other way would leave this flag
-        // stuck on and the handler dead for the life of the page.
         reserving = false;
       }
     }
     setTimeout(reserve, 0);
-    // Fonts arriving late change how the words wrap, which changes the height.
     try { if (d.fonts && d.fonts.ready) { d.fonts.ready.then(reserve); } } catch (e) {}
-    // And once more after everything has settled, because a height measured while the page was
-    // still laying itself out is the other way this ends up wrong.
     setTimeout(reserve, 400);
     w.addEventListener('resize', reserve);
     w.addEventListener('orientationchange', reserve);
 
-    // 2026-08-30. "Viewing as yourself" pushed the strip onto two rows on a phone, with Support
-    // and Hide wrapping underneath. Shorter, so the whole strip sits on one line.
     var says;
     if (out) {
-      /* VIEWING SIGNED OUT, in the amber of the other view. Jessie, 2026-09-10: "add a signed out
-         view to here so i know hwat an even looks like or any page looks like for signed out". The
-         page underneath is drawn for a visitor, so this line is the only thing on screen saying
-         she is still signed in, and it has to be as hard to miss as viewing as somebody. */
       says = d.createElement('span');
       says.textContent = 'Viewing signed out';
       says.style.color = '#8A6220';
@@ -1186,33 +746,10 @@
       says.textContent = 'Viewing as ' + (name || seen);
       says.style.color = '#8A6220';
     } else {
-      // NOT A LABEL THAT READS LIKE A BUTTON. "View as self" sat beside the "View as someone"
-      // pill and the eye paired them, so pressing it was the obvious way back and there was
-      // nothing behind it. Jessie, 2026-09-07: "view as self at top super admin bar doesn't go
-      // back to me."
-      //
-      // It says what is true, and pressing it still puts you back, which is the one thing anybody
-      // reaching for it wants. Harmless when nothing is being viewed, and the way out if the
-      // strip is ever out of step with the device.
-      /* IT SAYS WHO, and it must not say it the SAME WAY as the other state. She asked for the
-         name to show: "chagne to Viewing as (name) so it's apparent". Taken literally that made
-         both states read "Viewing as somebody", so standing on her own page said the same words as
-         standing on Doug's, and the missing Back to me read as a fault rather than as nothing to
-         go back from. Jessie, minutes later: "Back to viewing as me is gone on bar."
-
-         So the name is here, which is what she asked for, and the two states cannot be confused:
-         "You are Jessie Upp" against an amber "Viewing as Doug Breitbart". Pressing it still puts
-         you back, which is harmless when you are already yourself and is the way out if the strip
-         is ever out of step with the device. */
-      /* Only if it is THIS person's name. A name with no owner is how the strip came to greet her
-         as the person she had just stopped viewing. */
       var mine = '';
       try {
         var nameFor = String(w.localStorage.getItem('cw-name-for') || '').trim();
         var realNow = String((w.CW && w.CW.realMe && w.CW.realMe().id) || '').trim();
-        // Compared here rather than with identity.js's normalise, which is not in scope in this
-        // file. Assuming a helper crosses a closure boundary is the fault that took the whole strip
-        // down earlier today.
         var _flat = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
         if (nameFor && realNow && _flat(nameFor) === _flat(realNow)) {
           mine = String(w.localStorage.getItem('cw-name') || '').trim();
@@ -1220,21 +757,6 @@
       } catch (e) {}
       says = d.createElement('button');
       says.type = 'button';
-      /* HER WORDING, after seeing both. I changed this to "You are Jessie Upp" because both states
-         otherwise read "Viewing as somebody", and she looked at that and asked for her version
-         back: "i want it to say Viewing as Jessie Upp again not You are seeing your own pages".
-         The amber and the Back to me button are what separate the two states. Her call, twice. */
-      /* JUST THE NAME. Jessie, 2026-09-08: "and Viewing as Jessie Upp to just my name". Standing
-         on her own pages, "Viewing as" is three words explaining a state that is simply normal.
-         The other state keeps its full sentence in amber, because THAT one is the one worth
-         announcing. */
-      /* IT SAYS NOTHING UNTIL IT KNOWS. Jessie, 2026-09-08: "why does it toggle from 'your own
-         pages' to 'Jessie Upp' at top superadmin nav?"
-         Because the name is fetched and the strip draws first. It said "Your own pages", then the
-         answer arrived and it redrew as her name - two different things in the same spot, seconds
-         apart, which reads as the page changing its mind.
-         Empty until the name is there. The strip keeps its height either way, so nothing jumps,
-         and what appears appears once. */
       says.textContent = mine || '';
       says.style.cssText = 'font:inherit;padding:0;border:0;background:transparent;color:#1A2E42;'
         + 'cursor:pointer;text-align:left;';
@@ -1244,16 +766,12 @@
 
     var pick = d.createElement('button');
     pick.type = 'button';
-    // TWO WORDS. Jessie, 2026-09-08: "change view as someone at top of my supseradmin bar to change
-    // view". Both states say the same two words now, which is also the button rule arriving on the
-    // one control that had been carrying three.
     pick.textContent = 'Change view';
     pick.style.cssText = 'font:inherit;padding:4px 12px;border-radius:14px;cursor:pointer;'
       + 'border:1px solid #C3D0DB;background:transparent;color:#1A2E42;';
     pick.onclick = function () { open(bar); };
     left.appendChild(pick);
 
-    // The same Back to me for both views, and it ends whichever one is on.
     if (seen || out) {
       var stop = d.createElement('button');
       stop.type = 'button';
@@ -1264,8 +782,6 @@
       left.appendChild(stop);
     }
 
-    // The things only the people who run this see. Same line, because they are the same kind
-    // of thing and a second strip would cost another row on every page.
     function adminLink(label, href, strong) {
       var a = d.createElement('a');
       a.href = href;
@@ -1281,8 +797,6 @@
       ? (waiting + ' support ticket' + (waiting === 1 ? '' : 's') + ' waiting')
       : 'Support', _supportHere(), waiting > 0);
 
-    // Hiding it during a demo has to survive walking to another page, so the choice is kept on
-    // the device rather than in this page. A word rather than a symbol, so the way back reads.
     var fold = d.createElement('button');
     fold.type = 'button';
     fold.textContent = 'Hide';
@@ -1291,12 +805,10 @@
     fold.onclick = function () { setFolded(true); };
     right.appendChild(fold);
 
-    // Back at the very top, above the bar, which is where Jessie wants it: it is a warning
-    // about the whole page, so it sits over the whole page rather than inside it.
     d.body.insertBefore(bar, d.body.firstChild);
   }
 
-  w.CW_ADMIN_HIDDEN = true;   // 2026-09-20, with CW_ADMIN_OFF below. Both come off together.
+  w.CW_ADMIN_HIDDEN = true;   
 
   var FOLD_KEY = 'cw-admin-folded';
   function folded() { return ls(function () { return w.localStorage.getItem(FOLD_KEY) === '1'; }, false); }
@@ -1307,12 +819,8 @@
     drawAdminBar();
   }
 
-  // Folded away, one small word is left so it can be brought back. Nothing at all would mean
-  // hiding it during a demo hid it for good.
   function paintFolded() {
     var old = d.getElementById('cw-viewas'); if (old) { old.remove(); }
-    // Pressing Hide took the strip away and left the gap it had asked for, so the page kept a
-    // band of empty white at the top with nothing in it. Give the room back. Jessie, 2026-09-02.
     try {
       d.documentElement.style.setProperty('--cw-adminbar', '0px');
       d.body.style.paddingTop = '';
@@ -1333,41 +841,25 @@
     d.body.insertBefore(tab, d.body.firstChild);
   }
 
-  // Off for everybody while the super admin question is open - see CW_ADMIN_OFF below. This second
-  // guard is here because CW_REDRAW_ADMIN and the fold control both call in from outside that block.
   function drawAdminBar() { if (w.CW_ADMIN_HIDDEN) { return; } if (folded()) { paintFolded(); } else { paint(); } }
 
-  /* A HOOK, because the name is fetched in this file's OTHER closure and cannot call in here.
-     Without it the strip only learns your name on the next page load, so Back to me left it saying
-     "You are seeing your own pages" until she navigated again. Jessie, 2026-09-07: "yes back to me
-     worked but it went back to saying You are seeing your own pages". */
   w.CW_REDRAW_ADMIN = function () { try { drawAdminBar(); } catch (e) {} };
 
   function open(bar) {
     var old = d.getElementById('cw-viewas-pick'); if (old) { old.remove(); return; }
     var panel = d.createElement('div');
     panel.id = 'cw-viewas-pick';
-    // 34px was the strip's height on a desktop. On a phone it wraps onto two rows and the
-    // picker opened behind it. The measured height, or 34 if nothing has measured yet.
     panel.style.cssText = 'position:sticky;top:calc(var(--cw-adminbar, 34px));z-index:99999;background:#fff;color:#1A2E42;'
       + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "DM Sans",system-ui,sans-serif;';
 
-    var _faSeq = 0;   // see the note on the fetch below: answers can arrive out of order
+    var _faSeq = 0;   
     var inp = d.createElement('input');
     inp.type = 'text';
-    // IT DID NOT FIT. Jessie, 2026-09-07: "The placeholder doesn't fit. So just name or email."
-    // On a phone the box is narrower than the sentence, so it cut off mid-word and told nobody
-    // anything. Two words fit, and the search reads both.
     inp.placeholder = 'Name or email';
     inp.style.cssText = 'width:100%;max-width:420px;border:1.5px solid #DDE3EA;border-radius:10px;'
       + 'padding:9px 12px;font:inherit;outline:none;';
     var out = d.createElement('div');
     out.style.cssText = 'margin-top:8px;display:flex;flex-direction:column;gap:5px;max-width:420px;';
-    /* SIGNED OUT IS ONE OF THE CHOICES, beside looking as a person. Jessie, 2026-09-10: "add a
-       signed out view to here so i know hwat an even looks like or any page looks like for signed
-       out". First in the panel and one press, because it needs no search. Drawn only when
-       identity.js knows how to do it, so a cached older copy never offers a button that does
-       nothing. */
     if (w.CW.viewSignedOut) {
       var outLine = d.createElement('div');
       outLine.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;';
@@ -1387,9 +879,6 @@
     bar.parentNode.insertBefore(panel, bar.nextSibling);
     inp.focus();
 
-    /* A FACE AND AN ADDRESS UNDER THE NAME. Two rows both reading Doug Breitbart, with nothing to
-       tell them apart, is the whole reason for this. Jessie, 2026-09-07. The photo is drawn only
-       when there is one, so nobody gets an empty circle. */
     function esc(t) {
       return String(t == null ? '' : t)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1420,39 +909,15 @@
       if (timer) { clearTimeout(timer); }
       out.innerHTML = '';
       if (q.length < 2) { return; }
-      /* THE TYPED TEXT IS OFFERED ONLY WHEN NOTHING MATCHED IT. It used to be drawn straight away
-         for anything without a space, on the reasoning that a single word is as likely to be an id
-         as a name. So typing "doug" put "doug" at the top of a list of Dougs, which reads as a
-         duplicate of the thing you just typed. Jessie, 2026-09-07: "whatever i search for names it
-         shows the name again - duplciative."
-
-         Pasting an id still works, because an id matches no name and the list comes back empty,
-         which is exactly when the typed text is worth offering. */
-      /* THE LAST ANSWER TO ARRIVE IS NOT THE ANSWER TO THE LAST QUESTION. Jessie, 2026-09-07:
-         "I looked Jerry up again to see what his email was and got this where nobody matches."
-         Five people came back for "jerry": Devkumar Banerjee, Jeff McClard, Jessie Upp, Jennifer
-         Diamond, Jennifer Mason. Nothing matches "jerry" and every one of them contains a j -
-         Banerjee, Jeff, Jessie, Jennifer. That was the answer to her FIRST keystroke, landing
-         after the answer to the whole word and painting over it.
-
-         The debounce only stops a request being SENT. Once two are in flight this backend takes
-         anywhere from two to forty seconds, so they come back in whatever order they finish, and
-         the slower early one wins. A stamp on each request, and a check that the box still holds
-         the text this answer was asked about, so a late reply to an abandoned question is dropped
-         rather than drawn. */
       var seq = (++_faSeq);
       timer = setTimeout(function () {
-        // THE PEOPLE PICKER CARRIES THE PROOF TOO. It hands back names and ids for everybody, so it
-        // is the most valuable thing behind this strip - and it was gated on an id alone, like the
-        // strip itself. Jessie, 2026-09-19: "they could edit my profile and look up people in the
-        // top NAV bar".
         fetch(GS + '?action=findAnyone&appearId=' + encodeURIComponent(me.id)
               + '&meToken=' + encodeURIComponent(String(w.localStorage.getItem('cw-token') || ''))
               + '&q=' + encodeURIComponent(q))
           .then(function (r) { return r.json(); })
           .then(function (dd) {
             if (seq !== _faSeq) { return; }
-            if (inp.value.trim() !== q) { return; }   // q is not lowercased where it is read
+            if (inp.value.trim() !== q) { return; }   
             var list = (dd && dd.status === 'ok' && dd.matches) ? dd.matches : [];
             out.innerHTML = '';
             list.forEach(function (p) {
@@ -1471,22 +936,6 @@
     });
   }
 
-  // SUPER ADMIN IS A PROVEN SESSION, NOT A REMEMBERED WORD. Jessie, 2026-09-19: "Make sure that the
-  // super admin controls are only available to authenticated super admin with pin", after sharing an
-  // event and finding her own name and Change view on the screen.
-  //
-  // WHAT WAS WRONG, and it is the same fault as an id in an address. This asked the backend
-  // "amISuper" with an APPEAR ID AND NOTHING ELSE, and wrote the answer into cw-super, where it then
-  // stood for ever. An id is not a permission: anybody holding one, by any route, was handed the
-  // admin strip - and once written, the yes was never asked about again.
-  //
-  // WHAT IT IS NOW: the strip is drawn only while this device holds the token the emailed code mints
-  // when somebody signs in - cw-token, with its own expiry - AND that token belongs to the person
-  // being drawn. No code, no strip. An expired code, no strip. A remembered yes with no live session
-  // behind it is thrown away rather than honoured.
-  //
-  // The remembered answer is still a cache, and it is still worth having, because the backend takes
-  // its time - but it can only ever be read while the session it belongs to is real.
   function provenSelf(id) {
     try {
       var t = String(w.localStorage.getItem('cw-token') || '');
@@ -1498,18 +947,6 @@
       return !!who && !!mine && who === mine;
     } catch (e) { return false; }
   }
-  // ── THE STRIP IS OFF FOR EVERYBODY. Jessie, 2026-09-20: "hide the super admin top nav from
-  // everyone until we resolved htis", while we are still finding out why James Marohn is showing as
-  // a super admin. n174 proved the backend grants him nothing - his Info row carries no rolesCW, the
-  // SUPER_ADMINS box names only her, and _isSuperAdmin_ answers false for both of his ids - so the
-  // word is in a browser rather than in the data, and this takes it out of every browser.
-  //
-  // IT CLEARS cw-super AS WELL AS RETURNING, which is the half that matters: events/, event/ and
-  // myevents/ each read cw-super === 'yes' directly for their own super-only controls, so hiding
-  // only the strip would have left those live and made "hidden from everyone" untrue.
-  //
-  // ONE LINE BACK: set CW_ADMIN_OFF to false. The yes is re-fetched from amISuper on the next load,
-  // so nothing has to be restored by hand.
   var CW_ADMIN_OFF = true;
   if (CW_ADMIN_OFF) {
     ls(function () { w.localStorage.removeItem('cw-super'); });
