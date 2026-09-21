@@ -1851,6 +1851,41 @@
     try { window.scrollTo(0, 0); } catch (e) {}
   }
 
+  var _gpProse = {}, _gpProseDirty = {};
+  function gpProseBox(q, wrap){
+    var have = String((_gpProse && _gpProse[q.key]) || '').trim();
+    var w = document.createElement('div');
+    w.style.cssText = 'margin:18px 0 0;';
+    var lab = document.createElement('div');
+    lab.style.cssText = 'font-size:13px;font-weight:800;color:#6B7A8D;margin:0 0 6px;';
+    lab.textContent = 'In your own words';
+    var hint = document.createElement('div');
+    hint.style.cssText = 'font-size:12.5px;color:#6B7A8D;margin:0 0 8px;line-height:1.5;';
+    hint.textContent = 'This shows on your profile as you wrote it. The chips above are separate \u2014 changing one does not change the other.';
+    var ta2 = document.createElement('textarea');
+    ta2.id = 'gp-prose-' + q.key;
+    ta2.rows = 3;
+    ta2.placeholder = q.ph || '';
+    ta2.value = have;
+    ta2.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
+      + 'padding:12px 14px;font:inherit;font-size:14.5px;color:#1A2E42;line-height:1.5;resize:vertical;';
+    ta2.addEventListener('input', function(){
+      _gpProse[q.key] = String(ta2.value || '');
+      _gpProseDirty[q.key] = 1;
+      gpTouchSave();
+    });
+    w.appendChild(lab); w.appendChild(hint); w.appendChild(ta2);
+    wrap.appendChild(w);
+  }
+  function gpProseQs(){
+    var out = '';
+    Object.keys(_gpProseDirty).forEach(function(k){
+      if (!_gpProseDirty[k]) { return; }
+      out += '&' + k + '=' + encodeURIComponent(String(_gpProse[k] || '').trim());
+    });
+    return out;
+  }
+
   function gpRenderIntro(prefill){
     var box = document.getElementById('gp-intro-qs');
     if (!box) return;
@@ -1934,15 +1969,18 @@
       ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
         + 'padding:12px 14px;font:inherit;font-size:14.5px;color:#1A2E42;line-height:1.5;resize:vertical;';
       var _bare = gpBareKey(q.key);
+      var _proseAfterChips = null;
       if (_bare) {
         ta.style.display = 'none';
         if (!GP_BARE_HEAD[q.key]) { wrap.appendChild(t); wrap.appendChild(h); }
         wrap.appendChild(ta);
+        _proseAfterChips = wrap;
       } else {
         wrap.appendChild(t); wrap.appendChild(h); wrap.appendChild(ta);
       }
       var chipRow = gpPicker(q.key, ta) || gpChipRow(q.key, ta);
       if (chipRow) wrap.appendChild(chipRow);
+      if (_proseAfterChips) { gpProseBox(q, _proseAfterChips); }
       var _map = { introEnjoy:'1', introSkills:'2', introValues:'3', introNeed:'4', introOffer:'4' };
       wrap.setAttribute('data-gp-step', _map[q.key] || '4');
       box.appendChild(wrap);
@@ -2049,7 +2087,8 @@
         + '&valuesTags='    + encodeURIComponent(gpSplitCare(tagFor('introValues')).values)
         + '&domainsTags='   + encodeURIComponent(gpRailSectors(gpSplitCare(tagFor('introValues')).domains))
         + gpRailExtraQs()
-        + '&location='      + encodeURIComponent(gpLocString(_gpLoc));
+        + '&location='      + encodeURIComponent(gpLocString(_gpLoc))
+        + gpProseQs();
     if (window._gpLoaded) qs += '&havesTags=' + encodeURIComponent(gpOfferParts().havesTags)
       + '&openToPaidWork=' + encodeURIComponent(gpOtwList('paid').join('|'))
       + '&gigWork=' + encodeURIComponent(gpWantsPartTime() ? gpOtwList('gig').join('|') : '')
@@ -2296,7 +2335,8 @@
         + '&valuesTags='    + encodeURIComponent(gpSplitCare(tagFor('introValues')).values)
         + '&domainsTags='   + encodeURIComponent(gpRailSectors(gpSplitCare(tagFor('introValues')).domains))
         + gpRailExtraQs()
-        + '&location='      + encodeURIComponent(gpLocString(_gpLoc));
+        + '&location='      + encodeURIComponent(gpLocString(_gpLoc))
+        + gpProseQs();
     if (window._gpLoaded) qs += '&havesTags=' + encodeURIComponent(gpOfferParts().havesTags)
       + '&openToPaidWork=' + encodeURIComponent(gpOtwList('paid').join('|'))
       + '&gigWork=' + encodeURIComponent(gpWantsPartTime() ? gpOtwList('gig').join('|') : '')
@@ -3285,6 +3325,9 @@
   function gpApplyIntake(d, fresh){
         _gpOrig = {};
         var have = (d && d.data) || {};
+        try { ['introNeed','introEnjoy','introSkills','introValues','introOffer'].forEach(function(k){
+          if (!_gpProseDirty[k]) { _gpProse[k] = String(have[k] || ''); }
+        }); } catch (e) {}
         if (fresh) {
           try {
             [_gpTags, _gpChipsPicked].forEach(function(store){
