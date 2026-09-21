@@ -956,8 +956,32 @@ function pick(el, key){
   window.gpOnboardDone = function(){ gpShow('concierge'); };
 
   gpShow('onboard');
-  var _SRC_OFFER = ['skills','values','interests','hobbies','domains','professionalServices','advocating'];
-  var _SRC_NEED  = ['needs'];
+  var GP_CAT_FIELDS = {
+    skills: ['skills', 'professionalServices'],
+    offers: ['haves'],
+    enjoy:  ['interests', 'hobbies'],
+    care:   ['values', 'domains', 'advocating'],
+    needs:  ['needs']
+  };
+  var _gpGroupCats = null;
+  function gpCatAllows(field){
+    if (!_gpGroupCats) return true;
+    for (var k = 0; k < _gpGroupCats.length; k++) {
+      var fields = GP_CAT_FIELDS[_gpGroupCats[k]] || [];
+      if (fields.indexOf(field) > -1) return true;
+    }
+    return false;
+  }
+  window.gpSetGroupCats = function(raw){
+    var v = String(raw == null ? '' : raw).trim();
+    if (!v) { _gpGroupCats = null; return; }
+    var list = v.split(',').map(function(x){ return x.trim().toLowerCase(); }).filter(function(x){ return GP_CAT_FIELDS[x]; });
+    _gpGroupCats = list.length ? list : null;
+  };
+  var _SRC_OFFER_ALL = ['skills','values','interests','hobbies','domains','professionalServices','advocating'];
+  var _SRC_NEED_ALL  = ['needs'];
+  function _SRC_OFFER(){ return _SRC_OFFER_ALL.filter(gpCatAllows); }
+  function _SRC_NEED(){ return _SRC_NEED_ALL.filter(gpCatAllows); }
   var _SRC_IK    = {skills:'ikigaiSkills',values:'ikigaiValues',interests:'ikigaiInterests',domains:'ikigaiDomains',needs:'ikigaiNeeds'};
   function _searchFieldHit(person, fields, qLower) {
     for (var i = 0; i < fields.length; i++) {
@@ -1027,8 +1051,8 @@ function pick(el, key){
     _gpHereAttendees.forEach(function(p) {
       var pn = String(p.appearId || '').split('.').join('').toLowerCase();
       if (pn === meNrm) return; 
-      var offer = _searchFieldHit(p, _SRC_OFFER, qLower);
-      var need  = _searchFieldHit(p, _SRC_NEED,  qLower);
+      var offer = _searchFieldHit(p, _SRC_OFFER(), qLower);
+      var need  = _searchFieldHit(p, _SRC_NEED(),  qLower);
       var name = ((p.first || '') + ' ' + (p.name || '')).toLowerCase();
       var nameHit = name.indexOf(qLower) !== -1;
       if (!offer && !need && !nameHit) return;
@@ -1098,14 +1122,14 @@ function pick(el, key){
   function _computeMatches(me, others) {
     _meNeedDetails = _extractNeedDetails(me);
     if (!me) return [];
-    var meOffer = _tokenMap(_tokenizePerson(me, _SRC_OFFER));
-    var meNeed  = _tokenMap(_tokenizePerson(me, _SRC_NEED));
+    var meOffer = _tokenMap(_tokenizePerson(me, _SRC_OFFER()));
+    var meNeed  = _tokenMap(_tokenizePerson(me, _SRC_NEED()));
     if (Object.keys(meOffer).length === 0 && Object.keys(meNeed).length === 0) return []; 
     var _freq = {}, _total = 0;
     others.forEach(function(p) {
       _total++;
       var seen = {};
-      _tokenizePerson(p, _SRC_OFFER).forEach(function(o) {
+      _tokenizePerson(p, _SRC_OFFER()).forEach(function(o) {
         var k = o.t.toLowerCase();
         if (seen[k]) return;
         seen[k] = true;
@@ -1122,8 +1146,8 @@ function pick(el, key){
       var pn = String(p.appearId || '').split('.').join('').toLowerCase();
       var mn = String(me.appearId || '').split('.').join('').toLowerCase();
       if (pn === mn) return;
-      var pOffer = _tokenMap(_tokenizePerson(p, _SRC_OFFER));
-      var pNeed  = _tokenMap(_tokenizePerson(p, _SRC_NEED));
+      var pOffer = _tokenMap(_tokenizePerson(p, _SRC_OFFER()));
+      var pNeed  = _tokenMap(_tokenizePerson(p, _SRC_NEED()));
       var _pxNeed = _intersectTokens(pOffer, meNeed);
       var _mxNeed = _intersectTokens(meOffer, pNeed);
       var theyOfferYouNeed = _pxNeed.filter(function(x){ return x.aKind === 'offer'; });
@@ -1247,7 +1271,7 @@ function pick(el, key){
       grid.innerHTML = '';
       if (empty) empty.style.display = 'block';
       if (emptySub) {
-        var hasProfile = _me && (_tokenizePerson(_me, _SRC_OFFER).length + _tokenizePerson(_me, _SRC_NEED).length > 0);
+        var hasProfile = _me && (_tokenizePerson(_me, _SRC_OFFER()).length + _tokenizePerson(_me, _SRC_NEED()).length > 0);
         emptySub.textContent = hasProfile
           ? 'Nobody in this group shares or complements your profile yet. As more people fill in their profiles, matches will show here.'
           : 'Fill in your profile so we can find people who share what you offer or need.';
@@ -1557,8 +1581,9 @@ function pick(el, key){
     var offers=0, needs=0;
     var tok = function(v){ return String(v||'').split('|').filter(function(x){ return x.trim(); }).length; };
     people.forEach(function(p){
-      offers += tok(p.skills) + tok(p.haves);
-      needs  += tok(p.needs);
+      if (gpCatAllows('skills')) offers += tok(p.skills);
+      if (gpCatAllows('haves'))  offers += tok(p.haves);
+      if (gpCatAllows('needs'))  needs  += tok(p.needs);
     });
     return {offers: offers, needs: needs, count: people.length};
   }
@@ -1865,6 +1890,7 @@ function pick(el, key){
         attendees = hosts.concat(others);
       })();
       if (d.group) {
+        try { gpSetGroupCats(d.group.offeringCategories); } catch (e) {}
         if (d.group.name) {
           groupName = d.group.name;
           document.title = 'Group: ' + groupName;
