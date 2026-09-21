@@ -121,7 +121,7 @@
     var onCW = String(w.location.hostname || '').indexOf('creating.works') >= 0;
 
     var OPEN = onCW
-      ? ['/', '/terms-of-service', '/privacy-policy', '/code-of-conduct', '/ops']
+      ? ['/', '/terms-of-service', '/privacy-policy', '/code-of-conduct', '/ops', '/vision', '/license']
       : ['/signin', '/signup', '/signin-google'];
 
     var asked = ls(function () { return new URLSearchParams(w.location.search).get('lock'); }, null);
