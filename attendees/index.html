@@ -352,6 +352,26 @@ function parseNeeds(str){
   }).filter(function(n){return n.item;});
 }
 
+// A WORK VALUE IS NOT A REQUEST. Jessie, 2026-09-21, looking at What our group needs: "Enjoying My
+// Time, Fun, Consistency, Resources, Values-aligned, Social are not supposed to show up in needs -
+// why is htis?"
+//
+// They are work values - what somebody wants WORK to give them - and they live in the needs column
+// with :work on the end of them, because that is where the questions put them before
+// ikigai.workValues existed on 2026-09-14. The profile page has filtered them out since; this page
+// never learned the same rule, so one rule lived in two places and only one of them had it.
+//
+// MONEY AND THE OTHER THINGS STAY. Jessie, 2026-09-14: "Money should be a thing yes" - a request
+// for money, goods, consumables or living things is a real request even when it arrived marked as
+// work, so those four are kept and only the ways-of-working words are dropped.
+var NEED_THING_KINDS = { 'money':1, 'physical goods':1, 'consumables':1, 'living things':1 };
+function dropWorkValues(list){
+  return (list || []).filter(function(n){
+    if (String(n && n.ntype || '').toLowerCase() !== 'work') { return true; }
+    return !!NEED_THING_KINDS[String(n.item || '').trim().toLowerCase()];
+  });
+}
+
 function refFor(item){
   return _catMap[String(item||'').toLowerCase()]||{category:'',associations:''};
 }
@@ -516,11 +536,11 @@ function processRow(data, appearId){
         .map(function(h){ if(!h.meta) h.meta='Participant'; return h; })
     : [];
   var mainValues        = parseTagStr(data.values).concat(parseTagStr(data.domains));
-  var mainNeeds         = parseNeeds(data.needs);
+  var mainNeeds         = dropWorkValues(parseNeeds(data.needs));
   var ikSkills          = data.ikigaiSkills    ? parseTagStr(data.ikigaiSkills)    : [];
   var ikInterests       = data.ikigaiInterests ? parseIkigaiInterests(data.ikigaiInterests) : [];
   var ikValues          = data.ikigaiValues    ? parseTagStr(data.ikigaiValues).concat(data.ikigaiDomains?parseTagStr(data.ikigaiDomains):[]) : (data.ikigaiDomains?parseTagStr(data.ikigaiDomains):[]);
-  var ikNeeds           = data.ikigaiNeeds     ? parseNeeds(data.ikigaiNeeds)      : [];
+  var ikNeeds           = data.ikigaiNeeds     ? dropWorkValues(parseNeeds(data.ikigaiNeeds)) : [];
   var member={
     appearId:appearId,
     photo:pm.photo||'',
@@ -775,7 +795,7 @@ async function loadMyDataFallback(){
       skills:parseTagStr(data.skills),
       interests:parseTagStr(data.interests),
       values:parseTagStr(data.values).concat(parseTagStr(data.domains)),
-      needs:parseNeeds(data.needs),
+      needs:dropWorkValues(parseNeeds(data.needs)),
       languages:String(data.languages||'').split('|').map(function(s){return s.trim();}).filter(Boolean)
     };
   }catch(e){}
