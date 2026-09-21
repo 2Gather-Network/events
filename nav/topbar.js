@@ -1,14 +1,3 @@
-/*
-  Copyright 2026 DayBalancer LLC. All rights reserved.
-
-  The code and the content here power Creating.Works, DayBalancer, Appear Network,
-  and 2Gather. They are published so they can be read, audited, and dated.
-
-  Running either as a separate offering requires a license, whether you brand it as
-  ours or as your own, and whether or not money changes hands.
-
-  hello@creating.works
-*/
 (function () {
   'use strict';
 
@@ -73,21 +62,6 @@
     return here ? (SUPPORT + '?from=' + encodeURIComponent(here)) : SUPPORT;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────────────────────
-  // A GROUP MENU IN THE BAR, a mockup behind ?groupnav=1. Jessie, 2026-09-21: "maybe make a drop
-  // down on every group page in top nav bar if they arein a group? Info / Dashboard / Events /
-  // Bulletin Board / Matches", and "create a mockup live link to this".
-  //
-  // OFF unless the parameter is in the address, so nobody else sees it and nothing else changes.
-  // It draws only where there IS a group to be in the menu of: the group page, its bulletin board
-  // and its manage screen all carry the group in the address, so the bar reads it from there and
-  // asks nothing. On any other page there is no group and no menu.
-  //
-  // Matches has a real address now, from this morning's work on the bulletin board views, so that
-  // item goes straight there rather than landing on the board and making somebody press again.
-  //
-  // DASHBOARD IS THE ONE I AM GUESSING AT. There is no page by that name; the nearest thing is the
-  // group's manage screen, so that is where it points, and it is the first thing to settle.
   function groupNavOn() {
     try { return /[?&]groupnav=1\b/.test(window.location.search); } catch (e) { return false; }
   }
@@ -143,18 +117,6 @@
       return !!(v && v.yes === true && norm(v.who) === norm(me()));
     } catch (e) { return false; }
   }
-  // MY GROUPS SHOWS TO ANYBODY SIGNED IN. Jessie, 2026-09-21, of a host who could not find her own
-  // group: "yes fix for now - but I don't like this fix". Neither do I, and it is the right trade
-  // today. The device flag below is only ever written by pages you reach THROUGH this menu item, so
-  // a host who has not been to the right page cannot see the link, and the link is the way to the
-  // page. A wrong guess costs one menu item that says "You don't host any groups yet". The old
-  // behaviour cost Karin her own group.
-  //
-  // WHAT WOULD BE BETTER, and is not built: the bar should KNOW rather than guess, without asking.
-  // The answer is one bit and it is already known at sign-in, where a read is already happening and
-  // one more costs nobody a page load. Carried on the session pass, the bar would be right for
-  // everybody on every page, on a new device, with no flag and no guess. That is the fix; this is
-  // the stopgap, and it is written down so the stopgap does not become the design by default.
   function hasAGroup() {
     try { return !!me(); } catch (e) { return false; }
   }
@@ -203,19 +165,6 @@
     };
   }
 
-  // A REAL href, SO THE BROWSER TREATS THESE AS LINKS. Jessie, 2026-09-21, wanting to open a menu
-  // item without leaving a call: "is there a way to right click on the pill so it can open up a new
-  // tab? I don't see that possibltiy".
-  //
-  // These were anchors with NO href - role="link" and a data-nav the click handler read. That looks
-  // right and behaves like a div: no Open in new tab, no middle-click, no cmd-click, no Copy link
-  // address, and nothing in the status bar to say where it goes. The browser cannot offer any of
-  // that for a link with no address.
-  //
-  // href AND data-nav, not one or the other. Left-click still goes through _safeNavGo, which
-  // returns false and so stops the browser following the href itself - which matters on the
-  // commons, where following it would drop somebody out of their call. Everything else the browser
-  // does with a link now works because there is finally an address to work with.
   function anchor(label, url, cls) {
     return '<a role="link" tabindex="0" class="' + cls + '" href="' + url + '" data-nav="' + url +
            '" onclick="return _safeNavGo(this)">' + label + '</a>';
@@ -227,8 +176,6 @@
 
   function draw() {
     var open = here(), tabs = '', rows = '', i, j, n;
-    // The mockup menu joins the list for this draw only, so turning the parameter off leaves
-    // nothing behind.
     var _gn = groupNavOn() ? groupNav() : null;
     if (_gn && NAV.indexOf(_gn) === -1) { NAV = NAV.concat([_gn]); }
 
