@@ -882,6 +882,7 @@
                 : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;');
         if (on || _inList[String(b.getAttribute('data-word') || '').toLowerCase()]) b.style.display = 'none';
       });
+      try { if (cfg._relight) cfg._relight(); } catch (e) {}
     }
 
     var kindBox = null;
@@ -897,16 +898,65 @@
       kindAdd.textContent = 'Add';
       kindAdd.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:10px 18px;'
         + 'border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
-      kindBox.appendChild(kindInput); kindBox.appendChild(kindAdd);
+      var kindCancel = document.createElement('button');
+      kindCancel.type = 'button';
+      kindCancel.textContent = 'Cancel';
+      kindCancel.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:10px 18px;'
+        + 'border-radius:20px;border:1.5px solid #C9DFF3;background:#fff;color:#1F699E;cursor:pointer;';
+      kindBox.appendChild(kindInput); kindBox.appendChild(kindAdd); kindBox.appendChild(kindCancel);
       box.appendChild(kindBox);
+      var kindHits = document.createElement('div');
+      kindHits.style.cssText = 'display:none;margin-top:6px;';
+      box.appendChild(kindHits);
       var kindNow = '';
+      var markKind = function(on){
+        row.querySelectorAll('[data-word]').forEach(function(b2){
+          var w = String(b2.getAttribute('data-word') || '').toLowerCase().replace(/^a\s+/, '').trim();
+          var lit = on && w === on;
+          b2.style.background = lit ? '#1F699E' : '#fff';
+          b2.style.border = lit ? '1px solid #1F699E' : '1px solid #C9DFF3';
+          b2.style.color = lit ? '#fff' : '#1F699E';
+          b2.style.fontWeight = lit ? '700' : '600';
+        });
+      };
+      cfg._relight = function(){ if (kindNow) markKind(kindNow); };
+      var kindClose = function(){
+        kindInput.value = '';
+        kindHits.innerHTML = ''; kindHits.style.display = 'none';
+        kindBox.style.display = 'none';
+        kindNow = '';
+        markKind('');
+      };
+      kindCancel.addEventListener('click', function(){ kindClose(); repaint(); });
+      kindInput.addEventListener('input', function(){
+        var t = String(kindInput.value || '').trim().toLowerCase();
+        kindHits.innerHTML = '';
+        if (t.length < 2) { kindHits.style.display = 'none'; return; }
+        var hits = corpus.filter(function(c){
+          return c.word.toLowerCase().indexOf(t) > -1 || (c.assoc && c.assoc.indexOf(t) > -1);
+        }).slice(0, 6);
+        if (!hits.length) { kindHits.style.display = 'none'; return; }
+        kindHits.style.display = 'block';
+        hits.forEach(function(h){
+          var r = document.createElement('div');
+          r.setAttribute('role', 'button');
+          r.tabIndex = 0;
+          r.style.cssText = 'border:1px solid #DDE3EA;border-radius:10px;padding:10px 12px;margin-top:6px;cursor:pointer;background:#fff;';
+          r.innerHTML = '<div style="font-size:14.5px;font-weight:700;color:#1A2E42;">' + _gpEsc(h.word) + '</div>'
+            + (h.cat ? '<div style="font-size:13px;color:#6B7A8D;">' + _gpEsc(h.cat) + '</div>' : '');
+          r.addEventListener('click', function(){
+            gpAddWord(key, h.word + ':' + kindNow, h.cat, ta);
+            kindClose();
+            repaint();
+          });
+          kindHits.appendChild(r);
+        });
+      });
       var kindCommit = function(){
         var v = String(kindInput.value || '').trim();
         if (!v || !kindNow) return;
         gpAddWord(key, v + ':' + kindNow, '', ta);
-        kindInput.value = '';
-        kindBox.style.display = 'none';
-        kindNow = '';
+        kindClose();
         repaint();
       };
       kindAdd.addEventListener('click', kindCommit);
@@ -916,7 +966,10 @@
       cfg._openKind = function(kind, prompt){
         kindNow = kind;
         kindInput.placeholder = prompt;
+        kindInput.value = '';
+        kindHits.innerHTML = ''; kindHits.style.display = 'none';
         kindBox.style.display = 'flex';
+        markKind(kind);
         kindInput.focus();
       };
     }
