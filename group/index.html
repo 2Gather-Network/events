@@ -956,27 +956,44 @@ function pick(el, key){
   window.gpOnboardDone = function(){ gpShow('concierge'); };
 
   gpShow('onboard');
-  var GP_CAT_FIELDS = {
-    skills: ['skills', 'professionalServices'],
-    offers: ['haves'],
-    enjoy:  ['interests', 'hobbies'],
-    care:   ['values', 'domains', 'advocating'],
-    needs:  ['needs']
-  };
+  var GP_CAT_LABELS = { skills:'Skills', things:'Things', spaces:'Spaces', jobs:'Jobs', projects:'Projects', ideas:'Ideas' };
+  var GP_CAT_ORDER  = ['skills','things','spaces','jobs','projects','ideas'];
+  var GP_CAT_FIELDS = { skills: ['skills', 'professionalServices'], things: ['haves'], spaces: ['haves'] };
+  var GP_CAT_HAVE_KIND = { things: 'thing', spaces: 'space' };
   var _gpGroupCats = null;
+  function gpCatOn(key){ return !_gpGroupCats || _gpGroupCats.indexOf(key) > -1; }
   function gpCatAllows(field){
     if (!_gpGroupCats) return true;
-    for (var k = 0; k < _gpGroupCats.length; k++) {
-      var fields = GP_CAT_FIELDS[_gpGroupCats[k]] || [];
-      if (fields.indexOf(field) > -1) return true;
+    var governed = false;
+    for (var k in GP_CAT_FIELDS) {
+      if (GP_CAT_FIELDS[k].indexOf(field) === -1) continue;
+      governed = true;
+      if (_gpGroupCats.indexOf(k) > -1) return true;
     }
-    return false;
+    return !governed;
+  }
+  function gpHaveKindAllowed(token){
+    if (!_gpGroupCats) return true;
+    var bits = String(token || '').split(':');
+    var kind = bits.length > 1 ? bits[bits.length - 1].trim().toLowerCase() : '';
+    for (var k in GP_CAT_HAVE_KIND) {
+      if (GP_CAT_HAVE_KIND[k] !== kind) continue;
+      return _gpGroupCats.indexOf(k) > -1;
+    }
+    return gpCatOn('things');
   }
   window.gpSetGroupCats = function(raw){
     var v = String(raw == null ? '' : raw).trim();
     if (!v) { _gpGroupCats = null; return; }
-    var list = v.split(',').map(function(x){ return x.trim().toLowerCase(); }).filter(function(x){ return GP_CAT_FIELDS[x]; });
+    var list = v.split(',').map(function(x){ return x.trim().toLowerCase(); }).filter(function(x){ return GP_CAT_LABELS[x]; });
     _gpGroupCats = list.length ? list : null;
+  };
+  window.gpGroupCatLine = function(){
+    if (!_gpGroupCats || _gpGroupCats.length === GP_CAT_ORDER.length) return '';
+    var named = GP_CAT_ORDER.filter(gpCatOn).map(function(k){ return GP_CAT_LABELS[k]; });
+    if (!named.length) return '';
+    return 'This group is for sharing ' + (named.length === 1 ? named[0]
+      : named.slice(0, -1).join(', ') + ' and ' + named[named.length - 1]) + '.';
   };
   var _SRC_OFFER_ALL = ['skills','values','interests','hobbies','domains','professionalServices','advocating'];
   var _SRC_NEED_ALL  = ['needs'];
@@ -1582,8 +1599,10 @@ function pick(el, key){
     var tok = function(v){ return String(v||'').split('|').filter(function(x){ return x.trim(); }).length; };
     people.forEach(function(p){
       if (gpCatAllows('skills')) offers += tok(p.skills);
-      if (gpCatAllows('haves'))  offers += tok(p.haves);
-      if (gpCatAllows('needs'))  needs  += tok(p.needs);
+      offers += String(p.haves || '').split('|').filter(function(x){
+        return x.trim() && gpHaveKindAllowed(x);
+      }).length;
+      needs += tok(p.needs);
     });
     return {offers: offers, needs: needs, count: people.length};
   }
@@ -1915,6 +1934,18 @@ function pick(el, key){
           var introEl = document.getElementById('gp-intro-copy');
           if (introEl) introEl.textContent = d.group.intro;
         }
+        (function(){
+          var line = '';
+          try { line = gpGroupCatLine(); } catch (e) { return; }
+          if (!line) return;
+          var introEl = document.getElementById('gp-intro-copy');
+          if (!introEl || document.getElementById('gp-intro-cats')) return;
+          var el = document.createElement('div');
+          el.id = 'gp-intro-cats';
+          el.setAttribute('style', 'font-size:14px;color:#1A2E42;font-weight:700;margin-top:10px;line-height:1.5;');
+          el.textContent = line;
+          introEl.parentNode.insertBefore(el, introEl.nextSibling);
+        })();
         if (d.group.agreements) {
         }
         if (d.group.hostIds && d.group.hostIds.length) {
