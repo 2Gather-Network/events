@@ -125,7 +125,8 @@
       var out = input;
       try {
         var url = (typeof input === 'string') ? input : (input && input.url) || '';
-        if (url.indexOf(GATE) > -1 && url.indexOf('action=') > -1 && url.indexOf('meToken=') === -1) {
+        if (url.indexOf(GATE) > -1 && url.indexOf('action=') > -1 && url.indexOf('meToken=') === -1
+            && url.length < 6000) {
           var t = ls(function () { return w.localStorage.getItem('cw-token') || ''; }, '');
           if (t) {
             var joined = url + (url.indexOf('?') > -1 ? '&' : '?') + 'meToken=' + encodeURIComponent(t);
