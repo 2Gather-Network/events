@@ -437,6 +437,7 @@
       .replace(/,\s*$/, '')
       .trim();
   }
+  var WORK_SKILLS=[];
   var _TAG_TYPES='(?:skill|space|thing|person|work|stuff|money|time|care|local)';
   function _untag(v){
     var t=String(v||'');
@@ -481,7 +482,7 @@
   }
   function loadProfile(d){
     window._profRaw = d; window._profFound = true;
-    NEEDS_ADDED = []; ENJOY_ADDED = []; SKILLS_ADDED = []; SKILL_METHODS_ON = [];
+    NEEDS_ADDED = []; ENJOY_ADDED = []; SKILLS_ADDED = []; SKILL_METHODS_ON = []; WORK_SKILLS = [];
     VALUES_ADDED = []; DOMAINS_ADDED = []; WORK_VALUES_ADDED = []; EXPRESSION_ADDED = ['']; SECTIONS[4].data = [];
     try{
       _loaded={ postal:d.postal||'', retired:d.retired||'', bringType:d.bringType||'', wantsSignupList:d.wantsSignupList||'', languages:d.languages||'', photoURL:d.photoURL||'' };
@@ -500,6 +501,12 @@
       }).map(function(n){ return { item:n.item, type:(n.ntype==='skill'?'person':n.ntype==='space'?'space':'thing'), category:n.category||'', level:'', local:!!n.local, detail:n.detail||'', work:(n.ntype==='work') }; });
       ENJOY_ADDED = parseTagStr(d.interests||'','level').map(function(x){ return { t:x.item, sel:(x.level?String(x.level).split(',').map(function(s){return s.trim();}).filter(Boolean):[]) }; });
       SKILLS_ADDED = parseTagStr(d.skills||'','level').map(function(x){ return { t:x.item, cat:x.category||'', level:x.level||'' }; });
+      // OPEN FOR WORK is a mark on the skill itself, :work on the end of it, set on the Open to
+      // work step. parseTagStr throws the mark away with everything after the name, so the raw
+      // string is read again here rather than changing a parser eleven other things depend on.
+      WORK_SKILLS = String(d.skills||'').split('|').map(function(x){ return String(x).trim(); })
+        .filter(function(x){ return x && /:work(:|$)/i.test(x); })
+        .map(function(x){ return x.split(':')[0].trim(); }).filter(Boolean);
       SKILL_METHODS_ON = (d.methods||'').split('|').filter(Boolean);
       VALUES_ADDED = parseTagStr(d.values||'','level').map(function(x){ return { t:x.item, lvl:x.level||'' }; });
       DOMAINS_ADDED = parseTagStr(d.domains||'','level').map(function(x){ return { t:x.item, lvl:x.level||'' }; });
@@ -1515,7 +1522,7 @@
 
       +pvSection("What I'm seeking",0,seeking,pvSaid('need',_pillsNeeds))
       +pvSection('What I enjoy',1,enjoy,pvSaid('enjoy',_pillsEnjoy)+expr)
-      +pvSection('My skills',2,'',methods+skills+pvSaid('skills',_pillsSkills))
+      +pvSection('My skills',2,'',pvWrap(WORK_SKILLS.map(function(w){ return pvTag(w); }).join(''), 'Open for work')+methods+skills+pvSaid('skills',_pillsSkills))
       +pvSection('What I care about',3,'',vals+doms+pvWrap((WORK_VALUES_ADDED||[]).map(function(t){ return pvTag(t); }).join(''), 'Work values')+purposeHtml+pvSaid('values',_noCats(VALUES_ADDED,function(x){return x.t;}).map(function(x){return x.t;}).concat(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(x){return x.t;}),WORK_VALUES_ADDED||[])))
       // THE SAME TWO TITLES THE OFFERINGS STEP USES, her "like this" with that step on screen.
       // Spaces first, then the rest, in the order the step asks for them - so nobody meets one

@@ -396,6 +396,98 @@
     return gpBlock('Which languages do you speak?', 'So people know they can talk to you in theirs.', wrap);
   }
 
+  // MY FOCUS FOR WORK. Jessie, 2026-09-21: "My focus for work is more like it - it's prioritiziign
+  // speicfic work over all skills - add anotehr qestion if they select yes open to work and pull
+  // all skills in there as delsected and ask them to select the ones they are open to work on and
+  // have a select all and select none options and then pull htis into open for work on the profile
+  // itself".
+  //
+  // DESELECTED TO START IS THE WHOLE POINT. Eight skills with every one ticked says the same thing
+  // as no answer at all. Somebody choosing three of eight is the answer worth having, so nothing is
+  // assumed on their behalf and the empty state is honest rather than flattering.
+  //
+  // WHERE IT IS KEPT: on the skill itself, as :work on the end of it in ikigai.skills. That mark
+  // already exists and the backend already reads it - "What somebody offers is their things and
+  // spaces and the skills they marked for work". So this fills in a column that has been asked for
+  // and never answered, rather than adding a ninth place to keep in step.
+  var _gpWorkSkills = {};
+  function gpMySkillNames(){
+    var out = [], seen = {};
+    var add = function(v){
+      v = String(v || '').split(':')[0].trim();
+      if (!v || seen[v.toLowerCase()]) return;
+      seen[v.toLowerCase()] = 1; out.push(v);
+    };
+    try { Object.keys((typeof _gpTags !== 'undefined' && _gpTags['introSkills']) || {}).forEach(add); } catch (e) {}
+    try { String((document.getElementById('gp-intro-introSkills') || {}).value || '').split(/[,|]/).forEach(add); } catch (e) {}
+    return out;
+  }
+  // The mark goes on in ONE place, so both save paths carry it and neither can forget.
+  function gpMarkWorkSkills(str){
+    var on = {};
+    Object.keys(_gpWorkSkills).forEach(function(k){ if (_gpWorkSkills[k]) on[k.toLowerCase()] = 1; });
+    return String(str || '').split('|').map(function(x){
+      var t = String(x).trim();
+      if (!t) return '';
+      var name = t.split(':')[0].trim();
+      var already = /:work(:|$)/i.test(t);
+      if (on[name.toLowerCase()]) { return already ? t : (t + ':work'); }
+      return already ? t.replace(/:work(?=:|$)/i, '').replace(/::+/g, ':').replace(/:$/, '') : t;
+    }).filter(Boolean).join('|');
+  }
+  function gpWorkFocusBody(){
+    var body = document.createElement('div');
+    var names = gpMySkillNames();
+    if (!names.length) {
+      body.innerHTML = '<div style="font-size:13.5px;color:#6B7A8D;">Add a skill on the Skills step first, '
+        + 'and it will show up here to pick from.</div>';
+      return body;
+    }
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+    var paintAll = function(){
+      row.innerHTML = '';
+      names.forEach(function(w){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = w;
+        var on = !!_gpWorkSkills[w];
+        b.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
+          + (on ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;'
+                : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;');
+        b.onclick = function(){ _gpWorkSkills[w] = !_gpWorkSkills[w]; paintAll(); gpWorkFocusCount(); };
+        row.appendChild(b);
+      });
+    };
+    var bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px;align-items:center;';
+    [['Select all', true], ['Select none', false]].forEach(function(pair){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = pair[0];
+      b.style.cssText = 'font:inherit;font-size:13px;font-weight:700;padding:6px 13px;border-radius:20px;'
+        + 'border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;';
+      b.onclick = function(){ names.forEach(function(w){ _gpWorkSkills[w] = pair[1]; }); paintAll(); gpWorkFocusCount(); };
+      bar.appendChild(b);
+    });
+    var count = document.createElement('span');
+    count.id = 'gp-work-count';
+    count.style.cssText = 'font-size:13px;color:#6B7A8D;';
+    bar.appendChild(count);
+    body.appendChild(bar);
+    body.appendChild(row);
+    paintAll();
+    setTimeout(gpWorkFocusCount, 0);
+    return body;
+  }
+  function gpWorkFocusCount(){
+    var el = document.getElementById('gp-work-count');
+    if (!el) return;
+    var n = Object.keys(_gpWorkSkills).filter(function(k){ return _gpWorkSkills[k]; }).length;
+    var all = gpMySkillNames().length;
+    el.textContent = n ? (n + ' of ' + all + ' chosen') : 'None chosen yet';
+  }
+
   var _gpOtw = { paid: {}, unpaidTime: {}, unpaid: {} };
   function gpOtwList(side){ return Object.keys(_gpOtw[side]).filter(function(k){ return _gpOtw[side][k]; }); }
   function gpOtwBlock(){
@@ -437,6 +529,9 @@
       _up.row.appendChild(_oth);
       var _upBody = document.createElement('div'); _upBody.appendChild(_up.row); _upBody.appendChild(_obx);
       w.appendChild(gpBlock('Which types of non-paid work?', 'Pick as many as fit.', _upBody));
+      w.appendChild(gpBlock('My focus for work',
+        'Which of your skills do you actually want work for? Everything starts off, so pick only the ones you mean.',
+        gpWorkFocusBody()));
       return true;
     };
     gpChoicesOr(w, fill);   
@@ -2086,7 +2181,7 @@
     var seen = {}, out = String(base || '').split('|').map(function(x){ return x.trim(); }).filter(Boolean);
     out.forEach(function(x){ seen[x.split(':')[0].trim().toLowerCase()] = 1; });
     gpOfferParts().offerSkills.forEach(function(x){ var n = x.split(':')[0].trim().toLowerCase(); if (!seen[n]) { seen[n] = 1; out.push(x); } });
-    return out.join('|');
+    return gpMarkWorkSkills(out.join('|'));
   }
 
   var GP_SAVE_WHY = /[?&]savewhy=1\b/.test(location.search);
@@ -3091,6 +3186,15 @@
         _gpOrig = {};
         var have = (d && d.data) || {};
         var use = {}, any = false;
+        // WHAT IS ALREADY MARKED COMES BACK IN. Without this the page would send every skill
+        // unmarked on the next save and quietly wipe an answer nobody touched.
+        try {
+          _gpWorkSkills = {};
+          String(have.skills || '').split('|').forEach(function(x){
+            var t = String(x).trim(); if (!t || !/:work(:|$)/i.test(t)) return;
+            var n = t.split(':')[0].trim(); if (n) _gpWorkSkills[n] = true;
+          });
+        } catch (e) {}
         var _workNames = {};
         if (GP_RAIL) {
           String(have.workValues || '').split('|').concat(String(have.needs || '').split('|').filter(function(x){ return /:work$/i.test(x); }))
