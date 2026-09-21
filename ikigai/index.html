@@ -455,7 +455,7 @@
         b.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
           + (on ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;'
                 : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;');
-        b.onclick = function(){ _gpWorkSkills[w] = !_gpWorkSkills[w]; paintAll(); gpWorkFocusCount(); };
+        b.onclick = function(){ _gpWorkSkills[w] = !_gpWorkSkills[w]; paintAll(); gpWorkFocusCount(); gpPaintWorkFocusLink(); };
         row.appendChild(b);
       });
     };
@@ -467,9 +467,10 @@
       b.textContent = pair[0];
       b.style.cssText = 'font:inherit;font-size:13px;font-weight:700;padding:6px 13px;border-radius:20px;'
         + 'border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;';
-      b.onclick = function(){ names.forEach(function(w){ _gpWorkSkills[w] = pair[1]; }); paintAll(); gpWorkFocusCount(); };
+      b.onclick = function(){ names.forEach(function(w){ _gpWorkSkills[w] = pair[1]; }); paintAll(); gpWorkFocusCount(); gpPaintWorkFocusLink(); };
       bar.appendChild(b);
     });
+    bar.appendChild(gpStepButton('Edit skills', 'Skills'));
     var count = document.createElement('span');
     count.id = 'gp-work-count';
     count.style.cssText = 'font-size:13px;color:#6B7A8D;';
@@ -479,6 +480,42 @@
     paintAll();
     setTimeout(gpWorkFocusCount, 0);
     return body;
+  }
+  // A WAY BACK AND A WAY FORWARD, so the two screens are a pair rather than a one-way trip.
+  // Jessie, 2026-09-21: "have a button saying Edit skills that goes back to skills / and a way for
+  // people to go from skills to Edit my work focus if they already have it filled out so they can
+  // toggle back and forth". One helper builds both, so the buttons cannot drift apart.
+  function gpStepButton(label, stepName){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.style.cssText = 'font:inherit;font-size:13px;font-weight:700;padding:6px 13px;border-radius:20px;'
+      + 'border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;';
+    b.onclick = function(){
+      var i = GP_STEP_TITLES.indexOf(stepName);
+      if (i < 0) { return; }
+      gpShowStep(i);
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
+    };
+    return b;
+  }
+  function gpHasWorkFocus(){
+    return Object.keys(_gpWorkSkills || {}).some(function(k){ return _gpWorkSkills[k]; });
+  }
+  // ONLY ONCE THERE IS SOMETHING TO EDIT. A button called "Edit my work focus" on a person who has
+  // never set one is an invitation to a screen that will look empty and unexplained, so it appears
+  // after the first answer and not before.
+  function gpPaintWorkFocusLink(){
+    var host = document.getElementById('gp-methods-block');
+    var old = document.getElementById('gp-workfocus-link');
+    if (!host) { return; }
+    if (!gpHasWorkFocus()) { if (old) { old.remove(); } return; }
+    if (old) { return; }
+    var w = document.createElement('div');
+    w.id = 'gp-workfocus-link';
+    w.style.cssText = 'margin:14px 0 0;';
+    w.appendChild(gpStepButton('Edit my work focus', 'Open to work'));
+    host.appendChild(w);
   }
   function gpWorkFocusCount(){
     var el = document.getElementById('gp-work-count');
@@ -530,7 +567,7 @@
       var _upBody = document.createElement('div'); _upBody.appendChild(_up.row); _upBody.appendChild(_obx);
       w.appendChild(gpBlock('Which types of non-paid work?', 'Pick as many as fit.', _upBody));
       w.appendChild(gpBlock('My focus for work',
-        'Which of your skills do you actually want work for? Everything starts off, so pick only the ones you mean.',
+        'Which of your skills do you want to be available for today?',
         gpWorkFocusBody()));
       return true;
     };
@@ -1751,6 +1788,7 @@
         el.style.display = ok ? '' : 'none';
       };
       reveal('gp-methods-block', gpAnswered('introSkills'));
+      try { gpPaintWorkFocusLink(); } catch (e) {}
       reveal('gp-serve-block', gpAnswered('introSkills'));
       reveal('gp-otw-block', gpAnswered('introSkills'));
 
