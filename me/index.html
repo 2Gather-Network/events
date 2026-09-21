@@ -224,10 +224,21 @@
   .pv-said{margin-top:12px;font-size:14.5px;line-height:1.55;color:var(--ink);}
   .pv-some b{text-transform:uppercase;font-size:10px;letter-spacing:.08em;color:var(--brand);font-weight:800;}
   
-  .pv-acts{display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 6px;}
+  .pv-acts{display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 6px;align-items:center;}
   .pv-pill{display:inline-flex;align-items:center;gap:6px;background:var(--brand);color:#fff;border:1.5px solid var(--brand);border-radius:20px;padding:7px 15px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;}
   .pv-pill:disabled{opacity:.6;cursor:default;}
-  .pv-pill.bm-on{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .pv-ico{width:40px;height:40px;min-width:40px;padding:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1.5px solid var(--brand);color:var(--brand);cursor:pointer;font-size:0;}
+  .pv-ico::before{content:"";width:20px;height:20px;background-color:currentColor;-webkit-mask:var(--ico) no-repeat center / contain;mask:var(--ico) no-repeat center / contain;}
+  .pv-ico:disabled{opacity:.6;cursor:default;}
+  #pv-bookmark{--ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M18%207v14l-6%20-4l-6%204v-14a4%204%200%200%201%204%20-4h4a4%204%200%200%201%204%204z%22/%3E%3C/svg%3E");}
+  #pv-bookmark.bm-on{--ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22black%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M18%207v14l-6%20-4l-6%204v-14a4%204%200%200%201%204%20-4h4a4%204%200%200%201%204%204z%22/%3E%3C/svg%3E");background:var(--brand);color:#fff;border-color:var(--brand);}
+  .pv-bm-say{font-size:12.5px;color:var(--muted);align-self:center;}
+  .ic-key{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:2px 0 8px;}
+  .ic-key-item{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#6A8FAF;}
+  .ic-key-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block;}
+  .ic-key-dot.share{background:#5DCAA5;}
+  .ic-key-dot.comp{background:#EE8B2C;}
+  .ic-key-dot.coseek{background:#7F77DD;}
   .ic-card{margin:2px 0 8px;background:var(--panel);border:1px solid var(--panel-line);border-radius:14px;padding:14px 16px;}
   .ic-h{font-size:15px;font-weight:800;color:var(--ink);margin:0 0 8px;}
   .ic-list{display:flex;flex-direction:column;gap:8px;}
@@ -1479,7 +1490,8 @@
       +(_viewingSomeoneElse
         ? '<div class="pv-acts">'
           + '<button class="pv-pill" id="pv-common">Show our commonality</button>'
-          + '<button class="pv-pill" id="pv-bookmark">Bookmark</button>'
+          + '<button class="pv-ico" id="pv-bookmark" type="button" aria-label="Bookmark" title="Bookmark"></button>'
+          + '<span class="pv-bm-say" id="pv-bm-say"></span>'
           + '</div><div id="pv-common-out"></div>'
         : '')
 
@@ -1624,10 +1636,16 @@
     cross(B.offer, A.need,  function(w){ add('comp',   w, 'they offer / you need'); });
     cross(A.offer, B.need,  function(w){ add('comp',   w, 'you offer / they need'); });
     cross(A.need,  B.need,  function(w){ add('coseek', w, 'you are both looking for this'); });
-    cross(A.speak, B.speak, function(w){ add('share',  w, 'you both speak this'); });
     cross(A.enjoy, B.enjoy, function(w){ add('share',  w, 'you both enjoy this'); });
     cross(A.value, B.value, function(w){ add('share',  w, 'you both care about this'); });
-    cross(A.offer, B.offer, function(w){ add('share',  w, 'you both offer this'); });
+    // A language is an offering too, so it would be claimed here as "you both offer this" and
+    // never reach the line below. Skipped, so the language keeps the words a person would use.
+    cross(A.offer, B.offer, function(w){
+      if (A.speak[String(w).toLowerCase()]) return;
+      add('share', w, 'you both offer this');
+    });
+    // LANGUAGES LAST, her word, 2026-09-21: "make English / you both speak this the last one".
+    cross(A.speak, B.speak, function(w){ add('share',  w, 'you both speak this'); });
     return rows;
   }
   function icItemHtml(r){
@@ -1636,11 +1654,15 @@
       + '<span class="ic-note">' + esc(r.note) + '</span></div></div>';
   }
   var _bmOnHere = false, _bmBusy = false;
+  function _bmSay(t){ var e = document.getElementById('pv-bm-say'); if (e) e.textContent = t || ''; }
   function _bmPaint(b){
     if (!b) return;
-    b.textContent = _bmOnHere ? 'Bookmarked' : 'Bookmark';
-    b.title = b.textContent;
+    var word = _bmOnHere ? 'Bookmarked' : 'Bookmark';
+    b.title = word;
+    b.setAttribute('aria-label', word);
+    b.setAttribute('aria-pressed', _bmOnHere ? 'true' : 'false');
     b.classList.toggle('bm-on', !!_bmOnHere);
+    _bmSay('');
   }
   function _bmWho(){
     var them = '';
@@ -1652,16 +1674,16 @@
     if (_bmBusy) return;
     var mine = '';
     try { mine = (window.CW && CW.realMe) ? String(CW.realMe().id || '') : ''; } catch(e){}
-    if (!mine) { b.textContent = 'Sign in to bookmark'; return; }
+    if (!mine) { _bmSay('Sign in to bookmark.'); return; }
     // WHOSE PAGE THIS IS, from the row that was loaded, not from _id. Arriving by /hi/<name> the
     // address carries a six-character code and no id, so _id falls back to the id in this browser's
     // own storage - the visitor's. Bookmarking anybody would have bookmarked yourself.
     var them = _bmWho();
-    if (!them) { b.textContent = 'Still loading. Try again.'; return; }
+    if (!them) { _bmSay('Still loading. Try again.'); return; }
     var want = !_bmOnHere;
     _bmBusy = true;
     b.disabled = true;
-    b.textContent = want ? 'Bookmarking\u2026' : 'Removing\u2026';
+    _bmSay(want ? 'Bookmarking\u2026' : 'Removing\u2026');
     fetch(GS_URL + '?action=saveBookmark&from=' + encodeURIComponent(mine)
           + '&to=' + encodeURIComponent(them) + (want ? '' : '&remove=true'))
       .then(function(r){ return r.json(); })
@@ -1671,6 +1693,15 @@
   }
   var _icHtml = '', _icOpen = false;
   function icSay(html){ var o = document.getElementById('pv-common-out'); if (o) o.innerHTML = html; }
+  // THE KEY, ABOVE THE CARD. Her word, 2026-09-21: "Show the key above commonality". Same three
+  // words and three colours as the group match view, so nobody has to learn them twice.
+  function icKey(){
+    return '<div class="ic-key">'
+      + '<span class="ic-key-item"><span class="ic-key-dot comp"></span>Offer/need match</span>'
+      + '<span class="ic-key-item"><span class="ic-key-dot coseek"></span>You both need this</span>'
+      + '<span class="ic-key-item"><span class="ic-key-dot share"></span>In common</span>'
+      + '</div>';
+  }
   function icCard(inner){ return '<div class="ic-card">' + inner + '</div>'; }
   function icShut(btn){ _icOpen = false; icSay(''); if (btn) btn.textContent = 'Show our commonality'; }
   function icOpen(btn){ _icOpen = true; icSay(_icHtml); if (btn) btn.textContent = 'Hide our commonality'; }
@@ -1720,7 +1751,7 @@
             + '<div class="ic-none">Nothing the two of you have both written down yet. '
             + 'The more either of you fills in, the more there is to find.</div>');
         } else {
-          _icHtml = icCard('<div class="ic-h">What we have in common</div>'
+          _icHtml = icKey() + icCard('<div class="ic-h">What we have in common</div>'
             + '<div class="ic-list">' + rows.map(icItemHtml).join('') + '</div>');
         }
         icOpen(btn);
