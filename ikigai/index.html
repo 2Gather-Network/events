@@ -60,7 +60,7 @@
   <div class="card">
     <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:0 0 6px;">
       <div style="font-size:22px;font-weight:800;color:#1A2E42;" id="gp-intro-title">Before you go in</div>
-      <div style="margin-left:auto;font-size:15px;font-weight:800;color:#6B7A8D;">My profile</div>
+      <a id="gp-my-profile" role="link" tabindex="0" style="margin-left:auto;font:inherit;font-size:14px;font-weight:700;padding:8px 16px;border-radius:24px;border:1.5px solid #1F699E;background:#1F699E;color:#fff;text-decoration:none;cursor:pointer;white-space:nowrap;">My profile</a>
     </div>
     <p id="gp-intro-lede" style="font-size:14.5px;color:#6B7A8D;margin:0 0 22px;line-height:1.55;">
       Your answers below help others get to know you and will generate matches to the right people
@@ -1996,16 +1996,7 @@
       + 'This is how you look to somebody in a group you join. You can change any of it later from '
       + 'your profile.</div>'
       + (function () {
-          var name = '', code = '';
-          try {
-            var _n2 = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
-            if (_n2(localStorage.getItem('cw-vanity-for')) === _n2(meId)) {
-              name = String(localStorage.getItem('cw-vanity') || '').trim();
-            }
-          } catch (e) {}
-          try { code = (window.CW && CW.refCode) ? String(CW.refCode(meId) || '') : ''; } catch (e) {}
-          var href = name ? ('https://2gather.network/hi/' + encodeURIComponent(name))
-                          : (code ? ('https://2gather.network/me/?p=' + encodeURIComponent(code)) : '');
+          var href = gpMyProfileHref();
           if (!href) { return ''; }
           return '<a href="' + href + '" style="display:inline-block;font:inherit;font-size:14px;'
             + 'font-weight:700;padding:9px 16px;border-radius:24px;border:1.5px solid #C9DFF3;'
@@ -2471,6 +2462,47 @@
     });
     return true;
   }
+  // SOMEBODY'S OWN PUBLIC ADDRESS, worked out once for both buttons that need it.
+  //
+  // THE READER FOR cw-vanity WAS ALREADY HERE AND NOTHING HAS EVER WRITTEN IT. So the branch that
+  // builds 2gather.network/hi/<name> has never once run, and the button underneath has always
+  // fallen through to the six-character code - which is the same dead-code fault written up this
+  // morning, in a different file. /me/ now remembers the name when it learns it, which is the only
+  // page that is told it, and a name is public so keeping it costs nothing.
+  //
+  // The fallback is ?v= rather than ?p=: ?p= draws the cut-down public card, ?v= draws the real
+  // profile and tidies its own address to /hi/<name> as soon as it knows it.
+  function gpMyProfileHref(){
+    var name = '', code = '';
+    try {
+      var n = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
+      if (n(localStorage.getItem('cw-vanity-for')) === n(meId)) {
+        name = String(localStorage.getItem('cw-vanity') || '').trim();
+      }
+    } catch (e) {}
+    if (name) { return 'https://2gather.network/hi/' + encodeURIComponent(name); }
+    try { code = (window.CW && CW.refCode) ? String(CW.refCode(meId) || '') : ''; } catch (e) {}
+    return code ? ('https://2gather.network/me/?v=' + encodeURIComponent(code)) : '';
+  }
+  // It sits in the card header, which is drawn once and kept for every step, so this runs once and
+  // the button is on all of them.
+  function gpPaintMyProfile(tries){
+    var a = document.getElementById('gp-my-profile');
+    if (!a) { return; }
+    var href = gpMyProfileHref();
+    if (!href) {
+      // meId and the shared identity script may not have arrived yet, and the short name arrives
+      // only after /me/ has been visited once. Hidden beats a button that goes nowhere, and it
+      // keeps looking for a little while rather than deciding on the first frame.
+      a.style.display = 'none';
+      if ((tries || 0) < 12) { setTimeout(function(){ gpPaintMyProfile((tries || 0) + 1); }, 400); }
+      return;
+    }
+    a.style.display = '';
+    a.setAttribute('href', href);
+    a.onclick = function () { window.location.href = href; return false; };
+  }
+  try { if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', function(){ gpPaintMyProfile(0); }); } else { gpPaintMyProfile(0); } } catch (e) {}
   function gpHasLang(){ return Object.keys(_gpLangPicked || {}).some(function(k){ return _gpLangPicked[k]; }); }
   function gpHasPhoto(){ return !!(window._gpPhotoUp || document.querySelector('#gp-photo-face img')); }
   var GP_REQ_ITEMS = [
