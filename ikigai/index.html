@@ -3170,6 +3170,39 @@
     for (var i = 0; i <= 3; i++) { if (!gpReqStepDone(i)) return i; }
     return 99;
   }
+  // A TICK ON EVERY STEP THAT HOLDS AN ANSWER, not only the four with something required in them.
+  // Jessie, 2026-09-21, looking at Needs, Offerings, Open to work and Appreciation with no mark
+  // beside them: "make sure these are checked if answered all q's". Those four ask for nothing, so
+  // they had no badge at all and looked untouched however much was in them.
+  //
+  // KEYED BY THE STEP'S NAME, never its number. Numbers here have to be kept in step with
+  // GP_STEP_TITLES, which changes whenever a step is added, hidden or moved - and a number that
+  // has drifted does not fail, it quietly ticks the wrong row.
+  //
+  // These steps are optional, so a step with nothing in it gets NO mark rather than a Required
+  // pill. Nothing is being asked of anybody here.
+  function gpStepAnswered(title){
+    try {
+      if (title === 'Needs') {
+        return gpAnswered('introNeed')
+          || Object.keys(_gpWork || {}).some(function(k){ return _gpWork[k]; });
+      }
+      if (title === 'Offerings') {
+        return !!(_gpHaves && _gpHaves.length) || gpAnswered('introOffer');
+      }
+      if (title === 'Open to work') {
+        return !!window._gpOTW
+          || ['paid', 'unpaidTime', 'unpaid', 'gig'].some(function(side){ return gpOtwList(side).length > 0; })
+          || Object.keys(_gpWorkSkills || {}).some(function(k){ return _gpWorkSkills[k]; });
+      }
+      if (title === 'Appreciation') {
+        return Object.keys(_gpThanksPicked || {}).some(function(k){ return _gpThanksPicked[k]; });
+      }
+      if (title === 'Purpose') { return !!String(gpRailPurpose() || '').trim(); }
+      return false;
+    } catch (e) { return false; }
+  }
+
   function gpRailPaint(){
     var r = document.getElementById('gp-rail'); if (!r) return;
     var waiting = document.getElementById('gp-wait') && document.getElementById('gp-wait').style.display !== 'none';
@@ -3187,6 +3220,8 @@
         _badge = _ok ? '<span class="gp-tab-done">\u2713</span>'
                      : '<span class="gp-tab-req" aria-label="Required" title="Required"></span>';
         if (!_ok) _need = ' need';
+      } else if (i !== GP_LAST && gpStepAnswered(l)) {
+        _badge = '<span class="gp-tab-done">\u2713</span>';
       }
       var _wait = (i > 0 && waiting) ? ' waiting' : '';
       h += '<button type="button" class="gp-tab' + (i === _gpStep ? ' on' : '') + _need + _wait + '"'
