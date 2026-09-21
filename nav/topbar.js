@@ -461,6 +461,7 @@
         'padding:10px 0;box-shadow:0 14px 34px rgba(15,45,70,.28);z-index:20;}' +
       '.cwtb-row.cwtb-open{display:block;}' +
       '.cwtb-me{cursor:pointer;}' +
+      '.cwtb-tab[data-menu="thisgroup"]{font-weight:800;}' +
       '.cwtb-item{display:block;padding:13px 22px;font-size:16px;font-weight:500;color:#1A2E42;' +
         'text-decoration:none;cursor:pointer;white-space:nowrap;}' +
       '.cwtb-item:hover{background:#F7FBFF;}' +
