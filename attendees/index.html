@@ -379,6 +379,55 @@ function dropWorkValues(list){
 
 // WHERE YOU ARE, IN ORDER. The last part is never a link, because a link to where you already are
 // is the thing that made the old button confusing.
+// EVERY VIEW HAS ITS OWN ADDRESS. Jessie, 2026-09-21: "just goes to the page i was on. we need a
+// URL to change based on the view we are on". The crumbs were links to the page you were already
+// on, so pressing one did nothing, the browser Back button left the page entirely, and a view
+// nobody could link to could not be shared or reopened.
+//
+// The address carries WHERE, not what is on the screen: view=matches, view=skills for an expanded
+// section, and cat / lang underneath it. Nothing else changes, so a link somebody already has
+// still opens the bulletin board.
+function _viewParams(){
+  var q = new URLSearchParams(location.search);
+  ['view','cat','lang'].forEach(function(k){ q.delete(k); });
+  if(_matchMode){ q.set('view','matches'); }
+  else if(_expanded){
+    q.set('view', _expanded);
+    if(_expandedCat) q.set('cat', _expandedCat);
+    if(_expandedLang) q.set('lang', _expandedLang);
+  }
+  return q.toString();
+}
+// replace, not push, when the view did not actually change - otherwise Back walks through states
+// somebody never chose.
+var _viewAddr='';
+function _writeAddr(push){
+  try{
+    var q=_viewParams(), url=location.pathname+(q?'?'+q:'');
+    if(url===location.pathname+location.search){ _viewAddr=url; return; }
+    if(push && _viewAddr){ history.pushState({v:1}, '', url); } else { history.replaceState({v:1}, '', url); }
+    _viewAddr=url;
+  }catch(e){}
+}
+function _readAddr(){
+  try{
+    var q=new URLSearchParams(location.search);
+    var v=String(q.get('view')||'').trim();
+    _matchMode = (v==='matches');
+    _expanded = (v && v!=='matches') ? v : null;
+    _expandedCat = _expanded ? (q.get('cat')||null) : null;
+    _expandedLang = _expanded ? (q.get('lang')||null) : null;
+    var btn=document.getElementById('matches-btn');
+    if(btn){ btn.classList.toggle('active',_matchMode); btn.textContent=_matchMode?'Back to bulletin board':'My matches'; }
+  }catch(e){}
+}
+window.addEventListener('popstate', function(){
+  _readAddr();
+  try{ paintCrumbs(); }catch(e){}
+  try{ renderAll(); }catch(e){}
+  try{ window.scrollTo(0,0); }catch(e){}
+});
+
 function paintCrumbs(){
   var el=document.getElementById('hub-crumbs'); if(!el) return;
   if(!_groupId){ el.innerHTML=''; return; }
@@ -386,9 +435,10 @@ function paintCrumbs(){
   var gh='https://2gather.network/group/?id='+encodeURIComponent(_groupId)+'&look=board';
   var sep='<span aria-hidden="true">\u203A</span>';
   var parts=['<a href="'+gh+'">'+escHTML(name)+'</a>'];
-  if(_matchMode){
-    parts.push('<a onclick="toggleMatches()">Bulletin board</a>');
-    parts.push('<span class="now">My matches</span>');
+  var hub=location.pathname+'?group='+encodeURIComponent(_groupId);
+  if(_matchMode || _expanded){
+    parts.push('<a href="'+hub+'" onclick="return goHub(event)">Bulletin board</a>');
+    parts.push('<span class="now">'+escHTML(_matchMode?'My matches':(SECTION_META[_expanded]&&SECTION_META[_expanded].title)||_expanded)+'</span>');
   } else {
     parts.push('<span class="now">Bulletin board</span>');
   }
@@ -1169,13 +1219,16 @@ function renderExpanded(){
 }
 window.expandSection=function(key){
   if(!_myId||!_meRegistered){ showToast('Please sign in/up to make connections 🌱'); return; }
-  _expanded=key; _expandedCat=null; _expandedLang=null; try{window.scrollTo(0,0);}catch(e){} renderAll();
+  _expanded=key; _expandedCat=null; _expandedLang=null; _matchMode=false; _writeAddr(true); try{paintCrumbs();}catch(e){} try{window.scrollTo(0,0);}catch(e){} renderAll();
 };
-window.expandCategory=function(cat){ _expandedCat=cat; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
-window.expandLanguage=function(lang){ _expandedLang=lang; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
-window.backToCategories=function(){ _expandedCat=null; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
-window.backToLangList=function(){ _expandedLang=null; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
-window.backToHub=function(){ _expanded=null; _expandedCat=null; _expandedLang=null; try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+window.expandCategory=function(cat){ _expandedCat=cat; _writeAddr(true); try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+window.expandLanguage=function(lang){ _expandedLang=lang; _writeAddr(true); try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+window.backToCategories=function(){ _expandedCat=null; _writeAddr(true); try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+window.backToLangList=function(){ _expandedLang=null; _writeAddr(true); try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+window.backToHub=function(){ _expanded=null; _expandedCat=null; _expandedLang=null; _writeAddr(true); try{paintCrumbs();}catch(e){} try{window.scrollTo(0,0);}catch(e){} renderAll(); };
+// The Bulletin board crumb is a real address, so it works with a middle-click or a right-click -
+// and a plain click stays on the page rather than reloading everything.
+window.goHub=function(ev){ if(ev&&ev.preventDefault) ev.preventDefault(); _matchMode=false; window.backToHub(); return false; };
 function showToast(msg){
   var t=document.getElementById('toast'); if(!t) return;
   t.textContent=msg; t.classList.add('show');
@@ -1230,6 +1283,7 @@ function toggleMatches(){
   var btn=document.getElementById('matches-btn');
   var legend=document.getElementById('match-legend');
   if(btn){ btn.classList.toggle('active',_matchMode); btn.textContent=_matchMode?'Back to bulletin board':'My matches'; }
+  _writeAddr(true);
   try{ paintCrumbs(); }catch(e){}
   if(legend) legend.style.display='none';
   try{window.scrollTo(0,0);}catch(e){}
@@ -1257,6 +1311,9 @@ function updateHeaderButton(){
 }
 (async function init(){
   document.title=_groupId?'Group bulletin board':'Bulletin board';   
+  // READ THE ADDRESS FIRST, so a link somebody was sent opens on the view it names rather than on
+  // the bulletin board with the address lying about where they are.
+  try{ _readAddr(); _viewAddr=location.pathname+location.search; }catch(e){}
   if(_groupId){
     [['interests','Recreational interests of our group'],['values','Values of our group'],['needs','What our group needs']].forEach(function(t){
       var h=document.getElementById(t[0]+'-body'); h=h&&h.parentNode&&h.parentNode.querySelector('.q-title'); if(h) h.textContent=t[1];
