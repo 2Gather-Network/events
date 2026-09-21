@@ -776,6 +776,7 @@
     ta.value = parts.join(', ');
     _gpUserAdded[String(key) + '|' + String(word).toLowerCase()] = 1;
     if (typeof gpStepPaint === 'function') gpStepPaint();
+    try { gpTagPaint(key); } catch (e) {}
     gpTouchSave();
   }
   function gpDropWord(key, word, ta){
@@ -785,6 +786,7 @@
     var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
     ta.value = parts.filter(function(p){ return p.toLowerCase() !== String(word).toLowerCase(); }).join(', ');
     if (typeof gpStepPaint === 'function') gpStepPaint();
+    try { gpTagPaint(key); } catch (e) {}
     gpTouchSave();
   }
   function gpHasWord(key, word){
@@ -1851,6 +1853,104 @@
     try { window.scrollTo(0, 0); } catch (e) {}
   }
 
+  var GP_TAGS_ON = (function(){ try { return new URLSearchParams(location.search).get('tags') === '1'; } catch (e) { return false; } })();
+  var GP_LEVELS = {
+    introEnjoy:  { multi:true,  list:['Fan','Participant','Coach'],            head:'How you take part' },
+    introSkills: { multi:false, list:['Entry Level','Mid Level','Expert Level'], head:'How far along you are' },
+    introValues: { multi:false, list:['Exploring','Engaged','Leading'],        head:'How deep you are in it' }
+  };
+  function gpOrigFor(key, word){
+    var o = _gpOrig[key] || {};
+    return String(o[String(word).toLowerCase()] || word);
+  }
+  function gpSplitWork(raw){
+    var m = String(raw).match(/^(.*?)(:work)$/i);
+    return m ? { body:m[1], work:m[2] } : { body:String(raw), work:'' };
+  }
+  function gpLevelOf(key, word){
+    var parts = gpSplitWork(gpOrigFor(key, word)).body.split(':');
+    if (parts.length < 2) { return []; }
+    var last = String(parts[parts.length - 1] || '').trim();
+    if (!last) { return []; }
+    return last.split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+  }
+  function gpSetLevel(key, word, levels){
+    if (!_gpOrig[key]) { _gpOrig[key] = {}; }
+    var raw = gpOrigFor(key, word);
+    var w = gpSplitWork(raw);
+    var parts = w.body.split(':');
+    var lvl = levels.join(',');
+    if (parts.length === 1) { parts.push(lvl); }
+    else { parts[parts.length - 1] = lvl; }
+    _gpOrig[key][String(word).toLowerCase()] = parts.join(':') + w.work;
+    try { gpTouchSave(); } catch (e) {}
+  }
+  function gpPickedWords(key){
+    var el = document.getElementById('gp-intro-' + key);
+    return String((el && el.value) || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+  }
+  function gpTagBox(q, wrap){
+    if (!GP_TAGS_ON) { return; }
+    var spec = GP_LEVELS[q.key];
+    if (!spec || !wrap) { return; }
+    var box = document.createElement('div');
+    box.id = 'gp-tagbox-' + q.key;
+    box.style.cssText = 'margin:18px 0 0;border:1.5px dashed #C9DFF3;border-radius:14px;padding:14px 16px 16px;background:#F7FBFF;';
+    var lab = document.createElement('div');
+    lab.style.cssText = 'font-size:13px;font-weight:800;color:#6B7A8D;margin:0 0 4px;';
+    lab.textContent = spec.head;
+    var hint = document.createElement('div');
+    hint.style.cssText = 'font-size:12.5px;color:#6B7A8D;margin:0 0 12px;line-height:1.5;';
+    hint.textContent = 'Optional, and only you decide. This is the detail the older edit screen could set and this one could not.';
+    box.appendChild(lab); box.appendChild(hint);
+    var rows = document.createElement('div');
+    rows.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+    box.appendChild(rows);
+    wrap.appendChild(box);
+    gpTagPaint(q.key);
+  }
+  function gpTagPaint(key){
+    var box = document.getElementById('gp-tagbox-' + key);
+    if (!box) { return; }
+    var spec = GP_LEVELS[key];
+    var rows = box.lastChild;
+    rows.innerHTML = '';
+    var words = gpPickedWords(key);
+    if (!words.length) {
+      var none = document.createElement('div');
+      none.style.cssText = 'font-size:13.5px;color:#6B7A8D;';
+      none.textContent = 'Pick something above and it will appear here.';
+      rows.appendChild(none);
+      return;
+    }
+    words.forEach(function(word){
+      var on = gpLevelOf(key, word);
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;';
+      var nm = document.createElement('span');
+      nm.style.cssText = 'font-size:14.5px;font-weight:700;color:#1A2E42;min-width:132px;';
+      nm.textContent = word;
+      row.appendChild(nm);
+      spec.list.forEach(function(lv){
+        var picked = on.indexOf(lv) > -1;
+        var b = gpPill(lv, picked);
+        b.onclick = function(){
+          var now = gpLevelOf(key, word);
+          if (spec.multi) {
+            var at = now.indexOf(lv);
+            if (at > -1) { now.splice(at, 1); } else { now.push(lv); }
+          } else {
+            now = (now.length === 1 && now[0] === lv) ? [] : [lv];
+          }
+          gpSetLevel(key, word, now);
+          gpTagPaint(key);
+        };
+        row.appendChild(b);
+      });
+      rows.appendChild(row);
+    });
+  }
+
   var _gpProse = {}, _gpProseDirty = {};
   function gpProseBox(q, wrap){
     var have = String((_gpProse && _gpProse[q.key]) || '').trim();
@@ -1981,6 +2081,7 @@
       var chipRow = gpPicker(q.key, ta) || gpChipRow(q.key, ta);
       if (chipRow) wrap.appendChild(chipRow);
       if (_proseAfterChips) { gpProseBox(q, _proseAfterChips); }
+      gpTagBox(q, _proseAfterChips || wrap);
       var _map = { introEnjoy:'1', introSkills:'2', introValues:'3', introNeed:'4', introOffer:'4' };
       wrap.setAttribute('data-gp-step', _map[q.key] || '4');
       box.appendChild(wrap);
