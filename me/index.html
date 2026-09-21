@@ -230,9 +230,16 @@
   .pv-pill.bm-on{background:var(--brand);color:#fff;border-color:var(--brand);}
   .ic-card{margin:2px 0 8px;background:var(--panel);border:1px solid var(--panel-line);border-radius:14px;padding:14px 16px;}
   .ic-h{font-size:15px;font-weight:800;color:var(--ink);margin:0 0 8px;}
-  .ic-row{font-size:14.5px;color:var(--ink);line-height:1.5;padding:3px 0;}
+  .ic-list{display:flex;flex-direction:column;gap:8px;}
+  .ic-item{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--ink);}
+  .ic-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:6px;display:inline-block;}
+  .ic-dot.share{background:#5DCAA5;}
+  .ic-dot.comp{background:#EE8B2C;}
+  .ic-dot.coseek{background:#7F77DD;}
+  .ic-item-text{display:flex;flex-direction:column;}
+  .ic-item-name{line-height:1.3;}
+  .ic-note{font-size:11px;color:#6A8FAF;margin-top:2px;}
   .ic-none{font-size:14.5px;color:var(--muted);line-height:1.5;}
-  .ic-more{font-size:12.5px;color:var(--muted);margin-top:8px;}
   .pv-share{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 0 4px;}
   .pv-share button{display:inline-flex;align-items:center;gap:6px;background:#fff;color:var(--brand);border:1.5px solid var(--panel-line);border-radius:20px;padding:7px 15px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;}
   .pv-share button:hover{background:var(--panel);}
@@ -1576,11 +1583,14 @@
   // cost before. Every list-shaped ikigai column is compared: Jessie, 2026-09-21, asked for "all of
   // the fields we have".
   var IC_KIND = { skills:'offer', professionalServices:'offer', haves:'offer', methods:'offer',
-                  languages:'offer',
                   interests:'enjoy', hobbies:'enjoy', expression:'enjoy',
                   values:'value', domains:'value', sectors:'value', careAbout:'value',
                   workValues:'value', advocating:'value',
                   needs:'need' };
+  // A LANGUAGE IS OFFERED AND IT IS ALSO SPOKEN. Jessie, 2026-09-21: "You and kendall both offer
+  // English - change to You and kendall both speak English". It stays an offering, because somebody
+  // can need Spanish and you can be the person who has it, and it gets its own kind as well so the
+  // line under it reads the way a person would say it.
   function icWords(row, field){
     var v = row ? row[field] : '';
     return String(v == null ? '' : v).split(/[|,]/)
@@ -1588,41 +1598,43 @@
       .filter(Boolean);
   }
   function icBuckets(row){
-    var out = { offer:{}, enjoy:{}, value:{}, need:{} };
+    var out = { offer:{}, enjoy:{}, value:{}, need:{}, speak:{} };
     Object.keys(IC_KIND).forEach(function(f){
       icWords(row, f).forEach(function(w){ out[IC_KIND[f]][w.toLowerCase()] = w; });
     });
+    icWords(row, 'languages').forEach(function(w){
+      out.speak[w.toLowerCase()] = w; out.offer[w.toLowerCase()] = w;
+    });
     return out;
   }
-  function icRows(A, B, nm){
+  // THE SAME THREE COLOURS THE GROUP MATCH VIEW USES, and the same words for them: orange is an
+  // offer meeting a need, purple is a need you both have, green is something you share. Jessie,
+  // 2026-09-21, with the attendees screen open: "make it look liek this - we have hte code already
+  // in groups". The LOOK is that screen's, lifted whole. The MATCHING is not the same code and
+  // cannot be: attendees asks a group-wide question - does anybody ELSE here need this - across
+  // every member at once, and this asks about two people. Same answer shape, different question.
+  function icRows(A, B){
     var rows = [], seen = {};
-    var add = function(pri, mark, text){
-      var k = String(text).toLowerCase();
+    var add = function(kind, item, note){
+      var k = String(item).toLowerCase();
       if (seen[k]) return; seen[k] = 1;
-      rows.push({ pri: pri, mark: mark, text: text });
+      rows.push({ kind: kind, item: item, note: note });
     };
     var cross = function(a, b, fn){ Object.keys(a).forEach(function(k){ if (b[k]) fn(a[k]); }); };
-    // What one of you needs and the other offers comes first, because that is the one somebody can
-    // act on today. Sharing a value is lovely; being able to help is a reason to write.
-    cross(B.offer, A.need,  function(w){ add(1, '✨', esc(nm) + ' can help with <b>' + esc(w) + '</b>'); });
-    cross(A.offer, B.need,  function(w){ add(1, '✨', 'You can help ' + esc(nm) + ' with <b>' + esc(w) + '</b>'); });
-    cross(A.need,  B.need,  function(w){ add(2, '\u{1F4A1}', 'You and ' + esc(nm) + ' are both looking for <b>' + esc(w) + '</b>'); });
-    cross(A.enjoy, B.enjoy, function(w){ add(3, '✨', 'You and ' + esc(nm) + ' enjoy <b>' + esc(w) + '</b>'); });
-    cross(A.value, B.value, function(w){ add(3, '✨', 'You and ' + esc(nm) + ' both care about <b>' + esc(w) + '</b>'); });
-    cross(A.offer, B.offer, function(w){ add(4, '✨', 'You and ' + esc(nm) + ' both offer <b>' + esc(w) + '</b>'); });
-    rows.sort(function(x, y){ return x.pri - y.pri; });
+    cross(B.offer, A.need,  function(w){ add('comp',   w, 'they offer / you need'); });
+    cross(A.offer, B.need,  function(w){ add('comp',   w, 'you offer / they need'); });
+    cross(A.need,  B.need,  function(w){ add('coseek', w, 'you are both looking for this'); });
+    cross(A.speak, B.speak, function(w){ add('share',  w, 'you both speak this'); });
+    cross(A.enjoy, B.enjoy, function(w){ add('share',  w, 'you both enjoy this'); });
+    cross(A.value, B.value, function(w){ add('share',  w, 'you both care about this'); });
+    cross(A.offer, B.offer, function(w){ add('share',  w, 'you both offer this'); });
     return rows;
   }
-  // BOOKMARK, THE SAME DESIGN AS AN EVENT'S. Jessie, 2026-09-21: "Bookmarked shoudl be same
-  // bookmark dseign sa an event when bookmarked". On the event page a bookmark is blue and filled
-  // once it is saved and pressing it again takes it off, so this does both rather than sticking on
-  // the word "Bookmarked" for good.
-  //
-  // IT DOES NOT ASK THE SHEET WHETHER YOU ALREADY BOOKMARKED THIS PERSON. That would be a second
-  // nine-to-thirty-nine-second read on every visit to every profile, for one word. So a fresh load
-  // says "Bookmark" whether or not you have. Saving the same pair twice does nothing - the backend
-  // finds the existing row and leaves it - so pressing it again is safe, it is only uninformed.
-  // The honest fix is for the profile read the page ALREADY makes to carry the answer.
+  function icItemHtml(r){
+    return '<div class="ic-item"><span class="ic-dot ' + r.kind + '"></span>'
+      + '<div class="ic-item-text"><span class="ic-item-name">' + esc(r.item) + '</span>'
+      + '<span class="ic-note">' + esc(r.note) + '</span></div></div>';
+  }
   var _bmOnHere = false, _bmBusy = false;
   function _bmPaint(b){
     if (!b) return;
@@ -1702,17 +1714,14 @@
           icOpen(btn);
           return;
         }
-        var rows = icRows(icBuckets(resp.data), icBuckets(theirs), nm);
+        var rows = icRows(icBuckets(resp.data), icBuckets(theirs));
         if (!rows.length) {
           _icHtml = icCard('<div class="ic-h">What we have in common</div>'
             + '<div class="ic-none">Nothing the two of you have both written down yet. '
             + 'The more either of you fills in, the more there is to find.</div>');
         } else {
           _icHtml = icCard('<div class="ic-h">What we have in common</div>'
-            + rows.slice(0, 12).map(function(r){
-                return '<div class="ic-row">' + r.mark + ' ' + r.text + '</div>';
-              }).join('')
-            + (rows.length > 12 ? '<div class="ic-more">and ' + (rows.length - 12) + ' more</div>' : ''));
+            + '<div class="ic-list">' + rows.map(icItemHtml).join('') + '</div>');
         }
         icOpen(btn);
       })
