@@ -321,16 +321,53 @@ window._safeNavGo = window._safeNavGo || function (el) {
   var myFace = null;  
   try { myFace = JSON.parse(localStorage.getItem('cw-commons-me') || 'null'); } catch (e) {}
 
+  // A MISSING PLUS SIGN MEANT THIS STRIP COULD ONLY EVER DRAW YOURSELF. Jessie, 2026-09-21: "karin
+  // is in there rihgt now with me and i'm talking with her and it says 2 avialable in commons but i
+  // only see my face/name".
+  //
+  // The line read `})()\n  (viewer ? ...)`. With no + between them, JavaScript does not join two
+  // strings - it CALLS the first one, so `"https://..."(...)` threw "is not a function" for every
+  // person who was not you. The throw escaped the loop, the whole then() aborted, and the line that
+  // paints the strip never ran. Your own face was still there only because toggling on inserts it
+  // by a separate path, which takes the `mine` branch and never touches the broken half.
+  //
+  // IT WAS SILENT, which is why it lasted. The catch does set an error line, but say() has already
+  // hidden that element whenever anybody is here, so the failure had nowhere to show.
   function faceHtml(p, viewer) {
     var mine = viewer && String(p.appearId).split('.').join('').toLowerCase() ===
                String(viewer).split('.').join('').toLowerCase();
-    var to = mine ? 'https://creating.works/profile'
-                  : (function(){ var c=_cwCodeFor(p.appearId||''); return c?('https://2gather.network/me/?v='+encodeURIComponent(c)):''; })()
-                    (viewer ? '&me=' + encodeURIComponent(viewer) : '');
+    var to = '';
+    if (mine) {
+      to = 'https://creating.works/profile';
+    } else {
+      var c = _cwCodeFor(p.appearId || '');
+      if (c) {
+        to = 'https://2gather.network/me/?v=' + encodeURIComponent(c)
+           + (viewer ? '&me=' + encodeURIComponent(viewer) : '');
+      }
+    }
+    var nm = '<span class="nm">' + (p.name || p.first || 'Someone') + '</span>';
+    var img = p.photo ? '<img src="' + p.photo + '" alt="">' : '';
+    // Somebody who typed a name and never signed in has no id, so there is no profile to open.
+    // They still belong in the room, so they are drawn without a link rather than left out.
+    if (!to) { return '<span class="who">' + img + nm + '</span>'; }
     return '<a class="who" role="link" tabindex="0"' + (mine ? ' data-me="1"' : '') +
-           ' data-nav="' + to + '" onclick="return _safeNavGo(this)">' +
-           (p.photo ? '<img src="' + p.photo + '" alt="">' : '') +
-           '<span class="nm">' + (p.name || p.first || 'Someone') + '</span></a>';
+           ' data-nav="' + to + '" onclick="return _safeNavGo(this)">' + img + nm + '</a>';
+  }
+
+  // WHAT TO SAY DEPENDS ON WHETHER THEY ARE IN YET. Jessie, 2026-09-21: "Ssay this instead aFTER
+  // you're in and see yourself avialble in commons". Telling somebody they need no login once they
+  // are plainly already here is the page talking past them.
+  function paintNote(){
+    var n = document.getElementById('here-note');
+    if (!n) { return; }
+    var mine = !!faces.querySelector('[data-me]');
+    var help = ' <span class="ask-help">Something not working? <a role="link" tabindex="0"'
+      + ' data-nav="https://2gather.network/support" onclick="return _safeNavGo(this)">Tell us</a></span>';
+    n.innerHTML = (mine
+      ? 'Unmute your mic below at the bottom. Collapse the arrow above anytime.'
+      : 'No need to login \u2013 just share your name \u{1F3AF} Unmute your mic below. Collapse the white bar above anytime.'
+    ) + help;
   }
 
   function say(n) {
@@ -453,8 +490,13 @@ window._safeNavGo = window._safeNavGo || function (el) {
             showRoom(true);
           }
         }
-        for (var i = 0; i < list.length; i++) { html += faceHtml(list[i], viewer); }
+        // ONE BAD ROW MUST NOT COST THE WHOLE STRIP. That is what happened above: everybody after
+        // the first person who threw was lost, and so was everybody before them.
+        for (var i = 0; i < list.length; i++) {
+          try { html += faceHtml(list[i], viewer); } catch (e) {}
+        }
         faces.innerHTML = html;
+        paintNote();
       })
       .catch(function () {
         count.textContent = 'Who is here cannot load yet. The presence actions are not in the script.';
@@ -488,10 +530,12 @@ window._safeNavGo = window._safeNavGo || function (el) {
       if (myFace && !faces.querySelector('[data-me]')) {
         faces.innerHTML = faceHtml(myFace, me()) + faces.innerHTML;
       }
+      paintNote();
     } else {
       var meEl = faces.querySelector('[data-me]');
       if (meEl) { meEl.parentNode.removeChild(meEl); }
       if (!next) { faces.innerHTML = ''; }
+      paintNote();
     }
     say(next);
     known = next;
