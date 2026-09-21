@@ -820,6 +820,16 @@
     var _stopWait = function () { clearInterval(_waitTimer); };
   } else { var _stopWait = function () {}; }
 
+  // THE SAME KEY AND THE SAME SHAPE THE TOP BAR READS, written from the page that actually knows.
+  // The id is normalised the way the bar normalises it before comparing, so a difference in dots or
+  // case between two pages cannot make a true answer look like somebody else's.
+  function _keepGroupsFlag(list){
+    try {
+      var who = String(meId || '').trim().split('.').join('').toLowerCase();
+      if (!who) { return; }
+      localStorage.setItem('cw-mygroups-v4', JSON.stringify({ who: who, list: list || [], at: Date.now() }));
+    } catch (e) {}
+  }
   fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(meId) + _fresh)
     .then(function(r){ return r.json(); })
     .then(function(d){
@@ -831,6 +841,9 @@
       }
       if (!d.groups.length) {
         try { sessionStorage.removeItem(_listKey); } catch (err) {}
+        // NO is written as readily as YES. Somebody who leaves their last group should stop seeing
+        // the link, not keep it because we only ever recorded good news.
+        _keepGroupsFlag([]);
         emptyPanel(_pane === 'member'
           ? "You don't belong to any groups yet."
           : "You don't host any groups yet. Start one and it'll show up here.");
@@ -838,6 +851,16 @@
       }
       _groups = d.groups;
       try { sessionStorage.setItem(_listKey, JSON.stringify(d.groups)); } catch (err) {}
+      // TELL THE TOP BAR, because nothing else on this page does. Jessie, 2026-09-21: "why is karin
+      // not showing My groups in her top rihgt name evne though she is a host of a group?"
+      //
+      // The bar shows My groups only when a flag on the device says there is something behind it -
+      // it asks nothing itself, because it draws on every page and every read costs nine to
+      // thirty-nine seconds. The flag was written in exactly ONE place: the EVENTS page. So
+      // somebody who hosts a group and has never opened Events on that browser never sees the
+      // link, and the only way to My groups is the link. Worse, opening My groups itself did not
+      // help, because this page - the one that is holding the answer - never wrote it.
+      _keepGroupsFlag(d.groups);
       renderRail();
     })
     .catch(function(){
