@@ -533,7 +533,18 @@
     el.textContent = n ? (n + ' of ' + all + ' chosen') : 'None chosen yet';
   }
 
-  var _gpOtw = { paid: {}, unpaidTime: {}, unpaid: {} };
+  var _gpOtw = { paid: {}, unpaidTime: {}, unpaid: {}, gig: {} };
+  // GIG WORK, asked only of somebody open to part-time. Jessie, 2026-09-21: "add a new part-time
+  // quetsion if they select part-time in work / Are you interested in gig work? Do any of these
+  // apply to you? House sitting, Pet sitting, Home care, Child care, Elder care". The list is in
+  // code rather than the reference sheet because it is five fixed words she named; if it starts
+  // growing it moves to reference-data like the others.
+  var GP_GIG = ['House sitting', 'Pet sitting', 'Home care', 'Child care', 'Elder care'];
+  function gpWantsPartTime(){
+    return Object.keys(_gpOtw.paid || {}).some(function(k){
+      return _gpOtw.paid[k] && String(k).toLowerCase().indexOf('part') > -1;
+    });
+  }
   function gpOtwList(side){ return Object.keys(_gpOtw[side]).filter(function(k){ return _gpOtw[side][k]; }); }
   function gpOtwBlock(){
     var w = document.createElement('div');
@@ -545,7 +556,18 @@
       if (!Array.isArray(rd.paidWorkTypes)) return false;
       w.innerHTML = '';
       var opts = function(side, list){ var l = list.slice(); gpOtwList(side).forEach(function(v){ if (l.indexOf(v) < 0) l.push(v); }); return l; };
-      w.appendChild(gpBlock('What type of paid work are you open to?', 'Pick as many as fit.', gpPickRow(opts('paid', rd.paidWorkTypes), _gpOtw.paid, 0).row));
+      var _paid = gpPickRow(opts('paid', rd.paidWorkTypes), _gpOtw.paid, 0);
+      // Picking Part-time has to bring the gig question in straight away, so this row redraws the
+      // block after any change rather than waiting for something else to repaint it.
+      _paid.row.addEventListener('click', function(){ setTimeout(fill, 0); });
+      w.appendChild(gpBlock('What type of paid work are you open to?', 'Pick as many as fit.', _paid.row));
+      // ASKED ONLY WHEN IT APPLIES. Somebody who said Full-time and nothing else is not asked about
+      // house sitting, and the question appears the moment Part-time is picked rather than on the
+      // next paint, because fill() redraws this whole block.
+      if (gpWantsPartTime()) {
+        w.appendChild(gpBlock('Are you interested in gig work?', 'Do any of these apply to you?',
+          gpPickRow(opts('gig', GP_GIG), _gpOtw.gig, 0).row));
+      }
       w.appendChild(gpBlock('What type of non-paid work are you open to?', 'Pick as many as fit.', gpPickRow(opts('unpaidTime', rd.paidWorkTypes), _gpOtw.unpaidTime, 0).row));
       var _up = gpPickRow(opts('unpaid', rd.unpaidWorkTypes || []), _gpOtw.unpaid, 0);
       var _oth = document.createElement('button');
@@ -2052,6 +2074,7 @@
         + '&location='      + encodeURIComponent(gpLocString(_gpLoc));
     if (window._gpLoaded) qs += '&havesTags=' + encodeURIComponent(gpOfferParts().havesTags)
       + '&openToPaidWork=' + encodeURIComponent(gpOtwList('paid').join('|'))
+      + '&gigWork=' + encodeURIComponent(gpWantsPartTime() ? gpOtwList('gig').join('|') : '')
       + '&openToUnpaidTime=' + encodeURIComponent(gpOtwList('unpaidTime').join('|'))
       + '&openToUnpaidWork=' + encodeURIComponent(gpOtwList('unpaid').join('|'))
       + '&servesWho=' + encodeURIComponent(Object.keys(_gpServe).filter(function(k){ return _gpServe[k]; }).join('|'));
@@ -2283,6 +2306,7 @@
         + '&location='      + encodeURIComponent(gpLocString(_gpLoc));
     if (window._gpLoaded) qs += '&havesTags=' + encodeURIComponent(gpOfferParts().havesTags)
       + '&openToPaidWork=' + encodeURIComponent(gpOtwList('paid').join('|'))
+      + '&gigWork=' + encodeURIComponent(gpWantsPartTime() ? gpOtwList('gig').join('|') : '')
       + '&openToUnpaidTime=' + encodeURIComponent(gpOtwList('unpaidTime').join('|'))
       + '&openToUnpaidWork=' + encodeURIComponent(gpOtwList('unpaid').join('|'))
       + '&servesWho=' + encodeURIComponent(Object.keys(_gpServe).filter(function(k){ return _gpServe[k]; }).join('|'));
@@ -3309,6 +3333,7 @@
         _owPaid.forEach(function(v){ _gpOtw.paid[v] = true; any = true; });
         _owTime.forEach(function(v){ _gpOtw.unpaidTime[v] = true; any = true; });
         _owUnpaid.forEach(function(v){ _gpOtw.unpaid[v] = true; any = true; });
+        _ow(have.gigWork).forEach(function(v){ _gpOtw.gig[v] = true; any = true; });
         _ow(have.servesWho).forEach(function(v){ _gpServe[v] = true; any = true; });
         if (GP_RAIL) {
           _ow(have.needs).filter(function(x){ return /:work$/i.test(x); }).map(function(x){ return x.replace(/:work$/i, ''); })
