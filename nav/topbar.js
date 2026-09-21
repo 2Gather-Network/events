@@ -154,8 +154,21 @@
     };
   }
 
+  // A REAL href, SO THE BROWSER TREATS THESE AS LINKS. Jessie, 2026-09-21, wanting to open a menu
+  // item without leaving a call: "is there a way to right click on the pill so it can open up a new
+  // tab? I don't see that possibltiy".
+  //
+  // These were anchors with NO href - role="link" and a data-nav the click handler read. That looks
+  // right and behaves like a div: no Open in new tab, no middle-click, no cmd-click, no Copy link
+  // address, and nothing in the status bar to say where it goes. The browser cannot offer any of
+  // that for a link with no address.
+  //
+  // href AND data-nav, not one or the other. Left-click still goes through _safeNavGo, which
+  // returns false and so stops the browser following the href itself - which matters on the
+  // commons, where following it would drop somebody out of their call. Everything else the browser
+  // does with a link now works because there is finally an address to work with.
   function anchor(label, url, cls) {
-    return '<a role="link" tabindex="0" class="' + cls + '" data-nav="' + url +
+    return '<a role="link" tabindex="0" class="' + cls + '" href="' + url + '" data-nav="' + url +
            '" onclick="return _safeNavGo(this)">' + label + '</a>';
   }
 
@@ -213,11 +226,11 @@
     } else if (onCreatingWorks()) {
       photo = '';
     } else {
-      photo = '<a role="link" tabindex="0" class="cwtb-signin" data-nav="' +
-              (window.CW_SIGNIN || 'https://2gather.network/signin/') +
+      var _si = (window.CW_SIGNIN || 'https://2gather.network/signin/');
+      var _su = (window.CW_SIGNUP || 'https://2gather.network/signup/');
+      photo = '<a role="link" tabindex="0" class="cwtb-signin" href="' + _si + '" data-nav="' + _si +
               '" onclick="return _safeNavGo(this)">Sign in</a>' +
-              '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost" data-nav="' +
-              (window.CW_SIGNUP || 'https://2gather.network/signup/') +
+              '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost" href="' + _su + '" data-nav="' + _su +
               '" onclick="return _safeNavGo(this)">Sign up</a>';
     }
 
@@ -236,12 +249,12 @@
       return mine;
     }
 
+    var _home = onCreatingWorks() ? 'https://creating.works/' : link(EVENTS, 'memberCard');
     var el = document.createElement('div');
     el.id = 'cw-topbar';
     el.innerHTML =
       '<div class="cwtb-bar">' +
-        '<a role="link" tabindex="0" class="cwtb-mark" data-nav="' +
-          (onCreatingWorks() ? 'https://creating.works/' : link(EVENTS, 'memberCard')) +
+        '<a role="link" tabindex="0" class="cwtb-mark" href="' + _home + '" data-nav="' + _home +
           '" onclick="return _safeNavGo(this)">' +
           '<span class="cwtb-glyph"><img src="' + (onCreatingWorks() ? CW_LOGO : LOGO) + '" alt=""></span>' +
           '<span class="cwtb-word">' + (onCreatingWorks() ? 'Because creating works.' : 'Gathering for the common good.') + '</span></a>' +
