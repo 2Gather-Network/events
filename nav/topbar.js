@@ -102,12 +102,20 @@
       return !!(v && v.yes === true && norm(v.who) === norm(me()));
     } catch (e) { return false; }
   }
+  // MY GROUPS SHOWS TO ANYBODY SIGNED IN. Jessie, 2026-09-21, of a host who could not find her own
+  // group: "yes fix for now - but I don't like this fix". Neither do I, and it is the right trade
+  // today. The device flag below is only ever written by pages you reach THROUGH this menu item, so
+  // a host who has not been to the right page cannot see the link, and the link is the way to the
+  // page. A wrong guess costs one menu item that says "You don't host any groups yet". The old
+  // behaviour cost Karin her own group.
+  //
+  // WHAT WOULD BE BETTER, and is not built: the bar should KNOW rather than guess, without asking.
+  // The answer is one bit and it is already known at sign-in, where a read is already happening and
+  // one more costs nobody a page load. Carried on the session pass, the bar would be right for
+  // everybody on every page, on a new device, with no flag and no guess. That is the fix; this is
+  // the stopgap, and it is written down so the stopgap does not become the design by default.
   function hasAGroup() {
-    try {
-      var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
-      var v = JSON.parse(localStorage.getItem('cw-mygroups-v4') || 'null');
-      return !!(v && v.list && v.list.length && norm(v.who) === norm(me()));
-    } catch (e) { return false; }
+    try { return !!me(); } catch (e) { return false; }
   }
 
   function me() {
