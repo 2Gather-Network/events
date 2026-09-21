@@ -2045,10 +2045,26 @@
     return out.join('|');
   }
 
+  var GP_SAVE_WHY = /[?&]savewhy=1\b/.test(location.search);
+  function gpWhy(msg){
+    if (!GP_SAVE_WHY) return;
+    var box = document.getElementById('gp-savewhy');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'gp-savewhy';
+      box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483000;max-width:min(560px,94vw);'
+        + 'max-height:44vh;overflow:auto;background:#1A2E42;color:#fff;font:12px/1.45 ui-monospace,Menlo,monospace;'
+        + 'padding:10px 12px;border-radius:10px;white-space:pre-wrap;';
+      document.body.appendChild(box);
+    }
+    var t = new Date().toTimeString().slice(0, 8);
+    box.textContent = t + '  ' + msg + '\n' + box.textContent;
+  }
+
   function gpQuietSave(){
-    if (!GP_BROWSE || !meId) return;
-    if (gpViewingSomebodyElse()) return;
-    if (!window._gpLoaded) { window._gpWantedSave = true; gpLoadNote(); return; }
+    if (!GP_BROWSE || !meId) { gpWhy('SKIPPED: ' + (!meId ? 'this browser has no id' : 'browse mode off')); return; }
+    if (gpViewingSomebodyElse()) { gpWhy('SKIPPED: viewing somebody else'); return; }
+    if (!window._gpLoaded) { window._gpWantedSave = true; gpLoadNote(); gpWhy('SKIPPED: your answers have not finished loading, so nothing was sent'); return; }
     var val = function(k){ var el = document.getElementById('gp-intro-' + k); return el ? String(el.value || '').trim() : ''; };
     var picked = function(map, sep){ return Object.keys(map).filter(function(k){ return map[k]; }).join(sep); };
     var tagFor = function(k){
@@ -2080,7 +2096,12 @@
       + '&openToUnpaidTime=' + encodeURIComponent(gpOtwList('unpaidTime').join('|'))
       + '&openToUnpaidWork=' + encodeURIComponent(gpOtwList('unpaid').join('|'))
       + '&servesWho=' + encodeURIComponent(Object.keys(_gpServe).filter(function(k){ return _gpServe[k]; }).join('|'));
-    return fetch(GS_URL + '?' + qs).catch(function(){});
+    var _u = GS_URL + '?' + qs;
+    gpWhy('SENDING saveIntro, address is ' + _u.length + ' characters');
+    return fetch(_u)
+      .then(function(r){ gpWhy('came back ' + r.status + ' ' + r.statusText); return r.text(); })
+      .then(function(t){ gpWhy('answer: ' + String(t).slice(0, 300)); })
+      .catch(function(err){ gpWhy('FAILED before any answer: ' + (err && err.message ? err.message : err)); });
   }
 
   var _gpAutoT = null, _gpAutoBusy = false, _gpAutoAgain = false;
