@@ -73,6 +73,47 @@
     return here ? (SUPPORT + '?from=' + encodeURIComponent(here)) : SUPPORT;
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+  // A GROUP MENU IN THE BAR, a mockup behind ?groupnav=1. Jessie, 2026-09-21: "maybe make a drop
+  // down on every group page in top nav bar if they arein a group? Info / Dashboard / Events /
+  // Bulletin Board / Matches", and "create a mockup live link to this".
+  //
+  // OFF unless the parameter is in the address, so nobody else sees it and nothing else changes.
+  // It draws only where there IS a group to be in the menu of: the group page, its bulletin board
+  // and its manage screen all carry the group in the address, so the bar reads it from there and
+  // asks nothing. On any other page there is no group and no menu.
+  //
+  // Matches has a real address now, from this morning's work on the bulletin board views, so that
+  // item goes straight there rather than landing on the board and making somebody press again.
+  //
+  // DASHBOARD IS THE ONE I AM GUESSING AT. There is no page by that name; the nearest thing is the
+  // group's manage screen, so that is where it points, and it is the first thing to settle.
+  function groupNavOn() {
+    try { return /[?&]groupnav=1\b/.test(window.location.search); } catch (e) { return false; }
+  }
+  function groupInAddress() {
+    try {
+      var q = new URLSearchParams(window.location.search);
+      var g = String(q.get('group') || q.get('groupId') || '').trim();
+      if (g) { return g; }
+      var p = String(window.location.pathname || '');
+      if (/^\/(group|groups)\b/.test(p)) { return String(q.get('id') || '').trim(); }
+      return '';
+    } catch (e) { return ''; }
+  }
+  function groupNav() {
+    var g = groupInAddress();
+    if (!g) { return null; }
+    var e = encodeURIComponent(g);
+    return { key: 'thisgroup', label: 'This group', items: [
+      { label: 'Info',           url: 'https://2gather.network/group/?id=' + e },
+      { label: 'Dashboard',      url: 'https://2gather.network/groups/admin/?id=' + e },
+      { label: 'Events',         url: 'https://2gather.network/myevents/?groupId=' + e },
+      { label: 'Bulletin board', url: 'https://2gather.network/attendees/?group=' + e },
+      { label: 'Matches',        url: 'https://2gather.network/attendees/?group=' + e + '&view=matches' }
+    ]};
+  }
+
   var NAV = [];
   var NAV_PARKED = [
 
@@ -186,6 +227,10 @@
 
   function draw() {
     var open = here(), tabs = '', rows = '', i, j, n;
+    // The mockup menu joins the list for this draw only, so turning the parameter off leaves
+    // nothing behind.
+    var _gn = groupNavOn() ? groupNav() : null;
+    if (_gn && NAV.indexOf(_gn) === -1) { NAV = NAV.concat([_gn]); }
 
     for (i = 0; i < NAV.length; i++) {
       n = NAV[i];
