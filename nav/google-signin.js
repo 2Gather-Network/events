@@ -104,6 +104,25 @@
         slot.insertBefore(w, slot.querySelector('.cw-g-or'));
       }
       w.style.display = on ? 'flex' : 'none';
+
+      var or = slot.querySelector('.cw-g-or');
+      if (or) { if (on) { or.setAttribute('data-cw-g-was', or.style.display || ''); or.style.display = 'none'; }
+                else if (or.hasAttribute('data-cw-g-was')) { or.style.display = or.getAttribute('data-cw-g-was'); or.removeAttribute('data-cw-g-was'); } }
+
+      var sib = slot.nextElementSibling;
+      while (sib) {
+        if (on) {
+          if (!sib.hasAttribute('data-cw-g-below')) {
+            sib.setAttribute('data-cw-g-below', sib.style.display || '');
+            sib.style.display = 'none';
+          }
+        } else if (sib.hasAttribute('data-cw-g-below')) {
+          sib.style.display = sib.getAttribute('data-cw-g-below');
+          sib.removeAttribute('data-cw-g-below');
+        }
+        sib = sib.nextElementSibling;
+      }
+
       [].slice.call(document.querySelectorAll('.say')).forEach(function (el) {
         if (slot.contains(el)) return;
         if (on) { if (el.style.display !== 'none') { el.setAttribute('data-cw-g-was', el.style.display || ''); el.style.display = 'none'; } }
