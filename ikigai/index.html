@@ -2469,7 +2469,163 @@
       add.onclick = go;
       inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
     });
+    try { if (GP_CAT) gpCatMock(ob); } catch (e) {}
     return true;
+  }
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+  // FOUR WAYS TO SORT AN OFFERING, on the real step with real answers, behind ?cat=. Jessie,
+  // 2026-09-21: "my offerings should have a smart way to caetgoryize all theseof skills/things/
+  // places - design me a live mockup of this". Nothing here saves anything and nothing here shows
+  // to anybody who does not type the parameter; the ordinary step is untouched.
+  //
+  // WHY NOT ONE PROPOSAL. Four on the real screen settle it in one reply, and a layout only argues
+  // for itself once it is holding somebody's own eleven skills rather than three made-up ones.
+  var GP_CAT = (function(){ try { return String(new URLSearchParams(location.search).get('cat')||'').trim().toUpperCase(); } catch(e){ return ''; } })();
+
+  // The vocabulary is NOT invented. These seven are the ways of working the skills step already
+  // asks everybody to pick from, so filing a skill under one of them uses a list she owns rather
+  // than a taxonomy somebody made up for this screen.
+  var GP_CAT_RULES = [
+    ['\u{1F5C2} Organizing and planning',   ['house manager','executive','assistant','coordinat','manager','planner','organiz','operations','admin','schedul','project','logistic','bookkeep']],
+    ['\u{1F527} Repairing and fixing',      ['repair','fix','mechanic','plumb','electric','handy','maintenance','technician','carpent','contractor']],
+    ['\u{1F4DA} Demonstrating what I know', ['teach','train','instructor','tutor','speaker','lectur','workshop','educat']],
+    ['\u{1F9ED} Consulting and advising',   ['real estate','insurance','consult','advis','strateg','realtor','financ','legal','lawyer','account','broker','agent','tax']],
+    ['\u{1F300} Facilitating and coaching', ['facilitat','coach','mediat','mentor','convening']],
+    ['\u{1F3A8} Making and designing',      ['social media','photograph','marketing','design','develop','build','writ','artist','brand','craft','bake','cook','sew','film','video','music']],
+    ['\u{1F33F} Caring and healing',        ['massage','astrolog','wellness','counsel','therap','doula','reiki','nurse','heal','care','hair','styl','beaut','yoga']]
+  ];
+  // LONGEST MATCH WINS, not first rule. "Social Media Manager" holds both "manager" and "social
+  // media"; the longer one is the more specific one, and it is the one a person means.
+  function gpCatOf(word){
+    var w = String(word||'').toLowerCase(), best = '', hit = '';
+    GP_CAT_RULES.forEach(function(r){
+      r[1].forEach(function(k){ if (w.indexOf(k) > -1 && k.length > best.length) { best = k; hit = r[0]; } });
+    });
+    return hit;
+  }
+  function gpCatData(){
+    var skills = [], seen = {};
+    var add = function(v){ v = String(v||'').trim(); if (!v || seen[v.toLowerCase()]) return; seen[v.toLowerCase()] = 1; skills.push(v); };
+    try { Object.keys((typeof _gpTags !== 'undefined' && _gpTags['introSkills']) || {}).forEach(add); } catch(e){}
+    try { var f = document.getElementById('gp-intro-introSkills'); String(f && f.value || '').split(/[,|]/).forEach(add); } catch(e){}
+    var pick = function(o){ return Object.keys(o||{}).filter(function(k){ return o[k]; }); };
+    var spaces = [], things = [];
+    (_gpHaves||[]).forEach(function(w){ var n = gpHaveName(w); if (!n) return; (gpHaveKind(w) === 'space' ? spaces : things).push(n); });
+    return { skills:skills, methods:pick(_gpMethodPicked), langs:pick(_gpLangPicked), spaces:spaces, things:things };
+  }
+  function gpCatChip(v, tone){
+    var s = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;display:inline-block;';
+    s += (tone === 'soft')
+      ? 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;'
+      : 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;';
+    return '<span style="' + s + '">' + _gpEsc(v) + '</span>';
+  }
+  function gpCatGroup(title, items, tone, note){
+    if (!items || !items.length) return '';
+    return '<div style="margin:0 0 20px;">'
+      + '<div style="font-size:13px;font-weight:800;color:#1A2E42;margin:0 0 3px;">' + _gpEsc(title)
+      + ' <span style="color:#6B7A8D;font-weight:600;">' + items.length + '</span></div>'
+      + (note ? '<div style="font-size:12px;color:#6B7A8D;margin:0 0 7px;">' + _gpEsc(note) + '</div>' : '<div style="height:5px;"></div>')
+      + '<div style="display:flex;flex-wrap:wrap;gap:7px;">' + items.map(function(v){ return gpCatChip(v, tone); }).join('') + '</div>'
+      + '</div>';
+  }
+  function gpCatSwitcher(now){
+    var names = { A:'A · By kind', B:'B · By what it does', C:'C · By how you would get it', D:'D · One list that folds' };
+    var q = function(k){ try { var u = new URLSearchParams(location.search); u.set('cat', k); return location.pathname + '?' + u.toString(); } catch(e){ return '?cat=' + k; } };
+    return '<div style="background:#F7FBFF;border:1px solid #C9DFF3;border-radius:12px;padding:12px 14px;margin:0 0 20px;">'
+      + '<div style="font-size:12.5px;color:#6B7A8D;margin:0 0 8px;">Four ways to sort the same answers. Nothing here saves. '
+      + 'Take the parameter off the address to go back to the step as it is.</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:7px;">'
+      + ['A','B','C','D'].map(function(k){
+          var on = (k === now);
+          return '<a href="' + q(k) + '" style="text-decoration:none;font:inherit;font-size:13px;font-weight:700;'
+            + 'padding:6px 13px;border-radius:20px;border:1.5px solid #1F699E;'
+            + (on ? 'background:#1F699E;color:#fff;' : 'background:#fff;color:#1F699E;') + '">' + _gpEsc(names[k]) + '</a>';
+        }).join('')
+      + '</div></div>';
+  }
+  function gpCatMock(ob){
+    var d = gpCatData(), v = GP_CAT, html = gpCatSwitcher(v);
+    var empty = '<div style="font-size:13px;color:#6B7A8D;">Nothing answered yet on this one, so there is nothing to sort. '
+      + 'Fill in some skills and come back.</div>';
+
+    if (v === 'A') {
+      // BY KIND. No guessing at all: four headings that already exist in the data.
+      html += '<div style="font-size:12.5px;color:#6B7A8D;margin:0 0 14px;">Four headings, nothing inferred. '
+        + 'Each is a list we already keep separately.</div>'
+        + gpCatGroup('Skills', d.skills)
+        + gpCatGroup('Ways I work', d.methods, 'soft')
+        + gpCatGroup('Space', d.spaces, 'soft')
+        + gpCatGroup('Things', d.things, 'soft')
+        + gpCatGroup('Languages', d.langs, 'soft');
+
+    } else if (v === 'B') {
+      // BY WHAT IT DOES. The smart one: each skill filed under one of the seven ways of working
+      // the skills step already asks about, so the headings are a list she owns.
+      var by = {}, other = [];
+      d.skills.forEach(function(s){ var c = gpCatOf(s); if (!c) { other.push(s); return; } (by[c] = by[c] || []).push(s); });
+      html += '<div style="font-size:12.5px;color:#6B7A8D;margin:0 0 14px;">Every skill filed under one of the seven ways of working '
+        + 'the skills step already asks about. Sorted here, not saved, and anything it cannot place is shown as itself.</div>';
+      GP_CAT_RULES.forEach(function(r){ html += gpCatGroup(r[0], by[r[0]]); });
+      html += gpCatGroup('Other ways I help', other, 'soft', 'Nothing matched these, so they stand on their own.')
+        + gpCatGroup('Space and things', d.spaces.concat(d.things), 'soft')
+        + gpCatGroup('Languages', d.langs, 'soft');
+
+    } else if (v === 'C') {
+      // BY HOW YOU WOULD GET IT. Headings written from the asking side rather than the offering
+      // side - what a person reading the profile would actually do next.
+      var learn = [], hire = [];
+      d.skills.forEach(function(s){
+        var c = gpCatOf(s);
+        if (c.indexOf('Demonstrating') > -1 || c.indexOf('Facilitating') > -1 || c.indexOf('Consulting') > -1) learn.push(s); else hire.push(s);
+      });
+      html += '<div style="font-size:12.5px;color:#6B7A8D;margin:0 0 14px;">The same answers, headed by what somebody reading this would do next.</div>'
+        + gpCatGroup('Hire me for', hire)
+        + gpCatGroup('Learn from me', learn)
+        + gpCatGroup('Use my space', d.spaces, 'soft')
+        + gpCatGroup('Borrow from me', d.things, 'soft')
+        + gpCatGroup('Talk with me in', d.langs, 'soft');
+
+    } else {
+      // ONE LIST THAT FOLDS. No headings at all: type to find, and only the first eight show. The
+      // argument for it is that a wall of chips is only a problem because it is a WALL.
+      var all = d.skills.map(function(s){ return { t:s, k:'Skill' }; })
+        .concat(d.spaces.map(function(s){ return { t:s, k:'Space' }; }))
+        .concat(d.things.map(function(s){ return { t:s, k:'Thing' }; }))
+        .concat(d.langs.map(function(s){ return { t:s, k:'Language' }; }));
+      html += '<div style="font-size:12.5px;color:#6B7A8D;margin:0 0 10px;">No headings. Type to find one, and only the first eight show until you ask for the rest.</div>'
+        + '<input id="gp-cat-find" placeholder="Find an offering" style="font:inherit;font-size:14px;padding:9px 14px;'
+        + 'border-radius:20px;border:1px solid #C9DFF3;width:100%;max-width:340px;margin:0 0 12px;">'
+        + '<div id="gp-cat-list"></div>';
+      ob.innerHTML = html;
+      var more = false;
+      var draw = function(){
+        var q = String((document.getElementById('gp-cat-find')||{}).value || '').toLowerCase().trim();
+        var hits = all.filter(function(x){ return !q || x.t.toLowerCase().indexOf(q) > -1; });
+        var show = (more || q) ? hits : hits.slice(0, 8);
+        var box = document.getElementById('gp-cat-list');
+        box.innerHTML = (hits.length
+            ? '<div style="display:flex;flex-wrap:wrap;gap:7px;">'
+              + show.map(function(x){ return gpCatChip(x.t + ' · ' + x.k, x.k === 'Skill' ? '' : 'soft'); }).join('')
+              + '</div>'
+            : '<div style="font-size:13px;color:#6B7A8D;">Nothing matches that.</div>')
+          + ((!more && !q && hits.length > 8)
+              ? '<button type="button" id="gp-cat-more" style="font:inherit;font-size:13px;font-weight:700;margin-top:10px;'
+                + 'padding:6px 13px;border-radius:20px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;">'
+                + '+ ' + (hits.length - 8) + ' more</button>'
+              : '');
+        var b = document.getElementById('gp-cat-more');
+        if (b) b.onclick = function(){ more = true; draw(); };
+      };
+      var fi = document.getElementById('gp-cat-find');
+      if (fi) fi.addEventListener('input', draw);
+      draw();
+      if (!all.length) document.getElementById('gp-cat-list').innerHTML = empty;
+      return;
+    }
+
+    if (!d.skills.length && !d.spaces.length && !d.things.length && !d.langs.length) html += empty;
+    ob.innerHTML = html;
   }
   function gpHasLang(){ return Object.keys(_gpLangPicked || {}).some(function(k){ return _gpLangPicked[k]; }); }
   function gpHasPhoto(){ return !!(window._gpPhotoUp || document.querySelector('#gp-photo-face img')); }
