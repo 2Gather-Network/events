@@ -962,7 +962,12 @@
           rm.style.cssText = 'font:inherit;font-size:15px;line-height:1;border:0;background:none;color:#8A97A6;cursor:pointer;padding:0 2px;';
           rm.textContent = '\u00d7';
           rm.onclick = function(){ gpDropWord(key, w, ta); repaint(); if (_reBrowse) { _reBrowse(); } };
-          tools.appendChild(loc); tools.appendChild(rm);
+          var pen = document.createElement('button');
+          pen.type = 'button';
+          pen.setAttribute('aria-label', 'Edit ' + b.name);
+          pen.style.cssText = 'font:inherit;font-size:13.5px;line-height:1;border:0;background:none;cursor:pointer;padding:0 2px;';
+          pen.textContent = '\u270F\uFE0F';
+          tools.appendChild(pen); tools.appendChild(loc); tools.appendChild(rm);
           top.appendChild(nm); top.appendChild(tools);
           card.appendChild(top);
           if (b.cat) {
@@ -977,6 +982,87 @@
             d.textContent = 'Seeking: ' + b.detail;
             card.appendChild(d);
           }
+          var panel = document.createElement('div');
+          panel.style.cssText = 'display:none;margin-top:10px;padding-top:10px;border-top:1px solid #DDE4EE;';
+          pen.onclick = function(){
+            var open = panel.style.display !== 'none';
+            panel.style.display = open ? 'none' : 'block';
+            if (open) { return; }
+            panel.innerHTML = '';
+            var cur = gpNeedBits(w);
+            var fieldCss = 'width:100%;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;'
+              + 'padding:8px 10px;font:inherit;font-size:13.5px;color:#1A2E42;outline:none;margin-bottom:8px;';
+            var fName = document.createElement('input');
+            fName.type = 'text'; fName.value = cur.name; fName.style.cssText = fieldCss;
+            var fKind = document.createElement('select');
+            fKind.style.cssText = fieldCss;
+            [['skill', '\u{1F464} Person'], ['space', '\u{1F3E0} Place'], ['thing', '\u{1F4E6} Thing']].forEach(function(k){
+              var op = document.createElement('option');
+              op.value = k[0]; op.textContent = k[1];
+              if (k[0] === cur.kind) { op.selected = true; }
+              fKind.appendChild(op);
+            });
+            var fCat = document.createElement('select');
+            fCat.style.cssText = fieldCss;
+            var mkCats = function(kind){
+              fCat.innerHTML = '';
+              var none = document.createElement('option');
+              none.value = ''; none.textContent = 'No category';
+              fCat.appendChild(none);
+              var seen = {}, list = [];
+              corpus.forEach(function(c){
+                if (!c.cat || seen[c.cat]) { return; }
+                if (kind === 'skill' && c.kind && c.kind !== 'skill') { return; }
+                if (kind !== 'skill' && c.kind === 'skill') { return; }
+                seen[c.cat] = 1; list.push(c.cat);
+              });
+              if (cur.cat && list.indexOf(cur.cat) === -1) { list.push(cur.cat); }
+              list.sort().forEach(function(c){
+                var op = document.createElement('option');
+                op.value = c; op.textContent = c;
+                if (c.toLowerCase() === String(cur.cat).toLowerCase()) { op.selected = true; }
+                fCat.appendChild(op);
+              });
+            };
+            mkCats(cur.kind || 'skill');
+            fKind.onchange = function(){ mkCats(fKind.value); };
+            var fSeek = document.createElement('input');
+            fSeek.type = 'text';
+            fSeek.value = cur.detail;
+            fSeek.placeholder = 'What exactly are you seeking? (e.g. A baker who uses local grain)';
+            fSeek.style.cssText = fieldCss;
+            var locLine = document.createElement('label');
+            locLine.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13.5px;color:#1A2E42;margin:2px 0 10px;cursor:pointer;';
+            var fLoc = document.createElement('input');
+            fLoc.type = 'checkbox'; fLoc.checked = !!cur.local;
+            locLine.appendChild(fLoc);
+            locLine.appendChild(document.createTextNode('\u{1F4CD} Local'));
+            var btns = document.createElement('div');
+            btns.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
+            var save = document.createElement('button');
+            save.type = 'button'; save.textContent = 'Save';
+            save.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 18px;border-radius:20px;'
+              + 'border:0;background:#1F699E;color:#fff;cursor:pointer;';
+            var cancel = document.createElement('button');
+            cancel.type = 'button'; cancel.textContent = 'Cancel';
+            cancel.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 18px;border-radius:20px;'
+              + 'border:1.5px solid #DDE4EE;background:#fff;color:#6B7A8D;cursor:pointer;';
+            cancel.onclick = function(){ panel.style.display = 'none'; };
+            save.onclick = function(){
+              var next = {
+                name: gpTitle(String(fName.value || '').trim()) || cur.name,
+                kind: fKind.value,
+                cat: fCat.value,
+                local: !!fLoc.checked,
+                detail: String(fSeek.value || '').trim()
+              };
+              gpNeedSwap(w, gpNeedJoin(next));
+            };
+            btns.appendChild(save); btns.appendChild(cancel);
+            panel.appendChild(fName); panel.appendChild(fKind); panel.appendChild(fCat);
+            panel.appendChild(fSeek); panel.appendChild(locLine); panel.appendChild(btns);
+          };
+          card.appendChild(panel);
           chosen.appendChild(card);
         });
     }
