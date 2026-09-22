@@ -190,20 +190,8 @@
   var GCARDS = (function(){ try { return new URLSearchParams(location.search).get('look') !== 'list'; } catch (e) { return true; } })();
   var _gtPer = null;
   function _gkey(gid) { return String(gid || '').split('.').join('').toLowerCase(); }
-  function _gstTail(gid) {
-    var p = _gtPer && _gtPer[_gkey(gid)];
-    return p ? ' \u00b7 <b>' + p.offers + '</b> offers \u00b7 <b>' + p.needs + '</b> needs' : '';
-  }
-  function _gfillCards() {
-    if (!_gtPer) return;
-    var els = document.querySelectorAll('#gcards .gst[data-gid]');
-    for (var i = 0; i < els.length; i++) {
-      var p = _gtPer[_gkey(els[i].getAttribute('data-gid'))];
-      if (!p) continue;
-      var head = els[i].innerHTML.split('\u00b7')[0];
-      els[i].innerHTML = head.replace(/\s+$/, '') + ' \u00b7 <b>' + p.offers + '</b> offers \u00b7 <b>' + p.needs + '</b> needs';
-    }
-  }
+  function _gstTail() { return ''; }
+  function _gfillCards() { return; }
   function gpaintCards(list) {
     var detail = document.getElementById('detail');
     if (!detail) return;
@@ -240,34 +228,7 @@
     if (line) { line.style.display = (_pane === 'hosted') ? '' : 'none'; }
   }
   var _gtDone = false;
-  function gpaintTotals() {
-    if (_gtDone) return;
-    var doors = document.getElementById('panel-doors');
-    if (!doors || !meId) return;
-    _gtDone = true;
-    var line = document.createElement('p');
-    line.id = 'gtotals';
-    line.style.cssText = 'flex:1 0 100%;margin:2px 0 12px;font-size:14px;color:var(--soft,#4B5A6D);';
-    line.textContent = '';
-    doors.parentNode.insertBefore(line, doors.nextSibling);
-    _gtSync();
-    fetch(GS_URL + '?action=getGroupTotals&appearId=' + encodeURIComponent(meId))
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (!d || d.status !== 'ok') return;          
-        var n = function (v) { var x = parseInt(v, 10); return isNaN(x) ? 0 : x; };
-        var h = d.hosted;
-        if (!h) return;
-        line.innerHTML = 'Across the ' + n(h.groups) + ' groups you host: <b>' + n(h.people)
-          + '</b> people, <b>' + n(h.offers) + '</b> offers, <b>' + n(h.needs) + '</b> needs.';
-        if (d.perGroup) {
-          _gtPer = {};
-          for (var k in d.perGroup) { if (d.perGroup.hasOwnProperty(k)) _gtPer[_gkey(k)] = d.perGroup[k]; }
-          _gfillCards();
-        }
-      })
-      .catch(function () {});                          
-  }
+  function gpaintTotals() { return; }
 
 (function () {
   var _base = GS_URL;
@@ -476,18 +437,6 @@
   function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function _norm(x){ return String(x||'').split('.').join('').toLowerCase(); }
 
-  var COUNTS_WAIT = 'Counting people, offers and needs\u2026';
-  var COUNTS_SLOW = 'Still counting. A big group takes a moment.';
-  var _countsSlowTimer = null;
-  function _countsWatch(seq){
-    clearTimeout(_countsSlowTimer);
-    _countsSlowTimer = setTimeout(function(){
-      if (seq !== _countSeq) return;
-      var el = document.getElementById('detail-counts');
-      if (el && el.textContent === COUNTS_WAIT) { el.textContent = COUNTS_SLOW; }
-    }, 8000);
-  }
-
   function groupUrl(g, page){
     var base = 'https://2gather.network/';
     if (page === 'group') return base + 'group.html?id=' + encodeURIComponent(g.groupId) + '&CWid=' + encodeURIComponent(meId);
@@ -502,7 +451,6 @@
     var html = '';
     var _badge = '<span class="badge ' + (_r === 'cohost' ? 'cohost' : (_r === 'host' ? 'host' : 'member')) + '">' + roleLabel + '</span>';
     var _stats = '<div class="stats">' + esc(g.intro || '') + (g.intro ? '<br>' : '')
-      + '<span id="detail-counts">' + COUNTS_WAIT + '</span>'
       + (pending ? ' · <b style="color:var(--brand);">' + pending + ' pending requests</b>' : '') + '</div>';
 
     if (_coverStyle === 'tile') {
@@ -533,8 +481,6 @@
     if (_showEvents) html += '<div id="detail-events" style="margin-top:18px;"></div>';
     detail.innerHTML = html;
     _countSeq++;
-    _countsWatch(_countSeq);
-    loadCounts(g, _countSeq);
     if (_showEvents) loadGroupEvents(g, _countSeq);
   }
 
@@ -617,47 +563,6 @@
   }
 
   var _counts = {}, _countSeq = 0;
-  function _countTokens(v){ return String(v || '').split('|').filter(Boolean).length; }
-  function loadCounts(g, seq){
-    if (_counts[g.groupId]) { paintCounts(g, seq); return; }
-    fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(g.groupId) + '&me=' + encodeURIComponent(meId))
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        var people = ((d && d.attendees) || []).filter(function(p){ return p.photo || p.first || p.name; });
-        var offers = 0, needs = 0;
-        people.forEach(function(p){
-          offers += _countTokens(p.skills);
-          needs  += _countTokens(p.needs);
-        });
-        var _hosts = ((d && d.group && d.group.hostIds) || []).concat((d && d.group && d.group.coHostIds) || []);
-        var _seen = {};
-        people.forEach(function(p){ _seen[String(p.appearId||'').split('.').join('').toLowerCase()] = 1; });
-        var _meK = String(meId||'').split('.').join('').toLowerCase();
-        var _extraHosts = 0;
-        _hosts.forEach(function(h){
-          var k = String(h||'').split('.').join('').toLowerCase();
-          if (!k || _seen[k]) return;
-          _seen[k] = 1;
-          _extraHosts++;
-          if (k === _meK && d && d.me) {
-            offers += _countTokens(d.me.skills) + _countTokens(d.me.ikigaiSkills);
-            needs  += _countTokens(d.me.needs) + _countTokens(d.me.ikigaiNeeds);
-          }
-        });
-        _counts[g.groupId] = { people: people.length + _extraHosts, offers: offers, needs: needs };
-        paintCounts(g, seq);
-      })
-      .catch(function(){ paintCounts(g, seq, true); });
-  }
-  function paintCounts(g, seq, failed){
-    if (seq !== _countSeq) return;
-    clearTimeout(_countsSlowTimer);
-    var el = document.getElementById('detail-counts');
-    if (!el) return;
-    var c = _counts[g.groupId];
-    if (!c) { el.textContent = failed ? 'Could not load the numbers.' : ''; return; }
-    el.innerHTML = '<b>' + c.people + '</b> people · <b>' + c.offers + '</b> offers · <b>' + c.needs + '</b> needs';
-  }
 
   var _groups = [], _pane = 'member', _sort = 'newest', _sortChosen = false;
   var _PANE_KEY = 'cw-mygroups-pane';
