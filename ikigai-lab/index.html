@@ -953,7 +953,8 @@
           loc.type = 'button';
           loc.style.cssText = 'font:inherit;font-size:12.5px;font-weight:700;background:none;border:0;cursor:pointer;'
             + 'padding:0;color:' + (b.local ? '#1F699E' : '#9AA7B5') + ';';
-          loc.textContent = (b.local ? '\u{1F4CD} Local' : 'Local');
+          loc.textContent = '\u{1F4CD} Local';
+          loc.style.opacity = b.local ? '1' : '.45';
           loc.setAttribute('aria-pressed', b.local ? 'true' : 'false');
           loc.onclick = function(){ var n2 = gpNeedBits(w); n2.local = !n2.local; gpNeedSwap(w, gpNeedJoin(n2)); };
           var rm = document.createElement('button');
@@ -970,10 +971,20 @@
           tools.appendChild(pen); tools.appendChild(loc); tools.appendChild(rm);
           top.appendChild(nm); top.appendChild(tools);
           card.appendChild(top);
-          if (b.cat) {
+          var KINDWORD = { skill: '\u{1F464} Person', space: '\u{1F3E0} Space', thing: '\u{1F4E6} Thing' };
+          var shownCat = b.cat;
+          if (!shownCat) {
+            for (var ci = 0; ci < corpus.length; ci++) {
+              if (corpus[ci].word.toLowerCase() === String(b.name).toLowerCase()) { shownCat = corpus[ci].cat || ''; break; }
+            }
+          }
+          var under = [];
+          if (b.kind && KINDWORD[b.kind]) { under.push(KINDWORD[b.kind]); }
+          if (shownCat) { under.push(shownCat); }
+          if (under.length) {
             var cat = document.createElement('div');
             cat.style.cssText = 'font-size:12.5px;color:#6B7A8D;margin-top:2px;';
-            cat.textContent = b.cat;
+            cat.textContent = under.join(' \u00b7 ');
             card.appendChild(cat);
           }
           if (b.detail) {
@@ -1029,7 +1040,7 @@
             var fSeek = document.createElement('input');
             fSeek.type = 'text';
             fSeek.value = cur.detail;
-            fSeek.placeholder = 'What exactly are you seeking? (e.g. A baker who uses local grain)';
+            fSeek.placeholder = 'What exactly are you seeking?';
             fSeek.style.cssText = fieldCss;
             var locLine = document.createElement('label');
             locLine.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13.5px;color:#1A2E42;margin:2px 0 10px;cursor:pointer;';
@@ -1136,6 +1147,7 @@
     search.placeholder = 'Search';
     search.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
       + 'padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
+    var _needCat = '', _needKind = '';
     if (GP_TAGS_ON && key === 'introNeed') {
       var writeRow = document.createElement('div');
       writeRow.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;';
@@ -1152,7 +1164,10 @@
       var wGo = function(){
         var v = String(wIn.value || '').trim();
         if (!v) { return; }
-        gpAddWord(key, gpTitle(v), '', ta);
+        var tail = '';
+        if (_needKind) { tail += ':' + _needKind; }
+        if (_needCat) { tail += ':' + _needCat.replace(/^[^A-Za-z0-9]+/, '').trim(); }
+        gpAddWord(key, gpTitle(v) + tail, '', ta);
         wIn.value = '';
         repaint();
       };
@@ -1160,6 +1175,44 @@
       wIn.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); wGo(); } });
       writeRow.appendChild(wIn); writeRow.appendChild(wAdd);
       box.appendChild(writeRow);
+      var NEED_KIND_CATS = {
+        space: [
+          ['\u{1F3E0} Home', 'A home'],
+          ['\u{1F5E3} Meeting room', 'A meeting room'],
+          ['\u{1F3AA} Venue', 'A venue'],
+          ['\u{1F3A8} Studio', 'A studio'],
+          ['\u{1F527} Workshop', 'A workshop'],
+          ['\u{1F4BB} Desk', 'A desk']
+        ],
+        thing: [
+          ['\u{1F4E6} Physical goods', 'Examples: a book, gear or equipment, art supplies, a tool I need'],
+          ['\u{1F372} Consumables', 'Examples: food, drink, something that gets used up'],
+          ['\u{1F499} Money', 'Examples: a loan, a contribution, help with a bill'],
+          ['\u{1FAB4} Living things', 'Examples: a plant, a cutting, seeds']
+        ]
+      };
+      var catRow = document.createElement('div');
+      catRow.style.cssText = 'display:none;flex-wrap:wrap;gap:8px;margin:0 0 14px;';
+      box.appendChild(catRow);
+      cfg._needCats = function(kind){
+        catRow.innerHTML = '';
+        var list = NEED_KIND_CATS[kind] || [];
+        if (!list.length) { catRow.style.display = 'none'; _needCat = ''; wIn.placeholder = 'Write it in your own words'; return; }
+        catRow.style.display = 'flex';
+        list.forEach(function(pair){
+          var b2 = gpPill(pair[0], _needCat === pair[0]);
+          b2.onclick = function(){
+            _needCat = (_needCat === pair[0]) ? '' : pair[0];
+            wIn.placeholder = _needCat ? pair[1] : 'Write it in your own words';
+            cfg._needCats(kind);
+            try { wIn.focus(); } catch (e) {}
+          };
+          catRow.appendChild(b2);
+        });
+        var b3 = gpPill('+ Other', false);
+        b3.onclick = function(){ _needCat = ''; wIn.placeholder = 'Write it in your own words'; cfg._needCats(kind); try { wIn.focus(); } catch (e) {} };
+        catRow.appendChild(b3);
+      };
     }
     var searchWrap = document.createElement('div');
     if (_bare || (GP_TAGS_ON && key === 'introNeed')) { searchWrap.style.cssText = 'display:none;margin-bottom:10px;'; }
@@ -1384,6 +1437,8 @@
       cfg._openKind = function(kind, prompt){
         kindNow = kind;
         cfg._kindNow = kind;
+        _needKind = kind;
+        try { if (cfg._needCats) { cfg._needCats(kind); } } catch (e) {}
         try { if (cfg._browseForKind) { cfg._browseForKind(); } } catch (e) {}
         kindInput.placeholder = prompt;
         kindInput.value = '';
