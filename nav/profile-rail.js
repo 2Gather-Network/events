@@ -28,6 +28,52 @@
   }
   function go(url) { window.location.href = url; return false; }
 
+  window.cwCameFrom = function () {
+    var r = '';
+    try {
+      var f = new URLSearchParams(location.search).get('from');
+      if (f && f.charAt(0) === '/' && f.charAt(1) !== '/') { r = 'https://2gather.network' + f; }
+    } catch (e) {}
+    if (!r) { try { r = String(document.referrer || ''); } catch (e) { return null; } }
+    if (!r) return null;
+    var ours = ['https://2gather.network', 'https://creating.works', 'https://gather.2gather.network'];
+    if (!ours.some(function (o) { return r.indexOf(o) === 0; })) return null;
+    var path = '';
+    try { path = new URL(r).pathname.replace(/\/+$/, '') || '/'; } catch (e) { return null; }
+    var NAMES = {
+      '/mygroups': 'My groups', '/myevents': 'My events', '/group': 'the group',
+      '/groups/admin': 'Manage', '/commons': 'the Commons', '/events': 'Events',
+      '/event': 'the event', '/welcome': 'Welcome', '/account': 'My account',
+      '/profile-edit': 'Edit my profile', '/ikigai': 'Edit profile',
+      '/network': 'My network'
+    };
+    var TRAIL = { '/network': 1 };
+    if (!Object.prototype.hasOwnProperty.call(NAMES, path)) return null;
+    return { label: NAMES[path], url: r, trail: !!TRAIL[path] };
+  };
+
+  window.cwBreadcrumb = function (el, tail) {
+    if (!el) return null;
+    el.innerHTML = '';
+    var from = window.cwCameFrom();
+    if (!from) return null;
+    var a = document.createElement('span');
+    a.className = 'crumb-link'; a.textContent = from.label;
+    a.setAttribute('role', 'link'); a.tabIndex = 0;
+    a.style.cursor = 'pointer';
+    a.onclick = function () { go(from.url); };
+    a.onkeydown = function (e) { if (e.key === 'Enter') go(from.url); };
+    el.appendChild(a);
+    var t = String(tail || '').trim();
+    if (t) {
+      el.appendChild(document.createTextNode(' / '));
+      var now = document.createElement('span');
+      now.className = 'now'; now.textContent = t;
+      el.appendChild(now);
+    }
+    return from;
+  };
+
   function _cwProven() {
     try {
       var t = String(localStorage.getItem('cw-token') || '');
