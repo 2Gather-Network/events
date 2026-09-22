@@ -893,10 +893,18 @@
     var showing = document.createElement('div');
     showing.style.cssText = 'font-size:14px;font-weight:700;color:#1F699E;margin:20px 0 10px;';
     showing.textContent = GP_SHOWING[key] || '';
-    if (GP_TAGS_ON && showing.textContent && !_gpDupRow) { box.appendChild(showing); }
+    var _gpNeedFold = (GP_TAGS_ON && key === 'introNeed') ? gpFoldBar(key, 'Needs added') : null;
+    if (GP_TAGS_ON && showing.textContent && !_gpDupRow && !_gpNeedFold) { box.appendChild(showing); }
     var chosen = document.createElement('div');
     chosen.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;';
-    box.appendChild(chosen);
+    if (_gpNeedFold) {
+      chosen.style.marginBottom = '0';
+      _gpNeedFold.box.style.margin = '20px 0 18px';
+      _gpNeedFold.body.appendChild(chosen);
+      box.appendChild(_gpNeedFold.box);
+    } else {
+      box.appendChild(chosen);
+    }
     if (_gpDupRow) { chosen.style.display = 'none'; }
     function gpShowingVis(){
       if (!GP_TAGS_ON) { return; }
@@ -1087,7 +1095,16 @@
     function gpPaintChosen(){
       gpShowingVis();
       chosen.innerHTML = '';
-      if (GP_TAGS_ON && key === 'introNeed') { gpNeedCards(); return; }
+      if (GP_TAGS_ON && key === 'introNeed') {
+        gpNeedCards();
+        if (_gpNeedFold) {
+          var _nn = chosen.children.length;
+          var _nb = document.getElementById('gp-tagbar-' + key);
+          if (_nb) { _nb.textContent = 'Needs added (' + _nn + ')'; }
+          _gpNeedFold.box.style.display = _nn ? '' : 'none';
+        }
+        return;
+      }
       String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean)
         .forEach(function(w){
           var c = document.createElement('span');
@@ -2304,8 +2321,41 @@
   var GP_LEVELS = {
     introEnjoy:  { multi:true,  list:['Fan','Participant','Coach'],            head:'Enjoys added' },
     introSkills: { multi:false, list:['Entry Level','Mid Level','Expert Level'], head:'Skills added' },
-    introValues: { multi:false, list:['Exploring','Engaged','Leading'],        head:'Cares added' }
+    introValues: { multi:false, list:['Exploring','Engaged','Leading'],        head:'Cares added', across:true }
   };
+  var _gpFoldShut = {};
+  function gpFoldBar(key, head){
+    var box = document.createElement('div');
+    box.id = 'gp-tagbox-' + key;
+    box.style.cssText = 'margin:20px 0 0;';
+    var shut = !!_gpFoldShut[key];
+    var bar = document.createElement('button');
+    bar.type = 'button';
+    bar.setAttribute('aria-expanded', shut ? 'false' : 'true');
+    bar.style.cssText = 'display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;'
+      + 'background:#1F699E;color:#fff;border:0;border-radius:10px 10px 0 0;padding:11px 16px;cursor:pointer;text-align:left;'
+      + 'font:inherit;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;';
+    var barText = document.createElement('span');
+    barText.id = 'gp-tagbar-' + key;
+    barText.textContent = head;
+    var arrow = document.createElement('span');
+    arrow.setAttribute('aria-hidden', 'true');
+    arrow.style.cssText = 'font-size:13px;padding:0 2px;';
+    arrow.textContent = shut ? '\u25bc' : '\u25b2';
+    var body = document.createElement('div');
+    body.style.cssText = 'border:1.5px solid #C9DFF3;border-top:0;border-radius:0 0 12px 12px;padding:14px 16px 16px;background:#fff;';
+    if (shut) { body.style.display = 'none'; }
+    bar.onclick = function(){
+      var open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : '';
+      arrow.textContent = open ? '\u25bc' : '\u25b2';
+      bar.setAttribute('aria-expanded', open ? 'false' : 'true');
+      _gpFoldShut[key] = open;
+    };
+    bar.appendChild(barText); bar.appendChild(arrow);
+    box.appendChild(bar); box.appendChild(body);
+    return { box: box, body: body };
+  }
   function gpOrigFor(key, word){
     var o = _gpOrig[key] || {};
     return String(o[String(word).toLowerCase()] || word);
@@ -2370,36 +2420,12 @@
     if (!GP_TAGS_ON) { return; }
     var spec = GP_LEVELS[q.key];
     if (!spec || !wrap) { return; }
-    var box = document.createElement('div');
-    box.id = 'gp-tagbox-' + q.key;
-    box.style.cssText = 'margin:20px 0 0;';
-    var bar = document.createElement('div');
-    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;'
-      + 'background:#1F699E;color:#fff;border-radius:10px 10px 0 0;padding:11px 16px;'
-      + 'font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;';
-    var barText = document.createElement('span');
-    barText.id = 'gp-tagbar-' + q.key;
-    barText.textContent = spec.head;
-    var fold = document.createElement('button');
-    fold.type = 'button';
-    fold.setAttribute('aria-expanded', 'true');
-    fold.style.cssText = 'font:inherit;font-size:13px;background:none;border:0;color:#fff;cursor:pointer;padding:0 2px;';
-    fold.textContent = '\u25b2';
-    var body = document.createElement('div');
-    body.style.cssText = 'border:1.5px solid #C9DFF3;border-top:0;border-radius:0 0 12px 12px;padding:14px 16px 16px;background:#fff;';
-    fold.onclick = function(){
-      var open = body.style.display !== 'none';
-      body.style.display = open ? 'none' : '';
-      fold.textContent = open ? '\u25bc' : '\u25b2';
-      fold.setAttribute('aria-expanded', open ? 'false' : 'true');
-    };
-    bar.appendChild(barText); bar.appendChild(fold);
+    var fb = gpFoldBar(q.key, spec.head);
     var rows = document.createElement('div');
     rows.id = 'gp-tagrows-' + q.key;
-    rows.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(204px,1fr));gap:10px;';
-    body.appendChild(rows);
-    box.appendChild(bar); box.appendChild(body);
-    wrap.appendChild(box);
+    rows.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(' + (spec.across ? 230 : 204) + 'px,1fr));gap:10px;';
+    fb.body.appendChild(rows);
+    wrap.appendChild(fb.box);
     gpTagPaint(q.key);
     var ta0 = document.getElementById('gp-intro-' + q.key);
     if (ta0 && !ta0._gpTagWatched) {
@@ -2454,7 +2480,7 @@
     words.forEach(function(word){
       var on = gpLevelOf(key, word);
       var card = document.createElement('div');
-      card.style.cssText = 'border:1px solid #DDE4EE;border-radius:12px;padding:10px 12px 11px;background:#fff;';
+      card.style.cssText = 'border:1px solid #DDE4EE;border-radius:12px;padding:10px 12px 11px;background:#F7FBFF;';
       var top = document.createElement('div');
       top.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:8px;';
       var nm = document.createElement('div');
@@ -2474,11 +2500,12 @@
       var cat = gpTagCatLine(key, word);
       if (cat) { card.appendChild(cat); } else { var sp = document.createElement('div'); sp.style.cssText = 'height:9px;'; card.appendChild(sp); }
       var pills = document.createElement('div');
-      pills.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+      pills.style.cssText = spec.across ? 'display:flex;flex-wrap:nowrap;gap:5px;' : 'display:flex;flex-wrap:wrap;gap:6px;';
       spec.list.forEach(function(lv){
         var b = gpPill(lv, on.indexOf(lv) > -1);
         b.style.fontSize = '11.5px';
-        b.style.padding = '5px 10px';
+        b.style.padding = spec.across ? '5px 4px' : '5px 10px';
+        if (spec.across) { b.style.flex = '1 1 0'; b.style.minWidth = '0'; b.style.textAlign = 'center'; }
         b.onclick = function(){
           var now = gpLevelOf(key, word);
           if (spec.multi) {
@@ -3560,12 +3587,11 @@
       ob.appendChild(wrap);
     });
     if (allCards.childNodes.length) {
-      var ch = document.createElement('div');
-      ch.style.cssText = 'font-size:14px;font-weight:700;color:#1F699E;margin:26px 0 10px;';
-      ch.textContent = 'Offers showing on my profile';
-      ob.appendChild(ch);
+      var ofb = gpFoldBar('introOffer', 'Offerings added (' + allCards.childNodes.length + ')');
+      ofb.box.style.margin = '26px 0 0';
       allCards.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;';
-      ob.appendChild(allCards);
+      ofb.body.appendChild(allCards);
+      ob.appendChild(ofb.box);
     }
     return true;
   }
