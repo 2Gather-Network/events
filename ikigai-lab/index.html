@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta property="og:site_name" content="2Gather">
 <meta property="og:title" content="Before you go in · 2Gather">
-<title>Before you go in · 2Gather</title>
+<title>LAB copy · Before you go in · 2Gather</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌱</text></svg>">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
@@ -44,6 +44,7 @@
 <script src="/nav/identity.js?v=26"></script>
 </head>
 <body>
+<div style="background:#C2560E;color:#fff;font:700 13.5px/1.5 'DM Sans',system-ui,sans-serif;padding:9px 16px;text-align:center;">LAB COPY — a working duplicate of the questions page. It saves to the real backend, so only use it signed in as a test account. The page people use is at /ikigai/ and is not affected by anything here.</div>
 <div class="wrap">
   <a class="crumb" id="intro-back" role="link" tabindex="0">&lsaquo; Back</a>
   <div class="card">
@@ -768,6 +769,12 @@
     word = String(word || '').trim(); if (!word) return;
     if (!_gpTags[key]) _gpTags[key] = {};
     _gpTags[key][word] = cat || '';
+    if (GP_TAGS_ON && cat && key === 'introSkills') {
+      try {
+        if (!_gpOrig[key]) { _gpOrig[key] = {}; }
+        if (!_gpOrig[key][String(word).toLowerCase()]) { _gpOrig[key][String(word).toLowerCase()] = word + ':' + cat + ':'; }
+      } catch (e) {}
+    }
     var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
     for (var i = 0; i < parts.length; i++) {
       if (parts[i].toLowerCase() === word.toLowerCase()) return;
@@ -776,6 +783,7 @@
     ta.value = parts.join(', ');
     _gpUserAdded[String(key) + '|' + String(word).toLowerCase()] = 1;
     if (typeof gpStepPaint === 'function') gpStepPaint();
+    try { gpTagPaint(key); } catch (e) {}
     gpTouchSave();
   }
   function gpDropWord(key, word, ta){
@@ -785,6 +793,7 @@
     var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
     ta.value = parts.filter(function(p){ return p.toLowerCase() !== String(word).toLowerCase(); }).join(', ');
     if (typeof gpStepPaint === 'function') gpStepPaint();
+    try { gpTagPaint(key); } catch (e) {}
     gpTouchSave();
   }
   function gpHasWord(key, word){
@@ -1851,6 +1860,179 @@
     try { window.scrollTo(0, 0); } catch (e) {}
   }
 
+  var GP_TAGS_ON = true;
+  var GP_LEVELS = {
+    introEnjoy:  { multi:true,  list:['Fan','Participant','Coach'],            head:'Enjoys added' },
+    introSkills: { multi:false, list:['Entry Level','Mid Level','Expert Level'], head:'Skills added' },
+    introValues: { multi:false, list:['Exploring','Engaged','Leading'],        head:'Cares added' }
+  };
+  function gpOrigFor(key, word){
+    var o = _gpOrig[key] || {};
+    return String(o[String(word).toLowerCase()] || word);
+  }
+  function gpSplitWork(raw){
+    var m = String(raw).match(/^(.*?)(:work)$/i);
+    return m ? { body:m[1], work:m[2] } : { body:String(raw), work:'' };
+  }
+  function gpLevelOf(key, word){
+    var parts = gpSplitWork(gpOrigFor(key, word)).body.split(':');
+    if (parts.length < 2) { return []; }
+    var last = String(parts[parts.length - 1] || '').trim();
+    if (!last) { return []; }
+    return last.split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+  }
+  function gpSetLevel(key, word, levels){
+    if (!_gpOrig[key]) { _gpOrig[key] = {}; }
+    var raw = gpOrigFor(key, word);
+    var w = gpSplitWork(raw);
+    var parts = w.body.split(':');
+    var lvl = levels.join(',');
+    if (parts.length === 1) { parts.push(lvl); }
+    else { parts[parts.length - 1] = lvl; }
+    _gpOrig[key][String(word).toLowerCase()] = parts.join(':') + w.work;
+    try { gpTouchSave(); } catch (e) {}
+  }
+  function gpCatList(key){
+    if (key !== 'introSkills') { return []; }
+    var c = GP_CHIPS[key] || {};
+    return (c.words || []).concat(c.more || []);
+  }
+  function gpCatOf(key, word){
+    var parts = gpSplitWork(gpOrigFor(key, word)).body.split(':');
+    if (parts.length >= 3) { return String(parts[1] || '').trim(); }
+    try { return String((_gpTags[key] || {})[word] || '').trim(); } catch (e) { return ''; }
+  }
+  function gpSetCategory(key, word, cat){
+    if (!_gpOrig[key]) { _gpOrig[key] = {}; }
+    var w = gpSplitWork(gpOrigFor(key, word));
+    var parts = w.body.split(':');
+    while (parts.length < 3) { parts.push(''); }
+    parts[1] = cat;
+    _gpOrig[key][String(word).toLowerCase()] = parts.slice(0, 3).join(':') + w.work;
+    try { gpTouchSave(); } catch (e) {}
+  }
+  function gpPickedWords(key){
+    var el = document.getElementById('gp-intro-' + key);
+    return String((el && el.value) || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+  }
+  function gpTagBox(q, wrap){
+    if (!GP_TAGS_ON) { return; }
+    var spec = GP_LEVELS[q.key];
+    if (!spec || !wrap) { return; }
+    var box = document.createElement('div');
+    box.id = 'gp-tagbox-' + q.key;
+    box.style.cssText = 'margin:20px 0 0;';
+    var bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;'
+      + 'background:#1F699E;color:#fff;border-radius:10px 10px 0 0;padding:11px 16px;'
+      + 'font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;';
+    var barText = document.createElement('span');
+    barText.id = 'gp-tagbar-' + q.key;
+    barText.textContent = spec.head;
+    var fold = document.createElement('button');
+    fold.type = 'button';
+    fold.setAttribute('aria-expanded', 'true');
+    fold.style.cssText = 'font:inherit;font-size:13px;background:none;border:0;color:#fff;cursor:pointer;padding:0 2px;';
+    fold.textContent = '\u25b2';
+    var body = document.createElement('div');
+    body.style.cssText = 'border:1.5px solid #C9DFF3;border-top:0;border-radius:0 0 12px 12px;padding:14px 16px 16px;background:#fff;';
+    fold.onclick = function(){
+      var open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : '';
+      fold.textContent = open ? '\u25bc' : '\u25b2';
+      fold.setAttribute('aria-expanded', open ? 'false' : 'true');
+    };
+    bar.appendChild(barText); bar.appendChild(fold);
+    var rows = document.createElement('div');
+    rows.id = 'gp-tagrows-' + q.key;
+    rows.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:12px;';
+    body.appendChild(rows);
+    box.appendChild(bar); box.appendChild(body);
+    wrap.appendChild(box);
+    gpTagPaint(q.key);
+  }
+  function gpTagCatLine(key, word){
+    var cats = gpCatList(key);
+    var have = gpCatOf(key, word);
+    if (!cats.length) { return null; }
+    var sel = document.createElement('select');
+    var missing = !have;
+    sel.style.cssText = 'font:inherit;font-size:13px;font-weight:700;border:0;background:none;cursor:pointer;'
+      + 'padding:0;margin:3px 0 9px;-webkit-appearance:none;appearance:none;max-width:100%;'
+      + (missing ? 'color:#C2560E;' : 'color:#1F699E;');
+    var none = document.createElement('option');
+    none.value = ''; none.textContent = 'Category missing \u25be';
+    sel.appendChild(none);
+    cats.forEach(function(c){
+      var op = document.createElement('option');
+      op.value = c; op.textContent = c;
+      if (c.toLowerCase() === have.toLowerCase()) { op.selected = true; }
+      sel.appendChild(op);
+    });
+    sel.onchange = function(){ gpSetCategory(key, word, sel.value); gpTagPaint(key); };
+    return sel;
+  }
+  function gpTagPaint(key){
+    var rows = document.getElementById('gp-tagrows-' + key);
+    if (!rows) { return; }
+    var spec = GP_LEVELS[key];
+    var words = gpPickedWords(key);
+    var bar = document.getElementById('gp-tagbar-' + key);
+    if (bar) { bar.textContent = spec.head + ' (' + words.length + ')'; }
+    rows.innerHTML = '';
+    if (!words.length) {
+      var none = document.createElement('div');
+      none.style.cssText = 'font-size:13.5px;color:#6B7A8D;';
+      none.textContent = 'Pick something above and it will appear here.';
+      rows.appendChild(none);
+      return;
+    }
+    words.forEach(function(word){
+      var on = gpLevelOf(key, word);
+      var card = document.createElement('div');
+      card.style.cssText = 'border:1.5px solid #DDE4EE;border-radius:12px;padding:13px 15px 14px;background:#fff;';
+      var top = document.createElement('div');
+      top.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:8px;';
+      var nm = document.createElement('div');
+      nm.style.cssText = 'font-size:15.5px;font-weight:800;color:#1A2E42;line-height:1.3;word-break:break-word;';
+      nm.textContent = word;
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.setAttribute('aria-label', 'Remove ' + word);
+      x.style.cssText = 'font:inherit;font-size:15px;background:none;border:0;color:#8A97A6;cursor:pointer;line-height:1;padding:0 2px;';
+      x.textContent = '\u00d7';
+      x.onclick = function(){
+        var ta = document.getElementById('gp-intro-' + key);
+        if (ta) { gpDropWord(key, word, ta); }
+      };
+      top.appendChild(nm); top.appendChild(x);
+      card.appendChild(top);
+      var cat = gpTagCatLine(key, word);
+      if (cat) { card.appendChild(cat); } else { var sp = document.createElement('div'); sp.style.cssText = 'height:9px;'; card.appendChild(sp); }
+      var pills = document.createElement('div');
+      pills.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+      spec.list.forEach(function(lv){
+        var b = gpPill(lv, on.indexOf(lv) > -1);
+        b.style.fontSize = '12.5px';
+        b.style.padding = '6px 12px';
+        b.onclick = function(){
+          var now = gpLevelOf(key, word);
+          if (spec.multi) {
+            var at = now.indexOf(lv);
+            if (at > -1) { now.splice(at, 1); } else { now.push(lv); }
+          } else {
+            now = (now.length === 1 && now[0] === lv) ? [] : [lv];
+          }
+          gpSetLevel(key, word, now);
+          gpTagPaint(key);
+        };
+        pills.appendChild(b);
+      });
+      card.appendChild(pills);
+      rows.appendChild(card);
+    });
+  }
+
   var _gpProse = {}, _gpProseDirty = {};
   function gpProseBox(q, wrap){
     var have = String((_gpProse && _gpProse[q.key]) || '').trim();
@@ -1981,6 +2163,7 @@
       var chipRow = gpPicker(q.key, ta) || gpChipRow(q.key, ta);
       if (chipRow) wrap.appendChild(chipRow);
       if (_proseAfterChips) { gpProseBox(q, _proseAfterChips); }
+      gpTagBox(q, _proseAfterChips || wrap);
       var _map = { introEnjoy:'1', introSkills:'2', introValues:'3', introNeed:'4', introOffer:'4' };
       wrap.setAttribute('data-gp-step', _map[q.key] || '4');
       box.appendChild(wrap);
