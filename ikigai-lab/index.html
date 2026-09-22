@@ -901,9 +901,89 @@
         }
       } catch (e) {}
     }
+    function gpNeedBits(w){
+      var raw = String(w);
+      var detail = '';
+      var tilde = raw.indexOf('~');
+      if (tilde > -1) { detail = decodeURIComponent(raw.slice(tilde + 1)); raw = raw.slice(0, tilde); }
+      var bits = raw.split(':');
+      var name = bits[0], kind = '', cat = '', local = false, rest = [];
+      for (var i = 1; i < bits.length; i++) {
+        var seg = String(bits[i] || '').trim(), low = seg.toLowerCase();
+        if (low === 'local') { local = true; continue; }
+        if (low === 'skill' || low === 'thing' || low === 'space') { kind = low; continue; }
+        if (seg) { rest.push(seg); }
+      }
+      if (rest.length) { cat = rest[rest.length - 1]; }
+      return { name: name, kind: kind, cat: cat, local: local, detail: detail };
+    }
+    function gpNeedJoin(b){
+      var out = [b.name];
+      if (b.local) { out.push('local'); }
+      if (b.kind) { out.push(b.kind); }
+      if (b.cat) { out.push(b.cat); }
+      return out.join(':') + (b.detail ? '~' + encodeURIComponent(b.detail) : '');
+    }
+    function gpNeedSwap(oldW, newW){
+      var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i] === oldW) { parts[i] = newW; break; }
+      }
+      ta.value = parts.join(', ');
+      try { gpTouchSave(); } catch (e) {}
+      gpPaintChosen();
+    }
+    function gpNeedCards(){
+      chosen.style.display = 'grid';
+      chosen.style.gridTemplateColumns = 'repeat(auto-fill,minmax(250px,1fr))';
+      chosen.style.gap = '12px';
+      String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean)
+        .forEach(function(w){
+          var b = gpNeedBits(w);
+          var card = document.createElement('div');
+          card.style.cssText = 'border:1px solid #DDE4EE;border-radius:12px;padding:12px 14px 13px;background:#F7FBFF;';
+          var top = document.createElement('div');
+          top.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:10px;';
+          var nm = document.createElement('div');
+          nm.style.cssText = 'font-size:15px;font-weight:800;color:#1A2E42;line-height:1.3;word-break:break-word;';
+          nm.textContent = b.name;
+          var tools = document.createElement('div');
+          tools.style.cssText = 'display:flex;align-items:center;gap:9px;flex:0 0 auto;';
+          var loc = document.createElement('button');
+          loc.type = 'button';
+          loc.style.cssText = 'font:inherit;font-size:12.5px;font-weight:700;background:none;border:0;cursor:pointer;'
+            + 'padding:0;color:' + (b.local ? '#1F699E' : '#9AA7B5') + ';';
+          loc.textContent = (b.local ? '\u{1F4CD} Local' : 'Local');
+          loc.setAttribute('aria-pressed', b.local ? 'true' : 'false');
+          loc.onclick = function(){ var n2 = gpNeedBits(w); n2.local = !n2.local; gpNeedSwap(w, gpNeedJoin(n2)); };
+          var rm = document.createElement('button');
+          rm.type = 'button';
+          rm.setAttribute('aria-label', 'Remove ' + b.name);
+          rm.style.cssText = 'font:inherit;font-size:15px;line-height:1;border:0;background:none;color:#8A97A6;cursor:pointer;padding:0 2px;';
+          rm.textContent = '\u00d7';
+          rm.onclick = function(){ gpDropWord(key, w, ta); repaint(); if (_reBrowse) { _reBrowse(); } };
+          tools.appendChild(loc); tools.appendChild(rm);
+          top.appendChild(nm); top.appendChild(tools);
+          card.appendChild(top);
+          if (b.cat) {
+            var cat = document.createElement('div');
+            cat.style.cssText = 'font-size:12.5px;color:#6B7A8D;margin-top:2px;';
+            cat.textContent = b.cat;
+            card.appendChild(cat);
+          }
+          if (b.detail) {
+            var d = document.createElement('div');
+            d.style.cssText = 'font-size:12.5px;color:#1F699E;font-style:italic;margin-top:5px;line-height:1.45;';
+            d.textContent = 'Seeking: ' + b.detail;
+            card.appendChild(d);
+          }
+          chosen.appendChild(card);
+        });
+    }
     function gpPaintChosen(){
       gpShowingVis();
       chosen.innerHTML = '';
+      if (GP_TAGS_ON && key === 'introNeed') { gpNeedCards(); return; }
       String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean)
         .forEach(function(w){
           var c = document.createElement('span');
