@@ -42,6 +42,12 @@
   .find[hidden]{display:none;}
   #cw-prail-main{padding-top:12px;}
   #cw-prail-main h2{margin-top:0;}
+  .gchips{margin-top:6px;}
+  .gchip{display:inline-block;font-size:11.5px;font-weight:700;color:var(--brand);background:#EAF3FA;
+         border:1px solid var(--panel-line);border-radius:999px;padding:3px 9px;margin:0 5px 5px 0;}
+  .gchip.more{color:var(--muted);background:#fff;font-weight:600;}
+  .gcount{font-size:12.5px;font-weight:800;color:var(--soft);margin-top:5px;}
+  .gnames{font-size:12.5px;color:var(--muted);line-height:1.35;word-break:break-word;}
   .none{font-size:14.5px;color:var(--soft);margin:0 0 6px;}
 </style>
 <script src="/nav/identity.js?v=26"></script>
@@ -92,17 +98,38 @@
     s.innerHTML = text;
   }
 
-  var TRY = false;
-  try { TRY = new URLSearchParams(location.search).get('try') === '1'; } catch (e) {}
+  var TRY = 0;
+  try {
+    var _t = new URLSearchParams(location.search).get('try');
+    if (_t === '1' || _t === '2' || _t === '3') { TRY = parseInt(_t, 10); }
+  } catch (e) {}
 
   var ALL = [];
 
-  function sharedLine(p){
+  function andList(g){
+    if (g.length === 1) { return esc(g[0]); }
+    if (g.length === 2) { return esc(g[0]) + ' and ' + esc(g[1]); }
+    return g.slice(0, g.length - 1).map(esc).join(', ') + ' and ' + esc(g[g.length - 1]);
+  }
+
+  function sharedBlock(p){
     var g = (p && p.groups) || [];
     if (!g.length) { return ''; }
-    if (g.length === 1) { return 'With you in ' + esc(g[0]); }
-    if (g.length === 2) { return 'With you in ' + esc(g[0]) + ' and ' + esc(g[1]); }
-    return 'With you in ' + g.slice(0, g.length - 1).map(esc).join(', ') + ' and ' + esc(g[g.length - 1]);
+
+    if (TRY === 2) {
+      var chips = g.slice(0, 3).map(function(n){ return '<span class="gchip">' + esc(n) + '</span>'; }).join('');
+      if (g.length > 3) { chips += '<span class="gchip more">and ' + (g.length - 3) + ' more</span>'; }
+      return '<div class="gchips">' + chips + '</div>';
+    }
+
+    if (TRY === 3) {
+      var head = g.length === 1 ? 'One group together' : g.length + ' groups together';
+      var tail = g.length <= 2 ? andList(g)
+               : esc(g[0]) + ', ' + esc(g[1]) + ' and ' + (g.length - 2) + ' more';
+      return '<div class="gcount">' + head + '</div><div class="gnames">' + tail + '</div>';
+    }
+
+    return '<div class="pgroups">With you in ' + andList(g) + '</div>';
   }
 
   function paint(list){
@@ -117,9 +144,8 @@
       var face = String(p.photo||'').trim()
         ? '<img class="face" src="' + esc(p.photo) + '" alt="" onerror="this.outerHTML=\'<div class=&quot;initial&quot;>' + esc(firstLetter(name)) + '</div>\'">'
         : '<div class="initial">' + esc(firstLetter(name)) + '</div>';
-      var line = TRY ? sharedLine(p) : '';
-      a.innerHTML = face + '<div class="ptext"><div class="pname">' + esc(name) + '</div>'
-                  + (line ? '<div class="pgroups">' + line + '</div>' : '') + '</div>';
+      var block = TRY ? sharedBlock(p) : '';
+      a.innerHTML = face + '<div class="ptext"><div class="pname">' + esc(name) + '</div>' + block + '</div>';
       box.appendChild(a);
     });
   }
