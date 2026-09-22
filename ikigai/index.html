@@ -151,7 +151,7 @@
   }
 
   var GP_INTRO_Q = [
-    { key:'introNeed',   need:false, q:'What do you need?',
+    { key:'introNeed',   need:false, q:'What are you seeking right now?',
       ph:'A cat sitter for the last week of September, a massage therapist local to Seattle, and someone who can help me get a PT nursing job where I can travel anywhere.' },
     { key:'introEnjoy',  need:true,  q:'What do you enjoy?',
       hint:'What you love doing.',
@@ -183,6 +183,7 @@
   var GP_CHIPS_ON = (params.get('chips') || '') !== '0';
   var GP_BROWSE = (params.get('browse') || '') !== '0';
   var GP_BROWSE_KEYS = { introEnjoy:1, introSkills:1, introValues:1 };
+  GP_BROWSE_KEYS.introNeed = 1;
   var GP_CHIPS = {
     introEnjoy:  { words: ['Sports', 'Outdoor & Nature', 'Making & Collecting', 'Movement & Performance', 'Games & Strategy'] },
     introSkills: { lead: 'And/or tap any category below...',
@@ -669,7 +670,7 @@
 
   var GP_PICK = {
     introNeed: {
-      examples: ['A skill', 'A thing', 'A space'],
+      examples: ['\u{1F464} Person', '\u{1F3E0} Space', '\u{1F4E6} Thing'],
       kinds: true,
       tagQ: 'Is that a person, a place or a thing?',
       tagOpts: ['Person', 'Place', 'Thing'], source: 'need'
@@ -727,10 +728,10 @@
 
   function gpCorpus(source, rd){
     var out = [], seen = {};
-    var push = function(w, c, a){
+    var push = function(w, c, a, kind){
       w = String(w || '').trim(); if (!w) return;
       var k = w.toLowerCase(); if (seen[k]) return;
-      seen[k] = 1; out.push({ word: w, cat: String(c || '').trim(), assoc: String(a || '').toLowerCase() });
+      seen[k] = 1; out.push({ word: w, cat: String(c || '').trim(), assoc: String(a || '').toLowerCase(), kind: String(kind || '') });
     };
     if (source === 'recreation') {
       (rd.recreation || []).forEach(function(r){ push(r.item, r.recType, r.associations); });
@@ -751,8 +752,9 @@
     } else if (source === 'resources') {
       (rd.resources || []).forEach(function(r){ push(r.item, r.category, r.associations); });
     } else if (source === 'need') {
-      (rd.skills || []).forEach(function(s){ push(s.item, s.category, s.associations); });
-      (rd.recreation || []).forEach(function(r){ push(r.item, r.recType, r.associations); });
+      (rd.skills || []).forEach(function(s){ push(s.item, s.category, s.associations, 'skill'); });
+      (rd.recreation || []).forEach(function(r){ push(r.item, r.recType, r.associations, 'skill'); });
+      (rd.resources || []).forEach(function(r){ push(r.item, r.category, r.associations, 'resource'); });
     }
     return out;
   }
@@ -764,10 +766,22 @@
     _gpTouchT = setTimeout(function(){ try { gpQuietSave(); } catch (e) {} }, 1200);
   }
 
+  function gpTitle(w){
+    return String(w || '').split(/(\s+)/).map(function(part){
+      if (!part.trim()) { return part; }
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    }).join('');
+  }
   function gpAddWord(key, word, cat, ta){
     word = String(word || '').trim(); if (!word) return;
     if (!_gpTags[key]) _gpTags[key] = {};
     _gpTags[key][word] = cat || '';
+    if (GP_TAGS_ON && cat && key === 'introSkills') {
+      try {
+        if (!_gpOrig[key]) { _gpOrig[key] = {}; }
+        if (!_gpOrig[key][String(word).toLowerCase()]) { _gpOrig[key][String(word).toLowerCase()] = word + ':' + cat + ':'; }
+      } catch (e) {}
+    }
     var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
     for (var i = 0; i < parts.length; i++) {
       if (parts[i].toLowerCase() === word.toLowerCase()) return;
@@ -776,6 +790,7 @@
     ta.value = parts.join(', ');
     _gpUserAdded[String(key) + '|' + String(word).toLowerCase()] = 1;
     if (typeof gpStepPaint === 'function') gpStepPaint();
+    try { gpTagPaint(key); } catch (e) {}
     gpTouchSave();
   }
   function gpDropWord(key, word, ta){
@@ -785,6 +800,7 @@
     var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
     ta.value = parts.filter(function(p){ return p.toLowerCase() !== String(word).toLowerCase(); }).join(', ');
     if (typeof gpStepPaint === 'function') gpStepPaint();
+    try { gpTagPaint(key); } catch (e) {}
     gpTouchSave();
   }
   function gpHasWord(key, word){
@@ -856,29 +872,251 @@
   function gpPicker(key, ta){
     var cfg = GP_PICK[key];
     if (!GP_CHIPS_ON || !cfg) return null;
-    var _bare = gpBareKey(key);
+    var _bare = GP_TAGS_ON ? false : gpBareKey(key);
     var box = document.createElement('div');
     box.style.cssText = 'margin-top:12px;';
 
+    var GP_SHOWING = {
+      introSkills: 'Skills showing on my profile',
+      introEnjoy:  'Enjoys showing on my profile',
+      introValues: 'What I care about, showing on my profile',
+      introNeed:   'Needs showing on my profile',
+      introOffer:  'Offerings showing on my profile'
+    };
+    var showing = document.createElement('div');
+    showing.style.cssText = 'font-size:13px;font-weight:800;color:#6B7A8D;margin:20px 0 10px;';
+    showing.textContent = GP_SHOWING[key] || '';
+    if (GP_TAGS_ON && showing.textContent) { box.appendChild(showing); }
     var chosen = document.createElement('div');
-    chosen.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px;';
+    chosen.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;';
     box.appendChild(chosen);
+    function gpShowingVis(){
+      if (!GP_TAGS_ON) { return; }
+      var any = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean).length;
+      showing.style.display = any ? '' : 'none';
+      try {
+        if (chosen.parentNode && showing.nextSibling !== chosen) {
+          chosen.parentNode.insertBefore(showing, chosen);
+        }
+      } catch (e) {}
+    }
+    function gpNeedBits(w){
+      var raw = String(w);
+      var detail = '';
+      var tilde = raw.indexOf('~');
+      if (tilde > -1) { detail = decodeURIComponent(raw.slice(tilde + 1)); raw = raw.slice(0, tilde); }
+      var bits = raw.split(':');
+      var name = bits[0], kind = '', cat = '', local = false, rest = [];
+      for (var i = 1; i < bits.length; i++) {
+        var seg = String(bits[i] || '').trim(), low = seg.toLowerCase();
+        if (low === 'local') { local = true; continue; }
+        if (low === 'skill' || low === 'thing' || low === 'space') { kind = low; continue; }
+        if (seg) { rest.push(seg); }
+      }
+      if (rest.length) { cat = rest[rest.length - 1]; }
+      return { name: name, kind: kind, cat: cat, local: local, detail: detail };
+    }
+    function gpNeedJoin(b){
+      var out = [b.name];
+      if (b.local) { out.push('local'); }
+      if (b.kind) { out.push(b.kind); }
+      if (b.cat) { out.push(b.cat); }
+      return out.join(':') + (b.detail ? '~' + encodeURIComponent(b.detail) : '');
+    }
+    function gpNeedSwap(oldW, newW){
+      var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i] === oldW) { parts[i] = newW; break; }
+      }
+      ta.value = parts.join(', ');
+      try { gpTouchSave(); } catch (e) {}
+      gpPaintChosen();
+    }
+    function gpNeedCards(){
+      chosen.style.display = 'grid';
+      chosen.style.gridTemplateColumns = 'repeat(auto-fill,minmax(250px,1fr))';
+      chosen.style.gap = '12px';
+      String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean)
+        .forEach(function(w){
+          var b = gpNeedBits(w);
+          var card = document.createElement('div');
+          card.style.cssText = 'border:1px solid #DDE4EE;border-radius:12px;padding:12px 14px 13px;background:#F7FBFF;';
+          var top = document.createElement('div');
+          top.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:10px;';
+          var nm = document.createElement('div');
+          nm.style.cssText = 'font-size:15px;font-weight:800;color:#1A2E42;line-height:1.3;word-break:break-word;';
+          nm.textContent = b.name;
+          var tools = document.createElement('div');
+          tools.style.cssText = 'display:flex;align-items:center;gap:9px;flex:0 0 auto;';
+          var loc = document.createElement('button');
+          loc.type = 'button';
+          loc.style.cssText = 'font:inherit;font-size:12.5px;font-weight:700;background:none;border:0;cursor:pointer;'
+            + 'padding:0;color:' + (b.local ? '#1F699E' : '#6B7A8D') + ';';
+          loc.textContent = '\u{1F4CD} Local';
+          loc.style.opacity = b.local ? '1' : '.8';
+          loc.setAttribute('aria-pressed', b.local ? 'true' : 'false');
+          loc.onclick = function(){ var n2 = gpNeedBits(w); n2.local = !n2.local; gpNeedSwap(w, gpNeedJoin(n2)); };
+          var rm = document.createElement('button');
+          rm.type = 'button';
+          rm.setAttribute('aria-label', 'Remove ' + b.name);
+          rm.style.cssText = 'font:inherit;font-size:15px;line-height:1;border:0;background:none;color:#8A97A6;cursor:pointer;padding:0 2px;';
+          rm.textContent = '\u00d7';
+          rm.onclick = function(){ gpDropWord(key, w, ta); repaint(); if (_reBrowse) { _reBrowse(); } };
+          var pen = document.createElement('button');
+          pen.type = 'button';
+          pen.setAttribute('aria-label', 'Edit ' + b.name);
+          pen.style.cssText = 'font:inherit;font-size:13.5px;line-height:1;border:0;background:none;cursor:pointer;padding:0 2px;';
+          pen.textContent = '\u270F\uFE0F';
+          tools.appendChild(pen); tools.appendChild(loc); tools.appendChild(rm);
+          top.appendChild(nm); top.appendChild(tools);
+          card.appendChild(top);
+          var KINDWORD = { skill: '\u{1F464} Person', space: '\u{1F3E0} Space', thing: '\u{1F4E6} Thing' };
+          var shownCat = b.cat;
+          if (!shownCat) {
+            for (var ci = 0; ci < corpus.length; ci++) {
+              if (corpus[ci].word.toLowerCase() === String(b.name).toLowerCase()) { shownCat = corpus[ci].cat || ''; break; }
+            }
+          }
+          var under = [];
+          if (b.kind && KINDWORD[b.kind]) { under.push(KINDWORD[b.kind]); }
+          if (shownCat && shownCat.toLowerCase() !== String(b.name).toLowerCase()) { under.push(shownCat); }
+          if (under.length) {
+            var cat = document.createElement('div');
+            cat.style.cssText = 'font-size:12.5px;color:#6B7A8D;margin-top:2px;';
+            cat.textContent = under.join(' \u00b7 ');
+            card.appendChild(cat);
+          }
+          if (b.detail) {
+            var d = document.createElement('div');
+            d.style.cssText = 'font-size:12.5px;color:#1F699E;font-style:italic;margin-top:5px;line-height:1.45;';
+            d.textContent = 'Seeking: ' + b.detail;
+            card.appendChild(d);
+          }
+          var panel = document.createElement('div');
+          panel.style.cssText = 'display:none;margin-top:10px;padding-top:10px;border-top:1px solid #DDE4EE;';
+          pen.onclick = function(){
+            var open = panel.style.display !== 'none';
+            panel.style.display = open ? 'none' : 'block';
+            if (open) { return; }
+            panel.innerHTML = '';
+            var cur = gpNeedBits(w);
+            var fieldCss = 'width:100%;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;'
+              + 'padding:8px 10px;font:inherit;font-size:13.5px;color:#1A2E42;outline:none;margin-bottom:8px;';
+            var fName = document.createElement('input');
+            fName.type = 'text'; fName.value = cur.name; fName.style.cssText = fieldCss;
+            var fKind = document.createElement('select');
+            fKind.style.cssText = fieldCss;
+            [['skill', '\u{1F464} Person'], ['space', '\u{1F3E0} Place'], ['thing', '\u{1F4E6} Thing']].forEach(function(k){
+              var op = document.createElement('option');
+              op.value = k[0]; op.textContent = k[1];
+              if (k[0] === cur.kind) { op.selected = true; }
+              fKind.appendChild(op);
+            });
+            var fCat = document.createElement('select');
+            fCat.style.cssText = fieldCss;
+            var mkCats = function(kind){
+              fCat.innerHTML = '';
+              var none = document.createElement('option');
+              none.value = ''; none.textContent = 'No category';
+              fCat.appendChild(none);
+              var seen = {}, list = [];
+              corpus.forEach(function(c){
+                if (!c.cat || seen[c.cat]) { return; }
+                if (kind === 'skill' && c.kind && c.kind !== 'skill') { return; }
+                if (kind !== 'skill' && c.kind === 'skill') { return; }
+                seen[c.cat] = 1; list.push(c.cat);
+              });
+              if (cur.cat && list.indexOf(cur.cat) === -1) { list.push(cur.cat); }
+              list.sort().forEach(function(c){
+                var op = document.createElement('option');
+                op.value = c; op.textContent = c;
+                if (c.toLowerCase() === String(cur.cat).toLowerCase()) { op.selected = true; }
+                fCat.appendChild(op);
+              });
+            };
+            mkCats(cur.kind || 'skill');
+            fKind.onchange = function(){ mkCats(fKind.value); };
+            var fSeek = document.createElement('input');
+            fSeek.type = 'text';
+            fSeek.value = cur.detail;
+            fSeek.placeholder = 'What exactly are you seeking?';
+            fSeek.style.cssText = fieldCss;
+            var locLine = document.createElement('label');
+            locLine.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13.5px;color:#1A2E42;margin:2px 0 10px;cursor:pointer;';
+            var fLoc = document.createElement('input');
+            fLoc.type = 'checkbox'; fLoc.checked = !!cur.local;
+            locLine.appendChild(fLoc);
+            locLine.appendChild(document.createTextNode('\u{1F4CD} Local'));
+            var btns = document.createElement('div');
+            btns.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
+            var save = document.createElement('button');
+            save.type = 'button'; save.textContent = 'Save';
+            save.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 18px;border-radius:20px;'
+              + 'border:0;background:#1F699E;color:#fff;cursor:pointer;';
+            var cancel = document.createElement('button');
+            cancel.type = 'button'; cancel.textContent = 'Cancel';
+            cancel.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 18px;border-radius:20px;'
+              + 'border:1.5px solid #DDE4EE;background:#fff;color:#6B7A8D;cursor:pointer;';
+            cancel.onclick = function(){ panel.style.display = 'none'; };
+            save.onclick = function(){
+              var next = {
+                name: gpTitle(String(fName.value || '').trim()) || cur.name,
+                kind: fKind.value,
+                cat: fCat.value,
+                local: !!fLoc.checked,
+                detail: String(fSeek.value || '').trim()
+              };
+              gpNeedSwap(w, gpNeedJoin(next));
+            };
+            btns.appendChild(save); btns.appendChild(cancel);
+            panel.appendChild(fName); panel.appendChild(fKind); panel.appendChild(fCat);
+            panel.appendChild(fSeek); panel.appendChild(locLine); panel.appendChild(btns);
+          };
+          card.appendChild(panel);
+          chosen.appendChild(card);
+        });
+    }
     function gpPaintChosen(){
+      gpShowingVis();
       chosen.innerHTML = '';
+      if (GP_TAGS_ON && key === 'introNeed') { gpNeedCards(); return; }
       String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean)
         .forEach(function(w){
           var c = document.createElement('span');
-          c.style.cssText = 'display:inline-flex;align-items:center;gap:8px;font-size:13.5px;'
-            + 'padding:7px 10px 7px 14px;border-radius:20px;background:#1F699E;color:#fff;font-weight:700;';
+          c.style.cssText = 'display:inline-flex;align-items:center;gap:10px;font-size:13.5px;'
+            + 'padding:9px 12px 9px 16px;border-radius:22px;background:#1F699E;color:#fff;font-weight:700;';
           var t2 = document.createElement('span');
           var _bits = String(w).split(':');
-          var _kind = (_bits.length > 1) ? _bits[_bits.length - 1].toLowerCase() : '';
-          if (_kind === 'skill' || _kind === 'thing' || _kind === 'space') {
-            t2.textContent = _bits.slice(0, -1).join(':');
-            var _k = document.createElement('span');
-            _k.textContent = '· ' + _kind;
-            _k.style.cssText = 'font-weight:600;opacity:.7;font-size:11.5px;margin-left:5px;';
-            c.appendChild(t2); c.appendChild(_k);
+          var _kind = '';
+          for (var _b = 1; _b < _bits.length; _b++) {
+            var _seg = String(_bits[_b] || '').trim().toLowerCase();
+            if (_seg === 'skill' || _seg === 'thing' || _seg === 'space') { _kind = _seg; break; }
+          }
+          var _name = (_kind ? _bits[0] : w);
+          var _local = false;
+          for (var _l = 1; _l < _bits.length; _l++) {
+            if (String(_bits[_l] || '').trim().toLowerCase() === 'local') { _local = true; break; }
+          }
+          if (_local) { _name = '\u{1F4CD} ' + _name; }
+          var _cat = '';
+          if (GP_TAGS_ON) {
+            try { _cat = gpCatOf(key, _name) || ''; } catch (e) { _cat = ''; }
+            if (_cat.toLowerCase() === _name.toLowerCase()) { _cat = ''; }
+          }
+          if (_kind || _cat) {
+            var _col = document.createElement('span');
+            _col.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.25;';
+            var _top = document.createElement('span');
+            _top.textContent = _name;
+            _col.appendChild(_top);
+            var _under = [];
+            if (_cat) { _under.push(_cat); }
+            if (_kind) { _under.push(_kind); }
+            var _sub = document.createElement('span');
+            _sub.textContent = _under.join(' · ');
+            _sub.style.cssText = 'font-weight:600;opacity:.75;font-size:11px;';
+            _col.appendChild(_sub);
+            c.appendChild(_col);
             t2 = null;
           } else {
             t2.textContent = w;
@@ -889,17 +1127,17 @@
           x.textContent = '\u00D7';
           x.style.cssText = 'font:inherit;font-size:15px;line-height:1;border:0;background:transparent;'
             + 'color:#fff;cursor:pointer;padding:0 2px;';
-          x.addEventListener('click', function(){ gpDropWord(key, w, ta); repaint(); });
+          x.addEventListener('click', function(){ gpDropWord(key, w, ta); repaint(); if (_reBrowse) { _reBrowse(); } });
           if (t2) c.appendChild(t2);
           c.appendChild(x);
           chosen.appendChild(c);
         });
     }
 
-    if (!_bare) {
+    if (!_bare && !(GP_TAGS_ON && key === 'introNeed')) {
       var lead = document.createElement('div');
       lead.style.cssText = 'font-size:13px;color:#6B7A8D;margin-bottom:8px;';
-      lead.textContent = 'Search for something, or tap one below.';
+      lead.textContent = 'Search for something, tap one below, or add another.';
       box.appendChild(lead);
     }
 
@@ -908,8 +1146,99 @@
     search.placeholder = 'Search';
     search.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
       + 'padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
+    var _needCat = '', _needKind = '';
+    if (GP_TAGS_ON && key === 'introNeed') {
+      var writeRow = document.createElement('div');
+      writeRow.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;';
+      var wIn = document.createElement('input');
+      wIn.type = 'text';
+      wIn.placeholder = 'Write it in your own words';
+      wIn.style.cssText = 'flex:1 1 260px;border:1.5px solid #DDE3EA;background:#fff;border-radius:12px;'
+        + 'padding:11px 14px;font:inherit;font-size:14.5px;color:#1A2E42;outline:none;';
+      var wAdd = document.createElement('button');
+      wAdd.type = 'button';
+      wAdd.textContent = 'Add';
+      wAdd.style.cssText = 'font:inherit;font-size:14.5px;font-weight:700;padding:11px 24px;border-radius:24px;'
+        + 'border:0;background:#1F699E;color:#fff;cursor:pointer;';
+      var wGo = function(){
+        var v = String(wIn.value || '').trim();
+        if (!v) { return; }
+        var tail = '';
+        if (_needKind) { tail += ':' + _needKind; }
+        if (_needCat && _needCat !== '+ Other') { tail += ':' + _needCat.replace(/^[^A-Za-z0-9]+/, '').trim(); }
+        gpAddWord(key, gpTitle(v) + tail, '', ta);
+        wIn.value = '';
+        repaint();
+      };
+      wAdd.onclick = wGo;
+      wIn.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); wGo(); } });
+      writeRow.appendChild(wIn); writeRow.appendChild(wAdd);
+      box.appendChild(writeRow);
+      var NEED_KIND_CATS = {
+        space: [
+          ['\u{1F3E0} Home', 'A home'],
+          ['\u{1F6CF} Room', 'A room'],
+          ['\u{1F5E3} Meeting room', 'A meeting room'],
+          ['\u{1F3AA} Venue', 'A venue'],
+          ['\u{1F3A8} Studio', 'A studio'],
+          ['\u{1F527} Workshop', 'A workshop'],
+          ['\u{1F4BB} Desk', 'A desk']
+        ],
+        thing: [
+          ['\u{1F4E6} Physical goods', 'Examples: a book, gear or equipment, art supplies, a tool I need'],
+          ['\u{1F372} Consumables', 'Examples: food, drink, something that gets used up'],
+          ['\u{1F499} Money', 'Examples: a loan, a contribution, help with a bill'],
+          ['\u{1FAB4} Living things', 'Examples: a plant, a cutting, seeds']
+        ]
+      };
+      var catRow = document.createElement('div');
+      catRow.style.cssText = 'display:none;flex-wrap:wrap;gap:9px;margin:12px 0 16px;';
+      box.appendChild(catRow);
+      cfg._needCatCount = function(kind){ return (NEED_KIND_CATS[kind] || []).length; };
+      cfg._needCats = function(kind){
+        catRow.innerHTML = '';
+        var list = NEED_KIND_CATS[kind] || [];
+        if (!list.length) { catRow.style.display = 'none'; _needCat = ''; wIn.placeholder = 'Write it in your own words'; return; }
+        catRow.style.display = 'flex';
+        try { if (row && row.parentNode && catRow.previousSibling !== row) { row.parentNode.insertBefore(catRow, row.nextSibling); } } catch (e) {}
+        list.forEach(function(pair){
+          var b2 = gpPill(pair[0], gpHasWord(key, String(pair[0]).replace(/^[^A-Za-z0-9]+/, '').trim() + ':' + kind + ':' + String(pair[0]).replace(/^[^A-Za-z0-9]+/, '').trim()));
+          var plain = String(pair[0]).replace(/^[^A-Za-z0-9]+/, '').trim();
+          var asNeed = plain + ':' + kind + ':' + plain;
+          b2.onclick = function(){
+            if (gpHasWord(key, asNeed)) {
+              gpDropWord(key, asNeed, ta);
+              _needCat = '';
+              if (cfg._kindInput) { cfg._kindInput.placeholder = 'What ' + kind + '?'; cfg._kindInput.parentNode.style.display = 'none'; }
+              cfg._needCats(kind);
+              repaint();
+              return;
+            }
+            gpAddWord(key, asNeed, plain, ta);
+            _needCat = pair[0];
+            if (cfg._kindInput) { cfg._kindInput.placeholder = pair[1]; }
+            cfg._needCats(kind);
+            if (cfg._showKindBox) { cfg._showKindBox(); }
+            repaint();
+          };
+          catRow.appendChild(b2);
+        });
+        if (kind === 'space') {
+          var b3 = gpPill('+ Other', _needCat === '+ Other');
+          b3.onclick = function(){
+            _needCat = (_needCat === '+ Other') ? '' : '+ Other';
+            if (cfg._kindInput) { cfg._kindInput.placeholder = 'What space?'; }
+            cfg._needCats(kind);
+            if (_needCat) { if (cfg._showKindBox) { cfg._showKindBox(); } }
+            else if (cfg._kindInput) { cfg._kindInput.parentNode.style.display = 'none'; }
+          };
+          catRow.appendChild(b3);
+        }
+
+      };
+    }
     var searchWrap = document.createElement('div');
-    if (_bare) searchWrap.style.cssText = 'display:none;margin-bottom:10px;';
+    if (_bare || (GP_TAGS_ON && key === 'introNeed')) { searchWrap.style.cssText = 'display:none;margin-bottom:10px;'; }
     searchWrap.appendChild(search);
     var results = document.createElement('div');
     results.style.cssText = 'margin-top:6px;';
@@ -917,10 +1246,11 @@
     box.appendChild(searchWrap);
 
     var row = document.createElement('div');
-    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;';
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:9px;margin-top:14px;';
     box.appendChild(row);
 
     var corpus = [];
+    var _reBrowse = null;
     var _browseOn = GP_BROWSE && !!GP_BROWSE_KEYS[key] && !_bare;
     var browseWrap = document.createElement('div');
     browseWrap.style.cssText = 'margin-top:14px;';
@@ -931,9 +1261,27 @@
       _wait.textContent = 'Looking up the list\u2026';
       browseWrap.appendChild(_wait);
     }
+    var _rd = null;
+    function gpNeedTree(){
+      if (!_rd) { return null; }
+      var k = String(cfg._kindNow || '');
+      if (!k) { return null; }
+      return gpBuildTree(k === 'skill' ? 'skills' : 'resources', _rd);
+    }
+    function gpBrowseForKind(){
+      if (!_browseOn) { return; }
+      var t = gpNeedTree();
+      if (!t) { browseWrap.style.display = 'none'; browseWrap.innerHTML = ''; return; }
+      browseWrap.style.display = '';
+      gpRenderBrowse(t, []);
+    }
+    cfg._browseForKind = gpBrowseForKind;
     gpRefOnce().then(function(rd){
+      _rd = rd;
       corpus = gpCorpus(cfg.source, rd);
-      if (_browseOn) gpRenderBrowse(gpBuildTree(cfg.source, rd), []);
+      if (!_browseOn) { return; }
+      if (cfg.kinds) { gpBrowseForKind(); return; }
+      gpRenderBrowse(gpBuildTree(cfg.source, rd), []);
     });
 
     function gpRenderBrowse(tree, path){
@@ -971,6 +1319,7 @@
         });
         browseWrap.appendChild(trail);
       }
+      _reBrowse = function(){ gpRenderBrowse(tree, path); };
       var lrow = document.createElement('div');
       lrow.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
       gpLevel(tree, path).forEach(function(it){
@@ -978,8 +1327,8 @@
           var d = document.createElement('button');
           d.type = 'button';
           d.textContent = it.name;
-          d.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
-            + 'background:#EDF4FA;border:1px solid #BBD4E8;color:#1A2E42;font-weight:700;';
+          d.style.cssText = 'font:inherit;font-size:12.5px;padding:6px 13px;border-radius:20px;cursor:pointer;'
+            + 'background:#fff;color:#1A2E42;font-weight:700;border:' + GP_CAT_EDGE;
           d.addEventListener('click', function(){ gpRenderBrowse(tree, path.concat(it.name)); });
           lrow.appendChild(d);
           return;
@@ -987,12 +1336,29 @@
         var b = gpPill(it.name, gpHasWord(key, it.name));
         b.addEventListener('click', function(){
           if (gpHasWord(key, it.name)) gpDropWord(key, it.name, ta);
-          else gpAddWord(key, it.name, path[0] || '', ta);
+          else gpAddWord(key, it.name + (cfg.kinds && cfg._kindNow ? ':' + cfg._kindNow : ''), path[0] || '', ta);
           gpRenderBrowse(tree, path);
           repaint();
         });
         lrow.appendChild(b);
       });
+      if (!gpLevel(tree, path).length) {
+        browseWrap.style.display = 'none';
+        browseWrap.innerHTML = '';
+        return;
+      }
+      browseWrap.style.display = '';
+      if (GP_TAGS_ON && path && path.length) {
+        var bOther = document.createElement('button');
+        bOther.type = 'button';
+        bOther.textContent = '+ Other';
+        bOther.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
+          + 'background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;';
+        bOther.addEventListener('click', function(){
+          try { gpPlaceOther(lrow); other.click(); } catch (e) {}
+        });
+        lrow.appendChild(bOther);
+      }
       browseWrap.appendChild(lrow);
     }
 
@@ -1053,6 +1419,8 @@
         kindHits.innerHTML = ''; kindHits.style.display = 'none';
         kindBox.style.display = 'none';
         kindNow = '';
+        cfg._kindNow = '';
+        try { if (cfg._browseForKind) { cfg._browseForKind(); } } catch (e) {}
         markKind('');
       };
       kindCancel.addEventListener('click', function(){ kindClose(); repaint(); });
@@ -1061,6 +1429,10 @@
         kindHits.innerHTML = '';
         if (t.length < 2) { kindHits.style.display = 'none'; return; }
         var hits = corpus.filter(function(c){
+          if (GP_TAGS_ON && kindNow && c.kind) {
+            if (kindNow === 'skill' && c.kind !== 'skill') { return false; }
+            if (kindNow !== 'skill' && c.kind === 'skill') { return false; }
+          }
           return c.word.toLowerCase().indexOf(t) > -1 || (c.assoc && c.assoc.indexOf(t) > -1);
         }).slice(0, 6);
         if (!hits.length) { kindHits.style.display = 'none'; return; }
@@ -1073,17 +1445,21 @@
           r.innerHTML = '<div style="font-size:14.5px;font-weight:700;color:#1A2E42;">' + _gpEsc(h.word) + '</div>'
             + (h.cat ? '<div style="font-size:13px;color:#6B7A8D;">' + _gpEsc(h.cat) + '</div>' : '');
           r.addEventListener('click', function(){
-            gpAddWord(key, h.word + ':' + kindNow, h.cat, ta);
+            gpAddWord(key, h.word + ':' + kindNow + (h.cat ? ':' + h.cat : ''), h.cat, ta);
             kindClose();
             repaint();
           });
           kindHits.appendChild(r);
         });
       });
+      cfg._kindInput = kindInput;
+      cfg._showKindBox = function(){ kindBox.style.display = 'flex'; try { kindInput.focus(); } catch (e) {} };
       var kindCommit = function(){
         var v = String(kindInput.value || '').trim();
         if (!v || !kindNow) return;
-        gpAddWord(key, v + ':' + kindNow, '', ta);
+        var kcat = (GP_TAGS_ON && _needCat && _needCat !== '+ Other')
+          ? ':' + _needCat.replace(/^[^A-Za-z0-9]+/, '').trim() : '';
+        gpAddWord(key, (GP_TAGS_ON ? gpTitle(v) : v) + ':' + kindNow + kcat, '', ta);
         kindClose();
         repaint();
       };
@@ -1093,12 +1469,17 @@
       });
       cfg._openKind = function(kind, prompt){
         kindNow = kind;
+        cfg._kindNow = kind;
+        _needKind = kind;
+        try { if (cfg._needCats) { cfg._needCats(kind); } } catch (e) {}
+        try { if (cfg._browseForKind) { cfg._browseForKind(); } } catch (e) {}
         kindInput.placeholder = prompt;
         kindInput.value = '';
         kindHits.innerHTML = ''; kindHits.style.display = 'none';
-        kindBox.style.display = 'flex';
+        var hasCats = !!(cfg._needCatCount && cfg._needCatCount(kind));
+        kindBox.style.display = hasCats ? 'none' : 'flex';
         markKind(kind);
-        kindInput.focus();
+        if (!hasCats) { kindInput.focus(); }
       };
     }
 
@@ -1109,6 +1490,7 @@
       b.addEventListener('click', function(){
         if (cfg.kinds && cfg._openKind) {
           var kind = word.toLowerCase().replace(/^a\s+/, '').trim();
+          if (kind === 'person') { kind = 'skill'; }
           var asks = { skill: 'What skill?', thing: 'What thing?', space: 'What space?' };
           cfg._openKind(kind, asks[kind] || ('What ' + kind + '?'));
           return;
@@ -1132,7 +1514,10 @@
     other.textContent = '+ Other';
     other.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
       + gpOtherStyle();
-    if (_browseOn) {
+    if (GP_TAGS_ON && key === 'introNeed') {
+      other.style.display = 'none';
+      row.appendChild(other);
+    } else if (_browseOn && !GP_TAGS_ON) {
       var otherRow = document.createElement('div');
       otherRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;margin-top:12px;';
       otherRow.appendChild(other);
@@ -1141,11 +1526,17 @@
       row.appendChild(other);
     }
 
+    function gpPlaceOther(afterEl){
+      try {
+        if (afterEl && afterEl.parentNode) { afterEl.parentNode.insertBefore(otherBox, afterEl.nextSibling); }
+      } catch (e) {}
+    }
     var otherBox = document.createElement('div');
     otherBox.style.cssText = 'display:none;margin-top:10px;';
     box.appendChild(otherBox);
 
     other.addEventListener('click', function(){
+      gpPlaceOther(row);
       if (_bare) {
         searchWrap.style.display = 'block';
         try { search.focus(); } catch (e) {}
@@ -1180,7 +1571,7 @@
           return;
         }
         if (!cfg.tagQ) {
-          gpAddWord(key, word, '', ta);
+          gpAddWord(key, GP_TAGS_ON ? gpTitle(word) : word, '', ta);
           otherBox.style.display = 'none'; otherBox.innerHTML = '';
           return;
         }
@@ -1199,7 +1590,7 @@
         opts.forEach(function(o){
           var ob = gpPill(o, false);
           ob.addEventListener('click', function(){
-            gpAddWord(key, word, o.replace(/^[^A-Za-z0-9]+/, '').trim(), ta);
+            gpAddWord(key, GP_TAGS_ON ? gpTitle(word) : word, o.replace(/^[^A-Za-z0-9]+/, '').trim(), ta);
             otherBox.style.display = 'none'; otherBox.innerHTML = '';
           });
           orow.appendChild(ob);
@@ -1213,7 +1604,19 @@
       add.style.cssText = 'margin-top:8px;font:inherit;font-size:13.5px;font-weight:700;padding:8px 16px;'
         + 'border-radius:20px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;';
       add.addEventListener('click', commit);
-      otherBox.insertBefore(add, ask);
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = 'Cancel';
+      cancel.style.cssText = 'margin-top:8px;margin-left:8px;font:inherit;font-size:13.5px;font-weight:700;padding:8px 16px;'
+        + 'border-radius:20px;border:1.5px solid #DDE3EA;background:#fff;color:#6B7A8D;cursor:pointer;';
+      cancel.addEventListener('click', function(){
+        otherBox.style.display = 'none';
+        otherBox.innerHTML = '';
+      });
+      var btns = document.createElement('div');
+      btns.style.cssText = 'display:flex;align-items:center;flex-wrap:wrap;';
+      btns.appendChild(add); btns.appendChild(cancel);
+      otherBox.insertBefore(btns, ask);
     });
 
     function gpAddNew(word, mount, done){
@@ -1223,7 +1626,7 @@
           gpAddWord(key, corpus[i].word, corpus[i].cat, ta); repaint(); if (done) done(); return;
         }
       }
-      gpAddWord(key, word, '', ta);
+      gpAddWord(key, GP_TAGS_ON ? gpTitle(word) : word, '', ta);
       repaint();
       if (done) done();
       if (typeof gpStepPaint === 'function') gpStepPaint();
@@ -1851,17 +2254,224 @@
     try { window.scrollTo(0, 0); } catch (e) {}
   }
 
+  var GP_TAGS_ON = true;
+  var GP_CAT_EDGE = (function(){
+    var pick = '';
+    try { pick = new URLSearchParams(location.search).get('cat') || ''; } catch (e) {}
+    if (pick === '1') { return '1px solid #B9C4D2'; }
+    if (pick === '2') { return '1.5px solid #8FA9C0'; }
+    if (pick === '3') { return '1px solid #1A2E42'; }
+    return '1px solid #B9C4D2';
+  })();
+  var GP_LEVELS = {
+    introEnjoy:  { multi:true,  list:['Fan','Participant','Coach'],            head:'Enjoys added' },
+    introSkills: { multi:false, list:['Entry Level','Mid Level','Expert Level'], head:'Skills added' },
+    introValues: { multi:false, list:['Exploring','Engaged','Leading'],        head:'Cares added' }
+  };
+  function gpOrigFor(key, word){
+    var o = _gpOrig[key] || {};
+    return String(o[String(word).toLowerCase()] || word);
+  }
+  function gpSplitWork(raw){
+    var m = String(raw).match(/^(.*?)(:work)$/i);
+    return m ? { body:m[1], work:m[2] } : { body:String(raw), work:'' };
+  }
+  function gpLevelOf(key, word){
+    var parts = gpSplitWork(gpOrigFor(key, word)).body.split(':');
+    if (parts.length < 2) { return []; }
+    var last = String(parts[parts.length - 1] || '').trim();
+    if (!last) { return []; }
+    return last.split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+  }
+  function gpSetLevel(key, word, levels){
+    if (!_gpOrig[key]) { _gpOrig[key] = {}; }
+    var raw = gpOrigFor(key, word);
+    var w = gpSplitWork(raw);
+    var parts = w.body.split(':');
+    var lvl = levels.join(',');
+    if (parts.length === 1) { parts.push(lvl); }
+    else { parts[parts.length - 1] = lvl; }
+    _gpOrig[key][String(word).toLowerCase()] = parts.join(':') + w.work;
+    try { gpTouchSave(); } catch (e) {}
+  }
+  function gpCatList(key){
+    if (key !== 'introSkills') { return []; }
+    var c = GP_CHIPS[key] || {};
+    return (c.words || []).concat(c.more || []);
+  }
+  function gpCatOf(key, word){
+    var parts = gpSplitWork(gpOrigFor(key, word)).body.split(':');
+    if (key === 'introSkills') {
+      if (parts.length >= 3) { return String(parts[1] || '').trim(); }
+    } else if (parts.length > 1) {
+      var keep = [];
+      for (var i = 1; i < parts.length; i++) {
+        var seg = String(parts[i] || '').trim();
+        var low = seg.toLowerCase();
+        if (!seg || low === 'local' || low === 'skill' || low === 'thing' || low === 'space') { continue; }
+        keep.push(seg);
+      }
+      if (keep.length) { return keep[keep.length - 1].split('~')[0].trim(); }
+    }
+    try { return String((_gpTags[key] || {})[word] || '').trim(); } catch (e) { return ''; }
+  }
+  function gpSetCategory(key, word, cat){
+    if (!_gpOrig[key]) { _gpOrig[key] = {}; }
+    var w = gpSplitWork(gpOrigFor(key, word));
+    var parts = w.body.split(':');
+    while (parts.length < 3) { parts.push(''); }
+    parts[1] = cat;
+    _gpOrig[key][String(word).toLowerCase()] = parts.slice(0, 3).join(':') + w.work;
+    try { gpTouchSave(); } catch (e) {}
+  }
+  function gpPickedWords(key){
+    var el = document.getElementById('gp-intro-' + key);
+    return String((el && el.value) || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+  }
+  function gpTagBox(q, wrap){
+    if (!GP_TAGS_ON) { return; }
+    var spec = GP_LEVELS[q.key];
+    if (!spec || !wrap) { return; }
+    var box = document.createElement('div');
+    box.id = 'gp-tagbox-' + q.key;
+    box.style.cssText = 'margin:20px 0 0;';
+    var bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;'
+      + 'background:#1F699E;color:#fff;border-radius:10px 10px 0 0;padding:11px 16px;'
+      + 'font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;';
+    var barText = document.createElement('span');
+    barText.id = 'gp-tagbar-' + q.key;
+    barText.textContent = spec.head;
+    var fold = document.createElement('button');
+    fold.type = 'button';
+    fold.setAttribute('aria-expanded', 'true');
+    fold.style.cssText = 'font:inherit;font-size:13px;background:none;border:0;color:#fff;cursor:pointer;padding:0 2px;';
+    fold.textContent = '\u25b2';
+    var body = document.createElement('div');
+    body.style.cssText = 'border:1.5px solid #C9DFF3;border-top:0;border-radius:0 0 12px 12px;padding:14px 16px 16px;background:#fff;';
+    fold.onclick = function(){
+      var open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : '';
+      fold.textContent = open ? '\u25bc' : '\u25b2';
+      fold.setAttribute('aria-expanded', open ? 'false' : 'true');
+    };
+    bar.appendChild(barText); bar.appendChild(fold);
+    var rows = document.createElement('div');
+    rows.id = 'gp-tagrows-' + q.key;
+    rows.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(204px,1fr));gap:10px;';
+    body.appendChild(rows);
+    box.appendChild(bar); box.appendChild(body);
+    wrap.appendChild(box);
+    gpTagPaint(q.key);
+    var ta0 = document.getElementById('gp-intro-' + q.key);
+    if (ta0 && !ta0._gpTagWatched) {
+      ta0._gpTagWatched = 1;
+      ta0.addEventListener('input', function(){ gpTagPaint(q.key); });
+    }
+    var seen = '', tries = 0;
+    var watch = setInterval(function(){
+      tries++;
+      var el = document.getElementById('gp-intro-' + q.key);
+      var now = String((el && el.value) || '');
+      if (now !== seen) { seen = now; gpTagPaint(q.key); }
+      if (tries > 120) { clearInterval(watch); }
+    }, 500);
+  }
+  function gpTagCatLine(key, word){
+    var cats = gpCatList(key);
+    var have = gpCatOf(key, word);
+    if (!cats.length) { return null; }
+    var sel = document.createElement('select');
+    var missing = !have;
+    sel.style.cssText = 'font:inherit;font-size:12px;font-weight:700;border:0;background:none;cursor:pointer;'
+      + 'padding:0;margin:2px 0 7px;-webkit-appearance:none;appearance:none;max-width:100%;'
+      + (missing ? 'color:#C2560E;' : 'color:#1F699E;');
+    var none = document.createElement('option');
+    none.value = ''; none.textContent = 'Category missing \u25be';
+    sel.appendChild(none);
+    cats.forEach(function(c){
+      var op = document.createElement('option');
+      op.value = c; op.textContent = c;
+      if (c.toLowerCase() === have.toLowerCase()) { op.selected = true; }
+      sel.appendChild(op);
+    });
+    sel.onchange = function(){ gpSetCategory(key, word, sel.value); gpTagPaint(key); };
+    return sel;
+  }
+  function gpTagPaint(key){
+    var rows = document.getElementById('gp-tagrows-' + key);
+    if (!rows) { return; }
+    var spec = GP_LEVELS[key];
+    var words = gpPickedWords(key);
+    var bar = document.getElementById('gp-tagbar-' + key);
+    if (bar) { bar.textContent = spec.head + ' (' + words.length + ')'; }
+    rows.innerHTML = '';
+    if (!words.length) {
+      var none = document.createElement('div');
+      none.style.cssText = 'font-size:13.5px;color:#6B7A8D;';
+      none.textContent = 'Pick something above and it will appear here.';
+      rows.appendChild(none);
+      return;
+    }
+    words.forEach(function(word){
+      var on = gpLevelOf(key, word);
+      var card = document.createElement('div');
+      card.style.cssText = 'border:1px solid #DDE4EE;border-radius:12px;padding:10px 12px 11px;background:#fff;';
+      var top = document.createElement('div');
+      top.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:8px;';
+      var nm = document.createElement('div');
+      nm.style.cssText = 'font-size:12.5px;font-weight:800;color:#1A2E42;line-height:1.35;word-break:break-word;';
+      nm.textContent = word;
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.setAttribute('aria-label', 'Remove ' + word);
+      x.style.cssText = 'font:inherit;font-size:13.5px;background:none;border:0;color:#8A97A6;cursor:pointer;line-height:1;padding:0 2px;';
+      x.textContent = '\u00d7';
+      x.onclick = function(){
+        var ta = document.getElementById('gp-intro-' + key);
+        if (ta) { gpDropWord(key, word, ta); }
+      };
+      top.appendChild(nm); top.appendChild(x);
+      card.appendChild(top);
+      var cat = gpTagCatLine(key, word);
+      if (cat) { card.appendChild(cat); } else { var sp = document.createElement('div'); sp.style.cssText = 'height:9px;'; card.appendChild(sp); }
+      var pills = document.createElement('div');
+      pills.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+      spec.list.forEach(function(lv){
+        var b = gpPill(lv, on.indexOf(lv) > -1);
+        b.style.fontSize = '11.5px';
+        b.style.padding = '5px 10px';
+        b.onclick = function(){
+          var now = gpLevelOf(key, word);
+          if (spec.multi) {
+            var at = now.indexOf(lv);
+            if (at > -1) { now.splice(at, 1); } else { now.push(lv); }
+          } else {
+            now = (now.length === 1 && now[0] === lv) ? [] : [lv];
+          }
+          gpSetLevel(key, word, now);
+          gpTagPaint(key);
+        };
+        pills.appendChild(b);
+      });
+      card.appendChild(pills);
+      rows.appendChild(card);
+    });
+  }
+
   var _gpProse = {}, _gpProseDirty = {};
   function gpProseBox(q, wrap){
     var have = String((_gpProse && _gpProse[q.key]) || '').trim();
     var w = document.createElement('div');
     w.style.cssText = 'margin:18px 0 0;';
     var lab = document.createElement('div');
-    lab.style.cssText = 'font-size:13px;font-weight:800;color:#6B7A8D;margin:0 0 6px;';
-    lab.textContent = 'Kept from earlier';
-    var hint = document.createElement('div');
-    hint.style.cssText = 'font-size:12.5px;color:#6B7A8D;margin:0 0 8px;line-height:1.5;';
-    hint.textContent = 'Only you see this. Some of it was written by an older version of these questions, not by you \u2014 edit it or empty it. The chips above are separate and are what your profile shows.';
+    lab.style.cssText = 'font-size:12.5px;color:#6B7A8D;margin:0 0 8px;line-height:1.5;';
+    var labStrong = document.createElement('span');
+    labStrong.style.cssText = 'font-weight:800;';
+    labStrong.textContent = 'Kept from earlier:';
+    lab.appendChild(labStrong);
+    lab.appendChild(document.createTextNode(' Only you see this. Some of it was written by an older version of these questions, not by you \u2014 edit it or empty it. The chips above are separate and are what your profile shows.'));
+    var hint = document.createElement('span');
     var ta2 = document.createElement('textarea');
     ta2.id = 'gp-prose-' + q.key;
     ta2.rows = 3;
@@ -1874,7 +2484,7 @@
       _gpProseDirty[q.key] = 1;
       gpTouchSave();
     });
-    w.appendChild(lab); w.appendChild(hint); w.appendChild(ta2);
+    w.appendChild(lab); w.appendChild(ta2);
     wrap.appendChild(w);
   }
   function gpProseQs(){
@@ -1933,7 +2543,7 @@
     box.appendChild(_s0);
     GP_INTRO_Q.forEach(function(q, i){
       var wrap = document.createElement('div');
-      wrap.style.cssText = 'padding:18px 0;' + (i ? 'border-top:1px solid #f0f1f5;' : 'padding-top:0;');
+      wrap.style.cssText = 'padding:18px 0;' + ((i && !GP_RAIL) ? 'border-top:1px solid #f0f1f5;' : 'padding-top:0;');
       var t = document.createElement('div');
       t.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;';
       t.textContent = q.q;
@@ -1981,6 +2591,7 @@
       var chipRow = gpPicker(q.key, ta) || gpChipRow(q.key, ta);
       if (chipRow) wrap.appendChild(chipRow);
       if (_proseAfterChips) { gpProseBox(q, _proseAfterChips); }
+      gpTagBox(q, _proseAfterChips || wrap);
       var _map = { introEnjoy:'1', introSkills:'2', introValues:'3', introNeed:'4', introOffer:'4' };
       wrap.setAttribute('data-gp-step', _map[q.key] || '4');
       box.appendChild(wrap);
@@ -2603,70 +3214,264 @@
   function gpHaveName(w){ return String(w || '').split(':')[0].replace(/^[^\p{L}\p{N}]+/u, '').trim(); }
   function gpHaveKind(w){ var b = String(w || '').split(':'); var k = b.length > 1 ? b[b.length - 1].trim().toLowerCase() : ''; return (k === 'skill' || k === 'thing' || k === 'space') ? k : ''; }
   function gpOfferNames(kind){
-    return _gpHaves.filter(function(w){ var k = gpHaveKind(w); return kind === 'space' ? k === 'space' : (k === 'thing' || k === ''); }).map(gpHaveName).filter(Boolean);
+    return _gpHaves.filter(function(w){ var k = (typeof gpHaveBits === 'function' ? gpHaveBits(w).kind : gpHaveKind(w)); return kind === 'space' ? k === 'space' : (k !== 'space'); }).map(function(w){ return (typeof gpHaveBits === 'function' ? gpHaveBits(w).name : gpHaveName(w)); });
+  }
+  var GP_OFFER_CATS = {
+    space: [
+      ['\u{1F3E0} Home', 'A home'],
+      ['\u{1F6CF} Room', 'A room'],
+      ['\u{1F5E3} Meeting room', 'A meeting room'],
+      ['\u{1F3AA} Venue', 'A venue'],
+      ['\u{1F3A8} Studio', 'A studio'],
+      ['\u{1F527} Workshop', 'A workshop'],
+      ['\u{1F4BB} Desk', 'A desk']
+    ],
+    thing: [
+      ['\u{1F4E6} Physical goods', 'Examples: a book, gear or equipment, art supplies, a tool'],
+      ['\u{1F372} Consumables', 'Examples: food, drink, something that gets used up'],
+      ['\u{1F499} Money', 'Examples: a contribution, help with a bill'],
+      ['\u{1FAB4} Living things', 'Examples: a plant, a cutting, seeds']
+    ]
+  };
+  function gpHaveBits(w){
+    var bits = String(w || '').split(':');
+    var out = { name: bits[0] || '', cat: '', local: false, detail: '', kind: '' };
+    if (bits.length > 1) { out.kind = String(bits[bits.length - 1] || '').trim().toLowerCase(); }
+    for (var i = 1; i < bits.length - 1; i++) {
+      var seg = String(bits[i] || '');
+      if (seg.indexOf('c=') === 0) { out.cat = seg.slice(2); }
+      else if (seg.indexOf('f=') === 0) { out.local = seg.slice(2).indexOf('local') > -1; }
+      else if (seg.indexOf('d=') === 0) { try { out.detail = decodeURIComponent(seg.slice(2)); } catch (e) { out.detail = ''; } }
+    }
+    return out;
+  }
+  function gpHaveJoin(b){
+    var out = [b.name];
+    if (b.cat) { out.push('c=' + String(b.cat).split(':').join(' ')); }
+    if (b.local) { out.push('f=local'); }
+    if (b.detail) { out.push('d=' + encodeURIComponent(b.detail)); }
+    out.push('work');
+    out.push(b.kind || 'thing');
+    return out.join(':');
   }
   function gpPaintOffers(ob){
     var rd = window._gpRd;
-    if (!rd || !Array.isArray(rd.spaceOfferTypes)) return false;
-    var section = function(kind, opts, label){
-      var names = gpOfferNames(kind), lower = names.map(function(n){ return n.toLowerCase(); }), list = opts.slice();
-      names.forEach(function(n){ if (!list.some(function(o){ return String(o).toLowerCase() === n.toLowerCase(); })) list.push(n); });   
-      return '<div style="font-size:15px;font-weight:800;color:#1A2E42;margin:' + (kind === 'space' ? '0' : '22px') + ' 0 8px;">' + label + '</div>'
-        + '<div style="display:flex;flex-wrap:wrap;gap:7px;">' + list.map(function(v){
-            var on = lower.indexOf(String(v).toLowerCase()) > -1;
-            return '<button type="button" data-gp-have="' + kind + '" data-v="' + _gpEsc(v) + '" style="font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
-              + (on ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;' : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;')
-              + '">' + _gpEsc(v) + '</button>';
-          }).join('')
-        + '<button type="button" data-gp-haveother="' + kind + '" style="font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;' + gpOtherStyle() + '">+ Other</button></div>'
-        + '<div data-gp-havebox="' + kind + '" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap;">'
-        + '<input type="text" placeholder="In your own words" style="flex:1 1 220px;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:9px 12px;font:inherit;font-size:14px;color:#1A2E42;">'
-        + '<button type="button" style="font:inherit;font-size:13.5px;font-weight:700;padding:8px 16px;border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;">Add</button></div>';
-    };
-    var mySkills = function(){
-      var head = 'font-size:15px;font-weight:800;color:#1A2E42;margin:0 0 8px;';
-      var picked = [], seen = {};
-      var add = function(v){
-        v = String(v || '').trim();
-        if (!v || seen[v.toLowerCase()]) return;
-        seen[v.toLowerCase()] = 1; picked.push(v);
-      };
-      try { Object.keys((typeof _gpTags !== 'undefined' && _gpTags['introSkills']) || {}).forEach(add); } catch (e) {}
-      try {
-        var fld = document.getElementById('gp-intro-introSkills');
-        String(fld && fld.value || '').split(/[,|]/).forEach(add);
-      } catch (e) {}
-      var addBtn = '<button type="button" id="gp-add-skill" style="font:inherit;font-size:13.5px;'
-        + 'padding:7px 14px;border-radius:20px;cursor:pointer;' + gpOtherStyle() + '">+ Other</button>';
-      if (!picked.length) return '<div style="' + head + '">My skill offerings</div>'
-        + '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:22px;">' + addBtn + '</div>';
-      return '<div style="' + head + '">My skill offerings</div>'
-        + '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:22px;">'
-        + picked.map(function(v){
-            return '<span style="font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;'
-              + 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;">' + _gpEsc(v) + '</span>';
-          }).join('')
-        + addBtn
-        + '</div>';
-    };
-    ob.innerHTML = mySkills()
-      + section('space', rd.spaceOfferTypes, 'My space offerings') + section('thing', rd.thingOfferTypes || [], "Something I'm offering as well");
-    var toggle = function(kind, v){
-      var at = -1;
-      _gpHaves.forEach(function(w, i){ if (at < 0 && gpHaveName(w).toLowerCase() === String(v).toLowerCase() && (kind === 'space') === (gpHaveKind(w) === 'space')) at = i; });
-      if (at > -1) _gpHaves.splice(at, 1); else _gpHaves.push(v + ':work:' + kind);
+    if (!rd || !Array.isArray(rd.spaceOfferTypes)) { return false; }
+    ob.innerHTML = '';
+    var HEAD = { space: 'My space offerings', thing: "Something I'm offering" };
+    var KINDWORD = { space: '\u{1F3E0} Space', thing: '\u{1F4E6} Thing' };
+    var swap = function(oldW, next){
+      for (var i = 0; i < _gpHaves.length; i++) {
+        if (_gpHaves[i] === oldW) { _gpHaves[i] = next; break; }
+      }
       gpPaintOffers(ob);
     };
-    ob.querySelectorAll('[data-gp-have]').forEach(function(b){ b.onclick = function(){ toggle(b.getAttribute('data-gp-have'), b.getAttribute('data-v')); }; });
-    ob.querySelectorAll('[data-gp-haveother]').forEach(function(b){
-      var kind = b.getAttribute('data-gp-haveother'), bx = ob.querySelector('[data-gp-havebox="' + kind + '"]');
-      var inp = bx.querySelector('input'), add = bx.querySelector('button');
-      var go = function(){ var v = String(inp.value || '').trim(); if (!v) return;
-        if (!gpOfferNames(kind).some(function(n){ return n.toLowerCase() === v.toLowerCase(); })) toggle(kind, v); else gpPaintOffers(ob); };
-      b.onclick = function(){ bx.style.display = bx.style.display === 'none' ? 'flex' : 'none'; if (bx.style.display === 'flex') { try { inp.focus(); } catch (e) {} } };
-      add.onclick = go;
-      inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
+    var drop = function(w){
+      for (var i = 0; i < _gpHaves.length; i++) {
+        if (_gpHaves[i] === w) { _gpHaves.splice(i, 1); break; }
+      }
+      gpPaintOffers(ob);
+    };
+    var mine = function(kind){
+      return _gpHaves.filter(function(w){
+        var k = gpHaveBits(w).kind;
+        return kind === 'space' ? k === 'space' : (k !== 'space');
+      });
+    };
+    var allCards = document.createElement('div');
+    var skillLine = document.createElement('div');
+    skillLine.style.cssText = 'display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 20px;';
+    var skLab = document.createElement('span');
+    skLab.style.cssText = 'font-size:15px;font-weight:800;color:#1A2E42;';
+    skLab.textContent = 'My skill offerings:';
+    var skNames = document.createElement('span');
+    skNames.style.cssText = 'font-size:14px;color:#4B5A6D;flex:1 1 200px;line-height:1.5;';
+    var _sk = [];
+    try { _sk = gpMySkillNames() || []; } catch (e) { _sk = []; }
+    skNames.textContent = _sk.length ? _sk.join(', ') : 'None yet.';
+    skillLine.appendChild(skLab); skillLine.appendChild(skNames);
+    try {
+      var skBtn = gpStepButton('Edit skills', 'Skills');
+      if (skBtn) { skillLine.appendChild(skBtn); }
+    } catch (e) {}
+    ob.appendChild(skillLine);
+    ['thing', 'space'].forEach(function(kind){
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'margin:' + (kind === 'thing' ? '0' : '26px') + ' 0 0;';
+      var h = document.createElement('div');
+      h.style.cssText = 'font-size:15px;font-weight:800;color:#1A2E42;margin:0 0 10px;';
+      h.textContent = HEAD[kind];
+      wrap.appendChild(h);
+      var chips = document.createElement('div');
+      chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:9px;';
+      wrap.appendChild(chips);
+      var field = document.createElement('div');
+      field.style.cssText = 'display:none;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 0;';
+      var inp = document.createElement('input');
+      inp.type = 'text';
+      inp.style.cssText = 'flex:1 1 240px;border:1.5px solid #DDE3EA;background:#fff;border-radius:12px;'
+        + 'padding:10px 13px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
+      var addBtn = document.createElement('button');
+      addBtn.type = 'button'; addBtn.textContent = 'Add';
+      addBtn.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:10px 22px;border-radius:22px;'
+        + 'border:0;background:#1F699E;color:#fff;cursor:pointer;';
+      var cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button'; cancelBtn.textContent = 'Cancel';
+      cancelBtn.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:10px 22px;border-radius:22px;'
+        + 'border:1.5px solid #DDE4EE;background:#fff;color:#6B7A8D;cursor:pointer;';
+      field.appendChild(inp); field.appendChild(addBtn); field.appendChild(cancelBtn);
+      wrap.appendChild(field);
+      var pickedCat = '';
+      var closeField = function(){ field.style.display = 'none'; inp.value = ''; pickedCat = ''; };
+      cancelBtn.onclick = closeField;
+      var commit = function(){
+        var v = String(inp.value || '').trim();
+        if (!v) { closeField(); return; }
+        _gpHaves.push(gpHaveJoin({ name: gpTitle(v), cat: pickedCat, kind: kind, local: false, detail: '' }));
+        closeField();
+        gpPaintOffers(ob);
+      };
+      addBtn.onclick = commit;
+      inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); commit(); } });
+      (GP_OFFER_CATS[kind] || []).forEach(function(pair){
+        var plain = String(pair[0]).replace(/^[^A-Za-z0-9]+/, '').trim();
+        var on = mine(kind).some(function(w){ return gpHaveBits(w).name.toLowerCase() === plain.toLowerCase(); });
+        var b = gpPill(pair[0], on);
+        b.onclick = function(){
+          if (on) {
+            mine(kind).forEach(function(w){ if (gpHaveBits(w).name.toLowerCase() === plain.toLowerCase()) { drop(w); } });
+            return;
+          }
+          _gpHaves.push(gpHaveJoin({ name: plain, cat: plain, kind: kind, local: false, detail: '' }));
+          pickedCat = plain;
+          inp.placeholder = pair[1];
+          gpPaintOffers(ob);
+        };
+        chips.appendChild(b);
+      });
+      var bOther = gpPill('+ Other', false);
+      bOther.onclick = function(){
+        pickedCat = '';
+        inp.placeholder = kind === 'space' ? 'What space?' : 'What thing?';
+        field.style.display = 'flex';
+        try { inp.focus(); } catch (e) {}
+      };
+      chips.appendChild(bOther);
+      var cards = allCards;
+      mine(kind).forEach(function(w){
+        var b = gpHaveBits(w);
+        var card = document.createElement('div');
+        card.style.cssText = 'border:1px solid #DDE4EE;border-radius:12px;padding:12px 14px 13px;background:#F7FBFF;';
+        var top = document.createElement('div');
+        top.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:10px;';
+        var nm = document.createElement('div');
+        nm.style.cssText = 'font-size:15px;font-weight:800;color:#1A2E42;line-height:1.3;word-break:break-word;';
+        nm.textContent = b.name;
+        var tools = document.createElement('div');
+        tools.style.cssText = 'display:flex;align-items:center;gap:9px;flex:0 0 auto;';
+        var pen = document.createElement('button');
+        pen.type = 'button'; pen.textContent = '✏️';
+        pen.setAttribute('aria-label', 'Edit ' + b.name);
+        pen.style.cssText = 'font:inherit;font-size:13.5px;line-height:1;border:0;background:none;cursor:pointer;padding:0 2px;';
+        var loc = document.createElement('button');
+        loc.type = 'button';
+        loc.textContent = '\u{1F4CD} Local';
+        loc.style.cssText = 'font:inherit;font-size:12.5px;font-weight:700;background:none;border:0;cursor:pointer;padding:0;'
+          + 'color:' + (b.local ? '#1F699E' : '#6B7A8D') + ';';
+        loc.style.opacity = b.local ? '1' : '.8';
+        loc.onclick = function(){ var n2 = gpHaveBits(w); n2.local = !n2.local; swap(w, gpHaveJoin(n2)); };
+        var rm = document.createElement('button');
+        rm.type = 'button'; rm.textContent = '×';
+        rm.setAttribute('aria-label', 'Remove ' + b.name);
+        rm.style.cssText = 'font:inherit;font-size:15px;line-height:1;border:0;background:none;color:#8A97A6;cursor:pointer;padding:0 2px;';
+        rm.onclick = function(){ drop(w); };
+        tools.appendChild(pen); tools.appendChild(loc); tools.appendChild(rm);
+        top.appendChild(nm); top.appendChild(tools);
+        card.appendChild(top);
+        var under = [KINDWORD[b.kind] || KINDWORD.thing];
+        if (b.cat && b.cat.toLowerCase() !== b.name.toLowerCase()) { under.push(b.cat); }
+        var sub = document.createElement('div');
+        sub.style.cssText = 'font-size:12.5px;color:#6B7A8D;margin-top:2px;';
+        sub.textContent = under.join(' · ');
+        card.appendChild(sub);
+        if (b.detail) {
+          var d = document.createElement('div');
+          d.style.cssText = 'font-size:12.5px;color:#1F699E;font-style:italic;margin-top:5px;line-height:1.45;';
+          d.textContent = 'Offering: ' + b.detail;
+          card.appendChild(d);
+        }
+        var panel = document.createElement('div');
+        panel.style.cssText = 'display:none;margin-top:10px;padding-top:10px;border-top:1px solid #DDE4EE;';
+        pen.onclick = function(){
+          var open = panel.style.display !== 'none';
+          panel.style.display = open ? 'none' : 'block';
+          if (open) { return; }
+          panel.innerHTML = '';
+          var cur = gpHaveBits(w);
+          var fc = 'width:100%;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;'
+            + 'padding:8px 10px;font:inherit;font-size:13.5px;color:#1A2E42;outline:none;margin-bottom:8px;';
+          var fName = document.createElement('input'); fName.type = 'text'; fName.value = cur.name; fName.style.cssText = fc;
+          var fKind = document.createElement('select'); fKind.style.cssText = fc;
+          [['space', '\u{1F3E0} Space'], ['thing', '\u{1F4E6} Thing']].forEach(function(k){
+            var op = document.createElement('option'); op.value = k[0]; op.textContent = k[1];
+            if (k[0] === cur.kind) { op.selected = true; }
+            fKind.appendChild(op);
+          });
+          var fCat = document.createElement('select'); fCat.style.cssText = fc;
+          var fill = function(kk){
+            fCat.innerHTML = '';
+            var none = document.createElement('option'); none.value = ''; none.textContent = 'No category';
+            fCat.appendChild(none);
+            (GP_OFFER_CATS[kk] || []).forEach(function(pr){
+              var pl = String(pr[0]).replace(/^[^A-Za-z0-9]+/, '').trim();
+              var op = document.createElement('option'); op.value = pl; op.textContent = pl;
+              if (pl.toLowerCase() === String(cur.cat).toLowerCase()) { op.selected = true; }
+              fCat.appendChild(op);
+            });
+          };
+          fill(cur.kind || 'thing');
+          fKind.onchange = function(){ fill(fKind.value); };
+          var fDetail = document.createElement('input');
+          fDetail.type = 'text'; fDetail.value = cur.detail;
+          fDetail.placeholder = 'What exactly are you offering?';
+          fDetail.style.cssText = fc;
+          var locLine = document.createElement('label');
+          locLine.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13.5px;color:#1A2E42;margin:2px 0 10px;cursor:pointer;';
+          var fLoc = document.createElement('input'); fLoc.type = 'checkbox'; fLoc.checked = !!cur.local;
+          locLine.appendChild(fLoc); locLine.appendChild(document.createTextNode('\u{1F4CD} Local'));
+          var btns = document.createElement('div');
+          btns.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
+          var sv = document.createElement('button'); sv.type = 'button'; sv.textContent = 'Save';
+          sv.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 18px;border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
+          var cn = document.createElement('button'); cn.type = 'button'; cn.textContent = 'Cancel';
+          cn.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 18px;border-radius:20px;border:1.5px solid #DDE4EE;background:#fff;color:#6B7A8D;cursor:pointer;';
+          cn.onclick = function(){ panel.style.display = 'none'; };
+          sv.onclick = function(){
+            swap(w, gpHaveJoin({
+              name: gpTitle(String(fName.value || '').trim()) || cur.name,
+              cat: fCat.value,
+              kind: fKind.value,
+              local: !!fLoc.checked,
+              detail: String(fDetail.value || '').trim()
+            }));
+          };
+          btns.appendChild(sv); btns.appendChild(cn);
+          panel.appendChild(fName); panel.appendChild(fKind); panel.appendChild(fCat);
+          panel.appendChild(fDetail); panel.appendChild(locLine); panel.appendChild(btns);
+        };
+        card.appendChild(panel);
+        cards.appendChild(card);
+      });
+      ob.appendChild(wrap);
     });
+    if (allCards.childNodes.length) {
+      var ch = document.createElement('div');
+      ch.style.cssText = 'font-size:13px;font-weight:800;color:#6B7A8D;margin:26px 0 10px;';
+      ch.textContent = 'Offers showing on my profile';
+      ob.appendChild(ch);
+      allCards.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;';
+      ob.appendChild(allCards);
+    }
     return true;
   }
   function gpMyProfileHref(){
@@ -3086,7 +3891,7 @@
     set(byKey('introNeed'), 4);
     var oldOffer = byKey('introOffer'); if (oldOffer) oldOffer.setAttribute('data-gp-step', '-1');
     var ob = document.createElement('div'); ob.id = 'gp-offers';
-    var offer = gpRailBlock('gp-offers-block', 5, "In addition to offering these skills, do you have any resources to offer others right now?", '', ob);
+    var offer = gpRailBlock('gp-offers-block', 5, "In addition to offering your skills, do you have any resources to offer others right now?", '', ob);
     if (oldOffer) after(oldOffer, offer); else box.insertBefore(offer, document.getElementById('gp-preview'));
     gpChoicesOr(ob, function(){ return gpPaintOffers(ob); });
     ob.addEventListener('click', function(ev){
