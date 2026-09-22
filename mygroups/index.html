@@ -802,9 +802,39 @@
   } catch(err){}
   var _listKey = 'cw-mygroups-' + meId;
   var _drewCached = false;
+  var _CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+  function _readCachedList(){
+    try {
+      var fromSession = JSON.parse(sessionStorage.getItem(_listKey) || 'null');
+      if (fromSession && fromSession.length) return fromSession;
+    } catch (err) {}
+    try {
+      var kept = JSON.parse(localStorage.getItem(_listKey) || 'null');
+      if (kept && kept.list && kept.list.length
+          && (Date.now() - Number(kept.at || 0)) < _CACHE_MAX_AGE) return kept.list;
+    } catch (err) {}
+    return null;
+  }
+  function _writeCachedList(list){
+    try { sessionStorage.setItem(_listKey, JSON.stringify(list)); } catch (err) {}
+    try { localStorage.setItem(_listKey, JSON.stringify({ list: list, at: Date.now() })); } catch (err) {}
+  }
+  function _forgetCachedList(){
+    try { sessionStorage.removeItem(_listKey); } catch (err) {}
+    try { localStorage.removeItem(_listKey); } catch (err) {}
+  }
   try {
-    var _cached = JSON.parse(sessionStorage.getItem(_listKey) || 'null');
-    if (_cached && _cached.length) { _groups = _cached; renderRail(); _drewCached = true; }
+    var _cached = _readCachedList();
+    if (_cached && _cached.length) {
+      _groups = _cached;
+      renderRail();
+      _drewCached = true;
+      var _cn = document.getElementById('loading-note');
+      if (_cn) {
+        _cn.style.display = '';
+        _cn.innerHTML = '<span style="font-size:13px;color:var(--soft,#4B5A6D);">Checking for changes\u2026</span>';
+      }
+    }
   } catch (err) {}
 
   if (!_drewCached) {
@@ -838,7 +868,7 @@
         return;
       }
       if (!d.groups.length) {
-        try { sessionStorage.removeItem(_listKey); } catch (err) {}
+        _forgetCachedList();
         _keepGroupsFlag([]);
         emptyPanel(_pane === 'member'
           ? "You don't belong to any groups you don't host."
@@ -846,9 +876,11 @@
         return;
       }
       _groups = d.groups;
-      try { sessionStorage.setItem(_listKey, JSON.stringify(d.groups)); } catch (err) {}
+      _writeCachedList(d.groups);
       _keepGroupsFlag(d.groups);
       renderRail();
+      var _ln2 = document.getElementById('loading-note');
+      if (_ln2) { _ln2.style.display = 'none'; }
     })
     .catch(function(){
       _stopWait();
