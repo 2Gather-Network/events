@@ -3215,106 +3215,240 @@
   function gpHaveName(w){ return String(w || '').split(':')[0].replace(/^[^\p{L}\p{N}]+/u, '').trim(); }
   function gpHaveKind(w){ var b = String(w || '').split(':'); var k = b.length > 1 ? b[b.length - 1].trim().toLowerCase() : ''; return (k === 'skill' || k === 'thing' || k === 'space') ? k : ''; }
   function gpOfferNames(kind){
-    return _gpHaves.filter(function(w){ var k = gpHaveKind(w); return kind === 'space' ? k === 'space' : (k === 'thing' || k === ''); }).map(gpHaveName).filter(Boolean);
+    return _gpHaves.filter(function(w){ var k = (typeof gpHaveBits === 'function' ? gpHaveBits(w).kind : gpHaveKind(w)); return kind === 'space' ? k === 'space' : (k !== 'space'); }).map(function(w){ return (typeof gpHaveBits === 'function' ? gpHaveBits(w).name : gpHaveName(w)); });
+  }
+  var GP_OFFER_CATS = {
+    space: [
+      ['\u{1F3E0} Home', 'A home'],
+      ['\u{1F6CF} Room', 'A room'],
+      ['\u{1F5E3} Meeting room', 'A meeting room'],
+      ['\u{1F3AA} Venue', 'A venue'],
+      ['\u{1F3A8} Studio', 'A studio'],
+      ['\u{1F527} Workshop', 'A workshop'],
+      ['\u{1F4BB} Desk', 'A desk']
+    ],
+    thing: [
+      ['\u{1F4E6} Physical goods', 'Examples: a book, gear or equipment, art supplies, a tool'],
+      ['\u{1F372} Consumables', 'Examples: food, drink, something that gets used up'],
+      ['\u{1F499} Money', 'Examples: a contribution, help with a bill'],
+      ['\u{1FAB4} Living things', 'Examples: a plant, a cutting, seeds']
+    ]
+  };
+  function gpHaveBits(w){
+    var bits = String(w || '').split(':');
+    var out = { name: bits[0] || '', cat: '', local: false, detail: '', kind: '' };
+    if (bits.length > 1) { out.kind = String(bits[bits.length - 1] || '').trim().toLowerCase(); }
+    for (var i = 1; i < bits.length - 1; i++) {
+      var seg = String(bits[i] || '');
+      if (seg.indexOf('c=') === 0) { out.cat = seg.slice(2); }
+      else if (seg.indexOf('f=') === 0) { out.local = seg.slice(2).indexOf('local') > -1; }
+      else if (seg.indexOf('d=') === 0) { try { out.detail = decodeURIComponent(seg.slice(2)); } catch (e) { out.detail = ''; } }
+    }
+    return out;
+  }
+  function gpHaveJoin(b){
+    var out = [b.name];
+    if (b.cat) { out.push('c=' + String(b.cat).split(':').join(' ')); }
+    if (b.local) { out.push('f=local'); }
+    if (b.detail) { out.push('d=' + encodeURIComponent(b.detail)); }
+    out.push('work');
+    out.push(b.kind || 'thing');
+    return out.join(':');
   }
   function gpPaintOffers(ob){
     var rd = window._gpRd;
-    if (!rd || !Array.isArray(rd.spaceOfferTypes)) return false;
-    var gpOfferLabel = function(v){
-      var t = String(v || '').trim().replace(/^(an|a|the)\s+/i, '');
-      return t.charAt(0).toUpperCase() + t.slice(1);
-    };
-    var GP_SPACE_ORDER = ['an extra room', 'a garden', 'an event venue', 'a kitchen'];
-    var section = function(kind, opts, label){
-      var names = gpOfferNames(kind), lower = names.map(function(n){ return n.toLowerCase(); }), list = opts.slice();
-      names.forEach(function(n){ if (!list.some(function(o){ return String(o).toLowerCase() === n.toLowerCase(); })) list.push(n); });
-      if (kind === 'space') {
-        list.sort(function(a, b){
-          var ia = GP_SPACE_ORDER.indexOf(String(a).toLowerCase());
-          var ib = GP_SPACE_ORDER.indexOf(String(b).toLowerCase());
-          if (ia < 0) { ia = 99; }
-          if (ib < 0) { ib = 99; }
-          return ia - ib;
-        });
+    if (!rd || !Array.isArray(rd.spaceOfferTypes)) { return false; }
+    ob.innerHTML = '';
+    var HEAD = { space: 'My space offerings', thing: "Something I'm offering" };
+    var KINDWORD = { space: '\u{1F3E0} Space', thing: '\u{1F4E6} Thing' };
+    var swap = function(oldW, next){
+      for (var i = 0; i < _gpHaves.length; i++) {
+        if (_gpHaves[i] === oldW) { _gpHaves[i] = next; break; }
       }
-      var chosenHtml = names.length
-        ? '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;">' + names.map(function(n){
-            return '<span style="display:inline-flex;align-items:center;gap:8px;font-size:13.5px;'
-              + 'padding:7px 10px 7px 14px;border-radius:20px;background:#1F699E;color:#fff;font-weight:700;">'
-              + _gpEsc(gpOfferLabel(n))
-              + '<button type="button" data-gp-havedrop="' + kind + '" data-v="' + _gpEsc(n) + '" aria-label="Remove ' + _gpEsc(n) + '"'
-              + ' style="font:inherit;font-size:15px;line-height:1;border:0;background:transparent;color:#fff;cursor:pointer;padding:0 2px;">\u00d7</button>'
-              + '</span>';
-          }).join('') + '</div>'
-        : '';
-      return '<div style="font-size:15px;font-weight:800;color:#1A2E42;margin:' + (kind === 'space' ? '0' : '22px') + ' 0 8px;">' + label + '</div>'
-        + '<div style="display:flex;flex-wrap:wrap;gap:7px;">' + list.map(function(v){
-            var on = lower.indexOf(String(v).toLowerCase()) > -1;
-            return '<button type="button" data-gp-have="' + kind + '" data-v="' + _gpEsc(v) + '" style="font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
-              + (on ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;' : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;')
-              + '">' + _gpEsc(gpOfferLabel(v)) + '</button>';
-          }).join('')
-        + '<button type="button" data-gp-haveother="' + kind + '" style="font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;' + gpOtherStyle() + '">+ Other</button></div>'
-        + '<div data-gp-havebox="' + kind + '" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap;">'
-        + '<input type="text" placeholder="In your own words" style="flex:1 1 220px;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:9px 12px;font:inherit;font-size:14px;color:#1A2E42;">'
-        + '<button type="button" style="font:inherit;font-size:13.5px;font-weight:700;padding:8px 16px;border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;">Add</button></div></div>' + chosenHtml;
-    };
-    var mySkills = function(){
-      var head = 'font-size:15px;font-weight:800;color:#1A2E42;margin:0 0 8px;';
-      var picked = [], seen = {};
-      var add = function(v){
-        v = String(v || '').trim();
-        if (!v || seen[v.toLowerCase()]) return;
-        seen[v.toLowerCase()] = 1; picked.push(v);
-      };
-      try { Object.keys((typeof _gpTags !== 'undefined' && _gpTags['introSkills']) || {}).forEach(add); } catch (e) {}
-      try {
-        var fld = document.getElementById('gp-intro-introSkills');
-        String(fld && fld.value || '').split(/[,|]/).forEach(add);
-      } catch (e) {}
-      var addBtn = '<button type="button" id="gp-add-skill" style="font:inherit;font-size:13.5px;'
-        + 'padding:7px 14px;border-radius:20px;cursor:pointer;' + gpOtherStyle() + '">+ Other</button>';
-      if (!picked.length) return '<div style="' + head + '">My skill offerings</div>'
-        + '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:22px;">' + addBtn + '</div>';
-      return '<div style="' + head + '">My skill offerings</div>'
-        + '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:22px;">'
-        + picked.map(function(v){
-            return '<span style="font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;'
-              + 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;">' + _gpEsc(v) + '</span>';
-          }).join('')
-        + addBtn
-        + '</div>';
-    };
-    ob.innerHTML = mySkills()
-      + section('space', rd.spaceOfferTypes, 'My space offerings') + section('thing', rd.thingOfferTypes || [], "Something I'm offering");
-    var toggle = function(kind, v){
-      var at = -1;
-      _gpHaves.forEach(function(w, i){ if (at < 0 && gpHaveName(w).toLowerCase() === String(v).toLowerCase() && (kind === 'space') === (gpHaveKind(w) === 'space')) at = i; });
-      if (at > -1) _gpHaves.splice(at, 1); else _gpHaves.push(v + ':work:' + kind);
       gpPaintOffers(ob);
     };
-    ob.querySelectorAll('[data-gp-have]').forEach(function(b){ b.onclick = function(){ toggle(b.getAttribute('data-gp-have'), b.getAttribute('data-v')); }; });
-    ob.querySelectorAll('[data-gp-havedrop]').forEach(function(b){
-      b.onclick = function(){ toggle(b.getAttribute('data-gp-havedrop'), b.getAttribute('data-v')); };
-    });
-    ob.querySelectorAll('[data-gp-haveother]').forEach(function(b){
-      var kind = b.getAttribute('data-gp-haveother'), bx = ob.querySelector('[data-gp-havebox="' + kind + '"]');
-      var inp = bx.querySelector('input'), add = bx.querySelector('button');
-      var go = function(){ var v = String(inp.value || '').trim(); if (!v) { bx.style.display = 'none'; return; }
-        v = gpTitle(v);
-        inp.value = '';
-        bx.style.display = 'none';
-        if (!gpOfferNames(kind).some(function(n){ return n.toLowerCase() === v.toLowerCase(); })) toggle(kind, v); else gpPaintOffers(ob); };
-      b.onclick = function(){ bx.style.display = bx.style.display === 'none' ? 'flex' : 'none'; if (bx.style.display === 'flex') { try { inp.focus(); } catch (e) {} } };
-      add.onclick = go;
-      var cx = document.createElement('button');
-      cx.type = 'button';
-      cx.textContent = 'Cancel';
-      cx.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 16px;border-radius:20px;'
+    var drop = function(w){
+      for (var i = 0; i < _gpHaves.length; i++) {
+        if (_gpHaves[i] === w) { _gpHaves.splice(i, 1); break; }
+      }
+      gpPaintOffers(ob);
+    };
+    var mine = function(kind){
+      return _gpHaves.filter(function(w){
+        var k = gpHaveBits(w).kind;
+        return kind === 'space' ? k === 'space' : (k !== 'space');
+      });
+    };
+    ['space', 'thing'].forEach(function(kind){
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'margin:' + (kind === 'space' ? '0' : '26px') + ' 0 0;';
+      var h = document.createElement('div');
+      h.style.cssText = 'font-size:15px;font-weight:800;color:#1A2E42;margin:0 0 10px;';
+      h.textContent = HEAD[kind];
+      wrap.appendChild(h);
+      var chips = document.createElement('div');
+      chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:9px;';
+      wrap.appendChild(chips);
+      var field = document.createElement('div');
+      field.style.cssText = 'display:none;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 0;';
+      var inp = document.createElement('input');
+      inp.type = 'text';
+      inp.style.cssText = 'flex:1 1 240px;border:1.5px solid #DDE3EA;background:#fff;border-radius:12px;'
+        + 'padding:10px 13px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
+      var addBtn = document.createElement('button');
+      addBtn.type = 'button'; addBtn.textContent = 'Add';
+      addBtn.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:10px 22px;border-radius:22px;'
+        + 'border:0;background:#1F699E;color:#fff;cursor:pointer;';
+      var cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button'; cancelBtn.textContent = 'Cancel';
+      cancelBtn.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:10px 22px;border-radius:22px;'
         + 'border:1.5px solid #DDE4EE;background:#fff;color:#6B7A8D;cursor:pointer;';
-      cx.onclick = function(){ inp.value = ''; bx.style.display = 'none'; };
-      bx.appendChild(cx);
-      inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
+      field.appendChild(inp); field.appendChild(addBtn); field.appendChild(cancelBtn);
+      wrap.appendChild(field);
+      var pickedCat = '';
+      var closeField = function(){ field.style.display = 'none'; inp.value = ''; pickedCat = ''; };
+      cancelBtn.onclick = closeField;
+      var commit = function(){
+        var v = String(inp.value || '').trim();
+        if (!v) { closeField(); return; }
+        _gpHaves.push(gpHaveJoin({ name: gpTitle(v), cat: pickedCat, kind: kind, local: false, detail: '' }));
+        closeField();
+        gpPaintOffers(ob);
+      };
+      addBtn.onclick = commit;
+      inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); commit(); } });
+      (GP_OFFER_CATS[kind] || []).forEach(function(pair){
+        var plain = String(pair[0]).replace(/^[^A-Za-z0-9]+/, '').trim();
+        var on = mine(kind).some(function(w){ return gpHaveBits(w).name.toLowerCase() === plain.toLowerCase(); });
+        var b = gpPill(pair[0], on);
+        b.onclick = function(){
+          if (on) {
+            mine(kind).forEach(function(w){ if (gpHaveBits(w).name.toLowerCase() === plain.toLowerCase()) { drop(w); } });
+            return;
+          }
+          _gpHaves.push(gpHaveJoin({ name: plain, cat: plain, kind: kind, local: false, detail: '' }));
+          pickedCat = plain;
+          inp.placeholder = pair[1];
+          gpPaintOffers(ob);
+        };
+        chips.appendChild(b);
+      });
+      var bOther = gpPill('+ Other', false);
+      bOther.onclick = function(){
+        pickedCat = '';
+        inp.placeholder = kind === 'space' ? 'What space?' : 'What thing?';
+        field.style.display = 'flex';
+        try { inp.focus(); } catch (e) {}
+      };
+      chips.appendChild(bOther);
+      var cards = document.createElement('div');
+      cards.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:16px;';
+      mine(kind).forEach(function(w){
+        var b = gpHaveBits(w);
+        var card = document.createElement('div');
+        card.style.cssText = 'border:1px solid #DDE4EE;border-radius:12px;padding:12px 14px 13px;background:#F7FBFF;';
+        var top = document.createElement('div');
+        top.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:10px;';
+        var nm = document.createElement('div');
+        nm.style.cssText = 'font-size:15px;font-weight:800;color:#1A2E42;line-height:1.3;word-break:break-word;';
+        nm.textContent = b.name;
+        var tools = document.createElement('div');
+        tools.style.cssText = 'display:flex;align-items:center;gap:9px;flex:0 0 auto;';
+        var pen = document.createElement('button');
+        pen.type = 'button'; pen.textContent = '✏️';
+        pen.setAttribute('aria-label', 'Edit ' + b.name);
+        pen.style.cssText = 'font:inherit;font-size:13.5px;line-height:1;border:0;background:none;cursor:pointer;padding:0 2px;';
+        var loc = document.createElement('button');
+        loc.type = 'button';
+        loc.textContent = '\u{1F4CD} Local';
+        loc.style.cssText = 'font:inherit;font-size:12.5px;font-weight:700;background:none;border:0;cursor:pointer;padding:0;'
+          + 'color:' + (b.local ? '#1F699E' : '#6B7A8D') + ';';
+        loc.style.opacity = b.local ? '1' : '.8';
+        loc.onclick = function(){ var n2 = gpHaveBits(w); n2.local = !n2.local; swap(w, gpHaveJoin(n2)); };
+        var rm = document.createElement('button');
+        rm.type = 'button'; rm.textContent = '×';
+        rm.setAttribute('aria-label', 'Remove ' + b.name);
+        rm.style.cssText = 'font:inherit;font-size:15px;line-height:1;border:0;background:none;color:#8A97A6;cursor:pointer;padding:0 2px;';
+        rm.onclick = function(){ drop(w); };
+        tools.appendChild(pen); tools.appendChild(loc); tools.appendChild(rm);
+        top.appendChild(nm); top.appendChild(tools);
+        card.appendChild(top);
+        var under = [KINDWORD[b.kind] || KINDWORD.thing];
+        if (b.cat && b.cat.toLowerCase() !== b.name.toLowerCase()) { under.push(b.cat); }
+        var sub = document.createElement('div');
+        sub.style.cssText = 'font-size:12.5px;color:#6B7A8D;margin-top:2px;';
+        sub.textContent = under.join(' · ');
+        card.appendChild(sub);
+        if (b.detail) {
+          var d = document.createElement('div');
+          d.style.cssText = 'font-size:12.5px;color:#1F699E;font-style:italic;margin-top:5px;line-height:1.45;';
+          d.textContent = 'Offering: ' + b.detail;
+          card.appendChild(d);
+        }
+        var panel = document.createElement('div');
+        panel.style.cssText = 'display:none;margin-top:10px;padding-top:10px;border-top:1px solid #DDE4EE;';
+        pen.onclick = function(){
+          var open = panel.style.display !== 'none';
+          panel.style.display = open ? 'none' : 'block';
+          if (open) { return; }
+          panel.innerHTML = '';
+          var cur = gpHaveBits(w);
+          var fc = 'width:100%;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;'
+            + 'padding:8px 10px;font:inherit;font-size:13.5px;color:#1A2E42;outline:none;margin-bottom:8px;';
+          var fName = document.createElement('input'); fName.type = 'text'; fName.value = cur.name; fName.style.cssText = fc;
+          var fKind = document.createElement('select'); fKind.style.cssText = fc;
+          [['space', '\u{1F3E0} Space'], ['thing', '\u{1F4E6} Thing']].forEach(function(k){
+            var op = document.createElement('option'); op.value = k[0]; op.textContent = k[1];
+            if (k[0] === cur.kind) { op.selected = true; }
+            fKind.appendChild(op);
+          });
+          var fCat = document.createElement('select'); fCat.style.cssText = fc;
+          var fill = function(kk){
+            fCat.innerHTML = '';
+            var none = document.createElement('option'); none.value = ''; none.textContent = 'No category';
+            fCat.appendChild(none);
+            (GP_OFFER_CATS[kk] || []).forEach(function(pr){
+              var pl = String(pr[0]).replace(/^[^A-Za-z0-9]+/, '').trim();
+              var op = document.createElement('option'); op.value = pl; op.textContent = pl;
+              if (pl.toLowerCase() === String(cur.cat).toLowerCase()) { op.selected = true; }
+              fCat.appendChild(op);
+            });
+          };
+          fill(cur.kind || 'thing');
+          fKind.onchange = function(){ fill(fKind.value); };
+          var fDetail = document.createElement('input');
+          fDetail.type = 'text'; fDetail.value = cur.detail;
+          fDetail.placeholder = 'What exactly are you offering?';
+          fDetail.style.cssText = fc;
+          var locLine = document.createElement('label');
+          locLine.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13.5px;color:#1A2E42;margin:2px 0 10px;cursor:pointer;';
+          var fLoc = document.createElement('input'); fLoc.type = 'checkbox'; fLoc.checked = !!cur.local;
+          locLine.appendChild(fLoc); locLine.appendChild(document.createTextNode('\u{1F4CD} Local'));
+          var btns = document.createElement('div');
+          btns.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
+          var sv = document.createElement('button'); sv.type = 'button'; sv.textContent = 'Save';
+          sv.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 18px;border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
+          var cn = document.createElement('button'); cn.type = 'button'; cn.textContent = 'Cancel';
+          cn.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 18px;border-radius:20px;border:1.5px solid #DDE4EE;background:#fff;color:#6B7A8D;cursor:pointer;';
+          cn.onclick = function(){ panel.style.display = 'none'; };
+          sv.onclick = function(){
+            swap(w, gpHaveJoin({
+              name: gpTitle(String(fName.value || '').trim()) || cur.name,
+              cat: fCat.value,
+              kind: fKind.value,
+              local: !!fLoc.checked,
+              detail: String(fDetail.value || '').trim()
+            }));
+          };
+          btns.appendChild(sv); btns.appendChild(cn);
+          panel.appendChild(fName); panel.appendChild(fKind); panel.appendChild(fCat);
+          panel.appendChild(fDetail); panel.appendChild(locLine); panel.appendChild(btns);
+        };
+        card.appendChild(panel);
+        cards.appendChild(card);
+      });
+      wrap.appendChild(cards);
+      ob.appendChild(wrap);
     });
     return true;
   }
