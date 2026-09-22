@@ -184,6 +184,7 @@
   var GP_CHIPS_ON = (params.get('chips') || '') !== '0';
   var GP_BROWSE = (params.get('browse') || '') !== '0';
   var GP_BROWSE_KEYS = { introEnjoy:1, introSkills:1, introValues:1 };
+  GP_BROWSE_KEYS.introNeed = 1;
   var GP_CHIPS = {
     introEnjoy:  { words: ['Sports', 'Outdoor & Nature', 'Making & Collecting', 'Movement & Performance', 'Games & Strategy'] },
     introSkills: { lead: 'And/or tap any category below...',
@@ -983,9 +984,27 @@
       _wait.textContent = 'Looking up the list\u2026';
       browseWrap.appendChild(_wait);
     }
+    var _rd = null;
+    function gpNeedTree(){
+      if (!_rd) { return null; }
+      var k = String(cfg._kindNow || '');
+      if (!k) { return null; }
+      return gpBuildTree(k === 'skill' ? 'skills' : 'resources', _rd);
+    }
+    function gpBrowseForKind(){
+      if (!_browseOn) { return; }
+      var t = gpNeedTree();
+      if (!t) { browseWrap.style.display = 'none'; browseWrap.innerHTML = ''; return; }
+      browseWrap.style.display = '';
+      gpRenderBrowse(t, []);
+    }
+    cfg._browseForKind = gpBrowseForKind;
     gpRefOnce().then(function(rd){
+      _rd = rd;
       corpus = gpCorpus(cfg.source, rd);
-      if (_browseOn) gpRenderBrowse(gpBuildTree(cfg.source, rd), []);
+      if (!_browseOn) { return; }
+      if (cfg.kinds) { gpBrowseForKind(); return; }
+      gpRenderBrowse(gpBuildTree(cfg.source, rd), []);
     });
 
     function gpRenderBrowse(tree, path){
@@ -1040,7 +1059,7 @@
         var b = gpPill(it.name, gpHasWord(key, it.name));
         b.addEventListener('click', function(){
           if (gpHasWord(key, it.name)) gpDropWord(key, it.name, ta);
-          else gpAddWord(key, it.name, path[0] || '', ta);
+          else gpAddWord(key, it.name + (cfg.kinds && cfg._kindNow ? ':' + cfg._kindNow : ''), path[0] || '', ta);
           gpRenderBrowse(tree, path);
           repaint();
         });
@@ -1117,6 +1136,8 @@
         kindHits.innerHTML = ''; kindHits.style.display = 'none';
         kindBox.style.display = 'none';
         kindNow = '';
+        cfg._kindNow = '';
+        try { if (cfg._browseForKind) { cfg._browseForKind(); } } catch (e) {}
         markKind('');
       };
       kindCancel.addEventListener('click', function(){ kindClose(); repaint(); });
@@ -1161,6 +1182,8 @@
       });
       cfg._openKind = function(kind, prompt){
         kindNow = kind;
+        cfg._kindNow = kind;
+        try { if (cfg._browseForKind) { cfg._browseForKind(); } } catch (e) {}
         kindInput.placeholder = prompt;
         kindInput.value = '';
         kindHits.innerHTML = ''; kindHits.style.display = 'none';
