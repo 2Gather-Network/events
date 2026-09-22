@@ -728,10 +728,10 @@
 
   function gpCorpus(source, rd){
     var out = [], seen = {};
-    var push = function(w, c, a){
+    var push = function(w, c, a, kind){
       w = String(w || '').trim(); if (!w) return;
       var k = w.toLowerCase(); if (seen[k]) return;
-      seen[k] = 1; out.push({ word: w, cat: String(c || '').trim(), assoc: String(a || '').toLowerCase() });
+      seen[k] = 1; out.push({ word: w, cat: String(c || '').trim(), assoc: String(a || '').toLowerCase(), kind: String(kind || '') });
     };
     if (source === 'recreation') {
       (rd.recreation || []).forEach(function(r){ push(r.item, r.recType, r.associations); });
@@ -752,8 +752,9 @@
     } else if (source === 'resources') {
       (rd.resources || []).forEach(function(r){ push(r.item, r.category, r.associations); });
     } else if (source === 'need') {
-      (rd.skills || []).forEach(function(s){ push(s.item, s.category, s.associations); });
-      (rd.recreation || []).forEach(function(r){ push(r.item, r.recType, r.associations); });
+      (rd.skills || []).forEach(function(s){ push(s.item, s.category, s.associations, 'skill'); });
+      (rd.recreation || []).forEach(function(r){ push(r.item, r.recType, r.associations, 'skill'); });
+      (rd.resources || []).forEach(function(r){ push(r.item, r.category, r.associations, 'resource'); });
     }
     return out;
   }
@@ -898,9 +899,13 @@
             + 'padding:7px 10px 7px 14px;border-radius:20px;background:#1F699E;color:#fff;font-weight:700;';
           var t2 = document.createElement('span');
           var _bits = String(w).split(':');
-          var _kind = (_bits.length > 1) ? _bits[_bits.length - 1].toLowerCase() : '';
+          var _kind = '';
+          for (var _b = 1; _b < _bits.length; _b++) {
+            var _seg = String(_bits[_b] || '').trim().toLowerCase();
+            if (_seg === 'skill' || _seg === 'thing' || _seg === 'space') { _kind = _seg; break; }
+          }
           if (_kind === 'skill' || _kind === 'thing' || _kind === 'space') {
-            t2.textContent = _bits.slice(0, -1).join(':');
+            t2.textContent = _bits[0];
             var _k = document.createElement('span');
             _k.textContent = '· ' + _kind;
             _k.style.cssText = 'font-weight:600;opacity:.7;font-size:11.5px;margin-left:5px;';
@@ -1087,6 +1092,10 @@
         kindHits.innerHTML = '';
         if (t.length < 2) { kindHits.style.display = 'none'; return; }
         var hits = corpus.filter(function(c){
+          if (GP_TAGS_ON && kindNow && c.kind) {
+            if (kindNow === 'skill' && c.kind !== 'skill') { return false; }
+            if (kindNow !== 'skill' && c.kind === 'skill') { return false; }
+          }
           return c.word.toLowerCase().indexOf(t) > -1 || (c.assoc && c.assoc.indexOf(t) > -1);
         }).slice(0, 6);
         if (!hits.length) { kindHits.style.display = 'none'; return; }
