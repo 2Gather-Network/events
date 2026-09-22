@@ -1739,7 +1739,14 @@
 
   function cameFrom(){
     var r = '';
-    try { r = String(document.referrer || ''); } catch (e) { return null; }
+    // /hi/<name> FORWARDS HERE, so by the time this runs the referrer is /hi/<name> and the page
+    // somebody actually came from is gone. The forwarder passes it as ?from= instead, and that
+    // wins when it is there, because a referrer that has been through a redirect is the redirect.
+    try {
+      var f = new URLSearchParams(location.search).get('from');
+      if (f && f.charAt(0) === '/' && f.charAt(1) !== '/') { r = 'https://2gather.network' + f; }
+    } catch (e) {}
+    if (!r) { try { r = String(document.referrer || ''); } catch (e) { return null; } }
     if (!r) return null;
     var ours = ['https://2gather.network', 'https://creating.works', 'https://gather.2gather.network'];
     if (!ours.some(function (o) { return r.indexOf(o) === 0; })) return null;
@@ -1749,11 +1756,16 @@
       '/mygroups': 'My groups', '/myevents': 'My events', '/group': 'the group',
       '/groups/admin': 'Manage', '/commons': 'the Commons', '/events': 'Events',
       '/event': 'the event', '/welcome': 'Welcome', '/account': 'My account',
-      '/profile-edit': 'Edit my profile', '/ikigai': 'Edit profile', '/': 'Home'
+      '/profile-edit': 'Edit my profile', '/ikigai': 'Edit profile', '/': 'Home',
+      '/network': 'My network'
     };
+    // The labels above were written to finish the sentence "Back to ...", which is why four of
+    // them are lower case fragments. A page named here is a proper name and reads as a trail
+    // instead: 2Gather / My network / Carla Mays.
+    var TRAIL = { '/network': 1 };
     if (Object.prototype.hasOwnProperty.call(NAMES, path)) {
       if (NAMES[path] === null) return null;          
-      return { label: NAMES[path], url: r };
+      return { label: NAMES[path], url: r, trail: !!TRAIL[path] };
     }
     return null;
   }
@@ -1775,6 +1787,14 @@
       crumb('My ikigai', function(){ window.location.href = 'https://2gather.network/me/'; });
       sep(' / ');
       crumb('Edit', function(){ window.location.href = 'https://2gather.network/profile-edit/'; });
+      return;
+    }
+    if(back && back.trail){
+      crumb('2Gather', function(){ window.location.href = 'https://2gather.network/'; });
+      sep(' / ');
+      crumb(back.label, function(){ window.location.href = back.url; });
+      var fromWho = String(_profileName || '').trim();
+      if (fromWho) { sep(' / '); bc.appendChild(document.createTextNode(fromWho)); }
       return;
     }
     if(back){
