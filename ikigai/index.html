@@ -3006,7 +3006,6 @@
         .map(function(w){ return orig[w.toLowerCase()] || w; })
         .join('|');
     };
-    try { window.localStorage.removeItem(gpAnsKey()); } catch (e) {}
     var qs = 'action=saveIntro&appearId=' + encodeURIComponent(meId)
       + (window._gpLoaded ? '&tagsMode=replace' : '')
       + '&appreciation=' + encodeURIComponent(picked(_gpThanksPicked, '|'))
@@ -3049,8 +3048,9 @@
     if (_u === _gpLastSaved) { gpWhy('SKIPPED: nothing has changed since the last save'); return 'same'; }
     if (_u === _gpSaving && _gpSavingP) { gpWhy('SKIPPED: this exact save is already on its way'); return _gpSavingP; }
     gpWhy('SENDING saveIntro, address is ' + _u.length + ' characters');
+    try { window.localStorage.removeItem(gpAnsKey()); } catch (e) {}
     _gpSaving = _u;
-    _gpSavingP = fetch(_u)
+    _gpSavingP = fetch(_u, { keepalive: true })
       .then(function(r){ gpWhy('came back ' + r.status + ' ' + r.statusText); return r.text(); })
       .then(function(t){
         gpWhy('answer: ' + String(t).slice(0, 300));
@@ -3097,6 +3097,14 @@
       setTimeout(function(){ var st = document.getElementById('gp-intro-status'); if (st && st.textContent === 'Saved.') st.textContent = ''; }, 2500);
     }, function(){ _gpAutoBusy = false; gpAutoSay('That did not save. It saves again when you change anything.', true); });
   }
+  function gpSaveOnLeave(){
+    if (!GP_RAIL || !GP_BROWSE || !meId || !window._gpLoaded) { return; }
+    try { clearTimeout(_gpAutoT); } catch (e) {}
+    try { clearTimeout(_gpTouchT); } catch (e) {}
+    try { gpQuietSave(); } catch (e) {}
+  }
+  window.addEventListener('pagehide', gpSaveOnLeave);
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') { gpSaveOnLeave(); } });
   function gpAutoSave(){
     if (!GP_RAIL || !GP_BROWSE || !meId || !window._gpLoaded || gpViewingSomebodyElse()) return;
     clearTimeout(_gpAutoT);
