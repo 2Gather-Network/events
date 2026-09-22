@@ -212,6 +212,12 @@
   .pv-sub-h:first-child{margin-top:0;}
   .pv-some{margin-top:10px;text-align:right;font-size:13px;color:var(--soft);}
   .pv-said{margin-top:12px;font-size:14.5px;line-height:1.55;color:var(--ink);}
+  .pv-sugg{margin-top:14px;padding:12px 14px;border-radius:12px;background:#F7FBFF;border:1.5px solid #DDE3EA;}
+  .pv-sugg-label{font-size:13px;font-weight:700;color:var(--ink);margin:0 0 10px;}
+  .pv-sugg .pv-tag{border-style:dashed;}
+  .pv-sugg button.pv-tag{cursor:pointer;font-family:inherit;}
+  .pv-sugg button.pv-tag:hover{border-style:solid;}
+  .pv-sugg button.pv-tag[disabled]{opacity:.55;cursor:default;}
   .pv-some b{text-transform:uppercase;font-size:10px;letter-spacing:.08em;color:var(--brand);font-weight:800;}
   
   .pv-acts{display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 6px;align-items:center;justify-content:flex-end;}
@@ -440,6 +446,8 @@
     return parts.length>0 && parts.every(function(x){ return new RegExp(':'+_TAG_TYPES+'(?::|$)','i').test(x); });
   }
   var PV_SAID_ON = (function(){ try { return new URLSearchParams(window.CW_Q0 !== undefined ? window.CW_Q0 : location.search).get('said') === '1'; } catch (e) { return false; } })();
+  var PV_SUGG_ON = (function(){ try { return new URLSearchParams(window.CW_Q0 !== undefined ? window.CW_Q0 : location.search).get('sugg') === '1'; } catch (e) { return false; } })();
+  var _recChips = {};
   function pvSaid(key, pills){
     if(!PV_SAID_ON) return '';
     var v=_pvTidy(_untag(_said&&_said[key]));
@@ -451,6 +459,46 @@
     }
     return '<div class="pv-said">'+esc(v)+'</div>';
   }
+  function _suggList(field){
+    return field==='interests' ? ENJOY_ADDED : field==='skills' ? SKILLS_ADDED : field==='values' ? VALUES_ADDED : null;
+  }
+  function pvSugg(field){
+    if(!PV_SUGG_ON) return '';
+    var have = {};
+    (_suggList(field)||[]).forEach(function(x){ var n = String((x && x.t) || '').toLowerCase().trim(); if (n) have[n] = 1; });
+    var list = ((_recChips && _recChips[field]) || []).filter(function(w){ return w && !have[String(w).toLowerCase().trim()]; });
+    if(!list.length) return '';
+    var mine = !_viewingSomeoneElse;
+    return '<div class="pv-sugg"><div class="pv-sugg-label">Here are some suggestions from your recent conversation</div><div class="pv-tags">'
+      + list.map(function(w){
+          return mine
+            ? '<button type="button" class="pv-tag pv-sugg-add" data-field="'+esc(field)+'" data-word="'+esc(w)+'">+ '+esc(_capFirst(w))+'</button>'
+            : '<span class="pv-tag">'+esc(_capFirst(w))+'</span>';
+        }).join('')
+      + '</div></div>';
+  }
+  function pvSuggAdd(field, word, btn){
+    var go = function(){
+      var src = _suggList(field);
+      if(!src) return;
+      var item = field==='interests' ? {t:word, sel:[]} : field==='skills' ? {t:word, cat:'', level:''} : {t:word, lvl:''};
+      src.push(item);
+      if(btn){ btn.disabled = true; btn.textContent = 'Adding…'; }
+      var undo = function(){ var i = src.indexOf(item); if(i > -1) src.splice(i, 1); };
+      postSave().then(function(resp){
+        if(resp && resp.status==='ok'){ renderProfileView(); return; }
+        undo(); _editToken=''; try{ localStorage.removeItem(_EDIT_KEY); }catch(e){}
+        renderProfileView();
+      }).catch(function(){ undo(); renderProfileView(); });
+    };
+    if(!_editToken){ showPinGate(document.getElementById('profile-view'), go, 'To add this to your profile, verify it is you.'); return; }
+    go();
+  }
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('.pv-sugg-add') : null;
+    if(!b || b.disabled) return;
+    pvSuggAdd(b.getAttribute('data-field'), b.getAttribute('data-word'), b);
+  });
   function _capFirst(v){ v=String(v||''); return v ? v.charAt(0).toUpperCase()+v.slice(1) : v; }
   var EXPRESSION_ADDED = [''];
   function parseNeedsStr(str){
@@ -480,6 +528,7 @@
       _said={ need:String(d.introNeed||'').trim(), enjoy:String(d.introEnjoy||'').trim(),
               skills:String(d.introSkills||'').trim(), values:String(d.introValues||'').trim(),
               offer:String(d.introOffer||'').trim() };
+      try { var _rc = d.recommended ? JSON.parse(String(d.recommended)) : null; _recChips = (_rc && _rc.chips) ? _rc.chips : {}; } catch (e) { _recChips = {}; }
       WORK_VALUES_ADDED = String(d.workValues||'').split('|').map(function(x){ return x.trim(); }).filter(Boolean);
       var _thingKinds = {'money':1,'physical goods':1,'consumables':1,'living things':1};
       NEEDS_ADDED = parseNeedsStr(d.needs||'').filter(function(n){
@@ -1495,9 +1544,9 @@
         : '')
 
       +pvSection("What I'm seeking",0,seeking,pvSaid('need',_pillsNeeds))
-      +pvSection('What I enjoy',1,enjoy,pvSaid('enjoy',_pillsEnjoy)+expr)
-      +pvSection('My skills',2,'',pvWrap(WORK_SKILLS.map(function(w){ return pvTag(w); }).join(''), 'Open for work')+pvWrap(GIG_WORK.map(function(w){ return pvTag(w); }).join(''))+methods+skills+pvSaid('skills',_pillsSkills))
-      +pvSection('What I care about',3,'',vals+doms+pvWrap((WORK_VALUES_ADDED||[]).map(function(t){ return pvTag(t); }).join(''), 'Work values')+purposeHtml+pvSaid('values',_noCats(VALUES_ADDED,function(x){return x.t;}).map(function(x){return x.t;}).concat(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(x){return x.t;}),WORK_VALUES_ADDED||[])))
+      +pvSection('What I enjoy',1,enjoy,pvSaid('enjoy',_pillsEnjoy)+expr+pvSugg('interests'))
+      +pvSection('My skills',2,'',pvWrap(WORK_SKILLS.map(function(w){ return pvTag(w); }).join(''), 'Open for work')+pvWrap(GIG_WORK.map(function(w){ return pvTag(w); }).join(''))+methods+skills+pvSaid('skills',_pillsSkills)+pvSugg('skills'))
+      +pvSection('What I care about',3,'',vals+doms+pvWrap((WORK_VALUES_ADDED||[]).map(function(t){ return pvTag(t); }).join(''), 'Work values')+purposeHtml+pvSaid('values',_noCats(VALUES_ADDED,function(x){return x.t;}).map(function(x){return x.t;}).concat(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(x){return x.t;}),WORK_VALUES_ADDED||[]))+pvSugg('values'))
       +pvSection('My offerings',4,'',pvWrap(_hTags('space'),'My space offerings')+pvWrap(_hTags('thing'),"Something I'm offering as well"))
       +'</div>';
     pv.querySelectorAll('.pv-edit').forEach(function(b){ if(b.id==='pv-photo-btn') return; b.onclick=function(){ requestEdit(parseInt(b.getAttribute('data-step'),10)); }; });
