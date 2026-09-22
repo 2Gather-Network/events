@@ -2991,6 +2991,7 @@
     box.textContent = t + '  ' + msg + '\n' + box.textContent;
   }
 
+  var _gpLastSaved = '', _gpSaving = '', _gpSavingP = null, _gpSaveSaid = '';
   function gpQuietSave(){
     if (!GP_BROWSE || !meId) { gpWhy('SKIPPED: ' + (!meId ? 'this browser has no id' : 'browse mode off')); return; }
     if (gpViewingSomebodyElse()) { gpWhy('SKIPPED: viewing somebody else'); return; }
@@ -3045,11 +3046,29 @@
     gpWhy(_u.indexOf('tagsMode=replace') > -1
       ? 'tagsMode=replace IS set, so the backend REPLACES the list with what is above'
       : 'tagsMode=replace is MISSING, so the backend MERGES and nothing above can be removed');
+    if (_u === _gpLastSaved) { gpWhy('SKIPPED: nothing has changed since the last save'); return 'same'; }
+    if (_u === _gpSaving && _gpSavingP) { gpWhy('SKIPPED: this exact save is already on its way'); return _gpSavingP; }
     gpWhy('SENDING saveIntro, address is ' + _u.length + ' characters');
-    return fetch(_u)
+    _gpSaving = _u;
+    _gpSavingP = fetch(_u)
       .then(function(r){ gpWhy('came back ' + r.status + ' ' + r.statusText); return r.text(); })
-      .then(function(t){ gpWhy('answer: ' + String(t).slice(0, 300)); })
-      .catch(function(err){ gpWhy('FAILED before any answer: ' + (err && err.message ? err.message : err)); });
+      .then(function(t){
+        gpWhy('answer: ' + String(t).slice(0, 300));
+        var j = null;
+        try { j = JSON.parse(t); } catch (e) { j = null; }
+        var ok = !!(j && j.status === 'ok');
+        _gpSaveSaid = ok ? '' : String((j && j.message) || '');
+        if (ok) { _gpLastSaved = _u; }
+        if (_gpSaving === _u) { _gpSaving = ''; }
+        return ok;
+      })
+      .catch(function(err){
+        gpWhy('FAILED before any answer: ' + (err && err.message ? err.message : err));
+        _gpSaveSaid = '';
+        if (_gpSaving === _u) { _gpSaving = ''; }
+        return false;
+      });
+    return _gpSavingP;
   }
 
   var _gpAutoT = null, _gpAutoBusy = false, _gpAutoAgain = false;
@@ -3062,10 +3081,17 @@
   function gpAutoRun(){
     if (_gpAutoBusy) { _gpAutoAgain = true; return; }
     _gpAutoBusy = true;
+    var _sv = gpQuietSave();
+    if (!_sv || _sv === 'same') {
+      _gpAutoBusy = false;
+      if (_gpAutoAgain) { _gpAutoAgain = false; gpAutoRun(); }
+      return;
+    }
     gpAutoSay('Saving\u2026');
-    Promise.resolve(gpQuietSave()).then(function(){
+    Promise.resolve(_sv).then(function(ok){
       _gpAutoBusy = false;
       if (_gpAutoAgain) { _gpAutoAgain = false; gpAutoRun(); return; }
+      if (!ok) { gpAutoSay(_gpSaveSaid || 'That did not save. It saves again when you change anything.', true); return; }
       try { gpFreshenKept(); } catch (e) {}
       gpAutoSay('Saved.');
       setTimeout(function(){ var st = document.getElementById('gp-intro-status'); if (st && st.textContent === 'Saved.') st.textContent = ''; }, 2500);
