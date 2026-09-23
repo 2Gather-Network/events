@@ -113,7 +113,7 @@
     if (opts.shape === 'account') {
       var GROUPS = [
         ['ACCOUNT', [
-          { key: 'myprofile',   label: 'My profile', url: 'https://2gather.network/ikigai/?perm=1&step=joy' },
+          { key: 'myprofile',   label: 'My profile', url: 'https://2gather.network/ikigai/?perm=1' },
           { key: 'account',     label: 'My info' },
           { key: 'permissions', label: 'Global permissions', url: 'https://2gather.network/ikigai/?perm=1&step=permissions' }
         ]],
