@@ -639,11 +639,23 @@
   };
   function gpChipLabel(word){ var e = GP_EMOJI[word]; return e ? (e + ' ' + word) : word; }
 
-  function gpChipBtn(key, word, ta){
+  function gpChipBtn(key, word, ta, opt){
     var b = document.createElement('button');
     b.type = 'button';
     b.textContent = gpChipLabel(word);
     var paint = function(){
+      var _on = !!(_gpChipsPicked[key] && _gpChipsPicked[key][word]);
+      if (opt && opt.x) {
+        b.textContent = gpChipLabel(word);
+        if (_on) {
+          var xs = document.createElement('span');
+          xs.textContent = '\u00D7';
+          xs.setAttribute('aria-hidden', 'true');
+          xs.style.cssText = 'margin-left:8px;font-size:15px;font-weight:400;opacity:.85;';
+          b.appendChild(xs);
+        }
+        b.setAttribute('aria-label', _on ? 'Remove ' + gpChipLabel(word) : gpChipLabel(word));
+      }
       b.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
         + (_gpChipsPicked[key] && _gpChipsPicked[key][word]
             ? 'background:#1F699E;border:1px solid #1F699E;color:#fff;font-weight:700;'
@@ -663,6 +675,7 @@
       if (!on && at > -1) parts.splice(at, 1);
       ta.value = parts.join(', ');
       paint();
+      if (!on && opt && opt.drop && b.parentNode) { b.parentNode.removeChild(b); }
     });
     return b;
   }
@@ -1086,7 +1099,8 @@
             var fieldCss = 'width:100%;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;'
               + 'padding:8px 10px;font:inherit;font-size:13.5px;color:#1A2E42;outline:none;margin-bottom:8px;';
             var fTitle = document.createElement('input');
-            fTitle.type = 'text'; fTitle.value = cur.name; fTitle.placeholder = 'Title'; fTitle.style.cssText = fieldCss;
+            var _asCat = gpSameAsCat(cur.name, cur.cat);
+            fTitle.type = 'text'; fTitle.value = _asCat ? '' : cur.name; fTitle.placeholder = _asCat ? 'Title (optional)' : 'Title'; fTitle.style.cssText = fieldCss;
             var fName = document.createElement('textarea');
             fName.rows = 1; fName.value = cur.detail || ''; fName.style.cssText = fieldCss + 'resize:none;overflow:hidden;line-height:1.45;';
             fName.placeholder = 'Details: what exactly are you seeking?';
@@ -1148,7 +1162,7 @@
             cancel.onclick = function(){ panel.style.display = 'none'; };
             save.onclick = function(){
               var next = {
-                name: (typeof gpTitle === 'function' ? gpTitle(String(fTitle.value || '').trim()) : String(fTitle.value || '').trim()) || cur.name,
+                name: (typeof gpTitle === 'function' ? gpTitle(String(fTitle.value || '').trim()) : String(fTitle.value || '').trim()) || (_asCat && fCat.value) || cur.name,
                 kind: cur.kind || fKind.value,
                 cat: fCat.value,
                 local: !!fLoc.checked,
@@ -1841,10 +1855,10 @@
 
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
-    cfg.words.forEach(function(w){ row.appendChild(gpChipBtn(key, w, ta)); });
+    cfg.words.forEach(function(w){ row.appendChild(gpChipBtn(key, w, ta, cfg.other ? { x: true } : null)); });
     if (cfg.more && cfg.more.length) {
       row.appendChild(gpMoreBtn('More', function(){
-        cfg.more.forEach(function(w){ row.appendChild(gpChipBtn(key, w, ta)); });
+        cfg.more.forEach(function(w){ row.appendChild(gpChipBtn(key, w, ta, cfg.other ? { x: true } : null)); });
       }));
     }
     if (cfg.other) {
@@ -1853,7 +1867,7 @@
         if (cfg.words.some(function(x){ return String(x).toLowerCase() === w.toLowerCase(); })) { return; }
         if (!_gpChipsPicked[key]) _gpChipsPicked[key] = {};
         _gpChipsPicked[key][w] = true;
-        row.appendChild(gpChipBtn(key, w, ta));
+        row.appendChild(gpChipBtn(key, w, ta, { x: true, drop: true }));
       });
       var oPill = document.createElement('button');
       oPill.type = 'button';
@@ -1881,7 +1895,7 @@
         var v = gpTitle(String(oInp.value || '').trim());
         if (!v) { oShut(); return; }
         if (!(_gpChipsPicked[key] && _gpChipsPicked[key][v])) {
-          var nb = gpChipBtn(key, v, ta);
+          var nb = gpChipBtn(key, v, ta, { x: true, drop: !cfg.words.some(function(x){ return String(x).toLowerCase() === v.toLowerCase(); }) });
           row.insertBefore(nb, oPill);
           nb.click();
         }
@@ -3559,6 +3573,10 @@
   function gpOfferNames(kind){
     return _gpHaves.filter(function(w){ var k = (typeof gpHaveBits === 'function' ? gpHaveBits(w).kind : gpHaveKind(w)); return kind === 'space' ? k === 'space' : (k !== 'space'); }).map(function(w){ return (typeof gpHaveBits === 'function' ? gpHaveBits(w).name : gpHaveName(w)); });
   }
+  function gpSameAsCat(name, cat){
+    var bare = function(x){ return String(x || '').replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase(); };
+    return !!bare(cat) && bare(name) === bare(cat);
+  }
   var GP_OFFER_CATS = {
     space: [
       ['\u{1F3E0} Home', 'A home'],
@@ -3572,8 +3590,7 @@
     thing: [
       ['\u{1F4E6} Physical goods', 'Examples: a book, gear or equipment, art supplies, a tool'],
       ['\u{1F372} Consumables', 'Examples: food, drink, something that gets used up'],
-      ['\u{1FAB4} Living things', 'Examples: a plant, a cutting, seeds'],
-      ['\u{1F331} Opportunity', 'Examples: an introduction, a lead, a chance to take part']
+      ['\u{1FAB4} Living things', 'Examples: a plant, a cutting, seeds']
     ]
   };
   function gpHaveBits(w){
@@ -3759,7 +3776,8 @@
           var fc = 'width:100%;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;'
             + 'padding:8px 10px;font:inherit;font-size:13.5px;color:#1A2E42;outline:none;margin-bottom:8px;';
           var fTitle = document.createElement('input');
-          fTitle.type = 'text'; fTitle.value = cur.name; fTitle.placeholder = 'Title'; fTitle.style.cssText = fc;
+          var _asCat = gpSameAsCat(cur.name, cur.cat);
+          fTitle.type = 'text'; fTitle.value = _asCat ? '' : cur.name; fTitle.placeholder = _asCat ? 'Title (optional)' : 'Title'; fTitle.style.cssText = fc;
           var fCat = document.createElement('select'); fCat.style.cssText = fc;
           (function(){
             var none = document.createElement('option'); none.value = ''; none.textContent = 'No category'; fCat.appendChild(none);
@@ -3790,7 +3808,7 @@
           cn.onclick = function(){ panel.style.display = 'none'; };
           sv.onclick = function(){
             var _t = String(fTitle.value || '').trim();
-            swap(w, gpHaveJoin({ name: (_t ? _t.charAt(0).toUpperCase() + _t.slice(1) : '') || cur.name, cat: fCat.value, kind: cur.kind, local: !!fLoc.checked, detail: String(fName.value || '').trim() }));
+            swap(w, gpHaveJoin({ name: (_t ? _t.charAt(0).toUpperCase() + _t.slice(1) : '') || (_asCat && fCat.value) || cur.name, cat: fCat.value, kind: cur.kind, local: !!fLoc.checked, detail: String(fName.value || '').trim() }));
           };
           fName.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sv.onclick(); } });
           btns.appendChild(sv); btns.appendChild(cn);
