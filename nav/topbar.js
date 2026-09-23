@@ -117,6 +117,29 @@
       return !!(v && v.yes === true && norm(v.who) === norm(me()));
     } catch (e) { return false; }
   }
+  function hasBookmarks() {
+    try {
+      var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
+      var v = JSON.parse(localStorage.getItem('cw-havebookmarks') || 'null');
+      return !!(v && v.yes === true && norm(v.who) === norm(me()));
+    } catch (e) { return false; }
+  }
+  function checkBookmarks() {
+    try {
+      var who = me();
+      if (!who) return;
+      var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
+      var v = JSON.parse(localStorage.getItem('cw-havebookmarks') || 'null');
+      if (v && norm(v.who) === norm(who) && v.at && (Date.now() - v.at) < 6 * 60 * 60 * 1000) return;
+      fetch('https://cw-api-gate.jessieupp.workers.dev/?action=getBookmarks&appearId=' + encodeURIComponent(who))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || d.status === 'error' || !Array.isArray(d.bookmarks)) return;
+          localStorage.setItem('cw-havebookmarks', JSON.stringify({ who: who, yes: d.bookmarks.length > 0, at: Date.now() }));
+        })
+        .catch(function () {});
+    } catch (e) {}
+  }
   function hasAGroup() {
     try { return !!me(); } catch (e) { return false; }
   }
@@ -201,6 +224,7 @@
     }
 
     var atDoor = (window.location.pathname || '').toLowerCase().indexOf('/signin') === 0;
+    if (!atDoor) { checkBookmarks(); }
 
     function myName() {
       try {
@@ -242,7 +266,7 @@
       var mine = '';
       if (hasEvents()) { mine += anchor('My events', link(MYEVENTS, 'memberCard'), 'cwtb-item'); }
       if (hasAGroup()) { mine += anchor('My groups', link(MYGROUPS, 'memberCard'), 'cwtb-item'); }
-      mine += anchor('My network', 'https://2gather.network/network/', 'cwtb-item');
+      if (hasBookmarks()) { mine += anchor('My network', 'https://2gather.network/network/', 'cwtb-item'); }
       mine += anchor('My profile', 'https://2gather.network/ikigai/?perm=1', 'cwtb-item');
       mine += anchor('My account', link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    link(SUPPORT,  'memberCard'), 'cwtb-item');
