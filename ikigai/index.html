@@ -800,6 +800,53 @@
     try { gpTagPaint(key); } catch (e) {}
     gpTouchSave();
   }
+  var _gpDel = [], _gpDelFailed = {};
+  function gpDelStyle(){
+    if (document.getElementById('gp-del-style')) return;
+    var st = document.createElement('style'); st.id = 'gp-del-style';
+    st.textContent = '.gp-going *{color:#B4BEC9 !important;}'
+      + '.gp-going button,.gp-going input,.gp-going select{visibility:hidden;}'
+      + '.gp-going-say{font-size:12.5px;font-weight:600;color:#9AA7B4 !important;margin-top:6px;animation:gpBreathe 1.8s ease-in-out infinite;}'
+      + '@keyframes gpBreathe{0%,100%{opacity:.35;}50%{opacity:1;}}'
+      + '@media (prefers-reduced-motion: reduce){.gp-going-say{animation:none;opacity:.8;}}'
+      + '.gp-del-fail{font-size:12.5px;color:#7A2410;margin-top:6px;}';
+    document.head.appendChild(st);
+  }
+  function gpGoingSay(){ var d = document.createElement('div'); d.className = 'gp-going-say'; d.textContent = 'This is being deleted'; return d; }
+  function gpDelStart(key, node, restore, gone){
+    gpDelStyle();
+    var ghost = null;
+    if (node) {
+      ghost = node.cloneNode(true);
+      ghost.classList.add('gp-going');
+      ghost.querySelectorAll('.gp-del-fail').forEach(function(f){ f.remove(); });
+      ghost.appendChild(gpGoingSay());
+    }
+    delete _gpDelFailed[key];
+    _gpDel.push({ key: key, at: Date.now(), ghost: ghost, restore: restore, gone: gone });
+  }
+  function gpDelGhosts(prefix){ return _gpDel.filter(function(e){ return e.ghost && e.key.indexOf(prefix) === 0; }).map(function(e){ return e.ghost; }); }
+  function gpDelFailNote(key){
+    if (!_gpDelFailed[key]) return null;
+    var d = document.createElement('div'); d.className = 'gp-del-fail'; d.textContent = 'That did not delete. Press the x to try again.';
+    return d;
+  }
+  function gpDelRepaint(){
+    try { Object.keys(GP_LEVELS).forEach(function(k){ gpTagPaint(k); }); } catch (x) {}
+    try { if (window._gpNeedRepaint) { window._gpNeedRepaint(); } } catch (x) {}
+    try { var ob = document.getElementById('gp-offers'); if (ob) { gpPaintOffers(ob); } } catch (x) {}
+  }
+  function gpDelSettle(ok, upTo){
+    var fin = [], keep = [];
+    _gpDel.forEach(function(e){ (e.at <= upTo ? fin : keep).push(e); });
+    if (!fin.length) return;
+    _gpDel = keep;
+    fin.forEach(function(e){
+      if (ok) { try { if (e.gone) { e.gone(); } } catch (x) {} }
+      else { _gpDelFailed[e.key] = 1; try { if (e.restore) { e.restore(); } } catch (x) {} }
+    });
+    gpDelRepaint();
+  }
   function gpDropWord(key, word, ta){
     if (_gpTags[key]) delete _gpTags[key][word];
     try { if (_gpChipsPicked[key]) delete _gpChipsPicked[key][word]; } catch (e) {}
@@ -979,7 +1026,13 @@
           rm.setAttribute('aria-label', 'Remove ' + b.name);
           rm.style.cssText = 'font:inherit;font-size:15px;line-height:1;border:0;background:none;color:#8A97A6;cursor:pointer;padding:0 2px;';
           rm.textContent = '\u00d7';
-          rm.onclick = function(){ gpDropWord(key, w, ta); repaint(); if (_reBrowse) { _reBrowse(); } };
+          rm.onclick = function(){
+            gpDelStart('introNeed|' + String(w).toLowerCase(), card, function(){
+              var ps = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+              if (ps.indexOf(w) < 0) { ps.push(w); ta.value = ps.join(', '); }
+            });
+            gpDropWord(key, w, ta); repaint(); if (_reBrowse) { _reBrowse(); }
+          };
           var pen = document.createElement('button');
           pen.type = 'button';
           pen.setAttribute('aria-label', 'Edit ' + b.name);
@@ -1094,8 +1147,11 @@
             try { fName.focus(); } catch (e) {}
           };
           card.appendChild(panel);
+          var _nf = gpDelFailNote('introNeed|' + String(w).toLowerCase());
+          if (_nf) { card.appendChild(_nf); }
           chosen.appendChild(card);
         });
+      gpDelGhosts('introNeed|').forEach(function(g){ chosen.appendChild(g); });
     }
     function gpPaintChosen(){
       gpShowingVis();
@@ -1103,9 +1159,9 @@
       if (GP_TAGS_ON && key === 'introNeed') {
         gpNeedCards();
         if (_gpNeedFold) {
-          var _nn = chosen.children.length;
+          var _nn = chosen.children.length - chosen.querySelectorAll(':scope > .gp-going').length;
           _gpNeedFold.text.textContent = 'Needs added (' + _nn + ')';
-          _gpNeedFold.box.style.display = _nn ? '' : 'none';
+          _gpNeedFold.box.style.display = chosen.children.length ? '' : 'none';
         }
         return;
       }
@@ -1705,6 +1761,7 @@
       }
     });
 
+    if (key === 'introNeed') { window._gpNeedRepaint = repaint; }
     if (_gpNeedFold) {
       _gpNeedFold.box.style.margin = '26px 0 0';
       box.appendChild(_gpNeedFold.box);
@@ -2489,7 +2546,9 @@
     var bar = (tbox && tbox.querySelector('#gp-tagbar-' + key)) || document.getElementById('gp-tagbar-' + key);
     if (bar) { bar.textContent = spec.head + ' (' + words.length + ')'; }
     rows.innerHTML = '';
-    if (tbox) { tbox.style.display = words.length ? '' : 'none'; }
+    var _ghosts = gpDelGhosts(key + '|');
+    if (tbox) { tbox.style.display = (words.length || _ghosts.length) ? '' : 'none'; }
+    _ghosts.forEach(function(g){ rows.appendChild(g); });
     if (!words.length) { return; }
     words.forEach(function(word){
       var on = gpLevelOf(key, word);
@@ -2507,7 +2566,15 @@
       x.textContent = '\u00d7';
       x.onclick = function(){
         var ta = document.getElementById('gp-intro-' + key);
-        if (ta) { gpDropWord(key, word, ta); }
+        if (!ta) { return; }
+        var kw = String(word).toLowerCase(), raw = (_gpOrig[key] || {})[kw], edited = _gpOrigEdited[key + '|' + kw];
+        gpDelStart(key + '|' + kw, card, function(){
+          gpAddWord(key, word, '', ta);
+          if (!_gpOrig[key]) { _gpOrig[key] = {}; }
+          if (raw) { _gpOrig[key][kw] = raw; }
+          if (edited) { _gpOrigEdited[key + '|' + kw] = edited; }
+        });
+        gpDropWord(key, word, ta);
       };
       top.appendChild(nm); top.appendChild(x);
       card.appendChild(top);
@@ -2534,6 +2601,8 @@
         pills.appendChild(b);
       });
       card.appendChild(pills);
+      var _fn = gpDelFailNote(key + '|' + String(word).toLowerCase());
+      if (_fn) { card.appendChild(_fn); }
       rows.appendChild(card);
     });
   }
@@ -2554,9 +2623,23 @@
     rm.setAttribute('aria-label', 'Remove this suggestion');
     rm.style.cssText = 'font:inherit;font-size:15px;line-height:1;border:0;background:none;color:#8A97A6;cursor:pointer;padding:0 3px;vertical-align:-1px;';
     rm.onclick = function(){
+      var was = have;
+      gpDelStyle();
+      w.classList.add('gp-going');
+      w.querySelectorAll('.gp-del-fail').forEach(function(f){ f.remove(); });
+      var say = gpGoingSay();
+      w.appendChild(say);
       _gpProse[q.key] = '';
       _gpProseDirty[q.key] = 1;
-      if (w.parentNode) { w.parentNode.removeChild(w); }
+      _gpDel.push({ key: 'prose|' + q.key, at: Date.now(), ghost: null,
+        restore: function(){
+          _gpProse[q.key] = was;
+          w.classList.remove('gp-going');
+          if (say.parentNode) { say.parentNode.removeChild(say); }
+          var f = document.createElement('div'); f.className = 'gp-del-fail'; f.textContent = 'That did not delete. Press the x to try again.';
+          w.appendChild(f);
+        },
+        gone: function(){ if (w.parentNode) { w.parentNode.removeChild(w); } } });
       gpTouchSave();
     };
     w.appendChild(rm);
@@ -3046,11 +3129,12 @@
     gpWhy(_u.indexOf('tagsMode=replace') > -1
       ? 'tagsMode=replace IS set, so the backend REPLACES the list with what is above'
       : 'tagsMode=replace is MISSING, so the backend MERGES and nothing above can be removed');
-    if (_u === _gpLastSaved) { gpWhy('SKIPPED: nothing has changed since the last save'); return 'same'; }
-    if (_u === _gpSaving && _gpSavingP) { gpWhy('SKIPPED: this exact save is already on its way'); return _gpSavingP; }
+    if (_u === _gpLastSaved) { gpWhy('SKIPPED: nothing has changed since the last save'); gpDelSettle(true, Date.now()); return 'same'; }
+    if (_u === _gpSaving && _gpSavingP) { gpWhy('SKIPPED: this exact save is already on its way'); var _jt = Date.now(); _gpSavingP.then(function(ok){ gpDelSettle(!!ok, _jt); }); return _gpSavingP; }
     gpWhy('SENDING saveIntro, address is ' + _u.length + ' characters');
     try { window.localStorage.removeItem(gpAnsKey()); } catch (e) {}
     _gpSaving = _u;
+    var _bt = Date.now();
     _gpSavingP = fetch(_u, { keepalive: true })
       .then(function(r){ gpWhy('came back ' + r.status + ' ' + r.statusText); return r.text(); })
       .then(function(t){
@@ -3061,12 +3145,14 @@
         _gpSaveSaid = ok ? '' : String((j && j.message) || '');
         if (ok) { _gpLastSaved = _u; }
         if (_gpSaving === _u) { _gpSaving = ''; }
+        gpDelSettle(ok, _bt);
         return ok;
       })
       .catch(function(err){
         gpWhy('FAILED before any answer: ' + (err && err.message ? err.message : err));
         _gpSaveSaid = '';
         if (_gpSaving === _u) { _gpSaving = ''; }
+        gpDelSettle(false, _bt);
         return false;
       });
     return _gpSavingP;
@@ -3568,7 +3654,11 @@
         rm.type = 'button'; rm.textContent = '×';
         rm.setAttribute('aria-label', 'Remove ' + b.name);
         rm.style.cssText = 'font:inherit;font-size:15px;line-height:1;border:0;background:none;color:#8A97A6;cursor:pointer;padding:0 2px;';
-        rm.onclick = function(){ drop(w); };
+        rm.onclick = function(){
+          var _at = _gpHaves.indexOf(w);
+          gpDelStart('haves|' + String(w).toLowerCase(), card, function(){ if (_gpHaves.indexOf(w) < 0) { _gpHaves.splice(Math.max(0, _at), 0, w); } });
+          drop(w);
+        };
         tools.appendChild(pen); tools.appendChild(loc); tools.appendChild(rm);
         top.appendChild(nm); top.appendChild(tools);
         card.appendChild(top);
@@ -3620,12 +3710,16 @@
           try { fName.focus(); } catch (e) {}
         };
         card.appendChild(panel);
+        var _of = gpDelFailNote('haves|' + String(w).toLowerCase());
+        if (_of) { card.appendChild(_of); }
         cards.appendChild(card);
       });
       ob.appendChild(wrap);
     });
+    var _liveOffers = allCards.childNodes.length;
+    gpDelGhosts('haves|').forEach(function(g){ allCards.appendChild(g); });
     if (allCards.childNodes.length) {
-      var ofb = gpFoldBar('introOffer', 'Offerings added (' + allCards.childNodes.length + ')');
+      var ofb = gpFoldBar('introOffer', 'Offerings added (' + _liveOffers + ')');
       ofb.box.style.margin = '26px 0 0';
       allCards.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;';
       ofb.body.appendChild(allCards);
