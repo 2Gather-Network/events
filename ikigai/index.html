@@ -2908,9 +2908,12 @@
       + '&openToUnpaidTime=' + encodeURIComponent(gpOtwList('unpaidTime').join('|'))
       + '&openToUnpaidWork=' + encodeURIComponent(gpOtwList('unpaid').join('|'))
       + '&servesWho=' + encodeURIComponent(Object.keys(_gpServe).filter(function(k){ return _gpServe[k]; }).join('|'));
-    fetch(GS_URL + '?' + qs)
+    var _su = GS_URL + '?' + qs;
+    gpPendSet(_su);
+    fetch(_su)
       .then(function(r){ return r.json(); })
       .then(function(d){
+        if (d && d.status === 'ok') { _gpLastSaved = _su; gpPendDone(_su); }
         if (!d || (d.status !== 'ok' && d.ok !== true)) {
           btn.disabled = false;
           stat.style.color = '#7A2410';
@@ -3119,6 +3122,34 @@
   }
 
   var _gpLastSaved = '', _gpSaving = '', _gpSavingP = null, _gpSaveSaid = '';
+  var GP_PEND_AGE = 3 * 60 * 1000;
+  function gpPendKey(){ return 'cw-intro-pending:' + String(meId || ''); }
+  function gpPendSet(u){ try { window.localStorage.setItem(gpPendKey(), JSON.stringify({ u: u, at: Date.now() })); } catch (e) {} }
+  function gpPendGet(){
+    try {
+      var p = JSON.parse(window.localStorage.getItem(gpPendKey()) || 'null');
+      if (!p || !p.u || String(p.u).indexOf(GS_URL + '?action=saveIntro&') !== 0) return null;
+      if (Date.now() - Number(p.at || 0) > GP_PEND_AGE) { window.localStorage.removeItem(gpPendKey()); return null; }
+      return p;
+    } catch (e) { return null; }
+  }
+  function gpPendDone(u){
+    try { var p = JSON.parse(window.localStorage.getItem(gpPendKey()) || 'null'); if (!p || !u || p.u === u) window.localStorage.removeItem(gpPendKey()); } catch (e) {}
+  }
+  function gpPendResend(){
+    var p = gpPendGet();
+    if (!p) return Promise.resolve();
+    gpWhy('a save from before the reload never said Saved, so it is sent again before reading');
+    var say = function(t, bad){ var st = document.getElementById('gp-intro-status'); if (st) { st.style.color = bad ? '#7A2410' : '#6B7A8D'; st.textContent = t; } };
+    say('Finishing the save you started\u2026');
+    return fetch(p.u, { keepalive: true })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (j && j.status === 'ok') { _gpLastSaved = p.u; gpPendDone(p.u); say('Saved.'); setTimeout(function(){ var st = document.getElementById('gp-intro-status'); if (st && st.textContent === 'Saved.') st.textContent = ''; }, 2500); return; }
+        say(String((j && j.message) || '') || 'Your last change did not save. It saves again when you change anything.', true);
+      })
+      .catch(function(){ say('Your last change did not save. It saves again when you change anything.', true); });
+  }
   function gpQuietSave(){
     if (!GP_BROWSE || !meId) { gpWhy('SKIPPED: ' + (!meId ? 'this browser has no id' : 'browse mode off')); return; }
     if (gpViewingSomebodyElse()) { gpWhy('SKIPPED: viewing somebody else'); return; }
@@ -3157,7 +3188,6 @@
       + '&openToUnpaidTime=' + encodeURIComponent(gpOtwList('unpaidTime').join('|'))
       + '&openToUnpaidWork=' + encodeURIComponent(gpOtwList('unpaid').join('|'))
       + '&servesWho=' + encodeURIComponent(Object.keys(_gpServe).filter(function(k){ return _gpServe[k]; }).join('|'));
-    try { window.localStorage.removeItem(gpAnsKey()); } catch (e) {}
     var _u = GS_URL + '?' + qs;
     if (GP_SAVE_WHY) {
       var _f = document.getElementById('gp-intro-introNeed');
@@ -3176,6 +3206,7 @@
     if (_u === _gpSaving && _gpSavingP) { gpWhy('SKIPPED: this exact save is already on its way'); var _jt = Date.now(); _gpSavingP.then(function(ok){ gpDelSettle(!!ok, _jt); }); return _gpSavingP; }
     gpWhy('SENDING saveIntro, address is ' + _u.length + ' characters');
     try { window.localStorage.removeItem(gpAnsKey()); } catch (e) {}
+    gpPendSet(_u);
     _gpSaving = _u;
     var _bt = Date.now();
     _gpSavingP = fetch(_u, { keepalive: true })
@@ -3186,7 +3217,7 @@
         try { j = JSON.parse(t); } catch (e) { j = null; }
         var ok = !!(j && j.status === 'ok');
         _gpSaveSaid = ok ? '' : String((j && j.message) || '');
-        if (ok) { _gpLastSaved = _u; }
+        if (ok) { _gpLastSaved = _u; gpPendDone(_u); }
         if (_gpSaving === _u) { _gpSaving = ''; }
         gpDelSettle(ok, _bt);
         return ok;
@@ -4598,7 +4629,7 @@
   }
   if (meId) {
     var GP_FRESH = /[?&]fresh=1\b/.test(location.search);
-    if (GP_FRESH) { try { window.localStorage.removeItem(gpAnsKey()); } catch (e) {} gpWhy('fresh=1: the copy kept in this browser was thrown away'); }
+    if (GP_FRESH) { try { window.localStorage.removeItem(gpAnsKey()); window.localStorage.removeItem(gpPendKey()); } catch (e) {} gpWhy('fresh=1: the copy kept in this browser was thrown away'); }
     var _gpRemembered = GP_FRESH ? null : gpReadAnswers();
     if (_gpRemembered) {
       try { gpApplyIntake(_gpRemembered); } catch (e) {}
@@ -4607,7 +4638,7 @@
       gpWhy('   its introEnjoy: [' + String((_gpRemembered.data && _gpRemembered.data.introEnjoy) || '') + ']');
       gpWhy('   its needs: [' + String((_gpRemembered.data && _gpRemembered.data.needs) || '') + ']');
     }
-    gpAskIntake()
+    gpPendResend().then(gpAskIntake)
       .then(function(d){
         gpWhy('the SERVER answered');
         gpWhy('   its interests: [' + String((d && d.data && d.data.interests) || '') + ']');
