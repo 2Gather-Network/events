@@ -117,6 +117,22 @@
       return !!(v && v.yes === true && norm(v.who) === norm(me()));
     } catch (e) { return false; }
   }
+  var INITIALS_CSS = 'display:flex;align-items:center;justify-content:center;background:#EEF4FA;color:#1F699E;font-weight:800;font-size:13px;';
+  function initialsOf(n) {
+    return String(n || '').trim().split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('');
+  }
+  function adoptName(n) {
+    try {
+      var el = document.querySelector('#cw-topbar .cwtb-mine');
+      if (!el || !n) return;
+      var e3 = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
+      el.className = 'cwtb-me';
+      el.setAttribute('title', 'Yours');
+      el.innerHTML = '<span class="cwtb-me-name">' + e3(n) + ' \u{1F331}</span>'
+        + '<span class="cwtb-face" style="' + INITIALS_CSS + '">' + e3(initialsOf(n)) + '</span>';
+    } catch (e) {}
+  }
   function hasBookmarks() {
     try {
       var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
@@ -244,6 +260,10 @@
       photo = '<span role="button" tabindex="0" class="cwtb-me" title="Yours" aria-expanded="false" data-menu="me">' +
               (nm ? '<span class="cwtb-me-name">' + esc2(nm) + ' \u{1F331}</span>' : '') +
               '<span class="cwtb-face"><img src="' + window.CW_TOPBAR_PHOTO + '" alt=""></span></span>';
+    } else if (!atDoor && me() && myName()) {
+      photo = '<span role="button" tabindex="0" class="cwtb-me" title="Yours" aria-expanded="false" data-menu="me">' +
+              '<span class="cwtb-me-name">' + esc2(myName()) + ' \u{1F331}</span>' +
+              '<span class="cwtb-face" style="' + INITIALS_CSS + '">' + esc2(initialsOf(myName())) + '</span></span>';
     } else if (!atDoor && me()) {
       photo = '<span role="button" tabindex="0" class="cwtb-signin cwtb-ghost cwtb-mine" ' +
               'aria-expanded="false" data-menu="me">Mine</span>';
@@ -518,8 +538,7 @@
             encodeURIComponent(who))
         .then(function (r) { return r.json(); })
         .then(function (d) {
-          if (!d || !d.photo) return;
-          window.CW_TOPBAR_PHOTO = d.photo;
+          if (!d) return;
           try {
             if (d.name) {
               window.CW_NAME = d.name;
@@ -527,6 +546,8 @@
               localStorage.setItem('cw-name-for', who);
             }
           } catch (e) {}
+          if (!d.photo) { if (d.name) { adoptName(d.name); } return; }
+          window.CW_TOPBAR_PHOTO = d.photo;
           try { if (window.CW_REDRAW_ADMIN) { window.CW_REDRAW_ADMIN(); } } catch (e) {}
           try {
             localStorage.setItem('cw-photo', d.photo);
