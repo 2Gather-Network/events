@@ -267,7 +267,7 @@
       if (hasEvents()) { mine += anchor('My events', link(MYEVENTS, 'memberCard'), 'cwtb-item'); }
       if (hasAGroup()) { mine += anchor('My groups', link(MYGROUPS, 'memberCard'), 'cwtb-item'); }
       if (hasBookmarks()) { mine += anchor('My network', 'https://2gather.network/network/', 'cwtb-item'); }
-      mine += anchor('My profile', 'https://2gather.network/ikigai/?perm=1', 'cwtb-item');
+      mine += anchor('My profile', 'https://2gather.network/ikigai/', 'cwtb-item');
       mine += anchor('My account', link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    link(SUPPORT,  'memberCard'), 'cwtb-item');
       mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
