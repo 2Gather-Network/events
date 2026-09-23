@@ -822,9 +822,18 @@
       ghost.appendChild(gpGoingSay());
     }
     delete _gpDelFailed[key];
-    _gpDel.push({ key: key, at: Date.now(), ghost: ghost, restore: restore, gone: gone });
+    var pos = (node && node.parentNode) ? Array.prototype.indexOf.call(node.parentNode.children, node) : -1;
+    _gpDel.push({ key: key, at: Date.now(), ghost: ghost, pos: pos, restore: restore, gone: gone });
   }
   function gpDelGhosts(prefix){ return _gpDel.filter(function(e){ return e.ghost && e.key.indexOf(prefix) === 0; }).map(function(e){ return e.ghost; }); }
+  function gpPlaceGhosts(box, prefix){
+    _gpDel.filter(function(e){ return e.ghost && e.key.indexOf(prefix) === 0; })
+      .sort(function(a, b){ return a.pos - b.pos; })
+      .forEach(function(e){
+        var at = e.pos >= 0 ? e.pos : box.children.length;
+        if (at < box.children.length) { box.insertBefore(e.ghost, box.children[at]); } else { box.appendChild(e.ghost); }
+      });
+  }
   function gpDelFailNote(key){
     if (!_gpDelFailed[key]) return null;
     var d = document.createElement('div'); d.className = 'gp-del-fail'; d.textContent = 'That did not delete. Press the x to try again.';
@@ -1150,7 +1159,7 @@
           if (_nf) { card.appendChild(_nf); }
           chosen.appendChild(card);
         });
-      gpDelGhosts('introNeed|').forEach(function(g){ chosen.appendChild(g); });
+      gpPlaceGhosts(chosen, 'introNeed|');
     }
     function gpPaintChosen(){
       gpShowingVis();
@@ -2547,8 +2556,7 @@
     rows.innerHTML = '';
     var _ghosts = gpDelGhosts(key + '|');
     if (tbox) { tbox.style.display = (words.length || _ghosts.length) ? '' : 'none'; }
-    _ghosts.forEach(function(g){ rows.appendChild(g); });
-    if (!words.length) { return; }
+    if (!words.length) { _ghosts.forEach(function(g){ rows.appendChild(g); }); return; }
     words.forEach(function(word){
       var on = gpLevelOf(key, word);
       var card = document.createElement('div');
@@ -2604,6 +2612,7 @@
       if (_fn) { card.appendChild(_fn); }
       rows.appendChild(card);
     });
+    gpPlaceGhosts(rows, key + '|');
   }
 
   var _gpProse = {}, _gpProseDirty = {};
@@ -3737,7 +3746,7 @@
       ob.appendChild(wrap);
     });
     var _liveOffers = allCards.childNodes.length;
-    gpDelGhosts('haves|').forEach(function(g){ allCards.appendChild(g); });
+    gpPlaceGhosts(allCards, 'haves|');
     if (allCards.childNodes.length) {
       var ofb = gpFoldBar('introOffer', 'Offerings added (' + _liveOffers + ')');
       ofb.box.style.margin = '26px 0 0';
