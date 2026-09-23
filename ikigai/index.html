@@ -3191,6 +3191,32 @@
     return out;
   }
   var _gpBuilt = { what: '', who: '', care: '' };
+  function gpPurposeAddWho(v){
+    v = String(v || '').trim();
+    if (!v) { return ''; }
+    v = v.charAt(0).toUpperCase() + v.slice(1);
+    var had = false;
+    try { Object.keys(_gpServe).forEach(function(k){ if (String(k).toLowerCase() === v.toLowerCase()) { had = true; } }); } catch (e) {}
+    if (!had) {
+      _gpServe[v] = true;
+      try { var sb = document.getElementById('gp-serve-block'); if (sb && sb._gpFill) { sb._gpFill(); } } catch (e) {}
+      try { gpTouchSave(); } catch (e) {}
+    }
+    return gpPurposeLow(v);
+  }
+  function gpPurposeAddCare(v){
+    v = String(v || '').trim();
+    if (!v) { return ''; }
+    v = v.charAt(0).toUpperCase() + v.slice(1);
+    try {
+      var cta = document.getElementById('gp-intro-introValues');
+      if (cta) {
+        var have = String(cta.value || '').split(',').map(function(x){ return x.trim().toLowerCase(); });
+        if (have.indexOf(v.toLowerCase()) === -1) { gpAddWord('introValues', v, '', cta); }
+      }
+    } catch (e) {}
+    return gpPurposeLow(v);
+  }
   var _gpOwn = { what: '', who: '', care: '' }, _gpOwnFocus = '', _gpSelFocus = '';
   function gpPaintPurposeBuilder(){
     var box = document.getElementById('gp-purpose-picks'), ta = document.getElementById('gp-purpose-box');
@@ -3225,10 +3251,17 @@
         };
         var _fw = _find(P.what, _m[1]), _fo = _find(P.who, _m[2]), _fc = _find(P.cares, _m[3]);
         if (_fw) { _gpBuilt.what = _fw; }
-        if (_fo) { _gpBuilt.who = _fo; } else if (String(_m[2]).trim()) { _gpBuilt.who = '__own__'; _gpOwn.who = String(_m[2]).trim(); }
-        if (_fc) { _gpBuilt.care = _fc; } else if (String(_m[3]).trim()) { _gpBuilt.care = '__own__'; _gpOwn.care = String(_m[3]).trim(); }
+        if (_fo) { _gpBuilt.who = _fo; } else if (String(_m[2]).trim()) { _gpBuilt.who = gpPurposeAddWho(_m[2]); }
+        if (_fc) { _gpBuilt.care = _fc; } else if (String(_m[3]).trim()) { _gpBuilt.care = gpPurposeAddCare(_m[3]); }
+        P = gpPurposeParts();
       }
     }
+    ['who', 'care'].forEach(function(k){
+      var list = k === 'who' ? P.who : P.cares;
+      if (_gpBuilt[k] && _gpBuilt[k] !== '__own__' && list.length && list.indexOf(_gpBuilt[k]) === -1) {
+        _gpOwn[k] = _gpBuilt[k]; _gpBuilt[k] = '__own__';
+      }
+    });
     if (!_gpBuilt.what && P.what.length)  _gpBuilt.what = P.what[0];
     if (!_gpBuilt.who  && P.who.length)   _gpBuilt.who  = P.who[0];
     if (!_gpBuilt.care && P.cares.length) _gpBuilt.care = P.cares[0];
@@ -3274,32 +3307,18 @@
       inp.oninput = function(){ _gpOwn[inp.getAttribute('data-gp-own')] = inp.value; gpPaintPurposeBuilder(); };
       if (inp.getAttribute('data-gp-own') === 'care') {
         inp.onblur = function(){
-          var v = String(inp.value || '').trim();
-          if (!v) { return; }
-          v = (typeof gpTitle === 'function') ? gpTitle(v) : v;
-          try {
-            var cta = document.getElementById('gp-intro-introValues');
-            if (!cta) { return; }
-            var have = String(cta.value || '').split(',').map(function(x){ return x.trim().toLowerCase(); });
-            if (have.indexOf(v.toLowerCase()) > -1) { return; }
-            gpAddWord('introValues', v, '', cta);
-          } catch (e) {}
+          var low = gpPurposeAddCare(inp.value);
+          if (!low) { return; }
+          if (gpPurposeParts().cares.indexOf(low) > -1) { _gpBuilt.care = low; _gpOwn.care = ''; }
+          setTimeout(function(){ try { gpPaintPurposeBuilder(); } catch (e) {} }, 0);
         };
       }
       if (inp.getAttribute('data-gp-own') === 'who') {
         inp.onblur = function(){
-          var v = String(inp.value || '').trim();
-          if (!v) { return; }
-          v = (typeof gpTitle === 'function') ? gpTitle(v) : v;
-          var had = false;
-          try { Object.keys(_gpServe).forEach(function(k){ if (String(k).toLowerCase() === v.toLowerCase()) { had = true; } }); } catch (e) {}
-          if (had) { return; }
-          _gpServe[v] = true;
-          try {
-            var sb = document.getElementById('gp-serve-block');
-            if (sb && sb._gpFill) { sb._gpFill(); }
-          } catch (e) {}
-          try { gpTouchSave(); } catch (e) {}
+          var low = gpPurposeAddWho(inp.value);
+          if (!low) { return; }
+          if (gpPurposeParts().who.indexOf(low) > -1) { _gpBuilt.who = low; _gpOwn.who = ''; }
+          setTimeout(function(){ try { gpPaintPurposeBuilder(); } catch (e) {} }, 0);
         };
       }
       if (_gpOwnFocus === inp.getAttribute('data-gp-own')) { _gpOwnFocus = ''; _gpSelFocus = ''; inp.focus(); }
