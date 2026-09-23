@@ -32,8 +32,7 @@
       }
     } catch (e) {}
     var go = function (where) {
-      var sep = where.indexOf('?') > -1 ? '&' : '?';
-      window.location.href = where + sep + 'CWid=' + encodeURIComponent(d.appearId);
+      window.location.href = where;
     };
     try { CW.firstStop(d.appearId, next, go); } catch (e) { go(next); }
   }

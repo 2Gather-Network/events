@@ -181,10 +181,8 @@
     return me();
   }
 
-  function link(url, carry) {
-    var who = realId();
-    if (!who || !carry) return url;
-    return url + (url.indexOf('?') > -1 ? '&' : '?') + carry + '=' + encodeURIComponent(who);
+  function link(url) {
+    return url;
   }
 
   function here() {
