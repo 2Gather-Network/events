@@ -143,12 +143,12 @@
         + '<button type="button" class="cw-g-other">Use a different account</button>'
         + '<div class="say bad cw-g-say2" style="display:none"></div>';
       var kids = [].slice.call(card.children);
-      kids.forEach(function (k) { k.setAttribute('data-cw-g-hid', k.hidden ? '1' : '0'); k.hidden = true; });
+      kids.forEach(function (k) { k.setAttribute('data-cw-g-hid', k.hidden ? '1' : '0'); k.setAttribute('data-cw-g-disp', k.style.display || ''); k.hidden = true; k.style.display = 'none'; });
       card.appendChild(box);
       var say2 = function (m) { var el = box.querySelector('.cw-g-say2'); el.textContent = m || ''; el.style.display = m ? 'block' : 'none'; };
       box.querySelector('.cw-g-other').onclick = function () {
         box.remove();
-        kids.forEach(function (k) { k.hidden = k.getAttribute('data-cw-g-hid') === '1'; k.removeAttribute('data-cw-g-hid'); });
+        kids.forEach(function (k) { k.hidden = k.getAttribute('data-cw-g-hid') === '1'; k.style.display = k.getAttribute('data-cw-g-disp') || ''; k.removeAttribute('data-cw-g-hid'); k.removeAttribute('data-cw-g-disp'); });
         try { google.accounts.id.prompt(); } catch (e) {}
       };
       box.querySelector('.cw-g-create').onclick = function () {
