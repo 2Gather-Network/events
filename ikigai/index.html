@@ -254,6 +254,35 @@
     return { row: row, add: function(w){ picked[w] = true; row.appendChild(btn(w)); } };
   }
 
+  function gpOtherFor(pr, picked, known){
+    var oth = document.createElement('button');
+    oth.type = 'button'; oth.textContent = '+ Other';
+    oth.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;' + gpOtherStyle();
+    var obx = document.createElement('div');
+    obx.style.cssText = 'display:none;margin-top:10px;gap:8px;flex-wrap:wrap;';
+    var oin = document.createElement('input');
+    oin.type = 'text'; oin.placeholder = 'In your own words';
+    oin.style.cssText = 'flex:0 1 240px;max-width:240px;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;padding:8px 11px;font:inherit;font-size:13.5px;color:#1A2E42;outline:none;';
+    var oadd = document.createElement('button');
+    oadd.type = 'button'; oadd.textContent = 'Add';
+    oadd.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 16px;border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
+    obx.appendChild(oin); obx.appendChild(oadd);
+    var add = function(){
+      var v = gpTitle(String(oin.value || '').trim()); if (!v) return;
+      var had = (known || []).concat(Object.keys(picked)).filter(function(k){ return String(k).toLowerCase() === v.toLowerCase(); })[0];
+      if (had) {
+        if (!picked[had]) { picked[had] = true; pr.row.querySelectorAll('button').forEach(function(b){ if (b.textContent === had) { b.style.background = '#1F699E'; b.style.border = '1px solid #1F699E'; b.style.color = '#fff'; b.style.fontWeight = '700'; } }); }
+      } else { pr.add(v); pr.row.appendChild(oth); }
+      oin.value = ''; obx.style.display = 'none';
+      try { gpAutoSave(); } catch (e) {}
+    };
+    oth.addEventListener('click', function(){ obx.style.display = obx.style.display === 'none' ? 'flex' : 'none'; if (obx.style.display === 'flex') { try { oin.focus(); } catch (e) {} } });
+    oadd.addEventListener('click', add);
+    oin.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); add(); } });
+    pr.row.appendChild(oth);
+    var body = document.createElement('div'); body.appendChild(pr.row); body.appendChild(obx);
+    return body;
+  }
   function gpBlock(title, hint, body){
     var w = document.createElement('div');
     w.style.cssText = 'padding:18px 0;border-top:1px solid #f0f1f5;';
@@ -3649,20 +3678,23 @@
     };
     var allCards = document.createElement('div');
     var skillLine = document.createElement('div');
-    skillLine.style.cssText = 'display:flex;align-items:baseline;column-gap:10px;row-gap:2px;flex-wrap:wrap;margin:0 0 20px;';
+    skillLine.style.cssText = 'margin:0 0 20px;';
+    var skHead = document.createElement('div');
+    skHead.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 2px;';
     var skLab = document.createElement('div');
-    skLab.style.cssText = 'font-size:15px;font-weight:800;color:#1A2E42;margin:0;flex:0 0 100%;';
+    skLab.style.cssText = 'font-size:15px;font-weight:800;color:#1A2E42;margin:0;';
     skLab.textContent = 'My skill offerings';
-    var skNames = document.createElement('span');
-    skNames.style.cssText = 'font-size:14px;color:#4B5A6D;flex:1 1 200px;line-height:1.5;';
+    skHead.appendChild(skLab);
+    try {
+      var skBtn = gpStepButton('Edit skills', 'Skills');
+      if (skBtn) { skHead.appendChild(skBtn); }
+    } catch (e) {}
+    var skNames = document.createElement('div');
+    skNames.style.cssText = 'font-size:14px;color:#4B5A6D;line-height:1.5;';
     var _sk = [];
     try { _sk = gpMySkillNames() || []; } catch (e) { _sk = []; }
     skNames.textContent = _sk.length ? _sk.join(', ') : 'None yet.';
-    skillLine.appendChild(skLab); skillLine.appendChild(skNames);
-    try {
-      var skBtn = gpStepButton('Edit skills', 'Skills');
-      if (skBtn) { skillLine.appendChild(skBtn); }
-    } catch (e) {}
+    skillLine.appendChild(skHead); skillLine.appendChild(skNames);
     ob.appendChild(skillLine);
     ['thing', 'space'].forEach(function(kind){
       var wrap = document.createElement('div');
@@ -4316,7 +4348,7 @@
     var wl = gpRefList('workExperienceTypes', GP_WORK_CHOICES).slice();
     Object.keys(_gpWork).forEach(function(n){ if (_gpWork[n] && wl.indexOf(n) < 0) wl.push(n); });
     var wr = gpPickRow(wl, _gpWork, 0);
-    box.insertBefore(gpRailBlock('gp-work-block', 6, 'What experiences would you like to create with your work?', 'Pick as many as fit.', wr.row), document.getElementById('gp-preview'));
+    box.insertBefore(gpRailBlock('gp-work-block', 6, 'What experiences would you like to create with your work?', 'Pick as many as fit.', gpOtherFor(wr, _gpWork, wl)), document.getElementById('gp-preview'));
     if (thanks) { set(thanks, GP_STEP_TITLES.indexOf('Appreciation')); box.insertBefore(thanks, document.getElementById('gp-preview')); }
     if (GP_V2 && purposeB) box.insertBefore(purposeB, document.getElementById('gp-preview'));
     box.insertBefore(gpRailBlock('gp-balance-block', GP_BAL, 'Balance', '', balBody), document.getElementById('gp-preview'));
