@@ -122,6 +122,7 @@
     ['Caring',   'attending to how another person is']
   ];
   var _gpValuePicked = {};
+  function gpWaysOfBeing(){ return GP_VALUE_WORDS.filter(function(w){ return _gpValuePicked[w[0]]; }).map(function(w){ return w[0]; }).join('|'); }
   var GP_PURPOSE_GAP = '\u2026\u2026\u2026';
   var GP_PURPOSE_HIDE = (GP_PURPOSE_TRY === 'a' || GP_PURPOSE_TRY === 'b') ? String(params.get('gap') || '').toLowerCase() : '';
   var GP_OTHER_STYLES = {
@@ -3034,6 +3035,7 @@
     var qs = 'action=saveIntro&appearId=' + encodeURIComponent(meId)
       + (window._gpLoaded ? '&tagsMode=replace' : '')
       + '&appreciation=' + encodeURIComponent(picked(_gpThanksPicked, '|'))
+      + (window._gpLoaded ? '&waysOfBeing=' + encodeURIComponent(gpWaysOfBeing()) : '')
       + '&languages=' + encodeURIComponent(picked(_gpLangPicked, ', '))
       + '&methods=' + encodeURIComponent(picked(_gpMethodPicked, '|'));
     GP_INTRO_Q.forEach(function(q){
@@ -3322,6 +3324,7 @@
     var qs = 'action=saveIntro&appearId=' + encodeURIComponent(meId)
       + (window._gpLoaded ? '&tagsMode=replace' : '')
       + '&appreciation=' + encodeURIComponent(picked(_gpThanksPicked, '|'))
+      + (window._gpLoaded ? '&waysOfBeing=' + encodeURIComponent(gpWaysOfBeing()) : '')
       + '&languages='    + encodeURIComponent(picked(_gpLangPicked, ', '))
       + '&methods='      + encodeURIComponent(picked(_gpMethodPicked, '|'));
     GP_INTRO_Q.forEach(function(q){
@@ -4351,7 +4354,7 @@
     var thanks = document.getElementById('gp-thanks-block');
     var care = byKey('introValues'), serve = set(document.getElementById('gp-serve-block'), 3);
     after(care, serve);
-    if (GP_VALUES_TRY && care && !document.getElementById('gp-values-block')) {
+    if (care && !document.getElementById('gp-values-block')) {
       var vrow = document.createElement('div');
       vrow.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
       var vpaint = function(){
@@ -4362,13 +4365,13 @@
             + '<span style="display:block;font-size:15px;font-weight:700;">' + w[0] + '</span>'
             + '<span style="display:block;font-size:12px;font-weight:500;margin-top:2px;opacity:' + (on ? '.9' : '1') + ';color:' + (on ? '#fff' : '#6B7A8D') + ';">' + w[1] + '</span>'
             + '</button>';
-        }).join('')
-        + '<div style="flex-basis:100%;font-size:12.5px;color:#6B7A8D;margin-top:4px;">A mockup. Nothing here is saved yet, because the column it belongs in does not exist.</div>';
+        }).join('');
         vrow.querySelectorAll('[data-gp-value]').forEach(function(b){
-          b.onclick = function(){ var k = b.getAttribute('data-gp-value'); _gpValuePicked[k] = !_gpValuePicked[k]; vpaint(); };
+          b.onclick = function(){ var k = b.getAttribute('data-gp-value'); _gpValuePicked[k] = !_gpValuePicked[k]; vpaint(); try { gpTouchSave(); } catch (e) {} };
         });
       };
       vpaint();
+      window._gpPaintValues = vpaint;
       var vblk = gpRailBlock('gp-values-block', 3, 'What can people count on from you?',
         'Not the things you care about, which are above. These are the ways you meet people, and they stay the same whoever you are with.', vrow);
       after(care, vblk);
@@ -4769,6 +4772,13 @@
         String(have.appreciation || '').split('|').forEach(function(a){
           var v = String(a).trim(); if (v) { _gpThanksPicked[v] = true; any = true; }
         });
+        if (have.waysOfBeing !== undefined) {
+          Object.keys(_gpValuePicked).forEach(function(k){ _gpValuePicked[k] = false; });
+          String(have.waysOfBeing || '').split('|').forEach(function(w){
+            var v = String(w).trim(); if (v) { _gpValuePicked[v] = true; any = true; }
+          });
+          try { if (window._gpPaintValues) window._gpPaintValues(); } catch (e) {}
+        }
         var _ow = function(v){ return String(v || '').split('|').map(function(x){ return x.trim(); }).filter(Boolean); };
         var _owPaid = _ow(have.openToPaidWork), _owTime = _ow(have.openToUnpaidTime), _owUnpaid = _ow(have.openToUnpaidWork);
         if (!_owPaid.length && !_owTime.length && !_owUnpaid.length) {
