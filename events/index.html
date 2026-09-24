@@ -1009,9 +1009,22 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <label class="field-label" style="margin-bottom:4px;">Event registration</label>
       <p class="field-help" style="font-size:12px;color:var(--muted);margin:0 0 8px;" id="int-hint">People can register from the event page. Attendee info found in "My events."</p>
       <div style="display:flex;gap:8px;">
-        <button type="button" class="format-chip" id="int-optional" onclick="setInterestedEnabled('optional')" style="flex:1;">Optional</button>
-        <button type="button" class="format-chip" id="int-required" onclick="setInterestedEnabled('required')" style="flex:1;">Required</button>
-        <button type="button" class="format-chip selected" id="int-off" onclick="setInterestedEnabled('off')" style="flex:1;">Off</button>
+        <button type="button" class="format-chip" id="int-optional" onclick="_pickReg('optional')" style="flex:1;">Optional</button>
+        <button type="button" class="format-chip" id="int-required" onclick="_pickReg('required')" style="flex:1;">Required</button>
+        <button type="button" class="format-chip selected" id="int-off" onclick="_pickReg('off')" style="flex:1;">Off</button>
+      </div>
+      <div id="reg-how" style="display:none;margin-top:12px;">
+        <p class="field-help" style="font-size:13px;color:var(--dark);font-weight:600;margin:0 0 8px;">Do you already have a registration link?</p>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="format-chip" id="reg-own" onclick="setRegHow('own')" style="flex:1;">Yes, I have a link</button>
+          <button type="button" class="format-chip" id="reg-here" onclick="setRegHow('here')" style="flex:1;">No, register people here</button>
+        </div>
+        <div class="field" id="field-paymentlink" style="display:none;margin:12px 0 0;">
+          <label class="field-label">Registration link <span id="payment-required-label" style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted);"></span></label>
+          <input class="input" id="f-paymentlink" type="url" placeholder="https://...">
+          <p style="font-size:11px;color:var(--muted);margin:4px 0 0;">People press Register on your event and go here. Also where they pay, if there is a cost.</p>
+        </div>
+        <p id="reg-here-said" role="status" style="display:none;background:#E7F5EA;color:#1A5A2C;border-radius:10px;padding:10px 14px;font-weight:600;font-size:13.5px;margin:12px 0 0;">Registration is turned on. People register from the event page, and you will see who registered in My events.</p>
       </div>
     </div>
 
@@ -1053,14 +1066,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
         </div>
 
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">
-        <div id="share-opt-payment" style="display:flex;align-items:flex-start;gap:6px;">
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;flex:1;">
-            <input type="checkbox" id="show-paymentlink" onchange="toggleLinkFields()" style="width:16px;height:16px;accent-color:var(--primary);">
-            Show a registration/payment link
-          </label>
-          <button type="button" onclick="var e=document.getElementById('payment-info');e.style.display=e.style.display==='none'?'block':'none';" aria-label="What is a registration or payment link?" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;line-height:1;">ℹ️</button>
-        </div>
-        <p id="payment-info" style="display:none;font-size:12px;color:var(--muted);background:#f3f4f6;border-radius:8px;padding:8px 10px;margin:0 0 2px 24px;line-height:1.5;">A link on your event page for people to register or pay somewhere else, such as a ticket payment or a donation page. It shows as something to do before their registration is confirmed.</p>
+        <input type="checkbox" id="show-paymentlink" style="display:none;">
         <div style="display:flex;align-items:center;gap:6px;">
           <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;flex:1;">
             <input type="checkbox" id="show-hostlink" onchange="toggleLinkFields()" style="width:16px;height:16px;accent-color:var(--primary);">
@@ -1102,10 +1108,6 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <input class="input" id="f-cooplink" type="url" placeholder="https://...">
     </div>
 
-    <div class="field" id="field-paymentlink" style="display:none;">
-      <label class="field-label">Payment or registration link <span id="payment-required-label" style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted);"></span></label>
-      <input class="input" id="f-paymentlink" type="url" placeholder="https://...">
-    </div>
 
     <div id="field-contact">
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -1498,7 +1500,7 @@ function applySharingMode(sharing) {
   _fillPosterName();
   if (sharing) {
   }
-  ["share-opt-contact", "share-opt-cooplink", "share-opt-payment"].forEach(function(id) {
+  ["share-opt-contact", "share-opt-cooplink"].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = sharing ? "none" : "flex";
   });
@@ -4442,8 +4444,46 @@ function _paintRecur() {
   if (re) re.style.display = (on && f) ? "block" : "none";
 }
 
+var _regHow = "";
+function _paintRegHow() {
+  var box = document.getElementById("reg-how");
+  if (!box) return;
+  var cb = document.getElementById("show-paymentlink");
+  var fld = document.getElementById("registration-field");
+  var shown = !fld || fld.style.display !== "none";
+  var on = !!interestedEnabled && interestedEnabled !== "off";
+  if (!on && cb && cb.checked && shown) {
+    interestedEnabled = "optional";
+    ["off","optional","required"].forEach(k => document.getElementById("int-"+k)?.classList.toggle("selected", k === "optional"));
+    var _hn0 = document.getElementById("field-host-note"); if (_hn0) _hn0.style.display = "block";
+    on = true;
+  }
+  if (on && cb && cb.checked) { _regHow = "own"; }
+  box.style.display = on ? "block" : "none";
+  ["own","here"].forEach(k => document.getElementById("reg-"+k)?.classList.toggle("selected", on && _regHow === k));
+  var said = document.getElementById("reg-here-said"); if (said) said.style.display = (on && _regHow === "here") ? "block" : "none";
+  var fp = document.getElementById("field-paymentlink"); if (fp) fp.style.display = (on && _regHow === "own") ? "block" : "none";
+}
+function setRegHow(k) {
+  _regHow = k;
+  var cb = document.getElementById("show-paymentlink"); if (cb) cb.checked = (k === "own");
+  try { formDirty = true; } catch (e) {}
+  _paintRegHow();
+}
+function _pickReg(val) {
+  var was = interestedEnabled;
+  var cb = document.getElementById("show-paymentlink");
+  if (val === "off" || !was || was === "off") { if (cb) cb.checked = false; _regHow = ""; _pickedNow = true; }
+  setInterestedEnabled(val);
+  _pickedNow = false;
+}
+var _pickedNow = false;
 function setInterestedEnabled(val) {
   interestedEnabled = val;
+  var _cbR = document.getElementById("show-paymentlink");
+  if (!val || val === "off") { if (!(_cbR && _cbR.checked)) { _regHow = ""; } }
+  else if (!_pickedNow && !_regHow && !(_cbR && _cbR.checked)) { _regHow = "here"; }
+  setTimeout(_paintRegHow, 0);
   ["off","optional","required"].forEach(k => document.getElementById("int-"+k)?.classList.toggle("selected", k === val));
   var _hn = document.getElementById("field-host-note");
   if (_hn) _hn.style.display = (val && val !== "off") ? "block" : "none";
@@ -4976,11 +5016,7 @@ function _knownPosterName() {
 }
 
 function toggleLinkFields() {
-  ["paymentlink"].forEach(k => {   
-    const field = document.getElementById("field-"+k);
-    const cb = document.getElementById("show-"+k);
-    if (field && cb) field.style.display = cb.checked ? "block" : "none";
-  });
+  _paintRegHow();
   const hlCb = document.getElementById("show-hostlink");
   const hlField = document.getElementById("field-hostlink");
   const hlInput = document.getElementById("f-hostlink");
