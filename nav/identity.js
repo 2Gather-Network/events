@@ -122,20 +122,38 @@
     w._cwPassOn = true;
     var orig = w.fetch;
     w.fetch = function (input, init) {
-      var out = input;
+      var out = input, carries = false;
       try {
         var url = (typeof input === 'string') ? input : (input && input.url) || '';
-        if (url.indexOf(GATE) > -1 && url.indexOf('action=') > -1 && url.indexOf('meToken=') === -1
-            && url.length < 6000) {
-          var t = ls(function () { return w.localStorage.getItem('cw-token') || ''; }, '');
-          if (t) {
-            var joined = url + (url.indexOf('?') > -1 ? '&' : '?') + 'meToken=' + encodeURIComponent(t);
-            out = (typeof input === 'string') ? joined : new Request(joined, input);
+        if (url.indexOf(GATE) > -1 && url.indexOf('action=') > -1) {
+          carries = url.indexOf('meToken=') > -1;
+          if (!carries && url.length < 6000) {
+            var t = ls(function () { return w.localStorage.getItem('cw-token') || ''; }, '');
+            if (t) {
+              var joined = url + (url.indexOf('?') > -1 ? '&' : '?') + 'meToken=' + encodeURIComponent(t);
+              out = (typeof input === 'string') ? joined : new Request(joined, input);
+              carries = true;
+            }
           }
         }
       } catch (e) { out = input; }
-      return orig.call(this, out, init);
+      var p = orig.call(this, out, init);
+      if (!carries || !p || !p.then) { return p; }
+      return p.then(function (r) {
+        try { if (r && r.headers && r.headers.get('X-CW-Signin') === '1') { signInAgain(); } } catch (e) {}
+        return r;
+      });
     };
+    function signInAgain() {
+      if (w._cwSignInAgain) { return; }
+      var path = String(w.location.pathname || '/');
+      if (/^\/(signin|signup|signin-google)(\/|$)/.test(path)) { return; }
+      w._cwSignInAgain = true;
+      try { if (w.CW && w.CW.forget) { w.CW.forget(); } } catch (e) {}
+      var onCW = String(w.location.hostname || '').indexOf('creating.works') >= 0;
+      var back = path + String(w.location.search || '') + String(w.location.hash || '');
+      w.location.replace(onCW ? '/' : '/signin/?next=' + encodeURIComponent(back));
+    }
   })();
 
   (function wall() {
