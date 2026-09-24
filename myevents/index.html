@@ -7863,7 +7863,13 @@ function selectInterestSuggestion(val) {
       hosting:    n ? ev(n) + ' hosted \ud83c\udf31' : 'Your hosted events show up here.',
       socialized: n ? ev(n) + ' socialized \ud83c\udf89 Thank you!'
                     : 'Your socialized events show up here. Post a new event or <a href="https://2gather.network/events">share an existing one</a>.',
-      all:        n + ' public event' + (n === 1 ? '' : 's') + ' still to come'
+      all:        (function () {
+                    var priv = Array.isArray(_opPrivate) ? (_calendarRows() || []).filter(function (r) { return r.isPrivate; }).length : 0;
+                    var pub = n - priv;
+                    var said = pub + ' public' + (priv ? ' and ' + priv + ' groups-only' : '') + ' event' + (n === 1 ? '' : 's') + ' still to come';
+                    if (_isOperator && _opPrivate === null) { said += ' <span style="color:#1F699E;font-weight:600;">Loading groups-only events...</span>'; }
+                    return said;
+                  })()
     };
     el.innerHTML = say[p] || '';
     var el2 = document.getElementById('cw-me-say'); if (el2) { el2.innerHTML = el.innerHTML; }
@@ -7937,7 +7943,40 @@ function selectInterestSuggestion(val) {
       seen[id] = 1;
       out.push(e);
     });
+    if (_isOperator && Array.isArray(_opPrivate)) {
+      _opPrivate.forEach(function (e) {
+        var id = String((e && e.id) || '').trim();
+        if (!id || seen[id]) return;
+        try { if (_isCancelledEvent(e)) return; } catch (x) {}
+        if (!e.date || e.date === 'TBD' || isNaN(new Date(e.date + 'T' + (e.time || '00:00')).getTime())) return;
+        if (!isUpcoming(Object.assign({}, e, { recurFreq: '' }))) return;
+        seen[id] = 1;
+        out.push(e);
+      });
+    }
     return out;
+  }
+  var _opPrivate = null, _opPrivateBusy = false;
+  function _loadOpPrivate() {
+    if (!_isOperator || _opPrivate !== null || _opPrivateBusy) return;
+    var me = '';
+    try { me = getRealMemberId() || ''; } catch (e) {}
+    if (!me) return;
+    _opPrivateBusy = true;
+    fetch(GS_URL + '?action=getMyEvents&asOperator=1&appearId=' + encodeURIComponent(me) + '&t=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var list = (d && d.status === 'ok' && Array.isArray(d.events)) ? d.events : [];
+        _opPrivate = list.filter(function (r) {
+          return r && r.id && String(r.isPrivate).toLowerCase() === 'true' && String(r.archived || '').toLowerCase() !== 'true';
+        }).map(function (r) { var ev = sheetToEv(r); ev.isPrivate = true; return ev; });
+      })
+      .catch(function () { _opPrivate = []; })
+      .then(function () {
+        _opPrivateBusy = false;
+        try { paintCounts(allRows); } catch (e) {}
+        try { if (pane === 'all') { paintRail(allRows, selId); } } catch (e) {}
+      });
   }
 
   var _regIds = null;          
@@ -8050,7 +8089,8 @@ function selectInterestSuggestion(val) {
     if (_m2) { door = 'https://2gather.network/event/?id='; when = _meDay(r, when); }
     var _v = String(r.venue || '').trim(), _c = _meCity(r.location);
     var where = _v ? _v + (_c && _v.toLowerCase().indexOf(_c.toLowerCase()) < 0 ? ', ' + _c : '') : (_c || '');
-    var chip = (r.hostType === 'socializer' || r.socializedByMe === true) ? 'Shared'
+    var chip = (r.isPrivate && pane === 'all') ? '\ud83d\udd12 Groups only'
+             : (r.hostType === 'socializer' || r.socializedByMe === true) ? 'Shared'
              : (r.recurFreq ? (String(r.recurFreq).charAt(0).toUpperCase() + String(r.recurFreq).slice(1)) : '');
     if (document.documentElement.classList.contains('cw-mepane')) { return _cardHtml(r, door, when, where, chip); }
     return '<button type="button" class="manage-row' + (String(r.id) === String(_sel4row) ? ' on' : '') + '"'
@@ -8232,6 +8272,7 @@ function selectInterestSuggestion(val) {
     if (pane === 'attending' && _showBookmarked && _bmNow.length) {
       rows = _bmNow;
     } else if (pane === 'attending' || pane === 'all') {
+      if (pane === 'all') { _loadOpPrivate(); }
       var own = (pane === 'all') ? _calendarRows() : _attendingRows();
       if (own === null) {
         list.innerHTML = '<div class="manage-hint"><span class="cw-loading">Loading information...</span></div>';
