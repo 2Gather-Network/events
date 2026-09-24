@@ -2440,6 +2440,21 @@ function parseSheetTime(val) {
   return s;
 }
 
+var _freshRows = {};
+function _useFresh(row) {
+  try {
+    var f = sheetToEv(row);
+    if (!f || !f.id) return;
+    _freshRows[f.id] = f;
+    var i = events.findIndex(function (x) { return x.id === f.id; });
+    if (i > -1) { events[i] = f; } else { events.push(f); }
+    var j = RECURRING_EVENTS.findIndex(function (x) { return x.id === f.id; });
+    if (j > -1) { RECURRING_EVENTS[j] = f; }
+  } catch (e) {}
+}
+function _keepFresh(list) {
+  return list.map(function (e) { return _freshRows[e.id] || e; });
+}
 function sheetToEv(row) {
   const isRecurring = String(row.id).startsWith("rec-") || !!(row.recurFreq);
   return {
@@ -2528,6 +2543,7 @@ async function loadEvents() {
         meetinglink: ev.meetinglink || template.meetinglink,
       });
     });
+    events = _keepFresh(events);
     syncCancelledOccurrences(events);
   } catch(e) {
     console.warn("Events load failed, retrying...", e);
@@ -2536,7 +2552,7 @@ async function loadEvents() {
       const data = await fetchEvents();
       const allRows = (data.events || []).filter(r => r.id).map(sheetToEv);
       RECURRING_EVENTS = allRows.filter(e => e.id.startsWith("rec-") && e.recurFreq && e.dayOfWeek);
-      events = allRows.filter(e => !e.id.startsWith("rec-"));
+      events = _keepFresh(allRows.filter(e => !e.id.startsWith("rec-")));
       syncCancelledOccurrences(events);
     } catch(e2) {
       console.warn("Events retry also failed - showing recurring events only", e2);
@@ -6615,7 +6631,7 @@ _feedJob.then(() => {
               if (res.err) { _unhide(); say('The editor could not be opened. Reload the page and try again.'); return; }
               const row = res.row;
               if (!row) { _unhide(); say('That event belongs to somebody else, so the editor did not open.'); return; }
-              if (!events.some(function (x) { return x.id === editId; })) { events.push(sheetToEv(row)); }
+              _useFresh(row);
               done();
               loadEditForm(editId);
             } catch (e) {
@@ -8448,9 +8464,7 @@ function selectInterestSuggestion(val) {
         var ev1 = one && one.event;
         if (ev1 && ev1.row && (ev1.myRole === 'host' || ev1.myRole === 'cohost' || ev1.myRole === 'super')) {
           try {
-            if (typeof events !== 'undefined' && !events.some(function (x) { return x.id === wantId; })) {
-              events.push(sheetToEv(ev1.row));
-            }
+            _useFresh(ev1.row);
           } catch (e) {}
           mountForm();
           try { loadEditForm(wantId); quiet(); } catch (e) {}
@@ -8523,9 +8537,7 @@ function selectInterestSuggestion(val) {
     if (!row) { say('That event belongs to somebody else, so the form did not open.'); return; }
 
     try {
-      if (typeof events !== 'undefined' && !events.some(function (x) { return x.id === wantId; })) {
-        events.push(sheetToEv(row));
-      }
+      _useFresh(row);
     } catch (e) {}
 
     var already = document.getElementById('post-modal');
