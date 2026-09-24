@@ -100,6 +100,7 @@
   .hidden{display:none!important;}
 </style>
   <script src="/nav/identity.js?v=28"></script>
+  <script src="/group/offer-count.js?v=1"></script>
 </head>
 <body>
 <div class="wrap">
@@ -158,6 +159,7 @@
         <div class="card" id="dash-head" style="display:none;">
           <h1 id="dash-title" style="font-size:20px;font-weight:800;margin:0;color:var(--ink);"></h1>
           <div id="dash-sub" style="font-size:13.5px;color:var(--muted);margin-top:3px;"></div>
+          <div id="dash-stats" style="display:none;font-size:13.5px;color:var(--muted);margin-top:6px;line-height:1.5;"></div>
         </div>
 
     <div id="tab-requests" class="card hidden">
@@ -664,6 +666,7 @@
         })();
         (function(){
           var _ocRaw = String(g.offeringCategories == null ? '' : g.offeringCategories).trim();
+          _adminCats = _ocRaw;
           var _ocOn = _ocRaw
             ? _ocRaw.split(',').map(function(x){ return x.trim().toLowerCase(); }).filter(Boolean)
             : ['skills', 'things', 'spaces', 'work'];
@@ -1018,6 +1021,7 @@
     var head = document.getElementById('dash-head');
     if (head) head.style.display = _panelTitle ? 'block' : 'none';
     if (h) h.style.display = 'none';
+    _paintStats();
   }
   function _refreshPanelHeader(){
     var on = document.querySelector('#tabs .tab.on');
@@ -1350,6 +1354,29 @@
 
   var _members = [];
   var _memShown = 0;
+  var _adminCats = '';
+  var _statsReady = false;
+  function _paintStats(){
+    var box = document.getElementById('dash-stats');
+    if (!box) return;
+    var on = document.querySelector('#tabs .tab.on');
+    var tab = on ? on.getAttribute('data-tab') : '';
+    if (!_statsReady || tab !== 'members' || !window.cwGroupOfferCount || !_members.length) { box.style.display = 'none'; return; }
+    var st = window.cwGroupOfferCount(_members, _adminCats);
+    var plu = function(n, one, many){ return n + ' ' + (n === 1 ? one : many); };
+    box.innerHTML = '';
+    var line = document.createElement('span');
+    line.innerHTML = '<b style="color:#1A2E42;">' + plu(st.offers, 'offer', 'offers') + '</b> and <b style="color:#1A2E42;">'
+      + plu(st.needs, 'need', 'needs') + '</b> across <b style="color:#1A2E42;">' + plu(st.count, 'person', 'people') + '</b>. ';
+    var a = document.createElement('a');
+    a.setAttribute('role', 'link'); a.tabIndex = 0;
+    a.setAttribute('data-nav', 'https://2gather.network/attendees/?group=' + encodeURIComponent(groupId));
+    a.setAttribute('onclick', 'return _safeNavGo(this)');
+    a.setAttribute('style', 'color:#1F699E;font-weight:800;text-decoration:underline;cursor:pointer;');
+    a.textContent = 'Show me our group bulletin board';
+    box.appendChild(line); box.appendChild(a);
+    box.style.display = 'block';
+  }
   function _memWidth(){
     return window.innerWidth
       || (document.documentElement && document.documentElement.clientWidth)
@@ -1363,6 +1390,8 @@
   }
   function renderMembers(list){
     _members = list.slice().reverse();
+    _statsReady = true;
+    _paintStats();
     var wrap = document.getElementById('mem-size-wrap');
     if (wrap) wrap.style.display = (_memWidth() < 768) ? 'none' : 'inline-flex';
     _memShown = _memPageSize();
