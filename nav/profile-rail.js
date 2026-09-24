@@ -115,7 +115,7 @@
         ['ACCOUNT', [
           { key: 'myprofile',   label: 'My profile', url: 'https://2gather.network/ikigai/' },
           { key: 'account',     label: 'My info' },
-          { key: 'permissions', label: 'Global permissions', url: 'https://2gather.network/ikigai/permissions' }
+          { key: 'permissions', label: 'Global permissions' }
         ]],
         ['SOLUTIONS', [
           { key: 'balance', label: 'Balance', dot: false },
@@ -174,7 +174,7 @@
     var list = document.createElement('div'); list.className = 'cw-prail-list';
     var items = [
       { key: 'profile', label: 'My profile', url: 'https://2gather.network/me/' },
-      { key: 'permissions', label: 'My permissions', url: 'https://2gather.network/ikigai/permissions', superOnly: true },
+      { key: 'permissions', label: 'My permissions', url: 'https://2gather.network/account/#permissions', superOnly: true },
       { key: 'account', label: 'My account', url: 'https://2gather.network/account/' },
       { key: 'support', label: 'Support', url: 'https://2gather.network/support?from=' + encodeURIComponent(location.pathname) },
       { key: 'signout', label: 'Sign out', out: true }
