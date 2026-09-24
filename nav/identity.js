@@ -139,11 +139,21 @@
       } catch (e) { out = input; }
       var p = orig.call(this, out, init);
       if (!carries || !p || !p.then) { return p; }
+      var asked = '';
+      try { asked = (typeof out === 'string') ? out : (out && out.url) || ''; } catch (e) {}
       return p.then(function (r) {
-        try { if (r && r.headers && r.headers.get('X-CW-Signin') === '1') { signInAgain(); } } catch (e) {}
+        try { if (r && r.headers && r.headers.get('X-CW-Signin') === '1' && namesMe(asked)) { signInAgain(); } } catch (e) {}
         return r;
       });
     };
+    function namesMe(u) {
+      var mine = normalise(ls(function () { return w.localStorage.getItem('cw-id') || w.localStorage.getItem('appear-id') || ''; }, ''));
+      if (!mine) { return false; }
+      var q = new URLSearchParams(String(u).split('?')[1] || '');
+      var keys = ['appearId', 'me', 'memberCard', 'CWid', 'from', 'byAppearId', 'hostAppearId', 'invitedById', 'gifterAppearId', 'userID', 'byID'];
+      for (var i = 0; i < keys.length; i++) { if (normalise(q.get(keys[i]) || '') === mine) { return true; } }
+      return false;
+    }
     function signInAgain() {
       if (w._cwSignInAgain) { return; }
       var path = String(w.location.pathname || '/');
