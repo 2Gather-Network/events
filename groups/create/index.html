@@ -142,6 +142,24 @@
       <div class="chip" data-caninvite="off">No</div>
     </div>
 
+    <div id="fits-v3" hidden>
+      <div class="q">What is this group about?</div>
+      <p class="help" style="margin:0 0 8px;">Pick one or more. Then narrow it down as far as you like.</p>
+      <div id="v3-tree"><span class="help">Loading the categories…</span></div>
+      <div class="q" style="margin-top:18px;">Anything else people should be able to pick when they join?</div>
+      <p class="help" style="margin:0 0 8px;">In your own words, for things the lists above do not have. For a scale model group: Gunpla, Decals.</p>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="v3-pick-in" placeholder="Type one, then press Add" maxlength="60" style="flex:1;">
+        <button type="button" class="btn ghost" id="v3-pick-add">Add</button>
+      </div>
+      <div class="chip-row" id="v3-picks" style="margin:10px 0 4px;"></div>
+      <div style="background:var(--panel,#F7FBFF);border:1.5px solid var(--panel-line,#C9DFF3);border-radius:12px;padding:14px 16px;margin:14px 0 6px;">
+        <div style="font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 6px;">What someone joining sees</div>
+        <div id="v3-preview-q" style="font-size:16px;font-weight:800;color:var(--ink,#1A2E42);margin:0 0 8px;"></div>
+        <div class="chip-row" id="v3-preview-chips"></div>
+      </div>
+      <p class="help" style="margin:6px 0 0;">A mockup. Nothing here is saved, and Start the group is switched off on this page.</p>
+    </div>
     <div id="fits-v2">
       <div class="q">What kinds of interests is this group about?</div>
       <p class="help" style="margin:0 0 8px;">Pick one or more. People who join are asked about these first.</p>
@@ -222,6 +240,85 @@ We translate self-promotion to collaboration.</textarea>
       t.classList.add('on');
     });
   });
+
+  if ((params.get('v') || '') === '3') {
+    (function(){
+      document.getElementById('fits-v2').hidden = true;
+      document.getElementById('fits-v3').hidden = false;
+      var sb = document.getElementById('submit-btn');
+      if (sb) { sb.disabled = true; sb.title = 'Switched off on the mockup'; }
+      var tree = [], on = {}, own = [];
+      var box = document.getElementById('v3-tree');
+      var j = function(u){ return fetch(GS_URL + '?action=' + u).then(function(r){ return r.json(); }); };
+      Promise.all([j('getCategories'), j('getReferenceData')]).then(function(res){
+        var cats = (res[0] && res[0].categories) || [], rd = res[1] || {};
+        var node = function(name, emoji){ return { name: name, emoji: emoji || '', kids: [] }; };
+        var kid = function(n, name){ for (var i = 0; i < n.kids.length; i++) if (n.kids[i].name === name) return n.kids[i]; var k = node(name); n.kids.push(k); return k; };
+        cats.forEach(function(c){
+          var t = node(c.label, c.emoji);
+          if (/recreation/i.test(c.label)) {
+            ['Sports', 'Outdoor & Nature', 'Making & Collecting', 'Movement & Performance', 'Games & Strategy'].forEach(function(rt){ kid(t, rt); });
+            (rd.recreation || []).forEach(function(r){
+              if (!r || !r.item || !r.recType) return;
+              var a = kid(t, r.recType);
+              (r.category ? kid(a, r.category) : a).kids.push(node(r.item));
+            });
+          } else {
+            (rd.skills || []).forEach(function(sk){ if (sk && sk.item && String(sk.category).toLowerCase() === String(c.label).toLowerCase()) t.kids.push(node(sk.item)); });
+          }
+          tree.push(t);
+        });
+        draw();
+      }).catch(function(){ box.innerHTML = '<span class="help">The categories did not load. Reload the page to try again.</span>'; });
+      function row(list, path, depth){
+        var wrap = document.createElement('div');
+        wrap.style.cssText = depth ? 'margin:8px 0 4px ' + Math.min(depth, 3) * 16 + 'px;padding-left:12px;border-left:2px solid var(--line,#DDE4EE);' : 'margin:8px 0 4px;';
+        if (depth) {
+          var lab = document.createElement('div');
+          lab.style.cssText = 'font-size:13px;color:var(--muted,#6B7A8D);margin:0 0 6px;';
+          lab.textContent = 'Within ' + path[path.length - 1] + ' (optional):';
+          wrap.appendChild(lab);
+        }
+        var r = document.createElement('div'); r.className = 'chip-row';
+        list.forEach(function(n){
+          var key = path.concat(n.name).join(' \u203a ');
+          var c = document.createElement('div'); c.className = 'chip' + (on[key] ? ' on' : '');
+          c.textContent = (n.emoji ? n.emoji + ' ' : '') + n.name + (n.kids.length ? '  \u203a' : '');
+          c.addEventListener('click', function(){ on[key] = !on[key]; draw(); });
+          r.appendChild(c);
+        });
+        wrap.appendChild(r);
+        list.forEach(function(n){
+          var key = path.concat(n.name).join(' \u203a ');
+          if (on[key] && n.kids.length) wrap.appendChild(row(n.kids, path.concat(n.name), depth + 1));
+        });
+        return wrap;
+      }
+      function draw(){
+        box.innerHTML = '';
+        box.appendChild(row(tree, [], 0));
+        var pb = document.getElementById('v3-picks'); pb.innerHTML = '';
+        own.forEach(function(w, i){
+          var c = document.createElement('div'); c.className = 'chip on'; c.textContent = w + '  \u00d7';
+          c.addEventListener('click', function(){ own.splice(i, 1); draw(); });
+          pb.appendChild(c);
+        });
+        var nm = (document.getElementById('f-name').value || '').trim() || 'this group';
+        document.getElementById('v3-preview-q').textContent = 'What do you enjoy most in ' + nm + '?';
+        var keys = Object.keys(on).filter(function(k){ return on[k]; });
+        var leaves = keys.filter(function(k){ return !keys.some(function(o){ return o !== k && o.indexOf(k + ' \u203a ') === 0; }); });
+        var list = leaves.map(function(k){ var p = k.split(' \u203a '); return p[p.length - 1]; }).concat(own);
+        var pv = document.getElementById('v3-preview-chips'); pv.innerHTML = '';
+        if (!list.length) { var e = document.createElement('span'); e.className = 'help'; e.style.margin = '0'; e.textContent = 'Pick what the group is about to see this.'; pv.appendChild(e); return; }
+        list.forEach(function(w){ var c = document.createElement('div'); c.className = 'chip'; c.textContent = w; pv.appendChild(c); });
+      }
+      var inp = document.getElementById('v3-pick-in');
+      var add = function(){ String(inp.value || '').split(',').forEach(function(w){ w = w.trim(); if (w && own.indexOf(w) === -1) own.push(w); }); inp.value = ''; draw(); };
+      document.getElementById('v3-pick-add').addEventListener('click', add);
+      inp.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') { ev.preventDefault(); add(); } });
+      document.getElementById('f-name').addEventListener('input', draw);
+    })();
+  }
 
   var _interests = window.cwGroupInterests({ cats: 'v2-cats', input: 'v2-pick-in', add: 'v2-pick-add', picks: 'v2-picks',
     previewQ: 'v2-preview-q', previewChips: 'v2-preview-chips', name: 'f-name', chipClass: 'chip' });
