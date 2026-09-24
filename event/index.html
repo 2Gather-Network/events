@@ -2154,12 +2154,21 @@ async function init() {
       return;
     }
     let ev = (data.events||[]).filter(r=>r.id).map(toEv).find(e=>e.id===id);
+    let _signinLapsed = false;
     if (ev && _fresh) { try { sessionStorage.removeItem("cw-ev-fresh"); } catch (e) {} }
     if (!ev) {
       try {
         var _me = (window.CW && window.CW.me) ? String(window.CW.me().id || "").trim() : "";
         if (!_me && !(window.CW && CW.signedOutView && CW.signedOutView())) { try { _me = String(localStorage.getItem("cw-id") || localStorage.getItem("appear-id") || "").trim(); } catch (e) {} }
         if (_me) {
+          try {
+            const oneRes = await fetch(GS_URL + "?action=getEventById&id=" + encodeURIComponent(id) + "&appearId=" + encodeURIComponent(_me) + "&nocache=1&t=" + Date.now());
+            const one = await oneRes.json();
+            if (one && one.event && one.event.row && String(one.event.row.id) === id) { ev = toEv(one.event.row); }
+            else if (one && one.signinNeeded) { _signinLapsed = true; }
+          } catch (e) {}
+        }
+        if (_me && !ev) {
           const mineRes = await fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(_me) + "&nocache=1&t=" + Date.now());
           const mine = await mineRes.json();
           if (mine && mine.status === "ok" && Array.isArray(mine.events)) {
@@ -2169,7 +2178,7 @@ async function init() {
       } catch (e) {}
     }
     if (!ev && _fresh) { return; }   
-    if (!ev) { showError("Event not found."); return; }
+    if (!ev) { showError(_signinLapsed ? "Your sign-in has run out. Sign in again to see this event." : "Event not found."); return; }
     const _r = new URLSearchParams(window.location.search).get("r");
     const viaCard = new URLSearchParams(window.location.search).get("via");
     try {
