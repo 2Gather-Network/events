@@ -1110,23 +1110,29 @@
         c.toBlob(function(blob){
           if (!blob) { _eImgSay('That picture could not be read.'); return; }
           _eImgSay('Sending it\u2026');
+          var _upDone = false;
+          var _upCtl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+          setTimeout(function(){ if (!_upDone) _eImgSay('Still sending. The server is slow right now, please keep this page open.'); }, 15000);
+          setTimeout(function(){ if (!_upDone && _upCtl) _upCtl.abort(); }, 90000);
           fetch('https://cw-photos.jessieupp.workers.dev/upload-group?id=' + encodeURIComponent(groupId)
                 + '&host=' + encodeURIComponent(meId), {
             method: 'POST',
+            signal: _upCtl ? _upCtl.signal : undefined,
             headers: { 'Content-Type': 'image/jpeg', 'x-cw-token': getToken() || '' },
             body: blob
           })
             .then(function(r){ return r.json(); })
             .then(function(p){
+              _upDone = true;
               if (p && p.status === 'ok' && p.url) {
                 if (_eImg) _eImg.value = p.url;
                 _updateEThumb();
                 _eImgSay('Ready. Press Save changes to keep it.');
               } else {
-                _eImgSay('That picture did not go up. Try again in a moment.');
+                _eImgSay((p && p.message) ? ('That picture did not go up: ' + p.message) : 'That picture did not go up. Try again in a moment.');
               }
             })
-            .catch(function(){ _eImgSay('That picture did not go up. Try again in a moment.'); });
+            .catch(function(){ _upDone = true; _eImgSay('That picture did not go up. Try again in a moment.'); });
         }, 'image/jpeg', 0.85);
       } catch (e) { _eImgSay('That picture could not be read.'); }
     };
