@@ -5073,28 +5073,67 @@ function _coverToken() {
   } catch (e) { return ""; }
 }
 
+function _coverPasses() {
+  var out = [], seen = {};
+  var add = function (t, who) {
+    t = String(t || ""); who = String(who || "");
+    if (!t || !who || seen[t + "|" + who]) return;
+    var exp = parseInt(t.split(".")[1], 10);
+    if (exp && exp < Date.now()) return;
+    seen[t + "|" + who] = 1; out.push({ t: t, who: who });
+  };
+  try {
+    var me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
+    var norm = String(me).split(".").join("").toLowerCase();
+    var raw = me ? localStorage.getItem("cw-edit-" + norm) : "";
+    if (raw) { var o = JSON.parse(raw); if (o && o.t) add(o.t, me); }
+    add(localStorage.getItem("cw-token"), localStorage.getItem("cw-id") || me);
+  } catch (e) {}
+  return out;
+}
+
 function _sendCover(eventId) {
-  if (!_coverBlob || !eventId) return;
-  var me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
-  if (!me) return;
+  if (!_coverBlob || !eventId) return Promise.resolve({ ok: true });
   var blob = _coverBlob;
-  _coverBlob = null;
-  return fetch("https://cw-photos.jessieupp.workers.dev/upload-event?id=" + encodeURIComponent(eventId)
-        + "&host=" + encodeURIComponent(me), {
-    method: "POST",
-    headers: { "Content-Type": blob.type || "image/jpeg", "x-cw-token": _coverToken() },
-    body: blob
-  })
-    .then(function (r) { return r.json(); })
-    .then(function (p) {
-      if (!p || p.status !== "ok" || !p.url) return;
-      var idx = events.findIndex(function (e) { return e.id === eventId; });
-      if (idx > -1) { events[idx].imageUrl = p.url; renderEvents(); }
-      var _full = idx > -1 ? events[idx] : null;
-      if (!_full) return null;
-      return apiUpdate(Object.assign({}, _full, { imageUrl: p.url }));
+  var passes = _coverPasses();
+  if (!passes.length) return Promise.resolve({ ok: false, message: "Your sign-in has run out, so the picture could not be added. Sign in again, then choose the picture and save." });
+  var tryPass = function (i, lastMsg) {
+    if (i >= passes.length) return Promise.resolve({ ok: false, message: lastMsg || "The picture did not upload." });
+    return fetch("https://cw-photos.jessieupp.workers.dev/upload-event?id=" + encodeURIComponent(eventId)
+          + "&host=" + encodeURIComponent(passes[i].who), {
+      method: "POST",
+      headers: { "Content-Type": blob.type || "image/jpeg", "x-cw-token": passes[i].t },
+      body: blob
     })
-    .catch(function () {});
+      .then(function (r) { return r.json().catch(function () { return { status: "error", message: "The picture service answered " + r.status + "." }; }); })
+      .then(function (p) {
+        if (p && p.status === "ok" && p.url) return p;
+        var msg = (p && p.message) || "The picture did not upload.";
+        if (msg === "Verify it is you first.") msg = "Your sign-in was not accepted for the picture. Sign in again, then choose the picture and save.";
+        return tryPass(i + 1, msg);
+      }, function () { return tryPass(i + 1, "The picture did not upload. Check your connection and save again."); });
+  };
+  return tryPass(0, "").then(function (p) {
+    if (!p || p.ok === false) return p;
+    _coverBlob = null;
+    var idx = events.findIndex(function (e) { return e.id === eventId; });
+    if (idx > -1) { events[idx].imageUrl = p.url; renderEvents(); }
+    var _full = idx > -1 ? events[idx] : null;
+    var fin = { ok: true };
+    if (!_full) return fin;
+    return apiUpdateWait(Object.assign({}, _full, { imageUrl: p.url }))
+      .then(function (a) { return (a && a.status === "ok") ? fin : { ok: false, message: "The picture uploaded but was not attached to the event. " + ((a && a.message) || "Press Save changes again.") }; },
+            function () { return { ok: false, message: "The picture uploaded but was not attached to the event. Press Save changes again." }; });
+  });
+}
+
+function _coverFailed(res, btn, btnWord, errEl) {
+  if (!res || res.ok !== false) return false;
+  if (btn) { btn.disabled = false; btn.textContent = btnWord; }
+  errEl.textContent = "Your event is saved, but the picture is not. " + res.message;
+  errEl.style.display = "block";
+  errEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
+  return true;
 }
 
 
@@ -5722,6 +5761,7 @@ async function submitEvent() {
         var _saveRes = null;
         var _goToEvent = function () {
           formDirty = false;
+          clearEditDraft();
           try { _cwHandOff(events[idx] || updatedEv, false); } catch (e) {}
           window.location.href = "https://2gather.network/event/?id=" + encodeURIComponent(savedId);
         };
@@ -5743,13 +5783,16 @@ async function submitEvent() {
           errEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
           return;
         }
-        try { await _sendCover(savedId); } catch (e) {}
+        var _coverRes = null;
+        try { _coverRes = await _sendCover(savedId); } catch (e) { _coverRes = { ok: false, message: "The picture did not upload. Press Save changes again." }; }
+        if (_coverRes && _coverRes.ok === false) { _saying.stop(); clearEditDraft(); _coverFailed(_coverRes, _saveBtn, _saveWas, errEl); return; }
         if (_saying.wasSlow()) { _saying.saved(_goToEvent); return; }
         _saying.stop();
         _goToEvent();
         return;
       }
       formDirty = false;
+      clearEditDraft();
       window.location.href = "https://2gather.network/event/?id=" + encodeURIComponent(savedId);
     }
   } else {
@@ -5807,11 +5850,19 @@ async function submitEvent() {
       }
       clearDraft(); clearEditDraft();
       _cwHandOff(newEv, true);
-      try { await _sendCover(newId); } catch (e) {}
+      var _newCover = null;
+      try { _newCover = await _sendCover(newId); } catch (e) { _newCover = { ok: false, message: "The picture did not upload. Press Save changes again." }; }
       try { await _sendCoHosts(newId); } catch (e) {}
       if (_wasSharing) {
         var _me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
         if (_me) { try { await fetch(GS_URL + "?action=saveSocializer&appearId=" + encodeURIComponent(_me) + "&eventId=" + encodeURIComponent(newId) + "&refCode=&via=share"); } catch (e) {} }
+      }
+      if (_newCover && _newCover.ok === false) {
+        _saying.stop();
+        editingId = newId;
+        formDirty = false;
+        _coverFailed(_newCover, submitBtn, "Save changes", errEl);
+        return;
       }
       var _goToNew = function () {
         formDirty = false;
