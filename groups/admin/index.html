@@ -1566,55 +1566,48 @@
     var results = document.getElementById('e-cohost-results');
     if (!input || !results) return;
     var timer = null;
+    function _say(t){
+      results.innerHTML = '';
+      var d = document.createElement('div');
+      d.className = 'lookup-item'; d.setAttribute('style', 'cursor:default;color:var(--muted);');
+      d.textContent = t;
+      results.appendChild(d); results.classList.add('on');
+    }
     input.addEventListener('input', function(){
       var q = input.value.trim();
       if (timer) clearTimeout(timer);
       if (q.length < 2) { results.classList.remove('on'); results.innerHTML = ''; return; }
-      results.innerHTML = '<div class="lookup-item" style="cursor:default;color:var(--muted);">Searching\u2026</div>';
+      if (!_statsReady) { _say('Searching\u2026'); timer = setTimeout(function(){ input.dispatchEvent(new Event('input')); }, 1000); return; }
+      var ql = q.toLowerCase();
+      var runs = _runsGroup();
+      var picked = {};
+      _eCoHosts.forEach(function(v){ picked[_nrmId(v)] = 1; });
+      var arr = (_members || []).filter(function(m){
+        var k = _nrmId(m.appearId);
+        if (!k || runs[k] || picked[k] || k === _nrmId(meId)) return false;
+        var nm = String(m.name || '') + ' ' + String(m.first || '');
+        return nm.toLowerCase().indexOf(ql) > -1;
+      });
+      if (!arr.length) { _say('No members match "' + q + '". A co-host has to be a member of this group first.'); return; }
+      results.innerHTML = '';
+      arr.slice(0, 8).forEach(function(pp){
+        var item = document.createElement('div'); item.className = 'lookup-item';
+        var av = document.createElement('span'); av.className = 'av';
+        if (pp.photo) { var im = document.createElement('img'); im.src = pp.photo; im.alt = ''; av.appendChild(im); }
+        else av.textContent = String(pp.first || pp.name || '?').charAt(0).toUpperCase();
+        var who = document.createElement('span'); who.className = 'who';
+        who.textContent = (pp.name || pp.first || pp.appearId);
+        var add = document.createElement('span'); add.className = 'add'; add.textContent = '+ Add';
+        item.appendChild(av); item.appendChild(who); item.appendChild(add);
+        item.addEventListener('click', function(){
+          var k = _nrmId(pp.appearId);
+          if (k && !_eCoHosts.some(function(v){ return _nrmId(v) === k; })) _eCoHosts.push(pp.appearId);
+          _drawCoHosts();
+          input.value = ''; results.classList.remove('on'); results.innerHTML = '';
+        });
+        results.appendChild(item);
+      });
       results.classList.add('on');
-      timer = setTimeout(function(){
-        fetch(GS_URL + '?action=findPeople&q=' + encodeURIComponent(q)
-              + '&groupId=' + encodeURIComponent(groupId)
-              + '&hostAppearId=' + encodeURIComponent(meId)
-              + '&editToken=' + encodeURIComponent(_personPass()))
-          .then(function(r){ return r.json(); }).then(keepFreshToken)
-          .then(function(matches){
-            results.innerHTML = '';
-            if (matches && matches.status === 'error') {
-              var er = document.createElement('div');
-              er.className = 'lookup-item'; er.setAttribute('style', 'cursor:default;color:var(--muted);');
-              er.textContent = matches.message || 'Search is unavailable right now.';
-              results.appendChild(er); results.classList.add('on'); return;
-            }
-            var arr = Array.isArray(matches) ? matches : (matches && matches.matches) || [];
-            if (!arr.length) {
-              results.innerHTML = '<div class="lookup-item" style="cursor:default;color:var(--muted);">No matches for "' + q + '"</div>';
-            } else {
-              arr.slice(0, 8).forEach(function(pp){
-                var item = document.createElement('div'); item.className = 'lookup-item';
-                var av = document.createElement('span'); av.className = 'av';
-                if (pp.photo) av.innerHTML = '<img src="' + pp.photo + '" alt="">';
-                else av.textContent = String(pp.first || pp.name || '?').charAt(0).toUpperCase();
-                var who = document.createElement('span'); who.className = 'who';
-                who.textContent = (pp.name || pp.first || pp.appearId);
-                var add = document.createElement('span'); add.className = 'add'; add.textContent = '+ Add';
-                item.appendChild(av); item.appendChild(who); item.appendChild(add);
-                item.addEventListener('click', function(){
-                  var k = _nrmId(pp.appearId);
-                  if (k && !_eCoHosts.some(function(v){ return _nrmId(v) === k; })) _eCoHosts.push(pp.appearId);
-                  _drawCoHosts();
-                  input.value = ''; results.classList.remove('on'); results.innerHTML = '';
-                });
-                results.appendChild(item);
-              });
-            }
-            results.classList.add('on');
-          })
-          .catch(function(){
-            results.innerHTML = '<div class="lookup-item" style="cursor:default;color:var(--muted);">Lookup unavailable, try again in a moment.</div>';
-            results.classList.add('on');
-          });
-      }, 220);
     });
   })();
 
