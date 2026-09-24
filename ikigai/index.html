@@ -765,6 +765,31 @@
       .catch(function(){ _gpRefP = null; return {}; });
     return _gpRefP;
   }
+  var _gpCatEmoji = null, _gpCatEmojiP = null;
+  function gpCatEmoji(name){
+    if (!_gpCatEmoji) { return ''; }
+    var n = String(name || '').toLowerCase();
+    if (_gpCatEmoji[n]) { return _gpCatEmoji[n] + ' '; }
+    for (var k in _gpCatEmoji) { if (k.indexOf(n) > -1 || n.indexOf(k) > -1) { return _gpCatEmoji[k] + ' '; } }
+    return '';
+  }
+  function gpCatEmojiOnce(){
+    if (_gpCatEmojiP) { return _gpCatEmojiP; }
+    _gpCatEmojiP = fetch(GS_URL + '?action=getCategories')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var m = {};
+        ((d && d.categories) || []).forEach(function(c){ if (c && c.label && c.emoji) { m[String(c.label).toLowerCase()] = c.emoji; } });
+        _gpCatEmoji = m;
+        Array.prototype.forEach.call(document.querySelectorAll('[data-gp-cat]'), function(b){
+          var nm = b.getAttribute('data-gp-cat');
+          b.textContent = gpCatEmoji(nm) + nm;
+        });
+        return m;
+      })
+      .catch(function(){ _gpCatEmojiP = null; return {}; });
+    return _gpCatEmojiP;
+  }
   function gpChoicesOr(box, fill){
     if (fill()) return;
     var loading = '<div style="padding:18px 0;"><span class="cw-loading" style="display:inline-flex;background:#1F699E;color:#fff;font-size:13px;font-weight:700;padding:8px 16px;border-radius:20px;">Loading the choices</span></div>';
@@ -1450,7 +1475,8 @@
         if (it.drill) {
           var d = document.createElement('button');
           d.type = 'button';
-          d.textContent = it.name;
+          if (!path.length) { d.setAttribute('data-gp-cat', it.name); gpCatEmojiOnce(); }
+          d.textContent = (!path.length ? gpCatEmoji(it.name) : '') + it.name;
           d.style.cssText = 'font:inherit;font-size:12.5px;padding:6px 13px;border-radius:20px;cursor:pointer;'
             + 'background:#fff;color:#1A2E42;font-weight:700;border:' + GP_CAT_EDGE;
           d.addEventListener('click', function(){ gpRenderBrowse(tree, path.concat(it.name)); });
