@@ -4492,6 +4492,102 @@ function setInterestedEnabled(val) {
 }
 
 var _formGroups = null, _formGroupsBusy = false;
+var _grpMock = true;
+try { _grpMock = new URLSearchParams(location.search).get("grp") !== "old"; } catch (e) {}
+var _vmGrpOn = false;
+function _gmRepaint() { try { _loadFormGroups(); } catch (e) {} }
+function _vmEnsure() {
+  if (!_grpMock) return;
+  var vis = document.getElementById("visibility-field");
+  if (!vis) return;
+  var pub = document.getElementById("vis-public");
+  if (pub && pub.parentNode) pub.parentNode.style.display = "none";
+  var hint = document.getElementById("vis-hint"); if (hint) hint.style.display = "none";
+  if (document.getElementById("vm-boxes")) return;
+  var row = 'display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;cursor:pointer;color:var(--dark);';
+  var cb = 'width:18px;height:18px;accent-color:var(--primary);flex-shrink:0;';
+  var box = document.createElement("div");
+  box.id = "vm-boxes";
+  box.style.cssText = "display:flex;flex-direction:column;gap:10px;margin:4px 0 0;";
+  box.innerHTML = '<label style="' + row + '"><input type="checkbox" id="vm-pub" onchange="_vmChange()" style="' + cb + '">Show on public calendar</label>'
+    + '<label style="' + row + '"><input type="checkbox" id="vm-grp" onchange="_vmChange()" style="' + cb + '">Show on group(s)</label>'
+    + '<p id="vm-err" style="display:none;font-size:13px;color:#c0392b;font-weight:600;margin:0;"></p>';
+  var anchor = pub && pub.parentNode ? pub.parentNode : null;
+  if (anchor && anchor.parentNode === vis) { vis.insertBefore(box, anchor.nextSibling); } else { vis.appendChild(box); }
+}
+function _vmSync() {
+  if (!_grpMock) return;
+  _vmEnsure();
+  var p = document.getElementById("vm-pub"), g = document.getElementById("vm-grp");
+  var priv = false; try { priv = currentVisibility === "private"; } catch (e) {}
+  if (priv) { _vmGrpOn = true; }
+  if (p) p.checked = !priv;
+  if (g) g.checked = !!_vmGrpOn;
+  var box = document.getElementById("share-opt-group"); if (box) box.style.display = _vmGrpOn ? "flex" : "none";
+  var lbl = document.getElementById("vis-group-label");
+  if (lbl) { lbl.style.display = _vmGrpOn ? "" : "none"; lbl.textContent = priv ? "Which of your groups?" : "Which of your groups? (optional)"; }
+}
+function _vmChange() {
+  var p = document.getElementById("vm-pub"), g = document.getElementById("vm-grp");
+  var err = document.getElementById("vm-err"); if (err) err.style.display = "none";
+  _vmGrpOn = !!(g && g.checked);
+  if (!_vmGrpOn) {
+    document.querySelectorAll("#f-group-checks .grp-check").forEach(function (c) { c.checked = false; });
+    onGroupPick();
+  }
+  var v = (p && p.checked) ? "public" : (_vmGrpOn ? "private" : "public");
+  try { formDirty = true; } catch (e) {}
+  setVisibility(v);
+  if (p && g) { p.checked = !!p.checked; }
+}
+function _vmDD(open) {
+  var dd = document.getElementById("vm-dd"); if (!dd) return;
+  var show = (open === undefined) ? dd.style.display === "none" : !!open;
+  dd.style.display = show ? "block" : "none";
+  if (show) { var q = document.getElementById("vm-q"); if (q) { try { q.focus(); } catch (e) {} } }
+}
+function _vmFilter(q) {
+  q = String(q || "").trim().toLowerCase();
+  document.querySelectorAll("#vm-dd .vm-row").forEach(function (el) {
+    el.style.display = (!q || String(el.getAttribute("data-name") || "").indexOf(q) > -1) ? "flex" : "none";
+  });
+}
+function _vmSummary() {
+  var b = document.getElementById("vm-dd-btn"); if (!b) return;
+  var names = [];
+  document.querySelectorAll("#f-group-checks .grp-check").forEach(function (c) {
+    if (!c.checked) return;
+    var sp = c.parentElement ? c.parentElement.querySelector(".vm-nm") : null;
+    names.push(sp ? sp.textContent : c.value);
+  });
+  b.textContent = !names.length ? "Select which group(s)" : (names.length <= 2 ? names.join(", ") : names.length + " groups picked");
+}
+function _paintGroupMock(host, known, want) {
+  if (want.length) { _vmGrpOn = true; }
+  var rowSt = 'display:flex;align-items:flex-start;gap:10px;font-size:14px;cursor:pointer;padding:6px 0;';
+  var cbSt = 'width:16px;height:16px;accent-color:var(--primary);margin-top:2px;flex-shrink:0;';
+  var allOn = known.length > 0 && known.every(function (g) { return want.indexOf(g.id) > -1; });
+  var rows = '<label class="vm-row" data-name="" style="' + rowSt + 'font-weight:700;"><input type="checkbox" id="grp-check-all"' + (allOn ? ' checked' : '')
+    + ' onchange="onGroupPickAll(this); _vmSummary()" style="' + cbSt + '"><span>All groups <span style="color:var(--muted);font-weight:400;">(every group you are in)</span></span></label>'
+    + known.map(function (g) {
+      return '<label class="vm-row" data-name="' + esc(g.name.toLowerCase()) + '" style="' + rowSt + '">'
+           + '<input type="checkbox" class="grp-check" value="' + esc(g.id) + '"' + (want.indexOf(g.id) > -1 ? ' checked' : '')
+           + ' onchange="onGroupPick(); _vmSummary()" style="' + cbSt + '">'
+           + '<span><span class="vm-nm">' + esc(g.name) + '</span>' + (g.hosts ? ' <span style="color:var(--muted);font-weight:400;">(Host)</span>' : '') + '</span></label>';
+    }).join("");
+  if (known.length <= 5) {
+    host.innerHTML = rows + '<p id="grp-mock-err" style="display:none;font-size:13px;color:#c0392b;font-weight:600;margin:6px 0 0;"></p>';
+  } else {
+    host.innerHTML = '<button type="button" id="vm-dd-btn" class="input" onclick="_vmDD()" style="text-align:left;cursor:pointer;background:#fff;">Select which group(s)</button>'
+      + '<div id="vm-dd" style="display:none;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;margin-top:6px;background:#fff;">'
+      + '<input class="input" id="vm-q" type="search" placeholder="Search your groups" oninput="_vmFilter(this.value)" style="margin:0 0 8px;">'
+      + '<div style="max-height:260px;overflow:auto;">' + rows + '</div>'
+      + '<button type="button" onclick="_vmDD(false)" class="format-chip selected" style="margin-top:8px;width:100%;">Done</button></div>'
+      + '<p id="grp-mock-err" style="display:none;font-size:13px;color:#c0392b;font-weight:600;margin:6px 0 0;"></p>';
+    _vmSummary();
+  }
+  _vmSync();
+}
 function _loadFormGroups(preferId, preferName) {
   var box = document.getElementById("share-opt-group");
   var host = document.getElementById("f-group-checks");
@@ -4512,6 +4608,7 @@ function _loadFormGroups(preferId, preferName) {
     try { _fromGroup = !!new URLSearchParams(location.search).get('groupId'); } catch (e) {}
     if (!want.length && !_evLoaded && !_fromGroup && _allIds.length) { want = _allIds.slice(); }
     var _allOn = _allIds.length > 0 && _allIds.every(function (id) { return want.indexOf(id) > -1; });
+    if (_grpMock) { _paintGroupMock(host, known, want); onGroupPick(); box.style.display = _vmGrpOn ? "flex" : "none"; return; }
     host.innerHTML =
       '<label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;cursor:pointer;padding:6px 0;font-weight:700;">'
       + '<input type="checkbox" id="grp-check-all"' + (_allOn ? ' checked' : '')
@@ -4773,6 +4870,7 @@ function _visGroupHere(v) {
     lbl.setAttribute("style", "display:block;margin:18px 0 10px;");
   }
   lbl.textContent = v === "private" ? "Which of your groups?" : "Which of your groups? (optional)";
+  if (_grpMock) { if (v !== "private" && !String((document.getElementById("f-group-ids") || {}).value || "").trim() && !(document.getElementById("vm-grp") || {}).checked) { _vmGrpOn = false; } setTimeout(_vmSync, 0); }
   if (box.firstChild !== lbl) { box.insertBefore(lbl, box.firstChild); }
   if (box.parentNode !== vis) { vis.appendChild(box); }
   box.style.paddingBottom = "6px";
@@ -5754,6 +5852,17 @@ async function submitEvent() {
       errEl.textContent = _picBad + ": that link opens a web page, not a picture. Paste a link to a picture (it usually ends in .jpg or .png), press Upload, or clear the box.";
       errEl.style.display = "block";
       errEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
+      return;
+    }
+  }
+  if (_grpMock) {
+    var _vp = document.getElementById("vm-pub"), _vg = document.getElementById("vm-grp");
+    var _vErr = "";
+    if (_vp && _vg && !_vp.checked && !_vg.checked) { _vErr = "Choose Show on public calendar, Show on group(s), or both."; }
+    else if (currentVisibility === "private" && !String((document.getElementById("f-group-ids") || {}).value || "").trim()) { _vErr = "Pick at least one group, or choose Show on public calendar."; }
+    if (_vErr) {
+      var _gme = document.getElementById("vm-err");
+      if (_gme) { _gme.textContent = _vErr; _gme.style.display = "block"; try { _gme.scrollIntoView({ behavior:"smooth", block:"center" }); } catch (e) {} }
       return;
     }
   }
