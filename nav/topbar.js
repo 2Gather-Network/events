@@ -928,10 +928,7 @@
       asOut.style.cssText = 'font:inherit;font-weight:700;padding:6px 14px;border-radius:14px;cursor:pointer;'
         + 'border:1px solid #DDE3EA;background:#F7FBFF;color:#1A2E42;';
       asOut.onclick = function () { w.CW.viewSignedOut(); w.location.reload(); };
-      var outNote = d.createElement('span');
-      outNote.textContent = 'See every page as somebody who is not signed in. Or look as a person:';
-      outNote.style.cssText = 'font-size:12.5px;color:#6B7A8D;';
-      outLine.appendChild(asOut); outLine.appendChild(outNote);
+      outLine.appendChild(asOut);
       panel.appendChild(outLine);
     }
     panel.appendChild(inp); panel.appendChild(out);
@@ -1018,20 +1015,22 @@
     return;
   }
   var whoKey = realMeId.split('.').join('').toLowerCase();
-  var known = ls(function () { return w.localStorage.getItem('cw-super'); }, null);
   var stamp = ls(function () { return JSON.parse(w.localStorage.getItem('cw-super-for') || 'null'); }, null);
-  var fresh = stamp && typeof stamp === 'object' && stamp.v === 2 && stamp.who === whoKey && (Date.now() - (stamp.at || 0)) < 3600000;
-  if (fresh && known === 'yes') { superOk = true; drawAdminBar(); return; }
-  if (fresh && known === 'no') { return; }
-  ls(function () { w.localStorage.removeItem('cw-super'); w.localStorage.removeItem('cw-super-for'); });
+  var mine = stamp && typeof stamp === 'object' && stamp.v === 3 && stamp.who === whoKey;
+  var fresh = mine && (Date.now() - (stamp.at || 0)) < 3600000;
+  if (!mine) { ls(function () { w.localStorage.removeItem('cw-super'); w.localStorage.removeItem('cw-super-for'); }); }
+  if (mine) { ls(function () { w.localStorage.setItem('cw-super', stamp.yes === true ? 'yes' : 'no'); }); }
+  if (mine && stamp.yes === true) { superOk = true; drawAdminBar(); }
+  if (fresh) { return; }
   fetch(GS + '?action=amISuper&appearId=' + encodeURIComponent(realMeId)
         + '&meToken=' + encodeURIComponent(String(w.localStorage.getItem('cw-token') || '')))
     .then(function (r) { return r.json(); })
     .then(function (dd) {
       if (!dd || dd.status !== 'ok') { return; }
       var yes = !!dd.isSuper;
-      ls(function () { w.localStorage.setItem('cw-super', yes ? 'yes' : 'no'); w.localStorage.setItem('cw-super-for', JSON.stringify({ v: 2, who: whoKey, at: Date.now() })); });
+      ls(function () { w.localStorage.setItem('cw-super', yes ? 'yes' : 'no'); w.localStorage.setItem('cw-super-for', JSON.stringify({ v: 3, who: whoKey, yes: yes, at: Date.now() })); });
       if (yes) { superOk = true; drawAdminBar(); }
+      else { superOk = false; var had = d.getElementById('cw-viewas'); if (had) { had.remove(); } var hadF = d.getElementById('cw-viewas-folded'); if (hadF) { hadF.remove(); } }
     })
     .catch(function () {});
 })(window, document);
