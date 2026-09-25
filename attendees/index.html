@@ -1010,6 +1010,19 @@ function _chipPasses(en, needsMode){
   var m=_memberFor(en.member && en.member.appearId);
   return !!(m && m.extra && m.extra.indexOf(_searchQ)>-1);
 }
+function _commonAndMatches(list, needsMode){
+  var out={common:0, match:0};
+  if(!_myId) return out;
+  var mine=normId(_myId), g={}, o={};
+  list.forEach(function(en){
+    if(normId(en.member && en.member.appearId)===mine) return;
+    var mt=needsMode?matchNeedChip(en):matchOfferingChip(en);
+    var k=String(en.item||'').toLowerCase();
+    if(mt==='orange') o[k]=1; else if(mt==='green') g[k]=1;
+  });
+  out.common=Object.keys(g).length; out.match=Object.keys(o).length;
+  return out;
+}
 function renderSection(bodyId, countId, entries, needsMode, key){
   var body=document.getElementById(bodyId);
   var countEl=document.getElementById(countId);
@@ -1023,7 +1036,10 @@ function renderSection(bodyId, countId, entries, needsMode, key){
     var w=ITEM_WORD[key];
     if(key==='values'){ var rv=filtered.length; line += ' - ' + rv + ' ' + (rv===1?'thing they care about':'things they care about'); }
     else if(w){ var r=filtered.length; line += ' - ' + r + ' ' + (r===1?w:w+'s'); }
-    countEl.textContent=line;
+    var both=_commonAndMatches(filtered, needsMode), bits=[];
+    if(both.common) bits.push(both.common+' '+(both.common===1?'commonality':'commonalities'));
+    if(both.match) bits.push(both.match+' '+(both.match===1?'match':'matches'));
+    countEl.innerHTML=escHTML(line)+(bits.length?'<br>'+escHTML(bits.join(' - ')):'');
   }
   if(!filtered.length){ body.innerHTML='<span class="empty">Nothing here yet.</span>'; return; }
   var shown=filtered.slice(0,80);
@@ -1056,6 +1072,11 @@ var _fitTimer=null;
 window.addEventListener('resize',function(){ clearTimeout(_fitTimer); _fitTimer=setTimeout(function(){ if(!_expanded && !_matchMode) renderAll(); },200); });
 
 var _boardReady=false;
+setTimeout(function(){
+  if(_boardReady) return;
+  var p=document.getElementById('board-wait-pill');
+  if(p && !p.classList.contains('stopped')) p.textContent='Calculating matches\u2026';
+}, 10000);
 function _boardShow(){
   _boardReady=true;
   document.documentElement.classList.remove('board-loading');
