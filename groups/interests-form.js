@@ -123,7 +123,7 @@
     function add(){
       if (!inp) return;
       String(inp.value || '').split(',').forEach(function(w){
-        w = w.trim().replace(/\|/g, '');
+        w = w.trim().replace(/[|;]/g, '');
         if (w && !picks.some(function(p){ return p.toLowerCase() === w.toLowerCase(); })) picks.push(w);
       });
       inp.value = ''; draw();
@@ -137,12 +137,13 @@
     return {
       get: function(){
         if (inp && String(inp.value || '').trim()) add();
-        return { kinds: leaves().join('|'), choices: picks.join('|') };
+        return { kinds: leaves().join(';'), choices: picks.join(';') };
       },
       set: function(kinds, choices){
         on = {};
-        String(kinds || '').split(String(kinds || '').indexOf('|') > -1 ? '|' : ',').forEach(function(k){ k = normalise(k); if (k) mark(k); });
-        picks = String(choices || '').split('|').map(function(w){ return w.trim(); }).filter(Boolean);
+        var ks = String(kinds || '');
+        ks.split(/[;|]/.test(ks) ? /[;|]/ : ',').forEach(function(k){ k = normalise(k); if (k) mark(k); });
+        picks = String(choices || '').split(/[;|]/).map(function(w){ return w.trim(); }).filter(Boolean);
         draw();
       }
     };
