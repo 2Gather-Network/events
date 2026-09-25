@@ -264,7 +264,7 @@
               '<span class="cwtb-face" style="' + INITIALS_CSS + '">' + esc2(initialsOf(myName())) + '</span></span>';
     } else if (!atDoor && me()) {
       photo = '<span role="button" tabindex="0" class="cwtb-signin cwtb-ghost cwtb-mine" ' +
-              'aria-expanded="false" data-menu="me">Mine</span>';
+              'aria-expanded="false" data-menu="me">Name</span>';
     } else if (onCreatingWorks()) {
       photo = '';
     } else {
