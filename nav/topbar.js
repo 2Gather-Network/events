@@ -866,7 +866,7 @@
     d.body.insertBefore(bar, d.body.firstChild);
   }
 
-  w.CW_ADMIN_HIDDEN = true;
+  w.CW_ADMIN_HIDDEN = false;
 
   var FOLD_KEY = 'cw-admin-folded';
   function folded() { return ls(function () { return w.localStorage.getItem(FOLD_KEY) === '1'; }, false); }
@@ -899,7 +899,8 @@
     d.body.insertBefore(tab, d.body.firstChild);
   }
 
-  function drawAdminBar() { if (w.CW_ADMIN_HIDDEN) { return; } if (folded()) { paintFolded(); } else { paint(); } }
+  var superOk = false;
+  function drawAdminBar() { if (w.CW_ADMIN_HIDDEN || !superOk) { return; } if (folded()) { paintFolded(); } else { paint(); } }
 
   w.CW_REDRAW_ADMIN = function () { try { drawAdminBar(); } catch (e) {} };
 
@@ -1005,7 +1006,7 @@
       return !!who && !!mine && who === mine;
     } catch (e) { return false; }
   }
-  var CW_ADMIN_OFF = true;
+  var CW_ADMIN_OFF = false;
   if (CW_ADMIN_OFF) {
     ls(function () { w.localStorage.removeItem('cw-super'); });
     return;
@@ -1020,7 +1021,7 @@
   var known = ls(function () { return w.localStorage.getItem('cw-super'); }, null);
   var stamp = ls(function () { return JSON.parse(w.localStorage.getItem('cw-super-for') || 'null'); }, null);
   var fresh = stamp && typeof stamp === 'object' && stamp.v === 2 && stamp.who === whoKey && (Date.now() - (stamp.at || 0)) < 3600000;
-  if (fresh && known === 'yes') { drawAdminBar(); return; }
+  if (fresh && known === 'yes') { superOk = true; drawAdminBar(); return; }
   if (fresh && known === 'no') { return; }
   ls(function () { w.localStorage.removeItem('cw-super'); w.localStorage.removeItem('cw-super-for'); });
   fetch(GS + '?action=amISuper&appearId=' + encodeURIComponent(realMeId)
@@ -1030,7 +1031,7 @@
       if (!dd || dd.status !== 'ok') { return; }
       var yes = !!dd.isSuper;
       ls(function () { w.localStorage.setItem('cw-super', yes ? 'yes' : 'no'); w.localStorage.setItem('cw-super-for', JSON.stringify({ v: 2, who: whoKey, at: Date.now() })); });
-      if (yes) { drawAdminBar(); }
+      if (yes) { superOk = true; drawAdminBar(); }
     })
     .catch(function () {});
 })(window, document);
