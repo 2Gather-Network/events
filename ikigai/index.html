@@ -2730,16 +2730,61 @@
   function gpEnjoyTree(){
     if (_gpEnjoyTreeP) { return _gpEnjoyTreeP; }
     _gpEnjoyTreeP = gpRefOnce().then(function(rd){
-      var t = {};
+      var t = {}, items = {}, rows = [], where = {};
       ((rd && rd.recreation) || []).forEach(function(r){
         var pa = String(r.parent || 'Recreation & Hobbies').trim(), ty = String(r.recType || '').trim();
+        var sb = String(r.category || '').trim(), it = String(r.item || '').trim();
         if (!t[pa]) { t[pa] = {}; }
-        if (ty) { t[pa][ty] = 1; }
+        if (ty) {
+          if (!t[pa][ty]) { t[pa][ty] = {}; }
+          if (sb) { t[pa][ty][sb] = 1; }
+          if (!where[ty.toLowerCase()]) { where[ty.toLowerCase()] = { parent: pa, type: ty, sub: '' }; }
+          if (sb && !where[sb.toLowerCase()]) { where[sb.toLowerCase()] = { parent: pa, type: ty, sub: sb }; }
+        }
+        if (it && !items[it.toLowerCase()]) { items[it.toLowerCase()] = { parent: pa, type: ty, sub: sb }; }
+        if (it) { rows.push({ item: it.toLowerCase(), parent: pa, type: ty, sub: sb, assoc: String(r.associations || '').toLowerCase() }); }
       });
       window._gpEnjoyTree = t;
+      window._gpEnjoyItems = items;
+      window._gpEnjoyRows = rows;
+      window._gpEnjoyWhere = where;
       return t;
     }).catch(function(){ _gpEnjoyTreeP = null; return {}; });
     return _gpEnjoyTreeP;
+  }
+  function gpEnjoyGuess(word){
+    var w = String(word || '').trim().toLowerCase(), items = window._gpEnjoyItems || {};
+    if (!w) { return null; }
+    if (items[w]) { return { parent: items[w].parent, type: items[w].type, sub: items[w].sub, known: true }; }
+    var root = function(x){ return String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/(ings|ing|ers|er|es|s|e)$/, ''); };
+    var mine = w.split(/[^a-z0-9]+/).filter(function(x){ return x.length >= 3 && !GP_SMALL_WORDS[x] && x !== 'my'; }).map(root).filter(function(x){ return x.length >= 3; });
+    var tally = {}, best = null, pick = {};
+    (window._gpEnjoyRows || []).forEach(function(r){
+      var theirs = (r.item + ' ' + r.assoc.replace(/,/g, ' ')).split(/[^a-z0-9]+/).map(root);
+      var hit = (w.length >= 4 && r.item.indexOf(w) > -1) || (r.item.length >= 4 && w.indexOf(r.item) > -1)
+        || r.assoc.split(',').some(function(a){ return a.trim() === w; })
+        || mine.some(function(m){ return theirs.indexOf(m) > -1; });
+      if (!hit) { return; }
+      var k = r.parent + '|' + r.type + '|' + r.sub;
+      tally[k] = (tally[k] || 0) + 1;
+      pick[k] = r;
+      if (!best || tally[k] > tally[best]) { best = k; }
+    });
+    if (!best) { return null; }
+    return { parent: pick[best].parent, type: pick[best].type, sub: pick[best].sub, known: false };
+  }
+  var _gpEnjoyFiled = {};
+  function gpEnjoyFile(word, parent, type, sub){
+    try {
+      if (!meId || gpViewingSomebodyElse()) { return; }
+      var w = String(word || '').trim(), k = (w + '|' + parent + '|' + type + '|' + (sub || '')).toLowerCase();
+      if (!w || !parent || _gpEnjoyFiled[k] || (window._gpEnjoyItems || {})[w.toLowerCase()]) { return; }
+      _gpEnjoyFiled[k] = 1;
+      fetch(GS_URL + '?action=addCustomTerm&list=recreation&appearId=' + encodeURIComponent(meId)
+        + '&word=' + encodeURIComponent(w) + '&parent=' + encodeURIComponent(parent)
+        + (type ? '&category=' + encodeURIComponent(type) : '')
+        + (type && sub ? '&subsport=' + encodeURIComponent(sub) : '')).catch(function(){});
+    } catch (e) {}
   }
   function gpEnjoyCatLine(key, word){
     var t = window._gpEnjoyTree, tops = _gpCatOrder.slice();
@@ -2753,17 +2798,26 @@
     var parts = gpSplitWork(gpOrigFor(key, word)).body.split(':');
     var have = parts.length > 1 ? String(parts[1] || '').split('~')[0].trim() : '';
     if (have && ((GP_LEVELS[key] && GP_LEVELS[key].list) || []).some(function(lv){ return lv.toLowerCase() === have.toLowerCase(); })) { have = ''; }
-    var low = have.toLowerCase(), main = '', subc = '';
+    if (!have && !gpViewingSomebodyElse()) {
+      var guess = gpEnjoyGuess(word);
+      if (guess) {
+        have = guess.sub || guess.type || guess.parent;
+        gpSetCategory(key, word, have);
+        if (!guess.known) { gpEnjoyFile(word, guess.parent, guess.type, guess.sub); }
+      }
+    }
+    var low = have.toLowerCase(), main = '', typ = '', sub = '';
     tops.forEach(function(p){ if (p.toLowerCase() === low) { main = p; } });
-    if (!main && have) {
-      Object.keys(t).forEach(function(p){ Object.keys(t[p]).forEach(function(ty){ if (ty.toLowerCase() === low) { main = p; subc = ty; } }); });
+    if (!main && have && (window._gpEnjoyWhere || {})[low]) {
+      var at = window._gpEnjoyWhere[low];
+      main = at.parent; typ = at.type; sub = at.sub;
     }
     var line = document.createElement('div');
     line.style.cssText = 'display:flex;flex-wrap:wrap;gap:2px 10px;margin:2px 0 7px;';
-    var mk = function(first, list, chosen, missing){
+    var mk = function(first, list, chosen, missing, quiet){
       var sel = document.createElement('select');
-      sel.style.cssText = 'font:inherit;font-size:12px;font-weight:700;border:0;background:none;cursor:pointer;padding:0;'
-        + '-webkit-appearance:none;appearance:none;max-width:100%;' + (missing ? 'color:#C2560E;' : 'color:#1F699E;');
+      sel.style.cssText = 'font:inherit;font-size:12px;font-weight:' + (quiet ? '600' : '700') + ';border:0;background:none;cursor:pointer;padding:0;'
+        + '-webkit-appearance:none;appearance:none;max-width:100%;' + (missing ? 'color:#C2560E;' : (quiet ? 'color:#6B7A8D;' : 'color:#1F699E;'));
       var o0 = document.createElement('option'); o0.value = ''; o0.textContent = first; sel.appendChild(o0);
       list.forEach(function(c){
         var op = document.createElement('option'); op.value = c; op.textContent = c;
@@ -2772,15 +2826,21 @@
       });
       return sel;
     };
+    var alpha = function(o){ return Object.keys(o || {}).sort(function(a, b){ return a.localeCompare(b); }); };
     var known = have && !main ? [have] : [];
-    var mainSel = mk('Category missing \u25be', known.concat(tops), main || have, !have);
-    mainSel.onchange = function(){ gpSetCategory(key, word, mainSel.value); gpTagPaint(key); };
+    var mainSel = mk('Category missing ▾', known.concat(tops), main || have, !have, false);
+    mainSel.onchange = function(){ gpSetCategory(key, word, mainSel.value); if (mainSel.value) { gpEnjoyFile(word, mainSel.value, '', ''); } gpTagPaint(key); };
     line.appendChild(mainSel);
-    var subs = main && t[main] ? Object.keys(t[main]).sort(function(a, b){ return a.localeCompare(b); }) : [];
+    var types = main && t[main] ? alpha(t[main]) : [];
+    if (types.length) {
+      var typeSel = mk(typ ? 'Sub-category ▾' : 'Add a sub-category ▾', types, typ, false, !typ);
+      typeSel.onchange = function(){ gpSetCategory(key, word, typeSel.value || main); gpEnjoyFile(word, main, typeSel.value || '', ''); gpTagPaint(key); };
+      line.appendChild(typeSel);
+    }
+    var subs = main && typ && t[main] && t[main][typ] ? alpha(t[main][typ]) : [];
     if (subs.length) {
-      var subSel = mk(subc ? 'Sub-category \u25be' : 'Add a sub-category \u25be', subs, subc, false);
-      if (!subc) { subSel.style.color = '#6B7A8D'; subSel.style.fontWeight = '600'; }
-      subSel.onchange = function(){ gpSetCategory(key, word, subSel.value || main); gpTagPaint(key); };
+      var subSel = mk(sub ? 'Kind ▾' : 'Add a kind ▾', subs, sub, false, !sub);
+      subSel.onchange = function(){ gpSetCategory(key, word, subSel.value || typ); gpEnjoyFile(word, main, typ, subSel.value || ''); gpTagPaint(key); };
       line.appendChild(subSel);
     }
     return line;
