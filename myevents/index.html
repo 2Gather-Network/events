@@ -4124,6 +4124,7 @@ function loadEditForm(id) {
   const venueEditEl = document.getElementById("f-venue"); if(venueEditEl) venueEditEl.value = ev.venue || "";
   document.getElementById("f-desc").value  = ev.description || "";
   document.getElementById("f-host").value  = ev.host || "";
+  try { _hmInit(); _hmPaint(); } catch (e) {}
   { const _org = document.getElementById("f-org"); if (_org) _org.value = ev.org || ""; }  
   document.getElementById("f-hostlink").value = ev.hostlink || ""; _rememberAppearLink(ev.hostlink);
   const heEl = document.getElementById("f-host-email"); if (heEl) heEl.value = ev.hostEmail || "";
@@ -5001,6 +5002,102 @@ function _hostTypedOver() {
 }
 
 var _hostFoundName = "";
+var _hostMock = false;
+try { _hostMock = new URLSearchParams(location.search).get("host") === "mock"; } catch (e) {}
+function _hmMyName() {
+  var n = "";
+  try { n = (_knownPosterName() || _myAppearName || "").trim(); } catch (e) {}
+  return n;
+}
+function _hmPaint() {
+  if (!_hostMock) return;
+  var card = document.getElementById("hm-card");
+  var hn = document.getElementById("f-host");
+  if (!card || !hn) return;
+  var _sh = document.getElementById("host-field-share-hint");
+  var sharing = !!(_sh && _sh.style.display === "block");
+  card.style.display = sharing ? "none" : "";
+  hn.style.display = sharing ? "" : "none";
+  var lab = document.getElementById("host-field-label"); if (lab && !sharing) lab.textContent = "Event host";
+  if (sharing) return;
+  if (!hn.value.trim()) { var mine = _hmMyName(); if (mine) hn.value = mine; }
+  var me = true; try { me = _hostIsMe(); } catch (e) {}
+  var who = hn.value.trim() || "You";
+  var inv = document.getElementById("hm-notmember");
+  var invOn = !!(inv && inv.checked);
+  var role = invOn ? "Event editor, until they accept" : (me ? "Event host" : "Event editor");
+  var nm = document.getElementById("hm-name"); if (nm) nm.textContent = invOn ? "Invited host (waiting to accept)" : (who + (me ? " (you)" : ""));
+  var rl = document.getElementById("hm-role"); if (rl) rl.textContent = "Your role on this event: " + role;
+  var nh = document.getElementById("hm-nothost"); if (nh) nh.style.display = me && !invOn ? "" : "none";
+  var bk = document.getElementById("hm-back"); if (bk) bk.style.display = (me && !invOn) ? "none" : "";
+}
+function _hmNotHost() {
+  var f = document.getElementById("hm-find"); if (f) f.style.display = "block";
+  var nh = document.getElementById("hm-nothost"); if (nh) nh.style.display = "none";
+  var inp = document.getElementById("f-host-find"); if (inp) { try { inp.focus(); } catch (e) {} }
+}
+function _hmIamHost() {
+  var hn = document.getElementById("f-host"); if (hn) hn.value = _hmMyName();
+  var inv = document.getElementById("hm-notmember"); if (inv) inv.checked = false;
+  var f = document.getElementById("hm-find"); if (f) f.style.display = "none";
+  var iv = document.getElementById("hm-invite"); if (iv) iv.style.display = "none";
+  _hostStat("", false);
+  _hmPaint();
+}
+function _hmToggleInvite() {
+  var on = !!(document.getElementById("hm-notmember") || {}).checked;
+  var iv = document.getElementById("hm-invite"); if (iv) iv.style.display = on ? "block" : "none";
+  var sb = document.getElementById("hm-searchbox"); if (sb) sb.style.display = on ? "none" : "";
+  _hmPaint();
+}
+function _hmPreview() {
+  var em = String((document.getElementById("hm-email") || {}).value || "").trim();
+  var out = document.getElementById("hm-preview"); if (!out) return;
+  if (!em || em.indexOf("@") < 0) { out.innerHTML = '<p style="color:#c0392b;font-weight:600;margin:0;">Type their email address.</p>'; out.style.display = "block"; return; }
+  var full = _hmMyName() || "Your name", first = full.split(/\s+/)[0];
+  var title = String((document.getElementById("f-title") || {}).value || "").trim() || "this event";
+  out.innerHTML = '<p style="font-size:12px;color:var(--muted);margin:0 0 6px;">Mockup: nothing is sent. This is the email ' + esc(em) + ' would get.</p>'
+    + '<div style="border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff;">'
+    + '<p style="margin:0 0 10px;font-size:14px;line-height:1.55;">' + esc(full) + ' is creating an event on your behalf as the event host: <b>' + esc(title) + '</b>.</p>'
+    + '<p style="margin:0 0 14px;font-size:14px;line-height:1.55;">' + esc(first) + ' is inviting you to be listed as the official event host.</p>'
+    + '<span style="display:inline-block;background:#1F699E;color:#fff;font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;">Accept invite</span>'
+    + '<p style="font-size:12px;color:var(--muted);margin:12px 0 0;line-height:1.5;">Accept invite takes them to create an account, then to a page that says "Accept invite to this event as host". Once they accept, they are the event host with editing rights, and ' + esc(first) + ' stays on as event editor.</p></div>';
+  out.style.display = "block";
+}
+function _hmInit() {
+  if (!_hostMock) return;
+  var hn = document.getElementById("f-host");
+  if (!hn || document.getElementById("hm-card")) return;
+  hn.style.display = "none";
+  var open = document.getElementById("host-find-open"); if (open) open.style.display = "none";
+  var lab = document.getElementById("host-field-label"); if (lab) lab.textContent = "Event host";
+  var find = document.getElementById("host-find-box");
+  var link = 'background:none;border:none;padding:0;font:inherit;font-size:13px;color:var(--cw-blue);font-weight:700;text-decoration:underline;cursor:pointer;';
+  var card = document.createElement("div");
+  card.id = "hm-card";
+  card.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;background:#fff;">'
+    + '<span id="hm-name" style="font-size:15px;font-weight:600;color:var(--dark);"></span>'
+    + '<button type="button" id="hm-nothost" onclick="_hmNotHost()" style="' + link + '">I\'m not the host</button>'
+    + '<button type="button" id="hm-back" onclick="_hmIamHost()" style="' + link + 'display:none;">I\'m the host</button></div>'
+    + '<p id="hm-role" style="font-size:12px;color:var(--muted);margin:6px 0 0;"></p>'
+    + '<div id="hm-find" style="display:none;margin-top:10px;">'
+    + '<p style="font-size:13px;font-weight:600;color:var(--dark);margin:0 0 6px;">Find the host by their email</p>'
+    + '<div id="hm-searchbox"></div>'
+    + '<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;cursor:pointer;">'
+    + '<input type="checkbox" id="hm-notmember" onchange="_hmToggleInvite()" style="width:16px;height:16px;accent-color:var(--primary);">'
+    + '<span>Host is not a member here</span></label>'
+    + '<div id="hm-invite" style="display:none;margin-top:8px;">'
+    + '<p style="font-size:12px;color:var(--muted);margin:0 0 6px;">We will invite them to join and be listed as the host.</p>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+    + '<input class="input" id="hm-email" type="email" placeholder="Their email address" style="flex:1;min-width:180px;">'
+    + '<button type="button" onclick="_hmPreview()" style="background:var(--cw-blue);border:1.5px solid var(--cw-blue);color:#fff;border-radius:20px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Send invite</button></div>'
+    + '<div id="hm-preview" style="display:none;margin-top:10px;"></div></div></div>';
+  hn.parentNode.insertBefore(card, hn.nextSibling);
+  var sb = document.getElementById("hm-searchbox");
+  if (find && sb) { sb.appendChild(find); find.style.display = "block"; find.style.marginTop = "0"; }
+  var mine = document.getElementById("f-host-find"); if (mine) mine.placeholder = "Their email address";
+  _hmPaint();
+}
 function _findHost() {
   var inp = document.getElementById("f-host-find");
   var email = inp ? String(inp.value || "").trim() : "";
@@ -5015,6 +5112,7 @@ function _findHost() {
       }
       _hostFoundName = d.name;
       var hn = document.getElementById("f-host"); if (hn) hn.value = d.name;
+      try { _hmPaint(); } catch (e) {}
       var hl = document.getElementById("f-hostlink"); if (hl) hl.value = d.pageLink || "";
       var mine = document.getElementById("show-hostlink");
       if (mine && mine.checked) { mine.checked = false; try { toggleLinkFields(); } catch (e) {} }
@@ -5028,6 +5126,7 @@ function _findHost() {
 function _fillPosterName() {
   var hn = document.getElementById("f-host");
   if (!hn) return;
+  try { _hmInit(); setTimeout(_hmPaint, 0); } catch (e) {}
   var known = _knownPosterName();
   if (known && !hn.value.trim()) { hn.value = known; return; }
   if (hn.value.trim()) return;
@@ -5035,6 +5134,7 @@ function _fillPosterName() {
     _resolveMyAppearLink().then(function () {
       if (hn.value.trim()) return;                 
       if (_myAppearName) { hn.value = _myAppearName; }
+      try { _hmPaint(); } catch (e) {}
     });
   } catch (e) {}
 }
