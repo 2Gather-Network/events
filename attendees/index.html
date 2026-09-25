@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="board-loading">
 <head>
 <script>try{var S='cw-signed-out-2026-09-20';if(localStorage.getItem(S)!=='1'){localStorage.setItem(S,'1');['cw-id','appear-id','cw-token','cw-super','cw-view-as','cw-view-as-name','cw-first','cw-photo','cw-photo-for','cw-photo-at','cw-lastEmail'].forEach(function(k){localStorage.removeItem(k)})}}catch(e){}</script>
 <meta charset="UTF-8">
@@ -138,6 +138,13 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 .chip.match .chip-photo,.chip.match-need .chip-photo{border-color:rgba(255,255,255,0.35);}
 .empty{font-size:12px;color:#c0c4d6;padding:4px 2px;font-style:italic;}
 .loading{font-size:12px;color:#c0c4d6;padding:4px 2px;}
+#board-wait{display:none;padding:18px 14px 0;}
+html.board-loading #board-wait{display:block;}
+html.board-loading .grid{display:none !important;}
+.cw-loading{display:inline-flex;align-items:center;background:#fff;color:#1F699E;font-size:14px;font-weight:700;padding:10px 20px;border-radius:22px;animation:cw-breathe 1.6s ease-in-out infinite;}
+.cw-loading.stopped{animation:none;}
+@keyframes cw-breathe{0%,100%{opacity:1}50%{opacity:.62}}
+@media (prefers-reduced-motion: reduce){ .cw-loading{animation:none;} }
 .hub-cant{}
 @media(max-width:640px){.hub-cant{flex-basis:100%;text-align:center;margin-top:2px;}}
 .show-all-pill-wrap{flex-basis:100%;margin-top:8px;text-align:right;}
@@ -203,49 +210,51 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
 
 <div id="profile-cta"></div>
 
+<div id="board-wait"><span class="cw-loading" id="board-wait-pill">Loading bulletin board…</span></div>
+
 <div class="grid">
   <div class="quadrant">
     <div class="q-header" onclick="toggleSection('skills')">
       <div>
         <div class="q-title">Skills represented</div>
-        <div class="q-count" id="skills-count">loading…</div>
+        <div class="q-count" id="skills-count"></div>
       </div>
       <span class="q-toggle open" id="skills-arrow">▾</span>
     </div>
-    <div class="q-body" id="skills-body"><span class="loading">Loading…</span></div>
+    <div class="q-body" id="skills-body"></div>
   </div>
 
   <div class="quadrant">
     <div class="q-header" onclick="toggleSection('interests')">
       <div>
         <div class="q-title">Recreational interests of our bulletin board</div>
-        <div class="q-count" id="interests-count">loading…</div>
+        <div class="q-count" id="interests-count"></div>
       </div>
       <span class="q-toggle open" id="interests-arrow">▾</span>
     </div>
-    <div class="q-body" id="interests-body"><span class="loading">Loading…</span></div>
+    <div class="q-body" id="interests-body"></div>
   </div>
 
   <div class="quadrant">
     <div class="q-header" onclick="toggleSection('values')">
       <div>
         <div class="q-title">What people here care about</div>
-        <div class="q-count" id="values-count">loading…</div>
+        <div class="q-count" id="values-count"></div>
       </div>
       <span class="q-toggle open" id="values-arrow">▾</span>
     </div>
-    <div class="q-body" id="values-body"><span class="loading">Loading…</span></div>
+    <div class="q-body" id="values-body"></div>
   </div>
 
   <div class="quadrant">
     <div class="q-header" onclick="toggleSection('needs')">
       <div>
         <div class="q-title">What are bulletin board needs</div>
-        <div class="q-count" id="needs-count">loading…</div>
+        <div class="q-count" id="needs-count"></div>
       </div>
       <span class="q-toggle open" id="needs-arrow">▾</span>
     </div>
-    <div class="q-body" id="needs-body"><span class="loading">Loading…</span></div>
+    <div class="q-body" id="needs-body"></div>
   </div>
 </div>
 
@@ -468,7 +477,7 @@ async function loadGroupMembers(){
   try{
     var res=await fetch(GS_URL+'?action=getGroupBundle&groupId='+encodeURIComponent(_groupId)+(_myId?'&me='+encodeURIComponent(_myId):''));
     var d=await res.json();
-    if(!d) return;
+    if(!d){ _boardFailed(); return; }
     var g=d.group||{};
     try{ if(g.slug){ window.CW_GROUP_SLUG=window.CW_GROUP_SLUG||g.slug; window.cwGroupAddress(g.slug, _matchMode?'matches':'bulletin-board'); } }catch(e){}
     var titleEl=document.getElementById('event-title'), metaEl=document.getElementById('event-meta');
@@ -483,7 +492,7 @@ async function loadGroupMembers(){
     if(!_meIn && d.meIsHost!==true && d.meIsOperator!==true){ window.location.replace(window.CW_GROUP_SLUG ? 'https://2gather.network/group/'+encodeURIComponent(window.CW_GROUP_SLUG) : 'https://2gather.network/group/?id='+encodeURIComponent(_groupId)); return; }
     if(d.me && !_meIn && d.meIsHost===true){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
     _meRegistered = _meIn || d.meIsHost===true;
-    _boardReady=true;
+    _boardShow();
     computeGlobals(); buildChips(); renderAll();
   }catch(e){
     if(!loadGroupMembers._again){ loadGroupMembers._again=true; return loadGroupMembers(); }
@@ -501,7 +510,7 @@ async function loadMembers(){
       _meRegistered = (typeof d.meRegistered==='boolean') ? d.meRegistered : !!_myId;
       if(d.me && _meRegistered && !d.attendees.some(function(p){ return normId(p.appearId)===normId(d.me.appearId); })){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
       if(_myId && !_myData) await loadMyDataFallback();
-      _boardReady=true;
+      _boardShow();
       computeGlobals(); buildChips(); renderAll();
       return;
     }
@@ -525,7 +534,7 @@ async function loadMembersLegacy(){
   if(_myId && ids.map(normId).indexOf(normId(_myId))<0) ids.push(_myId);
 
   await Promise.all(ids.map(function(id){return loadMember(id);}));
-  _boardReady=true;
+  _boardShow();
   computeGlobals();
   buildChips();
   renderAll();
@@ -1047,11 +1056,13 @@ var _fitTimer=null;
 window.addEventListener('resize',function(){ clearTimeout(_fitTimer); _fitTimer=setTimeout(function(){ if(!_expanded && !_matchMode) renderAll(); },200); });
 
 var _boardReady=false;
+function _boardShow(){
+  _boardReady=true;
+  document.documentElement.classList.remove('board-loading');
+}
 function _boardFailed(){
-  ['skills','interests','values','needs'].forEach(function(k){
-    var c=document.getElementById(k+'-count'); if(c) c.textContent='';
-    var b=document.getElementById(k+'-body'); if(b) b.innerHTML='<span class="loading" style="color:#1F699E;">The board did not load. Reload the page to try again.</span>';
-  });
+  var p=document.getElementById('board-wait-pill');
+  if(p){ p.textContent='The bulletin board did not load. Reload the page to try again.'; p.classList.add('stopped'); }
 }
 function renderAll(){
   if(!_boardReady) return;
