@@ -2,53 +2,7 @@
   var SEP = ' › ';
   var REC = 'Recreation & Hobbies';
   var REC_KINDS = ['Sports', 'Outdoor & Nature', 'Making & Collecting', 'Movement & Performance', 'Games & Strategy'];
-  var GATE = 'https://cw-api-gate.jessieupp.workers.dev';
-  var _treeP = null;
-  function node(name, emoji){ return { name: name, emoji: emoji || '', kids: [] }; }
-  function kid(n, name){ for (var i = 0; i < n.kids.length; i++) if (n.kids[i].name === name) return n.kids[i]; var k = node(name); n.kids.push(k); return k; }
-  function loadTree(){
-    if (_treeP) return _treeP;
-    var j = function(a){ return fetch(GATE + '?action=' + a).then(function(r){ return r.json(); }); };
-    _treeP = Promise.all([j('getCategories'), j('getReferenceData')]).then(function(res){
-      var cats = (res[0] && res[0].categories) || [], rd = res[1] || {};
-      var emoji = {}, tops = {};
-      cats.forEach(function(c){ if (c && c.label) { emoji[c.label.toLowerCase()] = c.emoji || ''; tops[c.label] = 1; } });
-      var underRec = {};
-      REC_KINDS.forEach(function(k){ underRec[k.toLowerCase()] = k; });
-      (rd.recreation || []).forEach(function(r){ if (r && r.category) underRec[String(r.category).trim().toLowerCase()] = String(r.recType || '').trim() + SEP + String(r.category).trim(); });
-      (rd.skills || []).forEach(function(s){
-        var c = s && String(s.category || '').trim();
-        if (c && !underRec[c.toLowerCase()]) tops[c] = 1;
-      });
-      Object.keys(tops).forEach(function(t){ if (underRec[t.toLowerCase()]) delete tops[t]; });
-      tops[REC] = 1;
-      var tree = Object.keys(tops).filter(Boolean).sort(function(a, b){ return a.localeCompare(b); }).map(function(t){
-        var n = node(t, emoji[t.toLowerCase()] || '');
-        if (t === REC) {
-          REC_KINDS.forEach(function(k){ kid(n, k); });
-          (rd.recreation || []).forEach(function(r){
-            if (!r || !r.item || !r.recType) return;
-            var a = kid(n, r.recType);
-            (r.category ? kid(a, r.category) : a).kids.push(node(r.item));
-          });
-          (rd.skills || []).forEach(function(s){
-            var c = s && String(s.category || '').trim();
-            var at = c && underRec[c.toLowerCase()];
-            if (!at || !s.item) return;
-            var cur = n;
-            at.split(SEP).forEach(function(part){ if (part) cur = kid(cur, part); });
-            if (!cur.kids.some(function(k){ return k.name === s.item; })) cur.kids.push(node(s.item));
-          });
-        } else {
-          (rd.skills || []).forEach(function(s){ if (s && s.item && String(s.category).trim() === t) n.kids.push(node(s.item)); });
-        }
-        return n;
-      });
-      return tree;
-    });
-    _treeP.catch(function(){ _treeP = null; });
-    return _treeP;
-  }
+  function loadTree(){ return window.cwCategoryTree({ skills: 'always' }); }
   function normalise(key){
     key = String(key || '').trim();
     if (!key) return '';
