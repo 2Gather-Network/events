@@ -46,6 +46,7 @@
   })();
 </script>
 <script src="/nav/identity.js?v=29"></script>
+<script src="/nav/category-tree.js?v=1"></script>
 </head>
 <body>
 <div class="wrap">
@@ -1001,6 +1002,19 @@
   }
   function gpLevel(tree, path){
     var alpha = function(x){ return x.slice().sort(function(a,b){ return a.localeCompare(b); }); };
+    if (tree && tree.__gen) {
+      var list = tree.root || [];
+      for (var gi = 0; gi < path.length; gi++) {
+        var hitN = null;
+        for (var gj = 0; gj < list.length; gj++) { if (list[gj].name === path[gi]) { hitN = list[gj]; break; } }
+        list = hitN ? (hitN.kids || []) : [];
+      }
+      var drills = [], leaves = [];
+      list.forEach(function(n){ if (n.kids && n.kids.length) { drills.push(n.name); } else { leaves.push(n.name); } });
+      if (!path.length) { return list.map(function(n){ return { name: n.name, drill: true }; }); }
+      return alpha(drills).map(function(k){ return { name: k, drill: true }; })
+        .concat(alpha(leaves).map(function(k){ return { name: k, drill: false }; }));
+    }
     if (!path.length) {
       if (GP_DRILL && _gpCatOrder.length) {
         var tops = _gpCatOrder.slice();
@@ -1454,6 +1468,13 @@
       corpus = gpCorpus(cfg.source, rd);
       if (!_browseOn) { return; }
       if (cfg.kinds) { gpBrowseForKind(); return; }
+      if (GP_DRILL && cfg.source === 'recreation' && window.cwCategoryTree) {
+        window.cwCategoryTree({ skills: 'fallback' }).then(function(roots){
+          if (!_browseOn) { return; }
+          gpRenderBrowse({ __gen: true, root: roots || [] }, []);
+        }).catch(function(){ gpRenderBrowse(gpBuildTree(cfg.source, rd), []); });
+        return;
+      }
       gpRenderBrowse(gpBuildTree(cfg.source, rd), []);
     });
 
@@ -1511,7 +1532,7 @@
         var b = gpPill(it.name, gpHasWord(key, it.name));
         b.addEventListener('click', function(){
           if (gpHasWord(key, it.name)) gpDropWord(key, it.name, ta);
-          else gpAddWord(key, it.name + (cfg.kinds && cfg._kindNow ? ':' + cfg._kindNow : ''), (GP_DRILL && cfg.source === 'recreation' ? (path[1] || path[0]) : path[0]) || '', ta);
+          else gpAddWord(key, it.name + (cfg.kinds && cfg._kindNow ? ':' + cfg._kindNow : ''), (GP_DRILL && cfg.source === 'recreation' ? path[path.length - 1] : path[0]) || '', ta);
           gpRenderBrowse(tree, path);
           repaint();
         });
