@@ -101,13 +101,24 @@
       var gname = (nm && nm.value || '').trim() || 'this group';
       pq.textContent = 'What do you enjoy most in ' + gname + '?';
       pc.innerHTML = '';
-      var list = leaves().map(function(k){ var p = k.split(SEP); return p[p.length - 1]; }).concat(picks);
+      var list = leaves().map(function(k){ var p = k.split(SEP); return { name: p[p.length - 1], under: p.slice(0, -1).join(SEP) }; })
+        .concat(picks.map(function(w){ return { name: w, under: '' }; }));
       if (!list.length) {
         var e = document.createElement('span'); e.style.cssText = 'font-size:13px;color:var(--muted,#6B7A8D);';
         e.textContent = 'Pick what the group is about or add your own choices to see this.';
         pc.appendChild(e); return;
       }
-      list.forEach(function(w){ var c = document.createElement('div'); c.className = chip; c.textContent = w; pc.appendChild(c); });
+      list.forEach(function(w){
+        var c = document.createElement('div'); c.className = chip;
+        c.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.2;';
+        var t = document.createElement('span'); t.textContent = w.name; c.appendChild(t);
+        if (w.under) {
+          var u = document.createElement('span');
+          u.style.cssText = 'font-size:11px;font-weight:500;color:var(--muted,#6B7A8D);margin-top:2px;';
+          u.textContent = w.under; c.appendChild(u);
+        }
+        pc.appendChild(c);
+      });
     }
     function add(){
       if (!inp) return;
