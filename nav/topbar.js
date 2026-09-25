@@ -866,7 +866,7 @@
     d.body.insertBefore(bar, d.body.firstChild);
   }
 
-  w.CW_ADMIN_HIDDEN = true;   
+  w.CW_ADMIN_HIDDEN = false;
 
   var FOLD_KEY = 'cw-admin-folded';
   function folded() { return ls(function () { return w.localStorage.getItem(FOLD_KEY) === '1'; }, false); }
