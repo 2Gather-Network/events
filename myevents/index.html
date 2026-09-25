@@ -4429,6 +4429,89 @@ function setInterestedEnabled(val) {
 }
 
 var _formGroups = null, _formGroupsBusy = false;
+var _grpMock = false;
+try { _grpMock = new URLSearchParams(location.search).get("grp") === "mock"; } catch (e) {}
+var _gmOpen = null, _gmDropped = 0, _gmAll = false;
+function _gmRepaint() { try { _loadFormGroups(); } catch (e) {} }
+function _gmSet(on) {
+  if (on) { _gmOpen = true; _gmDropped = 0; _gmRepaint(); return; }
+  var n = 0;
+  document.querySelectorAll("#f-group-checks .grp-check").forEach(function (c) { if (c.checked) { n++; c.checked = false; } });
+  onGroupPick();
+  _gmOpen = false; _gmDropped = n; _gmRepaint();
+}
+function _gmPickAll(on) {
+  document.querySelectorAll("#f-group-checks .grp-check").forEach(function (c) { c.checked = !!on; });
+  onGroupPick(); _gmRepaint();
+}
+function _gmShowAll() { _gmAll = true; _gmRepaint(); }
+function _gmFilter(q) {
+  q = String(q || "").trim().toLowerCase();
+  var shown = 0;
+  document.querySelectorAll("#f-group-checks .gm-pill").forEach(function (el) {
+    var hit = !q || String(el.getAttribute("data-name") || "").indexOf(q) > -1;
+    var cap = q || _gmAll || shown < 8 || el.querySelector("input").checked;
+    el.style.display = (hit && cap) ? "" : "none";
+    if (hit && el.style.display === "") shown++;
+  });
+  var more = document.getElementById("gm-more"); if (more) more.style.display = (q || _gmAll) ? "none" : "";
+}
+function _paintGroupMock(host, known, want) {
+  var priv = false; try { priv = currentVisibility === "private"; } catch (e) {}
+  var list = known.slice().sort(function (a, b) {
+    if (a.hosts !== b.hosts) return a.hosts ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  var n = want.length, m = list.length;
+  if (!priv) { if (n) { _gmOpen = true; } else if (_gmOpen === null) { _gmOpen = false; } }
+  var head = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--cw-blue);margin:18px 0 4px;';
+  var help = 'font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.5;';
+  var link = 'background:none;border:none;padding:0;font:inherit;font-size:13px;color:var(--cw-blue);font-weight:700;text-decoration:underline;cursor:pointer;';
+  var h = '<style>#f-group-checks .gm-pill{display:inline-flex;align-items:center;gap:6px;border:1.5px solid #1F699E;color:#1F699E;background:#fff;border-radius:20px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;margin:0 6px 8px 0;}'
+        + '#f-group-checks .gm-pill:has(input:checked){background:#1F699E;color:#fff;}'
+        + '#f-group-checks .gm-pill small{font-size:11px;font-weight:400;color:#6B7A8D;}'
+        + '#f-group-checks .gm-pill:has(input:checked) small{color:#DCE8F2;}</style>';
+  if (!priv) {
+    h += '<p style="' + head + '">You can also share it on your groups</p>'
+       + '<p style="' + help + '">It will show on each group you pick, as well as publicly.</p>'
+       + '<div style="display:flex;gap:8px;margin-bottom:10px;">'
+       + '<button type="button" class="format-chip' + (_gmOpen ? ' selected' : '') + '" onclick="_gmSet(true)" style="flex:1;">Yes</button>'
+       + '<button type="button" class="format-chip' + (_gmOpen ? '' : ' selected') + '" onclick="_gmSet(false)" style="flex:1;">No</button></div>';
+    if (!_gmOpen && _gmDropped) {
+      h += '<p style="' + help + 'color:#1F699E;font-weight:600;">This will come off the ' + _gmDropped + ' group' + (_gmDropped === 1 ? '' : 's') + ' you picked when you save.</p>';
+    }
+  } else {
+    h += '<p style="' + head + '">Which of your groups can see this? <span style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--muted);">\u00b7 ' + n + ' of ' + m + ' picked</span></p>'
+       + '<p style="' + help + '">Pick at least one. Only people in the groups you pick will see this event.</p>';
+  }
+  var open = priv || _gmOpen;
+  if (open) {
+    if (!priv) { h += '<p style="' + help + 'margin-top:4px;">' + n + ' of ' + m + ' picked</p>'; }
+    h += '<div style="display:flex;gap:14px;margin:0 0 10px;">'
+       + '<button type="button" onclick="_gmPickAll(true)" style="' + link + '">Pick all</button>'
+       + (n ? '<button type="button" onclick="_gmPickAll(false)" style="' + link + '">Clear</button>' : '') + '</div>';
+    if (m > 8) {
+      h += '<input class="input" type="search" placeholder="Search your groups" oninput="_gmFilter(this.value)" style="margin:0 0 10px;">';
+    }
+  }
+  h += '<div style="display:' + (open ? 'block' : 'none') + ';">';
+  var shown = 0;
+  list.forEach(function (g) {
+    var on = want.indexOf(g.id) > -1;
+    var vis = _gmAll || shown < 8 || on;
+    if (vis) shown++;
+    h += '<label class="gm-pill" data-name="' + esc(g.name.toLowerCase()) + '" style="' + (vis ? '' : 'display:none;') + '">'
+       + '<input type="checkbox" class="grp-check" value="' + esc(g.id) + '"' + (on ? ' checked' : '')
+       + ' onchange="onGroupPick(); _gmRepaint()" style="display:none;">'
+       + '<span>' + esc(g.name) + '</span>' + (g.hosts ? '<small>You host</small>' : '') + '</label>';
+  });
+  h += '</div>';
+  if (open && !_gmAll && m > 8) {
+    h += '<button type="button" id="gm-more" onclick="_gmShowAll()" style="' + link + 'margin:2px 0 8px;">Show all ' + m + '</button>';
+  }
+  h += '<p id="grp-mock-err" style="display:none;font-size:13px;color:#c0392b;font-weight:600;margin:6px 0 0;"></p>';
+  host.innerHTML = h;
+}
 function _loadFormGroups(preferId, preferName) {
   var box = document.getElementById("share-opt-group");
   var host = document.getElementById("f-group-checks");
@@ -4448,6 +4531,7 @@ function _loadFormGroups(preferId, preferName) {
     var _fromGroup = false;
     try { _fromGroup = !!new URLSearchParams(location.search).get('groupId'); } catch (e) {}
     var _allOn = _allIds.length > 0 && _allIds.every(function (id) { return want.indexOf(id) > -1; });
+    if (_grpMock) { _paintGroupMock(host, known, want); box.style.display = "flex"; onGroupPick(); return; }
     host.innerHTML =
       '<label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;cursor:pointer;padding:6px 0;font-weight:700;">'
       + '<input type="checkbox" id="grp-check-all"' + (_allOn ? ' checked' : '')
@@ -4708,6 +4792,7 @@ function _visGroupHere(v) {
     lbl.setAttribute("style", "display:block;margin:18px 0 10px;");
   }
   lbl.textContent = v === "private" ? "Which of your groups?" : "Which of your groups? (optional)";
+  if (_grpMock) { lbl.style.display = "none"; _gmOpen = null; _gmDropped = 0; }
   if (box.firstChild !== lbl) { box.insertBefore(lbl, box.firstChild); }
   if (box.parentNode !== vis) { vis.appendChild(box); }
   box.style.paddingBottom = "6px";
@@ -5735,6 +5820,11 @@ async function submitEvent() {
       errEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
       return;
     }
+  }
+  if (_grpMock && currentVisibility === "private" && !String((document.getElementById("f-group-ids") || {}).value || "").trim()) {
+    var _gme = document.getElementById("grp-mock-err");
+    if (_gme) { _gme.textContent = "Pick at least one group, or choose Show publicly."; _gme.style.display = "block"; try { _gme.scrollIntoView({ behavior:"smooth", block:"center" }); } catch (e) {} }
+    return;
   }
   const catIds = Array.from(selectedCats);
   const eventData = {
