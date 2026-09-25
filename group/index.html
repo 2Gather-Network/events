@@ -746,8 +746,22 @@ function pick(el, key){
         })
         .catch(function(){ _privDone = true; if (_feedIn) _gpEventsDraw(_forGroup); });
     }
-    fetch(GS_URL + '?t=' + Date.now())
-      .then(function(r){ return r.json(); })
+    var _feedAsk = function(tries){
+      var ctl = window.AbortController ? new AbortController() : null;
+      var slow = setTimeout(function(){
+        if (!_feedIn && sub) { sub.textContent = 'Still looking. The server is slow right now\u2026'; sub.style.color = '#1F699E'; }
+      }, 12000);
+      var stop = setTimeout(function(){ if (ctl) ctl.abort(); }, 40000);
+      return fetch(GS_URL + '?t=' + Date.now(), ctl ? { signal: ctl.signal } : undefined)
+        .then(function(r){ return r.json(); })
+        .then(function(d){ clearTimeout(slow); clearTimeout(stop); return d; },
+              function(err){
+                clearTimeout(slow); clearTimeout(stop);
+                if (tries > 0) return _feedAsk(tries - 1);
+                throw err;
+              });
+    };
+    _feedAsk(1)
       .then(function(d){
         _merge(((d && d.events) || []).filter(_inThis));
         _merge(_privRows);
@@ -756,8 +770,8 @@ function pick(el, key){
         else if (sub) { sub.textContent = 'Looking for private group events\u2026'; sub.style.color = '#1F699E'; }
       })
       .catch(function(){
-        box.textContent = 'Could not load events just now.';
-        if (sub) sub.textContent = 'Could not load events just now.';
+        box.textContent = 'Could not load events just now. Reload the page to try again.';
+        if (sub) { sub.textContent = 'Could not load events just now.'; sub.style.color = ''; }
       });
   }
   function _gpEventsDraw(forGroup){

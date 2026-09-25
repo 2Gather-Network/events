@@ -178,7 +178,7 @@ body{font-family:'DM Sans',sans-serif;background:#1F699E;color:#1a1a2e;min-heigh
   <div class="event-header">
     <div class="event-header-row">
       <div class="event-header-left">
-        <div class="event-title" id="event-title">Community</div>
+        <div class="event-title" id="event-title"></div>
         <div class="event-meta" id="event-meta"></div>
         <div class="hub-crumbs" id="hub-crumbs"></div>
       </div>
@@ -483,8 +483,12 @@ async function loadGroupMembers(){
     if(!_meIn && d.meIsHost!==true && d.meIsOperator!==true){ window.location.replace(window.CW_GROUP_SLUG ? 'https://2gather.network/group/'+encodeURIComponent(window.CW_GROUP_SLUG) : 'https://2gather.network/group/?id='+encodeURIComponent(_groupId)); return; }
     if(d.me && !_meIn && d.meIsHost===true){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
     _meRegistered = _meIn || d.meIsHost===true;
+    _boardReady=true;
     computeGlobals(); buildChips(); renderAll();
-  }catch(e){}
+  }catch(e){
+    if(!loadGroupMembers._again){ loadGroupMembers._again=true; return loadGroupMembers(); }
+    _boardFailed();
+  }
 }
 async function loadMembers(){
   if(_groupId){ return loadGroupMembers(); }
@@ -497,6 +501,7 @@ async function loadMembers(){
       _meRegistered = (typeof d.meRegistered==='boolean') ? d.meRegistered : !!_myId;
       if(d.me && _meRegistered && !d.attendees.some(function(p){ return normId(p.appearId)===normId(d.me.appearId); })){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
       if(_myId && !_myData) await loadMyDataFallback();
+      _boardReady=true;
       computeGlobals(); buildChips(); renderAll();
       return;
     }
@@ -520,6 +525,7 @@ async function loadMembersLegacy(){
   if(_myId && ids.map(normId).indexOf(normId(_myId))<0) ids.push(_myId);
 
   await Promise.all(ids.map(function(id){return loadMember(id);}));
+  _boardReady=true;
   computeGlobals();
   buildChips();
   renderAll();
@@ -1040,7 +1046,15 @@ function _fitRows(body, total){
 var _fitTimer=null;
 window.addEventListener('resize',function(){ clearTimeout(_fitTimer); _fitTimer=setTimeout(function(){ if(!_expanded && !_matchMode) renderAll(); },200); });
 
+var _boardReady=false;
+function _boardFailed(){
+  ['skills','interests','values','needs'].forEach(function(k){
+    var c=document.getElementById(k+'-count'); if(c) c.textContent='';
+    var b=document.getElementById(k+'-body'); if(b) b.innerHTML='<span class="loading" style="color:#1F699E;">The board did not load. Reload the page to try again.</span>';
+  });
+}
 function renderAll(){
+  if(!_boardReady) return;
   var grid=document.querySelector('.grid');
   var contrib=document.getElementById('contrib-section');
   var cta=document.getElementById('profile-cta');
