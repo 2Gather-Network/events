@@ -854,7 +854,7 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
       <label class="field-label">Cover image</label>
       <div style="display:flex;align-items:center;gap:10px;background:var(--light);border:1.5px solid var(--border);border-radius:12px;padding:8px 10px;margin-top:6px;">
         <div id="cover-thumb" style="width:44px;height:44px;border-radius:10px;background:#DDE4EE;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:18px;">🖼️</div>
-        <input type="url" id="f-image-url" placeholder="Paste an image, a link, or upload one" style="flex:1;min-width:0;border:1.5px solid transparent;background:transparent;padding:8px 4px;font-family:inherit;font-size:14px;color:var(--dark);outline:none;" oninput="_evTouch('imageUrl'); _coverPreview(this.value)">
+        <input type="url" id="f-image-url" placeholder="Paste a picture or a link to one, or upload" style="flex:1;min-width:0;border:1.5px solid transparent;background:transparent;padding:8px 4px;font-family:inherit;font-size:14px;color:var(--dark);outline:none;" oninput="_evTouch('imageUrl'); _coverPreview(this.value)">
         <label style="font-size:13px;font-weight:700;color:var(--primary);border:1.5px solid var(--primary);border-radius:20px;padding:8px 14px;cursor:pointer;background:#fff;white-space:nowrap;flex-shrink:0;">
           Upload
           <input type="file" id="f-image-file" accept="image/jpeg,image/png,image/webp" onchange="_pickCover(this)" style="display:none;">
@@ -5116,6 +5116,35 @@ function _showLinksValue() {
 }
 
 var _coverBlob = null;
+function _isPicture(url) {
+  return new Promise(function (res) {
+    var u = String(url || "").trim();
+    if (!u) { res(true); return; }
+    if (!/^https?:\/\/\S+$/i.test(u)) { res(false); return; }
+    var img = new Image(), done = false;
+    var fin = function (v) { if (!done) { done = true; res(v); } };
+    img.onload = function () { fin(img.naturalWidth > 0); };
+    img.onerror = function () { fin(false); };
+    setTimeout(function () { fin(true); }, 8000);
+    img.src = u;
+  });
+}
+function _checkPicBox(el) {
+  if (!el) return;
+  var lab = el.id === "f-image-url" ? document.getElementById("cover-file-name") : null;
+  _isPicture(el.value).then(function (ok) {
+    if (ok) { if (lab && lab.getAttribute("data-bad")) { lab.textContent = ""; lab.removeAttribute("data-bad"); lab.style.color = ""; lab.style.fontWeight = ""; } return; }
+    if (lab) {
+      lab.setAttribute("data-bad", "1");
+      lab.textContent = "That link opens a web page, not a picture. Paste a link to a picture (it usually ends in .jpg or .png), or press Upload.";
+      lab.style.color = "#c0392b"; lab.style.fontWeight = "600";
+    }
+  });
+}
+document.addEventListener("change", function (e) {
+  var t = e.target;
+  if (t && (t.id === "f-image-url" || t.id === "f-detail-image-url")) { _checkPicBox(t); }
+});
 function _coverPreview(url) {
   var t = document.getElementById("cover-thumb");
   if (!t) return;
@@ -5716,6 +5745,18 @@ async function submitEvent() {
     if (dupExists) { errEl.textContent = `An event called "${title}" is already posted for this date. Please use a different title or date.`; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   }
 
+  {
+    var _picBad = "";
+    var _ciEl = document.getElementById("f-image-url"), _diEl = document.getElementById("f-detail-image-url");
+    if (_ciEl && _ciEl.value.trim() && !(await _isPicture(_ciEl.value))) { _picBad = "Cover image"; }
+    else if (_diEl && _diEl.value.trim() && !(await _isPicture(_diEl.value))) { _picBad = "Detail image"; }
+    if (_picBad) {
+      errEl.textContent = _picBad + ": that link opens a web page, not a picture. Paste a link to a picture (it usually ends in .jpg or .png), press Upload, or clear the box.";
+      errEl.style.display = "block";
+      errEl.scrollIntoView({ behavior:"smooth", block:"nearest" });
+      return;
+    }
+  }
   const catIds = Array.from(selectedCats);
   const eventData = {
     title, categories:catIds, date, time, endtime, format:selectedFormat,
