@@ -1019,7 +1019,7 @@
   var whoKey = realMeId.split('.').join('').toLowerCase();
   var known = ls(function () { return w.localStorage.getItem('cw-super'); }, null);
   var stamp = ls(function () { return JSON.parse(w.localStorage.getItem('cw-super-for') || 'null'); }, null);
-  var fresh = stamp && typeof stamp === 'object' && stamp.who === whoKey && (Date.now() - (stamp.at || 0)) < 3600000;
+  var fresh = stamp && typeof stamp === 'object' && stamp.v === 2 && stamp.who === whoKey && (Date.now() - (stamp.at || 0)) < 3600000;
   if (fresh && known === 'yes') { drawAdminBar(); return; }
   if (fresh && known === 'no') { return; }
   ls(function () { w.localStorage.removeItem('cw-super'); w.localStorage.removeItem('cw-super-for'); });
@@ -1027,8 +1027,9 @@
         + '&meToken=' + encodeURIComponent(String(w.localStorage.getItem('cw-token') || '')))
     .then(function (r) { return r.json(); })
     .then(function (dd) {
-      var yes = !!(dd && dd.status === 'ok' && dd.isSuper);
-      ls(function () { w.localStorage.setItem('cw-super', yes ? 'yes' : 'no'); w.localStorage.setItem('cw-super-for', JSON.stringify({ who: whoKey, at: Date.now() })); });
+      if (!dd || dd.status !== 'ok') { return; }
+      var yes = !!dd.isSuper;
+      ls(function () { w.localStorage.setItem('cw-super', yes ? 'yes' : 'no'); w.localStorage.setItem('cw-super-for', JSON.stringify({ v: 2, who: whoKey, at: Date.now() })); });
       if (yes) { drawAdminBar(); }
     })
     .catch(function () {});
