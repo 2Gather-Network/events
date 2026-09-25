@@ -866,7 +866,7 @@
     d.body.insertBefore(bar, d.body.firstChild);
   }
 
-  w.CW_ADMIN_HIDDEN = false;
+  w.CW_ADMIN_HIDDEN = true;
 
   var FOLD_KEY = 'cw-admin-folded';
   function folded() { return ls(function () { return w.localStorage.getItem(FOLD_KEY) === '1'; }, false); }
@@ -1005,7 +1005,7 @@
       return !!who && !!mine && who === mine;
     } catch (e) { return false; }
   }
-  var CW_ADMIN_OFF = false;
+  var CW_ADMIN_OFF = true;
   if (CW_ADMIN_OFF) {
     ls(function () { w.localStorage.removeItem('cw-super'); });
     return;
