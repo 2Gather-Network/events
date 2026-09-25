@@ -816,6 +816,13 @@
     go();
   }
 
+  function gpRoot(x){ return String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/(ings|ing|ers|er|es|s|e)$/, ''); }
+  function gpRootHit(t, c){
+    var mine = String(t || '').toLowerCase().split(/[^a-z0-9]+/).filter(function(x){ return x.length >= 3; }).map(gpRoot).filter(function(x){ return x.length >= 3; });
+    if (!mine.length) { return false; }
+    var theirs = (c.word + ' ' + (c.assoc || '')).toLowerCase().split(/[^a-z0-9]+/).map(gpRoot);
+    return mine.every(function(m){ return theirs.some(function(x){ return x.indexOf(m) === 0; }); });
+  }
   function gpCorpus(source, rd){
     var out = [], seen = {};
     var push = function(w, c, a, kind){
@@ -824,7 +831,9 @@
       seen[k] = 1; out.push({ word: w, cat: String(c || '').trim(), assoc: String(a || '').toLowerCase(), kind: String(kind || '') });
     };
     if (source === 'recreation') {
-      (rd.recreation || []).forEach(function(r){ push(r.item, r.recType, r.associations); });
+      (rd.recreation || []).forEach(function(r){
+        push(r.item, r.category || r.recType, [r.associations, r.category, r.recType, r.parent].filter(Boolean).join(', '));
+      });
     } else if (source === 'skills') {
       (rd.skills || []).forEach(function(s){ push(s.item, s.category, s.associations); });
     } else if (source === 'values') {
@@ -1883,8 +1892,8 @@
       results.innerHTML = '';
       if (t.length < 2) return;
       var hits = corpus.filter(function(c){
-        return c.word.toLowerCase().indexOf(t) > -1 || (c.assoc && c.assoc.indexOf(t) > -1);
-      }).slice(0, 6);
+        return c.word.toLowerCase().indexOf(t) > -1 || (c.assoc && c.assoc.indexOf(t) > -1) || gpRootHit(t, c);
+      }).slice(0, 8);
       var typedNow = String(search.value || '').trim();
       var exact = hits.some(function(h){ return h.word.toLowerCase() === typedNow.toLowerCase(); });
       if (hits.length && !exact) {
