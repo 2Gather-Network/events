@@ -606,7 +606,7 @@ function pick(el, key){
           (img ? '<img class="gpan-ph" src="' + _escHtml(img) + '" alt="" onerror="this.style.display=\'none\'">'
                : '<span class="gpan-ph"></span>')
         + '<div class="gpan-cb">'
-        +   '<p class="gpan-ttl">' + _escHtml(ev.title || 'Event') + '</p>'
+        +   '<p class="gpan-ttl">' + (ev._groupsOnly ? '<span title="Only members of this group see this event">\u{1F512} </span>' : '') + _escHtml(ev.title || 'Event') + '</p>'
         +   '<p class="gpan-m">\uD83D\uDCC5 ' + _escHtml(gpWhen(ev, true)) + '</p>'
         +   (ev.venue || ev.location ? '<p class="gpan-m">\uD83D\uDCCD ' + _escHtml(ev.venue || ev.location) + '</p>' : '')
         +   (cats.length ? cats.map(function(k){ return '<span class="gpan-pill">' + _escHtml(k) + '</span>'; }).join(' ') : '')
@@ -651,12 +651,29 @@ function pick(el, key){
     var box = document.getElementById('gp-events-list');
     var sub = document.getElementById('gp-tile-events-sub');
     if (!box || !groupId) return;
-    fetch(GS_URL + '?t=' + Date.now())
-      .then(function(r){ return r.json(); })
-      .then(function(d){
+    var _inThis = function(ev){
+      return String(ev.groupId || '').split('|').map(function(x){ return x.trim(); }).indexOf(groupId) > -1;
+    };
+    var _priv = meId
+      ? fetch(GS_URL + '?action=getGroupPrivateEvents&groupId=' + encodeURIComponent(groupId)
+              + '&appearId=' + encodeURIComponent(meId) + '&t=' + Date.now())
+          .then(function(r){ return r.json(); })
+          .then(function(p){ return ((p && p.events) || []).filter(function(ev){ return String(ev.isPrivate).toLowerCase() === 'true' && _inThis(ev); }); })
+          .catch(function(){ return []; })
+      : Promise.resolve([]);
+    Promise.all([fetch(GS_URL + '?t=' + Date.now()).then(function(r){ return r.json(); }), _priv])
+      .then(function(both){
+        var d = both[0];
         var all = (d && d.events) || [];
-        var forGroup = all.filter(function(ev){
-          return String(ev.groupId || '').split('|').map(function(x){ return x.trim(); }).indexOf(groupId) > -1;
+        var forGroup = all.filter(_inThis);
+        var _have = {};
+        forGroup.forEach(function(ev){ _have[String(ev.id || ev.eventId || '')] = 1; });
+        both[1].forEach(function(ev){
+          var k = String(ev.id || ev.eventId || '');
+          if (k && _have[k]) return;
+          _have[k] = 1;
+          ev._groupsOnly = true;
+          forGroup.push(ev);
         });
         var today = new Date(); today.setHours(0,0,0,0);
         var past = [], mine = [];
