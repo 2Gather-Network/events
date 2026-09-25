@@ -1927,9 +1927,10 @@ function pick(el, key){
       return (o && o.d) ? o.d : null;
     } catch (e) { return null; }
   }
+  var _gpOnboarding = false;
   function _gpUpdating(on) {
     var el = document.getElementById('gp-updating');
-    if (!on) { if (el) el.remove(); return; }
+    if (!on || _gpOnboarding) { if (el) el.remove(); return; }
     if (el) return;
     var layout = document.getElementById('gp-layout');
     if (!layout || !layout.parentNode) return;
@@ -2339,6 +2340,7 @@ var myPill = document.getElementById('gp-myprofile-pill');
         var box = document.getElementById('gp-onboard-actions');
         var stat = document.getElementById('gp-onboard-status');
         if (!box) return;
+        _gpOnboarding = true; _gpUpdating(false);
         box.innerHTML = '';
         box.style.display = 'block';
         if (!meId) {
@@ -2520,8 +2522,28 @@ var myPill = document.getElementById('gp-myprofile-pill');
                 say((res && res.message) ? res.message : 'That did not go through. Try again in a moment.', true);
               })
               .catch(function(){
-                go.disabled = false;
-                say('Could not reach the server. Try again in a moment.', true);
+                say('Checking whether that went through...', false, true);
+                fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(groupId)
+                      + '&me=' + encodeURIComponent(meId) + '&nocache=1&t=' + Date.now())
+                  .then(function(r){ return r.json(); })
+                  .then(function(d){
+                    var n = function(x){ return String(x || '').split('.').join('').toLowerCase(); };
+                    var inNow = (d && d.attendees || []).some(function(p){ return n(p.appearId) === n(meId); });
+                    if (inNow) {
+                      say('You are in. Reloading...');
+                      setTimeout(function(){
+                        window.location.href = location.pathname + location.search
+                          + (location.search ? '&' : '?') + 'joined=1';
+                      }, 700);
+                      return;
+                    }
+                    go.disabled = false;
+                    say('That did not go through. Try again in a moment.', true);
+                  })
+                  .catch(function(){
+                    go.disabled = false;
+                    say('Could not reach the server. Try again in a moment.', true);
+                  });
               });
           }
 
