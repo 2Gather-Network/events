@@ -106,6 +106,7 @@
   }
   var GP_RAIL = (params.get('look') || '') !== 'list';
   var GP_SUGG_ON = (params.get('sugg') || '') === '1';
+  var GP_DRILL = (params.get('drill') || '') === '1';
   var GP_V2 = GP_RAIL && (params.get('v') || '') !== '1';
   var GP_REQ = GP_RAIL && (params.get('req') || '') !== '0';
   var GP_EDIT = GP_RAIL && (params.get('edit') || '') === '1';
@@ -766,7 +767,7 @@
       .catch(function(){ _gpRefP = null; return {}; });
     return _gpRefP;
   }
-  var _gpCatEmoji = null, _gpCatEmojiP = null;
+  var _gpCatEmoji = null, _gpCatEmojiP = null, _gpCatOrder = [];
   function gpCatEmoji(name){
     if (!_gpCatEmoji) { return ''; }
     var n = String(name || '').toLowerCase();
@@ -781,7 +782,9 @@
       .then(function(d){
         var m = {};
         ((d && d.categories) || []).forEach(function(c){ if (c && c.label && c.emoji) { m[String(c.label).toLowerCase()] = c.emoji; } });
+        _gpCatOrder = ((d && d.categories) || []).map(function(c){ return String((c && c.label) || '').trim(); }).filter(Boolean);
         _gpCatEmoji = m;
+        try { if (GP_DRILL && window._gpReDrill) { window._gpReDrill(); } } catch (e) {}
         Array.prototype.forEach.call(document.querySelectorAll('[data-gp-cat]'), function(b){
           var nm = b.getAttribute('data-gp-cat');
           b.textContent = gpCatEmoji(nm) + nm;
@@ -967,7 +970,10 @@
       else tree[top].items.push(item);
     };
     if (source === 'recreation') {
-      (rd.recreation || []).forEach(function(r){ add(r.recType, r.category, r.item); });
+      (rd.recreation || []).forEach(function(r){
+        if (GP_DRILL) { add(r.parent || 'Recreation & Hobbies', r.recType, r.item); }
+        else { add(r.recType, r.category, r.item); }
+      });
     } else if (source === 'skills') {
       (rd.skills || []).forEach(function(s){ add(s.category, '', s.item); });
     } else if (source === 'values') {
@@ -985,7 +991,14 @@
   }
   function gpLevel(tree, path){
     var alpha = function(x){ return x.slice().sort(function(a,b){ return a.localeCompare(b); }); };
-    if (!path.length) return alpha(Object.keys(tree)).map(function(k){ return { name:k, drill:true }; });
+    if (!path.length) {
+      if (GP_DRILL && _gpCatOrder.length) {
+        var tops = _gpCatOrder.slice();
+        alpha(Object.keys(tree)).forEach(function(k){ if (tops.indexOf(k) < 0) tops.push(k); });
+        return tops.map(function(k){ return { name:k, drill:true }; });
+      }
+      return alpha(Object.keys(tree)).map(function(k){ return { name:k, drill:true }; });
+    }
     var node = tree[path[0]] || { subs:{}, items:[] };
     if (path.length === 1) {
       var out = alpha(Object.keys(node.subs)).map(function(k){ return { name:k, drill:true }; });
@@ -1470,6 +1483,7 @@
         browseWrap.appendChild(trail);
       }
       _reBrowse = function(){ gpRenderBrowse(tree, path); };
+      if (GP_DRILL && cfg.source === 'recreation' && !path.length) { window._gpReDrill = _reBrowse; gpCatEmojiOnce(); }
       var lrow = document.createElement('div');
       lrow.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
       gpLevel(tree, path).forEach(function(it){
@@ -1487,13 +1501,18 @@
         var b = gpPill(it.name, gpHasWord(key, it.name));
         b.addEventListener('click', function(){
           if (gpHasWord(key, it.name)) gpDropWord(key, it.name, ta);
-          else gpAddWord(key, it.name + (cfg.kinds && cfg._kindNow ? ':' + cfg._kindNow : ''), path[0] || '', ta);
+          else gpAddWord(key, it.name + (cfg.kinds && cfg._kindNow ? ':' + cfg._kindNow : ''), (GP_DRILL && cfg.source === 'recreation' ? (path[1] || path[0]) : path[0]) || '', ta);
           gpRenderBrowse(tree, path);
           repaint();
         });
         lrow.appendChild(b);
       });
-      if (!gpLevel(tree, path).length) {
+      if (!gpLevel(tree, path).length && GP_DRILL && cfg.source === 'recreation' && path.length) {
+        var none = document.createElement('div');
+        none.style.cssText = 'font-size:13px;color:#6B7A8D;margin:0 0 8px;flex-basis:100%;';
+        none.textContent = 'Nothing listed here yet. Add yours with + Other.';
+        lrow.appendChild(none);
+      } else if (!gpLevel(tree, path).length) {
         browseWrap.style.display = 'none';
         browseWrap.innerHTML = '';
         return;
