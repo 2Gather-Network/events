@@ -5,7 +5,7 @@
   var WHO   = ['CWid', 'memberCard', 'appearId', 'me'];
   var KEEP  = ['cw-id', 'appear-id'];           
   var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-photo-at', 'cw-token', 'cw-first',
-               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-lastEmail'];
+               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-super-for', 'cw-lastEmail'];
   var VIEW_KEY = 'cw-view-as';
   var OUT_KEY = 'cw-view-out';
 
@@ -133,6 +133,14 @@
               var joined = url + (url.indexOf('?') > -1 ? '&' : '?') + 'meToken=' + encodeURIComponent(t);
               out = (typeof input === 'string') ? joined : new Request(joined, input);
               carries = true;
+            }
+          }
+          if (carries && viewingAs()) {
+            var u2 = (typeof out === 'string') ? out : (out && out.url) || '';
+            var realId = String(w.CW_ID || '').trim() || fromDevice();
+            if (u2.indexOf('realMe=') === -1 && realId && u2.length < 6000) {
+              var j2 = u2 + '&realMe=' + encodeURIComponent(realId);
+              out = (typeof out === 'string') ? j2 : new Request(j2, out);
             }
           }
         }
