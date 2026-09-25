@@ -654,27 +654,42 @@ function pick(el, key){
     var _inThis = function(ev){
       return String(ev.groupId || '').split('|').map(function(x){ return x.trim(); }).indexOf(groupId) > -1;
     };
-    var _priv = meId
-      ? fetch(GS_URL + '?action=getGroupPrivateEvents&groupId=' + encodeURIComponent(groupId)
-              + '&appearId=' + encodeURIComponent(meId) + '&t=' + Date.now())
-          .then(function(r){ return r.json(); })
-          .then(function(p){ return ((p && p.events) || []).filter(function(ev){ return String(ev.isPrivate).toLowerCase() === 'true' && _inThis(ev); }); })
-          .catch(function(){ return []; })
-      : Promise.resolve([]);
-    Promise.all([fetch(GS_URL + '?t=' + Date.now()).then(function(r){ return r.json(); }), _priv])
-      .then(function(both){
-        var d = both[0];
-        var all = (d && d.events) || [];
-        var forGroup = all.filter(_inThis);
-        var _have = {};
-        forGroup.forEach(function(ev){ _have[String(ev.id || ev.eventId || '')] = 1; });
-        both[1].forEach(function(ev){
-          var k = String(ev.id || ev.eventId || '');
-          if (k && _have[k]) return;
-          _have[k] = 1;
-          ev._groupsOnly = true;
-          forGroup.push(ev);
-        });
+    var _forGroup = [], _have = {}, _feedIn = false, _privRows = [], _privDone = !meId;
+    var _merge = function(rows){
+      rows.forEach(function(ev){
+        var k = String(ev.id || ev.eventId || '');
+        if (k && _have[k]) return;
+        if (k) _have[k] = 1;
+        _forGroup.push(ev);
+      });
+    };
+    if (meId) {
+      fetch(GS_URL + '?action=getGroupPrivateEvents&groupId=' + encodeURIComponent(groupId)
+            + '&appearId=' + encodeURIComponent(meId) + '&t=' + Date.now())
+        .then(function(r){ return r.json(); })
+        .then(function(p){
+          _privRows = ((p && p.events) || []).filter(function(ev){ return String(ev.isPrivate).toLowerCase() === 'true' && _inThis(ev); });
+          _privRows.forEach(function(ev){ ev._groupsOnly = true; });
+          _privDone = true;
+          if (_feedIn) { _merge(_privRows); _gpEventsDraw(_forGroup); }
+        })
+        .catch(function(){ _privDone = true; if (_feedIn) _gpEventsDraw(_forGroup); });
+    }
+    fetch(GS_URL + '?t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        _merge(((d && d.events) || []).filter(_inThis));
+        _merge(_privRows);
+        _feedIn = true;
+        if (_forGroup.length || _privDone) _gpEventsDraw(_forGroup);
+      })
+      .catch(function(){
+        box.textContent = 'Could not load events just now.';
+        if (sub) sub.textContent = 'Could not load events just now.';
+      });
+  }
+  function _gpEventsDraw(forGroup){
+        var sub = document.getElementById('gp-tile-events-sub');
         var today = new Date(); today.setHours(0,0,0,0);
         var past = [], mine = [];
         forGroup.forEach(function(ev){
@@ -704,11 +719,6 @@ function pick(el, key){
         _gpPanelEvents = mine;
         _gpPanelPast = past;
         _gpPanelDraw();
-      })
-      .catch(function(){
-        box.textContent = 'Could not load events just now.';
-        if (sub) sub.textContent = 'Could not load events just now.';
-      });
   }
   window.gpLoadEvents = gpLoadEvents;
   var GP_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
