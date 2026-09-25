@@ -2664,8 +2664,21 @@
     return String(o[String(word).toLowerCase()] || word);
   }
   function gpSplitWork(raw){
-    var m = String(raw).match(/^(.*?)(:work)$/i);
-    return m ? { body:m[1], work:m[2] } : { body:String(raw), work:'' };
+    var m = String(raw).match(/^(.*?)(:isLearnedBy=[a-z+]*)?(:work)?$/i);
+    if (!m) { return { body:String(raw), work:'', onlyWork:'', how:[] }; }
+    var h = m[2] || '', wk = m[3] || '';
+    return { body:m[1], work:h + wk, onlyWork:wk, how:h ? h.slice(13).toLowerCase().split('+').filter(Boolean) : [] };
+  }
+  var GP_HOW = [['lived','Lived it'],['volunteered','Volunteered'],['workedas','Worked as it'],['studied','Studied it'],['credentialed','Credentialed'],['titled','Worked in official title']];
+  function gpHowOf(key, word){ return gpSplitWork(gpOrigFor(key, word)).how; }
+  function gpSetHow(key, word, list){
+    if (!_gpOrig[key]) { _gpOrig[key] = {}; }
+    var w = gpSplitWork(gpOrigFor(key, word)), parts = w.body.split(':'), kw = String(word).toLowerCase();
+    while (parts.length < 3) { parts.push(''); }
+    var keep = GP_HOW.map(function(h){ return h[0]; }).filter(function(c){ return list.indexOf(c) > -1; });
+    _gpOrig[key][kw] = parts.join(':') + (keep.length ? ':isLearnedBy=' + keep.join('+') : '') + w.onlyWork;
+    _gpOrigEdited[key + '|' + kw] = _gpOrig[key][kw];
+    try { gpTouchSave(); } catch (e) {}
   }
   function gpLevelOf(key, word){
     var parts = gpSplitWork(gpOrigFor(key, word)).body.split(':');
@@ -2950,6 +2963,29 @@
         pills.appendChild(b);
       });
       card.appendChild(pills);
+      if (key === 'introSkills') {
+        var howHead = document.createElement('div');
+        howHead.style.cssText = 'font-size:11.5px;font-weight:700;color:#6B7A8D;margin:9px 0 5px;';
+        howHead.textContent = 'How I know this';
+        card.appendChild(howHead);
+        var howRow = document.createElement('div');
+        howRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+        var howOn = gpHowOf(key, word);
+        GP_HOW.forEach(function(h){
+          var hb = gpPill(h[1], howOn.indexOf(h[0]) > -1);
+          hb.style.fontSize = '11.5px';
+          hb.style.padding = '5px 10px';
+          hb.setAttribute('aria-pressed', howOn.indexOf(h[0]) > -1 ? 'true' : 'false');
+          hb.onclick = function(){
+            var now = gpHowOf(key, word), at = now.indexOf(h[0]);
+            if (at > -1) { now.splice(at, 1); } else { now.push(h[0]); }
+            gpSetHow(key, word, now);
+            gpTagPaint(key);
+          };
+          howRow.appendChild(hb);
+        });
+        card.appendChild(howRow);
+      }
       var _fn = gpDelFailNote(key + '|' + String(word).toLowerCase());
       if (_fn) { card.appendChild(_fn); }
       rows.appendChild(card);
