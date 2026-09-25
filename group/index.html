@@ -226,6 +226,7 @@
   <script src="/nav/identity.js?v=29"></script>
   <script src="/nav/firststop.js?v=3"></script>
   <script src="/group/offer-count.js?v=1"></script>
+  <script src="/nav/event-match.js?v=1"></script>
 </head>
 <body class="gp-waiting">
 
@@ -562,12 +563,35 @@ function pick(el, key){
     var bar = document.getElementById('gp-panel-top');
     if (bar) bar.style.display = 'flex';
     var m = document.getElementById('gp-panel-matches');
-    if (m) { m.addEventListener('click', function(){ try { gpShow('feed'); } catch (e) {} }); }
+    if (m) { m.addEventListener('click', function(){
+      _gpMatchOn = !_gpMatchOn;
+      m.textContent = _gpMatchOn ? 'All group events' : 'Event matches';
+      if (_gpMatchOn && _gpTopics === null) _gpLoadTopics();
+      try { _gpPanelDraw(); } catch (e) {}
+    }); }
     var q = document.getElementById('gp-panel-search');
     if (q) { q.addEventListener('input', function(){ try { _gpPanelDraw(); } catch (e) {} }); }
   })();
 
   var _gpPanelEvents = [], _gpPanelPast = [], _gpPanelAll = false, _gpPanelShowPast = false;
+  var _gpMatchOn = false, _gpTopics = null, _gpTopicsAsked = false;
+  function _gpLoadTopics(){
+    if (_gpTopicsAsked) return;
+    _gpTopicsAsked = true;
+    try {
+      var kept = JSON.parse(localStorage.getItem('my-interests-' + meId) || 'null');
+      if (Array.isArray(kept) && kept.length) { _gpTopics = kept; return; }
+    } catch (e) {}
+    if (!meId) { _gpTopics = []; return; }
+    fetch(GS_URL + '?action=getProfile&appearId=' + encodeURIComponent(meId))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        _gpTopics = window.cwSplitTopics(((d && d.data) || {}).topics);
+        try { localStorage.setItem('my-interests-' + meId, JSON.stringify(_gpTopics)); } catch (e) {}
+      })
+      .catch(function(){ _gpTopics = []; })
+      .then(function(){ try { _gpPanelDraw(); } catch (e) {} });
+  }
   var _GP_PANEL_FIRST = 6;
   function _gpPanelDraw(){
     var box = document.getElementById('gp-events-list');
@@ -575,6 +599,27 @@ function pick(el, key){
     var q = '';
     try { q = String((document.getElementById('gp-panel-search') || {}).value || '').trim().toLowerCase(); } catch (e) {}
     var source = _gpPanelShowPast ? _gpPanelEvents.concat(_gpPanelPast) : _gpPanelEvents;
+    if (_gpMatchOn) {
+      if (_gpTopics === null) {
+        box.className = '';
+        box.innerHTML = '<p class="gpan-none" style="color:#1F699E;">Finding the events that match your interests\u2026</p>';
+        _gpPanelFoot(0, 0, 'm');
+        return;
+      }
+      if (!_gpTopics.length) {
+        box.className = '';
+        box.innerHTML = '<p class="gpan-none">Add your interests on the <a href="https://2gather.network/events/" style="color:#1F699E;font-weight:700;">calendar</a> and the events here that match them show up.</p>';
+        _gpPanelFoot(0, 0, 'm');
+        return;
+      }
+      source = _gpPanelEvents.filter(function(ev){ return window.cwEventMatchOf(ev, _gpTopics).any; });
+      if (!source.length) {
+        box.className = '';
+        box.innerHTML = '<p class="gpan-none">None of this group\u2019s upcoming events match your interests yet.</p>';
+        _gpPanelFoot(0, 0, 'm');
+        return;
+      }
+    }
     var list = source.filter(function(ev){
       if (!q) return true;
       var hay = [ev.title, ev.venue, ev.location, ev.categories, gpWhen(ev, true),
@@ -629,6 +674,9 @@ function pick(el, key){
       if (list && list.parentNode) { list.parentNode.insertBefore(foot, list.nextSibling); }
     }
     var bits = '';
+    if (_gpMatchOn && total) {
+      bits += '<span style="font-weight:800;color:#1A2E42;">Recommended matches \u00b7 ' + total + (total === 1 ? ' event' : ' events') + ' for you</span>';
+    }
     if (!q && total > _GP_PANEL_FIRST) {
       bits += _gpPanelAll
         ? '<span>Showing all ' + total + ' \u00b7 <a role="link" tabindex="0" onclick="gpPanelShowAll(false);return false;" style="color:#1F699E;cursor:pointer;font-weight:700;">Show ' + _GP_PANEL_FIRST + '</a></span>'
