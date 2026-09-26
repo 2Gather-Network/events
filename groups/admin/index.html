@@ -411,6 +411,34 @@
 <script>
 (function(){
   var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
+  var _cwViewing = (function(){ try { return !!(window.CW && CW.me && CW.me().viewing); } catch (e) { return false; } })();
+  var _CW_VIEW_READS = { getGroupBundle: 1, getReferenceData: 1, getCategories: 1 };
+  var fetch = function(u, o){
+    if (_cwViewing) {
+      var a = (String((u && u.url) || u).match(/[?&]action=([A-Za-z]+)/) || [])[1] || '';
+      if (a && !_CW_VIEW_READS[a]) return Promise.reject(new Error('Nothing can be changed while viewing as somebody else.'));
+    }
+    return window.fetch(u, o);
+  };
+  function _cwViewOnly(){
+    var lk = document.getElementById('stage-looking'); if (lk) lk.style.display = 'none';
+    document.getElementById('stage-pin').classList.add('hidden');
+    var dash = document.getElementById('stage-dashboard');
+    dash.classList.remove('hidden');
+    if (!document.getElementById('cw-view-note')) {
+      var who = '';
+      try { who = String(sessionStorage.getItem('cw-view-as-name') || '').trim(); } catch (e) {}
+      var n = document.createElement('div');
+      n.id = 'cw-view-note'; n.className = 'card'; n.setAttribute('role', 'status');
+      n.style.cssText = 'margin-bottom:14px;font-size:15px;line-height:1.55;color:#1A2E42;';
+      n.textContent = 'You are viewing as ' + (who || 'somebody else') + '. Nothing can be changed here. Press Back to me to manage this group as yourself.';
+      dash.insertBefore(n, dash.firstChild);
+    }
+    var st = document.createElement('style');
+    st.textContent = '#stage-dashboard .btn, #stage-dashboard input, #stage-dashboard select, #stage-dashboard textarea{pointer-events:none;opacity:.55;}';
+    document.head.appendChild(st);
+    dash.querySelectorAll('input, select, textarea, .btn').forEach(function(el){ try { el.disabled = true; } catch (e) {} });
+  }
   window._safeNavGo=function(el){try{var u=el&&el.getAttribute&&el.getAttribute('data-nav');if(u){window.location.href=u;}}catch(e){}return false;};
   var params = new URLSearchParams(window.location.search);
   var groupId = (params.get('id') || params.get('groupId') || window.CW_GROUP_ID || '').trim();
@@ -592,8 +620,11 @@
         var _lk2 = document.getElementById('stage-looking');
         if (_lk2) _lk2.style.display = 'none';
         var _dashOpen = !document.getElementById('stage-dashboard').classList.contains('hidden');
-        if (!_dashOpen && getToken()) { unlockDashboard(); _dashOpen = true; }
-        if (_dashOpen) {
+        if (_cwViewing) { _dashOpen = true; }
+        else if (!_dashOpen && getToken()) { unlockDashboard(); _dashOpen = true; }
+        if (_cwViewing) {
+          _cwViewOnly();
+        } else if (_dashOpen) {
           document.getElementById('stage-pin').classList.add('hidden');
         } else if (_signinToken()) {
           passFromSignin();
