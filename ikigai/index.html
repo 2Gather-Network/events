@@ -2623,8 +2623,8 @@
     return '1px solid #B9C4D2';
   })();
   var GP_LEVELS = {
-    introEnjoy:  { multi:true,  list:['Fan','Participant','Coach'],            head:'Enjoys added' },
-    introSkills: { multi:false, list:['Entry Level','Mid Level','Expert Level'], head:'Skills added' },
+    introEnjoy:  { multi:true,  list:['Fan','Learner','Practitioner','Guide'], head:'Enjoys added' },
+    introSkills: { multi:false, list:['Learner','Practitioner','Guide'],       head:'Skills added' },
     introValues: { multi:false, list:['Exploring','Engaged','Leading'],        head:'Cares added', across:true }
   };
   var _gpFoldShut = {};
@@ -2665,11 +2665,12 @@
     return String(o[String(word).toLowerCase()] || word);
   }
   function gpSplitWork(raw){
-    var m = String(raw).match(/^(.*?)(:alsoIn=[^:|]*)?(:isLearnedBy=[a-z+]*)?(:work)?$/i);
-    if (!m) { return { body:String(raw), work:'', onlyWork:'', how:[], also:[], alsoRaw:'' }; }
-    var al = m[2] || '', h = m[3] || '', wk = m[4] || '';
-    return { body:m[1], work:al + h + wk, onlyWork:wk, alsoRaw:al,
+    var m = String(raw).match(/^(.*?)(:alsoIn=[^:|]*)?(:guideAs=[^:|]*)?(:isLearnedBy=[a-z+]*)?(:work)?$/i);
+    if (!m) { return { body:String(raw), work:'', onlyWork:'', how:[], also:[], alsoRaw:'', guide:[], guideRaw:'' }; }
+    var al = m[2] || '', gd = m[3] || '', h = m[4] || '', wk = m[5] || '';
+    return { body:m[1], work:al + gd + h + wk, onlyWork:wk, alsoRaw:al, guideRaw:gd,
       also:al ? al.slice(8).split('+').map(function(x){ return x.trim(); }).filter(Boolean) : [],
+      guide:gd ? gd.slice(9).split('+').map(function(x){ return x.trim(); }).filter(Boolean) : [],
       how:h ? h.slice(13).toLowerCase().split('+').filter(Boolean) : [] };
   }
   function gpSetAlso(key, word, list){
@@ -2677,7 +2678,7 @@
     var w = gpSplitWork(gpOrigFor(key, word)), kw = String(word).toLowerCase(), seen = {}, keep = [];
     list.forEach(function(c){ c = String(c || '').replace(/[:|,+~]/g, ' ').replace(/\s+/g, ' ').trim(); if (c && !seen[c.toLowerCase()]) { seen[c.toLowerCase()] = 1; keep.push(c); } });
     var hw = w.how.length ? ':isLearnedBy=' + w.how.join('+') : '';
-    _gpOrig[key][kw] = w.body + (keep.length ? ':alsoIn=' + keep.join('+') : '') + hw + w.onlyWork;
+    _gpOrig[key][kw] = w.body + (keep.length ? ':alsoIn=' + keep.join('+') : '') + w.guideRaw + hw + w.onlyWork;
     _gpOrigEdited[key + '|' + kw] = _gpOrig[key][kw];
     try { gpTouchSave(); } catch (e) {}
   }
@@ -2688,16 +2689,45 @@
     var w = gpSplitWork(gpOrigFor(key, word)), parts = w.body.split(':'), kw = String(word).toLowerCase();
     while (parts.length < 3) { parts.push(''); }
     var keep = GP_HOW.map(function(h){ return h[0]; }).filter(function(c){ return list.indexOf(c) > -1; });
-    _gpOrig[key][kw] = parts.join(':') + w.alsoRaw + (keep.length ? ':isLearnedBy=' + keep.join('+') : '') + w.onlyWork;
+    _gpOrig[key][kw] = parts.join(':') + w.alsoRaw + w.guideRaw + (keep.length ? ':isLearnedBy=' + keep.join('+') : '') + w.onlyWork;
     _gpOrigEdited[key + '|' + kw] = _gpOrig[key][kw];
     try { gpTouchSave(); } catch (e) {}
   }
-  function gpLevelOf(key, word){
+  var GP_LEVEL_OLD = { 'participant':'Practitioner', 'coach':'Guide', 'entry level':'Learner', 'mid level':'Practitioner', 'expert level':'Guide' };
+  var GP_DO_LEVELS = ['Learner', 'Practitioner', 'Guide'];
+  var GP_GUIDE_ROLES = ['Mentor', 'Facilitator', 'Coach', 'Host', 'Performer', 'Consultant', 'Organizer'];
+  function gpLevelRaw(key, word){
     var parts = gpSplitWork(gpOrigFor(key, word)).body.split(':');
     if (parts.length < 2) { return []; }
     var last = String(parts[parts.length - 1] || '').trim();
     if (!last) { return []; }
     return last.split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+  }
+  function gpLevelOf(key, word){
+    var seen = {}, out = [];
+    gpLevelRaw(key, word).forEach(function(x){
+      var n = GP_LEVEL_OLD[x.toLowerCase()] || x;
+      if (!seen[n.toLowerCase()]) { seen[n.toLowerCase()] = 1; out.push(n); }
+    });
+    return out;
+  }
+  function gpIsLevelWord(x){
+    var l = String(x || '').trim().toLowerCase();
+    return !!GP_LEVEL_OLD[l] || l === 'fan' || GP_DO_LEVELS.some(function(v){ return v.toLowerCase() === l; });
+  }
+  function gpRolesOf(key, word){
+    var w = gpSplitWork(gpOrigFor(key, word));
+    if (w.guide.length) { return w.guide; }
+    return gpLevelRaw(key, word).some(function(x){ return x.toLowerCase() === 'coach'; }) ? ['Coach'] : [];
+  }
+  function gpSetGuide(key, word, roles){
+    if (!_gpOrig[key]) { _gpOrig[key] = {}; }
+    var w = gpSplitWork(gpOrigFor(key, word)), kw = String(word).toLowerCase();
+    var keep = GP_GUIDE_ROLES.filter(function(r){ return roles.indexOf(r) > -1; });
+    var hw = w.how.length ? ':isLearnedBy=' + w.how.join('+') : '';
+    _gpOrig[key][kw] = w.body + w.alsoRaw + (keep.length ? ':guideAs=' + keep.join('+') : '') + hw + w.onlyWork;
+    _gpOrigEdited[key + '|' + kw] = _gpOrig[key][kw];
+    try { gpTouchSave(); } catch (e) {}
   }
   function gpSetLevel(key, word, levels){
     if (!_gpOrig[key]) { _gpOrig[key] = {}; }
@@ -2853,7 +2883,7 @@
     var st = _gpEnjoyOpen[ok] || (_gpEnjoyOpen[ok] = { open:false, path:null, noGuess:false });
     var parts = gpSplitWork(gpOrigFor(key, word)).body.split(':');
     var have = parts.length > 1 ? String(parts[1] || '').split('~')[0].trim() : '';
-    if (have && ((GP_LEVELS[key] && GP_LEVELS[key].list) || []).some(function(lv){ return lv.toLowerCase() === have.toLowerCase(); })) { have = ''; }
+    if (have && gpIsLevelWord(have)) { have = ''; }
     if (!have && !st.noGuess && !gpViewingSomebodyElse()) {
       var guess = gpEnjoyGuess(word);
       if (guess) {
@@ -3012,6 +3042,59 @@
     sel.onchange = function(){ gpSetCategory(key, word, sel.value); gpTagPaint(key); };
     return sel;
   }
+  var _gpDoOpen = {};
+  function gpDoLevels(key, word){
+    var box = document.createElement('div');
+    var ok = key + '|' + String(word).toLowerCase();
+    var lv = gpLevelOf(key, word), fan = lv.indexOf('Fan') > -1;
+    var doing = GP_DO_LEVELS.filter(function(v){ return lv.indexOf(v) > -1; })[0] || '';
+    var open = key === 'introSkills' || !!doing || !!_gpDoOpen[ok];
+    var roles = gpRolesOf(key, word);
+    var mine = !gpViewingSomebodyElse();
+    var small = function(b){ b.style.fontSize = '11.5px'; b.style.padding = '5px 10px'; if (!mine) { b.disabled = true; b.style.cursor = 'default'; } return b; };
+    var save = function(nextFan, nextDo, nextRoles){
+      gpSetLevel(key, word, (nextFan ? ['Fan'] : []).concat(nextDo ? [nextDo] : []));
+      gpSetGuide(key, word, nextDo === 'Guide' ? nextRoles : []);
+      gpTagPaint(key);
+    };
+    var row = function(){ var r = document.createElement('div'); r.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;'; return r; };
+    if (key === 'introEnjoy') {
+      var r1 = row();
+      var fb = small(gpPill('Fan', fan)); fb.setAttribute('aria-pressed', fan ? 'true' : 'false');
+      fb.onclick = function(){ save(!fan, doing, roles); };
+      var db = small(gpPill('I do this', open)); db.setAttribute('aria-pressed', open ? 'true' : 'false');
+      db.onclick = function(){
+        if (open) { _gpDoOpen[ok] = false; save(fan, '', []); }
+        else { _gpDoOpen[ok] = true; gpTagPaint(key); }
+      };
+      r1.appendChild(fb); r1.appendChild(db); box.appendChild(r1);
+    }
+    if (open) {
+      var r2 = row();
+      GP_DO_LEVELS.forEach(function(v){
+        var on = doing === v, b = small(gpPill(v, on));
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.onclick = function(){ save(fan, on ? '' : v, roles); };
+        r2.appendChild(b);
+      });
+      box.appendChild(r2);
+    }
+    if (doing === 'Guide') {
+      var hd = document.createElement('div');
+      hd.style.cssText = 'font-size:11.5px;font-weight:700;color:#6B7A8D;margin:9px 0 0;';
+      hd.textContent = 'How I guide (pick any)';
+      box.appendChild(hd);
+      var r3 = row();
+      GP_GUIDE_ROLES.forEach(function(rl){
+        var on = roles.indexOf(rl) > -1, b = small(gpPill(rl, on));
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.onclick = function(){ var n = roles.slice(); if (on) { n.splice(n.indexOf(rl), 1); } else { n.push(rl); } save(fan, 'Guide', n); };
+        r3.appendChild(b);
+      });
+      box.appendChild(r3);
+    }
+    return box;
+  }
   function gpTagPaint(key, rowsEl){
     var rows = rowsEl || document.getElementById('gp-tagrows-' + key);
     if (!rows) { return; }
@@ -3059,6 +3142,9 @@
         top.replaceChild(tools, x); tools.appendChild(cat._pen); tools.appendChild(x);
       }
       if (cat) { card.appendChild(cat); } else { var sp = document.createElement('div'); sp.style.cssText = 'height:9px;'; card.appendChild(sp); }
+      if (key === 'introEnjoy' || key === 'introSkills') {
+        card.appendChild(gpDoLevels(key, word));
+      } else {
       var pills = document.createElement('div');
       pills.style.cssText = spec.across ? 'display:flex;flex-wrap:nowrap;gap:5px;' : 'display:flex;flex-wrap:wrap;gap:6px;';
       spec.list.forEach(function(lv){
@@ -3080,6 +3166,7 @@
         pills.appendChild(b);
       });
       card.appendChild(pills);
+      }
       if (key === 'introSkills') {
         var howHead = document.createElement('div');
         howHead.style.cssText = 'font-size:11.5px;font-weight:700;color:#6B7A8D;margin:9px 0 5px;';
