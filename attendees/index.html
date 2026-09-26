@@ -473,11 +473,45 @@ async function loadEvent(){
   }catch(e){}
 }
 
+function _boardKey(){ return 'cw-board-'+_groupId+'-'+normId(_myId||''); }
+function _boardAsk(){
+  return fetch(GS_URL+'?action=getGroupBundle&groupId='+encodeURIComponent(_groupId)+(_myId?'&me='+encodeURIComponent(_myId):'')+'&t='+Date.now())
+    .then(function(r){ return r.json(); });
+}
+function _boardKeep(d){ try{ localStorage.setItem(_boardKey(), JSON.stringify({at:Date.now(), d:d})); }catch(e){} }
+function _boardQuietRefresh(before){
+  var reKey='cw-board-re-'+_groupId;
+  _boardAsk().then(function(d){
+    if(!d || !d.group) return;
+    var now=JSON.stringify(d);
+    if(now===before){ try{ sessionStorage.removeItem(reKey); }catch(e){} return; }
+    var meIn=!!(d.me && (d.attendees||[]).some(function(p){ return normId(p.appearId)===normId(d.me.appearId); }));
+    if(meIn || d.meIsHost===true || d.meIsOperator===true) _boardKeep(d);
+    else { try{ localStorage.removeItem(_boardKey()); }catch(e){} }
+    try{ if(sessionStorage.getItem(reKey)) return; sessionStorage.setItem(reKey,'1'); }catch(e){}
+    location.reload();
+  }).catch(function(){});
+}
 async function loadGroupMembers(){
+  if(_myId && !loadGroupMembers._again){
+    var kept=null;
+    try{ kept=JSON.parse(localStorage.getItem(_boardKey())||'null'); }catch(e){}
+    if(kept && kept.d && kept.d.group && (Date.now()-Number(kept.at||0)) < 7*24*60*60*1000){
+      try{
+        if(_boardApply(kept.d)){ _boardQuietRefresh(JSON.stringify(kept.d)); return; }
+      }catch(e){}
+    }
+  }
   try{
-    var res=await fetch(GS_URL+'?action=getGroupBundle&groupId='+encodeURIComponent(_groupId)+(_myId?'&me='+encodeURIComponent(_myId):''));
-    var d=await res.json();
+    var d=await _boardAsk();
     if(!d){ _boardFailed(); return; }
+    if(_boardApply(d)) _boardKeep(d);
+  }catch(e){
+    if(!loadGroupMembers._again){ loadGroupMembers._again=true; return loadGroupMembers(); }
+    _boardFailed();
+  }
+}
+function _boardApply(d){
     var g=d.group||{};
     try{ if(g.slug){ window.CW_GROUP_SLUG=window.CW_GROUP_SLUG||g.slug; window.cwGroupAddress(g.slug, _matchMode?'matches':'bulletin-board'); } }catch(e){}
     var titleEl=document.getElementById('event-title'), metaEl=document.getElementById('event-meta');
@@ -489,15 +523,12 @@ async function loadGroupMembers(){
     (d.attendees||[]).forEach(function(p){ _photoMap[normId(p.appearId)]={photo:p.photo||'',pageLink:p.pageLink||''}; });
     (d.attendees||[]).forEach(function(p){ processRow(p, p.appearId); });
     var _meIn = !!(d.me && (d.attendees||[]).some(function(p){ return normId(p.appearId)===normId(d.me.appearId); }));
-    if(!_meIn && d.meIsHost!==true && d.meIsOperator!==true){ window.location.replace(window.CW_GROUP_SLUG ? 'https://2gather.network/group/'+encodeURIComponent(window.CW_GROUP_SLUG) : 'https://2gather.network/group/?id='+encodeURIComponent(_groupId)); return; }
+    if(!_meIn && d.meIsHost!==true && d.meIsOperator!==true){ try{ localStorage.removeItem(_boardKey()); }catch(e){} window.location.replace(window.CW_GROUP_SLUG ? 'https://2gather.network/group/'+encodeURIComponent(window.CW_GROUP_SLUG) : 'https://2gather.network/group/?id='+encodeURIComponent(_groupId)); return false; }
     if(d.me && !_meIn && d.meIsHost===true){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
     _meRegistered = _meIn || d.meIsHost===true;
     _boardShow();
     computeGlobals(); buildChips(); renderAll();
-  }catch(e){
-    if(!loadGroupMembers._again){ loadGroupMembers._again=true; return loadGroupMembers(); }
-    _boardFailed();
-  }
+    return true;
 }
 async function loadMembers(){
   if(_groupId){ return loadGroupMembers(); }
@@ -1072,11 +1103,6 @@ var _fitTimer=null;
 window.addEventListener('resize',function(){ clearTimeout(_fitTimer); _fitTimer=setTimeout(function(){ if(!_expanded && !_matchMode) renderAll(); },200); });
 
 var _boardReady=false;
-setTimeout(function(){
-  if(_boardReady) return;
-  var p=document.getElementById('board-wait-pill');
-  if(p && !p.classList.contains('stopped')) p.textContent='Calculating matches\u2026';
-}, 10000);
 function _boardShow(){
   _boardReady=true;
   document.documentElement.classList.remove('board-loading');
