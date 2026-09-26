@@ -4514,7 +4514,7 @@ function setInterestedEnabled(val) {
   if (_hn) _hn.style.display = (val && val !== "off") ? "block" : "none";
 }
 
-var _formGroups = null, _formGroupsBusy = false;
+var _formGroups = null, _formGroupsBusy = false, _formGroupsErr = "";
 var _grpMock = true;
 try { _grpMock = new URLSearchParams(location.search).get("grp") !== "old"; } catch (e) {}
 var _vmGrpOn = false;
@@ -4670,7 +4670,9 @@ function _loadFormGroups(preferId, preferName) {
   fetch(GS_URL + "?action=getMyGroups&appearId=" + encodeURIComponent(me))
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      if (d && Array.isArray(d.groups)) { _vmRememberGroups(d.groups.length); }
+      if (!d || d.code === "signin" || d.status === "error" || !Array.isArray(d.groups)) { _formGroupsErr = (d && d.code === "signin") ? "signin" : "fail"; return; }
+      _formGroupsErr = "";
+      _vmRememberGroups(d.groups.length);
       _formGroups = ((d && d.groups) || []).map(function (g) {
         var id = String(g.groupID || g.groupId || g.id || "").trim();
         var role = String(g.role || "").toLowerCase();
@@ -4688,8 +4690,19 @@ function _loadFormGroups(preferId, preferName) {
         return a.name.localeCompare(b.name);   
       });
     })
-    .catch(function () { _formGroups = []; })
-    .then(function () { _formGroupsBusy = false; paint(); });
+    .catch(function () { _formGroupsErr = "fail"; })
+    .then(function () {
+      _formGroupsBusy = false;
+      if (!_formGroups && _formGroupsErr) {
+        host.innerHTML = '<p style="color:#c0392b;font-size:14px;font-weight:600;margin:0;">'
+          + (_formGroupsErr === "signin" ? "Sign in again to see your groups." : "Your groups did not load. Close this form and open it again.")
+          + ' Any group already on this event stays on it.</p>';
+        var _vr2 = document.getElementById("vm-grp-row"); if (_vr2 && (_vmGrpOn || _vmKnownHasGroups() === "1")) _vr2.style.display = "flex";
+        box.style.display = _vmGrpOn ? "flex" : "none";
+        return;
+      }
+      paint();
+    });
 }
 
 
