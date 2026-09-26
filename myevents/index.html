@@ -8199,6 +8199,7 @@ function selectInterestSuggestion(val) {
     } catch (e) { _feedFailed = true; }
   }
 
+  var _calPast = 0;
   function _calendarRows() {
     if (!_feedIn) return null;
     if (_feedFailed) return false;
@@ -8213,7 +8214,7 @@ function selectInterestSuggestion(val) {
       series[slugOf(t.title)] = 1;
       seriesTitle[String(t.title || '').toLowerCase()] = 1;
     });
-    var out = [], seen = {};
+    var out = [], seen = {}, pastCount = 0;
     feed.concat(tpl).forEach(function (e) {
       var id = String((e && e.id) || '').trim();
       if (!id || seen[id]) return;
@@ -8230,7 +8231,7 @@ function selectInterestSuggestion(val) {
             series[id.replace(/^recurring-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '')]) return;
         if (e.recurFreq && seriesTitle[String(e.title || '').toLowerCase()]) return;
         if (!e.date || e.date === 'TBD' || isNaN(new Date(e.date + 'T' + (e.time || '00:00')).getTime())) return;
-        if (!isUpcoming(Object.assign({}, e, { recurFreq: '' }))) return;
+        if (!isUpcoming(Object.assign({}, e, { recurFreq: '' }))) { pastCount++; if (!_showPast) return; }
       }
       seen[id] = 1;
       out.push(e);
@@ -8241,11 +8242,12 @@ function selectInterestSuggestion(val) {
         if (!id || seen[id]) return;
         try { if (_isCancelledEvent(e)) return; } catch (x) {}
         if (!e.date || e.date === 'TBD' || isNaN(new Date(e.date + 'T' + (e.time || '00:00')).getTime())) return;
-        if (!isUpcoming(Object.assign({}, e, { recurFreq: '' }))) return;
+        if (!isUpcoming(Object.assign({}, e, { recurFreq: '' }))) { pastCount++; if (!_showPast) return; }
         seen[id] = 1;
         out.push(e);
       });
     }
+    _calPast = pastCount;
     return out;
   }
   var _opPrivate = null, _opPrivateBusy = false;
@@ -8578,6 +8580,7 @@ function selectInterestSuggestion(val) {
         return;
       }
       rows = own;
+      if (pane === 'all') { _pastHidden = _calPast; _paintPastBtn(); }
       if (pane === 'attending') {   
         var _upA = rows.filter(isUpcoming); _pastHidden = rows.length - _upA.length;
         if (!_showPast) { rows = _upA; }
