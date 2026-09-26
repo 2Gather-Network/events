@@ -175,6 +175,34 @@
     <span class="cw-loading">Loading this event</span>
   </div>
 </div>
+<script>
+(function () {
+  var t0 = Date.now(), said = 0;
+  var tick = setInterval(function () {
+    var box = document.getElementById("ev-loading");
+    var el = box && box.querySelector(".cw-loading");
+    if (!el || !document.body.contains(el)) { clearInterval(tick); return; }
+    var s = (Date.now() - t0) / 1000, priv = !!window._evPrivatePath;
+    var step = s >= 60 ? 5 : s >= 40 ? 4 : s >= 30 ? 3 : s >= 20 ? 2 : s >= 10 ? 1 : 0;
+    if (step === said) return;
+    said = step;
+    el.style.whiteSpace = "normal";
+    el.style.textAlign = "center";
+    if (step === 5) {
+      clearInterval(tick);
+      el.innerHTML = 'This is taking longer than usual. <a href="https://2gather.network/support/?from=' + encodeURIComponent(location.href) + '" style="color:#fff;font-weight:700;text-decoration:underline;margin-left:4px;">Tell support</a>';
+      return;
+    }
+    el.textContent = [
+      "Loading this event",
+      "Still loading. This one's taking a little longer\u2026",
+      priv ? "Checking that you can see this event\u2026" : "Still getting the details\u2026",
+      priv ? "Almost there. Private events take a bit longer to open\u2026" : "Almost there\u2026",
+      "Still working on it. Thanks for waiting\u2026"
+    ][step];
+  }, 1000);
+})();
+</script>
 <div class="modal-overlay" id="rsvp-modal">
   <div class="modal">
     <div id="rsvp-step-register" style="display:none;">
@@ -2217,13 +2245,17 @@ async function init() {
     let _signinLapsed = false;
     if (ev && _fresh) { try { sessionStorage.removeItem("cw-ev-fresh"); } catch (e) {} }
     if (!ev) {
+      window._evPrivatePath = true;
       try {
         var _me = (window.CW && window.CW.me) ? String(window.CW.me().id || "").trim() : "";
         if (!_me && !(window.CW && CW.signedOutView && CW.signedOutView())) { try { _me = String(localStorage.getItem("cw-id") || localStorage.getItem("appear-id") || "").trim(); } catch (e) {} }
         if (_me) {
           try {
-            const oneRes = await fetch(GS_URL + "?action=getEventById&id=" + encodeURIComponent(id) + "&appearId=" + encodeURIComponent(_me) + "&nocache=1&t=" + Date.now());
+            let _oneAc = null, _oneCap = null;
+            try { _oneAc = new AbortController(); _oneCap = setTimeout(function () { try { _oneAc.abort(); } catch (x) {} }, 30000); } catch (x) {}
+            const oneRes = await fetch(GS_URL + "?action=getEventById&id=" + encodeURIComponent(id) + "&appearId=" + encodeURIComponent(_me) + "&nocache=1&t=" + Date.now(), _oneAc ? { signal: _oneAc.signal } : undefined);
             const one = await oneRes.json();
+            if (_oneCap) clearTimeout(_oneCap);
             if (one && one.event && one.event.row && String(one.event.row.id) === id) { ev = toEv(one.event.row); }
             else if (one && one.signinNeeded) { _signinLapsed = true; }
           } catch (e) {}
