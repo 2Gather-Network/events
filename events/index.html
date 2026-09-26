@@ -4498,6 +4498,9 @@ var _formGroups = null, _formGroupsBusy = false;
 var _grpMock = true;
 try { _grpMock = new URLSearchParams(location.search).get("grp") !== "old"; } catch (e) {}
 var _vmGrpOn = false;
+function _vmMe() { try { return (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : ""; } catch (e) { return ""; } }
+function _vmKnownHasGroups() { try { var me = _vmMe(); return me ? localStorage.getItem("cw-has-groups:" + me) : null; } catch (e) { return null; } }
+function _vmRememberGroups(n) { try { var me = _vmMe(); if (me) localStorage.setItem("cw-has-groups:" + me, n ? "1" : "0"); } catch (e) {} }
 function _gmRepaint() { try { _loadFormGroups(); } catch (e) {} }
 function _vmEnsure() {
   if (!_grpMock) return;
@@ -4527,7 +4530,7 @@ function _vmSync() {
   if (p) p.checked = !priv;
   if (g) g.checked = !!_vmGrpOn;
   var _vr = document.getElementById("vm-grp-row");
-  if (_vr) { var _hasG = false; try { _hasG = !!(_formGroups && _formGroups.length); } catch (e) {} _vr.style.display = (_hasG || priv) ? "flex" : "none"; }
+  if (_vr) { var _hasG = false; try { _hasG = _formGroups ? !!_formGroups.length : _vmKnownHasGroups() === "1"; } catch (e) {} _vr.style.display = (_hasG || priv) ? "flex" : "none"; }
   var box = document.getElementById("share-opt-group"); if (box) box.style.display = _vmGrpOn ? "flex" : "none";
   var lbl = document.getElementById("vis-group-label");
   if (lbl) { lbl.style.display = _vmGrpOn ? "" : "none"; lbl.textContent = priv ? "Which of your groups?" : "Which of your groups? (optional)"; }
@@ -4558,7 +4561,7 @@ function _vmFilter(q) {
   });
 }
 function _vmSummary() {
-  var b = document.getElementById("vm-dd-btn"); if (!b) return;
+  var b = document.getElementById("vm-dd-txt") || document.getElementById("vm-dd-btn"); if (!b) return;
   var names = [];
   document.querySelectorAll("#f-group-checks .grp-check").forEach(function (c) {
     if (!c.checked) return;
@@ -4583,7 +4586,7 @@ function _paintGroupMock(host, known, want) {
   if (known.length <= 5) {
     host.innerHTML = rows + '<p id="grp-mock-err" style="display:none;font-size:13px;color:#c0392b;font-weight:600;margin:6px 0 0;"></p>';
   } else {
-    host.innerHTML = '<button type="button" id="vm-dd-btn" class="input" onclick="_vmDD()" style="text-align:left;cursor:pointer;background:#fff;">Select which group(s)</button>'
+    host.innerHTML = '<button type="button" id="vm-dd-btn" onclick="_vmDD()" style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;box-sizing:border-box;text-align:left;cursor:pointer;background:#1F699E;color:#fff;border:1.5px solid #1F699E;border-radius:10px;padding:11px 14px;font-family:inherit;font-size:15px;font-weight:700;"><span id="vm-dd-txt">Select which group(s)</span><span aria-hidden="true" style="font-size:12px;">&#9660;</span></button>'
       + '<div id="vm-dd" style="display:none;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;margin-top:6px;background:#fff;">'
       + '<input class="input" id="vm-q" type="search" placeholder="Search your groups" oninput="_vmFilter(this.value)" style="margin:0 0 8px;">'
       + '<div style="max-height:260px;overflow:auto;">' + rows + '</div>'
@@ -4643,9 +4646,11 @@ function _loadFormGroups(preferId, preferName) {
   var me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
   if (!me) { box.style.display = "none"; return; }
   _formGroupsBusy = true;
+  if (_grpMock && !host.innerHTML.trim()) { host.innerHTML = '<p style="color:#1F699E;font-size:14px;margin:0;">Loading your groups…</p>'; }
   fetch(GS_URL + "?action=getMyGroups&appearId=" + encodeURIComponent(me))
     .then(function (r) { return r.json(); })
     .then(function (d) {
+      if (d && Array.isArray(d.groups)) { _vmRememberGroups(d.groups.length); }
       _formGroups = ((d && d.groups) || []).map(function (g) {
         var id = String(g.groupID || g.groupId || g.id || "").trim();
         var role = String(g.role || "").toLowerCase();
