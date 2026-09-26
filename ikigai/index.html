@@ -2665,20 +2665,19 @@
     return String(o[String(word).toLowerCase()] || word);
   }
   function gpSplitWork(raw){
-    var m = String(raw).match(/^(.*?)(:alsoIn=[^:|]*)?(:guideAs=[^:|]*)?(:isLearnedBy=[a-z+]*)?(:work)?$/i);
-    if (!m) { return { body:String(raw), work:'', onlyWork:'', how:[], also:[], alsoRaw:'', guide:[], guideRaw:'' }; }
-    var al = m[2] || '', gd = m[3] || '', h = m[4] || '', wk = m[5] || '';
-    return { body:m[1], work:al + gd + h + wk, onlyWork:wk, alsoRaw:al, guideRaw:gd,
-      also:al ? al.slice(8).split('+').map(function(x){ return x.trim(); }).filter(Boolean) : [],
-      guide:gd ? gd.slice(9).split('+').map(function(x){ return x.trim(); }).filter(Boolean) : [],
+    var m = String(raw).match(/^(.*?)(:alsoIn=[^:|]*)?(:guideAs=[^:|]*)?(:practiceAs=[^:|]*)?(:isLearnedBy=[a-z+]*)?(:work)?$/i);
+    if (!m) { return { body:String(raw), work:'', onlyWork:'', how:[], also:[], alsoRaw:'', guide:[], guideRaw:'', practice:[], practiceRaw:'' }; }
+    var al = m[2] || '', gd = m[3] || '', pr = m[4] || '', h = m[5] || '', wk = m[6] || '';
+    var list = function(v, n){ return v ? v.slice(n).split('+').map(function(x){ return x.trim(); }).filter(Boolean) : []; };
+    return { body:m[1], work:al + gd + pr + h + wk, onlyWork:wk, alsoRaw:al, guideRaw:gd, practiceRaw:pr,
+      also:list(al, 8), guide:list(gd, 9), practice:list(pr, 12),
       how:h ? h.slice(13).toLowerCase().split('+').filter(Boolean) : [] };
   }
   function gpSetAlso(key, word, list){
     if (!_gpOrig[key]) { _gpOrig[key] = {}; }
     var w = gpSplitWork(gpOrigFor(key, word)), kw = String(word).toLowerCase(), seen = {}, keep = [];
     list.forEach(function(c){ c = String(c || '').replace(/[:|,+~]/g, ' ').replace(/\s+/g, ' ').trim(); if (c && !seen[c.toLowerCase()]) { seen[c.toLowerCase()] = 1; keep.push(c); } });
-    var hw = w.how.length ? ':isLearnedBy=' + w.how.join('+') : '';
-    _gpOrig[key][kw] = w.body + (keep.length ? ':alsoIn=' + keep.join('+') : '') + w.guideRaw + hw + w.onlyWork;
+    _gpOrig[key][kw] = w.body + gpBuildMarks(w, { also: keep });
     _gpOrigEdited[key + '|' + kw] = _gpOrig[key][kw];
     try { gpTouchSave(); } catch (e) {}
   }
@@ -2689,13 +2688,27 @@
     var w = gpSplitWork(gpOrigFor(key, word)), parts = w.body.split(':'), kw = String(word).toLowerCase();
     while (parts.length < 3) { parts.push(''); }
     var keep = GP_HOW.map(function(h){ return h[0]; }).filter(function(c){ return list.indexOf(c) > -1; });
-    _gpOrig[key][kw] = parts.join(':') + w.alsoRaw + w.guideRaw + (keep.length ? ':isLearnedBy=' + keep.join('+') : '') + w.onlyWork;
+    _gpOrig[key][kw] = parts.join(':') + gpBuildMarks(w, { how: keep });
     _gpOrigEdited[key + '|' + kw] = _gpOrig[key][kw];
     try { gpTouchSave(); } catch (e) {}
   }
   var GP_LEVEL_OLD = { 'participant':'Practitioner', 'coach':'Guide', 'entry level':'Learner', 'mid level':'Practitioner', 'expert level':'Guide' };
   var GP_DO_LEVELS = ['Learner', 'Practitioner', 'Guide'];
-  var GP_GUIDE_ROLES = ['Mentor', 'Facilitator', 'Coach', 'Host', 'Performer', 'Consultant', 'Organizer'];
+  var GP_GUIDE_ROLES = ['Coach', 'Mentor', 'Consultant', 'Facilitator', 'Trainer', 'Host'];
+  var GP_PRACTICE_ROLES = ['Volunteer', 'Service provider', 'Performer', 'Maker', 'Competitor'];
+  function gpBuildMarks(w, o){
+    o = o || {};
+    var al = o.also || w.also, gd = o.guide || w.guide, pr = o.practice || w.practice, hw = o.how || w.how;
+    return (al.length ? ':alsoIn=' + al.join('+') : '') + (gd.length ? ':guideAs=' + gd.join('+') : '')
+      + (pr.length ? ':practiceAs=' + pr.join('+') : '') + (hw.length ? ':isLearnedBy=' + hw.join('+') : '') + w.onlyWork;
+  }
+  function gpCleanRole(r){ return String(r || '').replace(/[:|,+~=]/g, ' ').replace(/\s+/g, ' ').trim(); }
+  function gpRoleOrder(roles, fixed){
+    var seen = {}, out = [];
+    fixed.forEach(function(r){ if (roles.some(function(x){ return x.toLowerCase() === r.toLowerCase(); })) { seen[r.toLowerCase()] = 1; out.push(r); } });
+    roles.forEach(function(r){ r = gpCleanRole(r); if (r && !seen[r.toLowerCase()]) { seen[r.toLowerCase()] = 1; out.push(r); } });
+    return out;
+  }
   function gpLevelRaw(key, word){
     var parts = gpSplitWork(gpOrigFor(key, word)).body.split(':');
     if (parts.length < 2) { return []; }
@@ -2720,12 +2733,11 @@
     if (w.guide.length) { return w.guide; }
     return gpLevelRaw(key, word).some(function(x){ return x.toLowerCase() === 'coach'; }) ? ['Coach'] : [];
   }
-  function gpSetGuide(key, word, roles){
+  function gpPracticeOf(key, word){ return gpSplitWork(gpOrigFor(key, word)).practice; }
+  function gpSetRoles(key, word, guide, practice){
     if (!_gpOrig[key]) { _gpOrig[key] = {}; }
     var w = gpSplitWork(gpOrigFor(key, word)), kw = String(word).toLowerCase();
-    var keep = GP_GUIDE_ROLES.filter(function(r){ return roles.indexOf(r) > -1; });
-    var hw = w.how.length ? ':isLearnedBy=' + w.how.join('+') : '';
-    _gpOrig[key][kw] = w.body + w.alsoRaw + (keep.length ? ':guideAs=' + keep.join('+') : '') + hw + w.onlyWork;
+    _gpOrig[key][kw] = w.body + gpBuildMarks(w, { guide: gpRoleOrder(guide, GP_GUIDE_ROLES), practice: gpRoleOrder(practice, GP_PRACTICE_ROLES) });
     _gpOrigEdited[key + '|' + kw] = _gpOrig[key][kw];
     try { gpTouchSave(); } catch (e) {}
   }
@@ -3049,19 +3061,19 @@
     var lv = gpLevelOf(key, word), fan = lv.indexOf('Fan') > -1;
     var doing = GP_DO_LEVELS.filter(function(v){ return lv.indexOf(v) > -1; })[0] || '';
     var open = key === 'introSkills' || !!doing || !!_gpDoOpen[ok];
-    var roles = gpRolesOf(key, word);
+    var roles = gpRolesOf(key, word), practice = gpPracticeOf(key, word);
     var mine = !gpViewingSomebodyElse();
     var small = function(b){ b.style.fontSize = '11.5px'; b.style.padding = '5px 10px'; if (!mine) { b.disabled = true; b.style.cursor = 'default'; } return b; };
     var save = function(nextFan, nextDo, nextRoles){
       gpSetLevel(key, word, (nextFan ? ['Fan'] : []).concat(nextDo ? [nextDo] : []));
-      gpSetGuide(key, word, nextDo === 'Guide' ? nextRoles : []);
+      gpSetRoles(key, word, nextDo === 'Guide' ? nextRoles : [], nextDo === 'Practitioner' ? nextRoles : []);
       gpTagPaint(key);
     };
     var row = function(){ var r = document.createElement('div'); r.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;'; return r; };
     if (key === 'introEnjoy') {
       var r1 = row();
       var fb = small(gpPill('Fan', fan)); fb.setAttribute('aria-pressed', fan ? 'true' : 'false');
-      fb.onclick = function(){ save(!fan, doing, roles); };
+      fb.onclick = function(){ save(!fan, doing, doing === 'Guide' ? roles : practice); };
       var db = small(gpPill('I do this', open)); db.setAttribute('aria-pressed', open ? 'true' : 'false');
       db.onclick = function(){
         if (open) { _gpDoOpen[ok] = false; save(fan, '', []); }
@@ -3074,24 +3086,46 @@
       GP_DO_LEVELS.forEach(function(v){
         var on = doing === v, b = small(gpPill(v, on));
         b.setAttribute('aria-pressed', on ? 'true' : 'false');
-        b.onclick = function(){ save(fan, on ? '' : v, roles); };
+        b.onclick = function(){ save(fan, on ? '' : v, []); };
         r2.appendChild(b);
       });
       box.appendChild(r2);
     }
-    if (doing === 'Guide') {
+    if (doing === 'Guide' || doing === 'Practitioner') {
+      var fixed = doing === 'Guide' ? GP_GUIDE_ROLES : GP_PRACTICE_ROLES;
+      var have = doing === 'Guide' ? roles : practice;
+      var shown = gpRoleOrder(have, fixed), extra = shown.filter(function(r){ return fixed.indexOf(r) < 0; });
       var hd = document.createElement('div');
       hd.style.cssText = 'font-size:11.5px;font-weight:700;color:#6B7A8D;margin:9px 0 0;';
-      hd.textContent = 'How I guide (pick any)';
+      hd.textContent = doing === 'Guide' ? 'How I guide (pick any)' : 'How I practice it (pick any)';
       box.appendChild(hd);
       var r3 = row();
-      GP_GUIDE_ROLES.forEach(function(rl){
-        var on = roles.indexOf(rl) > -1, b = small(gpPill(rl, on));
+      fixed.concat(extra).forEach(function(rl){
+        var on = have.some(function(x){ return x.toLowerCase() === rl.toLowerCase(); }), b = small(gpPill(rl, on));
         b.setAttribute('aria-pressed', on ? 'true' : 'false');
-        b.onclick = function(){ var n = roles.slice(); if (on) { n.splice(n.indexOf(rl), 1); } else { n.push(rl); } save(fan, 'Guide', n); };
+        b.onclick = function(){ var n = have.filter(function(x){ return x.toLowerCase() !== rl.toLowerCase(); }); if (!on) { n.push(rl); } save(fan, doing, n); };
         r3.appendChild(b);
       });
+      if (mine) {
+        var ob = small(gpPill('+ Other', false));
+        ob.style.border = '1.5px solid #1F699E'; ob.style.fontWeight = '700';
+        ob.onclick = function(){ _gpDoOpen[ok + '|other'] = !_gpDoOpen[ok + '|other']; gpTagPaint(key); };
+        r3.appendChild(ob);
+      }
       box.appendChild(r3);
+      if (mine && _gpDoOpen[ok + '|other']) {
+        var line = document.createElement('div');
+        line.style.cssText = 'display:flex;gap:6px;margin-top:6px;';
+        var inp = document.createElement('input');
+        inp.type = 'text'; inp.placeholder = 'Your own word';
+        inp.style.cssText = 'flex:1;min-width:0;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;padding:6px 10px;font:inherit;font-size:13px;color:#1A2E42;';
+        var add = small(gpPill('Add', true));
+        var go = function(){ var v = gpCleanRole(inp.value); if (!v) { inp.focus(); return; } _gpDoOpen[ok + '|other'] = false; save(fan, doing, have.concat([v])); };
+        add.onclick = go;
+        inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
+        line.appendChild(inp); line.appendChild(add); box.appendChild(line);
+        setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0);
+      }
     }
     return box;
   }
