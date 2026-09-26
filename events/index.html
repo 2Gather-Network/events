@@ -42,6 +42,10 @@
   .btn-outline { background:var(--white); color:var(--dark); border:1.5px solid var(--border); }
   .btn-outline:hover { background:var(--light); }
   .btn-green { background:var(--green); color:white; border:none; }
+  .cw-miss-field { border-left:5px solid #c0392b; padding-left:12px; border-radius:4px; }
+  .cw-miss-field .field-label { color:#c0392b !important; }
+  .cw-miss-field .field-label::after { content:" - still needed"; font-weight:700; text-transform:none; letter-spacing:0; }
+  .cw-miss-field .input, .cw-miss-field input[type="date"], .cw-miss-field input[type="time"] { border-color:#c0392b !important; }
   .btn-green:hover { background:#3d9e6a; }
   .btn-sm { padding:8px 14px; font-size:13px; }
   .btn-white { background:rgba(255,255,255,.95); color:var(--primary-dark); }
@@ -2547,6 +2551,21 @@ function fixModalForMobile() {
   modal.style.height = usableHeight + "px";
   setTimeout(() => { scrollBody.scrollTop = 0; window.scrollTo(0, 0); }, 100);
 }
+
+function _markMissing(ids) {
+  document.querySelectorAll(".cw-miss-field").forEach(function (f) { f.classList.remove("cw-miss-field"); });
+  (ids || []).forEach(function (id) {
+    var el = document.getElementById(id); if (!el) return;
+    var f = el.closest(".field") || el;
+    f.classList.add("cw-miss-field");
+  });
+}
+["input", "change", "click"].forEach(function (t) {
+  document.addEventListener(t, function (e) {
+    var f = e.target && e.target.closest ? e.target.closest(".cw-miss-field") : null;
+    if (f) f.classList.remove("cw-miss-field");
+  }, true);
+});
 
 function buildFormChips() {
   const container = document.getElementById("f-cat-chips");
@@ -5835,22 +5854,23 @@ async function submitEvent() {
   }
   const hlErr = document.getElementById("hostlink-error"); if(hlErr) hlErr.style.display = "none";
 
-  const missing = [];
-  if (selectedExchangeTypes.has("share") && !document.getElementById("f-paymentlink")?.value.trim()) missing.push("payment/registration link (required when Paid is selected)");
-  if (!title) missing.push("event title");
-  if (selectedCats.size === 0) missing.push("at least one category");
-  if (!selectedFormat) missing.push("virtual or in-person");
-  if (!date) missing.push("date");
-  if (!time && date !== "TBD") missing.push("start time");
+  const missing = [], missIds = [];
+  _markMissing([]);
+  if (selectedExchangeTypes.has("share") && !document.getElementById("f-paymentlink")?.value.trim()) { missing.push("payment/registration link (required when Paid is selected)"); missIds.push("f-paymentlink"); }
+  if (!title) { missing.push("event title"); missIds.push("f-title"); }
+  if (selectedCats.size === 0) { missing.push("at least one category"); missIds.push("f-cat-chips"); }
+  if (!selectedFormat) { missing.push("virtual or in-person"); missIds.push("fmt-virtual"); }
+  if (!date) { missing.push("date"); missIds.push("f-date"); }
+  if (!time && date !== "TBD") { missing.push("start time"); missIds.push("f-time"); }
   const _series = !!(recurFreq && document.getElementById("f-recurring")?.checked);
-  if (_series && date === "TBD") missing.push("a real start date, because a repeating event counts forward from one");
-  if (!host) missing.push("host name");
-  if (missing.length > 0) { errEl.textContent = "Please add: " + missing.join(", ") + "."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
+  if (_series && date === "TBD") { missing.push("a real start date, because a repeating event counts forward from one"); missIds.push("f-date"); }
+  if (!host) { missing.push("host name"); missIds.push("f-host"); }
+  if (missing.length > 0) { _markMissing(missIds); errEl.textContent = "Please add: " + missing.join(", ") + "."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   if (document.getElementById("f-recur-end")?.value && date && date !== "TBD" && document.getElementById("f-recur-end").value < date) { errEl.textContent = "The last day must be on or after the start date."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   if (time && endtime && endtime <= time) { errEl.textContent = "End time must be after start time."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   if (checkAllFields()) { errEl.textContent = "Please keep it community-friendly - your post contains language that isn't allowed."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
-  if ((selectedFormat === "virtual" || selectedFormat === "both") && !hostingOption) { errEl.textContent = "Please choose where you're hosting this - a community room or your own link."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
-  if (hostingOption === "db" && !selectedRoom) { errEl.textContent = "Please select which virtual room is best for this event."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
+  if ((selectedFormat === "virtual" || selectedFormat === "both") && !hostingOption) { errEl.textContent = "Please choose where you're hosting this - a community room or your own link."; errEl.style.display = "block"; _markMissing(["hosting-choice"]); errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
+  if (hostingOption === "db" && !selectedRoom) { errEl.textContent = "Please select which virtual room is best for this event."; errEl.style.display = "block"; _markMissing(["db-room-section"]); errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   if (document.getElementById("cancel-occurrence-field")?.style.display !== "none" && !_occChosenId()
       && (document.getElementById("f-cancel-occurrence")?.checked
           || (document.getElementById("occurrence-note-field")?.style.display !== "none" && (document.getElementById("f-occurrence-note")?.value || "").trim()))) {
@@ -5892,6 +5912,7 @@ async function submitEvent() {
     if (_vp && _vg && !_vp.checked && !_vg.checked) { _vErr = "Choose Show on public calendar, Show on group(s), or both."; }
     else if (currentVisibility === "private" && !String((document.getElementById("f-group-ids") || {}).value || "").trim()) { _vErr = "Pick at least one group, or choose Show on public calendar."; }
     if (_vErr) {
+      _markMissing(["vm-boxes"]);
       var _gme = document.getElementById("vm-err");
       if (_gme) { _gme.textContent = _vErr; _gme.style.display = "block"; try { _gme.scrollIntoView({ behavior:"smooth", block:"center" }); } catch (e) {} }
       return;
