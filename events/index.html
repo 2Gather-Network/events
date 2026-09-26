@@ -3880,6 +3880,7 @@ function clearDraft() { localStorage.removeItem(DRAFT_KEY); }
 
 function openModal(skipDraft = false) {
   formDirty = false;
+  try { _hpReset(); } catch (e) {}
   editingId = null; selectedCats = new Set(); selectedRoom = null; selectedFormat = null; hostingOption = null;
   ["virtual","inperson","both"].forEach(f => document.getElementById("fmt-"+f).classList.remove("selected"));
   document.getElementById("hopt-db").classList.remove("selected");
@@ -4127,6 +4128,7 @@ function loadEditForm(id) {
   }
   editingId = id;
   _evLoaded = ev; _evTouched = {};
+  try { _hpReset(); } catch (e) {}
   var _wasShared = String(ev.hostType || "").trim().toLowerCase() === "socializer";
   applySharingMode(_wasShared);
   loadPotluckEditPanel(id);
@@ -5171,14 +5173,135 @@ function _fillPosterName() {
   var hn = document.getElementById("f-host");
   if (!hn) return;
   var known = _knownPosterName();
-  if (known && !hn.value.trim()) { hn.value = known; return; }
+  if (known && !hn.value.trim()) { hn.value = known; try { _hpPaint(); } catch (e) {} return; }
+  try { _hpPaint(); } catch (e) {}
   if (hn.value.trim()) return;
   try {
     _resolveMyAppearLink().then(function () {
       if (hn.value.trim()) return;                 
       if (_myAppearName) { hn.value = _myAppearName; }
+      try { _hpPaint(); } catch (e) {}
     });
   } catch (e) {}
+}
+
+var _hp = { mode: "card", photo: "", res: [], t: null, ask: 0 };
+function _hpEsc(t) { return String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function _hpReset() { _hp.mode = "card"; _hp.photo = ""; _hp.res = []; }
+function _hpMine() { try { return String(_myAppearName || _knownPosterName() || "").trim(); } catch (e) { return ""; } }
+function _hpFace(photo, name) {
+  var l = String(name || "").trim().charAt(0).toUpperCase();
+  if (photo) return '<img src="' + _hpEsc(photo) + '" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex:0 0 auto;" onerror="this.outerHTML=\'<span style=&quot;width:36px;height:36px;border-radius:50%;background:#C4501A;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;flex:0 0 auto;&quot;>' + _hpEsc(l) + '</span>\'">';
+  return '<span style="width:36px;height:36px;border-radius:50%;background:#C4501A;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;flex:0 0 auto;">' + _hpEsc(l) + '</span>';
+}
+function _hpPaint() {
+  var inp = document.getElementById("f-host");
+  if (!inp) return;
+  var box = document.getElementById("hp-box");
+  if (!box) { box = document.createElement("div"); box.id = "hp-box"; box.style.cssText = "margin:0 0 8px;"; inp.parentNode.insertBefore(box, inp); }
+  var on = !window._isSharing;
+  var show = function (id, yes) { var el = document.getElementById(id); if (el) el.style.display = yes ? "" : "none"; };
+  box.style.display = on ? "" : "none";
+  inp.style.display = (!on || _hp.mode === "outside") ? "" : "none";
+  show("host-find-open", !on);
+  if (on) show("host-find-box", false);
+  if (!on) return;
+  var name = inp.value.trim(), mine = _hpMine();
+  var isMe = !!name && !!mine && name.toLowerCase() === mine.toLowerCase();
+  var link = ((document.getElementById("f-hostlink") || {}).value || "").trim();
+  if (_hp.mode === "card") {
+    var photo = isMe ? (window._myAppearPhoto || "") : _hp.photo;
+    box.innerHTML = '<div style="display:flex;align-items:center;gap:12px;border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;">'
+      + _hpFace(photo, name || "?")
+      + '<div style="flex:1;min-width:0;"><p style="margin:0;font-size:15px;font-weight:700;color:var(--dark);">' + (name ? _hpEsc(name) : '<span class="cw-loading">Finding your name</span>') + (isMe ? ' <span style="font-weight:400;color:var(--muted);">(you)</span>' : '') + '</p>'
+      + (name ? '<p style="margin:0;font-size:12px;color:var(--muted);">' + (link && /appear\.network\//i.test(link) ? (isMe ? "Linked to your profile" : "Linked to their profile") : "Shown as plain text") + '</p>' : '')
+      + '</div><button type="button" onclick="_hpChange()" style="font-size:13px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #1F699E;border-radius:20px;padding:6px 14px;cursor:pointer;font-family:inherit;white-space:nowrap;">Change host</button></div>';
+  } else if (_hp.mode === "search") {
+    box.innerHTML = '<div style="border:2px solid #1F699E;border-radius:12px;padding:10px 12px;">'
+      + '<p style="margin:0 0 8px;font-size:14px;font-weight:700;color:var(--dark);">Choose a person from my groups or network</p>'
+      + '<input class="input" id="hp-q" placeholder="Type a name" autocomplete="off" oninput="_hpType(this.value)" style="margin:0;">'
+      + '<div id="hp-res" style="margin-top:6px;display:grid;gap:4px;"></div></div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px;flex-wrap:wrap;">'
+      + '<button type="button" onclick="_hpKeepMe()" style="background:none;border:none;color:#1F699E;font-size:13px;font-weight:600;cursor:pointer;padding:0;font-family:inherit;">Keep me as host</button>'
+      + '<button type="button" onclick="_hpOutside()" style="background:#1F699E;color:#fff;border:none;border-radius:16px;font-size:12px;font-weight:700;padding:6px 12px;cursor:pointer;font-family:inherit;">Add a person outside my network</button></div>';
+    setTimeout(function () { var q = document.getElementById("hp-q"); if (q) { try { q.focus(); } catch (e) {} } }, 0);
+  } else {
+    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px;">'
+      + '<p style="margin:0;font-size:13px;color:var(--muted);">Their first and last name. It shows on the event as plain text.</p>'
+      + '<button type="button" onclick="_hpChange()" style="background:none;border:none;color:#1F699E;font-size:13px;font-weight:600;cursor:pointer;padding:0;font-family:inherit;">Choose from my groups instead</button></div>';
+  }
+}
+function _hpChange() { _hp.mode = "search"; _hp.res = []; _hpPaint(); }
+function _hpKeepMe() {
+  var inp = document.getElementById("f-host");
+  _hp.mode = "card"; _hp.photo = "";
+  if (inp) inp.value = _hpMine();
+  try { formDirty = true; } catch (e) {}
+  _hpPaint();
+  try {
+    _resolveMyAppearLink().then(function (link) {
+      var hl = document.getElementById("f-hostlink"), cb = document.getElementById("show-hostlink");
+      if (link && hl) { hl.value = link; if (cb) cb.checked = true; }
+      if (inp && !inp.value.trim() && _myAppearName) inp.value = _myAppearName;
+      _hpPaint();
+    });
+  } catch (e) {}
+}
+function _hpOutside() {
+  var inp = document.getElementById("f-host"), hl = document.getElementById("f-hostlink"), cb = document.getElementById("show-hostlink");
+  _hp.mode = "outside"; _hp.photo = "";
+  if (inp) { inp.value = ""; inp.placeholder = "Their first and last name"; }
+  if (hl) hl.value = "";
+  if (cb) cb.checked = false;
+  try { formDirty = true; } catch (e) {}
+  _hpPaint();
+  setTimeout(function () { if (inp) { try { inp.focus(); } catch (e) {} } }, 0);
+}
+function _hpType(v) {
+  clearTimeout(_hp.t);
+  var res = document.getElementById("hp-res");
+  v = String(v || "").trim();
+  if (v.length < 2) { if (res) res.innerHTML = ""; return; }
+  if (res) res.innerHTML = '<span class="cw-loading">Looking in your groups</span>';
+  _hp.t = setTimeout(function () {
+    var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
+    var ask = ++_hp.ask;
+    fetch(GS_URL + "?action=searchMyPeople&appearId=" + encodeURIComponent(me) + "&q=" + encodeURIComponent(v))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (ask !== _hp.ask) return;
+        var box = document.getElementById("hp-res"); if (!box) return;
+        if (!d || d.status !== "ok" || !Array.isArray(d.people)) {
+          box.innerHTML = '<p style="margin:0;font-size:13px;color:#c0392b;font-weight:600;">' + ((d && d.code === "signin") ? "Sign in again to search your groups." : "The search did not load. Type again to retry.") + '</p>';
+          return;
+        }
+        _hp.res = d.people;
+        var gname = {};
+        try { (_formGroups || []).forEach(function (g) { gname[String(g.id).split(".").join("").toLowerCase()] = g.name; }); } catch (e) {}
+        box.innerHTML = d.people.length ? d.people.map(function (p, i) {
+          var gn = gname[String(p.groupId || "").split(".").join("").toLowerCase()] || "";
+          return '<button type="button" onclick="_hpPick(' + i + ')" style="display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;border:none;background:#EEF4FA;cursor:pointer;text-align:left;font-family:inherit;width:100%;">'
+            + _hpFace(p.photo, p.name).replace(/36px/g, "28px")
+            + '<span style="font-size:14px;color:var(--dark);">' + _hpEsc(p.name) + '</span>'
+            + (gn ? '<span style="font-size:12px;color:var(--muted);margin-left:auto;">' + _hpEsc(gn) + '</span>' : '') + '</button>';
+        }).join("") : '<p style="margin:0;font-size:13px;color:var(--muted);">No one in your groups matches. Try another spelling, or add a person outside your network.</p>';
+      })
+      .catch(function () {
+        if (ask !== _hp.ask) return;
+        var box = document.getElementById("hp-res");
+        if (box) box.innerHTML = '<p style="margin:0;font-size:13px;color:#c0392b;font-weight:600;">The search did not load. Type again to retry.</p>';
+      });
+  }, 350);
+}
+function _hpPick(i) {
+  var p = _hp.res[i]; if (!p) return;
+  var inp = document.getElementById("f-host"), hl = document.getElementById("f-hostlink"), cb = document.getElementById("show-hostlink");
+  if (inp) inp.value = p.name;
+  if (hl) hl.value = p.pageLink || "";
+  if (cb) cb.checked = !!p.pageLink;
+  _hp.mode = "card"; _hp.photo = p.photo || "";
+  try { formDirty = true; } catch (e) {}
+  _hpPaint();
 }
 
 function _knownPosterName() {
@@ -5251,7 +5374,8 @@ function _resolveMyAppearLink() {
         var res = await fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(me));
         var d = await res.json();
         var link = String((d && d.pageLink) || "").trim();
-        _myAppearName = String((d && d.name) || "").trim();   
+        _myAppearName = String((d && d.name) || "").trim();
+        window._myAppearPhoto = String((d && (d.photo || d.photoURL)) || "").trim();   
         if (/^https?:\/\/appear\.network\//i.test(link)) { _rememberAppearLink(link); return link; }
       } catch (e) {}
     }
