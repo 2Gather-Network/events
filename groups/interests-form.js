@@ -17,46 +17,94 @@
     var on = {}, picks = [], tree = null;
     if (!cats) return { get: function(){ return { kinds: '', choices: '' }; }, set: function(){} };
     cats.innerHTML = '<span style="font-size:13px;color:#1F699E;">Loading the categories…</span>';
-    function mark(key){
-      on[key] = true;
-      var parts = key.split(SEP);
-      for (var i = 1; i < parts.length; i++) on[parts.slice(0, i).join(SEP)] = true;
-    }
-    function row(list, path, depth){
-      var wrap = document.createElement('div');
-      wrap.style.cssText = depth ? 'margin:8px 0 4px ' + Math.min(depth, 3) * 14 + 'px;padding-left:12px;border-left:2px solid var(--line,#DDE4EE);' : 'margin:8px 0 4px;';
-      if (depth) {
-        var lab = document.createElement('div');
-        lab.style.cssText = 'font-size:13px;color:var(--muted,#6B7A8D);margin:0 0 6px;';
-        lab.textContent = 'Within ' + path[path.length - 1] + ' (optional):';
-        wrap.appendChild(lab);
+    function mark(key){ on[key] = true; }
+    var at = [];
+    function nodeAt(path){
+      var list = tree || [];
+      for (var i = 0; i < path.length; i++) {
+        var f = null;
+        list.forEach(function(n){ if (n.name === path[i]) f = n; });
+        if (!f) return null;
+        list = f.kids;
       }
+      return list;
+    }
+    function pill(text, isOn, fn){
+      var c = document.createElement('div'); c.className = chip + (isOn ? ' on' : '');
+      c.textContent = (isOn ? '\u2713 ' : '') + text;
+      c.addEventListener('click', fn);
+      return c;
+    }
+    function level(){
+      var wrap = document.createElement('div');
+      var list = nodeAt(at);
+      if (!list) { at = []; list = tree || []; }
+      var crumb = document.createElement('div');
+      crumb.style.cssText = 'font-size:14px;font-weight:700;color:var(--ink,#1A2E42);margin:4px 0 10px;';
+      if (!at.length) {
+        crumb.style.fontWeight = '500'; crumb.style.color = 'var(--muted,#6B7A8D)';
+        crumb.textContent = 'All categories';
+      } else {
+        var link = function(text, to){
+          var a = document.createElement('a'); a.href = '#'; a.textContent = text;
+          a.style.cssText = 'color:#1F699E;text-decoration:underline;cursor:pointer;';
+          a.addEventListener('click', function(e){ e.preventDefault(); at = to; draw(); });
+          return a;
+        };
+        crumb.appendChild(link('All categories', []));
+        at.forEach(function(seg, i){
+          var sep = document.createElement('span'); sep.textContent = ' \u203a '; sep.style.cssText = 'color:var(--muted,#6B7A8D);font-weight:400;margin:0 4px;';
+          crumb.appendChild(sep);
+          if (i === at.length - 1) { var cur = document.createElement('span'); cur.textContent = seg; crumb.appendChild(cur); }
+          else crumb.appendChild(link(seg, at.slice(0, i + 1)));
+        });
+      }
+      wrap.appendChild(crumb);
       var r = document.createElement('div');
       r.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
-      list.forEach(function(n){
-        var key = path.concat(n.name).join(SEP);
-        var c = document.createElement('div'); c.className = chip + (on[key] ? ' on' : '');
-        c.textContent = (n.emoji ? n.emoji + ' ' : '') + n.name + (n.kids.length ? '  ›' : '');
-        c.addEventListener('click', function(){
-          if (on[key]) { Object.keys(on).forEach(function(k){ if (k === key || k.indexOf(key + SEP) === 0) delete on[k]; }); }
-          else { mark(key); }
-          draw();
-        });
-        r.appendChild(c);
+      if (at.length) {
+        var here = at.join(SEP);
+        r.appendChild(pill('All of ' + at[at.length - 1], !!on[here], function(){ if (on[here]) delete on[here]; else mark(here); draw(); }));
+      }
+      var groups = list.filter(function(n){ return n.kids.length; });
+      var shown = groups.length ? groups : list;
+      shown.forEach(function(n){
+        var key = at.concat(n.name).join(SEP);
+        if (n.kids.length) {
+          var d = document.createElement('div'); d.className = chip;
+          d.style.cssText = 'color:#1F699E;border-color:#1F699E;';
+          d.textContent = (n.emoji ? n.emoji + ' ' : '') + n.name;
+          d.addEventListener('click', function(){ at = at.concat(n.name); draw(); });
+          r.appendChild(d);
+        } else {
+          r.appendChild(pill(n.name, !!on[key], function(){ if (on[key]) delete on[key]; else mark(key); draw(); }));
+        }
       });
       wrap.appendChild(r);
-      list.forEach(function(n){
-        var key = path.concat(n.name).join(SEP);
-        if (on[key] && n.kids.length) wrap.appendChild(row(n.kids, path.concat(n.name), depth + 1));
-      });
       return wrap;
     }
     function leaves(){
-      var keys = Object.keys(on).filter(function(k){ return on[k]; });
-      return keys.filter(function(k){ return !keys.some(function(x){ return x !== k && x.indexOf(k + SEP) === 0; }); });
+      return Object.keys(on).filter(function(k){ return on[k]; });
+    }
+    function chosenRow(){
+      var keys = leaves();
+      var w = document.createElement('div');
+      w.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px;';
+      if (!keys.length) {
+        var e = document.createElement('span'); e.style.cssText = 'font-size:13px;color:var(--muted,#6B7A8D);';
+        e.textContent = 'Nothing chosen yet.'; w.appendChild(e); return w;
+      }
+      keys.forEach(function(k){
+        var p = k.split(SEP);
+        var c = document.createElement('div'); c.className = chip + ' on';
+        c.textContent = p[p.length - 1] + '  \u00d7'; c.title = 'Remove ' + p.join(' \u203a ');
+        c.addEventListener('click', function(){ delete on[k]; draw(); });
+        w.appendChild(c);
+      });
+      return w;
     }
     function draw(){
-      if (tree) { cats.innerHTML = ''; cats.appendChild(row(tree, [], 0)); }
+      if (tree) { cats.innerHTML = ''; cats.appendChild(chosenRow()); cats.appendChild(level()); }
       if (box) {
         box.innerHTML = '';
         picks.forEach(function(w, i){
