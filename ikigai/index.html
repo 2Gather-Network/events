@@ -4657,6 +4657,90 @@
         'Not the things you care about, which are above. These are the ways you meet people, and they stay the same whoever you are with.', vrow);
       after(care, vblk);
     }
+    if (care && !document.getElementById('gp-interests-block')) {
+      var tbox = document.createElement('div');
+      var tMore = false, tAdding = false, tOffers = [];
+      var tLow = function(x){ return String(x).toLowerCase(); };
+      var tHas = function(w){ return (window._gpTopicsHave || []).map(tLow).indexOf(tLow(w)) > -1; };
+      var tSave = function(op, w){
+        if (!meId || gpViewingSomebodyElse() || !window._gpLoaded) { gpLoadNote(); return; }
+        var list = (window._gpTopicsHave || []).slice();
+        if (op === 'add' && !tHas(w)) { list.push(w); }
+        if (op === 'remove') { list = list.filter(function(x){ return tLow(x) !== tLow(w); }); }
+        window._gpTopicsHave = list; tPaint();
+        fetch(GS_URL + '?action=saveInterests&appearId=' + encodeURIComponent(meId)
+          + '&interests=' + encodeURIComponent(list.join('|')) + '&op=' + op + '&topics=' + encodeURIComponent(w))
+          .then(function(r){ return r.json(); })
+          .then(function(j){ if (j && Array.isArray(j.topics)) { window._gpTopicsHave = j.topics; tPaint(); } })
+          .catch(function(){});
+      };
+      var tPaint = function(){
+        tbox.innerHTML = '';
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+        var have = window._gpTopicsHave || [], shown = {}, list = [];
+        have.forEach(function(w){ if (!shown[tLow(w)]) { shown[tLow(w)] = 1; list.push(w); } });
+        var extra = tOffers.filter(function(w){ return !shown[tLow(w)]; });
+        var room = Math.max(0, 10 - list.length);
+        list = list.concat(tMore ? extra : extra.slice(0, room));
+        list.forEach(function(w){
+          var on = tHas(w), b = gpPill(w, on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          b.onclick = function(){ tSave(tHas(w) ? 'remove' : 'add', w); };
+          row.appendChild(b);
+        });
+        var other = document.createElement('button');
+        other.type = 'button'; other.textContent = '+ Other';
+        other.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;';
+        other.onclick = function(){ tAdding = !tAdding; tPaint(); };
+        row.appendChild(other);
+        tbox.appendChild(row);
+        if (tAdding) {
+          var line = document.createElement('div');
+          line.style.cssText = 'display:flex;gap:8px;margin-top:10px;';
+          var inp = document.createElement('input');
+          inp.type = 'text'; inp.placeholder = 'A topic you would like to hear about';
+          inp.style.cssText = 'flex:1;min-width:0;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:8px 12px;font:inherit;font-size:14px;color:#1A2E42;';
+          var add = document.createElement('button');
+          add.type = 'button'; add.textContent = 'Add';
+          add.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 16px;border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
+          var go = function(){ var v = String(inp.value || '').trim(); if (!v) { inp.focus(); return; } tAdding = false; tSave('add', v); };
+          add.onclick = go;
+          inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
+          line.appendChild(inp); line.appendChild(add);
+          tbox.appendChild(line);
+          setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0);
+        }
+        if (extra.length > room) {
+          var more = document.createElement('button');
+          more.type = 'button'; more.textContent = tMore ? 'Show fewer' : 'Show more';
+          more.style.cssText = 'font:inherit;font-size:13px;font-weight:700;background:none;border:0;color:#1F699E;cursor:pointer;padding:0;margin-top:10px;';
+          more.onclick = function(){ tMore = !tMore; tPaint(); };
+          tbox.appendChild(more);
+        }
+      };
+      window._gpPaintTopics = tPaint;
+      tPaint();
+      fetch(GS_URL).then(function(r){ return r.json(); }).then(function(dd){
+        var today = new Date().toISOString().slice(0, 10), tally = {}, label = {};
+        var STOP = { community:1, 'drop in':1, beginner:1, beginners:1, resource:1, free:1, 'all ages':1, senior:1, seniors:1, online:1, zoom:1, 'in person':1, cancelled:1, canceled:1, postponed:1, tbd:1, event:1, events:1, weekly:1, monthly:1 };
+        ((dd && dd.events) || []).forEach(function(ev){
+          var dt = String(ev.date || '').slice(0, 10);
+          if (dt && dt < today && !ev.recurFreq) { return; }
+          var place = [ev.location, ev.venue, ev.county, ev.org, ev.room, ev.host].join(' ').toLowerCase(), seen = {};
+          String(ev.keywords || '').split(',').forEach(function(k){
+            k = String(k).trim(); var kl = k.toLowerCase();
+            if (!k || STOP[kl] || seen[kl] || kl.split(/\s+/).length > 3) { return; }
+            if (place.indexOf(kl) > -1 || kl.indexOf('county') > -1 || kl.indexOf('center') > -1) { return; }
+            seen[kl] = 1; tally[kl] = (tally[kl] || 0) + 1;
+            if (!label[kl] || /^[A-Z]/.test(k)) { label[kl] = k.charAt(0).toUpperCase() + k.slice(1); }
+          });
+        });
+        tOffers = Object.keys(tally).sort(function(x, y){ return tally[y] - tally[x] || x.localeCompare(y); }).map(function(k){ return label[k]; });
+        tPaint();
+      }).catch(function(){});
+      after(care, gpRailBlock('gp-interests-block', 3, 'Interests', 'These help match you to upcoming events, people, and opportunities.', tbox));
+    }
     if (GP_V2) {
       var sec = document.createElement('div');
       var fillSec = function(){
@@ -5010,6 +5094,10 @@
           _gpOrig[kk][ek.slice(at + 1)] = _gpOrigEdited[ek];
         });
         var have = (d && d.data) || {};
+        try {
+          window._gpTopicsHave = String(have.topics || '').split(String(have.topics || '').indexOf('|') > -1 ? '|' : ',').map(function(x){ return x.trim(); }).filter(Boolean);
+          if (window._gpPaintTopics) { window._gpPaintTopics(); }
+        } catch (e) {}
         window._gpHold = {}; ['holdNeeds','holdEnjoy','holdSkills','holdCares','holdOffers'].forEach(function(h){ window._gpHold[h] = String(have[h] == null ? '' : have[h]); });
         try { ['introNeed','introEnjoy','introSkills','introValues','introOffer'].forEach(function(k){
           if (!_gpProseDirty[k]) { _gpProse[k] = String(have[k] || ''); }
