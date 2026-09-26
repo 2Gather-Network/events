@@ -2242,7 +2242,7 @@ async function init() {
       return;
     }
     let ev = (data.events||[]).filter(r=>r.id).map(toEv).find(e=>e.id===id);
-    let _signinLapsed = false;
+    let _signinLapsed = false, _oneFailed = false;
     if (ev && _fresh) { try { sessionStorage.removeItem("cw-ev-fresh"); } catch (e) {} }
     if (!ev) {
       window._evPrivatePath = true;
@@ -2252,13 +2252,14 @@ async function init() {
         if (_me) {
           try {
             let _oneAc = null, _oneCap = null;
-            try { _oneAc = new AbortController(); _oneCap = setTimeout(function () { try { _oneAc.abort(); } catch (x) {} }, 30000); } catch (x) {}
+            try { _oneAc = new AbortController(); _oneCap = setTimeout(function () { try { _oneAc.abort(); } catch (x) {} }, 45000); } catch (x) {}
             const oneRes = await fetch(GS_URL + "?action=getEventById&id=" + encodeURIComponent(id) + "&appearId=" + encodeURIComponent(_me) + "&nocache=1&t=" + Date.now(), _oneAc ? { signal: _oneAc.signal } : undefined);
             const one = await oneRes.json();
             if (_oneCap) clearTimeout(_oneCap);
             if (one && one.event && one.event.row && String(one.event.row.id) === id) { ev = toEv(one.event.row); }
             else if (one && one.signinNeeded) { _signinLapsed = true; }
-          } catch (e) {}
+            else if (!one || !one.event || one.status === "error") { _oneFailed = true; }
+          } catch (e) { _oneFailed = true; }
         }
         if (_me && !ev) {
           const mineRes = await fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(_me) + "&nocache=1&t=" + Date.now());
@@ -2270,6 +2271,12 @@ async function init() {
       } catch (e) {}
     }
     if (!ev && _fresh) { return; }   
+    if (!ev && _oneFailed && !_signinLapsed) {
+      document.getElementById("card").innerHTML = '<div class="error">This event did not load. The server is slow right now, so it may just need another try.'
+        + '<br><br><a href="" onclick="location.reload();return false;" style="color:var(--primary);font-weight:700;">Try again</a>'
+        + ' &nbsp;·&nbsp; <a href="https://2gather.network/support/?from=' + encodeURIComponent(location.href) + '" style="color:var(--primary);font-weight:700;">Tell support</a></div>';
+      return;
+    }
     if (!ev) { showError(_signinLapsed ? "Your sign-in has run out. Sign in again to see this event." : "Event not found."); return; }
     const _r = new URLSearchParams(window.location.search).get("r");
     const viaCard = new URLSearchParams(window.location.search).get("via");
