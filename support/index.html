@@ -70,6 +70,12 @@
   .cw-trail a{color:#fff;text-decoration:none;cursor:pointer;}
   .cw-trail .sep{color:rgba(255,255,255,.55);padding:0 6px;}
   .cw-trail .now{font-weight:800;}
+  .pic-box{border:1.5px dashed var(--panel-line);background:var(--panel);border-radius:12px;padding:14px 16px;}
+  .pic-ways{font-size:14px;line-height:1.55;color:var(--ink);margin:0 0 10px;}
+  #pic-up{padding:7px 16px;font-size:14px;margin-left:4px;}
+  #pic-show{display:flex;align-items:flex-start;gap:12px;margin-top:12px;}
+  #pic-show img{max-width:220px;max-height:160px;border-radius:8px;border:1px solid var(--line);background:#fff;}
+  #pic-x{background:#fff;color:var(--brand);box-shadow:inset 0 0 0 1.5px var(--brand);padding:7px 14px;font-size:13.5px;}
 </style>
   <script src="/nav/identity.js?v=29"></script>
 </head>
@@ -118,6 +124,18 @@
     <div class="row">
       <label for="msg">How can we help?</label>
       <textarea id="msg" placeholder="Write as much or as little as you like."></textarea>
+    </div>
+
+    <div class="row hide" id="pic-row">
+      <label for="pic-link">Add a picture</label>
+      <div class="pic-box">
+        <div class="pic-ways">Paste a screenshot anywhere on this page, paste a link to a picture below, or
+          <button type="button" id="pic-up">Upload</button></div>
+        <input id="pic-link" type="url" placeholder="Ex: https://example.com/picture.jpg">
+        <input type="file" id="pic-file" accept="image/jpeg,image/png,image/webp" hidden>
+        <div id="pic-show" class="hide"><img id="pic-img" alt="The picture you are sending"><button type="button" id="pic-x">Remove</button></div>
+      </div>
+      <div class="hint">Optional. Only the Creating.Works team can open it.</div>
     </div>
 
     <button id="send">Send it</button><button type="button" id="claim-cancel" hidden>Cancel</button>
@@ -223,6 +241,90 @@ window._safeNavGo = window._safeNavGo || function (el) {
     say.textContent = msg;
   }
 
+  var PIC = (function () {
+    var on = params.get('photo') === '1';
+    var row = document.getElementById('pic-row');
+    var file = document.getElementById('pic-file');
+    var link = document.getElementById('pic-link');
+    var show = document.getElementById('pic-show');
+    var img = document.getElementById('pic-img');
+    var api = { on: on, blob: null, id: '' };
+    if (!on) { api.link = function () { return ''; }; api.clear = function () {}; return api; }
+    row.classList.remove('hide');
+
+    function clear() {
+      api.blob = null; api.id = '';
+      if (img.src) { try { URL.revokeObjectURL(img.src); } catch (e) {} }
+      img.removeAttribute('src');
+      show.classList.add('hide');
+      file.value = '';
+      link.value = '';
+    }
+
+    function take(f) {
+      if (!f || String(f.type || '').indexOf('image/') !== 0) {
+        tell('That is not a picture. Try a screenshot, a JPG or a PNG.', false);
+        return;
+      }
+      var reader = new FileReader();
+      reader.onerror = function () { tell('That picture could not be read. Try another one.', false); };
+      reader.onload = function () {
+        var pic = new Image();
+        pic.onerror = function () { tell('That picture could not be read. Try another one.', false); };
+        pic.onload = function () {
+          var max = 1600, w = pic.naturalWidth, h = pic.naturalHeight;
+          var scale = Math.min(1, max / Math.max(w, h));
+          var c = document.createElement('canvas');
+          c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+          var ctx = c.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+          ctx.drawImage(pic, 0, 0, c.width, c.height);
+          c.toBlob(function (b) {
+            if (!b) { tell('That picture could not be read. Try another one.', false); return; }
+            if (img.src) { try { URL.revokeObjectURL(img.src); } catch (e) {} }
+            api.blob = b; api.id = '';
+            img.src = URL.createObjectURL(b);
+            show.classList.remove('hide');
+            link.value = '';
+          }, 'image/jpeg', 0.85);
+        };
+        pic.src = reader.result;
+      };
+      reader.readAsDataURL(f);
+    }
+
+    document.getElementById('pic-up').addEventListener('click', function () { file.click(); });
+    file.addEventListener('change', function () { if (file.files && file.files[0]) take(file.files[0]); });
+    document.getElementById('pic-x').addEventListener('click', clear);
+    document.addEventListener('paste', function (e) {
+      var items = (e.clipboardData && e.clipboardData.items) || [];
+      for (var i = 0; i < items.length; i++) {
+        if (items[i] && String(items[i].type || '').indexOf('image/') === 0) {
+          var f = items[i].getAsFile();
+          if (f) { e.preventDefault(); take(f); return; }
+        }
+      }
+    });
+
+    api.link = function () {
+      var v = String(link.value || '').trim();
+      return /^https?:\/\/\S+$/i.test(v) ? v : '';
+    };
+    api.clear = clear;
+    api.upload = function () {
+      return fetch('https://cw-photos.jessieupp.workers.dev/upload-support', {
+        method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: api.blob
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.status === 'ok' && d.id) return d.id;
+        throw new Error((d && d.message) || 'The picture did not go through.');
+      }).catch(function (err) {
+        throw ((err && err.message) ? err.message : 'The picture did not go through.')
+          + ' Press Send it again, or remove the picture and send your message alone.';
+      });
+    };
+    return api;
+  })();
+
   document.getElementById('send').addEventListener('click', function () {
     var kind = document.getElementById('kind').value;
     var name = document.getElementById('name').value.trim();
@@ -237,6 +339,15 @@ window._safeNavGo = window._safeNavGo || function (el) {
     btn.disabled = true;
     tell('Sending. You can close this page, it will still arrive.', true);
 
+    if (PIC.on && PIC.blob && !PIC.id) {
+      tell('Sending your picture first.', true);
+      PIC.upload().then(function (id) {
+        PIC.id = id; btn.disabled = false; btn.click();
+      }).catch(function (m) { btn.disabled = false; tell(m, false); });
+      return;
+    }
+    if (PIC.on && !PIC.blob && PIC.link()) { msg += '\n\nPicture link: ' + PIC.link(); }
+
     var url = GS_URL + '?action=saveSupportTicket'
       + '&kind=' + encodeURIComponent(kind)
       + '&name=' + encodeURIComponent(name)
@@ -244,6 +355,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
       + '&message=' + encodeURIComponent(msg)
       + '&appearId=' + encodeURIComponent(who)
       + ((kind === 'Claim event' && CLAIM_EVENT) ? '&eventId=' + encodeURIComponent(CLAIM_EVENT) : '')
+      + (PIC.id ? '&image=' + encodeURIComponent(PIC.id) : '')
       + '&page=' + encodeURIComponent(FROM_PAGE || document.referrer || '');
 
     fetch(url, { keepalive: true }).then(function (r) { return r.text(); }).then(function (t) {
@@ -251,6 +363,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
       try { parsed = JSON.parse(t); } catch (e) {}
       if (parsed && parsed.status === 'ok') {
         document.getElementById('msg').value = '';
+        PIC.clear();
         if (SENT_UI) {
           btn.textContent = 'Sent!';
           btn.disabled = true;
