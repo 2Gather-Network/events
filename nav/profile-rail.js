@@ -14,7 +14,7 @@
       + 'html.cw-prail-on .cw-prail-list button{display:block;width:100%;box-sizing:border-box;text-align:left;background:#fff;color:#1F699E;'
       +   'border:1.5px solid #C9D6E2;border-radius:10px;font-family:inherit;font-size:14px;font-weight:700;padding:10px 14px;cursor:pointer;}'
       + 'html.cw-prail-on .cw-prail-list button.on{background:#1F699E;color:#fff;border-color:#1F699E;cursor:default;}'
-      + 'html.cw-prail-on .cw-prail-head{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#6B7A8D;margin:16px 12px 7px;}'
+      + 'html.cw-prail-on .cw-prail-head{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#4B5A6D;margin:16px 12px 7px;}'
       + 'html.cw-prail-on .cw-prail-dot{float:right;width:9px;height:9px;border-radius:50%;background:#B9C4D2;margin:6px 0 0 12px;}'
       + 'html.cw-prail-on .cw-prail-list button.on .cw-prail-dot{box-shadow:0 0 0 2px rgba(255,255,255,.35);}'
       + 'html.cw-prail-on .cw-prail-dot.on{background:#E2711D;}'

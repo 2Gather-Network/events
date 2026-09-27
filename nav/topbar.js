@@ -439,7 +439,7 @@
       '.cwtb-ask{padding:48px 20px;display:flex;justify-content:center;}' +
       '.cwtb-ask-card{background:#fff;border-radius:16px;padding:34px 34px 30px;max-width:460px;width:100%;}' +
       '.cwtb-ask-card h1{font-size:22px;font-weight:800;color:#1A2E42;margin:0 0 8px;line-height:1.3;}' +
-      '.cwtb-ask-card p{font-size:15px;color:#6B7A8D;line-height:1.55;margin:0 0 22px;}' +
+      '.cwtb-ask-card p{font-size:15px;color:#4B5A6D;line-height:1.55;margin:0 0 22px;}' +
       '.cwtb-ask-row{display:flex;gap:10px;flex-wrap:wrap;}' +
       '.cwtb-ask-go{background:#1F699E !important;color:#fff !important;font-size:15px;font-weight:700;' +
         'padding:12px 24px;border-radius:24px;text-decoration:none !important;cursor:pointer;' +
@@ -952,7 +952,7 @@
       b.innerHTML = face
         + '<span style="min-width:0;">'
         +   '<span style="display:block;font-weight:700;">' + esc(label) + '</span>'
-        +   (email ? '<span style="display:block;font-size:12px;color:#6B7A8D;overflow:hidden;'
+        +   (email ? '<span style="display:block;font-size:12px;color:#4B5A6D;overflow:hidden;'
               + 'text-overflow:ellipsis;">' + esc(email) + '</span>' : '')
         + '</span>';
       b.onclick = function () { w.CW.viewAs(id, label); w.location.reload(); };
@@ -983,7 +983,7 @@
               out.appendChild(row(q, q));
               var note = d.createElement('div');
               note.textContent = 'No name matched. Press it to view as that id.';
-              note.style.cssText = 'font-size:12px;color:#6B7A8D;padding:2px 2px 0;';
+              note.style.cssText = 'font-size:12px;color:#4B5A6D;padding:2px 2px 0;';
               out.appendChild(note);
             }
           })
