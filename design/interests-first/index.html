@@ -91,6 +91,19 @@
     return best ? best.w.cat : '';
   }
 
+  function tsv(text){
+    var rows = [[]], cell = '', q = false, t = String(text || '');
+    for (var i = 0; i < t.length; i++) {
+      var ch = t[i];
+      if (q) { if (ch === '"' && t[i + 1] === '"') { cell += '"'; i++; } else if (ch === '"') q = false; else cell += ch; }
+      else if (ch === '"' && cell === '') q = true;
+      else if (ch === '\t') { rows[rows.length - 1].push(cell); cell = ''; }
+      else if (ch === '\n') { rows[rows.length - 1].push(cell); cell = ''; rows.push([]); }
+      else if (ch !== '\r') cell += ch;
+    }
+    rows[rows.length - 1].push(cell);
+    return rows;
+  }
   function find(text){ for (var i = 0; i < items.length; i++) if (low(items[i].word) === low(text)) return items[i]; return null; }
   function add(text, tag, cat, level, quiet){
     text = String(text || '').trim().replace(/^[\s\-–•*]+|[\s.!?]+$/g, ''); if (!text || text.length < 2) return;
@@ -153,12 +166,20 @@
     if (!loaded) app.appendChild(el('div', 'wait', 'Loading the words…'));
     var det = el('details'); det.style.cssText = 'margin-top:16px;font-size:13px;';
     var sm = el('summary', '', 'Try it with someone’s existing answers'); sm.style.cssText = 'cursor:pointer;color:var(--blue);font-weight:600;'; det.appendChild(sm);
-    det.appendChild(el('p', 'lede', 'Paste the cells from their row on the ikigai tab. It stays in this browser: nothing is sent or saved.'));
-    var boxes = [['interests', 'enjoy', 'ikigai.interests'], ['skills', 'do', 'ikigai.skills'], ['values', 'care', 'ikigai.values'], ['needs', 'need', 'ikigai.needs'], ['haves', 'offer', 'ikigai.haves'], ['topics', 'interested', 'ikigai.topics']];
-    var tas = {};
-    boxes.forEach(function(b){ det.appendChild(el('div', 'sub', b[2])); var ta = el('textarea'); ta.rows = 2; ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;border-radius:8px;padding:8px;font:inherit;font-size:13px;'; tas[b[0]] = ta; det.appendChild(ta); });
+    det.appendChild(el('p', 'lede', 'On the ikigai tab, filter to their row, select row 1 and their row together, copy, and paste here. It stays in this browser: nothing is sent or saved.'));
+    var boxes = [['interests', 'enjoy'], ['skills', 'do'], ['values', 'care'], ['needs', 'need'], ['haves', 'offer'], ['topics', 'interested']];
+    var ta = el('textarea'); ta.rows = 4; ta.placeholder = 'Paste the header row and their row'; ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;border-radius:8px;padding:8px;font:inherit;font-size:13px;'; det.appendChild(ta);
+    var msg = el('div', 'wait'); det.appendChild(msg);
     var ld = pill('Load these answers', true); ld.classList.add('big'); ld.style.marginTop = '10px';
-    ld.onclick = function(){ items = []; boxes.forEach(function(b){ takeCell(tas[b[0]].value, b[1]); }); step = 2; paint(); window.scrollTo(0, 0); };
+    ld.onclick = function(){
+      var rows = tsv(ta.value).filter(function(r){ return r.some(function(c){ return String(c).trim(); }); });
+      if (rows.length < 2) { msg.textContent = 'I need two rows: the header row and their row.'; return; }
+      var H = rows[0].map(function(h){ return low(h); }), R = rows[rows.length - 1], got = 0;
+      items = [];
+      boxes.forEach(function(b){ var c = H.indexOf(b[0]); if (c > -1 && R[c]) { got++; takeCell(R[c], b[1]); } });
+      if (!got) { msg.textContent = 'I could not find interests, skills, values, needs, haves or topics in the header row.'; return; }
+      step = 2; paint(); window.scrollTo(0, 0);
+    };
     det.appendChild(ld); app.appendChild(det);
     if (items.length) {
       app.appendChild(el('div', 'sub', 'Your interests (' + items.length + ')'));
