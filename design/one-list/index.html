@@ -156,15 +156,24 @@
       for (var d = 0; d < 3; d++) {
         (function(depth){
           var parent = depth === 0 ? null : path[depth - 1];
-          var opts = depth === 0 ? mains : (parent && nodes[low(parent)] ? nodes[low(parent)].kids.filter(function(k){ return nodes[low(k)].kids.length; }) : []);
+          var opts = depth === 0 ? mains : (parent && nodes[low(parent)] ? nodes[low(parent)].kids.filter(function(k){ return (nodes[low(k)].kids.length || nodes[low(k)].pending) && low(k) !== low(w.name); }) : []);
           if (depth > 0 && !path[depth - 1]) return;
-          if (!opts.length && !path[depth]) return;
           var line = el('div', 'layer');
           line.style.marginLeft = (depth * 12) + 'px';
           var sel = el('select');
           var first = el('option', '', ['Main category', 'Add a sub-category', 'Add a kind'][depth]); first.value = ''; sel.appendChild(first);
-          opts.forEach(function(o){ var op = el('option', '', o); op.value = o; if (o === path[depth]) op.selected = true; sel.appendChild(op); });
-          sel.onchange = function(){ w.cats[ci] = path.slice(0, depth).concat(sel.value ? [sel.value] : []); paint(); };
+          opts.forEach(function(o){ var op = el('option', '', o + (nodes[low(o)] && nodes[low(o)].pending ? ' (waiting for review)' : '')); op.value = o; if (o === path[depth]) op.selected = true; sel.appendChild(op); });
+          if (depth > 0) { var own = el('option', '', '+ Add your own\u2026'); own.value = '__own'; sel.appendChild(own); }
+          sel.onchange = function(){
+            var v = sel.value;
+            if (v === '__own') {
+              v = String(window.prompt(depth === 1 ? 'A new sub-category under ' + parent : 'A new kind under ' + parent) || '').replace(/[:|,+~=]/g, ' ').trim();
+              if (!v) { paint(); return; }
+              v = v.charAt(0).toUpperCase() + v.slice(1);
+              link(v, parent); nodes[low(v)].pending = true;
+            }
+            w.cats[ci] = path.slice(0, depth).concat(v ? [v] : []); paint();
+          };
           line.appendChild(sel);
           if (path[depth]) {
             var x = el('button', 'icon', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Remove ' + path[depth]);
@@ -251,7 +260,9 @@
     var g = document.getElementById('grid'); g.innerHTML = '';
     words.forEach(function(w){ g.appendChild(card(w)); });
     var box = document.getElementById('savedBox');
-    box.textContent = 'ikigai (one list, each answer separated by |)\n\n' + words.map(saved).join('\n|\n');
+    var pend = Object.keys(nodes).filter(function(k){ return nodes[k].pending; }).map(function(k){ return '  ' + nodes[k].name + ' under ' + nodes[k].up[0]; });
+    box.textContent = 'ikigai (one list, each answer separated by |)\n\n' + words.map(saved).join('\n|\n')
+      + (pend.length ? '\n\nwords waiting for your review (not shown to anyone else yet):\n' + pend.join('\n') : '');
   }
 
   var trail = [];
