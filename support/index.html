@@ -70,12 +70,14 @@
   .cw-trail a{color:#fff;text-decoration:none;cursor:pointer;}
   .cw-trail .sep{color:rgba(255,255,255,.55);padding:0 6px;}
   .cw-trail .now{font-weight:800;}
-  .pic-box{border:1.5px dashed var(--panel-line);background:var(--panel);border-radius:12px;padding:14px 16px;}
-  .pic-ways{font-size:14px;line-height:1.55;color:var(--ink);margin:0 0 10px;}
-  #pic-up{padding:7px 16px;font-size:14px;margin-left:4px;}
-  #pic-show{display:flex;align-items:flex-start;gap:12px;margin-top:12px;}
-  #pic-show img{max-width:220px;max-height:160px;border-radius:8px;border:1px solid var(--line);background:#fff;}
-  #pic-x{background:#fff;color:var(--brand);box-shadow:inset 0 0 0 1.5px var(--brand);padding:7px 14px;font-size:13.5px;}
+  .pic-box{display:flex;align-items:center;gap:10px;background:#F5F7FA;border:1.5px solid var(--line);border-radius:12px;padding:8px 10px;}
+  #pic-thumb{width:44px;height:44px;border-radius:10px;background:#DDE4EE;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--soft);font-size:18px;}
+  #pic-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  #pic-link{flex:1;min-width:0;border:1.5px solid transparent;background:transparent;padding:8px 4px;font-size:14px;}
+  #pic-link:focus{border-color:transparent;}
+  .pic-up{font-size:13px;font-weight:700;color:var(--brand);border:1.5px solid var(--brand);border-radius:20px;padding:8px 14px;cursor:pointer;background:#fff;white-space:nowrap;flex-shrink:0;margin:0;}
+  #pic-note{font-size:12px;color:var(--soft);margin:6px 0 0;}
+  #pic-note a{color:var(--brand);font-weight:700;cursor:pointer;margin-left:6px;}
 </style>
   <script src="/nav/identity.js?v=29"></script>
 </head>
@@ -129,13 +131,11 @@
     <div class="row hide" id="pic-row">
       <label for="pic-link">Add a picture</label>
       <div class="pic-box">
-        <div class="pic-ways">Paste a screenshot anywhere on this page, paste a link to a picture below, or
-          <button type="button" id="pic-up">Upload</button></div>
-        <input id="pic-link" type="url" placeholder="Ex: https://example.com/picture.jpg">
-        <input type="file" id="pic-file" accept="image/jpeg,image/png,image/webp" hidden>
-        <div id="pic-show" class="hide"><img id="pic-img" alt="The picture you are sending"><button type="button" id="pic-x">Remove</button></div>
+        <div id="pic-thumb">🖼️</div>
+        <input type="url" id="pic-link" placeholder="Paste a picture or a link to one, or upload">
+        <label class="pic-up">Upload<input type="file" id="pic-file" accept="image/jpeg,image/png,image/webp" hidden></label>
       </div>
-      <div class="hint">Optional. Only the Creating.Works team can open it.</div>
+      <p id="pic-note">Optional. Only the Creating.Works team can open it.</p>
     </div>
 
     <button id="send">Send it</button><button type="button" id="claim-cancel" hidden>Cancel</button>
@@ -246,19 +246,40 @@ window._safeNavGo = window._safeNavGo || function (el) {
     var row = document.getElementById('pic-row');
     var file = document.getElementById('pic-file');
     var link = document.getElementById('pic-link');
-    var show = document.getElementById('pic-show');
-    var img = document.getElementById('pic-img');
+    var thumb = document.getElementById('pic-thumb');
+    var note = document.getElementById('pic-note');
+    var NOTE = note.textContent;
+    var shown = '';
     var api = { on: on, blob: null, id: '' };
     if (!on) { api.link = function () { return ''; }; api.clear = function () {}; return api; }
     row.classList.remove('hide');
 
+    function thumbTo(src) {
+      if (shown) { try { URL.revokeObjectURL(shown); } catch (e) {} shown = ''; }
+      thumb.textContent = '';
+      if (!src) { thumb.textContent = '\uD83D\uDDBC\uFE0F'; return; }
+      var im = document.createElement('img');
+      im.alt = '';
+      im.onerror = function () { thumb.textContent = '\uD83D\uDDBC\uFE0F'; };
+      im.src = src;
+      thumb.appendChild(im);
+    }
+
     function clear() {
       api.blob = null; api.id = '';
-      if (img.src) { try { URL.revokeObjectURL(img.src); } catch (e) {} }
-      img.removeAttribute('src');
-      show.classList.add('hide');
+      thumbTo('');
       file.value = '';
       link.value = '';
+      note.textContent = NOTE;
+    }
+
+    function noteReady(name) {
+      note.textContent = name + ' goes with your message.';
+      var a = document.createElement('a');
+      a.setAttribute('role', 'button'); a.setAttribute('tabindex', '0'); a.textContent = 'Remove';
+      a.addEventListener('click', clear);
+      a.addEventListener('keydown', function (e) { if (e.key === 'Enter') clear(); });
+      note.appendChild(a);
     }
 
     function take(f) {
@@ -281,11 +302,11 @@ window._safeNavGo = window._safeNavGo || function (el) {
           ctx.drawImage(pic, 0, 0, c.width, c.height);
           c.toBlob(function (b) {
             if (!b) { tell('That picture could not be read. Try another one.', false); return; }
-            if (img.src) { try { URL.revokeObjectURL(img.src); } catch (e) {} }
             api.blob = b; api.id = '';
-            img.src = URL.createObjectURL(b);
-            show.classList.remove('hide');
             link.value = '';
+            thumbTo(URL.createObjectURL(b));
+            shown = thumb.firstChild && thumb.firstChild.src || '';
+            noteReady(f.name && f.name !== 'image.png' ? f.name : 'Your picture');
           }, 'image/jpeg', 0.85);
         };
         pic.src = reader.result;
@@ -293,9 +314,13 @@ window._safeNavGo = window._safeNavGo || function (el) {
       reader.readAsDataURL(f);
     }
 
-    document.getElementById('pic-up').addEventListener('click', function () { file.click(); });
     file.addEventListener('change', function () { if (file.files && file.files[0]) take(file.files[0]); });
-    document.getElementById('pic-x').addEventListener('click', clear);
+    link.addEventListener('input', function () {
+      if (api.blob) { api.blob = null; api.id = ''; }
+      var v = api.link();
+      thumbTo(v);
+      note.textContent = v ? 'This link goes with your message.' : NOTE;
+    });
     document.addEventListener('paste', function (e) {
       var items = (e.clipboardData && e.clipboardData.items) || [];
       for (var i = 0; i < items.length; i++) {
