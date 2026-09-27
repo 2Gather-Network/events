@@ -32,6 +32,8 @@
   .more{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:10px;}
   .more .lab{font-size:12px;font-weight:700;color:var(--grey);margin-bottom:6px;}
   .more + .more{margin-top:8px;}
+  .catbox{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0 10px;}
+  .catbox .lab{font-size:12px;font-weight:700;color:var(--grey);margin-bottom:6px;}
   .q{background:#FFF4ED;border:1px solid #F0C9AE;border-radius:10px;padding:10px;margin:8px 0;font-size:13.5px;color:#7A2410;}
   .q .row{margin-top:8px;}
   .saves{margin-top:22px;border-top:1px solid var(--line);padding-top:14px;}
@@ -77,7 +79,7 @@
   var addWord = function(name, cat, assoc){ var k = low(name); if (!k || k.length < 3) return; if (!words[k]) words[k] = { name: String(name).trim(), cat: cat, assoc: low(assoc) }; };
   var el = function(tag, cls, text){ var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
   var pill = function(text, on){ var b = el('button', 'pill' + (on ? ' on' : ''), text); b.type = 'button'; return b; };
-  var items = [], step = 1;
+  var items = [], step = 1, confirmed = false;
 
   function guessCat(text){
     var t = ' ' + low(text).replace(/[^a-z0-9' ]+/g, ' ') + ' ', best = null;
@@ -245,20 +247,24 @@
   function wordCard(it){
     var w = el('div', 'w');
     w.appendChild(el('h3', '', it.word));
+    var cats = [it.cat].concat(it.also || []).filter(String);
     var ab = el('div', 'about');
-    if (it.cat) { ab.appendChild(document.createTextNode((it.catSure ? 'Category: ' : 'Category, we think: ') + it.cat + ' · ')); var ch = el('button', '', it.catSure ? 'change' : 'change or confirm'); ch.type = 'button'; ch.onclick = function(){ it.open = it.open === 'cat' ? '' : 'cat'; paint(); }; ab.appendChild(ch); }
+    ab.appendChild(document.createTextNode(!cats.length ? 'Category: pick one or more' : (it.catSure ? 'Category: ' : 'Possible category selected: ') + cats.join(', ')));
+    if (it.catDone) { ab.appendChild(document.createTextNode(' · ')); var ch = el('button', '', 'change'); ch.type = 'button'; ch.onclick = function(){ it.catDone = false; paint(); }; ab.appendChild(ch); }
     w.appendChild(ab);
-    if (!it.cat || it.open === 'cat') {
-      var q = el('div', 'q'); q.appendChild(document.createTextNode(it.cat ? 'Which one is it about?' : 'We don’t know “' + it.word + '” yet. What is it closest to?'));
-      var r = el('div', 'row');
-      CATS.forEach(function(c){ var b = pill(c, it.cat === c && it.catSure); b.onclick = function(){ it.cat = c; it.catSure = true; it.open = ''; paint(); }; r.appendChild(b); });
-      q.appendChild(r); w.appendChild(q);
+    if (!it.catDone) {
+      var q = el('div', 'catbox'), r = el('div', 'row');
+      q.appendChild(el('div', 'lab', cats.length ? 'Tap to add or remove. Pick as many as fit.' : 'We don’t know “' + it.word + '” yet. Which fit? Pick as many as you like.'));
+      CATS.forEach(function(c){ var b = pill(c, cats.indexOf(c) > -1); b.onclick = function(){ var at = cats.indexOf(c); if (at > -1) cats.splice(at, 1); else cats.push(c); it.cat = cats[0] || ''; it.also = cats.slice(1); paint(); }; r.appendChild(b); });
+      q.appendChild(r);
+      var dn = pill('Done', true); dn.style.marginTop = '10px'; dn.onclick = function(){ if (!cats.length) return; it.catDone = true; it.catSure = true; paint(); }; q.appendChild(dn);
+      w.appendChild(q);
     }
     var tr = el('div', 'row');
-    TAGS.forEach(function(t){ var b = pill(t[1], !!it.tags[t[0]]); b.onclick = function(){ if (it.tags[t[0]]) delete it.tags[t[0]]; else it.tags[t[0]] = 1; if (it.cat) it.catSure = true; paint(); }; tr.appendChild(b); });
+    TAGS.forEach(function(t){ var b = pill(t[1], !!it.tags[t[0]]); b.onclick = function(){ if (it.tags[t[0]]) delete it.tags[t[0]]; else it.tags[t[0]] = 1; paint(); }; tr.appendChild(b); });
     w.appendChild(tr);
     if (it.tags.enjoy && !it.tags['do']) chipRow(w, 'Do you do it, or are you a fan?', ['Fan', 'I do it too'], function(o){ return o === 'Fan' && it.fan; }, function(o){ if (o === 'Fan') it.fan = !it.fan; else { it.tags['do'] = 1; it.fan = false; } });
-    if (it.tags['do']) {
+    if (it.tags['do'] || it.tags.offer) {
       chipRow(w, 'How far along are you?', LEVELS, function(o){ return it.level === o; }, function(o){ it.level = it.level === o ? '' : o; it.roles = []; });
       if (it.level === 'Guide') chipRow(w, 'How do you guide others?', GUIDE_ROLES, function(o){ return it.roles.indexOf(o) > -1; }, function(o){ var a = it.roles.indexOf(o); if (a > -1) it.roles.splice(a, 1); else it.roles.push(o); });
       if (it.level === 'Experienced') chipRow(w, 'How do you do it?', DO_ROLES, function(o){ return it.roles.indexOf(o) > -1; }, function(o){ var a = it.roles.indexOf(o); if (a > -1) it.roles.splice(a, 1); else it.roles.push(o); });
@@ -272,13 +278,13 @@
   function saves(){
     var col = { topics: [], interests: [], skills: [], values: [], needs: [], haves: [] };
     items.forEach(function(it){
-      var c = it.cat || '?';
+      var c = (it.cat || '?') + ((it.also || []).length ? ':alsoIn=' + it.also.join('+') : '');
       if (it.tags.interested) col.topics.push(it.word + ':' + c);
       if (it.tags.enjoy) col.interests.push(it.word + ':' + c + (it.fan ? ':Fan' : ''));
       if (it.tags['do']) { var roles = it.roles.map(function(r){ return r.replace(/ /g, ''); }).join('+'); col.skills.push(it.word + ':' + c + ':' + (it.level || '?') + (roles ? (it.level === 'Guide' ? ':guideAs=' : ':practiceAs=') + roles : '')); }
       if (it.tags.care) col.values.push(it.word + ':' + c + (it.tend ? ':tendTo=' + it.tend : ''));
       if (it.tags.need) col.needs.push(it.word + ':' + c + (it.need ? ':need=' + it.need : ''));
-      if (it.tags.offer) col.haves.push(it.word + ':' + c + (it.work === 'Yes' ? ':work' : ''));
+      if (it.tags.offer) col.haves.push(it.word + ':' + c + (it.level ? ':' + it.level : '') + (it.work === 'Yes' ? ':work' : ''));
     });
     var box = el('div', 'saves');
     box.appendChild(el('div', 'lab', 'Where this would save (nothing is saved in this mockup)'));
@@ -292,12 +298,41 @@
     app.appendChild(el('h1', '', 'How does each one fit you?'));
     app.appendChild(el('p', 'lede', 'Tap every one that is true. A few short questions open only for what you tap.'));
     items.forEach(function(it){ app.appendChild(wordCard(it)); });
+    var rv = pill('Next: check everything', true); rv.classList.add('big', 'next'); rv.onclick = function(){ step = 3; paint(); window.scrollTo(0, 0); }; app.appendChild(rv);
+  }
+  function tagLine(it){
+    var bits = [];
+    TAGS.forEach(function(t){ if (!it.tags[t[0]]) return; var x = t[1];
+      if (t[0] === 'enjoy' && it.fan) x += ' (fan)';
+      if ((t[0] === 'do' || t[0] === 'offer') && it.level) x += ' (' + it.level + (it.roles.length ? ': ' + it.roles.join(', ') : '') + ')';
+      if (t[0] === 'care' && it.tend) x += ' (for ' + it.tend + ')';
+      if (t[0] === 'need' && it.need) x += ' (to ' + it.need + ')';
+      if (t[0] === 'offer' && it.work) x += ' · paid work: ' + it.work;
+      bits.push(x); });
+    return bits.join(' · ') || 'No tags yet';
+  }
+  function stepThree(app){
+    var back = el('button', 'back', '‹ Back to your answers'); back.type = 'button'; back.onclick = function(){ step = 2; paint(); }; app.appendChild(back);
+    app.appendChild(el('h1', '', 'Is this all right?'));
+    app.appendChild(el('p', 'lede', 'Here is everything, with the categories we picked. Confirm it all at once, or tap a word to change it.'));
+    items.forEach(function(it){
+      var d = el('div', 'w'); d.style.cursor = 'pointer';
+      d.appendChild(el('h3', '', it.word));
+      var cats = [it.cat].concat(it.also || []).filter(String);
+      d.appendChild(el('div', 'about', 'Category: ' + (cats.join(', ') || 'none yet') + (it.catSure ? '' : ' (not confirmed)')));
+      d.appendChild(el('div', 'about', tagLine(it)));
+      d.onclick = function(){ step = 2; it.catDone = false; paint(); };
+      app.appendChild(d);
+    });
+    var ok = pill(confirmed ? 'All confirmed' : 'Confirm all', true); ok.classList.add('big', 'next');
+    ok.onclick = function(){ items.forEach(function(it){ if (it.cat) { it.catSure = true; it.catDone = true; } }); confirmed = true; paint(); };
+    app.appendChild(ok);
     app.appendChild(saves());
   }
 
   function paint(){
     var app = document.getElementById('app'); app.innerHTML = '';
-    if (step === 2 && items.length) stepTwo(app); else { step = 1; stepOne(app); }
+    if (step === 3 && items.length) stepThree(app); else if (step === 2 && items.length) stepTwo(app); else { step = 1; stepOne(app); }
   }
 
   paint();
