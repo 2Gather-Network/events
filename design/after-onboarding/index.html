@@ -21,7 +21,7 @@
   .band{background:var(--blue);color:#fff;font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:12px 16px;border-radius:10px 10px 0 0;}
   .grid{border:1.5px solid var(--pale);border-top:0;border-radius:0 0 12px 12px;padding:14px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start;}
   .c{border:1.5px solid var(--line);border-radius:12px;padding:14px 14px 12px;position:relative;background:#fff;}
-  .c h3{margin:0 44px 3px 0;font-size:16px;word-break:break-word;}
+  .c h3{margin:0 0 3px 0;font-size:16px;word-break:break-word;}
   .cat{font-size:12.5px;color:var(--grey);margin-bottom:8px;}
   .tag{display:inline-block;font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:12px;background:#E6F1FB;color:var(--blue);margin:0 4px 4px 0;text-transform:lowercase;}
   .sum{font-size:13px;color:#33475B;line-height:1.45;margin-top:4px;}
@@ -45,6 +45,25 @@
   .foot{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:22px;}
   .foot .btn{font-size:15px;padding:11px 22px;}
   .msg{font-size:13.5px;color:var(--grey);margin-top:12px;}
+  .tr{position:absolute;top:10px;right:10px;display:flex;align-items:center;gap:6px;}
+  .tr .mark,.tr .flag{position:static;}
+  .pen{font:inherit;background:none;border:0;cursor:pointer;font-size:15px;padding:2px;line-height:1;}
+  .c h3{margin-right:120px;}
+  .kvs{margin-top:8px;border-top:1px solid var(--line);}
+  .kv{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line);}
+  .kv span{color:var(--grey);}
+  .kv b{font-weight:700;text-align:right;}
+  .kv.miss span{color:var(--blue);font-weight:700;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .chip{font:inherit;font-size:12.5px;padding:4px 10px;border-radius:14px;background:#EEF1F5;color:var(--ink);border:1px solid #EEF1F5;}
+  .chip.add{background:#fff;border:1.5px dashed var(--blue);color:var(--blue);font-weight:700;cursor:pointer;}
+  .foot-bar{font:inherit;display:block;width:calc(100% + 28px);margin:12px -14px -12px;padding:10px 14px;border:0;border-top:1px solid var(--pale);border-radius:0 0 11px 11px;background:#E6F1FB;color:var(--blue);font-weight:700;font-size:13px;text-align:left;cursor:pointer;}
+  html.ao-editing .note,html.ao-editing h1,html.ao-editing .lede,html.ao-editing .prog,html.ao-editing .band,html.ao-editing .foot,html.ao-editing .msg{display:none;}
+  html.ao-editing .grid{border:0;padding:0;display:block;}
+  .c.edit{border:1.5px solid var(--blue);box-shadow:0 0 0 1px var(--blue);padding:20px 24px;}
+  .ehead{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--blue);margin-bottom:4px;}
+  .eq{font-size:14.5px;font-weight:800;margin-top:18px;}
+  .det{width:100%;margin-top:8px;border:1.5px solid #DDE3EA;background:var(--soft);border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;color:var(--ink);resize:vertical;}
   @media(max-width:768px){.panel{padding:20px 16px;}.grid{grid-template-columns:1fr;}h1{font-size:22px;}}
   @media(min-width:769px) and (max-width:980px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 </style>
@@ -129,42 +148,71 @@
   var openIx = -1, step = 0;
 
   function el(tag, cls, text){ var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
-  function summary(it){
-    var bits = [];
-    ['how', 'level', 'kind', 'lens', 'gives'].forEach(function(k){ if (it.a[k] && it.a[k].length) bits.push(it.a[k].join(', ')); });
-    if (it.a.who && it.a.who.length) bits.push('For: ' + it.a.who.join(', '));
-    return bits.join(' · ');
-  }
+  var CARD = (location.search.match(/[?&]card=([abc])\b/) || [])[1] || 'a';
+  document.documentElement.classList.add('card-' + CARD);
+  var LAB = { how: 'Interest', who: 'For', level: 'Level', gives: 'Gives you', kind: 'Kind', lens: 'Lens' };
+  var WHO = { 'Tend to self': 'yourself', 'People': 'people', 'Nature': 'nature' };
+  var VERB = { enjoy: 'You enjoy it', skill: 'You can do it', care: 'You care about it', seek: 'You’re seeking it', offer: 'You’re offering it' };
+  var editIx = -1, draft = null;
   function catLine(it){
     var c = (it.a.cat && it.a.cat.length) ? it.a.cat.join(', ') : it.cat;
     if (!c) return it.thing ? '' : 'Category: not sure yet';
     return (it.guess && !(it.a.cat && it.a.cat.length) ? 'Category, we think: ' : 'Category: ') + c;
   }
+  function answered(it){ return needs(it).filter(function(k){ return k !== 'cat' && it.a[k] && it.a[k].length; }); }
+  function sentence(it){
+    var s = VERB[it.tag] || '';
+    if (it.a.who && it.a.who.length) {
+      var w = it.a.who.map(function(x){ return WHO[x] || x.toLowerCase(); });
+      s += ' for ' + (w.length > 1 ? w.slice(0, -1).join(', ') + ' and ' + w[w.length - 1] : w[0]);
+    }
+    s += '.';
+    var more = ['how', 'level', 'kind', 'lens', 'gives'].filter(function(k){ return it.a[k] && it.a[k].length; }).map(function(k){ return it.a[k].join(', '); });
+    return more.length ? s + ' ' + more.join(' · ') + '.' : s;
+  }
+  function body(c, it, ix, miss){
+    if (CARD === 'a') {
+      var list = el('div', 'kvs');
+      answered(it).forEach(function(k){ var r = el('div', 'kv'); r.appendChild(el('span', '', LAB[k])); r.appendChild(el('b', '', it.a[k].join(', '))); list.appendChild(r); });
+      miss.filter(function(k){ return k !== 'cat'; }).forEach(function(k){ var r = el('div', 'kv miss'); r.appendChild(el('span', '', LAB[k])); var b = el('button', 'link', 'Add'); b.type = 'button'; b.addEventListener('click', function(){ openCard(ix); }); r.appendChild(b); list.appendChild(r); });
+      if (miss.indexOf('cat') > -1) { var r2 = el('div', 'kv miss'); r2.appendChild(el('span', '', 'Category')); var b2 = el('button', 'link', 'Confirm'); b2.type = 'button'; b2.addEventListener('click', function(){ openCard(ix); }); r2.appendChild(b2); list.appendChild(r2); }
+      if (list.children.length) c.appendChild(list);
+    } else if (CARD === 'b') {
+      var row = el('div', 'chips');
+      answered(it).forEach(function(k){ it.a[k].forEach(function(v){ row.appendChild(el('span', 'chip', v)); }); });
+      miss.forEach(function(k){ var b = el('button', 'chip add', '+ ' + SHORT[k]); b.type = 'button'; b.addEventListener('click', function(){ openCard(ix); }); row.appendChild(b); });
+      if (row.children.length) c.appendChild(row);
+    } else {
+      c.appendChild(el('div', 'sum', sentence(it)));
+      if (miss.length) {
+        var f = el('button', 'foot-bar', 'Answer ' + miss.length + ' more ' + (miss.length === 1 ? 'question' : 'questions') + ' for a better match');
+        f.type = 'button'; f.addEventListener('click', function(){ openCard(ix); }); c.appendChild(f);
+      }
+    }
+  }
 
   function draw(){
     grid.innerHTML = '';
+    document.documentElement.classList.toggle('ao-editing', editIx > -1);
+    if (editIx > -1) { drawEdit(); return; }
     var done = 0;
     items.forEach(function(it, ix){
       var miss = missing(it), ok = !miss.length;
       if (ok) done++;
       var c = el('div', 'c ' + (ix === openIx ? 'open' : ok ? 'ok' : 'more'));
-      if (ok) c.appendChild(el('div', 'mark', '✓'));
-      else if (ix !== openIx) c.appendChild(el('div', 'flag', 'Add more'));
+      var tr = el('div', 'tr');
+      if (ix !== openIx) { var pen = el('button', 'pen', '✏️'); pen.type = 'button'; pen.title = 'Edit'; pen.addEventListener('click', function(){ startEdit(ix); }); tr.appendChild(pen); }
+      if (ok) tr.appendChild(el('div', 'mark', '✓'));
+      else if (ix !== openIx) tr.appendChild(el('div', 'flag', 'Add more'));
+      c.appendChild(tr);
       c.appendChild(el('h3', '', it.word));
       var cl = catLine(it); if (cl) c.appendChild(el('div', 'cat', cl));
       c.appendChild(el('span', 'tag', TAG[it.tag]));
       if (it.det) c.appendChild(el('div', 'sum', 'Details: “' + it.det + '”'));
-      var s = summary(it); if (s) c.appendChild(el('div', 'sum', s));
-      if (ix === openIx) drawQuestion(c, it);
-      else if (!ok) {
-        var nd = el('div', 'need', 'For a better match: ');
-        miss.forEach(function(k){ nd.appendChild(el('span', '', SHORT[k])); });
-        c.appendChild(nd);
-        var b = el('button', 'btn', 'Answer ' + miss.length + (miss.length === 1 ? ' question' : ' questions'));
-        b.type = 'button';
-        b.addEventListener('click', function(){ openCard(ix); });
-        c.appendChild(b);
-      }
+      if (ix === openIx) {
+        var s0 = sentence(it); if (CARD === 'c') c.appendChild(el('div', 'sum', s0));
+        drawQuestion(c, it);
+      } else body(c, it, ix, miss);
       grid.appendChild(c);
     });
     document.getElementById('ao-band').textContent = 'Your answers (' + items.length + ')';
@@ -173,6 +221,66 @@
     var left = items.length - done, rest = document.getElementById('ao-rest');
     rest.style.display = left ? '' : 'none';
     rest.textContent = 'Answer the rest now (' + left + ')';
+  }
+
+  function startEdit(ix){
+    openIx = -1; restMode = false; editIx = ix;
+    draft = JSON.parse(JSON.stringify(items[ix]));
+    if (!draft.a.cat && draft.cat && !draft.thing && draft.tag !== 'care') draft.a.cat = [draft.cat];
+    draw(); window.scrollTo(0, 0);
+  }
+  function pickRow(c, title, opts, cur, many, onPick){
+    c.appendChild(el('div', 'eq', title));
+    var row = el('div', 'row');
+    opts.forEach(function(o){
+      var val = o[0], lab = o[1];
+      var b = el('button', 'pill' + (cur.indexOf(val) > -1 ? ' on' : ''), lab); b.type = 'button';
+      b.addEventListener('click', function(){
+        var at = cur.indexOf(val);
+        if (many) { if (at > -1) cur.splice(at, 1); else cur.push(val); }
+        else { cur.length = 0; cur.push(val); }
+        onPick(cur.slice());
+      });
+      row.appendChild(b);
+    });
+    c.appendChild(row);
+  }
+  function drawEdit(){
+    var it = draft;
+    var c = el('div', 'c edit');
+    c.appendChild(el('div', 'ehead', 'Editing'));
+    c.appendChild(el('h3', '', it.word));
+    var tagCur = [it.tag];
+    pickRow(c, 'How does it fit you?', Object.keys(TAG).map(function(k){ return [k, TAG[k]]; }), tagCur, false, function(v){ it.tag = v[0]; draw(); });
+    if (it.tag === 'care') {
+      it.a.lens = it.a.lens || (it.cat ? [it.cat] : []);
+      pickRow(c, Q.lens.q, Q.lens.opts.map(function(o){ return [o, o]; }), it.a.lens, true, function(){ draw(); });
+    } else if (!it.thing) {
+      it.a.cat = it.a.cat || [];
+      pickRow(c, 'Category', CATS.map(function(o){ return [o, o]; }), it.a.cat, true, function(){ it.guess = false; draw(); });
+    }
+    needs(it).filter(function(k){ return k !== 'cat' && k !== 'lens'; }).forEach(function(k){
+      it.a[k] = it.a[k] || [];
+      pickRow(c, Q[k].q, Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ draw(); });
+    });
+    if (it.thing || it.det) {
+      c.appendChild(el('div', 'eq', 'Details'));
+      var ta = el('textarea', 'det'); ta.rows = 2; ta.value = it.det || '';
+      ta.addEventListener('input', function(){ it.det = ta.value; });
+      c.appendChild(ta);
+    }
+    var nav = el('div', 'qnav');
+    var sv = el('button', 'btn', 'Save'); sv.type = 'button';
+    sv.addEventListener('click', function(){
+      if (draft.tag === 'care' && draft.a.lens && draft.a.lens.length) draft.cat = draft.a.lens[0];
+      if (draft.tag !== 'care' && draft.a.cat && draft.a.cat.length) { draft.cat = draft.a.cat[0]; draft.guess = false; }
+      items[editIx] = draft; editIx = -1; draft = null; draw();
+    });
+    var cn = el('button', 'link', 'Cancel'); cn.type = 'button';
+    cn.addEventListener('click', function(){ editIx = -1; draft = null; draw(); });
+    nav.appendChild(sv); nav.appendChild(cn);
+    c.appendChild(nav);
+    grid.appendChild(c);
   }
 
   var qs = [];
