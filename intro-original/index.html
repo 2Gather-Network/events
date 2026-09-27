@@ -32,6 +32,10 @@
     padding:11px 22px;border-radius:24px;cursor:pointer;}
   .btn[disabled]{opacity:.6;cursor:default;}
   .cw-intro-box::placeholder{color:#4B5A6D;opacity:1;}
+  .io-step{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#1F699E;margin:0 0 6px;}
+  .io-back{font:inherit;background:none;border:0;color:#1F699E;text-decoration:underline;cursor:pointer;font-size:14px;margin-right:auto;padding:0;}
+  .io-pane{display:none;width:100%;height:900px;border:0;}
+  html.cw-prail-on .wrap{max-width:1200px;}
 </style>
   <script>window.CW={me:function(){return {id:""};},refCode:function(){return "";}};window._gpRealFetch=window.fetch;window.fetch=function(u){if(/[?&]action=(getReferenceData|getCategories|getPlaces)(&|$)/.test(String(u)))return window._gpRealFetch.apply(window,arguments);return Promise.resolve(new Response(JSON.stringify({status:"ok",data:{}})));};</script>
   <script>(function(){var q=new URLSearchParams(location.search);var w=q.get('width');document.documentElement.classList.add('w-'+(/^[abc]$/.test(w||'')?w:'b'));var c=q.get('cats');document.documentElement.classList.add('cats-'+(/^[abc]$/.test(c||'')?c:'a'));})();</script>
@@ -986,6 +990,7 @@
     var ORDER = [['photo', 'Required'], ['loc', 'Required'], ['lang', 'Required'], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Required'], ['introSkills', 'Required · at least one'], ['introOffer', 'Optional'], ['thanks', 'Required'], ['introNeed', 'Optional']];
     ORDER.forEach(function(o, i){
       var b = blocks[o[0]]; if (!b) return;
+      b.setAttribute('data-k', o[0]);
       b.style.borderTop = i ? '1px solid #f0f1f5' : '0';
       b.style.paddingTop = i ? '18px' : '0';
       b.style.paddingBottom = '18px';
@@ -1076,7 +1081,8 @@
     return tw;
   }
 
-  function gpSaveIntro(){
+  function gpSaveIntro(){ gpHandoff(); location.href = '/design/after-onboarding/?from=onepage'; }
+  function gpHandoff(){
     try {
       var hand = {};
       ['introNeed', 'introEnjoy', 'introSkills', 'introValues', 'introOffer'].forEach(function(k){ var el = document.getElementById('gp-intro-' + k); hand[k] = el ? String(el.value || '') : ''; });
@@ -1088,7 +1094,8 @@
       hand.offerDetails = dm('gp-det-introOffer'); hand.seekDetails = dm('gp-det-introNeed');
       sessionStorage.setItem('if-handoff', JSON.stringify(hand));
     } catch (e) {}
-    location.href = '/design/after-onboarding/?from=onepage';
+  }
+  function gpSaveIntroUnused(){
     return;
     var stat = document.getElementById('gp-intro-status');
     var btn = document.getElementById('gp-intro-go');
@@ -1194,6 +1201,94 @@
       })
       .catch(function(){});
   }
+</script>
+<script src="https://2gather.network/nav/profile-rail.js?v=14"></script>
+<script>
+(function(){
+  var BASE = '/intro-original/';
+  var STEPS = [
+    { slug: 'start', rail: 'About you', keys: ['photo', 'loc', 'lang'] },
+    { slug: 'joys', rail: 'Joys', keys: ['introEnjoy'] },
+    { slug: 'cares', rail: 'Cares', keys: ['introValues'] },
+    { slug: 'skills', rail: 'Skills', keys: ['methods', 'introSkills', 'thanks'] },
+    { slug: 'offer', rail: 'Offerings', keys: ['introOffer'] },
+    { slug: 'seeking', rail: 'Seeking', keys: ['introNeed'] }
+  ];
+  var q = new URLSearchParams(location.search);
+  var want = String(q.get('step') || '').toLowerCase();
+  if (!want) { var m = location.pathname.match(/^\/intro-original\/([^\/]+)\/?$/); if (m) want = m[1].toLowerCase(); }
+  q.delete('step');
+  var done = q.get('done') === '1';
+  try { if (sessionStorage.getItem('io-done') === '1') done = true; } catch (e) {}
+  var forGroup = q.get('for') === 'group';
+  if (done && forGroup) { location.replace('/design/group-joined/?cb=' + Date.now()); return; }
+  var ix = -1;
+  STEPS.forEach(function(s, i){ if (s.slug === want) ix = i; });
+  var view = done ? (ix > -1 ? STEPS[ix].slug : 'answers') : STEPS[ix > -1 ? ix : 0].slug;
+  var qs = document.getElementById('gp-intro-qs'), lede = document.getElementById('gp-intro-lede'), title = document.getElementById('gp-intro-title');
+  var go0 = document.getElementById('gp-intro-go'), go = go0.cloneNode(true); go0.parentNode.replaceChild(go, go0);
+  var foot = go.parentNode;
+  var back = document.createElement('button'); back.type = 'button'; back.className = 'io-back'; back.textContent = 'Back';
+  foot.insertBefore(back, foot.firstChild);
+  var stepLab = document.createElement('div'); stepLab.className = 'io-step';
+  title.parentNode.insertBefore(stepLab, title);
+  var pane = document.createElement('iframe'); pane.className = 'io-pane'; pane.title = 'Your answers';
+  qs.parentNode.insertBefore(pane, qs);
+  window.addEventListener('message', function(e){ if (e.origin === location.origin && e.data && e.data.ao === 'h') pane.style.height = Math.max(400, e.data.h) + 'px'; });
+  var railBox = null;
+  if (done && window.cwProfileRail) {
+    var main = cwProfileRail({ shape: 'network', wrap: document.querySelector('.wrap') });
+    var rail = document.getElementById('cw-prail');
+    if (rail && main) { rail.innerHTML = ''; railBox = document.createElement('div'); railBox.className = 'cw-prail-list'; rail.appendChild(railBox); }
+  }
+  function url(slug){
+    var u = BASE + slug; var s = q.toString();
+    try { history.replaceState({}, '', u + (s ? '?' + s : '') + location.hash); } catch (e) {}
+  }
+  function paintRail(){
+    if (!railBox) return;
+    railBox.innerHTML = '';
+    [{ slug: 'answers', rail: 'Answers' }].concat(STEPS).forEach(function(s){
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = s.rail;
+      if (s.slug === view) { b.className = 'on'; b.setAttribute('aria-current', 'page'); }
+      b.addEventListener('click', function(){ if (view !== 'answers') { try { gpHandoff(); } catch (e) {} } view = s.slug; show(); });
+      railBox.appendChild(b);
+    });
+  }
+  function show(){
+    var si = -1; STEPS.forEach(function(s, i){ if (s.slug === view) si = i; });
+    var answers = view === 'answers';
+    pane.style.display = answers ? 'block' : 'none';
+    qs.style.display = answers ? 'none' : '';
+    foot.style.display = answers ? 'none' : '';
+    if (answers) { try { gpHandoff(); } catch (e) {} pane.src = '/design/after-onboarding/?from=onepage&inpane=1&cb=' + Date.now(); }
+    Array.prototype.forEach.call(qs.querySelectorAll('[data-k]'), function(b){
+      var on = si > -1 && STEPS[si].keys.indexOf(b.getAttribute('data-k')) > -1;
+      b.style.display = on ? '' : 'none';
+    });
+    if (si > -1) { var first = true; STEPS[si].keys.forEach(function(k){ var b = qs.querySelector('[data-k="' + k + '"]'); if (b) { b.style.borderTop = first ? '0' : '1px solid #f0f1f5'; b.style.paddingTop = first ? '0' : '18px'; first = false; } }); }
+    title.style.display = answers ? 'none' : '';
+    lede.style.display = (!done && si === 0) ? '' : 'none';
+    stepLab.textContent = done ? (answers ? '' : 'Change your answers') : 'Step ' + (si + 1) + ' of ' + STEPS.length;
+    stepLab.style.display = stepLab.textContent ? '' : 'none';
+    title.textContent = done ? STEPS[si] && STEPS[si].rail || '' : 'Before you go in';
+    back.style.display = (!done && si > 0) ? '' : 'none';
+    go.textContent = done ? 'Done' : (si === STEPS.length - 1 ? 'Finish' : 'Next');
+    url(view);
+    paintRail();
+    try { window.scrollTo(0, 0); } catch (e) {}
+  }
+  back.addEventListener('click', function(){ var si = 0; STEPS.forEach(function(s, i){ if (s.slug === view) si = i; }); if (si > 0) { view = STEPS[si - 1].slug; show(); } });
+  go.addEventListener('click', function(){
+    var si = -1; STEPS.forEach(function(s, i){ if (s.slug === view) si = i; });
+    if (done) { view = 'answers'; show(); return; }
+    if (si < STEPS.length - 1) { view = STEPS[si + 1].slug; show(); return; }
+    try { gpHandoff(); sessionStorage.setItem('io-done', '1'); } catch (e) {}
+    if (forGroup) { location.href = '/design/group-joined/?cb=' + Date.now(); return; }
+    q.delete('done'); location.href = BASE + 'answers' + (q.toString() ? '?' + q.toString() : '');
+  });
+  show();
+})();
 </script>
 </body>
 <!--
