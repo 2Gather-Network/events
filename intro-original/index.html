@@ -88,7 +88,7 @@
     { key:'introValues', need:false, q:'What do you care about?',
       hint:'What matters to you, and what you want more of in the world. Leave it blank if you would rather not say.',
       ph:'Housing, food security, keeping the lake swimmable…' },
-    { key:'introOffer',  need:false, q:'Do you have something you want to offer right now?',
+    { key:'introOffer',  need:false, q:'Besides skills, do you have something you want to offer right now?',
       hint:'Write it all in one box, or select from topics below.',
       ph:'A spare room for the month of September, a truck for moving stuff, a meeting space to meet each week, and gardening tools.' }
   ];
@@ -501,19 +501,27 @@
       var gpShown = {};
       cfg.examples.forEach(function(l){ gpShown[l.replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase()] = 1; });
       ['Social', 'Ecological'].forEach(function(lens){
-        var mb = gpMoreBtn('Show more ' + lens.toLowerCase(), function(){
+        var mb = document.createElement('button'); mb.type = 'button'; mb.setAttribute('data-more', lens);
+        mb.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;';
+        var added = [], open = false, loaded = false;
+        var label = function(){ mb.textContent = (open ? 'Show less ' : 'Show more ') + lens.toLowerCase(); };
+        label();
+        mb.addEventListener('click', function(){
+          open = !open; label();
+          added.forEach(function(c){ c.style.display = open ? '' : 'none'; });
+          if (!open || loaded) return;
+          loaded = true;
           var note = document.createElement('span'); note.style.cssText = 'font-size:13px;color:#4B5A6D;align-self:center;'; note.textContent = 'Looking up…'; row.insertBefore(note, row.querySelector('button[data-more]'));
           gpRefOnce().then(function(rd){
             ((rd && rd.values) || []).forEach(function(v){
               var w = String((v && v.item) || '').trim();
               if (!w || String(v.category || '').trim().toLowerCase() !== lens.toLowerCase() || gpShown[w.toLowerCase()]) return;
-              gpShown[w.toLowerCase()] = 1; row.insertBefore(gpExChip(w), note);
+              gpShown[w.toLowerCase()] = 1; var c = gpExChip(w); if (!open) c.style.display = 'none'; added.push(c); row.insertBefore(c, note);
             });
             if (note.parentNode) note.parentNode.removeChild(note);
             repaint();
           });
         });
-        mb.setAttribute('data-more', lens);
         row.appendChild(mb);
       });
     }
@@ -949,7 +957,7 @@
         var gpGroups = gpSeek ? [['Something I’m seeking', gpThings]] : [['Something I’m offering', gpThings], ['A space I’m offering', ['\u{1F3E0} Home', '\u{1F6CF}️ Room', '\u{1F5E3}️ Meeting room', '\u{1F3AA} Venue', '\u{1F3A8} Studio', '\u{1F527} Workshop', '\u{1F4BB} Desk']]];
         var gpDet = document.createElement('div'); gpDet.style.cssText = 'display:none;margin-top:14px;';
         gpDet.innerHTML = '<div style="font-size:14px;font-weight:800;color:#1A2E42;margin-bottom:6px;">Details: what exactly are you ' + (gpSeek ? 'seeking' : 'offering') + ' right now?</div>';
-        var gpDetBox = document.createElement('textarea'); gpDetBox.rows = 2;
+        var gpDetBox = document.createElement('textarea'); gpDetBox.rows = 2; gpDetBox.id = 'gp-det-' + q.key;
         gpDetBox.placeholder = gpSeek ? 'For example: a used bike for my daughter, seedlings for a community garden' : 'For example: a box of canning jars, sourdough starter, a spare desk two afternoons a week';
         gpDetBox.style.cssText = 'width:100%;box-sizing:border-box;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;line-height:1.5;resize:vertical;';
         gpDet.appendChild(gpDetBox);
@@ -960,16 +968,6 @@
         });
         wrap.appendChild(gpDet);
       }
-      if (q.key === 'introNeed') {
-        var op = document.createElement('div'); op.style.cssText = 'margin-top:18px;';
-        op.innerHTML = '<div style="font-size:15px;font-weight:800;color:#1A2E42;margin-bottom:2px;">Open to opportunities? <span style="display:inline-block;vertical-align:middle;margin-left:6px;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:12px;background:#EEF0F3;color:#4B5A6D;">Optional</span></div>'
-          + '<div style="font-size:13.5px;color:#4B5A6D;margin-bottom:10px;">Enable if you’re open to opportunities, paid or unpaid. We’ll ask you questions to find the right fit and receive compatible matches.</div>';
-        var sw = document.createElement('button'); sw.type = 'button';
-        var drawSw = function(){ sw.innerHTML = '<span style="display:inline-block;width:44px;height:26px;border-radius:13px;vertical-align:middle;position:relative;background:' + (_gpOpen ? '#1F699E' : '#C9D3DE') + ';"><span style="position:absolute;top:3px;left:' + (_gpOpen ? '21px' : '3px') + ';width:20px;height:20px;border-radius:50%;background:#fff;"></span></span><span style="margin-left:10px;vertical-align:middle;font-weight:700;color:#1A2E42;">' + (_gpOpen ? 'On' : 'Off') + '</span>'; };
-        sw.style.cssText = 'font:inherit;font-size:14px;background:none;border:0;padding:0;cursor:pointer;';
-        sw.addEventListener('click', function(){ _gpOpen = !_gpOpen; drawSw(); }); drawSw();
-        op.appendChild(sw); wrap.appendChild(op);
-      }
       blocks[q.key] = wrap;
       if (q.key === 'introSkills') {
         blocks.lang = gpLanguagesBlock();
@@ -977,7 +975,7 @@
         blocks.thanks = gpThanksBlock();
       }
     });
-    var ORDER = [['photo', 'Required'], ['loc', 'Required'], ['lang', 'Required'], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Required'], ['introSkills', 'Required · at least one'], ['thanks', 'Required'], ['introNeed', 'Optional'], ['introOffer', 'Optional']];
+    var ORDER = [['photo', 'Required'], ['loc', 'Required'], ['lang', 'Required'], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Required'], ['introSkills', 'Required · at least one'], ['introOffer', 'Optional'], ['thanks', 'Required'], ['introNeed', 'Optional']];
     ORDER.forEach(function(o, i){
       var b = blocks[o[0]]; if (!b) return;
       b.style.borderTop = i ? '1px solid #f0f1f5' : '0';
@@ -1074,9 +1072,14 @@
     try {
       var hand = {};
       ['introNeed', 'introEnjoy', 'introSkills', 'introValues', 'introOffer'].forEach(function(k){ var el = document.getElementById('gp-intro-' + k); hand[k] = el ? String(el.value || '') : ''; });
+      hand.tags = _gpTags;
+      var on = function(o){ return Object.keys(o).filter(function(k){ return o[k]; }); };
+      hand.offerThings = on(_gpOfferPicked); hand.seekThings = on(_gpSeekPicked);
+      var dv = function(id){ var d = document.getElementById(id); return d ? String(d.value || '').trim() : ''; };
+      hand.offerDetails = dv('gp-det-introOffer'); hand.seekDetails = dv('gp-det-introNeed');
       sessionStorage.setItem('if-handoff', JSON.stringify(hand));
     } catch (e) {}
-    location.href = '/design/interests-first/?from=onepage';
+    location.href = '/design/after-onboarding/?from=onepage';
     return;
     var stat = document.getElementById('gp-intro-status');
     var btn = document.getElementById('gp-intro-go');
