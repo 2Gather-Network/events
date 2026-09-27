@@ -90,31 +90,41 @@
 </div>
 <script>
 (function(){
-  var total = 8, left = 3;
+  var total = 0, left = 0, known = false;
   var strip = document.getElementById('gj-strip'), ov = document.getElementById('gj-ov'), fr = document.getElementById('gj-frame');
+  var mine = false; try { mine = !!sessionStorage.getItem('if-handoff'); } catch (e) {}
+  strip.style.display = 'none';
   function paint(){
+    if (!known) return;
+    if (!left) { strip.style.display = 'none'; return; }
     document.getElementById('gj-count').textContent = (total - left) + ' of ' + total + ' answers complete';
     document.getElementById('gj-bar').style.width = Math.round((total - left) * 100 / total) + '%';
     document.getElementById('gj-go').textContent = 'Answer ' + left + ' more';
   }
-  function hide(){ strip.style.display = 'none'; }
-  function close(){ ov.classList.remove('on'); fr.src = 'about:blank'; document.body.style.overflow = ''; }
+  function hide(){ strip.style.display = 'none'; strip.setAttribute('data-hidden', '1'); }
+  function close(){ ov.classList.remove('on'); document.body.style.overflow = ''; }
+  fr.src = '/design/after-onboarding/?embed=1&wait=1' + (mine ? '&from=onepage' : '') + '&cb=' + Date.now();
   document.getElementById('gj-go').addEventListener('click', function(){
-    fr.src = '/design/after-onboarding/?embed=1&cb=' + Date.now();
     ov.classList.add('on'); document.body.style.overflow = 'hidden';
+    try { fr.contentWindow.postMessage({ ao: 'start' }, location.origin); } catch (e) {}
   });
   document.getElementById('gj-later').addEventListener('click', hide);
   document.getElementById('gj-x').addEventListener('click', hide);
   document.getElementById('gj-close').addEventListener('click', close);
   window.addEventListener('message', function(e){
-    if (e.origin !== location.origin || !e.data || e.data.ao !== 'done') return;
-    if (!ov.classList.contains('on')) return;
+    if (e.origin !== location.origin || !e.data) return;
+    if (e.data.ao === 'count') {
+      var first = !known; known = true; total = e.data.total; left = e.data.left;
+      if (first && left && !strip.getAttribute('data-hidden')) strip.style.display = '';
+      paint();
+      return;
+    }
+    if (e.data.ao !== 'done' || !ov.classList.contains('on')) return;
     total = e.data.total; left = e.data.left;
     close();
     if (!left) { hide(); document.getElementById('gj-toast').style.display = 'block'; }
     else paint();
   });
-  paint();
 })();
 </script>
 <script src="https://2gather.network/nav/topbar.js?v=6.38" defer></script>
