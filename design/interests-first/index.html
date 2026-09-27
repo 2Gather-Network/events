@@ -85,6 +85,31 @@
   var DO_ROLES = ['Just for me', 'Volunteer', 'Service provider', 'Performer', 'Creator', 'Maker', 'Competitor', 'Player', 'Collector'];
   var HELPS = [['Create', 'Helps me create'], ['Connect', 'Helps me connect'], ['Eat & Drink', 'Helps me eat & drink'], ['Move', 'Helps me move'], ['Play', 'Helps me play'], ['Survive', 'Helps me survive'], ['Rest', 'Helps me rest']];
   var OFFER_TO = [['', ['Anyone']], ['Season', ['Babies', 'Toddlers', 'Kids', 'Teens', 'Young adults', 'Adults', 'Seniors']], ['Household', ['Singles', 'Families', 'Parents', 'Couples', 'Caregivers', 'Transplants']], ['Work stage', ['Students', 'Early career', 'Mid-career', 'Professionals', 'Senior professionals', 'Late career / pre-retired', 'Retired']], ['Lived experience', ['Veterans', 'Immigrants', 'People with disabilities', 'Neurodivergent', 'In recovery']]];
+  var LAST = {};
+  function carry(it, qq){
+    it.seen = it.seen || {}; it.pick = it.pick || {};
+    var k = qq.key + '|' + qq.label.replace(/^You said[^.]*\. /, '');
+    var get = function(){
+      if (qq.key === 'roles') return it.roles.slice();
+      if (qq.key === 'who') return { w: (it.forWho || []).slice(), o: (it.forOther || []).slice() };
+      if (qq.key === 'offerTo') return (it.offerTo || []).slice();
+      if (qq.key === 'needs') return (it.needs || []).slice();
+      if (qq.list) return (it.pick[qq.key] || []).slice();
+      return null;
+    };
+    var put = function(v){
+      if (qq.key === 'roles') it.roles = v.slice();
+      else if (qq.key === 'who') { it.forWho = v.w.slice(); it.forOther = v.o.slice(); }
+      else if (qq.key === 'offerTo') it.offerTo = v.slice();
+      else if (qq.key === 'needs') it.needs = v.slice();
+      else if (qq.list) it.pick[qq.key] = v.slice();
+    };
+    if (get() === null) return { save: function(){}, kept: false };
+    var kept = false;
+    if (!it.seen[k] && LAST[k]) { var cur = get(); var empty = Array.isArray(cur) ? !cur.length : !cur.w.length; if (empty) { put(LAST[k]); kept = true; it.kept = it.kept || {}; it.kept[k] = 1; } }
+    it.seen[k] = 1;
+    return { save: function(){ LAST[k] = get(); }, kept: kept || !!(it.kept && it.kept[k]) };
+  }
   var CUSTOM = {};
   try { CUSTOM = JSON.parse(localStorage.getItem('if-custom') || '{}') || {}; } catch (e) { CUSTOM = {}; }
   var mine = function(k, base){ return base.concat((CUSTOM[k] || []).filter(function(x){ return base.indexOf(x) < 0; })); };
@@ -470,6 +495,8 @@
     var qs0 = el('input', 'qsearch'); qs0.type = 'search'; qs0.placeholder = 'Search the choices'; qs0.value = it.search || '';
     w.appendChild(qs0);
     var qbox = el('div'); w.appendChild(qbox);
+    var cy = carry(it, qq);
+    if (cy.kept) { var kn = el('div', 'about', 'Kept from your last answer. Tap to change.'); kn.style.color = '#3E7A52'; qbox.appendChild(kn); }
     askOne(qbox, it, qq);
     var filt = function(){
       var v = low(qs0.value); it.search = qs0.value;
@@ -483,7 +510,7 @@
     if (qq.multi || last) {
       var nx = pill(last ? 'Done' : 'Next', true); nx.classList.add('big');
       if (!answered) { nx.style.opacity = '.45'; nx.style.cursor = 'default'; }
-      nx.onclick = function(){ if (!answered) return; it.search = ''; if (qq.key === 'cat') it.catSure = true; if (last) finish(it); else { it.q++; paint(); } };
+      nx.onclick = function(){ if (!answered) return; cy.save(); it.search = ''; if (qq.key === 'cat') it.catSure = true; if (last) finish(it); else { it.q++; paint(); } };
       act.appendChild(nx);
     }
     if (it.snap) {
