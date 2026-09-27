@@ -9,7 +9,8 @@
   :root{--blue:#1F699E;--ink:#1A2E42;--grey:#6B7A8D;--line:#DDE4EE;--soft:#F7FBFF;--pale:#C9DFF3;}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--blue);color:var(--ink);font-family:'DM Sans','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 16px 60px;}
+  html.cw-prail-on div.cw-prail{grid-template-columns:210px minmax(0,1fr);max-width:1560px;}
+  .wrap{max-width:1560px;margin:0 auto;padding:22px 16px 60px;}
   .note{background:#FFF4D6;font-size:13.5px;padding:10px 14px;border-radius:10px;margin-bottom:14px;}
   .card{padding:18px 0 0;}
   h1{font-size:24px;margin:0 0 4px;}
@@ -74,7 +75,7 @@
   var UNPAID = ['Mentor', 'Advisor', 'Board member', 'Tutor', 'Volunteer', 'Intern', 'Job shadowing'];
   var TAGS = [['interested', 'I’m interested in it'], ['enjoy', 'I enjoy it'], ['do', 'I can do it'], ['care', 'I care about it'], ['need', 'I’m seeking it'], ['offer', 'I can offer it']];
   var LEVELMAP = { 'fan':'Fan', 'beginner':'Beginner', 'learner':'Beginner', 'entry level':'Beginner', 'experienced':'Experienced', 'participant':'Experienced', 'practitioner':'Experienced', 'mid level':'Experienced', 'engaged':'Experienced', 'guide':'Guide', 'coach':'Guide', 'expert':'Guide' };
-  var CUES = [['interested', /^(i'?m |i am )?(interested in|curious about|want to learn( about)?|want to hear about|into)\s+/], ['enjoy', /^(i )?(love|enjoy|like|adore)\s+/], ['do', /^(i )?(can|do|practice|play|make|am good at|'m good at)\s+/], ['do', /^(i'?m|i am) (a|an)\s+/], ['care', /^(i )?(care about|care for|value|believe in)\s+/], ['need', /^(i )?(need|seek|am seeking|'m seeking|am looking for|'m looking for|want|would like)\s+/], ['offer', /^(i )?(offer|can offer|can help with|could help with|give|lend|teach)\s+/]];
+  var CUES = [['interested', /^(i'?m |i am )?(interested in|curious about|want to learn( about)?|want to hear about|into)\s+/], ['enjoy', /^(i )?(love|enjoy|like|adore)\s+/], ['do', /^(i )?(can|do|practice|play|make|am good at|'m good at)\s+/], ['do', /^(i'?m|i am) (a|an)\s+/], ['do', /^(i )?(volunteer|work|worked)( as| at| with| in)?\s+/], ['care', /^(i )?(care about|care for|value|believe in)\s+/], ['need', /^(i )?(need|seek|am seeking|'m seeking|am looking for|'m looking for|want|would like)\s+/], ['offer', /^(i )?(offer|can offer|can help with|could help with|give|lend|teach)\s+/]];
   var LEVELS = ['Beginner', 'Experienced', 'Guide'];
   var GUIDE_ROLES = ['Coach', 'Mentor', 'Consultant', 'Facilitator', 'Host'];
   var DO_ROLES = ['Volunteer', 'Service provider', 'Performer', 'Creator', 'Maker', 'Competitor', 'Player', 'Collector'];
@@ -97,7 +98,7 @@
   var addWord = function(name, cat, assoc){ var k = low(name); if (!k || k.length < 3) return; if (!words[k]) words[k] = { name: String(name).trim(), cat: cat, assoc: low(assoc) }; };
   var el = function(tag, cls, text){ var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
   var pill = function(text, on){ var b = el('button', 'pill' + (on ? ' on' : ''), text); b.type = 'button'; return b; };
-  var items = [], step = 1, confirmed = false;
+  var items = [], step = 1, confirmed = false, showCats = false, openCat = '';
 
   function guessCat(text){
     var t = ' ' + low(text).replace(/[^a-z0-9' ]+/g, ' ') + ' ', best = null;
@@ -171,17 +172,23 @@
   }
   function parseSentence(text, fallback){
     var tag = fallback || '';
-    clauses2(text).forEach(function(c){
+    var LABELS = [[/skill|experience|expertise|work|job|role|certif/i, 'do'], [/interest|hobb|fun|love|enjoy/i, 'enjoy'], [/value|cause|care|passion/i, 'care'], [/need|looking|seek/i, 'need'], [/offer|can help|services/i, 'offer'], [/curious|learn|topic/i, 'interested']];
+    String(text || '').split(/\n+/).forEach(function(line){
+      var lt = fallback || '', lm = line.match(/^\s*([^:,.]{1,30}):\s+/);
+      if (lm) { LABELS.some(function(L){ if (L[0].test(lm[1])) { lt = L[1]; return true; } return false; }); line = line.slice(lm[0].length); }
+      tag = lt;
+      clauses2(line).forEach(function(c){
       if (isCatName(c) || isJunk(c)) return;
       var sh = short(c); if (!sh || !sh.word || sh.word.length < 2) return;
       if (sh.tag) tag = sh.tag;
       add(sh.word, tag || guessTag(c, sh.word), '', '', true);
-    });
+    }); });
   }
   function guessTag(whole, word){
     var w = low(whole);
     if (known(RD.values, word)) return 'care';
     if (/^(an? )(hour|few hours|time)\b/.test(w)) return 'offer';
+    if (/\b\d+\+? years?\b|\b(years of|experience in|worked as|work as|volunteer)/.test(w)) return 'do';
     if (/^(an? )\w+( \w+)? (who|that) /.test(w)) return 'need';
     if (/^my /.test(w)) return 'enjoy';
     return 'interested';
@@ -190,7 +197,7 @@
     String(raw || '').split('|').forEach(function(piece){
       piece = piece.trim(); if (!piece || isJunk(piece)) return;
       if (known(RD.languages, piece) || known(RD.appreciationTypes, piece) || /^(pass it on|physical goods|money)$/i.test(piece)) return;
-      if (piece.indexOf(':') > -1 && piece.split(' ').length < 12) {
+      if (piece.indexOf(':') > -1 && piece.split(' ').length < 12 && !/,/.test(piece) && !/:\s/.test(piece)) {
         var parts = piece.split(':'), word = parts[0], old = low(parts[1]), lv = '', isSkill = false;
         parts.slice(1).forEach(function(x){ var m = LEVELMAP[low(x)]; if (m) lv = m; if (low(x) === 'skill') isSkill = true; });
         var cat = CATS.filter(function(c){ return low(c) === old; })[0] || SKILLMAP[old] || RECMAP[old] || SUBMAP[old] || '';
@@ -211,6 +218,7 @@
       boxes.forEach(function(b){ var c = H.indexOf(b[0]); if (c > -1 && R[c]) { got++; takeCell(R[c], b[1]); } });
       return got;
     }
+    if (rows.length > 1 && rows[0].length === 1 && /^[A-Z][\w'-]+( [A-Z][\w'.-]+){1,3}$/.test(String(rows[0][0]).trim())) rows = rows.slice(1);
     rows.forEach(function(r){ r.forEach(function(c, ix){
       c = String(c || '').trim();
       if (ix === 0 && r.length > 5 && /^[A-Z][\w'-]+( [A-Z][\w'-]+)+$/.test(c)) return;
@@ -297,12 +305,26 @@
     app.appendChild(el('div', 'sub', 'Or tap some'));
     var r = el('div', 'row');
     SUGGEST.forEach(function(s){ if (find(s)) return; var b = pill(s); b.onclick = function(){ add(s); }; r.appendChild(b); });
+    var sc = pill(showCats ? 'Hide categories' : 'Show me categories', showCats); sc.onclick = function(){ showCats = !showCats; openCat = ''; paint(); }; r.appendChild(sc);
     app.appendChild(r);
+    if (showCats) {
+      var cb = el('div', 'catbox'), cr = el('div', 'row');
+      cb.appendChild(el('div', 'lab', openCat ? openCat + ': tap any to add' : 'Pick a category to see its words'));
+      if (!openCat) CATS.forEach(function(c){ var b = pill(c); b.onclick = function(){ openCat = c; paint(); }; cr.appendChild(b); });
+      else {
+        var bk = pill('‹ All categories'); bk.onclick = function(){ openCat = ''; paint(); }; cr.appendChild(bk);
+        var seen = {}, ws = [];
+        Object.keys(words).forEach(function(k){ var x = words[k]; if (x.cat === openCat && !seen[low(x.name)]) { seen[low(x.name)] = 1; ws.push(x.name); } });
+        ws.sort(function(a, b){ return a.localeCompare(b); }).forEach(function(n){ var b = pill(n, !!find(n)); b.onclick = function(){ if (!find(n)) add(n, '', openCat, '', true); paint(); }; cr.appendChild(b); });
+        if (!ws.length) cb.appendChild(el('div', 'about', loaded ? 'No words here yet. Type your own above.' : 'Loading the words…'));
+      }
+      cb.appendChild(cr); app.appendChild(cb);
+    }
     if (!loaded) app.appendChild(el('div', 'wait', 'Loading the words…'));
     var det = el('details'); det.style.cssText = 'margin-top:16px;font-size:13px;';
-    var sm = el('summary', '', 'Try it with someone’s existing answers'); sm.style.cssText = 'cursor:pointer;color:var(--blue);font-weight:600;'; det.appendChild(sm);
-    det.appendChild(el('p', 'lede', 'Copy their whole row from the ikigai tab and paste it here. Adding the header row too makes it more exact. It stays in this browser: nothing is sent or saved.'));
-    var ta = el('textarea'); ta.rows = 4; ta.placeholder = 'Paste their row'; ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;border-radius:8px;padding:8px;font:inherit;font-size:13px;'; det.appendChild(ta);
+    var sm = el('summary', '', 'Try it pasting existing answers, like a resume or your own document of interests'); sm.style.cssText = 'cursor:pointer;color:var(--blue);font-weight:600;'; det.appendChild(sm);
+    det.appendChild(el('p', 'lede', 'Paste anything: a resume, a list of interests, a bio, or a row copied from the ikigai tab. We pick out the words and guess how each one fits. It stays in this browser: nothing is sent or saved.'));
+    var ta = el('textarea'); ta.rows = 4; ta.placeholder = 'Paste a resume, a list, or a row'; ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;border-radius:8px;padding:8px;font:inherit;font-size:13px;'; det.appendChild(ta);
     var msg = el('div', 'wait'); det.appendChild(msg);
     var ld = pill('Load these answers', true); ld.classList.add('big'); ld.style.marginTop = '10px';
     ld.onclick = function(){
