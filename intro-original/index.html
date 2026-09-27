@@ -34,7 +34,7 @@
   .cw-intro-box::placeholder{color:#9AA8B7;opacity:1;}
 </style>
   <script>window.CW={me:function(){return {id:""};},refCode:function(){return "";}};window._gpRealFetch=window.fetch;window.fetch=function(u){if(/[?&]action=(getReferenceData|getCategories|getPlaces)(&|$)/.test(String(u)))return window._gpRealFetch.apply(window,arguments);return Promise.resolve(new Response(JSON.stringify({status:"ok",data:{}})));};</script>
-  <script>(function(){var q=new URLSearchParams(location.search);var w=q.get('width');if(/^[abc]$/.test(w||''))document.documentElement.classList.add('w-'+w);var c=q.get('cats');document.documentElement.classList.add('cats-'+(/^[abc]$/.test(c||'')?c:'a'));})();</script>
+  <script>(function(){var q=new URLSearchParams(location.search);var w=q.get('width');document.documentElement.classList.add('w-'+(/^[abc]$/.test(w||'')?w:'b'));var c=q.get('cats');document.documentElement.classList.add('cats-'+(/^[abc]$/.test(c||'')?c:'a'));})();</script>
 </head>
 <body><div style="background:#FFF4D6;color:#1A2E42;font-size:13.5px;padding:10px 16px;text-align:center;">A look-only copy of the questions page as it was on 30 August 2026. Nothing here saves.</div>
 <div class="wrap">
@@ -134,7 +134,7 @@
                    ] },
   };
   var _gpChipsPicked = {};
-  var _gpLangPicked = {}, _gpMethodPicked = {}, _gpLangPrimary = '', _gpOfferPicked = {}, _gpOpen = false;
+  var _gpLangPicked = {}, _gpMethodPicked = {}, _gpLangPrimary = '', _gpOfferPicked = {}, _gpSeekPicked = {}, _gpOpen = false;
   var GP_LANGS = ['English','Mandarin','Cantonese','Hindi','Spanish','Arabic','Bengali','Portuguese','French','Urdu',
     'Russian','Indonesian','German','Japanese','Swahili','Marathi','Telugu','Turkish','Tamil','Vietnamese','Korean',
     'Italian','Thai','Persian (Farsi)','Polish','Pashto','Punjabi','Ukrainian','Malayalam','Kannada','Romanian','Dutch',
@@ -147,7 +147,7 @@
     '\u{1F4DA} Demonstrating what I know','\u{1F9ED} Consulting and advising',
     '\u{1F300} Facilitating and coaching','\u{1F3A8} Making and designing','\u{1F33F} Caring and healing'];
 
-  function gpPickRow(all, picked, firstN, label){
+  function gpPickRow(all, picked, firstN, label, onChange){
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
     function btn(word){
@@ -163,7 +163,7 @@
               : 'background:#fff;border:1px solid #C9DFF3;color:#1F699E;font-weight:600;');
       };
       paint();
-      b.addEventListener('click', function(){ picked[word] = !picked[word]; paint(); });
+      b.addEventListener('click', function(){ picked[word] = !picked[word]; paint(); if (onChange) onChange(); });
       return b;
     }
     var shown = all.filter(function(w, i){ return !firstN || i < firstN || picked[w]; });
@@ -503,8 +503,8 @@
     other.textContent = '+ Other';
     other.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
       + 'background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;';
-    var catLabel = function(open){ var c = document.documentElement.className; var e = /cats-b/.test(c) ? '\u{1F9ED} ' : /cats-c/.test(c) ? '\u{1F4C2} ' : '\u{1F5C2}\uFE0F '; return open ? e + 'Hide categories' : e + (/cats-b/.test(c) ? 'Show me categories \u2014 browse all the topics' : 'Show me categories'); };
-    if (key === 'introEnjoy') { other.textContent = catLabel(false); other.className = 'gp-catbtn'; row.appendChild(other); }
+    var catLabel = function(open){ var c = document.documentElement.className; var e = /cats-b/.test(c) ? '\u{1F9ED} ' : '\u{1F4C2} '; var s = key === 'introNeed' ? 'Show categories' : 'Show me categories'; return open ? e + 'Hide categories' : e + (/cats-b/.test(c) ? s + ' \u2014 browse all the topics' : s); };
+    if (key === 'introEnjoy' || key === 'introNeed') { other.textContent = catLabel(false); other.className = 'gp-catbtn'; row.appendChild(other); }
 
     var otherBox = document.createElement('div');
     otherBox.style.cssText = 'display:none;margin-top:10px;';
@@ -581,7 +581,7 @@
     var addTyped = function(){ var v = String(search.value || '').trim(); if (v) openOther(v); };
     sadd.addEventListener('click', addTyped);
     search.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') { ev.preventDefault(); addTyped(); } });
-    if (key === 'introEnjoy') {
+    if (key === 'introEnjoy' || key === 'introNeed') {
       var drill = document.createElement('div');
       drill.style.cssText = 'display:none;margin-top:12px;';
       box.appendChild(drill);
@@ -687,11 +687,18 @@
         paintLenses();
         wordRow.innerHTML = '';
         lens.words.forEach(function(w){ wordRow.appendChild(gpChipBtn(key, w, ta)); });
-        if (lens.more && lens.more.length) {
-          wordRow.appendChild(gpMoreBtn('More', function(){
-            lens.more.forEach(function(w){ wordRow.appendChild(gpChipBtn(key, w, ta)); });
-          }));
-        }
+        wordRow.appendChild(gpMoreBtn('Show more ' + lens.label.toLowerCase(), function(){
+          var note = document.createElement('span'); note.style.cssText = 'font-size:13px;color:#6B7A8D;align-self:center;'; note.textContent = 'Looking up…'; wordRow.appendChild(note);
+          gpRefOnce().then(function(rd){
+            var lo = lens.label.toLowerCase(), have = {};
+            lens.words.forEach(function(w){ have[w.toLowerCase()] = 1; });
+            var list = ((rd && rd.values) || []).filter(function(v){ return v && String(v.category || '').trim().toLowerCase() === lo && !have[String(v.item).toLowerCase()]; }).map(function(v){ return String(v.item); });
+            if (note.parentNode) note.parentNode.removeChild(note);
+            if (current !== lens) return;
+            if (!list.length) list = lens.more || [];
+            list.forEach(function(w){ wordRow.appendChild(gpChipBtn(key, w, ta)); });
+          });
+        }));
       };
       cfg.lenses.forEach(function(lens){
         var b = document.createElement('button');
@@ -915,11 +922,22 @@
       wrap.appendChild(t); wrap.appendChild(h); wrap.appendChild(ta);
       var chipRow = gpPicker(q.key, ta) || gpChipRow(q.key, ta);
       if (chipRow) wrap.appendChild(chipRow);
-      if (q.key === 'introOffer') {
-        [['Something I’m offering', ['\u{1F4E6} Physical goods', '\u{1F372} Consumables', '\u{1FAB4} Living things']], ['A space I’m offering', ['\u{1F3E0} Home', '\u{1F6CF}️ Room', '\u{1F5E3}️ Meeting room', '\u{1F3AA} Venue', '\u{1F3A8} Studio', '\u{1F527} Workshop', '\u{1F4BB} Desk']]].forEach(function(g){
+      if (q.key === 'introOffer' || q.key === 'introNeed') {
+        var gpSeek = q.key === 'introNeed', gpPk = gpSeek ? _gpSeekPicked : _gpOfferPicked;
+        var gpThings = ['\u{1F4E6} Physical goods', '\u{1F372} Consumables', '\u{1FAB4} Living things'];
+        var gpGroups = gpSeek ? [['Something I’m seeking', gpThings]] : [['Something I’m offering', gpThings], ['A space I’m offering', ['\u{1F3E0} Home', '\u{1F6CF}️ Room', '\u{1F5E3}️ Meeting room', '\u{1F3AA} Venue', '\u{1F3A8} Studio', '\u{1F527} Workshop', '\u{1F4BB} Desk']]];
+        var gpDet = document.createElement('div'); gpDet.style.cssText = 'display:none;margin-top:14px;';
+        gpDet.innerHTML = '<div style="font-size:14px;font-weight:800;color:#1A2E42;margin-bottom:6px;">Details: what exactly are you ' + (gpSeek ? 'seeking' : 'offering') + ' right now?</div>';
+        var gpDetBox = document.createElement('textarea'); gpDetBox.rows = 2;
+        gpDetBox.placeholder = gpSeek ? 'For example: a used bike for my daughter, seedlings for a community garden' : 'For example: a box of canning jars, sourdough starter, a spare desk two afternoons a week';
+        gpDetBox.style.cssText = 'width:100%;box-sizing:border-box;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;line-height:1.5;resize:vertical;';
+        gpDet.appendChild(gpDetBox);
+        var gpShowDet = function(){ var any = false; for (var k in gpPk) if (gpPk[k]) any = true; gpDet.style.display = any ? 'block' : 'none'; };
+        gpGroups.forEach(function(g){
           var gt = document.createElement('div'); gt.style.cssText = 'font-size:14px;font-weight:800;color:#1A2E42;margin:16px 0 8px;'; gt.textContent = g[0]; wrap.appendChild(gt);
-          wrap.appendChild(gpPickRow(g[1], _gpOfferPicked, 0).row);
+          wrap.appendChild(gpPickRow(g[1], gpPk, 0, null, gpShowDet).row);
         });
+        wrap.appendChild(gpDet);
       }
       if (q.key === 'introNeed') {
         var op = document.createElement('div'); op.style.cssText = 'margin-top:18px;';
