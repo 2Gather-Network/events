@@ -31,7 +31,8 @@
   .fold{margin-top:20px;}
   .fold-h{background:#1F699E;color:#fff;border-radius:10px 10px 0 0;padding:11px 16px;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;}
   .fold .grid{border:1.5px solid #C9DFF3;border-top:0;border-radius:0 0 12px 12px;padding:14px 16px 16px;background:#fff;}
-  .w.open{border-color:#1F699E;box-shadow:0 0 0 1px #1F699E;}
+  .w.open{border-color:#1F699E;box-shadow:0 0 0 1px #1F699E;grid-column:1 / -1;padding:20px 24px;}
+  .qsearch{width:100%;max-width:420px;box-sizing:border-box;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;padding:8px 12px;font:inherit;font-size:14px;margin:6px 0 4px;}
   .qnav{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
   .qcount{font-size:12px;color:var(--grey);font-weight:700;}
   .rule{border-top:1px solid var(--line);margin:12px 0 10px;}
@@ -80,7 +81,7 @@
   var LEVELMAP = { 'fan':'Fan', 'beginner':'Beginner', 'learner':'Beginner', 'entry level':'Beginner', 'experienced':'Experienced', 'participant':'Experienced', 'practitioner':'Experienced', 'mid level':'Experienced', 'engaged':'Experienced', 'guide':'Guide', 'coach':'Guide', 'expert':'Guide' };
   var CUES = [['interested', /^(i'?m |i am )?(interested in|curious about|want to learn( about)?|want to hear about|into)\s+/], ['enjoy', /^(i )?(love|enjoy|like|adore)\s+/], ['do', /^(i )?(can|do|practice|play|make|am good at|'m good at)\s+/], ['do', /^(i'?m|i am) (a|an)\s+/], ['do', /^(i )?(volunteer|work|worked)( as| at| with| in)?\s+/], ['care', /^(i )?(care about|care for|value|believe in)\s+/], ['need', /^(i )?(need|seek|am seeking|'m seeking|am looking for|'m looking for|want|would like)\s+/], ['offer', /^(i )?(offer|can offer|can help with|could help with|give|lend|teach)\s+/]];
   var LEVELS = ['Beginner', 'Experienced', 'Guide'];
-  var GUIDE_ROLES = ['Coach', 'Mentor', 'Consultant', 'Facilitator', 'Host'];
+  var GUIDE_ROLES = ['Coach', 'Trainer', 'Mentor', 'Consultant', 'Facilitator', 'Host'];
   var DO_ROLES = ['Just for me', 'Volunteer', 'Service provider', 'Performer', 'Creator', 'Maker', 'Competitor', 'Player', 'Collector'];
   var HELPS = [['Create', 'Helps me create'], ['Connect', 'Helps me connect'], ['Eat & Drink', 'Helps me eat & drink'], ['Move', 'Helps me move'], ['Play', 'Helps me play'], ['Survive', 'Helps me survive'], ['Rest', 'Helps me rest']];
   var OFFER_TO = [['', ['Anyone']], ['Season', ['Babies', 'Toddlers', 'Kids', 'Teens', 'Young adults', 'Adults', 'Seniors']], ['Household', ['Singles', 'Families', 'Parents', 'Couples', 'Caregivers', 'Transplants']], ['Work stage', ['Students', 'Early career', 'Mid-career', 'Professionals', 'Senior professionals', 'Late career / pre-retired', 'Retired']], ['Lived experience', ['Veterans', 'Immigrants', 'People with disabilities', 'Neurodivergent', 'In recovery']]];
@@ -399,7 +400,7 @@
     if (next) setTimeout(function(){ var c = document.querySelector('.w.open'); if (c && c.scrollIntoView) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 0);
   }
   function single(box, label, opts, isOn, set, it){
-    chipRow(box, label, opts, isOn, function(o){ var was = isOn(o); set(was ? '' : o); if (!was) it.q++; });
+    chipRow(box, label, opts, isOn, function(o){ var was = isOn(o); set(was ? '' : o); if (!was) { it.q++; it.search = ''; } });
   }
   function askOne(box, it, qq){
     var k = qq.key, t = it.tags;
@@ -463,17 +464,26 @@
     var qq = qs[it.q];
     w.appendChild(el('div', 'rule'));
     var nav = el('div', 'qnav');
-    if (it.q > 0) { var bk = el('button', 'back', '‹ Back'); bk.type = 'button'; bk.style.margin = '0'; bk.onclick = function(){ it.q--; paint(); }; nav.appendChild(bk); } else nav.appendChild(el('span'));
+    if (it.q > 0) { var bk = el('button', 'back', '‹ Back'); bk.type = 'button'; bk.style.margin = '0'; bk.onclick = function(){ it.q--; it.search = ''; paint(); }; nav.appendChild(bk); } else nav.appendChild(el('span'));
     nav.appendChild(el('span', 'qcount', 'Question ' + (it.q + 1) + ' of ' + qs.length));
     w.appendChild(nav);
-    askOne(w, it, qq);
+    var qs0 = el('input', 'qsearch'); qs0.type = 'search'; qs0.placeholder = 'Search the choices'; qs0.value = it.search || '';
+    w.appendChild(qs0);
+    var qbox = el('div'); w.appendChild(qbox);
+    askOne(qbox, it, qq);
+    var filt = function(){
+      var v = low(qs0.value); it.search = qs0.value;
+      qbox.querySelectorAll('.pill').forEach(function(b){ var t = b.textContent.trim(); if (/^(\+ Other|Other|Select all|Clear all)$/.test(t)) return; b.style.display = !v || low(t).indexOf(v) > -1 ? '' : 'none'; });
+    };
+    qs0.oninput = filt; filt();
+    if (it.search) setTimeout(function(){ try { qs0.focus(); qs0.setSelectionRange(qs0.value.length, qs0.value.length); } catch (e) {} }, 0);
     var act = el('div', 'row'); act.style.marginTop = '14px';
     var last = it.q === qs.length - 1;
     var answered = qq.ok ? qq.ok() : true;
     if (qq.multi || last) {
       var nx = pill(last ? 'Done' : 'Next', true); nx.classList.add('big');
       if (!answered) { nx.style.opacity = '.45'; nx.style.cursor = 'default'; }
-      nx.onclick = function(){ if (!answered) return; if (qq.key === 'cat') it.catSure = true; if (last) finish(it); else { it.q++; paint(); } };
+      nx.onclick = function(){ if (!answered) return; it.search = ''; if (qq.key === 'cat') it.catSure = true; if (last) finish(it); else { it.q++; paint(); } };
       act.appendChild(nx);
     }
     if (it.snap) {
