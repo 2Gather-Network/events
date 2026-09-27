@@ -27,7 +27,8 @@
   .btn[disabled]{opacity:.6;cursor:default;}
   .cw-intro-box::placeholder{color:#9AA8B7;opacity:1;}
 </style>
-  <script>window.CW={me:function(){return {id:""};},refCode:function(){return "";}};window.fetch=function(){return Promise.resolve(new Response(JSON.stringify({status:"ok",data:{}})));};</script>
+  <script>window.CW={me:function(){return {id:""};},refCode:function(){return "";}};window._gpRealFetch=window.fetch;window.fetch=function(u){if(/[?&]action=(getReferenceData|getCategories)(&|$)/.test(String(u)))return window._gpRealFetch.apply(window,arguments);return Promise.resolve(new Response(JSON.stringify({status:"ok",data:{}})));};</script>
+  <script src="/nav/category-tree.js?v=2"></script>
 </head>
 <body><div style="background:#FFF4D6;color:#1A2E42;font-size:13.5px;padding:10px 16px;text-align:center;">A look-only copy of the questions page as it was on 30 August 2026. Nothing here saves.</div>
 <div class="wrap">
@@ -73,7 +74,7 @@
       hint:'Something you need, want, or are looking for. Keep it blank if there is nothing right now.',
       ph:'A cat sitter for the last week of September, a massage therapist local to Seattle, and someone who can help me get a PT nursing job where I can travel anywhere.' },
     { key:'introEnjoy',  need:true,  q:'What do you enjoy?',
-      hint:'What you love doing.',
+      hint:'Write it all in one box, or select from topics below.',
       ph:'Pickleball, kayaking, singing badly in a group, anything on the water.' },
     { key:'introSkills', need:true,  q:'What skills pay the bills and/or how do you like helping others?',
       hint:'Name whatever you’re good at. You are multi-dimensional so please shine your light! ✨',
@@ -127,7 +128,7 @@
                    ] },
   };
   var _gpChipsPicked = {};
-  var _gpLangPicked = {}, _gpMethodPicked = {};
+  var _gpLangPicked = {}, _gpMethodPicked = {}, _gpLangPrimary = '';
   var GP_LANGS = ['English','Mandarin','Cantonese','Hindi','Spanish','Arabic','Bengali','Portuguese','French','Urdu',
     'Russian','Indonesian','German','Japanese','Swahili','Marathi','Telugu','Turkish','Tamil','Vietnamese','Korean',
     'Italian','Thai','Persian (Farsi)','Polish','Pashto','Punjabi','Ukrainian','Malayalam','Kannada','Romanian','Dutch',
@@ -188,7 +189,7 @@
     var wrap = document.createElement('div');
     var find = document.createElement('input');
     find.type = 'search';
-    find.placeholder = 'Find a language, in English or in its own words';
+    find.placeholder = 'Search a language';
     find.style.cssText = 'width:100%;box-sizing:border-box;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
       + 'padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;margin-bottom:10px;';
     find.addEventListener('input', function(){
@@ -202,6 +203,7 @@
     var inp = document.createElement('input');
     inp.type = 'text';
     inp.placeholder = 'Another language';
+    var prim = document.createElement('div');
     inp.style.cssText = 'flex:1;min-width:0;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;'
       + 'padding:9px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
     var add = document.createElement('button');
@@ -214,6 +216,22 @@
     inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); commit(); } });
     line.appendChild(inp); line.appendChild(add);
     wrap.appendChild(line);
+    prim.style.cssText = 'margin-top:12px;';
+    var drawPrim = function(){
+      prim.innerHTML = '';
+      var picked = GP_LANGS.concat(Object.keys(_gpLangPicked)).filter(function(w, i, a){ return _gpLangPicked[w] && a.indexOf(w) === i; });
+      if (picked.length < 2) { if (_gpLangPrimary && !_gpLangPicked[_gpLangPrimary]) _gpLangPrimary = ''; return; }
+      if (_gpLangPrimary && !_gpLangPicked[_gpLangPrimary]) _gpLangPrimary = '';
+      var t = document.createElement('div'); t.style.cssText = 'font-size:13.5px;color:#1A2E42;font-weight:700;margin-bottom:8px;'; t.textContent = 'Select a primary language, if you prefer';
+      prim.appendChild(t);
+      var r = document.createElement('div'); r.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+      picked.forEach(function(w){ var b = gpPill((_gpLangPrimary === w ? '★ ' : '') + (GP_NATIVE[w] || w), _gpLangPrimary === w); b.addEventListener('click', function(){ _gpLangPrimary = _gpLangPrimary === w ? '' : w; drawPrim(); }); r.appendChild(b); });
+      prim.appendChild(r);
+    };
+    picker.row.addEventListener('click', function(){ setTimeout(drawPrim, 0); });
+    add.addEventListener('click', function(){ setTimeout(drawPrim, 0); });
+    inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') setTimeout(drawPrim, 0); });
+    wrap.appendChild(prim);
     return gpBlock('Which languages do you speak?', 'So people know they can talk to you in theirs.', wrap);
   }
 
@@ -304,7 +322,7 @@
   
   var GP_PICK = {
     introNeed: {
-      examples: ['A massage therapist', 'A hairstylist', 'A plumber', 'A mechanic', 'A career mentor'],
+      examples: ['Massage therapist', 'Hairstylist', 'Plumber', 'Mechanic', 'Career mentor'],
       tagQ: 'Is that a person, a place or a thing?',
       tagOpts: ['Person', 'Place', 'Thing'], source: 'need'
     },
@@ -465,7 +483,8 @@
     other.type = 'button';
     other.textContent = '+ Other';
     other.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
-      + 'background:#EEF1F5;border:1px dashed #C4CDD8;color:#6B7A8D;font-weight:600;';
+      + 'background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;';
+    if (key === 'introEnjoy') other.textContent = 'Show me categories';
     row.appendChild(other);
 
     var otherBox = document.createElement('div');
@@ -540,7 +559,47 @@
       line.appendChild(add);
       setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0);
     };
-    other.addEventListener('click', function(){ if (otherBox.style.display === 'none') openOther(); else closeOther(); });
+    if (key === 'introEnjoy') {
+      var drill = document.createElement('div');
+      drill.style.cssText = 'display:none;margin-top:12px;';
+      box.appendChild(drill);
+      var roots = null, path = [];
+      var node = function(){ var list = roots || []; for (var d = 0; d < path.length; d++) { var hit = null; for (var n = 0; n < list.length; n++) if (list[n].name === path[d]) hit = list[n]; list = hit ? hit.kids : []; } return list; };
+      var drawDrill = function(){
+        drill.innerHTML = '';
+        var lead = document.createElement('div');
+        lead.style.cssText = 'font-size:13px;color:#6B7A8D;margin-bottom:8px;';
+        if (!roots) { lead.textContent = 'Looking up the categories…'; drill.appendChild(lead); return; }
+        if (!path.length) { lead.textContent = 'Or browse by category:'; drill.appendChild(lead); }
+        else {
+          lead.style.cssText = 'font-size:13.5px;font-weight:700;color:#1A2E42;margin-bottom:10px;';
+          var mk = function(text, to){ var a = document.createElement('a'); a.href = '#'; a.textContent = text; a.style.cssText = 'color:#1F699E;text-decoration:underline;cursor:pointer;'; a.addEventListener('click', function(e){ e.preventDefault(); path = to; drawDrill(); }); return a; };
+          lead.appendChild(mk('All categories', []));
+          path.forEach(function(seg, ix){ var sp = document.createElement('span'); sp.style.cssText = 'color:#6B7A8D;margin:0 6px;font-weight:400;'; sp.textContent = '›'; lead.appendChild(sp); if (ix === path.length - 1) { var c = document.createElement('span'); c.textContent = seg; lead.appendChild(c); } else lead.appendChild(mk(seg, path.slice(0, ix + 1))); });
+          drill.appendChild(lead);
+        }
+        var lr = document.createElement('div'); lr.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+        node().slice().sort(function(a, b){ return (b.kids.length ? 1 : 0) - (a.kids.length ? 1 : 0) || a.name.localeCompare(b.name); }).forEach(function(n){
+          var leaf = !n.kids.length;
+          var on = leaf && gpHasWord(key, n.name);
+          var b = gpPill((n.emoji ? n.emoji + ' ' : '') + n.name + (leaf ? '' : ' ›'), on);
+          b.addEventListener('click', function(){
+            if (!leaf) { path = path.concat([n.name]); drawDrill(); return; }
+            if (gpHasWord(key, n.name)) gpDropWord(key, n.name, ta); else gpAddWord(key, n.name, path[path.length - 1] || path[0] || '', ta);
+            repaint(); drawDrill();
+          });
+          lr.appendChild(b);
+        });
+        drill.appendChild(lr);
+      };
+      other.addEventListener('click', function(){
+        if (drill.style.display !== 'none') { drill.style.display = 'none'; other.textContent = 'Show me categories'; return; }
+        drill.style.display = 'block'; other.textContent = 'Hide categories'; drawDrill();
+        if (!roots && window.cwCategoryTree) window.cwCategoryTree({ skills: 'always' }).then(function(r){ roots = r || []; drawDrill(); }).catch(function(){ roots = []; drawDrill(); });
+      });
+    } else {
+      other.addEventListener('click', function(){ if (otherBox.style.display === 'none') openOther(); else closeOther(); });
+    }
 
     
     search.addEventListener('input', function(){
