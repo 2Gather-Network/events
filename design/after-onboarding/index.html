@@ -102,6 +102,12 @@
 <script>
 (function(){
   var CATS = ['Food & Drink','Movement','Play','Travel','Community & Culture','Arts','Outdoors','Home Life','Animals','Technology','Style','Personal Care','Faith','Business','Communications','Building & Repurposing','Transportation','Finance','Science','Medicine'];
+  var EMO = {};
+  function catLab(c){ return EMO[c] ? EMO[c] + ' ' + c : c; }
+  fetch('https://cw-api-gate.jessieupp.workers.dev?action=getReferenceData')
+    .then(function(r){ return r.json(); })
+    .then(function(rd){ (rd && rd.topicCategories || []).forEach(function(t){ if (t && t.label) EMO[t.label] = t.emoji || ''; }); draw(); })
+    .catch(function(){});
   var Q = {
     how:   { q: 'How is this of interest to you?', opts: ['Fan', 'I do it'], many: true },
     who:   { q: 'Is it for yourself, or in service to someone or something else?', opts: ['Tend to self', 'People', 'Nature'], many: true },
@@ -109,9 +115,9 @@
     gives: { q: 'What would it give you? Tag how this nourishes you.', opts: ['Create', 'Connect', 'Eat & Drink', 'Move', 'Play', 'Survive', 'Rest'], many: true },
     kind:  { q: 'Is it a skill, a thing or a space?', opts: ['Skill', 'Thing', 'Space'] },
     lens:  { q: 'Is it social or ecological?', opts: ['Social', 'Ecological'], many: true },
-    cat:   { q: 'Which category fits?', opts: CATS, many: true }
+    cat:   { q: 'Tags:', opts: CATS, many: true }
   };
-  var SHORT = { how: 'Fan or I do it?', who: 'In service to', level: 'Your level', gives: 'What would it give you?', kind: 'Skill, thing or space?', work: 'Open to work?', lens: 'Social or ecological?', cat: 'Which category?' };
+  var SHORT = { how: 'Fan or I do it?', who: 'In service to', level: 'Your level', gives: 'What would it give you?', kind: 'Skill, thing or space?', work: 'Open to work?', lens: 'Social or ecological?', cat: 'Tags' };
   var FIT = { enjoy: 'I enjoy it', skill: 'I can do it', care: 'I care about it', seek: 'I\u2019m seeking it', offer: 'I can offer it' };
   var TAG = { enjoy: 'joy', skill: 'skill', care: 'care', seek: 'seeking', offer: 'offering' };
 
@@ -240,8 +246,8 @@
   function tell(){ if (!EMBED || !told || openIx > -1 || editIx > -1) return; var left = items.filter(function(x){ return missing(x).length; }).length; try { parent.postMessage({ ao: 'done', left: left, total: items.length }, location.origin); } catch (e) {} }
   function catLine(it){
     var c = (it.a.cat && it.a.cat.length) ? it.a.cat.join(', ') : it.cat;
-    if (!c) return it.thing ? '' : 'Category: not sure yet';
-    return (it.guess && !(it.a.cat && it.a.cat.length) ? 'Category, we think: ' : 'Category: ') + c;
+    if (!c) return it.thing ? '' : 'Tags: not sure yet';
+    return (it.guess && !(it.a.cat && it.a.cat.length) ? 'Tags, we think: ' : 'Tags: ') + c;
   }
   function answered(it){ return needs(it).filter(function(k){ return k !== 'cat' && (k === 'who' ? whoDone(it) : k === 'work' ? workDone(it) : it.a[k] && it.a[k].length); }); }
   function val(it, k){ return k === 'who' ? whoParts(it) : k === 'work' ? workParts(it) : it.a[k]; }
@@ -260,7 +266,7 @@
       var list = el('div', 'kvs');
       answered(it).forEach(function(k){ var r = el('div', 'kv'); r.appendChild(el('span', '', LAB[k])); r.appendChild(el('b', '', val(it, k).join(', '))); list.appendChild(r); });
       miss.filter(function(k){ return k !== 'cat'; }).forEach(function(k){ var r = el('div', 'kv miss'); r.appendChild(el('span', '', LAB[k])); var b = el('button', 'link', 'Add'); b.type = 'button'; b.addEventListener('click', function(){ openCard(ix); }); r.appendChild(b); list.appendChild(r); });
-      if (miss.indexOf('cat') > -1) { var r2 = el('div', 'kv miss'); r2.appendChild(el('span', '', 'Category')); var b2 = el('button', 'link', 'Confirm'); b2.type = 'button'; b2.addEventListener('click', function(){ openCard(ix); }); r2.appendChild(b2); list.appendChild(r2); }
+      if (miss.indexOf('cat') > -1) { var r2 = el('div', 'kv miss'); r2.appendChild(el('span', '', 'Tags')); var b2 = el('button', 'link', 'Confirm'); b2.type = 'button'; b2.addEventListener('click', function(){ openCard(ix); }); r2.appendChild(b2); list.appendChild(r2); }
       if (list.children.length) c.appendChild(list);
     } else if (CARD === 'b') {
       var row = el('div', 'chips');
@@ -363,7 +369,7 @@
       pickRow(c, Q.lens.q, Q.lens.opts.map(function(o){ return [o, o]; }), it.a.lens, true, function(){ draw(); });
     } else if (!it.thing) {
       it.a.cat = it.a.cat || [];
-      pickRow(c, 'Category', CATS.map(function(o){ return [o, o]; }), it.a.cat, true, function(){ it.guess = false; if (it.gAutoSet) { it.a.gives = []; } it.gAuto = false; draw(); });
+      pickRow(c, 'Tags:', CATS.map(function(o){ return [o, catLab(o)]; }), it.a.cat, true, function(){ it.guess = false; if (it.gAutoSet) { it.a.gives = []; } it.gAuto = false; draw(); });
     }
     needs(it).filter(function(k){ return k !== 'cat' && k !== 'lens'; }).forEach(function(k){
       if (k === 'who') { whoBlock(c, it, draw); return; }
@@ -417,7 +423,7 @@
     box.appendChild(el('div', 'qq', def.q));
     var row = el('div', 'row');
     def.opts.forEach(function(o){
-      var b = el('button', 'pill' + (pick.indexOf(o) > -1 ? ' on' : ''), o); b.type = 'button';
+      var b = el('button', 'pill' + (pick.indexOf(o) > -1 ? ' on' : ''), k === 'cat' ? catLab(o) : o); b.type = 'button';
       b.addEventListener('click', function(){
         if (def.many) {
           var at = pick.indexOf(o);
