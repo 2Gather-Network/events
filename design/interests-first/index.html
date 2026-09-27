@@ -83,6 +83,8 @@
     var t = ' ' + low(text).replace(/[^a-z0-9' ]+/g, ' ') + ' ', best = null;
     var exact = words[low(text)];
     if (exact) return exact.cat;
+    var val = (RD.values || []).filter(function(v){ return v && low(v.item) === low(text); })[0];
+    if (val) return /eco/i.test(val.category || '') ? 'Outdoors' : 'Community & Culture';
     Object.keys(words).forEach(function(k){
       var w = words[k], hit = t.indexOf(' ' + k + ' ') > -1 ? k.length + 100 : 0;
       if (!hit && w.assoc) { w.assoc.split(w.extra ? /[ ,]+/ : /\s*,\s*/).forEach(function(a){ a = a.trim(); if (a.length > 3 && t.indexOf(' ' + a + ' ') > -1) hit = Math.max(hit, a.length + (w.extra ? 50 : 0)); }); }
@@ -119,30 +121,83 @@
   function clauses(text){
     return String(text || '').replace(/\r/g, '').split(/[\n.;!?]+|,\s*|\s+and\s+|\s+&\s+|\s+as well as\s+/i).map(function(x){ return x.trim(); }).filter(String);
   }
+  var STOP = ' a an the my our your their his her its us we i me you one another some more any this that these those very just really also of '.split(' ');
+  var CUT = /\s(who|which|that|where|when|to|for|in|on|at|with|from|so|because|into|by|like|about)\s/;
+  var RD = {};
+  function known(list, w){ w = low(w); return (list || []).some(function(x){ return low(typeof x === 'string' ? x : (x && (x.item || x.label || x.name))) === w; }); }
+  function isCatName(w){ w = low(w); return CATS.some(function(c){ return low(c) === w; }) || !!SKILLMAP[w] || !!RECMAP[w]; }
+  function isJunk(c){
+    c = String(c || '').trim();
+    return !c || /^(true|false|yes|no)$/i.test(c) || /^\d{4}-\d\d-\d\d/.test(c) || /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(c)
+      || /@/.test(c) || /^https?:/i.test(c) || /^[+\d][\d\s().-]{6,}$/.test(c) || (/^[A-Za-z0-9]{4,8}$/.test(c) && /[A-Z]/.test(c.slice(1)) && /[a-z]/.test(c));
+  }
+  function short(clause){
+    var tag = '';
+    var l = ' ' + low(clause).replace(/[^\p{L}\p{N}&' -]+/gu, ' ').replace(/\s+/g, ' ').trim() + ' ';
+    l = l.replace(/\b(really|deeply|truly|also|very much|a lot|so much)\b/g, ' ').replace(/\s+/g, ' ');
+    l = l.trim().replace(/^(and|or|but|also|then) /, '');
+    CUES.forEach(function(cu){ var m = l.match(cu[1]); if (m) { tag = cu[0]; l = l.slice(m[0].length); } });
+    l = l.replace(/^(an? )?(hour|hours|few hours|minutes|time|day|evening|afternoon|morning)s? (of |to )?/, '').replace(/^(helping|help) (us |people |others |you )?/, '');
+    var hitWord = '';
+    if (l.split(' ').length > 2) Object.keys(words).forEach(function(k){ if (k.length > 3 && k.split(' ').length <= 2 && (' ' + l + ' ').indexOf(' ' + k + ' ') > -1 && k.length > hitWord.length) hitWord = k; });
+    if (hitWord) return { word: hitWord, tag: tag };
+    var head = (' ' + l + ' ').split(CUT)[0].trim() || l;
+    var ws = head.split(' ').filter(function(x){ return x && STOP.indexOf(x) < 0; });
+    if (!ws.length) return null;
+    return { word: ws.slice(0, 2).join(' '), tag: tag };
+  }
+  function clauses2(text){
+    return String(text || '').replace(/\r/g, '').split(/[\n.;!?|]+|,\s*|\s+and\s+|\s+&\s+(?=[a-z])|\s+as well as\s+/i).map(function(x){ return x.trim(); }).filter(String);
+  }
   function parseSentence(text, fallback){
     var tag = fallback || '';
-    clauses(text).forEach(function(c){
-      var l = low(c).replace(/[“”"]/g, '').replace(/\b(really|deeply|truly|also|very much|a lot|so much)\b\s*/g, '').replace(/\s+for (everyone|all|people|others|everybody)$/, '').trim();
-      CUES.forEach(function(cu){ var m = l.match(cu[1]); if (m) { tag = cu[0]; l = l.slice(m[0].length); } });
-      l = l.replace(/^(i |i'm |i am |to |the |a |an |my |some |more |about |in |with |being )+/g, '').replace(/\b(etc|stuff|things)\b/g, '').trim();
-      if (!l) return;
-      if (l.split(' ').length > 5) l = l.split(' ').slice(0, 5).join(' ');
-      add(l, tag, '', '', true);
+    clauses2(text).forEach(function(c){
+      if (isCatName(c) || isJunk(c)) return;
+      var sh = short(c); if (!sh || !sh.word || sh.word.length < 2) return;
+      if (sh.tag) tag = sh.tag;
+      add(sh.word, tag || guessTag(c, sh.word), '', '', true);
     });
+  }
+  function guessTag(whole, word){
+    var w = low(whole);
+    if (known(RD.values, word)) return 'care';
+    if (/^(an? )(hour|few hours|time)\b/.test(w)) return 'offer';
+    if (/^(an? )\w+( \w+)? (who|that) /.test(w)) return 'need';
+    if (/^my /.test(w)) return 'enjoy';
+    return 'interested';
   }
   function takeCell(raw, tag){
     String(raw || '').split('|').forEach(function(piece){
-      piece = piece.trim(); if (!piece) return;
+      piece = piece.trim(); if (!piece || isJunk(piece)) return;
+      if (known(RD.languages, piece) || known(RD.appreciationTypes, piece) || /^(pass it on|physical goods|money)$/i.test(piece)) return;
       if (piece.indexOf(':') > -1 && piece.split(' ').length < 12) {
-        var parts = piece.split(':'), word = parts[0], old = low(parts[1]), lv = '';
-        parts.slice(2).forEach(function(x){ var m = LEVELMAP[low(x)]; if (m) lv = m; });
+        var parts = piece.split(':'), word = parts[0], old = low(parts[1]), lv = '', isSkill = false;
+        parts.slice(1).forEach(function(x){ var m = LEVELMAP[low(x)]; if (m) lv = m; if (low(x) === 'skill') isSkill = true; });
         var cat = CATS.filter(function(c){ return low(c) === old; })[0] || SKILLMAP[old] || RECMAP[old] || SUBMAP[old] || '';
-        add(word, tag, cat, tag === 'do' ? lv : (lv === 'Fan' ? 'Fan' : ''), true);
-      } else if (piece.split(' ').length > 3) parseSentence(piece, tag);
-      else add(piece, tag, '', '', true);
+        var t = tag || ((lv && lv !== 'Fan') || isSkill ? 'do' : '');
+        var sh = word.split(' ').length > 2 ? short(word) : { word: word };
+        if (sh) add(sh.word, t || guessTag(word, sh.word), cat, t === 'do' ? lv : (lv === 'Fan' ? 'Fan' : ''), true);
+      } else if (piece.split(' ').length > 2 || /[.,;]/.test(piece)) parseSentence(piece, tag);
+      else if (!isCatName(piece)) { var sh2 = short(piece); if (sh2) add(sh2.word, tag || sh2.tag || guessTag(piece, sh2.word), '', '', true); }
     });
   }
-
+  function takeRow(text){
+    var rows = tsv(text).filter(function(r){ return r.some(function(c){ return String(c).trim(); }); });
+    if (!rows.length) return 0;
+    var boxes = [['interests', 'enjoy'], ['skills', 'do'], ['values', 'care'], ['needs', 'need'], ['haves', 'offer'], ['topics', 'interested']];
+    var H = rows[0].map(function(h){ return low(h); }), got = 0;
+    if (rows.length > 1 && boxes.some(function(b){ return H.indexOf(b[0]) > -1; })) {
+      var R = rows[rows.length - 1];
+      boxes.forEach(function(b){ var c = H.indexOf(b[0]); if (c > -1 && R[c]) { got++; takeCell(R[c], b[1]); } });
+      return got;
+    }
+    rows.forEach(function(r){ r.forEach(function(c, ix){
+      c = String(c || '').trim();
+      if (ix === 0 && r.length > 5 && /^[A-Z][\w'-]+( [A-Z][\w'-]+)+$/.test(c)) return;
+      if (!c || isJunk(c)) return; got++; takeCell(c, '');
+    }); });
+    return got;
+  }
   function chipRow(box, label, opts, isOn, pickIt){
     var m = el('div', 'more');
     m.appendChild(el('div', 'lab', label));
@@ -156,7 +211,7 @@
     app.appendChild(el('p', 'lede', 'Anything at all: things you love, things you are good at, things you care about or need. Add as many as you like. You will say how each one fits you next.'));
     var ask = el('div', 'ask'), inp = el('input'); inp.type = 'text'; inp.placeholder = 'gardening, bookkeeping, or a sentence: I love to sing and I can fix bikes'; inp.autocomplete = 'off';
     var go = pill('Add', true); go.classList.add('big');
-    var take = function(){ var v = inp.value; if (/\s/.test(v.trim()) && v.trim().split(/\s+/).length > 3) parseSentence(v, ''); else v.split(',').forEach(function(x){ add(x, '', '', '', true); }); inp.value = ''; paint(); setTimeout(function(){ var n = document.querySelector('.ask input'); if (n) n.focus(); }, 0); };
+    var take = function(){ var v = inp.value; if (/\t/.test(v)) { takeRow(v); if (items.length) step = 2; } else if (v.trim().split(/\s+/).length > 2) parseSentence(v, ''); else v.split(',').forEach(function(x){ add(x, '', '', '', true); }); inp.value = ''; paint(); setTimeout(function(){ var n = document.querySelector('.ask input'); if (n) n.focus(); }, 0); };
     go.onclick = take; inp.onkeydown = function(e){ if (e.key === 'Enter') { e.preventDefault(); take(); } };
     ask.appendChild(inp); ask.appendChild(go); app.appendChild(ask);
     app.appendChild(el('div', 'sub', 'Or tap some'));
@@ -166,18 +221,13 @@
     if (!loaded) app.appendChild(el('div', 'wait', 'Loading the words…'));
     var det = el('details'); det.style.cssText = 'margin-top:16px;font-size:13px;';
     var sm = el('summary', '', 'Try it with someone’s existing answers'); sm.style.cssText = 'cursor:pointer;color:var(--blue);font-weight:600;'; det.appendChild(sm);
-    det.appendChild(el('p', 'lede', 'On the ikigai tab, filter to their row, select row 1 and their row together, copy, and paste here. It stays in this browser: nothing is sent or saved.'));
-    var boxes = [['interests', 'enjoy'], ['skills', 'do'], ['values', 'care'], ['needs', 'need'], ['haves', 'offer'], ['topics', 'interested']];
-    var ta = el('textarea'); ta.rows = 4; ta.placeholder = 'Paste the header row and their row'; ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;border-radius:8px;padding:8px;font:inherit;font-size:13px;'; det.appendChild(ta);
+    det.appendChild(el('p', 'lede', 'Copy their whole row from the ikigai tab and paste it here. Adding the header row too makes it more exact. It stays in this browser: nothing is sent or saved.'));
+    var ta = el('textarea'); ta.rows = 4; ta.placeholder = 'Paste their row'; ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;border-radius:8px;padding:8px;font:inherit;font-size:13px;'; det.appendChild(ta);
     var msg = el('div', 'wait'); det.appendChild(msg);
     var ld = pill('Load these answers', true); ld.classList.add('big'); ld.style.marginTop = '10px';
     ld.onclick = function(){
-      var rows = tsv(ta.value).filter(function(r){ return r.some(function(c){ return String(c).trim(); }); });
-      if (rows.length < 2) { msg.textContent = 'I need two rows: the header row and their row.'; return; }
-      var H = rows[0].map(function(h){ return low(h); }), R = rows[rows.length - 1], got = 0;
       items = [];
-      boxes.forEach(function(b){ var c = H.indexOf(b[0]); if (c > -1 && R[c]) { got++; takeCell(R[c], b[1]); } });
-      if (!got) { msg.textContent = 'I could not find interests, skills, values, needs, haves or topics in the header row.'; return; }
+      if (!takeRow(ta.value) || !items.length) { msg.textContent = 'I could not find any answers in that paste.'; return; }
       step = 2; paint(); window.scrollTo(0, 0);
     };
     det.appendChild(ld); app.appendChild(det);
@@ -252,7 +302,7 @@
 
   paint();
   fetch(GS + '?action=getReferenceData').then(function(r){ return r.json(); }).catch(function(){ return {}; }).then(function(rd){
-    rd = rd || {};
+    rd = rd || {}; RD = rd;
     (rd.recreation || []).forEach(function(r){
       var p = low(r.parent), t = low(r.recType), sb = low(r.category);
       var top = SUBMAP[sb] || RECMAP[t] || (p === 'arts & culture' ? 'Arts' : 'Play');
