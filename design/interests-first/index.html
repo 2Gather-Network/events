@@ -9,9 +9,9 @@
   :root{--blue:#1F699E;--ink:#1A2E42;--grey:#6B7A8D;--line:#DDE4EE;--soft:#F7FBFF;--pale:#C9DFF3;}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--blue);color:var(--ink);font-family:'DM Sans','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;}
-  .wrap{max-width:760px;margin:0 auto;padding:22px 16px 60px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 16px 60px;}
   .note{background:#FFF4D6;font-size:13.5px;padding:10px 14px;border-radius:10px;margin-bottom:14px;}
-  .card{background:#fff;border-radius:16px;padding:22px;}
+  .card{padding:18px 0 0;}
   h1{font-size:24px;margin:0 0 4px;}
   .lede{color:var(--grey);font-size:14px;margin:0 0 14px;line-height:1.5;}
   .ask{display:flex;gap:8px;}
@@ -25,7 +25,20 @@
   .mine .pill{background:#E6F1FB;}
   .mine .pill b{margin-left:6px;color:var(--grey);font-weight:400;}
   .next{margin-top:18px;}
-  .w{border:1px solid var(--line);background:var(--soft);border-radius:14px;padding:14px 16px;margin-top:12px;}
+  .w{border:1px solid var(--line);background:var(--soft);border-radius:16px;padding:16px 18px;}
+  .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start;}
+  .fold{margin-top:20px;}
+  .fold-h{background:#1F699E;color:#fff;border-radius:10px 10px 0 0;padding:11px 16px;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;}
+  .fold .grid{border:1.5px solid #C9DFF3;border-top:0;border-radius:0 0 12px 12px;padding:14px 16px 16px;background:#fff;}
+  .rule{border-top:1px solid var(--line);margin:12px 0 10px;}
+  @media(max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  @media(max-width:620px){.grid{grid-template-columns:1fr;}}
+  .steps .ck{float:right;color:#3E9A5B;font-weight:800;}
+  .steps button.on .ck{color:#fff;}
+  .top{display:flex;align-items:flex-start;gap:8px;}
+  .top h3{flex:1;}
+  .ico{font:inherit;background:none;border:0;cursor:pointer;font-size:16px;color:var(--grey);padding:0 2px;line-height:1;}
+  .w .row .pill{font-size:12px;padding:5px 11px;}
   .w h3{margin:0;font-size:17px;}
   .about{font-size:12.5px;color:var(--grey);margin:3px 0 10px;}
   .about button{font:inherit;background:none;border:0;color:var(--blue);text-decoration:underline;cursor:pointer;padding:0;}
@@ -44,7 +57,7 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap" id="wrap">
   <div class="note">A mockup to try. Nothing here is saved. Categories are guessed with simple word matching for now.</div>
   <div class="card" id="app"></div>
 </div>
@@ -232,6 +245,20 @@
     }
     doneRow(w, it, 'who', 'Who is it for? Pick one or both.', ['Myself', 'Others'], function(o){ return it.forWho.indexOf(o) > -1; }, function(o){ toggle(it.forWho, o); if (o === 'Others' && it.forWho.indexOf('Others') < 0) it.forOther = []; }, summary);
   }
+  function roleRow(box, it, label, base){
+    var m = el('div', 'more'); m.appendChild(el('div', 'lab', label));
+    var r = el('div', 'row');
+    var toggle = function(o){ var a = it.roles.indexOf(o); if (a > -1) it.roles.splice(a, 1); else it.roles.push(o); paint(); };
+    base.concat(it.roles.filter(function(x){ return base.indexOf(x) < 0; })).forEach(function(o){ var b = pill(o, it.roles.indexOf(o) > -1); b.onclick = function(){ toggle(o); }; r.appendChild(b); });
+    var ob = pill('Other', !!it.roleOther); ob.onclick = function(){ it.roleOther = !it.roleOther; paint(); }; r.appendChild(ob);
+    m.appendChild(r);
+    if (it.roleOther) {
+      var inp = el('input'); inp.placeholder = 'What else? Press Enter to add'; inp.style.cssText = 'border:1.5px solid #DDE3EA;border-radius:8px;padding:6px 9px;font:inherit;font-size:13px;margin-top:8px;width:100%;';
+      inp.onkeydown = function(e){ if (e.key === 'Enter' && inp.value.trim()) { var v = inp.value.trim(); v = v.charAt(0).toUpperCase() + v.slice(1); if (it.roles.indexOf(v) < 0) it.roles.push(v); it.roleOther = false; paint(); } };
+      m.appendChild(inp); setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0);
+    }
+    box.appendChild(m);
+  }
   function chipRow(box, label, opts, isOn, pickIt){
     var m = el('div', 'more');
     m.appendChild(el('div', 'lab', label));
@@ -278,12 +305,17 @@
 
   function wordCard(it){
     var w = el('div', 'w');
-    w.appendChild(el('h3', '', it.word));
+    var top = el('div', 'top'); top.appendChild(el('h3', '', it.word));
+    var pen = el('button', 'ico', '\u270F\uFE0F'); pen.type = 'button'; pen.title = 'Edit'; pen.onclick = function(){ if (!it.editing) { it.snap = JSON.stringify(it); it.editing = true; } paint(); }; top.appendChild(pen);
+    var xx = el('button', 'ico', '×'); xx.type = 'button'; xx.title = 'Remove'; xx.style.fontSize = '20px'; xx.onclick = function(){ items.splice(items.indexOf(it), 1); paint(); }; top.appendChild(xx);
+    w.appendChild(top);
     var cats = [it.cat].concat(it.also || []).filter(String);
     var ab = el('div', 'about');
     ab.appendChild(document.createTextNode(!cats.length ? 'Category: pick one or more' : (it.catSure ? 'Category: ' : 'Possible category selected: ') + cats.join(', ')));
     if (it.catDone) { ab.appendChild(document.createTextNode(' · ')); var ch = el('button', '', 'change'); ch.type = 'button'; ch.onclick = function(){ it.catDone = false; paint(); }; ab.appendChild(ch); }
     w.appendChild(ab);
+    if (it.editing === false) { w.appendChild(el('div', 'about', tagLine(it))); return w; }
+    w.appendChild(el('div', 'rule'));
     if (!it.catDone) {
       var q = el('div', 'catbox'), r = el('div', 'row');
       q.appendChild(el('div', 'lab', cats.length ? 'Tap to add or remove. Pick as many as fit.' : 'We don’t know “' + it.word + '” yet. Which fit? Pick as many as you like.'));
@@ -298,12 +330,17 @@
     if (it.tags.enjoy) doneRow(w, it, 'fan', 'Do you do it, or are you a fan? Pick one or both.', ['Fan', 'I do it'], function(o){ return o === 'Fan' ? !!it.fan : !!it.tags['do']; }, function(o){ if (o === 'Fan') it.fan = !it.fan; else { if (it.tags['do']) delete it.tags['do']; else it.tags['do'] = 1; } }, function(){ return [it.fan ? 'Fan' : '', it.tags['do'] ? 'I do it' : ''].filter(String).join(', '); });
     if (it.tags['do'] || it.tags.offer) {
       chipRow(w, 'How far along are you?', LEVELS, function(o){ return it.level === o; }, function(o){ it.level = it.level === o ? '' : o; it.roles = []; });
-      if (it.level === 'Guide') chipRow(w, 'How do you guide others?', GUIDE_ROLES, function(o){ return it.roles.indexOf(o) > -1; }, function(o){ var a = it.roles.indexOf(o); if (a > -1) it.roles.splice(a, 1); else it.roles.push(o); });
-      if (it.level === 'Experienced') chipRow(w, 'How do you do it?', DO_ROLES, function(o){ return it.roles.indexOf(o) > -1; }, function(o){ var a = it.roles.indexOf(o); if (a > -1) it.roles.splice(a, 1); else it.roles.push(o); });
+      if (it.level === 'Guide') roleRow(w, it, 'How do you guide others?', GUIDE_ROLES);
+      if (it.level === 'Experienced') roleRow(w, it, 'How do you do it?', DO_ROLES);
     }
     if (Object.keys(it.tags).length) whoFor(w, it);
     if (it.tags.need) chipRow(w, 'What would it give you? I need to…', NEEDS, function(o){ return it.need === o; }, function(o){ it.need = it.need === o ? '' : o; });
     if (it.tags.offer) chipRow(w, 'Are you open to paid work for this?', ['Yes', 'No', 'Maybe'], function(o){ return it.work === o; }, function(o){ it.work = it.work === o ? '' : o; });
+    var act = el('div', 'row'); act.style.marginTop = '14px';
+    var sv = pill('Save', true); sv.classList.add('big'); sv.onclick = function(){ it.editing = false; if (it.cat) { it.catSure = true; it.catDone = true; } it.snap = ''; paint(); };
+    var cn = pill('Cancel'); cn.classList.add('big'); cn.style.color = 'var(--grey)'; cn.style.borderColor = 'var(--line)';
+    cn.onclick = function(){ if (it.snap) { var o = JSON.parse(it.snap); Object.keys(it).forEach(function(k){ delete it[k]; }); Object.assign(it, o); it.editing = false; it.snap = ''; } else it.editing = false; paint(); };
+    act.appendChild(sv); act.appendChild(cn); w.appendChild(act);
     return w;
   }
 
@@ -331,7 +368,8 @@
     var back = el('button', 'back', '‹ Add more interests'); back.type = 'button'; back.onclick = function(){ step = 1; paint(); }; app.appendChild(back);
     app.appendChild(el('h1', '', 'How does each one fit you?'));
     app.appendChild(el('p', 'lede', 'Tap every one that is true. A few short questions open only for what you tap.'));
-    items.forEach(function(it){ app.appendChild(wordCard(it)); });
+    var fold = el('div', 'fold'); var bar = el('div', 'fold-h', 'Interests added (' + items.length + ')'); fold.appendChild(bar);
+    var g = el('div', 'grid'); items.forEach(function(it){ g.appendChild(wordCard(it)); }); fold.appendChild(g); app.appendChild(fold);
     var rv = pill('Next: check everything', true); rv.classList.add('big', 'next'); rv.onclick = function(){ step = 3; paint(); window.scrollTo(0, 0); }; app.appendChild(rv);
   }
   function tagLine(it){
@@ -364,7 +402,21 @@
     app.appendChild(saves());
   }
 
+  function railPaint(){
+    var box = window._ifRail; if (!box) return;
+    box.innerHTML = '';
+    [[1, 'Your interests'], [2, 'How each one fits you'], [3, 'Check everything']].forEach(function(s){
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = s[1];
+      if (s[0] === step) b.className = 'on';
+      var done = s[0] === 1 ? items.length > 0 : s[0] === 2 ? items.length > 0 && items.every(function(i){ return Object.keys(i.tags).length && i.catDone; }) : confirmed;
+      if (done) { var ck = document.createElement('span'); ck.className = 'ck'; ck.textContent = '✓'; b.appendChild(ck); }
+      b.onclick = function(){ if (s[0] > 1 && !items.length) return; step = s[0]; paint(); window.scrollTo(0, 0); };
+      box.appendChild(b);
+    });
+  }
+  window._ifPaint = function(){ paint(); };
   function paint(){
+    railPaint();
     var app = document.getElementById('app'); app.innerHTML = '';
     if (step === 3 && items.length) stepThree(app); else if (step === 2 && items.length) stepTwo(app); else { step = 1; stepOne(app); }
   }
@@ -386,5 +438,18 @@
   });
 })();
 </script>
+<script src="https://2gather.network/nav/profile-rail.js?v=13"></script>
+<script>
+(function(){
+  if (!window.cwProfileRail) return;
+  var main = cwProfileRail({ shape: 'network', wrap: document.getElementById('wrap') });
+  var rail = document.getElementById('cw-prail'); if (!rail || !main) return;
+  rail.innerHTML = '';
+  var box = document.createElement('div'); box.className = 'cw-prail-list steps'; box.id = 'if-steps'; rail.appendChild(box);
+  window._ifRail = box;
+  if (window._ifPaint) window._ifPaint();
+})();
+</script>
+<script src="https://2gather.network/nav/topbar.js?v=6.37" defer></script>
 </body>
 </html>
