@@ -84,6 +84,7 @@
   var GUIDE_ROLES = ['Coach', 'Trainer', 'Mentor', 'Consultant', 'Facilitator', 'Host'];
   var DO_ROLES = ['Just for me', 'Volunteer', 'Service provider', 'Performer', 'Creator', 'Maker', 'Competitor', 'Player', 'Collector'];
   var HELPS = [['Create', 'Helps me create'], ['Connect', 'Helps me connect'], ['Eat & Drink', 'Helps me eat & drink'], ['Move', 'Helps me move'], ['Play', 'Helps me play'], ['Survive', 'Helps me survive'], ['Rest', 'Helps me rest']];
+  var SERVE_GROUPS = [['By life stage', ['Babies', 'Toddlers', 'Kids', 'Teens', 'Young adults', 'Adults', 'Seniors']], ['By household', ['Singles', 'Families', 'Parents', 'Couples', 'Caregivers', 'Transplants']], ['By career stage', ['Students', 'Early career', 'Mid-career', 'Professionals', 'Senior professionals', 'Pre-retired', 'Retired']]];
   var OFFER_TO = [['', ['Anyone']], ['Season', ['Babies', 'Toddlers', 'Kids', 'Teens', 'Young adults', 'Adults', 'Seniors']], ['Household', ['Singles', 'Families', 'Parents', 'Couples', 'Caregivers', 'Transplants']], ['Work stage', ['Students', 'Early career', 'Mid-career', 'Professionals', 'Senior professionals', 'Late career / pre-retired', 'Retired']], ['Lived experience', ['Veterans', 'Immigrants', 'People with disabilities', 'Neurodivergent', 'In recovery']]];
   var LAST = {};
   function carry(it, qq){
@@ -91,7 +92,7 @@
     var k = qq.key + '|' + qq.label.replace(/^You said[^.]*\. /, '');
     var get = function(){
       if (qq.key === 'roles') return it.roles.slice();
-      if (qq.key === 'who') return { w: (it.forWho || []).slice(), o: (it.forOther || []).slice() };
+      if (qq.key === 'who') return { w: (it.forWho || []).slice(), s: (it.serveWhat || []).slice(), p: (it.serveWho || []).slice() };
       if (qq.key === 'offerTo') return (it.offerTo || []).slice();
       if (qq.key === 'needs') return (it.needs || []).slice();
       if (qq.list) return (it.pick[qq.key] || []).slice();
@@ -99,7 +100,7 @@
     };
     var put = function(v){
       if (qq.key === 'roles') it.roles = v.slice();
-      else if (qq.key === 'who') { it.forWho = v.w.slice(); it.forOther = v.o.slice(); }
+      else if (qq.key === 'who') { it.forWho = v.w.slice(); it.serveWhat = (v.s || []).slice(); it.serveWho = (v.p || []).slice(); }
       else if (qq.key === 'offerTo') it.offerTo = v.slice();
       else if (qq.key === 'needs') it.needs = v.slice();
       else if (qq.list) it.pick[qq.key] = v.slice();
@@ -413,8 +414,8 @@
         q.push({ key: 'unpaidKind', label: 'Which types of unpaid work? Pick as many as fit.', multi: true, list: UNPAID });
       }
     }
-    if (Object.keys(t).length) q.push({ key: 'who', label: 'Who is it for? Pick one or both.', multi: true });
-    if (t.offer) q.push({ key: 'offerTo', label: 'Who would you offer it to? Pick any that fit.', multi: true });
+    var verb = t.need ? 'seeking' : t.offer ? 'offering' : t['do'] ? 'doing' : t.care ? 'caring about' : t.enjoy ? 'enjoying' : 'interested in';
+    if (Object.keys(t).length) q.push({ key: 'who', label: 'Are you ' + verb + ' \u201C' + it.word.toLowerCase() + '\u201D for yourself, or in service to someone or something else? Pick one or both.', multi: true });
     return q;
   }
   function finish(it){
@@ -451,17 +452,21 @@
     if (k === 'work') { single(box, qq.label, ['Yes', 'No'], function(o){ return it.work === o; }, function(v){ it.work = v; }, it); return; }
     if (k === 'unpaid') { single(box, qq.label, ['Yes', 'No'], function(o){ return it.unpaid === o; }, function(v){ it.unpaid = v; }, it); return; }
     if (k === 'who') {
-      it.forWho = it.forWho || []; it.forOther = it.forOther || [];
+      it.forWho = it.forWho || []; it.serveWhat = it.serveWhat || []; it.serveWho = it.serveWho || [];
       var tg = function(list, o){ var a = list.indexOf(o); if (a > -1) list.splice(a, 1); else list.push(o); };
-      chipRow(box, qq.label, ['Myself', 'Others'], function(o){ return it.forWho.indexOf(o) > -1; }, function(o){ tg(it.forWho, o); if (it.forWho.indexOf('Others') < 0) it.forOther = []; });
-      if (it.forWho.indexOf('Others') > -1) {
-        var ex = el('div', 'more'); ex.appendChild(el('div', 'lab', 'Which others?'));
-        var r2 = el('div', 'row');
-        var oall = mine('others', OTHERS); oall.concat(it.forOther.filter(function(x){ return oall.indexOf(x) < 0; })).forEach(function(o){ var b = pill(o, it.forOther.indexOf(o) > -1); b.onclick = function(){ tg(it.forOther, o); paint(); }; r2.appendChild(b); });
-        ex.appendChild(r2);
-        var inp = el('input'); inp.placeholder = 'Or add your own and press Enter'; inp.style.cssText = 'border:1.5px solid #DDE3EA;border-radius:8px;padding:6px 9px;font:inherit;font-size:13px;margin-top:8px;width:100%;';
-        inp.onkeydown = function(e){ if (e.key === 'Enter' && inp.value.trim()) { var v = inp.value.trim(); v = v.charAt(0).toUpperCase() + v.slice(1); if (it.forOther.indexOf(v) < 0) it.forOther.push(v); remember('others', v); paint(); } };
-        ex.appendChild(inp); box.appendChild(ex);
+      chipRow(box, qq.label, ['Tend to self', 'In service to another'], function(o){ return it.forWho.indexOf(o === 'Tend to self' ? 'Self' : 'Service') > -1; }, function(o){ tg(it.forWho, o === 'Tend to self' ? 'Self' : 'Service'); if (it.forWho.indexOf('Service') < 0) { it.serveWhat = []; it.serveWho = []; } });
+      if (it.forWho.indexOf('Service') > -1) {
+        chipRow(box, 'In service to who or what?', ['People', 'Nature'], function(o){ return it.serveWhat.indexOf(o) > -1; }, function(o){ tg(it.serveWhat, o); if (it.serveWhat.indexOf('People') < 0) it.serveWho = []; });
+        if (it.serveWhat.indexOf('People') > -1) {
+          var ex = el('div', 'more'); ex.appendChild(el('div', 'lab', 'Which people? Pick any that fit, or none for anyone.'));
+          SERVE_GROUPS.forEach(function(g){
+            var gl = el('div', 'about', g[0]); gl.style.margin = '8px 0 4px'; ex.appendChild(gl);
+            var rr = el('div', 'row');
+            g[1].forEach(function(o){ var b = pill(o, it.serveWho.indexOf(o) > -1); b.onclick = function(){ tg(it.serveWho, o); paint(); }; rr.appendChild(b); });
+            ex.appendChild(rr);
+          });
+          box.appendChild(ex);
+        }
       }
       return;
     }
@@ -526,7 +531,11 @@
     var col = { topics: [], interests: [], skills: [], values: [], needs: [], haves: [] };
     items.forEach(function(it){
       var c = it.cat || '?';
-      var fw = (it.forWho || []).filter(function(x){ return x !== 'Others' || !(it.forOther || []).length; }).concat((it.forWho || []).indexOf('Others') > -1 ? (it.forOther || []).map(function(x){ return OTHERS.indexOf(x) > -1 ? x : 'Other=' + x; }) : []);
+      var fw = [];
+      if ((it.forWho || []).indexOf('Self') > -1) fw.push('Self');
+      if ((it.serveWhat || []).indexOf('People') > -1) fw.push('People' + ((it.serveWho || []).length ? '=' + it.serveWho.map(function(x){ return x.replace(/[^A-Za-z]/g, ''); }).join('+') : ''));
+      if ((it.serveWhat || []).indexOf('Nature') > -1) fw.push('Nature');
+      if ((it.forWho || []).indexOf('Service') > -1 && !(it.serveWhat || []).length) fw.push('Service');
       var mk = ((it.also || []).length ? ':alsoIn=' + it.also.join('+') : '') + (fw.length ? ':for=' + fw.join('+') : '');
       if (it.tags.interested) col.topics.push(it.word + ':' + c + mk);
       if (it.tags.enjoy) col.interests.push(it.word + ':' + c + (it.fan ? ':Fan' : '') + mk);
@@ -549,7 +558,7 @@
   function stepTwo(app){
     var back = el('button', 'back', '‹ Add more interests'); back.type = 'button'; back.onclick = function(){ step = 1; paint(); }; app.appendChild(back);
     app.appendChild(el('h1', '', 'How does each one fit you?'));
-    app.appendChild(el('p', 'lede', 'One question at a time. When a card is done it closes and the next one opens.'));
+    app.appendChild(el('p', 'lede', window._ifFromOne ? 'These came from your answers on the first page, already tagged from the question each one answered. Check the category, then one question at a time. When a card is done it closes and the next one opens.' : 'One question at a time. When a card is done it closes and the next one opens.'));
     if (!openIt || items.indexOf(openIt) < 0) { openIt = items.filter(function(x){ return x.editing !== false; })[0] || null; if (openIt) openIt.q = openIt.q || 0; }
     var fold = el('div', 'fold'); var bar = el('div', 'fold-h', 'Interests added (' + items.length + ')'); fold.appendChild(bar);
     var g = el('div', 'grid'); items.forEach(function(it){ g.appendChild(wordCard(it)); }); fold.appendChild(g); app.appendChild(fold);
@@ -566,7 +575,12 @@
       if (t[0] === 'offer' && it.work === 'Yes') x += ' · paid work' + (((it.pick || {}).paid || []).length ? ': ' + it.pick.paid.join(', ') : '');
       if (t[0] === 'offer' && it.unpaid === 'Yes') x += ' · unpaid work' + ((((it.pick || {}).unpaidTime || []).concat((it.pick || {}).unpaidKind || [])).length ? ': ' + (it.pick.unpaidTime || []).concat(it.pick.unpaidKind || []).join(', ') : '');
       bits.push(x); });
-    var who = (it.forWho || []).map(function(x){ return x === 'Others' && (it.forOther || []).length ? it.forOther.join(', ') : x; }).join(', ');
+    var wl = [];
+    if ((it.forWho || []).indexOf('Self') > -1) wl.push('yourself');
+    if ((it.serveWhat || []).indexOf('People') > -1) wl.push((it.serveWho || []).length ? it.serveWho.join(', ') : 'people');
+    if ((it.serveWhat || []).indexOf('Nature') > -1) wl.push('nature');
+    if ((it.forWho || []).indexOf('Service') > -1 && !(it.serveWhat || []).length) wl.push('others');
+    var who = wl.join(', ');
     return (bits.join(' · ') || 'No tags yet') + (who ? ' · for ' + who : '');
   }
   function stepThree(app){
@@ -607,6 +621,17 @@
     if (step === 3 && items.length) stepThree(app); else if (step === 2 && items.length) stepTwo(app); else { step = 1; stepOne(app); }
   }
 
+  var fromOne = false;
+  try {
+    if (new URLSearchParams(location.search).get('from') === 'onepage') {
+      var hand = JSON.parse(sessionStorage.getItem('if-handoff') || 'null');
+      if (hand) {
+        [['introNeed', 'need'], ['introEnjoy', 'enjoy'], ['introSkills', 'do'], ['introValues', 'care'], ['introOffer', 'offer']].forEach(function(p){ if (hand[p[0]]) parseSentence(hand[p[0]], p[1]); });
+        if (items.length) { step = 2; fromOne = true; }
+      }
+    }
+  } catch (e) {}
+  window._ifFromOne = fromOne;
   paint();
   fetch(GS + '?action=getReferenceData').then(function(r){ return r.json(); }).catch(function(){ return {}; }).then(function(rd){
     rd = rd || {}; RD = rd;
