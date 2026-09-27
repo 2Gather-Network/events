@@ -52,7 +52,9 @@
   var CATS = ['Food & Drink', 'Movement', 'Play', 'Travel', 'Community & Culture', 'Arts', 'Outdoors', 'Home Life', 'Animals', 'Technology', 'Style', 'Personal Care', 'Faith', 'Business', 'Finance', 'Communications', 'Science', 'Building & Repurposing', 'Medicine', 'Transportation'];
   var NEEDS = ['Survive', 'Connect', 'Create', 'Eat & Drink', 'Move', 'Play', 'Rest'];
   var TEND = ['Myself', 'Others', 'Animals', 'Nature'];
-  var TAGS = [['enjoy', 'I enjoy it'], ['do', 'I can do it'], ['care', 'I care about it'], ['need', 'I need it'], ['offer', 'I can offer it']];
+  var TAGS = [['interested', 'I’m interested in it'], ['enjoy', 'I enjoy it'], ['do', 'I can do it'], ['care', 'I care about it'], ['need', 'I’m seeking it'], ['offer', 'I can offer it']];
+  var LEVELMAP = { 'fan':'Fan', 'beginner':'Beginner', 'learner':'Beginner', 'entry level':'Beginner', 'experienced':'Experienced', 'participant':'Experienced', 'practitioner':'Experienced', 'mid level':'Experienced', 'engaged':'Experienced', 'guide':'Guide', 'coach':'Guide', 'expert':'Guide' };
+  var CUES = [['interested', /^(i'?m |i am )?(interested in|curious about|want to learn( about)?|want to hear about|into)\s+/], ['enjoy', /^(i )?(love|enjoy|like|adore)\s+/], ['do', /^(i )?(can|do|practice|play|make|am good at|'m good at)\s+/], ['do', /^(i'?m|i am) (a|an)\s+/], ['care', /^(i )?(care about|care for|value|believe in)\s+/], ['need', /^(i )?(need|seek|am seeking|'m seeking|am looking for|'m looking for|want|would like)\s+/], ['offer', /^(i )?(offer|can offer|can help with|could help with|give|lend|teach)\s+/]];
   var LEVELS = ['Beginner', 'Experienced', 'Guide'];
   var GUIDE_ROLES = ['Coach', 'Mentor', 'Consultant', 'Facilitator', 'Host'];
   var DO_ROLES = ['Volunteer', 'Service provider', 'Performer', 'Creator', 'Maker', 'Competitor', 'Player', 'Collector'];
@@ -89,11 +91,43 @@
     return best ? best.w.cat : '';
   }
 
-  function add(text){
-    text = String(text || '').trim(); if (!text) return;
-    if (items.some(function(i){ return low(i.word) === low(text); })) return;
-    items.push({ word: text, cat: guessCat(text), catSure: false, tags: {}, level: '', roles: [], need: '', tend: '', work: '', open: '' });
-    paint();
+  function find(text){ for (var i = 0; i < items.length; i++) if (low(items[i].word) === low(text)) return items[i]; return null; }
+  function add(text, tag, cat, level, quiet){
+    text = String(text || '').trim().replace(/^[\s\-–•*]+|[\s.!?]+$/g, ''); if (!text || text.length < 2) return;
+    text = text.charAt(0).toUpperCase() + text.slice(1);
+    var it = find(text);
+    if (!it) { it = { word: text, cat: '', catSure: false, tags: {}, level: '', roles: [], need: '', tend: '', work: '', open: '' }; items.push(it); }
+    if (cat && !it.cat) { it.cat = cat; it.catSure = true; }
+    if (!it.cat) it.cat = guessCat(text);
+    if (tag) it.tags[tag] = 1;
+    if (level) { if (level === 'Fan') it.fan = true; else { it.tags['do'] = 1; it.level = level; } }
+    if (!quiet) paint();
+  }
+  function clauses(text){
+    return String(text || '').replace(/\r/g, '').split(/[\n.;!?]+|,\s*|\s+and\s+|\s+&\s+|\s+as well as\s+/i).map(function(x){ return x.trim(); }).filter(String);
+  }
+  function parseSentence(text, fallback){
+    var tag = fallback || '';
+    clauses(text).forEach(function(c){
+      var l = low(c).replace(/[“”"]/g, '').replace(/\b(really|deeply|truly|also|very much|a lot|so much)\b\s*/g, '').replace(/\s+for (everyone|all|people|others|everybody)$/, '').trim();
+      CUES.forEach(function(cu){ var m = l.match(cu[1]); if (m) { tag = cu[0]; l = l.slice(m[0].length); } });
+      l = l.replace(/^(i |i'm |i am |to |the |a |an |my |some |more |about |in |with |being )+/g, '').replace(/\b(etc|stuff|things)\b/g, '').trim();
+      if (!l) return;
+      if (l.split(' ').length > 5) l = l.split(' ').slice(0, 5).join(' ');
+      add(l, tag, '', '', true);
+    });
+  }
+  function takeCell(raw, tag){
+    String(raw || '').split('|').forEach(function(piece){
+      piece = piece.trim(); if (!piece) return;
+      if (piece.indexOf(':') > -1 && piece.split(' ').length < 12) {
+        var parts = piece.split(':'), word = parts[0], old = low(parts[1]), lv = '';
+        parts.slice(2).forEach(function(x){ var m = LEVELMAP[low(x)]; if (m) lv = m; });
+        var cat = CATS.filter(function(c){ return low(c) === old; })[0] || SKILLMAP[old] || RECMAP[old] || SUBMAP[old] || '';
+        add(word, tag, cat, tag === 'do' ? lv : (lv === 'Fan' ? 'Fan' : ''), true);
+      } else if (piece.split(' ').length > 3) parseSentence(piece, tag);
+      else add(piece, tag, '', '', true);
+    });
   }
 
   function chipRow(box, label, opts, isOn, pickIt){
@@ -107,16 +141,25 @@
   function stepOne(app){
     app.appendChild(el('h1', '', 'What are you interested in?'));
     app.appendChild(el('p', 'lede', 'Anything at all: things you love, things you are good at, things you care about or need. Add as many as you like. You will say how each one fits you next.'));
-    var ask = el('div', 'ask'), inp = el('input'); inp.type = 'text'; inp.placeholder = 'gardening, bookkeeping, a choir…'; inp.autocomplete = 'off';
+    var ask = el('div', 'ask'), inp = el('input'); inp.type = 'text'; inp.placeholder = 'gardening, bookkeeping, or a sentence: I love to sing and I can fix bikes'; inp.autocomplete = 'off';
     var go = pill('Add', true); go.classList.add('big');
-    var take = function(){ inp.value.split(',').forEach(add); inp.value = ''; setTimeout(function(){ var n = document.querySelector('.ask input'); if (n) n.focus(); }, 0); };
+    var take = function(){ var v = inp.value; if (/\s/.test(v.trim()) && v.trim().split(/\s+/).length > 3) parseSentence(v, ''); else v.split(',').forEach(function(x){ add(x, '', '', '', true); }); inp.value = ''; paint(); setTimeout(function(){ var n = document.querySelector('.ask input'); if (n) n.focus(); }, 0); };
     go.onclick = take; inp.onkeydown = function(e){ if (e.key === 'Enter') { e.preventDefault(); take(); } };
     ask.appendChild(inp); ask.appendChild(go); app.appendChild(ask);
     app.appendChild(el('div', 'sub', 'Or tap some'));
     var r = el('div', 'row');
-    SUGGEST.forEach(function(s){ if (items.some(function(i){ return low(i.word) === low(s); })) return; var b = pill(s); b.onclick = function(){ add(s); }; r.appendChild(b); });
+    SUGGEST.forEach(function(s){ if (find(s)) return; var b = pill(s); b.onclick = function(){ add(s); }; r.appendChild(b); });
     app.appendChild(r);
     if (!loaded) app.appendChild(el('div', 'wait', 'Loading the words…'));
+    var det = el('details'); det.style.cssText = 'margin-top:16px;font-size:13px;';
+    var sm = el('summary', '', 'Try it with someone’s existing answers'); sm.style.cssText = 'cursor:pointer;color:var(--blue);font-weight:600;'; det.appendChild(sm);
+    det.appendChild(el('p', 'lede', 'Paste the cells from their row on the ikigai tab. It stays in this browser: nothing is sent or saved.'));
+    var boxes = [['interests', 'enjoy', 'ikigai.interests'], ['skills', 'do', 'ikigai.skills'], ['values', 'care', 'ikigai.values'], ['needs', 'need', 'ikigai.needs'], ['haves', 'offer', 'ikigai.haves'], ['topics', 'interested', 'ikigai.topics']];
+    var tas = {};
+    boxes.forEach(function(b){ det.appendChild(el('div', 'sub', b[2])); var ta = el('textarea'); ta.rows = 2; ta.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;border-radius:8px;padding:8px;font:inherit;font-size:13px;'; tas[b[0]] = ta; det.appendChild(ta); });
+    var ld = pill('Load these answers', true); ld.classList.add('big'); ld.style.marginTop = '10px';
+    ld.onclick = function(){ items = []; boxes.forEach(function(b){ takeCell(tas[b[0]].value, b[1]); }); step = 2; paint(); window.scrollTo(0, 0); };
+    det.appendChild(ld); app.appendChild(det);
     if (items.length) {
       app.appendChild(el('div', 'sub', 'Your interests (' + items.length + ')'));
       var mine = el('div', 'mine');
@@ -156,18 +199,19 @@
   }
 
   function saves(){
-    var col = { interests: [], skills: [], values: [], needs: [], offers: [] };
+    var col = { topics: [], interests: [], skills: [], values: [], needs: [], haves: [] };
     items.forEach(function(it){
       var c = it.cat || '?';
+      if (it.tags.interested) col.topics.push(it.word + ':' + c);
       if (it.tags.enjoy) col.interests.push(it.word + ':' + c + (it.fan ? ':Fan' : ''));
       if (it.tags['do']) { var roles = it.roles.map(function(r){ return r.replace(/ /g, ''); }).join('+'); col.skills.push(it.word + ':' + c + ':' + (it.level || '?') + (roles ? (it.level === 'Guide' ? ':guideAs=' : ':practiceAs=') + roles : '')); }
       if (it.tags.care) col.values.push(it.word + ':' + c + (it.tend ? ':tendTo=' + it.tend : ''));
       if (it.tags.need) col.needs.push(it.word + ':' + c + (it.need ? ':need=' + it.need : ''));
-      if (it.tags.offer) col.offers.push(it.word + ':' + c + (it.work === 'Yes' ? ':work' : ''));
+      if (it.tags.offer) col.haves.push(it.word + ':' + c + (it.work === 'Yes' ? ':work' : ''));
     });
     var box = el('div', 'saves');
     box.appendChild(el('div', 'lab', 'Where this would save (nothing is saved in this mockup)'));
-    var lines = ['interests', 'skills', 'values', 'needs', 'offers'].map(function(k){ return 'ikigai.' + k + ':  ' + (col[k].join(' | ') || '—'); });
+    var lines = ['topics', 'interests', 'skills', 'values', 'needs', 'haves'].map(function(k){ return 'ikigai.' + k + ':  ' + (col[k].join(' | ') || '—'); });
     box.appendChild(el('pre', '', lines.join('\n')));
     return box;
   }
