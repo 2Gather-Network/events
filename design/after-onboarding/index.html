@@ -127,28 +127,39 @@
   var TAG = { enjoy: 'joy', skill: 'skill', care: 'care', seek: 'seeking', offer: 'offering' };
 
   var SAMPLE = [
-    { word: 'Clean Air', tag: 'care', cat: 'Ecological', a: { who: ['In service to another'], serveWhat: ['People', 'Nature'] } },
-    { word: 'Accountant', tag: 'skill', cat: 'Finance', a: { level: ['Experienced'], paid: ['Part-time'], unpaidKind: ['Mentor'], who: ['In service to another'], serveWhat: ['People'], serveWho: ['Early career'] } },
-    { word: 'Cooking', tag: 'enjoy', cat: 'Food & Drink', a: {} },
-    { word: 'Karaoke', tag: 'enjoy', cat: 'Arts', a: { how: ['I do it'], who: ['Tending to self'] } },
-    { word: 'Career mentor', tag: 'seek', cat: 'Business', a: { who: ['Tending to self'] } },
-    { word: '\u{1F4E6} Physical goods', tag: 'seek', cat: '', thing: true, a: { gives: ['Move'], who: ['In service to another'], serveWhat: ['People'], serveWho: ['Kids'] }, det: 'a used bike for my daughter' },
-    { word: '\u{1F372} Sourdough starter', tag: 'offer', cat: 'Food & Drink', a: { kind: ['Thing'], who: ['In service to another'], serveWhat: ['People'] } },
-    { word: 'Pickleball', tag: 'enjoy', cat: 'Play', guess: true, a: {} }
+    { word: 'Clean Air', tags: ['care'], cat: 'Ecological', a: { who: ['In service to another'], serveWhat: ['People', 'Nature'] } },
+    { word: 'Accountant', tags: ['skill'], cat: 'Finance', a: { level: ['Experienced'], paid: ['Part-time'], unpaidKind: ['Mentor'], who: ['In service to another'], serveWhat: ['People'], serveWho: ['Early career'] } },
+    { word: 'Cooking', tags: ['enjoy'], cat: 'Food & Drink', a: {} },
+    { word: 'Karaoke', tags: ['enjoy'], cat: 'Arts', a: { how: ['I do it'], who: ['Tending to self'] } },
+    { word: 'Career mentor', tags: ['seek'], cat: 'Business', a: { who: ['Tending to self'] } },
+    { word: '\u{1F4E6} Physical goods', tags: ['seek'], cat: '', thing: true, a: { gives: ['Move'], who: ['In service to another'], serveWhat: ['People'], serveWho: ['Kids'] }, det: 'a used bike for my daughter' },
+    { word: '\u{1F372} Sourdough starter', tags: ['offer'], cat: 'Food & Drink', a: { kind: ['Thing'], who: ['In service to another'], serveWhat: ['People'] } },
+    { word: 'Pickleball', tags: ['enjoy'], cat: 'Play', guess: true, a: {} }
   ];
 
+  function has(it, t){ return (it.tags || []).indexOf(t) > -1; }
   function needs(it){
-    var n = [];
-    if (it.tag === 'enjoy') n.push('how');
-    if (it.tag === 'skill') n.push('level');
-    if (it.tag === 'seek') n.push('gives');
-    if (it.tag === 'offer' && !it.thing) n.push('kind');
-    if (it.tag === 'skill' || (it.tag === 'offer' && (it.a.kind || []).indexOf('Skill') > -1)) n.push('work');
-    if (it.tag === 'care' && !it.cat) n.push('lens');
-    if (it.tag !== 'care' && !it.thing && (!it.cat || it.guess)) n.push('cat');
-    if (it.tag !== 'skill') n.push('who');
+    var n = [], other = (it.tags || []).some(function(t){ return t !== 'care'; });
+    if (has(it, 'enjoy')) n.push('how');
+    if (has(it, 'skill')) n.push('level');
+    if (has(it, 'seek')) n.push('gives');
+    if (has(it, 'offer') && !it.thing) n.push('kind');
+    if (has(it, 'skill') || (has(it, 'offer') && (it.a.kind || []).indexOf('Skill') > -1)) n.push('work');
+    if (has(it, 'care') && !other && !it.cat) n.push('lens');
+    if (other && !it.thing && (!it.cat || it.guess)) n.push('cat');
+    if ((it.tags || []).some(function(t){ return t !== 'skill'; })) n.push('who');
     return n;
   }
+  function wq(it){ return '\u201C' + String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase() + '\u201D'; }
+  function qText(k, it){
+    var w = wq(it);
+    if (k === 'how') return 'How is ' + w + ' of interest to you?';
+    if (k === 'gives') return 'What would ' + w + ' give you? Tag how this nourishes you.';
+    if (k === 'kind') return 'Is ' + w + ' a skill, a thing or a space?';
+    if (k === 'cat' || k === 'lens') return tagQ(it);
+    return Q[k].q;
+  }
+
   var PAID = ['Full-time', 'Part-time', 'One-time'];
   var UNPAID = ['Mentor', 'Advisor', 'Board member', 'Tutor', 'Volunteer', 'Intern', 'Job shadowing'];
   function workDone(it){ return !!it.a.workAsked || (it.a.paid || []).length > 0 || (it.a.unpaidTime || []).length > 0 || (it.a.unpaidKind || []).length > 0; }
@@ -162,10 +173,10 @@
   function workParts(it){ return workRows(it).map(function(x){ return x[0] === 'Open to work' ? x[1] : x[0] + ': ' + x[1]; }); }
   function workBlock(c, it, redraw){
     ['paid', 'unpaidTime', 'unpaidKind'].forEach(function(k){ it.a[k] = it.a[k] || []; });
-    var pb = el('div', 'qbox'); pb.appendChild(el('div', 'qq', 'Are you open to paid work for this? Pick as many as fit, or none.'));
+    var pb = el('div', 'qbox'); pb.appendChild(el('div', 'qq', 'Are you open to paid work for ' + wq(it) + '? Pick as many as fit, or none.'));
     var r1 = el('div', 'row'); pb.appendChild(r1); c.appendChild(pb);
     chipsInto(r1, PAID, it.a.paid, false, null, redraw);
-    var ub = el('div', 'qbox'); ub.appendChild(el('div', 'qq', 'Are you open to unpaid work for this? Pick as many as fit, or none.'));
+    var ub = el('div', 'qbox'); ub.appendChild(el('div', 'qq', 'Are you open to unpaid work for ' + wq(it) + '? Pick as many as fit, or none.'));
     var r2 = el('div', 'row'); ub.appendChild(r2);
     chipsInto(r2, PAID, it.a.unpaidTime, false, null, redraw);
     ub.appendChild(el('div', 'qq sub', 'Which types of unpaid work?'));
@@ -248,11 +259,11 @@
         var cat = t[w] || '';
         if (p[1] === 'care' && !/^(social|ecological)$/i.test(cat)) cat = '';
         if (p[1] !== 'care' && CATS.indexOf(cat) === -1) cat = '';
-        items.push({ word: w, tag: p[1], cat: cat, a: {} });
+        items.push({ word: w, tags: [p[1]], cat: cat, a: {} });
       });
     });
     [['offerThings', 'offer', 'offerDetails'], ['seekThings', 'seek', 'seekDetails']].forEach(function(p){
-      (hand[p[0]] || []).forEach(function(w){ items.push({ word: w, tag: p[1], cat: '', thing: true, det: hand[p[2]] || '', a: {} }); });
+      (hand[p[0]] || []).forEach(function(w){ items.push({ word: w, tags: [p[1]], cat: '', thing: true, det: hand[p[2]] || '', a: {} }); });
     });
   }
   if (!items.length) items = SAMPLE;
@@ -279,7 +290,8 @@
   function answered(it){ return needs(it).filter(function(k){ return k !== 'cat' && (k === 'who' ? whoDone(it) : k === 'work' ? workDone(it) : it.a[k] && it.a[k].length); }); }
   function val(it, k){ return k === 'who' ? whoParts(it) : k === 'work' ? workParts(it) : it.a[k]; }
   function sentence(it){
-    var s = VERB[it.tag] || '';
+    var vs = (it.tags || []).map(function(t){ return VERB[t]; }).filter(Boolean);
+    var s = vs.join('. ');
     if (whoDone(it)) {
       var w = whoParts(it).map(function(x){ return WHO[x] || x.toLowerCase(); });
       s += (it.a.who.indexOf('In service to another') > -1 ? ' in service to ' : ' for ') + (w.length > 1 ? w.slice(0, -1).join(', ') + ' and ' + w[w.length - 1] : w[0]);
@@ -311,7 +323,7 @@
 
   var NOURISH = { 'Food & Drink': 'Eat & Drink', 'Movement': 'Move', 'Play': 'Play', 'Arts': 'Create', 'Building & Repurposing': 'Create', 'Community & Culture': 'Connect', 'Communications': 'Connect' };
   function autoGives(it){
-    if (it.tag !== 'seek' || it.gAuto) return;
+    if (!has(it, 'seek') || it.gAuto) return;
     it.gAuto = true;
     if ((it.a.gives || []).length) return;
     var g = [];
@@ -337,7 +349,7 @@
       c.appendChild(tr);
       c.appendChild(el('h3', '', it.word));
       var cl = catLine(it); if (cl) c.appendChild(el('div', 'cat', cl));
-      c.appendChild(el('span', 'tag', TAG[it.tag]));
+      (it.tags || []).forEach(function(t){ c.appendChild(el('span', 'tag', TAG[t])); });
       if (it.det) c.appendChild(el('div', 'sum', 'Details: “' + it.det + '”'));
       if (ix === openIx) {
         var s0 = sentence(it); if (CARD === 'c') c.appendChild(el('div', 'sum', s0));
@@ -357,7 +369,7 @@
   function startEdit(ix){
     openIx = -1; restMode = false; editIx = ix;
     draft = JSON.parse(JSON.stringify(items[ix]));
-    if (!draft.a.cat && draft.cat && !draft.thing && draft.tag !== 'care') draft.a.cat = [draft.cat];
+    if (!draft.a.cat && draft.cat && !draft.thing && (draft.tags || []).some(function(t){ return t !== 'care'; })) draft.a.cat = [draft.cat];
     draw(); window.scrollTo(0, 0);
   }
   function pickRow(c, title, opts, cur, many, onPick){
@@ -389,9 +401,10 @@
     c.appendChild(el('h3', '', it.word));
     var ecl = catLine(it); if (ecl) c.appendChild(el('div', 'cat', ecl));
     c.appendChild(el('div', 'rule'));
-    var tagCur = [it.tag];
-    pickRow(c, 'How does it fit you?', Object.keys(TAG).map(function(k){ return [k, FIT[k]]; }), tagCur, false, function(v){ it.tag = v[0]; draw(); });
-    if (it.tag === 'care') {
+    it.tags = it.tags || [];
+    pickRow(c, 'How does it fit you?', Object.keys(TAG).map(function(k){ return [k, FIT[k]]; }), it.tags, true, function(){ draw(); });
+    var eOther = it.tags.some(function(t){ return t !== 'care'; });
+    if (has(it, 'care') && !eOther) {
       it.a.lens = it.a.lens || (it.cat ? [it.cat] : []);
       pickRow(c, tagQ(it), Q.lens.opts.map(function(o){ return [o, o]; }), it.a.lens, true, function(){ draw(); });
     } else if (!it.thing) {
@@ -402,7 +415,7 @@
       if (k === 'who') { whoBlock(c, it, draw); return; }
       if (k === 'work') { it.a.workAsked = true; workBlock(c, it, draw); return; }
       it.a[k] = it.a[k] || [];
-      pickRow(c, Q[k].q, Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; draw(); });
+      pickRow(c, qText(k, it), Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; draw(); });
     });
     if (it.thing || it.det) {
       var dbx = el('div', 'qbox'); dbx.appendChild(el('div', 'qq', 'Details')); c.appendChild(dbx);
@@ -413,8 +426,9 @@
     var nav = el('div', 'qnav');
     var sv = el('button', 'btn', 'Save'); sv.type = 'button';
     sv.addEventListener('click', function(){
-      if (draft.tag === 'care' && draft.a.lens && draft.a.lens.length) draft.cat = draft.a.lens[0];
-      if (draft.tag !== 'care' && draft.a.cat && draft.a.cat.length) { draft.cat = draft.a.cat[0]; draft.guess = false; }
+      if (!draft.tags.length) return;
+      if (!draft.tags.some(function(t){ return t !== 'care'; }) && draft.a.lens && draft.a.lens.length) draft.cat = draft.a.lens[0];
+      if (draft.tags.some(function(t){ return t !== 'care'; }) && draft.a.cat && draft.a.cat.length) { draft.cat = draft.a.cat[0]; draft.guess = false; }
       items[editIx] = draft; editIx = -1; draft = null; draw();
     });
     var cn = el('button', 'link', 'Cancel'); cn.type = 'button';
@@ -447,7 +461,7 @@
       return;
     }
     var box = el('div', 'qbox');
-    box.appendChild(el('div', 'qq', (k === 'cat' || k === 'lens') ? tagQ(it) : def.q));
+    box.appendChild(el('div', 'qq', qText(k, it)));
     var row = el('div', 'row');
     def.opts.forEach(function(o){
       var b = el('button', 'pill' + (pick.indexOf(o) > -1 ? ' on' : ''), k === 'cat' ? catLab(o) : o); b.type = 'button';
