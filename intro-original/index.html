@@ -955,18 +955,26 @@
         var gpSeek = q.key === 'introNeed', gpPk = gpSeek ? _gpSeekPicked : _gpOfferPicked;
         var gpThings = ['\u{1F4E6} Physical goods', '\u{1F372} Consumables', '\u{1FAB4} Living things'];
         var gpGroups = gpSeek ? [['Something I’m seeking', gpThings]] : [['Something I’m offering', gpThings], ['A space I’m offering', ['\u{1F3E0} Home', '\u{1F6CF}️ Room', '\u{1F5E3}️ Meeting room', '\u{1F3AA} Venue', '\u{1F3A8} Studio', '\u{1F527} Workshop', '\u{1F4BB} Desk']]];
-        var gpDet = document.createElement('div'); gpDet.style.cssText = 'display:none;margin-top:14px;';
-        gpDet.innerHTML = '<div style="font-size:14px;font-weight:800;color:#1A2E42;margin-bottom:6px;">Details: what exactly are you ' + (gpSeek ? 'seeking' : 'offering') + ' right now?</div>';
-        var gpDetBox = document.createElement('textarea'); gpDetBox.rows = 2; gpDetBox.id = 'gp-det-' + q.key;
-        gpDetBox.placeholder = gpSeek ? 'For example: a used bike for my daughter, seedlings for a community garden' : 'For example: a box of canning jars, sourdough starter, a spare desk two afternoons a week';
-        gpDetBox.style.cssText = 'width:100%;box-sizing:border-box;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;line-height:1.5;resize:vertical;';
-        gpDet.appendChild(gpDetBox);
-        var gpShowDet = function(){ var any = false; for (var k in gpPk) if (gpPk[k]) any = true; gpDet.style.display = any ? 'block' : 'none'; };
+        var gpDets = {};
+        var gpDetWrap = document.createElement('div');
+        var gpShowDet = function(){
+          Object.keys(gpPk).forEach(function(k){
+            if (gpPk[k] && !gpDets[k]) {
+              var d = document.createElement('div'); d.style.cssText = 'margin-top:14px;';
+              d.innerHTML = '<div style="font-size:14px;font-weight:800;color:#1A2E42;margin-bottom:6px;"></div>';
+              d.firstChild.textContent = 'Details for ' + k + ': what exactly are you ' + (gpSeek ? 'seeking' : 'offering') + ' right now?';
+              var t = document.createElement('textarea'); t.rows = 2; t.className = 'gp-det-' + q.key; t.setAttribute('data-chip', k);
+              t.style.cssText = 'width:100%;box-sizing:border-box;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;line-height:1.5;resize:vertical;';
+              d.appendChild(t); gpDets[k] = d;
+            }
+            if (gpDets[k]) { if (gpPk[k]) gpDetWrap.appendChild(gpDets[k]); else if (gpDets[k].parentNode) gpDets[k].parentNode.removeChild(gpDets[k]); }
+          });
+        };
         gpGroups.forEach(function(g){
           var gt = document.createElement('div'); gt.style.cssText = 'font-size:14px;font-weight:800;color:#1A2E42;margin:16px 0 8px;'; gt.textContent = g[0]; wrap.appendChild(gt);
           wrap.appendChild(gpPickRow(g[1], gpPk, 0, null, gpShowDet).row);
         });
-        wrap.appendChild(gpDet);
+        wrap.appendChild(gpDetWrap);
       }
       blocks[q.key] = wrap;
       if (q.key === 'introSkills') {
@@ -1076,8 +1084,8 @@
       Object.keys(_gpTags).forEach(function(k){ hand.tags[k] = {}; Object.keys(_gpTags[k]).forEach(function(w){ var c = String(_gpTags[k][w] || ''), lc = c.toLowerCase(); hand.tags[k][w] = SKILLMAP[lc] || RECMAP[lc] || SUBMAP[lc] || c; }); });
       var on = function(o){ return Object.keys(o).filter(function(k){ return o[k]; }); };
       hand.offerThings = on(_gpOfferPicked); hand.seekThings = on(_gpSeekPicked);
-      var dv = function(id){ var d = document.getElementById(id); return d ? String(d.value || '').trim() : ''; };
-      hand.offerDetails = dv('gp-det-introOffer'); hand.seekDetails = dv('gp-det-introNeed');
+      var dm = function(cls){ var m = {}; Array.prototype.forEach.call(document.querySelectorAll('textarea.' + cls), function(t){ var v = String(t.value || '').trim(); if (v) m[t.getAttribute('data-chip')] = v; }); return m; };
+      hand.offerDetails = dm('gp-det-introOffer'); hand.seekDetails = dm('gp-det-introNeed');
       sessionStorage.setItem('if-handoff', JSON.stringify(hand));
     } catch (e) {}
     location.href = '/design/after-onboarding/?from=onepage';
