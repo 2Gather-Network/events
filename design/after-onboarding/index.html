@@ -73,6 +73,10 @@
   .qbox{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:10px;}
   .qbox .qq{font-size:13px;font-weight:700;color:var(--ink);}
   .qbox .row{margin-top:8px;}
+  .qq.sub{margin-top:14px;}
+  .pill.other{border:1.5px solid var(--blue);font-weight:700;}
+  .oline{display:flex;gap:8px;margin-top:8px;max-width:420px;}
+  .oinp{flex:1;min-width:0;border:1.5px solid #DDE3EA;background:var(--soft);border-radius:10px;padding:8px 12px;font:inherit;font-size:14px;color:var(--ink);}
   .glab{font-size:12px;font-weight:700;color:var(--grey);margin:10px 0 0;}
   html.ao-embed body{background:#fff;}
   html.ao-embed .wrap{padding:0;max-width:none;}
@@ -111,7 +115,7 @@
     .catch(function(){});
   var Q = {
     how:   { q: 'How is this of interest to you?', opts: ['Fan', 'I do it'], many: true },
-    who:   { q: 'Is it for yourself, or in service to someone or something else?', opts: ['Tend to self', 'People', 'Nature'], many: true },
+    who:   { q: 'Is it for yourself, or in service to someone or something else?', opts: ['Tending to self', 'People', 'Nature'], many: true },
     level: { q: 'What is your level?', opts: ['Beginner', 'Experienced', 'Guide'] },
     gives: { q: 'What would it give you? Tag how this nourishes you.', opts: ['Create', 'Connect', 'Eat & Drink', 'Move', 'Play', 'Survive', 'Rest'], many: true },
     kind:  { q: 'Is it a skill, a thing or a space?', opts: ['Skill', 'Thing', 'Space'] },
@@ -126,8 +130,8 @@
     { word: 'Clean Air', tag: 'care', cat: 'Ecological', a: { who: ['In service to another'], serveWhat: ['People', 'Nature'] } },
     { word: 'Accountant', tag: 'skill', cat: 'Finance', a: { level: ['Experienced'], work: ['Yes'], paid: ['Part-time'], unpaid: ['Yes'], unpaidKind: ['Mentor'], who: ['In service to another'], serveWhat: ['People'], serveWho: ['Early career'] } },
     { word: 'Cooking', tag: 'enjoy', cat: 'Food & Drink', a: {} },
-    { word: 'Karaoke', tag: 'enjoy', cat: 'Arts', a: { how: ['I do it'], who: ['Tend to self'] } },
-    { word: 'Career mentor', tag: 'seek', cat: 'Business', a: { who: ['Tend to self'] } },
+    { word: 'Karaoke', tag: 'enjoy', cat: 'Arts', a: { how: ['I do it'], who: ['Tending to self'] } },
+    { word: 'Career mentor', tag: 'seek', cat: 'Business', a: { who: ['Tending to self'] } },
     { word: '\u{1F4E6} Physical goods', tag: 'seek', cat: '', thing: true, a: { gives: ['Move'], who: ['In service to another'], serveWhat: ['People'], serveWho: ['Kids'] }, det: 'a used bike for my daughter' },
     { word: '\u{1F372} Sourdough starter', tag: 'offer', cat: 'Food & Drink', a: { kind: ['Thing'], who: ['In service to another'], serveWhat: ['People'] } },
     { word: 'Pickleball', tag: 'enjoy', cat: 'Play', guess: true, a: {} }
@@ -158,56 +162,84 @@
   }
   function workBlock(c, it, redraw){
     ['work', 'paid', 'gig', 'unpaid', 'unpaidTime', 'unpaidKind'].forEach(function(k){ it.a[k] = it.a[k] || []; });
-    var tg = function(list, o){ var at = list.indexOf(o); if (at > -1) list.splice(at, 1); else list.push(o); };
-    var box = function(title, opts, list, one, after){
+    var box = function(title, opts, list, one, after, other){
       var b = el('div', 'qbox'); b.appendChild(el('div', 'qq', title));
-      var row = el('div', 'row');
-      opts.forEach(function(o){ var p = el('button', 'pill' + (list.indexOf(o) > -1 ? ' on' : ''), o); p.type = 'button'; p.addEventListener('click', function(){ if (one) { list.length = 0; list.push(o); } else tg(list, o); if (after) after(); redraw(); }); row.appendChild(p); });
-      b.appendChild(row); c.appendChild(b);
+      var row = el('div', 'row'); b.appendChild(row); c.appendChild(b);
+      chipsInto(row, opts, list, one, after, redraw, other);
     };
     box('Are you open to paid work for this?', ['Yes', 'No'], it.a.work, true, function(){ if (it.a.work[0] !== 'Yes') { it.a.paid.length = 0; it.a.gig.length = 0; } });
     if (it.a.work[0] === 'Yes') {
       box('What type of paid work? Pick as many as fit.', PAID, it.a.paid, false, function(){ if (it.a.paid.indexOf('Part-time') < 0) it.a.gig.length = 0; });
-      if (it.a.paid.indexOf('Part-time') > -1) box('Are you interested in gig work? Pick any that fit.', GIG, it.a.gig, false);
+      if (it.a.paid.indexOf('Part-time') > -1) box('Are you interested in gig work? Pick any that fit.', GIG, it.a.gig, false, null, true);
     }
     box('Are you open to unpaid work for this?', ['Yes', 'No'], it.a.unpaid, true, function(){ if (it.a.unpaid[0] !== 'Yes') { it.a.unpaidTime.length = 0; it.a.unpaidKind.length = 0; } });
     if (it.a.unpaid[0] === 'Yes') {
       box('What type of unpaid work? Pick as many as fit.', PAID, it.a.unpaidTime, false);
-      box('Which types of unpaid work? Pick as many as fit.', UNPAID, it.a.unpaidKind, false);
+      box('Which types of unpaid work? Pick as many as fit.', UNPAID, it.a.unpaidKind, false, null, true);
     }
   }
   function whoDone(it){ var w = it.a.who || []; return w.length > 0 && (w.indexOf('In service to another') < 0 || (it.a.serveWhat || []).length > 0); }
   function missing(it){ return needs(it).filter(function(k){ return k === 'who' ? !whoDone(it) : k === 'work' ? !workDone(it) : !(it.a[k] && it.a[k].length); }); }
   var SERVE_GROUPS = [['By life stage', ['Babies', 'Toddlers', 'Kids', 'Teens', 'Young adults', 'Adults', 'Seniors']], ['By household', ['Singles', 'Families', 'Parents', 'Couples', 'Caregivers', 'Transplants']], ['By career stage', ['Students', 'Early career', 'Mid-career', 'Professionals', 'Senior professionals', 'Pre-retired', 'Retired']]];
-  var WVERB = { enjoy: 'Do you enjoy', skill: 'Do you do', care: 'Do you care about', seek: 'Are you seeking', offer: 'Are you offering' };
   function whoParts(it){
     var out = [];
-    if ((it.a.who || []).indexOf('Tend to self') > -1) out.push('Tend to self');
+    if ((it.a.who || []).indexOf('Tending to self') > -1) out.push('Tending to self');
     (it.a.serveWhat || []).forEach(function(x){ out.push(x === 'People' && (it.a.serveWho || []).length ? 'People (' + it.a.serveWho.join(', ') + ')' : x); });
     return out;
   }
+  function otherPill(row, list, redraw){
+    var o = el('button', 'pill other', '+ Other'); o.type = 'button';
+    o.addEventListener('click', function(){
+      var line = el('div', 'oline');
+      var inp = el('input', 'oinp'); inp.type = 'text'; inp.placeholder = 'Type your own';
+      var add = el('button', 'btn', 'Add'); add.type = 'button';
+      var go = function(){ var v = String(inp.value || '').trim(); if (v && list.indexOf(v) < 0) list.push(v); redraw(); };
+      add.addEventListener('click', go);
+      inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
+      line.appendChild(inp); line.appendChild(add);
+      row.parentNode.insertBefore(line, row.nextSibling);
+      o.style.display = 'none';
+      setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0);
+    });
+    row.appendChild(o);
+  }
+  function chipsInto(row, opts, list, one, after, redraw, other){
+    var all = opts.slice();
+    if (other) list.forEach(function(v){ if (all.indexOf(v) < 0) all.push(v); });
+    all.forEach(function(o){
+      var p = el('button', 'pill' + (list.indexOf(o) > -1 ? ' on' : ''), o); p.type = 'button';
+      p.addEventListener('click', function(){ var at = list.indexOf(o); if (one) { list.length = 0; list.push(o); } else if (at > -1) list.splice(at, 1); else list.push(o); if (after) after(); redraw(); });
+      row.appendChild(p);
+    });
+    if (other) otherPill(row, list, redraw);
+  }
   function whoBlock(c, it, redraw){
     it.a.who = it.a.who || []; it.a.serveWhat = it.a.serveWhat || []; it.a.serveWho = it.a.serveWho || [];
-    var tg = function(list, o){ var at = list.indexOf(o); if (at > -1) list.splice(at, 1); else list.push(o); };
-    var box = function(title, opts, list, after){
-      var b = el('div', 'qbox'); b.appendChild(el('div', 'qq', title));
-      var row = el('div', 'row');
-      opts.forEach(function(o){ var p = el('button', 'pill' + (list.indexOf(o) > -1 ? ' on' : ''), o); p.type = 'button'; p.addEventListener('click', function(){ tg(list, o); if (after) after(); redraw(); }); row.appendChild(p); });
-      b.appendChild(row); c.appendChild(b); return b;
-    };
+    var b = el('div', 'qbox');
     var word = String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase();
-    box((WVERB[it.tag] || 'Is it') + ' \u201C' + word + '\u201D for yourself, or in service to someone or something else? Pick one or both.', ['Tend to self', 'In service to another'], it.a.who, function(){ if (it.a.who.indexOf('In service to another') < 0) { it.a.serveWhat.length = 0; it.a.serveWho.length = 0; } });
-    if (it.a.who.indexOf('In service to another') < 0) return;
-    box('In service to who or what?', ['People', 'Nature'], it.a.serveWhat, function(){ if (it.a.serveWhat.indexOf('People') < 0) it.a.serveWho.length = 0; });
-    if (it.a.serveWhat.indexOf('People') < 0) return;
-    var pb = el('div', 'qbox'); pb.appendChild(el('div', 'qq', 'Which people? Pick any that fit, or none for anyone.'));
-    SERVE_GROUPS.forEach(function(g){
-      pb.appendChild(el('div', 'glab', g[0]));
-      var row = el('div', 'row');
-      g[1].forEach(function(o){ var p = el('button', 'pill' + (it.a.serveWho.indexOf(o) > -1 ? ' on' : ''), o); p.type = 'button'; p.addEventListener('click', function(){ tg(it.a.serveWho, o); redraw(); }); row.appendChild(p); });
-      pb.appendChild(row);
-    });
-    c.appendChild(pb);
+    b.appendChild(el('div', 'qq', 'Is “' + word + '” helping tend to yourself and/or in service to someone/something else? Pick one or both.'));
+    var r1 = el('div', 'row'); b.appendChild(r1);
+    chipsInto(r1, ['Tending to self', 'In service to another'], it.a.who, false, function(){ if (it.a.who.indexOf('In service to another') < 0) { it.a.serveWhat.length = 0; it.a.serveWho.length = 0; } }, redraw);
+    if (it.a.who.indexOf('In service to another') > -1) {
+      b.appendChild(el('div', 'qq sub', 'In service to who or what?'));
+      var r2 = el('div', 'row'); b.appendChild(r2);
+      chipsInto(r2, ['People', 'Nature'], it.a.serveWhat, false, function(){ if (it.a.serveWhat.indexOf('People') < 0) it.a.serveWho.length = 0; }, redraw, true);
+      if (it.a.serveWhat.indexOf('People') > -1) {
+        b.appendChild(el('div', 'qq sub', 'Which people? Pick any that fit, or none for anyone.'));
+        var known = [];
+        SERVE_GROUPS.forEach(function(g){
+          b.appendChild(el('div', 'glab', g[0]));
+          var r3 = el('div', 'row'); b.appendChild(r3);
+          chipsInto(r3, g[1], it.a.serveWho, false, null, redraw);
+          known = known.concat(g[1]);
+        });
+        var extra = it.a.serveWho.filter(function(v){ return known.indexOf(v) < 0; });
+        var r4 = el('div', 'row'); b.appendChild(r4);
+        chipsInto(r4, extra, it.a.serveWho, false, null, redraw);
+        otherPill(r4, it.a.serveWho, redraw);
+      }
+    }
+    c.appendChild(b);
   }
 
   var items = [];
@@ -238,7 +270,7 @@
   var CARD = (location.search.match(/[?&]card=([abc])\b/) || [])[1] || 'a';
   document.documentElement.classList.add('card-' + CARD);
   var LAB = { work: 'Open to work', how: 'Interest', who: 'In service to', level: 'Level', gives: 'Gives you', kind: 'Kind', lens: 'Lens' };
-  var WHO = { 'Tend to self': 'yourself' };
+  var WHO = { 'Tending to self': 'yourself' };
   var VERB = { enjoy: 'You enjoy it', skill: 'You can do it', care: 'You care about it', seek: 'You’re seeking it', offer: 'You’re offering it' };
   var editIx = -1, draft = null;
   var EMBED = /[?&]embed=1\b/.test(location.search);
