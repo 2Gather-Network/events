@@ -276,7 +276,18 @@
     }
   }
 
+  var NOURISH = { 'Food & Drink': 'Eat & Drink', 'Movement': 'Move', 'Play': 'Play', 'Arts': 'Create', 'Building & Repurposing': 'Create', 'Community & Culture': 'Connect', 'Communications': 'Connect' };
+  function autoGives(it){
+    if (it.tag !== 'seek' || it.gAuto) return;
+    it.gAuto = true;
+    if ((it.a.gives || []).length) return;
+    var g = [];
+    ((it.a.cat && it.a.cat.length) ? it.a.cat : [it.cat]).forEach(function(c){ var n = NOURISH[c]; if (n && g.indexOf(n) < 0) g.push(n); });
+    if (g.length) { it.a.gives = g; it.gAutoSet = true; }
+  }
   function draw(){
+    items.forEach(autoGives);
+    if (draft) autoGives(draft);
     grid.innerHTML = '';
     document.documentElement.classList.toggle('ao-editing', editIx > -1);
     if (editIx > -1) { drawEdit(); return; }
@@ -352,13 +363,13 @@
       pickRow(c, Q.lens.q, Q.lens.opts.map(function(o){ return [o, o]; }), it.a.lens, true, function(){ draw(); });
     } else if (!it.thing) {
       it.a.cat = it.a.cat || [];
-      pickRow(c, 'Category', CATS.map(function(o){ return [o, o]; }), it.a.cat, true, function(){ it.guess = false; draw(); });
+      pickRow(c, 'Category', CATS.map(function(o){ return [o, o]; }), it.a.cat, true, function(){ it.guess = false; if (it.gAutoSet) { it.a.gives = []; } it.gAuto = false; draw(); });
     }
     needs(it).filter(function(k){ return k !== 'cat' && k !== 'lens'; }).forEach(function(k){
       if (k === 'who') { whoBlock(c, it, draw); return; }
       if (k === 'work') { workBlock(c, it, draw); return; }
       it.a[k] = it.a[k] || [];
-      pickRow(c, Q[k].q, Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ draw(); });
+      pickRow(c, Q[k].q, Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; draw(); });
     });
     if (it.thing || it.det) {
       var dbx = el('div', 'qbox'); dbx.appendChild(el('div', 'qq', 'Details')); c.appendChild(dbx);
