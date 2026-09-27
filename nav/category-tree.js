@@ -59,7 +59,7 @@
         leaf(t, String(s.item).trim());
       });
       return order.map(function(n){ return tops[n]; })
-        .filter(function(n){ return n.kids.length || n.name === REC || emoji[n.name.toLowerCase()] !== undefined; })
+        .filter(function(n){ return emoji[n.name.toLowerCase()] !== undefined; })
         .sort(function(a, b){ return a.name.localeCompare(b.name); });
     });
   };
