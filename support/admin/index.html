@@ -44,6 +44,10 @@
   .ticket .kind,.ticket .state{font-size:11.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;
         color:var(--brand);background:var(--panel);border:1px solid var(--panel-line);border-radius:20px;padding:2px 10px;}
   .ticket .state{color:var(--soft);}
+  .ticket .act{margin-left:auto;background:#fff;color:var(--brand);border:1.5px solid var(--brand);border-radius:20px;
+        padding:5px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+  .ticket .act[disabled]{opacity:.55;cursor:default;}
+  .ticket .err{font-size:12.5px;color:var(--bad);margin-top:6px;}
   .ticket p{margin:6px 0 0;font-size:14.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;}
   .ticket .pic{margin-top:10px;font-size:12.5px;color:var(--soft);}
   .ticket .pic img{max-width:220px;max-height:160px;border-radius:8px;border:1px solid var(--line);cursor:zoom-in;display:block;}
@@ -62,6 +66,7 @@
     <div class="tools hide" id="tools">
       <select id="state" aria-label="Which tickets">
         <option value="open">Open</option>
+        <option value="closed">Closed</option>
         <option value="">All</option>
       </select>
       <input id="search" type="search" placeholder="Search tickets" aria-label="Search tickets">
@@ -109,12 +114,36 @@
       .catch(function () { box.textContent = 'The picture did not open. Refresh the page to try again.'; });
   }
 
+  function setState(t, btn, el) {
+    var to = isOpen(t.status) ? 'closed' : 'open';
+    btn.disabled = true;
+    btn.textContent = to === 'closed' ? 'Closing' : 'Reopening';
+    var old = el.querySelector('.err'); if (old) old.remove();
+    fetch(GS + '?action=setSupportTicketStatus&ticketId=' + encodeURIComponent(t.id) + '&status=' + to
+          + '&appearId=' + encodeURIComponent(me) + '&t=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.status !== 'ok') throw new Error((d && d.message) || 'Nothing changed.');
+        t.status = d.ticketStatus || to;
+        draw();
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = isOpen(t.status) ? 'Close ticket' : 'Reopen';
+        var n = document.createElement('div');
+        n.className = 'err';
+        n.textContent = 'That did not save. ' + ((err && err.message) || '') + ' Try once more.';
+        el.appendChild(n);
+      });
+  }
+
   function draw() {
     var st = document.getElementById('state').value;
     var q = String(document.getElementById('search').value || '').trim().toLowerCase();
     var rows = ROWS.filter(function (t) {
       if (ONE) return t.id === ONE;
       if (st === 'open' && !isOpen(t.status)) return false;
+      if (st === 'closed' && isOpen(t.status)) return false;
       if (q) {
         var all = [t.name, t.email, t.kind, t.message, t.page].join(' ').toLowerCase();
         if (all.indexOf(q) === -1) return false;
@@ -133,13 +162,16 @@
         '<div class="top"><span class="who">' + esc(t.name || 'No name') + '</span>'
         + '<span class="kind">' + esc(t.kind || 'Feedback') + '</span>'
         + '<span class="state">' + esc(t.status || 'open') + '</span>'
-        + '<span class="when">' + esc(when(t.date)) + '</span></div>'
+        + '<span class="when">' + esc(when(t.date)) + '</span>'
+        + '<button type="button" class="act">' + (isOpen(t.status) ? 'Close ticket' : 'Reopen') + '</button></div>'
         + (t.email ? '<div class="mail"><a href="mailto:' + esc(t.email) + '">' + esc(t.email) + '</a></div>' : '')
         + (t.page ? '<div class="from">From <a href="' + esc(t.page) + '">' + esc(t.page) + '</a></div>' : '')
         + '<p>' + esc(t.message) + '</p>'
         + (t.imageId ? '<div class="pic"></div>' : '');
       list.appendChild(el);
       if (t.imageId) picture(el.querySelector('.pic'), t.imageId);
+      var btn = el.querySelector('.act');
+      btn.addEventListener('click', function () { setState(t, btn, el); });
     });
   }
 
