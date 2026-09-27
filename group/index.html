@@ -1972,6 +1972,24 @@ function pick(el, key){
       if (!d) return;
       _gpKeep(d);   
       var attendees = (d.attendees||[]).filter(function(p){ return p.photo || p.first || p.name; });
+      var _gk = function(x){ return String(x||'').split('.').join('').toLowerCase(); };
+      var _gpRunIds = {}, _gpRunCodes = {};
+      if (d.group) {
+        [].concat(d.group.hostIds || [], d.group.coHostIds || []).forEach(function(h){ if (_gk(h)) _gpRunIds[_gk(h)] = 1; });
+        [].concat(d.group.hostCodes || [], d.group.coHostCodes || []).forEach(function(h){ if (_gk(h)) _gpRunCodes[_gk(h)] = 1; });
+      }
+      var _gpMainIds = {}, _gpMainCodes = {};
+      if (d.group) {
+        [].concat(d.group.hostIds || []).forEach(function(h){ if (_gk(h)) _gpMainIds[_gk(h)] = 1; });
+        [].concat(d.group.hostCodes || []).forEach(function(h){ if (_gk(h)) _gpMainCodes[_gk(h)] = 1; });
+      }
+      var _gpRuns = function(a){ return !!a && (!!(a.code && _gpRunCodes[_gk(a.code)]) || !!(a.appearId && _gpRunIds[_gk(a.appearId)])); };
+      var _gpMainHost = function(a){ return !!a && (!!(a.code && _gpMainCodes[_gk(a.code)]) || !!(a.appearId && _gpMainIds[_gk(a.appearId)])); };
+      var _gpIsMe = function(a){
+        if (!a) return false;
+        if (d.me && d.me.code && a.code && _gk(a.code) === _gk(d.me.code)) return true;
+        return !!(meId && a.appearId && _gk(a.appearId) === _gk(meId));
+      };
       if (meId) {
         var _meNrm = String(meId).split('.').join('').toLowerCase();
         var _myIdx = -1;
@@ -1999,21 +2017,16 @@ function pick(el, key){
         var _meK = _n(meId);
         var _hostOf = (typeof d.meIsHost === 'boolean')
           ? d.meIsHost
-          : [].concat(d.group.hostIds || [], d.group.coHostIds || [])
-              .some(function(h){ return _n(h) === _meK; });
+          : _gpRuns({ appearId: meId, code: d.me.code });
         if (!_hostOf) return;
-        if (attendees.some(function(a){ return _n(a.appearId) === _meK; })) return;
+        if (attendees.some(_gpIsMe)) return;
         attendees = [d.me].concat(attendees);
       })();
       (function(){
         if (!d.group || !attendees.length) return;
         var _n = function(x){ return String(x||'').split('.').join('').toLowerCase(); };
-        var runs = {};
-        [].concat(d.group.hostIds || [], d.group.coHostIds || []).forEach(function(h){
-          var k = _n(h); if (k) runs[k] = 1;
-        });
         var hosts = [], others = [];
-        attendees.forEach(function(a){ (runs[_n(a.appearId)] ? hosts : others).push(a); });
+        attendees.forEach(function(a){ (_gpRuns(a) ? hosts : others).push(a); });
         if (!hosts.length) return;
         attendees = hosts.concat(others);
       })();
@@ -2058,13 +2071,10 @@ function pick(el, key){
         })();
         if (d.group.agreements) {
         }
-        if (d.group.hostIds && d.group.hostIds.length) {
+        if ((d.group.hostIds && d.group.hostIds.length) || (d.group.hostCodes && d.group.hostCodes.length)) {
           var hostListEl = document.getElementById('gp-host-list');
           if (hostListEl) {
-            var _hostNrm = function(x){ return String(x||'').split('.').join('').toLowerCase(); };
-            var _hostSet = {};
-            d.group.hostIds.forEach(function(h){ _hostSet[_hostNrm(h)] = true; });
-            var _hosts = attendees.filter(function(a){ return _hostSet[_hostNrm(a.appearId)]; });
+            var _hosts = attendees.filter(_gpMainHost);
             var _hLabel = document.getElementById('gp-hosts-label');
             if (_hLabel) {
               _hLabel.textContent = (_hosts.length === 1) ? 'Host' : 'Hosts';
@@ -2179,14 +2189,11 @@ var myPill = document.getElementById('gp-myprofile-pill');
       var _reallyAMember = false;
       if (meId) {
         var _vNrm = String(meId).split('.').join('').toLowerCase();
-        _viewerInGroup = attendees.some(function(a){
-          return String(a.appearId||'').split('.').join('').toLowerCase() === _vNrm;
-        });
+        _viewerInGroup = attendees.some(_gpIsMe);
         _reallyAMember = _viewerInGroup;
-        var _hostIds = [].concat((d.group && d.group.hostIds) || [], (d.group && d.group.coHostIds) || []);
         _viewerIsHost = (typeof d.meIsHost === 'boolean')
           ? d.meIsHost
-          : _hostIds.some(function(h){ return String(h||'').split('.').join('').toLowerCase() === _vNrm; });
+          : _gpRuns({ appearId: meId, code: d.me && d.me.code });
         if (_viewerIsHost) _viewerInGroup = true;
         if (d.meIsOperator) _viewerInGroup = true;
       }
@@ -2215,18 +2222,10 @@ var myPill = document.getElementById('gp-myprofile-pill');
       (function(){
         var box = document.getElementById('gp-allhosts');
         if (!box) return;
-        var ids = ((d.group && d.group.hostIds) || []).concat((d.group && d.group.coHostIds) || [])
-                    .map(function(x){ return String(x || '').trim(); }).filter(Boolean);
-        if (!ids.length) return;
-        var byId = {};
-        attendees.forEach(function(a){
-          byId[String(a.appearId || '').split('.').join('').toLowerCase()] = a;
-        });
         var names = [];
-        ids.forEach(function(id){
-          var who = byId[String(id).split('.').join('').toLowerCase()];
-          var name = (who && (who.name || who.first)) || '';
-          if (name) names.push({ id: id, name: name });        
+        attendees.filter(_gpRuns).forEach(function(who){
+          var name = (who.name || who.first) || '';
+          if (name) names.push({ id: who.appearId || '', code: who.code || '', name: name });
         });
         if (!names.length) { return; }
         var line = document.createElement('div');
@@ -2240,7 +2239,7 @@ var myPill = document.getElementById('gp-myprofile-pill');
           var a = document.createElement('a');
           a.setAttribute('role', 'link');
           a.setAttribute('tabindex', '0');
-          var _hc = _pubCodeFor(h.id);
+          var _hc = h.code || _pubCodeFor(h.id);
           if (_hc) {
             a.setAttribute('data-nav', 'https://2gather.network/me/?v=' + encodeURIComponent(_hc));
             a.setAttribute('onclick', 'return _safeNavGo(this)');
