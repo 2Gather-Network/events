@@ -53,7 +53,7 @@
   var GS = 'https://cw-api-gate.jessieupp.workers.dev';
   var CATS = ['Food & Drink', 'Movement', 'Play', 'Travel', 'Community & Culture', 'Arts', 'Outdoors', 'Home Life', 'Animals', 'Technology', 'Style', 'Personal Care', 'Faith', 'Business', 'Finance', 'Communications', 'Science', 'Building & Repurposing', 'Medicine', 'Transportation'];
   var NEEDS = ['Survive', 'Connect', 'Create', 'Eat & Drink', 'Move', 'Play', 'Rest'];
-  var TEND = ['Myself', 'Others', 'Nature'];
+  var OTHERS = ['Nature', 'Life', 'Ecology', 'Animals'];
   var TAGS = [['interested', 'I’m interested in it'], ['enjoy', 'I enjoy it'], ['do', 'I can do it'], ['care', 'I care about it'], ['need', 'I’m seeking it'], ['offer', 'I can offer it']];
   var LEVELMAP = { 'fan':'Fan', 'beginner':'Beginner', 'learner':'Beginner', 'entry level':'Beginner', 'experienced':'Experienced', 'participant':'Experienced', 'practitioner':'Experienced', 'mid level':'Experienced', 'engaged':'Experienced', 'guide':'Guide', 'coach':'Guide', 'expert':'Guide' };
   var CUES = [['interested', /^(i'?m |i am )?(interested in|curious about|want to learn( about)?|want to hear about|into)\s+/], ['enjoy', /^(i )?(love|enjoy|like|adore)\s+/], ['do', /^(i )?(can|do|practice|play|make|am good at|'m good at)\s+/], ['do', /^(i'?m|i am) (a|an)\s+/], ['care', /^(i )?(care about|care for|value|believe in)\s+/], ['need', /^(i )?(need|seek|am seeking|'m seeking|am looking for|'m looking for|want|would like)\s+/], ['offer', /^(i )?(offer|can offer|can help with|could help with|give|lend|teach)\s+/]];
@@ -200,6 +200,38 @@
     }); });
     return got;
   }
+  function doneRow(box, it, key, label, opts, isOn, pickIt, summary){
+    it.done = it.done || {};
+    var m = el('div', 'more');
+    if (it.done[key]) {
+      var line = el('div', 'about', label.split('?')[0] + '? ' + (summary() || 'none') + ' · ');
+      var ch = el('button', '', 'change'); ch.type = 'button'; ch.onclick = function(){ it.done[key] = false; paint(); }; line.appendChild(ch);
+      m.appendChild(line); box.appendChild(m); return;
+    }
+    m.appendChild(el('div', 'lab', label));
+    var r = el('div', 'row');
+    opts.forEach(function(o){ var b = pill(o, isOn(o)); b.onclick = function(){ pickIt(o); paint(); }; r.appendChild(b); });
+    m.appendChild(r);
+    if (box._extra) { m.appendChild(box._extra); box._extra = null; }
+    var dn = pill('Done', true); dn.style.marginTop = '10px'; dn.onclick = function(){ it.done[key] = true; paint(); }; m.appendChild(dn);
+    box.appendChild(m);
+  }
+  function whoFor(w, it){
+    it.forWho = it.forWho || []; it.forOther = it.forOther || [];
+    var toggle = function(list, o){ var a = list.indexOf(o); if (a > -1) list.splice(a, 1); else list.push(o); };
+    var summary = function(){ return it.forWho.map(function(x){ return x === 'Others' && it.forOther.length ? 'Others (' + it.forOther.join(', ') + ')' : x; }).join(', '); };
+    if (it.forWho.indexOf('Others') > -1 && !(it.done && it.done.who)) {
+      var ex = el('div'); ex.appendChild(el('div', 'lab', 'Which others?'));
+      var r = el('div', 'row');
+      OTHERS.concat(it.forOther.filter(function(x){ return OTHERS.indexOf(x) < 0; })).forEach(function(o){ var b = pill(o, it.forOther.indexOf(o) > -1); b.onclick = function(){ toggle(it.forOther, o); paint(); }; r.appendChild(b); });
+      ex.appendChild(r);
+      var inp = el('input'); inp.placeholder = 'Or add your own and press Enter'; inp.style.cssText = 'border:1.5px solid #DDE3EA;border-radius:8px;padding:6px 9px;font:inherit;font-size:13px;margin-top:8px;width:100%;';
+      inp.onkeydown = function(e){ if (e.key === 'Enter' && inp.value.trim()) { var v = inp.value.trim(); v = v.charAt(0).toUpperCase() + v.slice(1); if (it.forOther.indexOf(v) < 0) it.forOther.push(v); paint(); } };
+      ex.appendChild(inp); ex.style.marginTop = '8px';
+      w._extra = ex;
+    }
+    doneRow(w, it, 'who', 'Who is it for? Pick one or both.', ['Myself', 'Others'], function(o){ return it.forWho.indexOf(o) > -1; }, function(o){ toggle(it.forWho, o); if (o === 'Others' && it.forWho.indexOf('Others') < 0) it.forOther = []; }, summary);
+  }
   function chipRow(box, label, opts, isOn, pickIt){
     var m = el('div', 'more');
     m.appendChild(el('div', 'lab', label));
@@ -263,13 +295,13 @@
     var tr = el('div', 'row');
     TAGS.forEach(function(t){ var b = pill(t[1], !!it.tags[t[0]]); b.onclick = function(){ if (it.tags[t[0]]) delete it.tags[t[0]]; else it.tags[t[0]] = 1; paint(); }; tr.appendChild(b); });
     w.appendChild(tr);
-    if (it.tags.enjoy && !it.tags['do']) chipRow(w, 'Do you do it, or are you a fan?', ['Fan', 'I do it too'], function(o){ return o === 'Fan' && it.fan; }, function(o){ if (o === 'Fan') it.fan = !it.fan; else { it.tags['do'] = 1; it.fan = false; } });
+    if (it.tags.enjoy) doneRow(w, it, 'fan', 'Do you do it, or are you a fan? Pick one or both.', ['Fan', 'I do it'], function(o){ return o === 'Fan' ? !!it.fan : !!it.tags['do']; }, function(o){ if (o === 'Fan') it.fan = !it.fan; else { if (it.tags['do']) delete it.tags['do']; else it.tags['do'] = 1; } }, function(){ return [it.fan ? 'Fan' : '', it.tags['do'] ? 'I do it' : ''].filter(String).join(', '); });
     if (it.tags['do'] || it.tags.offer) {
       chipRow(w, 'How far along are you?', LEVELS, function(o){ return it.level === o; }, function(o){ it.level = it.level === o ? '' : o; it.roles = []; });
       if (it.level === 'Guide') chipRow(w, 'How do you guide others?', GUIDE_ROLES, function(o){ return it.roles.indexOf(o) > -1; }, function(o){ var a = it.roles.indexOf(o); if (a > -1) it.roles.splice(a, 1); else it.roles.push(o); });
       if (it.level === 'Experienced') chipRow(w, 'How do you do it?', DO_ROLES, function(o){ return it.roles.indexOf(o) > -1; }, function(o){ var a = it.roles.indexOf(o); if (a > -1) it.roles.splice(a, 1); else it.roles.push(o); });
     }
-    if (it.tags.care) chipRow(w, 'Who do you care about it for?', TEND, function(o){ return it.tend === o; }, function(o){ it.tend = it.tend === o ? '' : o; });
+    if (Object.keys(it.tags).length) whoFor(w, it);
     if (it.tags.need) chipRow(w, 'What would it give you? I need to…', NEEDS, function(o){ return it.need === o; }, function(o){ it.need = it.need === o ? '' : o; });
     if (it.tags.offer) chipRow(w, 'Are you open to paid work for this?', ['Yes', 'No', 'Maybe'], function(o){ return it.work === o; }, function(o){ it.work = it.work === o ? '' : o; });
     return w;
@@ -278,13 +310,15 @@
   function saves(){
     var col = { topics: [], interests: [], skills: [], values: [], needs: [], haves: [] };
     items.forEach(function(it){
-      var c = (it.cat || '?') + ((it.also || []).length ? ':alsoIn=' + it.also.join('+') : '');
-      if (it.tags.interested) col.topics.push(it.word + ':' + c);
-      if (it.tags.enjoy) col.interests.push(it.word + ':' + c + (it.fan ? ':Fan' : ''));
-      if (it.tags['do']) { var roles = it.roles.map(function(r){ return r.replace(/ /g, ''); }).join('+'); col.skills.push(it.word + ':' + c + ':' + (it.level || '?') + (roles ? (it.level === 'Guide' ? ':guideAs=' : ':practiceAs=') + roles : '')); }
-      if (it.tags.care) col.values.push(it.word + ':' + c + (it.tend ? ':tendTo=' + it.tend : ''));
-      if (it.tags.need) col.needs.push(it.word + ':' + c + (it.need ? ':need=' + it.need : ''));
-      if (it.tags.offer) col.haves.push(it.word + ':' + c + (it.level ? ':' + it.level : '') + (it.work === 'Yes' ? ':work' : ''));
+      var c = it.cat || '?';
+      var fw = (it.forWho || []).filter(function(x){ return x !== 'Others' || !(it.forOther || []).length; }).concat((it.forWho || []).indexOf('Others') > -1 ? (it.forOther || []).map(function(x){ return OTHERS.indexOf(x) > -1 ? x : 'Other=' + x; }) : []);
+      var mk = ((it.also || []).length ? ':alsoIn=' + it.also.join('+') : '') + (fw.length ? ':for=' + fw.join('+') : '');
+      if (it.tags.interested) col.topics.push(it.word + ':' + c + mk);
+      if (it.tags.enjoy) col.interests.push(it.word + ':' + c + (it.fan ? ':Fan' : '') + mk);
+      if (it.tags['do']) { var roles = it.roles.map(function(r){ return r.replace(/ /g, ''); }).join('+'); col.skills.push(it.word + ':' + c + ':' + (it.level || '?') + mk + (roles ? (it.level === 'Guide' ? ':guideAs=' : ':practiceAs=') + roles : '')); }
+      if (it.tags.care) col.values.push(it.word + ':' + c + mk);
+      if (it.tags.need) col.needs.push(it.word + ':' + c + mk + (it.need ? ':need=' + it.need : ''));
+      if (it.tags.offer) col.haves.push(it.word + ':' + c + (it.level ? ':' + it.level : '') + mk + (it.work === 'Yes' ? ':work' : ''));
     });
     var box = el('div', 'saves');
     box.appendChild(el('div', 'lab', 'Where this would save (nothing is saved in this mockup)'));
@@ -305,11 +339,11 @@
     TAGS.forEach(function(t){ if (!it.tags[t[0]]) return; var x = t[1];
       if (t[0] === 'enjoy' && it.fan) x += ' (fan)';
       if ((t[0] === 'do' || t[0] === 'offer') && it.level) x += ' (' + it.level + (it.roles.length ? ': ' + it.roles.join(', ') : '') + ')';
-      if (t[0] === 'care' && it.tend) x += ' (for ' + it.tend + ')';
       if (t[0] === 'need' && it.need) x += ' (to ' + it.need + ')';
       if (t[0] === 'offer' && it.work) x += ' · paid work: ' + it.work;
       bits.push(x); });
-    return bits.join(' · ') || 'No tags yet';
+    var who = (it.forWho || []).map(function(x){ return x === 'Others' && (it.forOther || []).length ? it.forOther.join(', ') : x; }).join(', ');
+    return (bits.join(' · ') || 'No tags yet') + (who ? ' · for ' + who : '');
   }
   function stepThree(app){
     var back = el('button', 'back', '‹ Back to your answers'); back.type = 'button'; back.onclick = function(){ step = 2; paint(); }; app.appendChild(back);
