@@ -128,7 +128,7 @@
 
   var SAMPLE = [
     { word: 'Clean Air', tag: 'care', cat: 'Ecological', a: { who: ['In service to another'], serveWhat: ['People', 'Nature'] } },
-    { word: 'Accountant', tag: 'skill', cat: 'Finance', a: { level: ['Experienced'], work: ['Yes'], paid: ['Part-time'], unpaid: ['Yes'], unpaidKind: ['Mentor'], who: ['In service to another'], serveWhat: ['People'], serveWho: ['Early career'] } },
+    { word: 'Accountant', tag: 'skill', cat: 'Finance', a: { level: ['Experienced'], paid: ['Part-time'], unpaidKind: ['Mentor'], who: ['In service to another'], serveWhat: ['People'], serveWho: ['Early career'] } },
     { word: 'Cooking', tag: 'enjoy', cat: 'Food & Drink', a: {} },
     { word: 'Karaoke', tag: 'enjoy', cat: 'Arts', a: { how: ['I do it'], who: ['Tending to self'] } },
     { word: 'Career mentor', tag: 'seek', cat: 'Business', a: { who: ['Tending to self'] } },
@@ -150,33 +150,27 @@
     return n;
   }
   var PAID = ['Full-time', 'Part-time', 'One-time'];
-  var GIG = ['House sitting', 'Pet sitting', 'Home care', 'Child care', 'Elder care'];
   var UNPAID = ['Mentor', 'Advisor', 'Board member', 'Tutor', 'Volunteer', 'Intern', 'Job shadowing'];
-  function workDone(it){ return (it.a.work || []).length > 0 && (it.a.unpaid || []).length > 0; }
-  function workParts(it){
-    var out = [];
-    if ((it.a.work || [])[0] === 'Yes') out.push('Paid' + ((it.a.paid || []).length ? ': ' + it.a.paid.concat(it.a.gig || []).join(', ') : ''));
-    if ((it.a.unpaid || [])[0] === 'Yes') { var u = (it.a.unpaidTime || []).concat(it.a.unpaidKind || []); out.push('Unpaid' + (u.length ? ': ' + u.join(', ') : '')); }
-    if (!out.length && workDone(it)) out.push('Not right now');
-    return out;
+  function workDone(it){ return !!it.a.workAsked || (it.a.paid || []).length > 0 || (it.a.unpaidTime || []).length > 0 || (it.a.unpaidKind || []).length > 0; }
+  function workRows(it){
+    var r = [], u = (it.a.unpaidTime || []).concat(it.a.unpaidKind || []);
+    if ((it.a.paid || []).length) r.push(['Paid work', it.a.paid.join(', ')]);
+    if (u.length) r.push(['Unpaid work', u.join(', ')]);
+    if (!r.length && workDone(it)) r.push(['Open to work', 'Not right now']);
+    return r;
   }
+  function workParts(it){ return workRows(it).map(function(x){ return x[0] === 'Open to work' ? x[1] : x[0] + ': ' + x[1]; }); }
   function workBlock(c, it, redraw){
-    ['work', 'paid', 'gig', 'unpaid', 'unpaidTime', 'unpaidKind'].forEach(function(k){ it.a[k] = it.a[k] || []; });
-    var box = function(title, opts, list, one, after, other){
-      var b = el('div', 'qbox'); b.appendChild(el('div', 'qq', title));
-      var row = el('div', 'row'); b.appendChild(row); c.appendChild(b);
-      chipsInto(row, opts, list, one, after, redraw, other);
-    };
-    box('Are you open to paid work for this?', ['Yes', 'No'], it.a.work, true, function(){ if (it.a.work[0] !== 'Yes') { it.a.paid.length = 0; it.a.gig.length = 0; } });
-    if (it.a.work[0] === 'Yes') {
-      box('What type of paid work? Pick as many as fit.', PAID, it.a.paid, false, function(){ if (it.a.paid.indexOf('Part-time') < 0) it.a.gig.length = 0; });
-      if (it.a.paid.indexOf('Part-time') > -1) box('Are you interested in gig work? Pick any that fit.', GIG, it.a.gig, false, null, true);
-    }
-    box('Are you open to unpaid work for this?', ['Yes', 'No'], it.a.unpaid, true, function(){ if (it.a.unpaid[0] !== 'Yes') { it.a.unpaidTime.length = 0; it.a.unpaidKind.length = 0; } });
-    if (it.a.unpaid[0] === 'Yes') {
-      box('What type of unpaid work? Pick as many as fit.', PAID, it.a.unpaidTime, false);
-      box('Which types of unpaid work? Pick as many as fit.', UNPAID, it.a.unpaidKind, false, null, true);
-    }
+    ['paid', 'unpaidTime', 'unpaidKind'].forEach(function(k){ it.a[k] = it.a[k] || []; });
+    var pb = el('div', 'qbox'); pb.appendChild(el('div', 'qq', 'Are you open to paid work for this? Pick as many as fit, or none.'));
+    var r1 = el('div', 'row'); pb.appendChild(r1); c.appendChild(pb);
+    chipsInto(r1, PAID, it.a.paid, false, null, redraw);
+    var ub = el('div', 'qbox'); ub.appendChild(el('div', 'qq', 'Are you open to unpaid work for this? Pick as many as fit, or none.'));
+    var r2 = el('div', 'row'); ub.appendChild(r2);
+    chipsInto(r2, PAID, it.a.unpaidTime, false, null, redraw);
+    ub.appendChild(el('div', 'qq sub', 'Which types of unpaid work?'));
+    var r3 = el('div', 'row'); ub.appendChild(r3); c.appendChild(ub);
+    chipsInto(r3, UNPAID, it.a.unpaidKind, false, null, redraw, true);
   }
   function whoDone(it){ var w = it.a.who || []; return w.length > 0 && (w.indexOf('In service to another') < 0 || (it.a.serveWhat || []).length > 0); }
   function missing(it){ return needs(it).filter(function(k){ return k === 'who' ? !whoDone(it) : k === 'work' ? !workDone(it) : !(it.a[k] && it.a[k].length); }); }
@@ -297,7 +291,7 @@
   function body(c, it, ix, miss){
     if (CARD === 'a') {
       var list = el('div', 'kvs');
-      answered(it).forEach(function(k){ var r = el('div', 'kv'); r.appendChild(el('span', '', LAB[k])); r.appendChild(el('b', '', val(it, k).join(', '))); list.appendChild(r); });
+      answered(it).forEach(function(k){ if (k === 'work') { workRows(it).forEach(function(w){ var rw = el('div', 'kv'); rw.appendChild(el('span', '', w[0])); rw.appendChild(el('b', '', w[1])); list.appendChild(rw); }); return; } var r = el('div', 'kv'); r.appendChild(el('span', '', LAB[k])); r.appendChild(el('b', '', val(it, k).join(', '))); list.appendChild(r); });
       miss.filter(function(k){ return k !== 'cat'; }).forEach(function(k){ var r = el('div', 'kv miss'); r.appendChild(el('span', '', LAB[k])); var b = el('button', 'link', 'Add'); b.type = 'button'; b.addEventListener('click', function(){ openCard(ix); }); r.appendChild(b); list.appendChild(r); });
       if (miss.indexOf('cat') > -1) { var r2 = el('div', 'kv miss'); r2.appendChild(el('span', '', 'Tags')); var b2 = el('button', 'link', 'Confirm'); b2.type = 'button'; b2.addEventListener('click', function(){ openCard(ix); }); r2.appendChild(b2); list.appendChild(r2); }
       if (list.children.length) c.appendChild(list);
@@ -406,7 +400,7 @@
     }
     needs(it).filter(function(k){ return k !== 'cat' && k !== 'lens'; }).forEach(function(k){
       if (k === 'who') { whoBlock(c, it, draw); return; }
-      if (k === 'work') { workBlock(c, it, draw); return; }
+      if (k === 'work') { it.a.workAsked = true; workBlock(c, it, draw); return; }
       it.a[k] = it.a[k] || [];
       pickRow(c, Q[k].q, Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; draw(); });
     });
@@ -446,7 +440,7 @@
       (k === 'who' ? whoBlock : workBlock)(c, it, draw);
       var wn = el('div', 'qnav');
       var wd = el('button', 'btn', qs.length > 1 ? 'Next' : 'Done'); wd.type = 'button';
-      wd.addEventListener('click', function(){ if (!(k === 'who' ? whoDone(it) : workDone(it))) return; advance(); });
+      wd.addEventListener('click', function(){ if (k === 'work') it.a.workAsked = true; if (!(k === 'who' ? whoDone(it) : workDone(it))) return; advance(); });
       wn.appendChild(wd);
       var wl = el('button', 'link', 'Later'); wl.type = 'button'; wl.addEventListener('click', function(){ openIx = -1; restMode = false; draw(); }); wn.appendChild(wl);
       c.appendChild(wn);
