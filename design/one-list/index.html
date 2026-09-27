@@ -48,6 +48,9 @@
   .saved pre{white-space:pre-wrap;word-break:break-word;font-size:12px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0 0;}
   .link{font:inherit;font-size:13px;font-weight:700;color:var(--blue);background:none;border:0;padding:0;cursor:pointer;}
   .wait{color:var(--blue);font-size:14px;margin:12px 0;}
+  .said{font-size:13px;color:var(--ink);font-style:italic;margin:8px 0 2px;line-height:1.45;}
+  .fline{display:flex;gap:10px;align-items:flex-start;margin-top:6px;}
+  .flab{font-size:12px;font-weight:700;color:var(--grey);min-width:64px;padding-top:6px;}
 </style>
 </head>
 <body>
@@ -55,7 +58,7 @@
   <div class="note">A mockup to look at and try. Nothing here is saved, and the answers below are made up. The categories and the skills list are the real ones.</div>
   <div class="card">
     <h1>Your words</h1>
-    <p class="lede">Everything you enjoy or can do, in one list. Type the word you would use, or browse. Then tag each one the way it fits you.</p>
+    <p class="lede">Everything you enjoy or can do, in one list. Type the word you would use, or browse. Then say what need it meets, whether you seek or offer it, and who it tends to. Filter by any of them below.</p>
     <div class="addline">
       <input id="add" type="text" placeholder="Choir, ukulele, accounting, hiking" autocomplete="off">
       <button class="pill on" id="addBtn" type="button">Add</button>
@@ -64,6 +67,7 @@
     <div class="crumb" id="crumb"></div>
     <div class="row" id="browse"></div>
     <div class="wait" id="wait">Loading the categories…</div>
+    <div id="filters" style="margin-top:18px;"></div>
     <div class="grid" id="grid"></div>
     <div class="saved">
       <button class="link" id="showSaved" type="button">Show what would be saved</button>
@@ -75,7 +79,14 @@
 (function(){
   var GS = 'https://cw-api-gate.jessieupp.workers.dev';
   var LEVELS = ['Fan', 'Beginner', 'Experienced', 'Guide'];
-  var DO_ROLES = ['Volunteer', 'Service provider', 'Performer', 'Creator', 'Maker', 'Competitor'];
+  var DO_ROLES = ['Volunteer', 'Service provider', 'Performer', 'Creator', 'Maker', 'Collector', 'Player', 'Competitor'];
+  var NEEDS = ['Survive', 'Connect', 'Create', 'Eat & Drink', 'Move', 'Play', 'Rest'];
+  var TEND = ['Myself', 'Others', 'Animals', 'Nature'];
+  var CATS = ['Food & Drink', 'Movement', 'Play', 'Travel', 'Community & Culture', 'Arts', 'Outdoors', 'Home Life', 'Animals', 'Technology', 'Style', 'Personal Care', 'Faith', 'Business', 'Finance', 'Communications', 'Science', 'Building & Repurposing', 'Medicine', 'Transportation'];
+  var SKILLMAP = { 'arts & culture':'Arts', 'food & drink':'Food & Drink', 'physical wellbeing':'Medicine', 'mental wellbeing':'Medicine', 'family wellbeing':'Home Life', 'self-expression & beauty':'Personal Care', 'home & construction':'Building & Repurposing', 'transportation':'Transportation', 'mechanical & manufacturing':'Building & Repurposing', 'business & finance':'Business', 'community & civic':'Community & Culture', 'recreation & hobbies':'Play', 'technology & communications':'Technology', 'nature & outdoors':'Outdoors', 'social events & gatherings':'Community & Culture', 'events & gatherings':'Community & Culture', 'pets & animal care':'Animals', 'making & collecting':'Arts', 'basic needs and security':'Community & Culture' };
+  var RECMAP = { 'sports':'Play', 'games & strategy':'Play', 'movement & performance':'Movement', 'outdoor & nature':'Outdoors', 'music':'Arts' };
+  var SUBMAP = { 'visual art':'Arts', 'textile & fiber':'Arts', 'wood, metal & jewelry':'Building & Repurposing', 'paper & books':'Arts', 'photo, film & digital':'Arts', 'collecting':'Play' };
+  var filt = { need: '', tend: '', cat: '' };
   var GUIDE_ROLES = ['Coach', 'Mentor', 'Consultant', 'Facilitator', 'Trainer', 'Host'];
   var HOW = [['lived','Lived it'],['volunteered','Volunteered'],['workedas','Worked as it'],['studied','Studied it'],['credentialed','Credentialed'],['titled','Worked in official title']];
   var nodes = {}, mains = [];
@@ -96,10 +107,10 @@
     return n.up.slice(1).map(function(u){ return pathOf(u).join(' > '); });
   };
   var words = [
-    { name: 'Singing', levels: ['Fan', 'Experienced', 'Guide'], doRoles: ['Performer'], guideRoles: ['Coach'], work: { Performer: true }, how: ['lived', 'studied'], extra: [] },
-    { name: 'Guitar', levels: ['Fan'], doRoles: [], guideRoles: [], work: {}, how: [], extra: [] },
-    { name: 'Accountant', levels: ['Experienced'], doRoles: ['Service provider'], guideRoles: [], work: { 'Service provider': true }, how: ['credentialed', 'workedas'], extra: [] },
-    { name: 'Hiking', levels: ['Beginner'], doRoles: [], guideRoles: [], work: {}, how: [], extra: [] }
+    { name: 'Singing', levels: ['Fan', 'Experienced', 'Guide'], doRoles: ['Performer'], guideRoles: ['Coach'], work: { Performer: true }, how: ['lived', 'studied'], needs: ['Connect', 'Rest'], tend: ['Myself', 'Others'], want: ['offer'] },
+    { name: 'Guitar', levels: ['Fan'], doRoles: [], guideRoles: [], work: {}, how: [], needs: ['Play'], tend: ['Myself'], want: ['seek'] },
+    { name: 'Bookkeeper', levels: ['Experienced'], doRoles: ['Service provider'], guideRoles: [], work: { 'Service provider': true }, how: ['credentialed', 'workedas'], needs: ['Create'], tend: ['Others'], want: ['offer'] },
+    { name: 'Hiking', levels: ['Beginner'], doRoles: [], guideRoles: [], work: {}, how: [], needs: ['Move', 'Rest'], tend: ['Myself', 'Nature'], want: ['seek'] }
   ];
   var ui = {};
   var el = function(tag, cls, text){ var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
@@ -227,6 +238,19 @@
     var also = cats ? cats.slice(1).map(function(p){ return p.join(' > '); }) : alsoOf(w.name);
     if (also.length) c.appendChild(el('div', 'path', 'Also in: ' + also.join('; ')));
     if (ui[w.name + '|pen']) c.appendChild(catPanel(w));
+    var said = el('div', 'said');
+    var wantWord = has(w.want, 'offer') && has(w.want, 'seek') ? 'offer and seek' : (has(w.want, 'offer') ? 'offer' : (has(w.want, 'seek') ? 'seek' : ''));
+    said.textContent = w.needs.length && wantWord ? '\u201cI need to ' + w.needs.join(' and ') + ', so I ' + wantWord + ' ' + w.name.toLowerCase() + (w.tend.length ? ', for ' + w.tend.join(' and ') : '') + '.\u201d' : 'Pick a need and seek or offer to make the sentence.';
+    c.appendChild(said);
+    var tagRow = function(title, list, have, one){
+      c.appendChild(el('div', 'sec', title));
+      var r = el('div', 'row');
+      list.forEach(function(v){ var b = pill(v, has(have, v), true); b.onclick = function(){ if (one) { var on = has(have, v); have.length = 0; if (!on) have.push(v); } else { toggle(have, v); } paint(); }; r.appendChild(b); });
+      c.appendChild(r);
+    };
+    tagRow('I need to', NEEDS, w.needs);
+    tagRow('So I', ['seek', 'offer'], w.want);
+    tagRow('Tend to', TEND, w.tend);
     c.appendChild(el('div', 'sec', 'How this fits me'));
     var lr = el('div', 'row');
     LEVELS.forEach(function(lv){ var b = pill(lv, has(w.levels, lv), true); b.onclick = function(){ setLevel(w, lv); }; lr.appendChild(b); });
@@ -253,12 +277,34 @@
       + (w.doRoles.length ? ':practiceAs=' + w.doRoles.join('+') : '')
       + (workAs.length ? ':workAs=' + workAs.join('+') : '')
       + (w.how.length ? ':isLearnedBy=' + w.how.join('+') : '')
+      + (w.needs.length ? ':needs=' + w.needs.join('+') : '')
+      + (w.tend.length ? ':tendTo=' + w.tend.join('+') : '')
+      + (w.want.length ? ':want=' + w.want.join('+') : '')
       + (workAs.length ? ':work' : '');
   }
 
+  function catsOf(w){
+    var cats = (w.cats && w.cats.length) ? w.cats.map(function(p){ return p[0]; }) : [pathOf(w.name)[0]];
+    var n = nodes[low(w.name)]; if (n) n.up.forEach(function(u){ var t = pathOf(u)[0]; if (t && cats.indexOf(t) < 0) cats.push(t); });
+    return cats;
+  }
+  function filters(){
+    var box = document.getElementById('filters'); box.innerHTML = '';
+    [['need', 'Need', NEEDS], ['tend', 'Tend to', TEND], ['cat', 'Category', CATS]].forEach(function(f){
+      var line = el('div', 'fline'); line.appendChild(el('span', 'flab', f[1]));
+      var r = el('div', 'row');
+      f[2].forEach(function(v){ var b = pill(v, filt[f[0]] === v, true); b.onclick = function(){ filt[f[0]] = filt[f[0]] === v ? '' : v; paint(); }; r.appendChild(b); });
+      line.appendChild(r); box.appendChild(line);
+    });
+  }
   function paint(){
+    filters();
     var g = document.getElementById('grid'); g.innerHTML = '';
-    words.forEach(function(w){ g.appendChild(card(w)); });
+    var shown = words.filter(function(w){
+      return (!filt.need || has(w.needs, filt.need)) && (!filt.tend || has(w.tend, filt.tend)) && (!filt.cat || has(catsOf(w), filt.cat));
+    });
+    shown.forEach(function(w){ g.appendChild(card(w)); });
+    if (!shown.length) g.appendChild(el('div', 'lede', 'None of your words match these filters.'));
     var box = document.getElementById('savedBox');
     var pend = Object.keys(nodes).filter(function(k){ return nodes[k].pending; }).map(function(k){ return '  ' + nodes[k].name + ' under ' + nodes[k].up[0]; });
     box.textContent = 'ikigai (one list, each answer separated by |)\n\n' + words.map(saved).join('\n|\n')
@@ -292,7 +338,7 @@
   function addWord(name){
     name = String(name || '').trim(); if (!name) return;
     if (words.some(function(w){ return low(w.name) === low(name); })) return;
-    words.unshift({ name: name.charAt(0).toUpperCase() + name.slice(1), levels: [], doRoles: [], guideRoles: [], work: {}, how: [], extra: [] });
+    words.unshift({ name: name.charAt(0).toUpperCase() + name.slice(1), levels: [], doRoles: [], guideRoles: [], work: {}, how: [], needs: [], tend: [], want: [] });
     paint();
   }
 
@@ -321,21 +367,30 @@
     fetch(GS + '?action=getCategories').then(function(r){ return r.json(); }).catch(function(){ return {}; }),
     fetch(GS + '?action=getReferenceData').then(function(r){ return r.json(); }).catch(function(){ return {}; })
   ]).then(function(res){
-    var cats = (res[0] && res[0].categories) || [], rd = res[1] || {};
-    mains = cats.map(function(c){ return String((c && c.label) || '').trim(); }).filter(Boolean);
+    var rd = res[1] || {};
+    mains = CATS.slice();
     mains.forEach(function(m){ node(m); });
     (rd.recreation || []).forEach(function(r){
-      var chain = [r.parent, r.recType, r.category, r.item].map(function(x){ return String(x || '').trim(); }).filter(Boolean);
-      var isMain = function(x){ return mains.some(function(m){ return low(m) === low(x); }); };
-      for (var i = 1; i < chain.length; i++) { if (isMain(chain[i])) { chain = chain.slice(0, i); break; } link(chain[i], chain[i - 1]); }
+      var p = low(r.parent), t = String(r.recType || '').trim(), sb = String(r.category || '').trim(), it = String(r.item || '').trim();
+      if (!it || CATS.some(function(c){ return low(c) === low(it); }) || low(it) === 'arts & culture') return;
+      var top = SUBMAP[low(sb)] || RECMAP[low(t)] || (p === 'arts & culture' ? 'Arts' : 'Play');
+      var chain = [top];
+      if (low(t) === 'music' || low(t) === 'sports') chain.push(t); else if (low(t) === 'games & strategy') chain.push('Games');
+      if (sb && low(sb) !== low(t)) chain.push(sb);
+      if (low(it) !== low(sb)) chain.push(it);
+      for (var i = 1; i < chain.length; i++) link(chain[i], chain[i - 1]);
       var leaf = node(chain[chain.length - 1]); if (leaf && r.associations) leaf.assoc += ' ' + r.associations;
     });
-    (rd.skills || []).forEach(function(s){
-      if (!s.item) return;
-      if (s.category) link(s.item, s.category); else node(s.item);
-      var n = node(s.item); if (s.associations) n.assoc += ' ' + s.associations;
+    (rd.skills || []).forEach(function(sk){
+      if (!sk.item) return;
+      var top = SKILLMAP[low(sk.category)] || 'Business';
+      link(sk.item, top);
+      var n = node(sk.item); if (sk.associations) n.assoc += ' ' + sk.associations;
     });
-    link('Singing', 'Mental Wellbeing');
+    link('Bookkeeper', 'Finance');
+    link('Dance', 'Arts');
+    link('Meditation', 'Personal Care'); link('Meditation', 'Faith');
+    link('Singing', 'Community & Culture');
     document.getElementById('wait').hidden = true;
     browse(); paint();
   });
