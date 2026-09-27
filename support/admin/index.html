@@ -119,9 +119,17 @@
     btn.disabled = true;
     btn.textContent = to === 'closed' ? 'Closing' : 'Reopening';
     var old = el.querySelector('.err'); if (old) old.remove();
-    fetch(GS + '?action=setSupportTicketStatus&ticketId=' + encodeURIComponent(t.id) + '&status=' + to
-          + '&appearId=' + encodeURIComponent(me) + '&t=' + Date.now())
-      .then(function (r) { return r.json(); })
+    function ask(tries) {
+      return fetch(GS + '?action=setSupportTicketStatus&ticketId=' + encodeURIComponent(t.id) + '&status=' + to
+            + '&appearId=' + encodeURIComponent(me) + '&t=' + Date.now())
+        .then(function (r) { return r.text(); })
+        .then(function (txt) {
+          try { return JSON.parse(txt); } catch (e) {}
+          if (tries > 0) return new Promise(function (ok) { setTimeout(ok, 1500); }).then(function () { return ask(tries - 1); });
+          throw new Error('The server did not answer.');
+        });
+    }
+    ask(1)
       .then(function (d) {
         if (!d || d.status !== 'ok') throw new Error((d && d.message) || 'Nothing changed.');
         t.status = d.ticketStatus || to;
@@ -132,7 +140,7 @@
         btn.textContent = isOpen(t.status) ? 'Close ticket' : 'Reopen';
         var n = document.createElement('div');
         n.className = 'err';
-        n.textContent = 'That did not save. ' + ((err && err.message) || '') + ' Try once more.';
+        n.textContent = 'That did not save. ' + ((err && err.message) || '') + ' Press the button again.';
         el.appendChild(n);
       });
   }
