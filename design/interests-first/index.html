@@ -31,6 +31,9 @@
   .fold{margin-top:20px;}
   .fold-h{background:#1F699E;color:#fff;border-radius:10px 10px 0 0;padding:11px 16px;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;}
   .fold .grid{border:1.5px solid #C9DFF3;border-top:0;border-radius:0 0 12px 12px;padding:14px 16px 16px;background:#fff;}
+  .w.open{border-color:#1F699E;box-shadow:0 0 0 1px #1F699E;}
+  .qnav{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .qcount{font-size:12px;color:var(--grey);font-weight:700;}
   .rule{border-top:1px solid var(--line);margin:12px 0 10px;}
   @media(max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
   @media(max-width:620px){.grid{grid-template-columns:1fr;}}
@@ -98,7 +101,7 @@
   var addWord = function(name, cat, assoc){ var k = low(name); if (!k || k.length < 3) return; if (!words[k]) words[k] = { name: String(name).trim(), cat: cat, assoc: low(assoc) }; };
   var el = function(tag, cls, text){ var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
   var pill = function(text, on){ var b = el('button', 'pill' + (on ? ' on' : ''), text); b.type = 'button'; return b; };
-  var items = [], step = 1, confirmed = false, showCats = false, openCat = '';
+  var items = [], step = 1, openIt = null, confirmed = false, showCats = false, openCat = '';
 
   function guessCat(text){
     var t = ' ' + low(text).replace(/[^a-z0-9' ]+/g, ' ') + ' ', best = null;
@@ -344,60 +347,122 @@
     }
   }
 
+  function qsFor(it){
+    var q = [], t = it.tags;
+    q.push({ key: 'cat', label: 'Which categories fit? Pick as many as you like.', multi: true, ok: function(){ return !!it.cat; } });
+    q.push({ key: 'tags', label: 'How does it fit you? Pick as many as are true.', multi: true, ok: function(){ return Object.keys(t).length > 0; } });
+    if (t.enjoy) q.push({ key: 'fan', label: 'Do you do it, or are you a fan? Pick one or both.', multi: true });
+    if (t.offer || t.need) {
+      q.push({ key: 'kind', label: 'Is it a skill, a thing or a space?' });
+      if (it.kind === 'Thing') q.push({ key: 'kindOf', label: 'What kind of thing? Pick as many as fit.', multi: true, list: THINGS });
+      if (it.kind === 'Space') q.push({ key: 'kindOf', label: 'What kind of space? Pick as many as fit.', multi: true, list: SPACES });
+    }
+    if (t['do'] || (t.offer && it.kind === 'Skill')) {
+      q.push({ key: 'level', label: 'How far along are you?' });
+      if (it.level === 'Guide') q.push({ key: 'roles', label: 'How do you guide others? Pick as many as fit.', multi: true, list: GUIDE_ROLES });
+      if (it.level === 'Experienced') q.push({ key: 'roles', label: 'How do you do it? Pick as many as fit.', multi: true, list: DO_ROLES });
+    }
+    if (t.need) q.push({ key: 'needs', label: 'What would it give you? I need to…' });
+    if (t.offer && it.kind === 'Skill') {
+      q.push({ key: 'work', label: 'Are you open to paid work for this?' });
+      if (it.work === 'Yes') {
+        q.push({ key: 'paid', label: 'What type of paid work? Pick as many as fit.', multi: true, list: PAID });
+        if (((it.pick || {}).paid || []).indexOf('Part-time') > -1) q.push({ key: 'gig', label: 'Are you interested in gig work? Pick any that fit.', multi: true, list: GIG });
+      }
+      q.push({ key: 'unpaid', label: 'Are you open to unpaid work for this?' });
+      if (it.unpaid === 'Yes') {
+        q.push({ key: 'unpaidTime', label: 'What type of unpaid work? Pick as many as fit.', multi: true, list: PAID });
+        q.push({ key: 'unpaidKind', label: 'Which types of unpaid work? Pick as many as fit.', multi: true, list: UNPAID });
+      }
+    }
+    if (Object.keys(t).length) q.push({ key: 'who', label: 'Who is it for? Pick one or both.', multi: true });
+    return q;
+  }
+  function finish(it){
+    it.editing = false; if (it.cat) { it.catSure = true; it.catDone = true; } it.snap = ''; it.q = 0;
+    var next = items.filter(function(x){ return x.editing !== false; })[0];
+    openIt = next || null; if (next) next.q = next.q || 0;
+    paint();
+    if (next) setTimeout(function(){ var c = document.querySelector('.w.open'); if (c && c.scrollIntoView) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 0);
+  }
+  function single(box, label, opts, isOn, set, it){
+    chipRow(box, label, opts, isOn, function(o){ var was = isOn(o); set(was ? '' : o); if (!was) it.q++; });
+  }
+  function askOne(box, it, qq){
+    var k = qq.key, t = it.tags;
+    if (k === 'cat') {
+      var cats = [it.cat].concat(it.also || []).filter(String);
+      var m = el('div', 'more'); m.appendChild(el('div', 'lab', cats.length ? 'We picked the category below. Tap to add or remove. Pick as many as fit.' : 'We don’t know “' + it.word + '” yet. Which fit? Pick as many as you like.'));
+      var r = el('div', 'row');
+      CATS.forEach(function(c){ var b = pill(c, cats.indexOf(c) > -1); b.onclick = function(){ var at = cats.indexOf(c); if (at > -1) cats.splice(at, 1); else cats.push(c); it.cat = cats[0] || ''; it.also = cats.slice(1); paint(); }; r.appendChild(b); });
+      m.appendChild(r); box.appendChild(m); return;
+    }
+    if (k === 'tags') { chipRow(box, qq.label, TAGS.map(function(x){ return x[1]; }), function(o){ var x = TAGS.filter(function(y){ return y[1] === o; })[0]; return !!t[x[0]]; }, function(o){ var x = TAGS.filter(function(y){ return y[1] === o; })[0][0]; if (t[x]) delete t[x]; else t[x] = 1; }); return; }
+    if (k === 'fan') { chipRow(box, qq.label, ['Fan', 'I do it'], function(o){ return o === 'Fan' ? !!it.fan : !!t['do']; }, function(o){ if (o === 'Fan') it.fan = !it.fan; else { if (t['do']) delete t['do']; else t['do'] = 1; } }); return; }
+    if (k === 'kind') { single(box, qq.label, ['Skill', 'Thing', 'Space'], function(o){ return it.kind === o; }, function(v){ it.kind = v; it.pick = it.pick || {}; it.pick.kindOf = []; }, it); return; }
+    if (k === 'level') { single(box, qq.label, LEVELS, function(o){ return it.level === o; }, function(v){ it.level = v; it.roles = []; }, it); return; }
+    if (k === 'roles') { roleRow(box, it, qq.label, qq.list); return; }
+    if (k === 'needs') { single(box, qq.label, NEEDS, function(o){ return it.need === o; }, function(v){ it.need = v; }, it); return; }
+    if (k === 'work') { single(box, qq.label, ['Yes', 'No'], function(o){ return it.work === o; }, function(v){ it.work = v; }, it); return; }
+    if (k === 'unpaid') { single(box, qq.label, ['Yes', 'No'], function(o){ return it.unpaid === o; }, function(v){ it.unpaid = v; }, it); return; }
+    if (k === 'who') {
+      it.forWho = it.forWho || []; it.forOther = it.forOther || [];
+      var tg = function(list, o){ var a = list.indexOf(o); if (a > -1) list.splice(a, 1); else list.push(o); };
+      chipRow(box, qq.label, ['Myself', 'Others'], function(o){ return it.forWho.indexOf(o) > -1; }, function(o){ tg(it.forWho, o); if (it.forWho.indexOf('Others') < 0) it.forOther = []; });
+      if (it.forWho.indexOf('Others') > -1) {
+        var ex = el('div', 'more'); ex.appendChild(el('div', 'lab', 'Which others?'));
+        var r2 = el('div', 'row');
+        OTHERS.concat(it.forOther.filter(function(x){ return OTHERS.indexOf(x) < 0; })).forEach(function(o){ var b = pill(o, it.forOther.indexOf(o) > -1); b.onclick = function(){ tg(it.forOther, o); paint(); }; r2.appendChild(b); });
+        ex.appendChild(r2);
+        var inp = el('input'); inp.placeholder = 'Or add your own and press Enter'; inp.style.cssText = 'border:1.5px solid #DDE3EA;border-radius:8px;padding:6px 9px;font:inherit;font-size:13px;margin-top:8px;width:100%;';
+        inp.onkeydown = function(e){ if (e.key === 'Enter' && inp.value.trim()) { var v = inp.value.trim(); v = v.charAt(0).toUpperCase() + v.slice(1); if (it.forOther.indexOf(v) < 0) it.forOther.push(v); paint(); } };
+        ex.appendChild(inp); box.appendChild(ex);
+      }
+      return;
+    }
+    if (qq.list) pickRow(box, it, k, qq.label, qq.list);
+  }
   function wordCard(it){
-    var w = el('div', 'w');
+    var open = it === openIt;
+    var w = el('div', 'w' + (open ? ' open' : ''));
     var top = el('div', 'top'); top.appendChild(el('h3', '', it.word));
-    var pen = el('button', 'ico', '\u270F\uFE0F'); pen.type = 'button'; pen.title = 'Edit'; pen.onclick = function(){ if (!it.editing) { it.snap = JSON.stringify(it); it.editing = true; } paint(); }; top.appendChild(pen);
-    var xx = el('button', 'ico', '×'); xx.type = 'button'; xx.title = 'Remove'; xx.style.fontSize = '20px'; xx.onclick = function(){ items.splice(items.indexOf(it), 1); paint(); }; top.appendChild(xx);
+    var pen = el('button', 'ico', '✏️'); pen.type = 'button'; pen.title = 'Edit';
+    pen.onclick = function(){ if (openIt && openIt !== it && openIt.editing !== false) { } it.snap = JSON.stringify(it); it.editing = true; it.q = 0; openIt = it; paint(); };
+    top.appendChild(pen);
+    var xx = el('button', 'ico', '×'); xx.type = 'button'; xx.title = 'Remove'; xx.style.fontSize = '20px'; xx.onclick = function(){ items.splice(items.indexOf(it), 1); if (openIt === it) openIt = items.filter(function(x){ return x.editing !== false; })[0] || null; paint(); }; top.appendChild(xx);
     w.appendChild(top);
     var cats = [it.cat].concat(it.also || []).filter(String);
-    var ab = el('div', 'about');
-    ab.appendChild(document.createTextNode(!cats.length ? 'Category: pick one or more' : (it.catSure ? 'Category: ' : 'Possible category selected: ') + cats.join(', ')));
-    if (it.catDone) { ab.appendChild(document.createTextNode(' · ')); var ch = el('button', '', 'change'); ch.type = 'button'; ch.onclick = function(){ it.catDone = false; paint(); }; ab.appendChild(ch); }
-    w.appendChild(ab);
-    if (it.editing === false) { w.appendChild(el('div', 'about', tagLine(it))); return w; }
+    w.appendChild(el('div', 'about', !cats.length ? 'Category: not picked yet' : (it.catSure ? 'Category: ' : 'Possible category selected: ') + cats.join(', ')));
+    if (!open) {
+      w.appendChild(el('div', 'about', it.editing === false ? tagLine(it) : 'Not answered yet'));
+      if (it.editing !== false) { var st = pill('Start', true); st.style.marginTop = '8px'; st.onclick = function(){ openIt = it; it.q = it.q || 0; paint(); }; w.appendChild(st); }
+      return w;
+    }
+    var qs = qsFor(it);
+    if (it.q >= qs.length) it.q = qs.length - 1;
+    if (it.q < 0) it.q = 0;
+    var qq = qs[it.q];
     w.appendChild(el('div', 'rule'));
-    if (!it.catDone) {
-      var q = el('div', 'catbox'), r = el('div', 'row');
-      q.appendChild(el('div', 'lab', cats.length ? 'Tap to add or remove. Pick as many as fit.' : 'We don’t know “' + it.word + '” yet. Which fit? Pick as many as you like.'));
-      CATS.forEach(function(c){ var b = pill(c, cats.indexOf(c) > -1); b.onclick = function(){ var at = cats.indexOf(c); if (at > -1) cats.splice(at, 1); else cats.push(c); it.cat = cats[0] || ''; it.also = cats.slice(1); paint(); }; r.appendChild(b); });
-      q.appendChild(r);
-      var dn = pill('Done', true); dn.style.marginTop = '10px'; dn.onclick = function(){ if (!cats.length) return; it.catDone = true; it.catSure = true; paint(); }; q.appendChild(dn);
-      w.appendChild(q);
-    }
-    var tr = el('div', 'row');
-    TAGS.forEach(function(t){ var b = pill(t[1], !!it.tags[t[0]]); b.onclick = function(){ if (it.tags[t[0]]) delete it.tags[t[0]]; else it.tags[t[0]] = 1; paint(); }; tr.appendChild(b); });
-    w.appendChild(tr);
-    if (it.tags.enjoy) doneRow(w, it, 'fan', 'Do you do it, or are you a fan? Pick one or both.', ['Fan', 'I do it'], function(o){ return o === 'Fan' ? !!it.fan : !!it.tags['do']; }, function(o){ if (o === 'Fan') it.fan = !it.fan; else { if (it.tags['do']) delete it.tags['do']; else it.tags['do'] = 1; } }, function(){ return [it.fan ? 'Fan' : '', it.tags['do'] ? 'I do it' : ''].filter(String).join(', '); });
-    if (it.tags.offer || it.tags.need) {
-      chipRow(w, 'Is it a skill, a thing or a space?', ['Skill', 'Thing', 'Space'], function(o){ return it.kind === o; }, function(o){ it.kind = it.kind === o ? '' : o; it.pick = it.pick || {}; it.pick.kindOf = []; });
-      if (it.kind === 'Thing') pickRow(w, it, 'kindOf', 'What kind of thing? Pick as many as fit.', THINGS);
-      if (it.kind === 'Space') pickRow(w, it, 'kindOf', 'What kind of space? Pick as many as fit.', SPACES);
-    }
-    if (it.tags['do'] || (it.tags.offer && it.kind === 'Skill')) {
-      chipRow(w, 'How far along are you?', LEVELS, function(o){ return it.level === o; }, function(o){ it.level = it.level === o ? '' : o; it.roles = []; });
-      if (it.level === 'Guide') roleRow(w, it, 'How do you guide others?', GUIDE_ROLES);
-      if (it.level === 'Experienced') roleRow(w, it, 'How do you do it?', DO_ROLES);
-    }
-    if (Object.keys(it.tags).length) whoFor(w, it);
-    if (it.tags.need) chipRow(w, 'What would it give you? I need to…', NEEDS, function(o){ return it.need === o; }, function(o){ it.need = it.need === o ? '' : o; });
-    if (it.tags.offer && it.kind === 'Skill') {
-      chipRow(w, 'Are you open to paid work for this?', ['Yes', 'No'], function(o){ return it.work === o; }, function(o){ it.work = it.work === o ? '' : o; });
-      if (it.work === 'Yes') {
-        pickRow(w, it, 'paid', 'What type of paid work? Pick as many as fit.', PAID);
-        if ((it.pick.paid || []).indexOf('Part-time') > -1) pickRow(w, it, 'gig', 'Are you interested in gig work?', GIG);
-      }
-      chipRow(w, 'Are you open to unpaid work for this?', ['Yes', 'No'], function(o){ return it.unpaid === o; }, function(o){ it.unpaid = it.unpaid === o ? '' : o; });
-      if (it.unpaid === 'Yes') {
-        pickRow(w, it, 'unpaidTime', 'What type of unpaid work? Pick as many as fit.', PAID);
-        pickRow(w, it, 'unpaidKind', 'Which types of unpaid work?', UNPAID);
-      }
-    }
+    var nav = el('div', 'qnav');
+    if (it.q > 0) { var bk = el('button', 'back', '‹ Back'); bk.type = 'button'; bk.style.margin = '0'; bk.onclick = function(){ it.q--; paint(); }; nav.appendChild(bk); } else nav.appendChild(el('span'));
+    nav.appendChild(el('span', 'qcount', 'Question ' + (it.q + 1) + ' of ' + qs.length));
+    w.appendChild(nav);
+    askOne(w, it, qq);
     var act = el('div', 'row'); act.style.marginTop = '14px';
-    var sv = pill('Save', true); sv.classList.add('big'); sv.onclick = function(){ it.editing = false; if (it.cat) { it.catSure = true; it.catDone = true; } it.snap = ''; paint(); };
-    var cn = pill('Cancel'); cn.classList.add('big'); cn.style.color = 'var(--grey)'; cn.style.borderColor = 'var(--line)';
-    cn.onclick = function(){ if (it.snap) { var o = JSON.parse(it.snap); Object.keys(it).forEach(function(k){ delete it[k]; }); Object.assign(it, o); it.editing = false; it.snap = ''; } else it.editing = false; paint(); };
-    act.appendChild(sv); act.appendChild(cn); w.appendChild(act);
+    var last = it.q === qs.length - 1;
+    var answered = qq.ok ? qq.ok() : true;
+    if (qq.multi || last) {
+      var nx = pill(last ? 'Done' : 'Next', true); nx.classList.add('big');
+      if (!answered) { nx.style.opacity = '.45'; nx.style.cursor = 'default'; }
+      nx.onclick = function(){ if (!answered) return; if (qq.key === 'cat') it.catSure = true; if (last) finish(it); else { it.q++; paint(); } };
+      act.appendChild(nx);
+    }
+    if (it.snap) {
+      var cn = pill('Cancel'); cn.classList.add('big'); cn.style.color = 'var(--grey)'; cn.style.borderColor = 'var(--line)';
+      cn.onclick = function(){ var o = JSON.parse(it.snap); Object.keys(it).forEach(function(k){ delete it[k]; }); Object.assign(it, o); it.editing = false; it.snap = ''; openIt = items.filter(function(x){ return x.editing !== false; })[0] || null; paint(); };
+      act.appendChild(cn);
+    }
+    w.appendChild(act);
     return w;
   }
 
@@ -428,7 +493,8 @@
   function stepTwo(app){
     var back = el('button', 'back', '‹ Add more interests'); back.type = 'button'; back.onclick = function(){ step = 1; paint(); }; app.appendChild(back);
     app.appendChild(el('h1', '', 'How does each one fit you?'));
-    app.appendChild(el('p', 'lede', 'Tap every one that is true. A few short questions open only for what you tap.'));
+    app.appendChild(el('p', 'lede', 'One question at a time. When a card is done it closes and the next one opens.'));
+    if (!openIt || items.indexOf(openIt) < 0) { openIt = items.filter(function(x){ return x.editing !== false; })[0] || null; if (openIt) openIt.q = openIt.q || 0; }
     var fold = el('div', 'fold'); var bar = el('div', 'fold-h', 'Interests added (' + items.length + ')'); fold.appendChild(bar);
     var g = el('div', 'grid'); items.forEach(function(it){ g.appendChild(wordCard(it)); }); fold.appendChild(g); app.appendChild(fold);
     var rv = pill('Next: check everything', true); rv.classList.add('big', 'next'); rv.onclick = function(){ step = 3; paint(); window.scrollTo(0, 0); }; app.appendChild(rv);
@@ -456,7 +522,7 @@
       var cats = [it.cat].concat(it.also || []).filter(String);
       d.appendChild(el('div', 'about', 'Category: ' + (cats.join(', ') || 'none yet') + (it.catSure ? '' : ' (not confirmed)')));
       d.appendChild(el('div', 'about', tagLine(it)));
-      d.onclick = function(){ step = 2; it.catDone = false; paint(); };
+      d.onclick = function(){ step = 2; it.snap = JSON.stringify(it); it.editing = true; it.q = 0; openIt = it; paint(); };
       app.appendChild(d);
     });
     var ok = pill(confirmed ? 'All confirmed' : 'Confirm all', true); ok.classList.add('big', 'next');
@@ -471,7 +537,7 @@
     [[1, 'Your interests'], [2, 'How each one fits you'], [3, 'Check everything']].forEach(function(s){
       var b = document.createElement('button'); b.type = 'button'; b.textContent = s[1];
       if (s[0] === step) b.className = 'on';
-      var done = s[0] === 1 ? items.length > 0 : s[0] === 2 ? items.length > 0 && items.every(function(i){ return Object.keys(i.tags).length && i.catDone; }) : confirmed;
+      var done = s[0] === 1 ? items.length > 0 : s[0] === 2 ? items.length > 0 && items.every(function(i){ return i.editing === false; }) : confirmed;
       if (done) { var ck = document.createElement('span'); ck.className = 'ck'; ck.textContent = '✓'; b.appendChild(ck); }
       b.onclick = function(){ if (s[0] > 1 && !items.length) return; step = s[0]; paint(); window.scrollTo(0, 0); };
       box.appendChild(b);
