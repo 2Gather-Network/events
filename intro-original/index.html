@@ -20,6 +20,12 @@
     font-family:'DM Sans','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
     line-height:1.55;padding:26px 18px 60px;}
   .wrap{max-width:760px;margin:0 auto;}
+  html.w-a .wrap{max-width:900px;}
+  html.w-b .wrap{max-width:1040px;}
+  html.w-c .wrap{max-width:1180px;}
+  html.cats-a button.gp-catbtn{background:#1F699E !important;color:#fff !important;border:1.5px solid #1F699E !important;}
+  html.cats-b button.gp-catbtn{flex-basis:100%;border-radius:12px !important;background:#E6F1FB !important;border:2px solid #1F699E !important;color:#1F699E !important;padding:12px 16px !important;text-align:left;font-size:14.5px !important;}
+  html.cats-c button.gp-catbtn{background:#fff !important;border:2.5px solid #1A2E42 !important;color:#1A2E42 !important;font-weight:800 !important;}
   .crumb{color:#fff;font-size:14px;font-weight:800;margin:0 0 14px;text-decoration:none;display:inline-block;cursor:pointer;}
   .card{background:#fff;border-radius:14px;padding:24px 28px;}
   .btn{background:var(--brand);color:#fff;border:0;font:inherit;font-size:14.5px;font-weight:700;
@@ -28,7 +34,7 @@
   .cw-intro-box::placeholder{color:#9AA8B7;opacity:1;}
 </style>
   <script>window.CW={me:function(){return {id:""};},refCode:function(){return "";}};window._gpRealFetch=window.fetch;window.fetch=function(u){if(/[?&]action=(getReferenceData|getCategories|getPlaces)(&|$)/.test(String(u)))return window._gpRealFetch.apply(window,arguments);return Promise.resolve(new Response(JSON.stringify({status:"ok",data:{}})));};</script>
-  <script src="/nav/category-tree.js?v=2"></script>
+  <script>(function(){var q=new URLSearchParams(location.search);var w=q.get('width');if(/^[abc]$/.test(w||''))document.documentElement.classList.add('w-'+w);var c=q.get('cats');document.documentElement.classList.add('cats-'+(/^[abc]$/.test(c||'')?c:'a'));})();</script>
 </head>
 <body><div style="background:#FFF4D6;color:#1A2E42;font-size:13.5px;padding:10px 16px;text-align:center;">A look-only copy of the questions page as it was on 30 August 2026. Nothing here saves.</div>
 <div class="wrap">
@@ -83,7 +89,7 @@
       hint:'What matters to you, and what you want more of in the world. Leave it blank if you would rather not say.',
       ph:'Housing, food security, keeping the lake swimmable…' },
     { key:'introOffer',  need:false, q:'Do you have something you want to offer right now?',
-      hint:'A thing, a space, or a resource you can share. Leave it blank if there is nothing right now.',
+      hint:'Write it all in one box, or select from topics below.',
       ph:'A spare room for the month of September, a truck for moving stuff, a meeting space to meet each week, and gardening tools.' }
   ];
   
@@ -128,7 +134,7 @@
                    ] },
   };
   var _gpChipsPicked = {};
-  var _gpLangPicked = {}, _gpMethodPicked = {}, _gpLangPrimary = '';
+  var _gpLangPicked = {}, _gpMethodPicked = {}, _gpLangPrimary = '', _gpOfferPicked = {}, _gpOpen = false;
   var GP_LANGS = ['English','Mandarin','Cantonese','Hindi','Spanish','Arabic','Bengali','Portuguese','French','Urdu',
     'Russian','Indonesian','German','Japanese','Swahili','Marathi','Telugu','Turkish','Tamil','Vietnamese','Korean',
     'Italian','Thai','Persian (Farsi)','Polish','Pashto','Punjabi','Ukrainian','Malayalam','Kannada','Romanian','Dutch',
@@ -189,33 +195,32 @@
     var wrap = document.createElement('div');
     var find = document.createElement('input');
     find.type = 'search';
-    find.placeholder = 'Search a language';
-    find.style.cssText = 'width:100%;box-sizing:border-box;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
-      + 'padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;margin-bottom:10px;';
+    find.placeholder = 'Search or add a language';
+    find.style.cssText = 'flex:1;min-width:0;box-sizing:border-box;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
+      + 'padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
     find.addEventListener('input', function(){
       var t = String(find.value || '').trim().toLowerCase();
       picker.row.querySelectorAll('button[data-find]').forEach(function(b){ b.style.display = !t || b.getAttribute('data-find').indexOf(t) > -1 ? '' : 'none'; });
     });
-    wrap.appendChild(find);
+    var fline = document.createElement('div'); fline.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;';
+    fline.appendChild(find); wrap.appendChild(fline);
     wrap.appendChild(picker.row);
-    var line = document.createElement('div');
-    line.style.cssText = 'display:flex;gap:8px;margin-top:10px;';
-    var inp = document.createElement('input');
-    inp.type = 'text';
-    inp.placeholder = 'Another language';
-    var prim = document.createElement('div');
-    inp.style.cssText = 'flex:1;min-width:0;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;'
-      + 'padding:9px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
     var add = document.createElement('button');
     add.type = 'button';
     add.textContent = 'Add';
-    add.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:9px 18px;border-radius:20px;'
-      + 'border:0;background:#1F699E;color:#fff;cursor:pointer;';
-    function commit(){ var v = inp.value.trim(); if (!v) return; picker.add(v); inp.value = ''; inp.focus(); }
+    add.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:9px 18px;border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
+    var prim = document.createElement('div');
+    function commit(){
+      var v = String(find.value || '').trim(); if (!v) return;
+      var lv = v.toLowerCase(), hit = null;
+      GP_LANGS.forEach(function(w){ if (w.toLowerCase() === lv || String(GP_NATIVE[w] || '').toLowerCase() === lv) hit = w; });
+      if (hit) { if (!_gpLangPicked[hit]) { var b = picker.row.querySelector('button[data-find^="' + hit.toLowerCase().replace(/"/g, '') + ' "]'); if (b) b.click(); else picker.add(hit); } }
+      else picker.add(v.charAt(0).toUpperCase() + v.slice(1));
+      find.value = ''; find.dispatchEvent(new Event('input')); find.focus(); setTimeout(drawPrim, 0);
+    }
     add.addEventListener('click', commit);
-    inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); commit(); } });
-    line.appendChild(inp); line.appendChild(add);
-    wrap.appendChild(line);
+    find.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); commit(); } });
+    fline.appendChild(add);
     prim.style.cssText = 'margin-top:12px;';
     var drawPrim = function(){
       prim.innerHTML = '';
@@ -229,8 +234,6 @@
       prim.appendChild(r);
     };
     picker.row.addEventListener('click', function(){ setTimeout(drawPrim, 0); });
-    add.addEventListener('click', function(){ setTimeout(drawPrim, 0); });
-    inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') setTimeout(drawPrim, 0); });
     wrap.appendChild(prim);
     return gpBlock('Which languages do you speak?', 'So people know they can talk to you in theirs.', wrap);
   }
@@ -343,6 +346,19 @@
     }
   };
   
+  var SKILLMAP = { 'arts & culture':'Arts', 'food & drink':'Food & Drink', 'physical wellbeing':'Medicine', 'mental wellbeing':'Medicine', 'family wellbeing':'Home Life', 'self-expression & beauty':'Personal Care', 'home & construction':'Building & Repurposing', 'transportation':'Transportation', 'mechanical & manufacturing':'Building & Repurposing', 'business & finance':'Business', 'community & civic':'Community & Culture', 'recreation & hobbies':'Play', 'technology & communications':'Technology', 'nature & outdoors':'Outdoors', 'social events & gatherings':'Community & Culture', 'events & gatherings':'Community & Culture', 'pets & animal care':'Animals', 'making & collecting':'Arts', 'basic needs and security':'Community & Culture' };
+  var RECMAP = { 'sports':'Play', 'games & strategy':'Play', 'movement & performance':'Movement', 'outdoor & nature':'Outdoors', 'music':'Arts' };
+  var SUBMAP = { 'visual art':'Arts', 'textile & fiber':'Arts', 'wood, metal & jewelry':'Building & Repurposing', 'paper & books':'Arts', 'photo, film & digital':'Arts', 'collecting':'Play' };
+  var GP_TOPICS = [['Food & Drink', '\u{1F958}'], ['Movement', '\u{1F300}'], ['Play', '\u{1F3D3}'], ['Travel', '✈️'], ['Community & Culture', '\u{1F389}'], ['Arts', '\u{1F3AD}'], ['Outdoors', '\u{1F332}'], ['Home Life', '\u{1F3E1}'], ['Animals', '\u{1F436}'], ['Technology', '\u{1F4F1}'], ['Style', '\u{1F576}️'], ['Personal Care', '\u{1FAAE}'], ['Faith', '\u{1F49B}'], ['Business', '\u{1F4BC}'], ['Communications', '\u{1F4AC}'], ['Building & Repurposing', '\u{1F528}'], ['Transportation', '\u{1F686}'], ['Finance', '\u{1F4CA}'], ['Science', '\u{1F52C}'], ['Medicine', '\u{1FA7A}']];
+  function gpTopicTree(rd){
+    var tops = (Array.isArray(rd.topicCategories) && rd.topicCategories.length) ? rd.topicCategories.map(function(t){ return [t.label, t.emoji || '']; }) : GP_TOPICS;
+    var byName = {}, out = tops.map(function(t){ var n = { name: t[0], emoji: t[1], kids: [] }; byName[t[0].toLowerCase()] = n; return n; });
+    var seen = {};
+    var put = function(word, cat){ word = String(word || '').trim(); var n = byName[String(cat || '').toLowerCase()]; if (!word || !n) return; var k = cat + '|' + word.toLowerCase(); if (seen[k]) return; seen[k] = 1; n.kids.push({ name: word, emoji: '', kids: [] }); };
+    (rd.recreation || []).forEach(function(r){ var sb = String(r.category || '').toLowerCase(), t = String(r.recType || '').toLowerCase(), p = String(r.parent || '').toLowerCase(); if (String(r.item || '').toLowerCase() === 'arts & culture') return; put(r.item, SUBMAP[sb] || RECMAP[t] || (p === 'arts & culture' ? 'Arts' : 'Play')); });
+    (rd.skills || []).forEach(function(x){ put(x.item, SKILLMAP[String(x.category || '').toLowerCase()]); });
+    return out;
+  }
   var _gpTags = {};
 
   var _gpRefP = null;
@@ -426,15 +442,18 @@
 
     var lead = document.createElement('div');
     lead.style.cssText = 'font-size:13px;color:#6B7A8D;margin-bottom:8px;';
-    lead.textContent = 'Search for something, or tap one below.';
+    lead.textContent = key === 'introEnjoy' ? 'Search or add your own, tap one below, or browse the categories.' : 'Search or add your own, or tap one below.';
     box.appendChild(lead);
 
     var search = document.createElement('input');
     search.type = 'text';
-    search.placeholder = 'Search';
-    search.style.cssText = 'width:100%;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
+    search.placeholder = 'Search or add your own';
+    search.style.cssText = 'flex:1;min-width:0;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;'
       + 'padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;';
-    box.appendChild(search);
+    var sline = document.createElement('div'); sline.style.cssText = 'display:flex;gap:8px;';
+    var sadd = document.createElement('button'); sadd.type = 'button'; sadd.textContent = 'Add';
+    sadd.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:9px 18px;border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
+    sline.appendChild(search); sline.appendChild(sadd); box.appendChild(sline);
 
     var results = document.createElement('div');
     results.style.cssText = 'margin-top:6px;';
@@ -484,19 +503,19 @@
     other.textContent = '+ Other';
     other.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
       + 'background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;';
-    if (key === 'introEnjoy') other.textContent = 'Show me categories';
-    row.appendChild(other);
+    var catLabel = function(open){ var c = document.documentElement.className; var e = /cats-b/.test(c) ? '\u{1F9ED} ' : /cats-c/.test(c) ? '\u{1F4C2} ' : '\u{1F5C2}\uFE0F '; return open ? e + 'Hide categories' : e + (/cats-b/.test(c) ? 'Show me categories \u2014 browse all the topics' : 'Show me categories'); };
+    if (key === 'introEnjoy') { other.textContent = catLabel(false); other.className = 'gp-catbtn'; row.appendChild(other); }
 
     var otherBox = document.createElement('div');
     otherBox.style.cssText = 'display:none;margin-top:10px;';
-    var closeOther = function(){ otherBox.style.display = 'none'; otherBox.innerHTML = ''; };
+    var closeOther = function(){ otherBox.style.display = 'none'; otherBox.innerHTML = ''; search.value = ''; results.innerHTML = ''; repaint(); };
     box.appendChild(otherBox);
 
-    var openOther = function(){
+    var openOther = function(pre){
       otherBox.style.display = 'block';
       otherBox.innerHTML = '';
       var line = document.createElement('div');
-      line.style.cssText = 'display:flex;gap:8px;';
+      line.style.cssText = 'display:' + (pre ? 'none' : 'flex') + ';gap:8px;';
       otherBox.appendChild(line);
       var inp = document.createElement('input');
       inp.type = 'text';
@@ -557,8 +576,11 @@
         + 'border:0;background:#1F699E;color:#fff;cursor:pointer;';
       add.addEventListener('click', commit);
       line.appendChild(add);
-      setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0);
+      if (pre) { inp.value = pre; commit(); } else setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0);
     };
+    var addTyped = function(){ var v = String(search.value || '').trim(); if (v) openOther(v); };
+    sadd.addEventListener('click', addTyped);
+    search.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') { ev.preventDefault(); addTyped(); } });
     if (key === 'introEnjoy') {
       var drill = document.createElement('div');
       drill.style.cssText = 'display:none;margin-top:12px;';
@@ -570,7 +592,7 @@
         var lead = document.createElement('div');
         lead.style.cssText = 'font-size:13px;color:#6B7A8D;margin-bottom:8px;';
         if (!roots) { lead.textContent = 'Looking up the categories…'; drill.appendChild(lead); return; }
-        if (!path.length) { lead.textContent = 'Or browse by category:'; drill.appendChild(lead); }
+        if (!path.length) { lead.textContent = 'Browse by category:'; drill.appendChild(lead); }
         else {
           lead.style.cssText = 'font-size:13.5px;font-weight:700;color:#1A2E42;margin-bottom:10px;';
           var mk = function(text, to){ var a = document.createElement('a'); a.href = '#'; a.textContent = text; a.style.cssText = 'color:#1F699E;text-decoration:underline;cursor:pointer;'; a.addEventListener('click', function(e){ e.preventDefault(); path = to; drawDrill(); }); return a; };
@@ -579,10 +601,11 @@
           drill.appendChild(lead);
         }
         var lr = document.createElement('div'); lr.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
-        node().slice().sort(function(a, b){ return (b.kids.length ? 1 : 0) - (a.kids.length ? 1 : 0) || a.name.localeCompare(b.name); }).forEach(function(n){
-          var leaf = !n.kids.length;
+        var lst = node().slice(); if (path.length) lst.sort(function(a, b){ return a.name.localeCompare(b.name); });
+        lst.forEach(function(n){
+          var leaf = path.length > 0;
           var on = leaf && gpHasWord(key, n.name);
-          var b = gpPill((n.emoji ? n.emoji + ' ' : '') + n.name + (leaf ? '' : ' ›'), on);
+          var b = gpPill((n.emoji ? n.emoji + ' ' : '') + n.name, on);
           b.addEventListener('click', function(){
             if (!leaf) { path = path.concat([n.name]); drawDrill(); return; }
             if (gpHasWord(key, n.name)) gpDropWord(key, n.name, ta); else gpAddWord(key, n.name, path[path.length - 1] || path[0] || '', ta);
@@ -591,14 +614,13 @@
           lr.appendChild(b);
         });
         drill.appendChild(lr);
+        if (path.length && !node().length) { var em = document.createElement('div'); em.style.cssText = 'font-size:13px;color:#6B7A8D;'; em.textContent = 'Nothing is filed here yet. Type your own above and press Add.'; drill.appendChild(em); }
       };
       other.addEventListener('click', function(){
-        if (drill.style.display !== 'none') { drill.style.display = 'none'; other.textContent = 'Show me categories'; return; }
-        drill.style.display = 'block'; other.textContent = 'Hide categories'; drawDrill();
-        if (!roots && window.cwCategoryTree) window.cwCategoryTree({ skills: 'always' }).then(function(r){ roots = r || []; drawDrill(); }).catch(function(){ roots = []; drawDrill(); });
+        if (drill.style.display !== 'none') { drill.style.display = 'none'; other.textContent = catLabel(false); return; }
+        drill.style.display = 'block'; other.textContent = catLabel(true); drawDrill();
+        if (!roots) gpRefOnce().then(function(rd){ roots = gpTopicTree(rd || {}); drawDrill(); }).catch(function(){ roots = gpTopicTree({}); drawDrill(); });
       });
-    } else {
-      other.addEventListener('click', function(){ if (otherBox.style.display === 'none') openOther(); else closeOther(); });
     }
 
     
@@ -625,7 +647,7 @@
       if (!hits.length) {
         var none = document.createElement('div');
         none.style.cssText = 'font-size:13px;color:#6B7A8D;margin-top:6px;';
-        none.textContent = 'Nothing matches. Tap + Other to add it in your own words.';
+        none.textContent = 'Nothing matches. Press Add to add it in your own words.';
         results.appendChild(none);
       }
     });
@@ -893,6 +915,22 @@
       wrap.appendChild(t); wrap.appendChild(h); wrap.appendChild(ta);
       var chipRow = gpPicker(q.key, ta) || gpChipRow(q.key, ta);
       if (chipRow) wrap.appendChild(chipRow);
+      if (q.key === 'introOffer') {
+        [['Something I’m offering', ['\u{1F4E6} Physical goods', '\u{1F372} Consumables', '\u{1FAB4} Living things']], ['A space I’m offering', ['\u{1F3E0} Home', '\u{1F6CF}️ Room', '\u{1F5E3}️ Meeting room', '\u{1F3AA} Venue', '\u{1F3A8} Studio', '\u{1F527} Workshop', '\u{1F4BB} Desk']]].forEach(function(g){
+          var gt = document.createElement('div'); gt.style.cssText = 'font-size:14px;font-weight:800;color:#1A2E42;margin:16px 0 8px;'; gt.textContent = g[0]; wrap.appendChild(gt);
+          wrap.appendChild(gpPickRow(g[1], _gpOfferPicked, 0).row);
+        });
+      }
+      if (q.key === 'introNeed') {
+        var op = document.createElement('div'); op.style.cssText = 'margin-top:18px;';
+        op.innerHTML = '<div style="font-size:15px;font-weight:800;color:#1A2E42;margin-bottom:2px;">Open to opportunities? <span style="display:inline-block;vertical-align:middle;margin-left:6px;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:12px;background:#EEF0F3;color:#6B7A8D;">Optional</span></div>'
+          + '<div style="font-size:13.5px;color:#6B7A8D;margin-bottom:10px;">Enable if you’re open to opportunities, paid or unpaid. We’ll ask you questions to find the right fit and receive compatible matches.</div>';
+        var sw = document.createElement('button'); sw.type = 'button';
+        var drawSw = function(){ sw.innerHTML = '<span style="display:inline-block;width:44px;height:26px;border-radius:13px;vertical-align:middle;position:relative;background:' + (_gpOpen ? '#1F699E' : '#C9D3DE') + ';"><span style="position:absolute;top:3px;left:' + (_gpOpen ? '21px' : '3px') + ';width:20px;height:20px;border-radius:50%;background:#fff;"></span></span><span style="margin-left:10px;vertical-align:middle;font-weight:700;color:#1A2E42;">' + (_gpOpen ? 'On' : 'Off') + '</span>'; };
+        sw.style.cssText = 'font:inherit;font-size:14px;background:none;border:0;padding:0;cursor:pointer;';
+        sw.addEventListener('click', function(){ _gpOpen = !_gpOpen; drawSw(); }); drawSw();
+        op.appendChild(sw); wrap.appendChild(op);
+      }
       blocks[q.key] = wrap;
       if (q.key === 'introSkills') {
         blocks.lang = gpLanguagesBlock();
