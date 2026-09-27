@@ -34,6 +34,8 @@
   .cw-intro-box::placeholder{color:#4B5A6D;opacity:1;}
   .io-step{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#1F699E;margin:0 0 6px;}
   .io-back{font:inherit;background:none;border:0;color:#1F699E;text-decoration:underline;cursor:pointer;font-size:14px;margin-right:auto;padding:0;}
+  .io-need{color:#B3261E !important;font-weight:700;}
+  .io-miss{box-shadow:inset 4px 0 0 #B3261E;padding-left:14px !important;}
   .io-pane{display:none;width:100%;height:900px;border:0;}
   html.cw-prail-on .wrap{max-width:1200px;}
 </style>
@@ -824,7 +826,7 @@
   }
 
   function gpChoosePhoto(){
-    if (!meId) { gpPhotoStat('This device does not know who you are yet.'); return; }
+    if (!meId) { var li = document.createElement('input'); li.type = 'file'; li.accept = 'image/*'; li.onchange = function(){ var f = li.files && li.files[0]; if (f) { gpPhotoShow(URL.createObjectURL(f)); gpPhotoStat(''); } }; li.click(); return; }
     if (!gpToken()) { gpPhotoStat('Sign in again and your photo will go straight up.'); return; }
     var inp = document.createElement('input');
     inp.type = 'file'; inp.accept = 'image/*';
@@ -1260,7 +1262,7 @@
     var answers = view === 'answers';
     pane.style.display = answers ? 'block' : 'none';
     qs.style.display = answers ? 'none' : '';
-    foot.style.display = answers ? 'none' : '';
+    foot.style.display = answers ? 'none' : 'flex';
     if (answers) { try { gpHandoff(); } catch (e) {} pane.src = '/design/after-onboarding/?from=onepage&inpane=1&cb=' + Date.now(); }
     Array.prototype.forEach.call(qs.querySelectorAll('[data-k]'), function(b){
       var on = si > -1 && STEPS[si].keys.indexOf(b.getAttribute('data-k')) > -1;
@@ -1276,11 +1278,38 @@
     go.textContent = done ? 'Done' : (si === STEPS.length - 1 ? 'Finish' : 'Next');
     url(view);
     paintRail();
+    stat.textContent = ''; Array.prototype.forEach.call(qs.querySelectorAll('.io-miss'), function(b){ b.classList.remove('io-miss'); });
     try { window.scrollTo(0, 0); } catch (e) {}
   }
+  var NEED = {
+    photo: ['your photo', function(){ return !!document.querySelector('#gp-photo-face img'); }],
+    loc: ['where you are', function(){ return !!(window._gpLoc && _gpLoc.country); }],
+    lang: ['a language', function(){ return Object.keys(window._gpLangPicked || {}).some(function(k){ return _gpLangPicked[k]; }); }],
+    introEnjoy: ['one thing you enjoy', function(){ var t = document.getElementById('gp-intro-introEnjoy'); return !!(t && t.value.trim()); }],
+    introValues: ['one thing you care about', function(){ var t = document.getElementById('gp-intro-introValues'); return !!(t && t.value.trim()); }],
+    methods: ['what comes most naturally', function(){ return Object.keys(window._gpMethodPicked || {}).some(function(k){ return _gpMethodPicked[k]; }); }],
+    introSkills: ['one skill', function(){ var t = document.getElementById('gp-intro-introSkills'); return !!(t && t.value.trim()); }],
+    thanks: ['how you like to be appreciated', function(){ return Object.keys(window._gpThanksPicked || {}).some(function(k){ return _gpThanksPicked[k]; }); }]
+  };
+  var stat = document.getElementById('gp-intro-status');
+  function stillNeeded(si){
+    var miss = [];
+    STEPS[si].keys.forEach(function(k){
+      var b = qs.querySelector('[data-k="' + k + '"]');
+      var bad = NEED[k] && !NEED[k][1]();
+      if (b) b.classList.toggle('io-miss', !!bad);
+      if (bad) miss.push(NEED[k][0]);
+    });
+    return miss;
+  }
+  qs.addEventListener('click', function(){ setTimeout(function(){ if (!stat.textContent) return; var si = -1; STEPS.forEach(function(s, i){ if (s.slug === view) si = i; }); if (si > -1 && !stillNeeded(si).length) stat.textContent = ''; }, 0); });
+  qs.addEventListener('input', function(){ if (!stat.textContent) return; var si = -1; STEPS.forEach(function(s, i){ if (s.slug === view) si = i; }); if (si > -1 && !stillNeeded(si).length) stat.textContent = ''; });
   back.addEventListener('click', function(){ var si = 0; STEPS.forEach(function(s, i){ if (s.slug === view) si = i; }); if (si > 0) { view = STEPS[si - 1].slug; show(); } });
   go.addEventListener('click', function(){
     var si = -1; STEPS.forEach(function(s, i){ if (s.slug === view) si = i; });
+    var miss = si > -1 ? stillNeeded(si) : [];
+    if (miss.length) { stat.textContent = 'Still needed: ' + (miss.length > 1 ? miss.slice(0, -1).join(', ') + ' and ' + miss[miss.length - 1] : miss[0]) + '.'; stat.className = 'io-need'; var fb = qs.querySelector('.io-miss'); if (fb && fb.scrollIntoView) fb.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    stat.textContent = ''; stat.className = '';
     if (done) { view = 'answers'; show(); return; }
     if (si < STEPS.length - 1) { view = STEPS[si + 1].slug; show(); return; }
     try { gpHandoff(); sessionStorage.setItem('io-done', '1'); } catch (e) {}
