@@ -18,7 +18,7 @@
   window.cwRecKinds = REC_KINDS.slice();
   window.cwCategoryTree = function(opts){
     opts = opts || {};
-    var skillsMode = opts.skills === 'fallback' ? 'fallback' : 'always';
+    var skillsMode = opts.skills === 'fallback' ? 'fallback' : (opts.skills === 'none' ? 'none' : 'always');
     return data().then(function(d){
       var tops = {}, emoji = {}, order = [];
       var top = function(name, e){
@@ -43,7 +43,7 @@
         if (r.category) { at = kid(at, String(r.category).trim()); path.push(at.name); recPath[at.name.toLowerCase()] = path.slice(); }
         leaf(at, String(r.item).trim());
       });
-      (d.rd.skills || []).forEach(function(s){
+      (skillsMode === 'none' ? [] : (d.rd.skills || [])).forEach(function(s){
         if (!s || !s.item) return;
         var c = String(s.category || '').trim();
         if (!c) return;
