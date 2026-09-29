@@ -116,6 +116,10 @@
   var GP_REQ = GP_RAIL && (params.get('req') || '') !== '0';
   var GP_EDIT = GP_RAIL && (params.get('edit') || '') === '1';
   var GP_AVATAR = GP_RAIL && (params.get('avatar') || '') === '1';
+  var GP_NEW = GP_RAIL && (params.get('new') || '') === '1';
+  var GP_NEW_ORDER = [0, 1, 3, 2, 5, 4];
+  var GP_NEW_LABELS = { 0: 'About you', 1: 'Joys', 2: 'Skills', 3: 'Cares', 4: 'Seeking', 5: 'Offerings' };
+  function gpNewOrder(){ return GP_NEW_ORDER.concat([GP_LAST]); }
   var GP_OTHER = (function(){ var v = parseInt(params.get('other'), 10); return (v >= 1 && v <= 4) ? v : 0; })();
   var GP_PURPOSE_TRY = (function(){ var v = String(params.get('purpose') || '').toLowerCase(); if (v === 'a' || v === 'b') return v; return (v === '0' || v === 'off') ? '' : 'c'; })();
   var GP_VALUES_TRY = GP_RAIL && (params.get('values') || '') === '1';
@@ -2416,9 +2420,10 @@
   var GP_BAL = GP_STEP_TITLES.indexOf('Balance');
   var GP_PURPOSE = GP_STEP_TITLES.indexOf('Purpose');
   function gpReqAllDone(){ try { return GP_REQ_ITEMS.every(function(r){ return r.done(); }); } catch (e) { return false; } }
-  function gpSkipped(n){ return GP_RAIL && ((n === 6 && window._gpDrawn && !window._gpOTW) || (n === GP_BAL && window._gpBal !== true)
+  function gpSkipped(n){ if (GP_NEW) return gpNewOrder().indexOf(n) < 0; return GP_RAIL && ((n === 6 && window._gpDrawn && !window._gpOTW) || (n === GP_BAL && window._gpBal !== true)
     || (GP_REQ && n === GP_PURPOSE && !gpReqAllDone())); }
-  function gpNextFrom(n){ n++; while (n < GP_STEP_TITLES.length - 1 && gpSkipped(n)) n++; return n; }
+  function gpPrevFrom(n){ if (GP_NEW) { var o = gpNewOrder(), i = o.indexOf(n); return i > 0 ? o[i - 1] : 0; } return n - 1; }
+  function gpNextFrom(n){ if (GP_NEW) { var o = gpNewOrder(), i = o.indexOf(n); return (i > -1 && i < o.length - 1) ? o[i + 1] : GP_LAST; } n++; while (n < GP_STEP_TITLES.length - 1 && gpSkipped(n)) n++; return n; }
   var _gpStep = 0;
   var GP_LAST = GP_STEP_TITLES.length - 1;
   var GP_PERM = -1;
@@ -2488,8 +2493,8 @@
   }
   function gpStepOK(n){
     if (GP_RAIL) {
-      if (n === 0) return !!(window._gpPhotoUp || document.querySelector('#gp-photo-face img')) && !!gpLocString(_gpLoc);
-      if (n === 2) return gpAnswered('introSkills') && Object.keys(_gpLangPicked || {}).some(function(k){ return _gpLangPicked[k]; });
+      if (n === 0) return !!(window._gpPhotoUp || document.querySelector('#gp-photo-face img')) && !!gpLocString(_gpLoc) && (!GP_NEW || Object.keys(_gpLangPicked || {}).some(function(k){ return _gpLangPicked[k]; }));
+      if (n === 2) return gpAnswered('introSkills') && (GP_NEW || Object.keys(_gpLangPicked || {}).some(function(k){ return _gpLangPicked[k]; }));
     }
     if (GP_BROWSE && GP_REQUIRED_STEPS[n]) return gpAnswered(GP_REQUIRED_STEPS[n].key);
     if (n !== 0) return true;
@@ -4564,7 +4569,7 @@
     { label: 'Where you are',            head: 'Where are you?',                step: 0, done: function(){ return !!gpLocString(_gpLoc); } },
     { label: 'One thing you enjoy',      head: 'What do you enjoy?',            step: 1, done: function(){ return gpAnswered('introEnjoy'); } },
     { label: 'One skill',                head: 'What skills do you have?',      step: 2, done: function(){ return gpAnswered('introSkills'); } },
-    { label: 'One language',             head: 'Which languages do you speak?', step: 2, done: function(){ return gpHasLang(); } },
+    { label: 'One language',             head: 'Which languages do you speak?', step: GP_NEW ? 0 : 2, done: function(){ return gpHasLang(); } },
     { label: 'One thing you care about', head: 'What do you care about?',       step: 3, done: function(){ return gpAnswered('introValues'); } }
   ];
   function gpWelcomeDone(){
@@ -4883,6 +4888,13 @@
   function gpRailBlock(id, step, title, hint, body){
     var b = gpBlock(title, hint, body); b.id = id; b.setAttribute('data-gp-step', String(step)); return b;
   }
+  function gpNewArrange(){
+    var box = document.getElementById('gp-intro-qs'); if (!box) return;
+    var langs = document.getElementById('gp-langs-block'), loc = box.querySelector('[data-gp-loc]');
+    if (langs && loc && loc.parentNode) { langs.setAttribute('data-gp-step', '0'); loc.parentNode.insertBefore(langs, loc.nextSibling); }
+    var thanks = document.getElementById('gp-thanks-block'), methods = document.getElementById('gp-methods-block');
+    if (thanks && methods && methods.parentNode) { thanks.setAttribute('data-gp-step', '2'); methods.parentNode.insertBefore(thanks, methods.nextSibling); }
+  }
   function gpRailArrange(){
     var box = document.getElementById('gp-intro-qs'); if (!box) return;
     var purposeB = null;
@@ -5108,7 +5120,7 @@
   if (GP_RAIL) {
     var _gpRender0 = gpRenderIntro;
     gpRenderIntro = function(p){
-      _gpRender0(p); gpRailArrange();
+      _gpRender0(p); gpRailArrange(); if (GP_NEW) gpNewArrange();
       var _want = gpStepFromSlug(params.get('step') || gpPathStep());
       if (_want === GP_PERM && GP_PERM === -1) _want = -1;
       if (_want < 0 && meId && !window._gpDrawn && !window._gpLoadFailed) { window._gpLandLater = true; var _gr = document.getElementById('gp-rail'); if (_gr) _gr.innerHTML = ''; return; }
@@ -5125,6 +5137,7 @@
       + 'html.gp-rail .gp-layout{margin-top:24px;}'
       + '@media(max-width:700px){html.gp-rail .gp-layout{margin-top:14px;}}'
       + '.gp-layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:18px;align-items:start;}'
+      + 'html.gp-new-norail .gp-layout{grid-template-columns:1fr !important;}html.gp-new-norail .gp-tabs,html.gp-new-norail #gp-rail{display:none !important;}'
       + '.gp-tabs{display:flex;flex-direction:column;gap:8px;background:#fff;border-radius:14px;padding:12px;position:sticky;top:16px;}'
       + '.gp-tab{display:block;width:100%;text-align:left;font:inherit;font-size:15px;font-weight:700;padding:11px 14px;border-radius:10px;'
       +   'border:1.5px solid #C9D6E2;background:#fff;color:#1F699E;cursor:pointer;}'
@@ -5189,10 +5202,12 @@
     var waiting = document.getElementById('gp-wait') && document.getElementById('gp-wait').style.display !== 'none';
     var reach = waiting ? 99 : gpRailReach();
     var h = '';
-    GP_STEP_TITLES.forEach(function(l, i){
+    if (GP_NEW) document.documentElement.classList.toggle('gp-new-norail', waiting || !(GP_REQ && gpReqAllDone()));
+    (GP_NEW ? gpNewOrder() : GP_STEP_TITLES.map(function(t, k){ return k; })).forEach(function(i){
+      var lt = GP_STEP_TITLES[i], l = GP_NEW ? (i === GP_LAST ? 'Answers' : GP_NEW_LABELS[i]) : lt;
       if (gpSkipped(i)) return;                        
       if (GP_RAIL_QUESTIONS_ONLY && i === GP_PERM) return;
-      if (i === 0 && i !== _gpStep && GP_REQ && gpReqAllDone()) return;
+      if (!GP_NEW && i === 0 && i !== _gpStep && GP_REQ && gpReqAllDone()) return;
       if (waiting) return;
       if (i > reach && i !== _gpStep) return;
       var _badge = '', _need = '';
@@ -5201,7 +5216,7 @@
         _badge = _ok ? '<span class="gp-tab-done">\u2713</span>'
                      : '<span class="gp-tab-req" aria-label="Required" title="Required"></span>';
         if (!_ok) _need = ' need';
-      } else if (i !== GP_LAST && gpStepAnswered(l)) {
+      } else if (i !== GP_LAST && gpStepAnswered(lt)) {
         _badge = '<span class="gp-tab-done">\u2713</span>';
       }
       var _wait = (i > 0 && waiting) ? ' waiting' : '';
@@ -5233,6 +5248,7 @@
     r.querySelectorAll('[data-rail]').forEach(function(b){
       b.onclick = function(){
         var n = parseInt(b.getAttribute('data-rail'), 10);
+        if (GP_NEW) { if (n === GP_LAST) { gpSaveIntro(); return; } gpQuietSave(); gpShowStep(n); return; }
         if (n <= _gpStep) { gpShowStep(n); return; }
         if (GP_EDIT) { gpQuietSave(); gpShowStep(n); return; }
         for (var i = _gpStep; i < n; i++) { if (!gpStepOK(i)) { gpShowStep(i); gpStepPaint(); return; } }
@@ -5256,7 +5272,7 @@
     gpQuietSave();
     gpShowStep(gpNextFrom(_gpStep));
   });
-  document.getElementById('gp-step-back').addEventListener('click', function(){ gpShowStep(_gpStep - 1); });
+  document.getElementById('gp-step-back').addEventListener('click', function(){ gpShowStep(gpPrevFrom(_gpStep)); });
   document.getElementById('gp-step-skip').addEventListener('click', function(){ gpQuietSave(); gpShowStep(_gpStep + 1); });
   gpRenderIntro(null);
   function gpWaiting(on){
