@@ -16,10 +16,27 @@
   }
   window.cwCategorySep = SEP;
   window.cwRecKinds = REC_KINDS.slice();
+  var TOPIC_REC = { 'sports': 'Play', 'games & strategy': 'Play', 'movement & performance': 'Movement', 'outdoor & nature': 'Outdoors', 'music': 'Arts' };
+  var TOPIC_SUB = { 'visual art': 'Arts', 'textile & fiber': 'Arts', 'wood, metal & jewelry': 'Building & Repurposing', 'paper & books': 'Arts', 'photo, film & digital': 'Arts', 'collecting': 'Play' };
+  var TOPIC_SKILL = { 'arts & culture': 'Arts', 'food & drink': 'Food & Drink', 'physical wellbeing': 'Medicine', 'mental wellbeing': 'Medicine', 'family wellbeing': 'Home Life', 'self-expression & beauty': 'Personal Care', 'home & construction': 'Building & Repurposing', 'transportation': 'Transportation', 'mechanical & manufacturing': 'Building & Repurposing', 'business & finance': 'Business', 'community & civic': 'Community & Culture', 'recreation & hobbies': 'Play', 'technology & communications': 'Technology', 'nature & outdoors': 'Outdoors', 'social events & gatherings': 'Community & Culture', 'events & gatherings': 'Community & Culture', 'pets & animal care': 'Animals', 'making & collecting': 'Arts', 'basic needs and security': 'Community & Culture' };
+  function topicTree(rd, skillsMode, skillsOnly){
+    var out = [], by = {}, seen = {};
+    rd.topicCategories.forEach(function(t){ var n = node(String(t.label || '').trim(), t.emoji || ''); if (!n.name) return; by[n.name.toLowerCase()] = n; out.push(n); });
+    var put = function(word, cat){ word = String(word || '').trim(); var n = by[String(cat || '').toLowerCase()]; if (!word || !n) return; var k = n.name + '|' + word.toLowerCase(); if (seen[k]) return; seen[k] = 1; n.kids.push(node(word)); };
+    if (!skillsOnly) rd.topicCategories.forEach(function(t){ (t.examples || []).forEach(function(w){ w = String(w || '').trim(); if (w) put(w.charAt(0).toUpperCase() + w.slice(1), t.label); }); });
+    (skillsOnly ? [] : (rd.recreation || [])).forEach(function(r){
+      if (!r || !r.item || String(r.item).toLowerCase() === 'arts & culture') return;
+      var sb = String(r.category || '').toLowerCase(), ty = String(r.recType || '').toLowerCase(), pa = String(r.parent || '').toLowerCase();
+      put(r.item, TOPIC_SUB[sb] || TOPIC_REC[ty] || (pa === 'arts & culture' ? 'Arts' : 'Play'));
+    });
+    if (skillsMode !== 'none') (rd.skills || []).forEach(function(s){ if (s && s.item) put(s.item, TOPIC_SKILL[String(s.category || '').toLowerCase()]); });
+    return out;
+  }
   window.cwCategoryTree = function(opts){
     opts = opts || {};
     var skillsMode = opts.skills === 'fallback' ? 'fallback' : (opts.skills === 'none' ? 'none' : 'always');
     return data().then(function(d){
+      if (opts.topics && Array.isArray(d.rd.topicCategories) && d.rd.topicCategories.length) return topicTree(d.rd, skillsMode, !!opts.skillsOnly);
       var tops = {}, emoji = {}, order = [];
       var top = function(name, e){
         name = String(name || '').trim();
