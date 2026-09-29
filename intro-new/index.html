@@ -1189,19 +1189,37 @@
         String(have.methods || '').split('|').forEach(function(m){ var v = String(m).trim(); if (v) _gpMethodPicked[v] = true; });
         String(have.appreciation || '').split('|').forEach(function(m){ var v = String(m).trim(); if (v) _gpThanksPicked[v] = true; });
         window._ioLocText = String(have.location || '').trim();
-        ioLocFrom(window._ioLocText);
+        ioLocFrom(window._ioLocText, have);
         window._ioLoadedOk = true;
         window._ioDoneLoaded = !!(use.introEnjoy && use.introValues && use.introSkills && Object.keys(_gpMethodPicked).length && Object.keys(_gpThanksPicked).length && Object.keys(_gpLangPicked).length && window._ioLocText);
         gpRenderIntro(use);
         return true;
       });
   }
-  function ioLocFrom(v){
-    v = String(v || '').trim(); if (!v) return;
-    var parts = v.split(',').map(function(x){ return x.trim(); });
-    if (parts.length > 1 && parts[parts.length - 1] === 'United States') { var st = parts.filter(function(x){ return GP_US.indexOf(x) > -1; })[0]; _gpLoc = { region: 'North America', country: 'United States', state: st || '' }; return; }
-    if (GP_NA.indexOf(v) > -1) { _gpLoc = { region: 'North America', country: v, state: '' }; return; }
-    if (GP_REGIONS.indexOf(v) > -1) { _gpLoc = { region: v, country: '', state: '' }; }
+  function ioLocFrom(v, have){
+    v = String(v || '').trim(); have = have || {};
+    var parts = v ? v.split(',').map(function(x){ return x.trim(); }).filter(Boolean) : [];
+    var abbr = {}; Object.keys(GP_US_ABBR).forEach(function(n){ abbr[String(GP_US_ABBR[n]).toUpperCase()] = n; });
+    var region = '', country = '', state = '', used = {};
+    parts.forEach(function(p, i){
+      var u = p.toUpperCase();
+      if (!state && GP_US.indexOf(p) > -1) { state = p; used[i] = 1; }
+      else if (!state && abbr[u]) { state = abbr[u]; used[i] = 1; }
+      else if (!country && GP_NA.indexOf(p) > -1) { country = p; used[i] = 1; }
+      else if (!country && /^(USA|US|U\.S\.A?\.?|UNITED STATES OF AMERICA)$/.test(u)) { country = 'United States'; used[i] = 1; }
+      else if (!region && GP_REGIONS.indexOf(p) > -1) { region = p; used[i] = 1; }
+      else if (/^\d{5}(-\d{4})?$/.test(p)) { used[i] = 1; }
+    });
+    if (state) country = 'United States';
+    if (GP_NA.indexOf(country) > -1) region = 'North America';
+    if (region || country || state) _gpLoc = { region: region, country: country, state: state };
+    var left = parts.filter(function(p, i){ return !used[i]; });
+    var zip = parts.filter(function(p){ return /^\d{5}(-\d{4})?$/.test(p); })[0] || '';
+    _gpPlace = {
+      county: String(have.county || '').trim(),
+      city: String(have.city || '').trim() || (left.length ? left[0] : ''),
+      postal: String(have.postal || '').trim() || zip
+    };
   }
   function ioLocString(l){
     if (l.state) return l.state + ', United States';
@@ -1312,7 +1330,7 @@
     stepLab.style.display = stepLab.textContent ? '' : 'none';
     title.textContent = done ? STEPS[si] && STEPS[si].rail || '' : 'Before you go in';
     back.style.display = (!done && si > 0) ? '' : 'none';
-    go.textContent = done ? 'Done' : (si === STEPS.length - 1 ? 'Finish' : 'Next');
+    go.textContent = (si === STEPS.length - 1) ? (done ? 'Done' : 'Finish') : 'Next';
     url(view);
     paintRail();
     if (!/^(Saved\.|You\u2019re viewing)/.test(stat.textContent)) stat.textContent = ''; Array.prototype.forEach.call(qs.querySelectorAll('.io-miss'), function(b){ b.classList.remove('io-miss'); });
@@ -1351,8 +1369,8 @@
       go.disabled = false;
       var dn = (res && res.dropped) || [];
       stat.textContent = (res && res.viewing) ? 'You\u2019re viewing as ' + res.viewing + '. Nothing is saved here.' : dn.length ? 'Saved. Removing ' + dn.slice(0, 3).join(', ') + (dn.length > 3 ? ' and others' : '') + ' is not saved yet in this test.' : '';
-      if (done) { view = 'answers'; show(); return; }
       if (si < STEPS.length - 1) { view = STEPS[si + 1].slug; show(); return; }
+      if (done) { view = 'answers'; show(); return; }
       try { gpHandoff(); } catch (e) {}
       if (forGroup) { location.href = '/design/group-joined/?cb=' + Date.now(); return; }
       done = true; railOn(); view = 'answers'; show();
