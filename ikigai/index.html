@@ -3143,6 +3143,63 @@
     if (!window._gpNewTopics) { gpNewTopicsLoad().then(function(){ gpNewPost(fr); }); return; }
     gpNewPost(fr);
   }
+  var _gpDet = {}, _gpDetSent = {}, _gpDetT = null, _gpDetBusy = false, _gpDetTries = 0;
+  function gpDetailQueue(word, a){
+    var k = String(word || '').trim().toLowerCase();
+    if (!k || !meId) { return; }
+    var txt = a ? JSON.stringify(a) : '';
+    if (_gpDetSent[k] === txt && _gpDet[k] === undefined) { return; }
+    if (_gpDetSent[k] === undefined && !txt && _gpDet[k] === undefined) { return; }
+    _gpDet[k] = a || null;
+    clearTimeout(_gpDetT);
+    _gpDetT = setTimeout(gpDetailSend, 1500);
+  }
+  function gpDetailSend(last){
+    clearTimeout(_gpDetT);
+    if (_gpDetBusy && !last) { _gpDetT = setTimeout(gpDetailSend, 1500); return; }
+    var keys = Object.keys(_gpDet), part = {}, size = 2;
+    if (!keys.length) { return; }
+    keys.some(function(k){
+      var add = JSON.stringify(k).length + JSON.stringify(_gpDet[k]).length + 2;
+      if (size > 2 && size + add > 1500) { return true; }
+      part[k] = _gpDet[k]; size += add; delete _gpDet[k];
+      return false;
+    });
+    var putBack = function(){ Object.keys(part).forEach(function(k){ if (_gpDet[k] === undefined) { _gpDet[k] = part[k]; } }); };
+    _gpDetBusy = true;
+    fetch(GS_URL + '?action=saveAnswerDetails&appearId=' + encodeURIComponent(meId) + '&details=' + encodeURIComponent(JSON.stringify(part)), { keepalive: true })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        _gpDetBusy = false;
+        if (d && d.status === 'ok') {
+          _gpDetTries = 0;
+          Object.keys(part).forEach(function(k){ _gpDetSent[k] = part[k] ? JSON.stringify(part[k]) : ''; });
+          if (Object.keys(_gpDet).length) { gpDetailSend(); }
+          return;
+        }
+        putBack();
+        if (d && (d.status === 'norow' || d.status === 'busy') && _gpDetTries < 5) { _gpDetTries++; _gpDetT = setTimeout(gpDetailSend, 8000); }
+      })
+      .catch(function(){ _gpDetBusy = false; putBack(); if (_gpDetTries < 3) { _gpDetTries++; _gpDetT = setTimeout(gpDetailSend, 8000); } });
+  }
+  window.addEventListener('pagehide', function(){ if (Object.keys(_gpDet).length) { gpDetailSend(true); } });
+  function gpDetailsFromServer(raw){
+    var got = {};
+    try { got = JSON.parse(String(raw || '') || '{}') || {}; } catch (e) { got = {}; }
+    if (typeof got !== 'object' || Array.isArray(got)) { got = {}; }
+    var KEPT = ['enjoyWith', 'enjoyWho', 'who', 'whoAdded', 'serveWhat', 'serveWho', 'serveNature', 'gives', 'paid', 'unpaidKind', 'unpaidTime', 'workAsked', 'workOpen'];
+    try {
+      var all = JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {};
+      Object.keys(got).forEach(function(k){
+        _gpDetSent[k] = JSON.stringify(got[k]);
+        if (_gpDet[k] !== undefined) { return; }
+        var mine = all[k] || {};
+        KEPT.forEach(function(f){ if (got[k][f] !== undefined) { mine[f] = got[k][f]; } else { delete mine[f]; } });
+        all[k] = mine;
+      });
+      sessionStorage.setItem('ao-details', JSON.stringify(all));
+    } catch (e) {}
+  }
   function gpNewMsgs(){
     if (window._gpNewMsgs) { return; }
     window._gpNewMsgs = true;
@@ -3152,6 +3209,7 @@
       document.querySelectorAll('iframe').forEach(function(f){ if (f.contentWindow === e.source) { fr = f; } });
       if (!fr) { return; }
       if (d.ao === 'h') { fr.style.height = Math.max(fr.classList.contains('gp-cards') ? 60 : 400, d.h) + 'px'; return; }
+      if (d.ao === 'details') { if (!gpViewingSomebodyElse()) { gpDetailQueue(d.word, d.a); } return; }
       if (!fr.classList.contains('gp-cards')) { return; }
       if (d.ao === 'ready') { gpNewPost(fr); return; }
       if (d.ao === 'edit') {
@@ -3173,7 +3231,13 @@
       }
       if (gpViewingSomebodyElse()) { return; }
       var ta = document.getElementById('gp-intro-' + d.key);
-      if (d.ao === 'drop') { if (ta) { gpDropWord(d.key, d.word, ta); } return; }
+      if (d.ao === 'drop') {
+        if (ta) { gpDropWord(d.key, d.word, ta); }
+        var lowD = String(d.word || '').toLowerCase();
+        var still = Object.keys(GP_FIT_KEY).some(function(t){ return gpPickedWords(GP_FIT_KEY[t]).some(function(x){ return x.toLowerCase() === lowD; }); });
+        if (!still) { gpDetailQueue(d.word, null); }
+        return;
+      }
       if (d.ao === 'rename') {
         var from = String(d.from || ''), to = String(d.to || '').trim();
         if (!from || !to) { return; }
@@ -5867,6 +5931,7 @@
         if (gpLocString(_gpLoc)) any = true;
         window._gpDrawn = true;
         if (fresh) { window._gpLoaded = true; }
+        if (fresh && GP_NEW) { gpDetailsFromServer(have.answerDetails); }
         if (any || fresh) { gpRenderIntro(use); }
         if (fresh && window._gpWantedSave) { window._gpWantedSave = false; var _st = document.getElementById('gp-intro-status'); if (_st) _st.textContent = ''; gpQuietSave(); }
         gpWaiting(false);

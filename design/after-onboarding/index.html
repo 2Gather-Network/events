@@ -152,7 +152,6 @@
     <div class="prog"><div class="bar"><i id="ao-bar"></i></div><b id="ao-count"></b></div>
     <div class="topbtns"><button class="btn" type="button" id="ao-rest"></button><button class="btn ghost" type="button" id="ao-all">Show all answers</button></div>
     <div class="band" id="ao-band"></div>
-    <div class="fitnote">The category and your level save. The other details on each card do not save yet.</div>
     <div class="grid" id="ao-grid"></div>
     <div class="foot">
       <button class="btn" type="button" id="ao-go">See who and what fits me</button>
@@ -330,6 +329,7 @@
     if (!nw || nw.toLowerCase() === String(old).toLowerCase()) return;
     it.word = nw;
     try { var all = sharedAll(); delete all[String(old).toLowerCase()]; sessionStorage.setItem('ao-details', JSON.stringify(all)); } catch (e) {}
+    if (INPANE) toParent({ ao: 'details', word: old, a: null });
     if (FITP) toParent({ ao: 'rename', key: FITKEY[FITP], from: old, to: nw });
     redraw();
   }
@@ -389,6 +389,7 @@
     var sw = it.a.serveWhat || [], at = sw.indexOf('Self');
     if (at > -1) sw.splice(at, 1);
     if (has(it, 'skill') && it.inSkills && !(it.a.workOpen || []).length) it.a.workOpen = [Q.workOpen.opts[0]];
+    if (has(it, 'enjoy') && (it.a.enjoyWith || []).length) { it.a.how = it.a.how || []; if (it.a.how.indexOf('I do it myself') < 0) it.a.how.push('I do it myself'); }
   }
   function missingHere(it){
     var m = missing(it);
@@ -981,7 +982,7 @@
     var sv = el('button', 'btn', 'Done'); sv.type = 'button';
     sv.addEventListener('click', function(){ finishEdit(); });
     nav.appendChild(sv);
-    nav.appendChild(el('span', 'wait', FITP ? 'Saved as you tap: the category, Fan or I do it myself, your level, and how you do or know it. Not saved yet: who with, who for, and work. Those reset when you leave this page.' : 'These answers stay only until you leave this page.'));
+    nav.appendChild(el('span', 'wait', FITP ? 'Your answers save as you tap.' : 'These answers stay only until you leave this page.'));
     c.appendChild(nav);
     grid.appendChild(c);
     commitDraft();
@@ -991,6 +992,16 @@
   function sharedAll(){ try { return JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}; } catch (e) { return {}; } }
   function shareDetails(it){
     try { var all = sharedAll(); var a = JSON.parse(JSON.stringify(it.a || {})); delete a.cat; all[String(it.word).toLowerCase()] = a; sessionStorage.setItem('ao-details', JSON.stringify(all)); } catch (e) {}
+    if (INPANE) toParent({ ao: 'details', word: it.word, a: slimDetails(it.a) });
+  }
+  var KEPT = ['enjoyWith', 'enjoyWho', 'who', 'whoAdded', 'serveWhat', 'serveWho', 'serveNature', 'gives', 'paid', 'unpaidKind', 'unpaidTime', 'workAsked', 'workOpen'];
+  function slimDetails(a){
+    var out = {}, any = false;
+    KEPT.forEach(function(k){
+      var v = (a || {})[k];
+      if (Array.isArray(v) ? v.length : (v === true || (typeof v === 'string' && v))) { out[k] = JSON.parse(JSON.stringify(v)); any = true; }
+    });
+    return any ? out : null;
   }
   function takeShared(){
     var all = sharedAll();
