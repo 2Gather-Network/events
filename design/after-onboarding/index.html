@@ -102,6 +102,13 @@
   .tabs + .qbox{margin-top:0;border-top-left-radius:0;border-top-right-radius:0;}
   .tabs .tab{margin-bottom:-1px;position:relative;z-index:1;}
   .tabs .tab.on{box-shadow:none;}
+  .fg{border:1px solid var(--line);border-radius:10px;margin-top:8px;background:#fff;}
+  .fgh{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:9px 12px;cursor:pointer;font:inherit;text-align:left;}
+  .fgh .ch{color:var(--blue);font-size:12px;width:12px;}
+  .fgn{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);white-space:nowrap;}
+  .fgs{flex:1;min-width:0;font-size:13px;color:var(--grey);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .fgc{font-size:12px;font-weight:700;color:var(--blue);background:#E6F1FB;border-radius:10px;padding:1px 8px;}
+  .fg .row{padding:0 12px 12px;margin-top:0;}
   .glab{display:flex;align-items:center;gap:10px;font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);margin:16px 0 0;}
   .glab::after{content:'';flex:1;height:1px;background:var(--pale);}
   html.ao-embed body{background:#fff;}
@@ -265,13 +272,13 @@
     chipsInto(r, ['Solo', 'With others'], it.a.enjoyWith, false, function(){ if (it.a.enjoyWith.indexOf('With others') < 0) it.a.enjoyWho.length = 0; }, redraw);
     if (it.a.enjoyWith.indexOf('With others') > -1) {
       b.appendChild(el('div', 'qq sub', 'Who do you like ' + wq(it) + ' with?'));
-      [['By relationship', REL]].concat(SERVE_GROUPS.slice(0, 3)).forEach(function(g){
-        b.appendChild(el('div', 'glab', g[0]));
-        var rr = el('div', 'row'); b.appendChild(rr);
-        if (g[1] !== REL) { chipsInto(rr, g[1], it.a.enjoyWho, false, null, redraw); return; }
-        var known = [].concat(REL); SERVE_GROUPS.slice(0, 3).forEach(function(x){ known = known.concat(x[1]); });
-        chipsInto(rr, REL.concat(it.a.enjoyWho.filter(function(v){ return known.indexOf(v) < 0; })), it.a.enjoyWho, false, null, redraw);
-        otherPill(rr, it.a.enjoyWho, redraw);
+      var known = [].concat(REL); SERVE_GROUPS.slice(0, 3).forEach(function(x){ known = known.concat(x[1]); });
+      var relOpts = REL.concat(it.a.enjoyWho.filter(function(v){ return known.indexOf(v) < 0; }));
+      [['By relationship', relOpts]].concat(SERVE_GROUPS.slice(0, 3)).forEach(function(g, gi){
+        var rr = foldGroup(b, it.word + '|with', g[0], g[1], it.a.enjoyWho, redraw, gi === 0);
+        if (!rr) return;
+        chipsInto(rr, g[1], it.a.enjoyWho, false, null, redraw);
+        if (gi === 0) otherPill(rr, it.a.enjoyWho, redraw);
       });
     }
     c.appendChild(b);
@@ -407,13 +414,31 @@
     panel.appendChild(nav);
     b.appendChild(panel);
     ob.addEventListener('click', function(){ it.oOpen = true; panel.style.display = ''; setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0); });
-    [['By relationship', REL]].concat(SERVE_GROUPS).forEach(function(g){
-      b.appendChild(el('div', 'glab', g[0]));
-      var r3 = el('div', 'row'); b.appendChild(r3);
-      chipsInto(r3, g[1].concat(it.a.whoAdded[g[0]] || []), it.a.serveWho, false, null, redraw);
+    [['By relationship', REL]].concat(SERVE_GROUPS).forEach(function(g, gi){
+      var opts = g[1].concat(it.a.whoAdded[g[0]] || []);
+      var r3 = foldGroup(b, it.word + '|serve', g[0], opts, it.a.serveWho, redraw, gi === 0);
+      if (!r3) return;
+      chipsInto(r3, opts, it.a.serveWho, false, null, redraw);
     });
   }
 
+  var FOLD = {};
+  function foldGroup(b, key, name, opts, picked, redraw, first){
+    var k = key + '|' + name;
+    if (FOLD[k] === undefined) FOLD[k] = !!first;
+    var mine = picked.filter(function(v){ return opts.indexOf(v) > -1; });
+    var box = el('div', 'fg'); b.appendChild(box);
+    var h = el('button', 'fgh'); h.type = 'button'; h.setAttribute('aria-expanded', FOLD[k] ? 'true' : 'false');
+    h.appendChild(el('span', 'ch', FOLD[k] ? '\u25BE' : '\u25B8'));
+    h.appendChild(el('span', 'fgn', name));
+    h.appendChild(el('span', 'fgs', FOLD[k] ? '' : (mine.length ? mine.join(', ') : 'Nothing picked')));
+    if (mine.length) h.appendChild(el('span', 'fgc', String(mine.length)));
+    h.addEventListener('click', function(){ FOLD[k] = !FOLD[k]; redraw(); });
+    box.appendChild(h);
+    if (!FOLD[k]) return null;
+    var row = el('div', 'row'); box.appendChild(row);
+    return row;
+  }
   var ECO = [];
   var REL = ['Friends', 'Family', 'Partner', 'Coworkers', 'Neighbors', 'New people'];
   function natureRows(b, it, redraw){
