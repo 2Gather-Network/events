@@ -3,9 +3,8 @@
   w._cwWaitWords = true;
   var q = String(w.location.search || '');
   if (!/[?&]waitwords=1(&|$)/.test(q)) { return; }
-  var fast = /[?&]waitfast=1(&|$)/.test(q);
-  var FIRST = fast ? 800 : 3000;
-  var EVERY = fast ? 1500 : 4000;
+  var FIRST = 3000;
+  var EVERY = 7000;
   var WORDS = [
     'Putting the kettle on', 'Setting the table', 'Pulling up a chair', 'Making room', 'Opening the door', 'Lighting the lanterns',
     'Gathering', 'Weaving', 'Mending', 'Sowing', 'Watering', 'Harvesting', 'Composting',
