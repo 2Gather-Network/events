@@ -51,6 +51,7 @@
   .c h3{margin-right:130px;}
   .c.ok h3{margin-right:60px;}
   .kvs{margin-top:8px;border-top:1px solid var(--line);}
+  .prose{margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-size:13.5px;line-height:1.5;color:var(--grey);text-align:left;}
   .kv{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line);}
   .kv span{color:var(--grey);}
   .kv b{font-weight:700;text-align:right;}
@@ -476,8 +477,37 @@
     var more = ['how', 'level', 'kind', 'lens', 'gives'].filter(function(k){ return it.a[k] && it.a[k].length; }).map(function(k){ return it.a[k].join(', '); }).concat(workParts(it));
     return more.length ? s + ' ' + more.join(' · ') + '.' : s;
   }
+  function andList(xs){ return xs.length > 1 ? xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1] : (xs[0] || ''); }
+  function prose(it){
+    var w = String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase(), out = [], a = it.a || {};
+    var how = a.how || [], fan = how.indexOf('Fan') > -1, doIt = how.indexOf('I do it myself') > -1;
+    var wi = a.enjoyWith || [], solo = wi.indexOf('Solo') > -1, others = wi.indexOf('With others') > -1;
+    var who = (a.enjoyWho || []).length ? ' (' + a.enjoyWho.join(', ') + ')' : '';
+    var withP = solo && others ? 'solo and with others' + who : solo ? 'solo' : others ? 'with others' + who : '';
+    var s1 = fan && doIt ? 'I\u2019m both a fan of ' + w + ' and do it myself' : fan ? 'I\u2019m a fan of ' + w : doIt ? 'I do ' + w + ' myself' : '';
+    if (s1 && withP) s1 += ', ' + withP; else if (!s1 && withP) s1 = 'I enjoy ' + w + ' ' + withP;
+    if (s1) out.push(s1 + '.');
+    var lv = (a.level || [])[0];
+    if (lv) out.push({ Beginner: 'I\u2019m a beginner.', Experienced: 'I\u2019m experienced.', Guide: 'I guide others in it.' }[lv] || ('My level: ' + lv + '.'));
+    if ((a.kind || []).length && !(a.kind[0] === 'Skill' && has(it, 'skill'))) out.push('It\u2019s a ' + a.kind[0].toLowerCase() + '.');
+    if ((a.lens || []).length && !has(it, 'enjoy') && !has(it, 'skill')) out.push('It\u2019s ' + andList(a.lens.map(function(x){ return x.toLowerCase(); })) + '.');
+    if (whoDone(it)) {
+      var parts = whoParts(it), self = parts.indexOf('Tending to self') > -1, rest = parts.filter(function(x){ return x !== 'Tending to self'; }).map(function(x){ return x.replace(/^People/, 'people').replace(/^Other/, 'other'); });
+      var sw = self && rest.length ? 'It tends to me and is in service to ' + andList(rest) : self ? 'It tends to me' : 'It\u2019s in service to ' + andList(rest);
+      out.push(sw + '.');
+    }
+    if ((a.gives || []).length) out.push('It would give me ' + andList(a.gives) + '.');
+    var wr = workRows(it);
+    wr.forEach(function(r){ out.push(r[0] === 'Open to work' ? 'I\u2019m not open to work for it right now.' : 'I\u2019m open to ' + r[0].toLowerCase() + ' (' + r[1] + ').'); });
+    return out.join(' ');
+  }
   function body(c, it, ix, miss){
     if (CARD === 'a') {
+      var pr = prose(it);
+      if (pr) c.appendChild(el('div', 'prose', pr));
+      return;
+    }
+    if (CARD === 'a0') {
       var list = el('div', 'kvs');
       answered(it).forEach(function(k){ if (k === 'work') { workRows(it).forEach(function(w){ var rw = el('div', 'kv'); rw.appendChild(el('span', '', w[0])); rw.appendChild(el('b', '', w[1])); list.appendChild(rw); }); return; } var r = el('div', 'kv'); r.appendChild(el('span', '', LAB[k])); r.appendChild(el('b', '', val(it, k).join(', '))); list.appendChild(r); });
       miss.filter(function(k){ return k !== 'cat'; }).forEach(function(k){ var r = el('div', 'kv miss'); r.appendChild(el('span', '', LAB[k])); list.appendChild(r); });
