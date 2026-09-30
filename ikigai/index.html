@@ -1015,7 +1015,27 @@
     }
     return tree;
   }
+  function gpNewTree(tree){
+    if (!GP_NEW || !tree || tree.__gen) { return tree; }
+    if (tree.__new) { return tree.__new; }
+    var keys = Object.keys(tree);
+    var hide = function(o, k, v){ Object.defineProperty(o, k, { value: v, enumerable: false, configurable: true }); };
+    if (keys.length && keys.every(function(k){ return /^(social|ecological|values)$/i.test(k); })) { hide(tree, '__new', tree); hide(tree, '__order', keys.slice().sort()); return tree; }
+    var nt = window._gpNewTopics, order = nt ? nt.order : [], out = {};
+    if (!nt) { try { gpNewTopicsLoad(); } catch (e) {} }
+    keys.forEach(function(k){
+      var m = order.indexOf(k) > -1 ? k : ((window.cwTopicFor && window.cwTopicFor(k)) || k);
+      if (!out[m]) { out[m] = { subs:{}, items:[] }; }
+      Object.keys(tree[k].subs).forEach(function(sb){ out[m].subs[sb] = (out[m].subs[sb] || []).concat(tree[k].subs[sb]); });
+      tree[k].items.forEach(function(i){ if (out[m].items.indexOf(i) < 0) { out[m].items.push(i); } });
+    });
+    order.forEach(function(n){ if (!out[n]) { out[n] = { subs:{}, items:[] }; } });
+    hide(out, '__order', order.concat(Object.keys(out).filter(function(k){ return order.indexOf(k) < 0; })));
+    if (nt) { hide(tree, '__new', out); }
+    return out;
+  }
   function gpLevel(tree, path){
+    tree = gpNewTree(tree);
     var alpha = function(x){ return x.slice().sort(function(a,b){ return a.localeCompare(b); }); };
     if (tree && tree.__gen) {
       var list = tree.root || [];
@@ -1031,6 +1051,9 @@
         .concat(alpha(leaves).map(function(k){ return { name: k, drill: false }; }));
     }
     if (!path.length) {
+      if (GP_NEW) {
+        return (tree.__order || alpha(Object.keys(tree))).map(function(k){ return { name:k, drill:true }; });
+      }
       if (GP_DRILL && _gpCatOrder.length) {
         var tops = _gpCatOrder.slice();
         alpha(Object.keys(tree)).forEach(function(k){ if (tops.indexOf(k) < 0) tops.push(k); });
@@ -4787,6 +4810,7 @@
     var _known = !!window._gpDrawn || !!window._gpLoaded || !meId;   
     var _readyToJoin = joining && left === 0;
     var _hide = (!_known) || (_gpStep >= GP_LAST && !_readyToJoin);
+    if (GP_NEW && !joining && _known && !GP_REQ_ITEMS.some(function(r){ return !r.done(); })) { _hide = true; }
     card.style.cssText = 'display:' + (_hide ? 'none' : 'block') + ';background:#F7FBFF;border:1px solid #C9DFF3;border-radius:12px;padding:14px 16px;margin:22px 0 0;';
     if (!_known) { return; }
     var chips = GP_REQ_ITEMS.map(function(r){
@@ -5135,7 +5159,7 @@
         'Not the things you care about, which are above. These are the ways you meet people, and they stay the same whoever you are with.', vrow);
       after(care, vblk);
     }
-    if (care && !document.getElementById('gp-interests-block')) {
+    if (care && !GP_NEW && !document.getElementById('gp-interests-block')) {
       var tbox = document.createElement('div');
       var tMore = false, tAdding = false, tOffers = [];
       var tLow = function(x){ return String(x).toLowerCase(); };
@@ -5226,11 +5250,12 @@
         if (!Array.isArray(rd.domains)) return false;
         var list = rd.domains.map(function(v){ return String((v && v.item !== undefined) ? v.item : v).trim(); }).filter(Boolean);
         Object.keys(_gpSectors).forEach(function(n){ if (_gpSectors[n] && list.indexOf(n) < 0) list.push(n); });
-        sec.innerHTML = ''; sec.appendChild(gpPickRow(list, _gpSectors, 8).row); return true;
+        sec.innerHTML = ''; sec.appendChild(gpPickRow(list, _gpSectors, GP_NEW ? 9999 : 8).row); return true;
       };
       gpChoicesOr(sec, fillSec);
       var secB = gpRailBlock('gp-sectors-block', 3, 'Which sectors do you work in, or want to?', 'Pick as many as fit. They show as Sectors on your profile.', sec);
       after(serve, secB);
+      if (GP_NEW) { var vB = document.getElementById('gp-values-block'); after(care, secB); if (vB) { after(secB, vB); if (serve) { after(vB, serve); } } }
       var pb = document.createElement('textarea');
       pb.id = 'gp-purpose-box'; pb.rows = 1; pb.className = 'cw-intro-box';
       pb.placeholder = 'Example: Facilitating and coaching, for families new to the area, in service to community health';
