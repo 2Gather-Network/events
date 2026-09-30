@@ -73,6 +73,9 @@
   .pen.cp{font-size:18px;color:var(--blue);border-radius:6px;padding:2px 5px;}
   .pen.cp.on{background:var(--blue);color:#fff;}
   .copybox{border:1.5px solid var(--blue);background:var(--soft);}
+  .c .qbox.wordbox{border:1.5px dashed var(--grey);background:#FFFDF5;margin-top:14px;}
+  .wb-tag{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#8A5A00;background:#FFF4D6;border-radius:10px;padding:3px 9px;}
+  .wb-in{font:inherit;font-size:13.5px;width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;margin-top:6px;}
   .copybox .prose{margin:0;border:0;padding:0;}
   .ihelp{font:inherit;font-size:11px;font-weight:800;font-style:italic;width:18px;height:18px;line-height:15px;padding:0;border-radius:50%;border:1.5px solid var(--blue);background:#fff;color:var(--blue);cursor:pointer;vertical-align:middle;margin-left:4px;}
   .ihelp.on{background:var(--blue);color:#fff;}
@@ -924,6 +927,66 @@
     box.appendChild(row);
     c.appendChild(box);
   }
+  var WORDBOX = false;
+  try { WORDBOX = /[?&]wordbox=1\b/.test(location.search) || /[?&]wordbox=1\b/.test(parent.location.search); } catch (e) {}
+  var wbState = {};
+  function wordBox(c, it){
+    var key = String(it.word).toLowerCase(), W = null, row = null;
+    try { W = parent._gpWords || null; } catch (e) { W = null; }
+    if (W) row = W.byName[key] || null;
+    var st = wbState[key];
+    if (!st) {
+      var par = row && row.kindOf && W.byId[row.kindOf] ? W.byId[row.kindOf].word : '';
+      st = wbState[key] = { parent: par, names: row ? row.names.slice(1).join(', ') : '', cats: row ? W.catsOf(row).slice() : [], q: '' };
+    }
+    var b = el('div', 'qbox wordbox');
+    var hd = el('div', 'qhead2');
+    hd.appendChild(el('div', 'qq', 'Word table'));
+    hd.appendChild(el('span', 'wb-tag', 'Super admin only'));
+    b.appendChild(hd);
+    b.appendChild(el('div', 'wait', row ? 'This changes \u201C' + it.word + '\u201D for everyone, not only on your card.' : '\u201C' + it.word + '\u201D is not in the word table yet. Saving would add it for everyone.'));
+    b.appendChild(el('div', 'qq sub', 'Kind of'));
+    var pr = el('div', 'row'); b.appendChild(pr);
+    if (st.parent) {
+      var pp = el('button', 'pill on', st.parent + '  \u2715'); pp.type = 'button';
+      pp.addEventListener('click', function(){ st.parent = ''; draw(); });
+      pr.appendChild(pp);
+    } else {
+      var pi = el('input', 'wb-in'); pi.type = 'text'; pi.placeholder = 'Search for the word it is a kind of'; pi.value = st.q;
+      pr.appendChild(pi);
+      var ph = el('div', 'row'); b.appendChild(ph);
+      var paint = function(){
+        ph.innerHTML = '';
+        var t = st.q.trim().toLowerCase();
+        if (t.length < 2 || !W) return;
+        W.list.filter(function(w){ return w.word.toLowerCase().indexOf(t) > -1 && w.word.toLowerCase() !== key; }).slice(0, 6).forEach(function(w){
+          var hb = el('button', 'pill', w.word); hb.type = 'button';
+          hb.addEventListener('click', function(){ st.parent = w.word; st.q = ''; draw(); });
+          ph.appendChild(hb);
+        });
+      };
+      pi.addEventListener('input', function(){ st.q = pi.value; paint(); });
+      paint();
+    }
+    b.appendChild(el('div', 'qq sub', 'Other names'));
+    var ni = el('input', 'wb-in'); ni.type = 'text'; ni.placeholder = 'Riding, Horse riding'; ni.value = st.names;
+    ni.addEventListener('input', function(){ st.names = ni.value; });
+    b.appendChild(ni);
+    b.appendChild(el('div', 'qq sub', st.parent ? 'Categories for everyone (taken from \u201C' + st.parent + '\u201D)' : 'Categories for everyone'));
+    var cr = el('div', 'row'); b.appendChild(cr);
+    CATS.forEach(function(cn){
+      var on = st.cats.indexOf(cn) > -1, cb = el('button', 'pill' + (on ? ' on' : ''), catLab(cn)); cb.type = 'button';
+      if (st.parent) { cb.disabled = true; cb.style.opacity = '.55'; }
+      cb.addEventListener('click', function(){ var at = st.cats.indexOf(cn); if (at > -1) st.cats.splice(at, 1); else st.cats.push(cn); draw(); });
+      cr.appendChild(cb);
+    });
+    var wn = el('div', 'qnav');
+    var wsv = el('button', 'btn', 'Save to the word table'); wsv.type = 'button';
+    var wmsg = el('span', 'wait', 'Look-only mockup. Nothing here saves.');
+    wsv.addEventListener('click', function(){ wmsg.textContent = 'Look-only mockup. This would change the word table for everyone.'; });
+    wn.appendChild(wsv); wn.appendChild(wmsg); b.appendChild(wn);
+    c.appendChild(b);
+  }
   function drawEdit(){
     var it = draft;
     var c = el('div', 'c edit');
@@ -998,6 +1061,7 @@
       ta.addEventListener('input', function(){ it.det = ta.value; });
       dbx.appendChild(ta);
     }
+    if (WORDBOX && !it.thing) wordBox(c, it);
     var nav = el('div', 'qnav');
     var sv = el('button', 'btn', 'Done'); sv.type = 'button';
     sv.addEventListener('click', function(){ finishEdit(); });
