@@ -232,6 +232,28 @@
     var r3 = el('div', 'row'); ub.appendChild(r3); c.appendChild(ub);
     chipsInto(r3, UNPAID, it.a.unpaidKind, false, null, redraw, true);
   }
+  var GUIDE_ROLES = ['Coach', 'Mentor', 'Consultant', 'Facilitator', 'Trainer', 'Host'];
+  var PRACTICE_ROLES = ['Volunteer', 'Service provider', 'Performer', 'Creator', 'Maker', 'Competitor'];
+  var LEARNED = [['lived', 'Lived it'], ['volunteered', 'Volunteered'], ['workedas', 'Worked as it'], ['studied', 'Studied it'], ['credentialed', 'Credentialed'], ['titled', 'Worked in official title']];
+  function howBlock(c, it, redraw){
+    var lv = (it.a.level || [])[0];
+    it.a.roles = it.a.roles || []; it.a.learned = it.a.learned || [];
+    var last = c.lastChild;
+    if (lv === 'Guide' || lv === 'Experienced') {
+      last.appendChild(el('div', 'qq sub', lv === 'Guide' ? 'How do you guide? Pick any.' : 'How do you do it? Pick any.'));
+      var rr = el('div', 'row'); last.appendChild(rr);
+      var fixed = lv === 'Guide' ? GUIDE_ROLES : PRACTICE_ROLES;
+      chipsInto(rr, fixed.concat(it.a.roles.filter(function(r){ return fixed.indexOf(r) < 0; })), it.a.roles, false, null, redraw);
+      otherPill(rr, it.a.roles, redraw);
+    }
+    last.appendChild(el('div', 'qq sub', 'How do you know this? Pick any.'));
+    var lr = el('div', 'row'); last.appendChild(lr);
+    LEARNED.forEach(function(h){
+      var on = it.a.learned.indexOf(h[0]) > -1, p = el('button', 'pill' + (on ? ' on' : ''), h[1]); p.type = 'button';
+      p.addEventListener('click', function(){ var at = it.a.learned.indexOf(h[0]); if (at > -1) it.a.learned.splice(at, 1); else it.a.learned.push(h[0]); redraw(); });
+      lr.appendChild(p);
+    });
+  }
   function serves(it){ return has(it, 'offer') || has(it, 'skill'); }
   function withDone(it){ return (it.a.enjoyWith || []).length > 0; }
   function withParts(it){ return (it.a.enjoyWith || []).map(function(x){ return x === 'With others' && (it.a.enjoyWho || []).length ? 'With others (' + it.a.enjoyWho.join(', ') + ')' : x; }); }
@@ -327,6 +349,7 @@
     if (serves(it)) {
       it.a.who = ['In service to another'];
       var skillOnly = has(it, 'skill') && !has(it, 'offer');
+      if (skillOnly && !it.a.serveWhat.length && !it.a.peopleDefault) { it.a.serveWhat.push('People'); it.a.peopleDefault = true; }
       b.appendChild(el('div', 'qq', skillOnly ? 'For whom do you want to apply your \u201C' + word + '\u201D skills?' : 'What is \u201C' + word + '\u201D in service to?'));
       var o2 = el('div', 'row'); b.appendChild(o2);
       chipsInto(o2, ['People', 'Other'], it.a.serveWhat, false, function(){ if (it.a.serveWhat.indexOf('People') < 0) it.a.serveWho.length = 0; if (it.a.serveWhat.indexOf('Other') < 0 && it.a.serveNature) it.a.serveNature.length = 0; }, redraw);
@@ -431,6 +454,8 @@
         if (it.tags.indexOf(p[1]) < 0) it.tags.push(p[1]);
         if (mine.how && !(it.a.how && it.a.how.length)) it.a.how = mine.how.slice();
         if (mine.level && mine.level.length && !(it.a.level && it.a.level.length)) it.a.level = mine.level.slice();
+        if (mine.roles && mine.roles.length && !(it.a.roles && it.a.roles.length)) it.a.roles = mine.roles.slice();
+        if (mine.learned && mine.learned.length && !(it.a.learned && it.a.learned.length)) it.a.learned = mine.learned.slice();
       });
     });
     [['offerThings', 'offer', 'offerDetails'], ['seekThings', 'seek', 'seekDetails']].forEach(function(p){
@@ -493,6 +518,9 @@
     if (s1) out.push(s1 + '.');
     var lv = (a.level || [])[0];
     if (lv) out.push({ Beginner: 'I\u2019m a beginner.', Experienced: 'I\u2019m experienced.', Guide: 'I guide others in it.' }[lv] || ('My level: ' + lv + '.'));
+    if ((a.roles || []).length) out.push((lv === 'Guide' ? 'I guide as a ' : 'I do it as a ') + andList(a.roles.map(function(x){ return x.toLowerCase(); })) + '.');
+    var lrn = (a.learned || []).map(function(k){ var f = LEARNED.filter(function(h){ return h[0] === k; })[0]; return f ? f[1].toLowerCase() : ''; }).filter(Boolean);
+    if (lrn.length) out.push('How I know it: ' + andList(lrn) + '.');
     if ((a.kind || []).length && !(a.kind[0] === 'Skill' && has(it, 'skill'))) out.push('It\u2019s a ' + a.kind[0].toLowerCase() + '.');
     if ((a.lens || []).length && !has(it, 'enjoy') && !has(it, 'skill')) out.push('It\u2019s ' + andList(a.lens.map(function(x){ return x.toLowerCase(); })) + '.');
     if (whoDone(it)) {
@@ -645,7 +673,8 @@
       if (k === 'who') { whoBlock(host, it, draw); return; }
       if (k === 'work') { it.a.workAsked = true; workBlock(host, it, draw); return; }
       it.a[k] = it.a[k] || [];
-      pickRow(host, qText(k, it), Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; draw(); });
+      pickRow(host, qText(k, it), Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; if (k === 'level') it.a.roles = []; draw(); });
+      if (k === 'level') howBlock(host, it, draw);
     });
     if (it.thing || it.det) {
       var dbx = el('div', 'qbox'); dbx.appendChild(el('div', 'qq', 'Details')); c.appendChild(dbx);
@@ -671,7 +700,7 @@
     if (draft.tags.some(function(t){ return t !== 'care'; }) && draft.a.cat && draft.a.cat.length) { draft.cat = draft.a.cat[0]; draft.guess = false; }
     items[editIx] = JSON.parse(JSON.stringify(draft));
     if (!FITP) return;
-    _saveMsg = { ao: 'save', key: FITKEY[FITP], word: draft.word, tags: draft.tags.slice(), cat: (draft.a.cat && draft.a.cat.length) ? draft.a.cat.slice() : (draft.cat ? [draft.cat] : []), how: (draft.a.how || []).slice(), level: (draft.a.level || []).slice() };
+    _saveMsg = { ao: 'save', key: FITKEY[FITP], word: draft.word, tags: draft.tags.slice(), cat: (draft.a.cat && draft.a.cat.length) ? draft.a.cat.slice() : (draft.cat ? [draft.cat] : []), how: (draft.a.how || []).slice(), level: (draft.a.level || []).slice(), roles: (draft.a.roles || []).slice(), learned: (draft.a.learned || []).slice() };
     clearTimeout(_saveT);
     _saveT = setTimeout(flushSave, 600);
   }
