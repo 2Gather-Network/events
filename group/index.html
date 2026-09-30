@@ -1859,6 +1859,57 @@ function pick(el, key){
     }
   }
 
+  function gpJoinedStrip(name){
+    if (document.getElementById('gj-strip')) return;
+    var head = document.getElementById('gp-page-header'); if (!head) return;
+    var css = document.createElement('style');
+    css.textContent = '#gj-strip{background:#fff;border-radius:14px;padding:16px 20px;display:none;align-items:center;gap:16px;border-left:6px solid #2E9E5B;margin-bottom:14px;}'
+      + '#gj-strip .t{flex:1;min-width:0;}#gj-strip h2{margin:0 0 3px;font-size:17px;color:#1A2E42;}#gj-strip p{margin:0 0 8px;font-size:13.5px;color:#4B5A6D;}'
+      + '#gj-strip .bar{height:8px;background:#E6ECF2;border-radius:6px;overflow:hidden;max-width:360px;}#gj-strip .bar i{display:block;height:100%;background:#2E9E5B;transition:width .3s;}'
+      + '#gj-strip .small{font-size:12.5px;color:#4B5A6D;margin-top:5px;}'
+      + '#gj-strip .go{font:inherit;background:#1F699E;color:#fff;font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;border:0;cursor:pointer;white-space:nowrap;}'
+      + '#gj-strip .later{font:inherit;background:none;border:0;color:#1F699E;text-decoration:underline;cursor:pointer;font-size:14px;padding:0;}'
+      + '#gj-strip .x,#gj-ov .x{font:inherit;background:none;border:0;color:#4B5A6D;font-size:17px;cursor:pointer;padding:2px 4px;}'
+      + '#gj-toast{display:none;background:#fff;border-radius:14px;padding:14px 20px;margin-bottom:14px;font-weight:700;color:#1A2E42;border-left:6px solid #2E9E5B;}'
+      + '#gj-ov{display:none;position:fixed;inset:0;background:rgba(26,46,66,.55);z-index:2147482000;align-items:flex-start;justify-content:center;padding:4vh 12px;}#gj-ov.on{display:flex;}'
+      + '#gj-ov .sheet{background:#fff;border-radius:16px;width:100%;max-width:900px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;}'
+      + '#gj-ov .sh{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #DDE4EE;}#gj-ov iframe{border:0;width:100%;height:70vh;}'
+      + '@media(max-width:768px){#gj-strip{flex-wrap:wrap;}#gj-strip .t{flex-basis:100%;}#gj-ov iframe{height:78vh;}}';
+    document.head.appendChild(css);
+    var strip = document.createElement('div'); strip.id = 'gj-strip';
+    strip.innerHTML = '<div class="t"><h2></h2><p>A few more answers help people here find you and you find them.</p><div class="bar"><i></i></div><div class="small"></div></div>'
+      + '<button class="go" type="button"></button><button class="later" type="button">Later</button><button class="x" type="button" title="Close">&#10005;</button>';
+    strip.querySelector('h2').textContent = 'You’re in ' + (name || 'the group') + ' ✓';
+    var toast = document.createElement('div'); toast.id = 'gj-toast'; toast.textContent = 'All set. Thanks, people here can find you now.';
+    head.parentNode.insertBefore(strip, head.nextSibling); head.parentNode.insertBefore(toast, strip.nextSibling);
+    var ov = document.createElement('div'); ov.id = 'gj-ov';
+    ov.innerHTML = '<div class="sheet"><div class="sh"><b>A few more answers</b><button class="x" type="button" title="Close">&#10005;</button></div><iframe title="A few more answers"></iframe></div>';
+    document.body.appendChild(ov);
+    var fr = ov.querySelector('iframe'), total = 0, left = 0, known = false, gone = false;
+    var mine = false; try { mine = !!sessionStorage.getItem('if-handoff'); } catch (e) {}
+    var paint = function(){
+      if (!known || gone) return;
+      if (!left) { strip.style.display = 'none'; return; }
+      strip.style.display = 'flex';
+      strip.querySelector('.small').textContent = (total - left) + ' of ' + total + ' answers complete';
+      strip.querySelector('.bar i').style.width = Math.round((total - left) * 100 / total) + '%';
+      strip.querySelector('.go').textContent = 'Answer ' + left + ' more';
+    };
+    var hide = function(){ gone = true; strip.style.display = 'none'; };
+    var close = function(){ ov.classList.remove('on'); document.body.style.overflow = ''; };
+    fr.src = '/design/after-onboarding/?embed=1&wait=1' + (mine ? '&from=onepage' : '') + '&cb=' + Date.now();
+    strip.querySelector('.go').addEventListener('click', function(){ ov.classList.add('on'); document.body.style.overflow = 'hidden'; try { fr.contentWindow.postMessage({ ao: 'start' }, location.origin); } catch (e) {} });
+    strip.querySelector('.later').addEventListener('click', hide);
+    strip.querySelector('.x').addEventListener('click', hide);
+    ov.querySelector('.sh .x').addEventListener('click', close);
+    window.addEventListener('message', function(e){
+      if (e.origin !== location.origin || !e.data) return;
+      if (e.data.ao === 'count') { known = true; total = e.data.total; left = e.data.left; paint(); return; }
+      if (e.data.ao !== 'done' || !ov.classList.contains('on')) return;
+      total = e.data.total; left = e.data.left; close();
+      if (!left) { hide(); toast.style.display = 'block'; } else paint();
+    });
+  }
   var _justJoined = /[?&]joined=1/.test(location.search);
   var _askingFresh = _justJoined || /[?&]joining=1/.test(location.search);
   var _gpAnswered = false;
@@ -2159,6 +2210,7 @@ function pick(el, key){
       var firstArrival = false;
       try { firstArrival = !localStorage.getItem(seenKey); localStorage.setItem(seenKey, '1'); } catch(e){}
       if (/[?&]joined=1/.test(location.search)) { firstArrival = true; }
+      if (/[?&]onepage=1/.test(location.search) && /[?&]joined=1/.test(location.search)) { try { gpJoinedStrip(groupName); } catch (e) {} }
       if (greet) {
         if (firstArrival) {
           greet.textContent = firstName ? ('Welcome, ' + firstName + ' 🌱') : 'Welcome 🌱';
