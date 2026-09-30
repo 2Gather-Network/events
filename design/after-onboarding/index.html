@@ -145,12 +145,12 @@
 <script>
 (function(){
   var CATS = ['Food & Drink','Movement','Play','Travel','Community & Culture','Arts','Outdoors','Home Life','Animals','Technology','Style','Personal Care','Faith','Business','Communications','Building & Repurposing','Transportation','Finance','Science','Medicine'];
-  var EMO = {}, SKILLSET = {};
+  var EMO = {}, SKILLSET = {}, VALCAT = {};
   function tagQ(it){ return 'Tag ' + String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim() + ':'; }
   function catLab(c){ return EMO[c] ? EMO[c] + ' ' + c : c; }
   fetch('https://cw-api-gate.jessieupp.workers.dev?action=getReferenceData')
     .then(function(r){ return r.json(); })
-    .then(function(rd){ (rd && rd.topicCategories || []).forEach(function(t){ if (t && t.label) EMO[t.label] = t.emoji || ''; }); (rd && rd.skills || []).forEach(function(x){ if (x && x.item) SKILLSET[String(x.item).trim().toLowerCase()] = 1; }); items.forEach(function(x){ x.kAuto = false; }); var RDK = ['whoSeason', 'whoHousehold', 'whoWorkStage', 'whoAccommodation']; RDK.forEach(function(k, gi){ var l = rd && rd[k]; if (Array.isArray(l) && l.length && SERVE_GROUPS[gi]) SERVE_GROUPS[gi][1] = l.map(String); }); ECO = (rd && rd.values || []).filter(function(v){ return v && String(v.category || '').trim().toLowerCase() === 'ecological'; }).map(function(v){ return String(v.item).trim(); }).filter(Boolean); draw(); })
+    .then(function(rd){ (rd && rd.topicCategories || []).forEach(function(t){ if (t && t.label) EMO[t.label] = t.emoji || ''; }); (rd && rd.skills || []).forEach(function(x){ if (x && x.item) SKILLSET[String(x.item).trim().toLowerCase()] = 1; }); items.forEach(function(x){ x.kAuto = false; }); (rd && rd.values || []).forEach(function(v){ var c = String(v && v.category || '').trim(); if (v && v.item && /^(social|ecological)$/i.test(c)) VALCAT[String(v.item).trim().toLowerCase()] = c.charAt(0).toUpperCase() + c.slice(1).toLowerCase(); }); items.forEach(careCat); var RDK = ['whoSeason', 'whoHousehold', 'whoWorkStage', 'whoAccommodation']; RDK.forEach(function(k, gi){ var l = rd && rd[k]; if (Array.isArray(l) && l.length && SERVE_GROUPS[gi]) SERVE_GROUPS[gi][1] = l.map(String); }); ECO = (rd && rd.values || []).filter(function(v){ return v && String(v.category || '').trim().toLowerCase() === 'ecological'; }).map(function(v){ return String(v.item).trim(); }).filter(Boolean); draw(); })
     .catch(function(){});
   var Q = {
     how:   { q: 'How is this of interest to you?', opts: ['Fan', 'I do it myself'], many: true },
@@ -398,6 +398,7 @@
   var FITP = (location.search.match(/[?&]fit=(enjoy|skill|care)\b/) || [])[1] || '';
   var FITKEY = { enjoy: 'introEnjoy', skill: 'introSkills', care: 'introValues', seek: 'introNeed' };
   if (FITP) document.documentElement.classList.add('ao-fit');
+  function careCat(it){ if (!it || it.cat || (it.tags || []).indexOf('care') < 0) return; var c = VALCAT[String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase()]; if (c) it.cat = c; }
   function fromHand(hand, keep){
     var out = [], byWord = {}, tags = hand.tags || {}, saved = hand.saved || {};
     var split = function(s){ return String(s || '').split(/[,\n;]+/).map(function(x){ return x.trim(); }).filter(Boolean); };
@@ -426,6 +427,7 @@
     [['offerThings', 'offer', 'offerDetails'], ['seekThings', 'seek', 'seekDetails']].forEach(function(p){
       (hand[p[0]] || []).forEach(function(w){ out.push({ word: w, tags: [p[1]], cat: '', thing: true, det: (hand[p[2]] && typeof hand[p[2]] === 'object') ? (hand[p[2]][w] || '') : (hand[p[2]] || ''), a: {} }); });
     });
+    out.forEach(careCat);
     return FITP ? out.filter(function(x){ return x.tags.indexOf(FITP) > -1; }) : out;
   }
   var fromOne = /[?&]from=onepage/.test(location.search), hand = null;
