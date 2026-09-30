@@ -181,7 +181,7 @@
   function has(it, t){ return (it.tags || []).indexOf(t) > -1; }
   function tagNeeds(it, t){
     if (t === 'enjoy') return isSkill(it) ? ['how'] : ['how', 'with'];
-    if (t === 'skill') return ['level'];
+    if (t === 'skill') return ['level', 'who'];
     if (t === 'care') return ['who'];
     if (t === 'seek') return ['gives'];
     if (t === 'offer') return ((it.a.kind || []).indexOf('Skill') > -1 ? ['work'] : []).concat(['who']);
@@ -196,7 +196,7 @@
     if (has(it, 'care') && !other && !it.cat) n.push('lens');
     if ((other && !it.thing && (!it.cat || it.guess)) || (has(it, 'offer') && !it.thing)) n.push('cat');
     if (has(it, 'enjoy') && !isSkill(it)) n.push('with');
-    if (has(it, 'care') || has(it, 'offer')) n.push('who');
+    if (has(it, 'care') || has(it, 'offer') || has(it, 'skill')) n.push('who');
     return n;
   }
   function wq(it){ return '\u201C' + String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase() + '\u201D'; }
@@ -254,7 +254,7 @@
     }
     c.appendChild(b);
   }
-  function whoDone(it){ if (serves(it)) return (it.a.serveWhat || []).length > 0; var w = it.a.who || []; return w.length > 0 && (w.indexOf('In service to another') < 0 || (it.a.serveWhat || []).length > 0); }
+  function whoDone(it){ if (serves(it)) return (it.a.serveWhat || []).length > 0 || (it.a.serveWho || []).length > 0; var w = it.a.who || []; return w.length > 0 && (w.indexOf('In service to another') < 0 || (it.a.serveWhat || []).length > 0); }
   function catDone(it){
     var other = (it.tags || []).some(function(t){ return t !== 'care'; });
     var catOk = !(other && !it.thing && (!it.cat || it.guess)) || (it.a.cat || []).length > 0;
@@ -291,6 +291,7 @@
     var out = [];
     if ((it.a.who || []).indexOf('Tending to self') > -1) out.push('Tending to self');
     (it.a.serveWhat || []).forEach(function(x){ var sub = x === 'People' ? (it.a.serveWho || []) : x === 'Other' ? (it.a.serveNature || []) : []; out.push(sub.length ? x + ' (' + sub.join(', ') + ')' : x); });
+    if ((it.a.serveWho || []).length && (it.a.serveWhat || []).indexOf('People') < 0) out.push('People (' + it.a.serveWho.join(', ') + ')');
     return out;
   }
   function otherPill(row, list, redraw){
@@ -325,10 +326,11 @@
     var word = String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase();
     if (serves(it)) {
       it.a.who = ['In service to another'];
-      b.appendChild(el('div', 'qq', 'What is \u201C' + word + '\u201D in service to?'));
+      var skillOnly = has(it, 'skill') && !has(it, 'offer');
+      b.appendChild(el('div', 'qq', skillOnly ? 'Who do you want to apply your \u201C' + word + '\u201D skills for?' : 'What is \u201C' + word + '\u201D in service to?'));
       var o2 = el('div', 'row'); b.appendChild(o2);
       chipsInto(o2, ['People', 'Other'], it.a.serveWhat, false, function(){ if (it.a.serveWhat.indexOf('People') < 0) it.a.serveWho.length = 0; if (it.a.serveWhat.indexOf('Other') < 0 && it.a.serveNature) it.a.serveNature.length = 0; }, redraw);
-      if (it.a.serveWhat.indexOf('People') > -1) peopleRows(b, it, redraw);
+      if (skillOnly || it.a.serveWhat.indexOf('People') > -1) peopleRows(b, it, redraw, skillOnly);
       if (it.a.serveWhat.indexOf('Other') > -1) natureRows(b, it, redraw);
       c.appendChild(b);
       return;
@@ -345,10 +347,10 @@
     }
     c.appendChild(b);
   }
-  function peopleRows(b, it, redraw){
+  function peopleRows(b, it, redraw, noAsk){
     it.a.whoAdded = it.a.whoAdded || {};
     var head = el('div', 'qhead2');
-    head.appendChild(el('div', 'qq sub', 'Who are you compelled to serve when it comes to ' + wq(it) + '?'));
+    head.appendChild(el('div', 'qq sub', noAsk ? '' : 'Who are you compelled to serve when it comes to ' + wq(it) + '?'));
     var ob = el('button', 'btn small', '+ Other'); ob.type = 'button';
     head.appendChild(ob);
     b.appendChild(head);
@@ -358,7 +360,7 @@
     panel.appendChild(el('div', 'glab plain', 'Tag it as:'));
     var gr = el('div', 'row'); panel.appendChild(gr);
     var pick = [];
-    SERVE_GROUPS.forEach(function(g){
+    [['By relationship', REL]].concat(SERVE_GROUPS).forEach(function(g){
       var name = g[0].replace(/^By /, '');
       var p = el('button', 'pill', name.charAt(0).toUpperCase() + name.slice(1)); p.type = 'button';
       p.addEventListener('click', function(){ pick = [g[0]]; Array.prototype.forEach.call(gr.children, function(x){ x.className = 'pill'; }); p.className = 'pill on'; });
@@ -382,7 +384,7 @@
     panel.appendChild(nav);
     b.appendChild(panel);
     ob.addEventListener('click', function(){ it.oOpen = true; panel.style.display = ''; setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0); });
-    SERVE_GROUPS.forEach(function(g){
+    [['By relationship', REL]].concat(SERVE_GROUPS).forEach(function(g){
       b.appendChild(el('div', 'glab', g[0]));
       var r3 = el('div', 'row'); b.appendChild(r3);
       chipsInto(r3, g[1].concat(it.a.whoAdded[g[0]] || []), it.a.serveWho, false, null, redraw);
@@ -495,7 +497,7 @@
     if ((a.lens || []).length && !has(it, 'enjoy') && !has(it, 'skill')) out.push('It\u2019s ' + andList(a.lens.map(function(x){ return x.toLowerCase(); })) + '.');
     if (whoDone(it)) {
       var parts = whoParts(it), self = parts.indexOf('Tending to self') > -1, rest = parts.filter(function(x){ return x !== 'Tending to self'; }).map(function(x){ return x.replace(/^People/, 'people').replace(/^Other/, 'other'); });
-      var sw = self && rest.length ? 'It tends to me and is in service to ' + andList(rest) : self ? 'It tends to me' : 'It\u2019s in service to ' + andList(rest);
+      var sw = has(it, 'skill') && !has(it, 'offer') && !has(it, 'care') ? 'I want to apply it for ' + andList(rest) : self && rest.length ? 'It tends to me and is in service to ' + andList(rest) : self ? 'It tends to me' : 'It\u2019s in service to ' + andList(rest);
       out.push(sw + '.');
     }
     if ((a.gives || []).length) out.push('It would give me ' + andList(a.gives) + '.');
