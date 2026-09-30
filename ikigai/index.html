@@ -5051,12 +5051,13 @@
       field.appendChild(inp); field.appendChild(addBtn); field.appendChild(cancelBtn);
       wrap.appendChild(field);
       var pickedCat = '';
-      var closeField = function(){ field.style.display = 'none'; inp.value = ''; pickedCat = ''; };
+      var closeField = function(){ field.style.display = 'none'; inp.value = ''; pickedCat = ''; if (GP_NEW && window._gpOfferOpen && window._gpOfferOpen.kind === kind) { window._gpOfferOpen = null; gpPaintOffers(ob); } };
       cancelBtn.onclick = closeField;
       var commit = function(){
         var v = String(inp.value || '').trim();
         if (!v) { closeField(); return; }
         _gpHaves.push(gpHaveJoin({ name: gpTitle(v), cat: pickedCat, kind: kind, local: false, detail: '' }));
+        if (GP_NEW) { window._gpOfferOpen = null; gpTouchSave(); }
         closeField();
         gpPaintOffers(ob);
       };
@@ -5065,8 +5066,15 @@
       (GP_OFFER_CATS[kind] || []).forEach(function(pair){
         var plain = String(pair[0]).replace(/^[^A-Za-z0-9]+/, '').trim();
         var on = mine(kind).some(function(w){ return gpHaveBits(w).name.toLowerCase() === plain.toLowerCase(); });
+        if (GP_NEW) { on = !!(window._gpOfferOpen && window._gpOfferOpen.kind === kind && window._gpOfferOpen.cat === plain); }
         var b = gpPill(pair[0], on);
+        if (GP_NEW && on) { pickedCat = plain; inp.placeholder = pair[1]; field.style.display = 'flex'; setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0); }
         b.onclick = function(){
+          if (GP_NEW) {
+            window._gpOfferOpen = on ? null : { kind: kind, cat: plain };
+            gpPaintOffers(ob);
+            return;
+          }
           if (on) {
             mine(kind).forEach(function(w){ if (gpHaveBits(w).name.toLowerCase() === plain.toLowerCase()) { drop(w); } });
             return;
@@ -5078,8 +5086,11 @@
         };
         chips.appendChild(b);
       });
-      var bOther = gpPill('+ Other', false);
+      var otherOn = GP_NEW && !!(window._gpOfferOpen && window._gpOfferOpen.kind === kind && !window._gpOfferOpen.cat);
+      var bOther = gpPill('+ Other', otherOn);
+      if (otherOn) { pickedCat = ''; inp.placeholder = kind === 'space' ? 'What space?' : 'What thing?'; field.style.display = 'flex'; setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0); }
       bOther.onclick = function(){
+        if (GP_NEW) { window._gpOfferOpen = otherOn ? null : { kind: kind, cat: '' }; gpPaintOffers(ob); return; }
         pickedCat = '';
         inp.placeholder = kind === 'space' ? 'What space?' : 'What thing?';
         field.style.display = 'flex';
