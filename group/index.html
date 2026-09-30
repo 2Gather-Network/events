@@ -448,10 +448,11 @@ function pick(el, key){
 (function(){
   var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
   var _gpHereAttendees = [];
+  var _gpVisitor = true, _gpFaceIsHost = function(){ return false; };
   function gpFaceGoes(a, p) {
     var who = String((p && (p.appearId || p.code)) || '').trim();
     if (!who) { return; }
-    if (!meId) { a.style.cursor = 'default'; return; }
+    if (!meId || (_gpVisitor && !_gpFaceIsHost(p))) { a.style.cursor = 'default'; a.onclick = function () { return false; }; return; }
     var _pc = _personLink(p);
     if (_pc) {
       a.setAttribute('data-nav', _pc);
@@ -479,6 +480,27 @@ function pick(el, key){
     var w = hn.clientWidth || 284;
     var perRow = Math.max(1, Math.floor((w + 6) / 38)); 
     hn.innerHTML = '';
+    if (_gpVisitor && _gpHereAttendees.length) {
+      var hosts = _gpHereAttendees.filter(function(p){ return _gpFaceIsHost(p); });
+      var rest = _gpHereAttendees.filter(function(p){ return !_gpFaceIsHost(p); });
+      var all = hosts.concat(rest);
+      var fit = Math.max(1, Math.floor((w - 40) / 18) + 1);
+      hn.style.flexWrap = 'nowrap'; hn.style.gap = '0';
+      all.slice(0, fit).forEach(function(p, i){
+        var isHost = _gpFaceIsHost(p);
+        var a = document.createElement('a');
+        a.setAttribute('role','link'); a.setAttribute('tabindex', isHost ? '0' : '-1');
+        a.setAttribute('title', isHost ? (p.first || p.name || '') : '');
+        a.setAttribute('style','width:40px;height:40px;border-radius:50%;background:#B7C4D6;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;text-decoration:none;overflow:hidden;flex:none;border:2px solid #fff;position:relative;'
+          + 'z-index:' + (all.length - i) + ';' + (i ? 'margin-left:-22px;' : '') + (isHost ? 'cursor:pointer;' : 'filter:blur(2.5px);'));
+        if (p.photo) { var img = document.createElement('img'); img.src = p.photo; img.alt = ''; img.setAttribute('style','width:100%;height:100%;object-fit:cover;'); a.appendChild(img); }
+        else { a.textContent = (p.first||p.name||'?').charAt(0).toUpperCase(); }
+        gpFaceGoes(a, p);
+        hn.appendChild(a);
+      });
+      return;
+    }
+    hn.style.flexWrap = ''; hn.style.gap = '';
     _gpHereAttendees.slice(0, perRow).forEach(function(p){
       var a = document.createElement('a');
       a.setAttribute('role','link'); a.setAttribute('tabindex','0');
@@ -2168,6 +2190,8 @@ function pick(el, key){
         mh.textContent = _n + (_n === 1 ? ' member' : ' members');
       }
       _gpHereAttendees = attendees;
+      _gpVisitor = !(attendees.some(_gpIsMe) || d.meRegistered === true || d.meIsHost === true || d.meIsOperator === true);
+      _gpFaceIsHost = _gpRuns;
       _me = d.me || null;
       _matchResults = _computeMatches(_me, _gpHereAttendees);
       _renderMatches();
@@ -2240,7 +2264,7 @@ var myPill = document.getElementById('gp-myprofile-pill');
       var _reallyAMember = false;
       if (meId) {
         var _vNrm = String(meId).split('.').join('').toLowerCase();
-        _viewerInGroup = attendees.some(_gpIsMe);
+        _viewerInGroup = attendees.some(_gpIsMe) || d.meRegistered === true;
         _reallyAMember = _viewerInGroup;
         _viewerIsHost = (typeof d.meIsHost === 'boolean')
           ? d.meIsHost
