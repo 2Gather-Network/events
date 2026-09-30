@@ -157,12 +157,12 @@
 <script>
 (function(){
   var CATS = ['Food & Drink','Movement','Play','Travel','Community & Culture','Arts & Expression','Outdoors','Home Life','Animals','Technology','Rest & Recovery','Personal Care','Faith','Business','Communications','Building & Repurposing','Transportation','Finance','Science','Medicine'];
-  var EMO = {}, SKILLSET = {}, VALCAT = {};
+  var EMO = {}, SKILLSET = {}, VALCAT = {}, WORDS = [];
   function tagQ(it){ return 'Tag ' + String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim() + ':'; }
   function catLab(c){ return EMO[c] ? EMO[c] + ' ' + c : c; }
   fetch('https://cw-api-gate.jessieupp.workers.dev?action=getReferenceData')
     .then(function(r){ return r.json(); })
-    .then(function(rd){ (rd && rd.topicCategories || []).forEach(function(t){ if (t && t.label) EMO[t.label] = t.emoji || ''; }); (rd && rd.skills || []).forEach(function(x){ if (x && x.item) SKILLSET[String(x.item).trim().toLowerCase()] = 1; }); items.forEach(function(x){ x.kAuto = false; }); (rd && rd.values || []).forEach(function(v){ var c = String(v && v.category || '').trim(); if (v && v.item && /^(social|ecological)$/i.test(c)) VALCAT[String(v.item).trim().toLowerCase()] = c.charAt(0).toUpperCase() + c.slice(1).toLowerCase(); }); items.forEach(careCat); if (rd && Array.isArray(rd.whoRelationship) && rd.whoRelationship.length) REL = rd.whoRelationship.map(String); if (rd && Array.isArray(rd.guideRoles) && rd.guideRoles.length) GUIDE_ROLES = rd.guideRoles.map(String); if (rd && Array.isArray(rd.practiceRoles) && rd.practiceRoles.length) PRACTICE_ROLES = rd.practiceRoles.map(String); var RDK = ['whoSeason', 'whoHousehold', 'whoWorkStage', 'whoAccommodation']; RDK.forEach(function(k, gi){ var l = rd && rd[k]; if (Array.isArray(l) && l.length && SERVE_GROUPS[gi]) SERVE_GROUPS[gi][1] = l.map(String); }); var NW = (rd && Array.isArray(rd.natureWords)) ? rd.natureWords.map(function(x){ return String(x).trim(); }).filter(Boolean) : []; ECO = NW.length ? NW : (rd && rd.values || []).filter(function(v){ return v && String(v.category || '').trim().toLowerCase() === 'ecological'; }).map(function(v){ return String(v.item).trim(); }).filter(Boolean); draw(); })
+    .then(function(rd){ (rd && rd.topicCategories || []).forEach(function(t){ if (t && t.label) EMO[t.label] = t.emoji || ''; }); (rd && rd.skills || []).forEach(function(x){ if (x && x.item) SKILLSET[String(x.item).trim().toLowerCase()] = 1; }); items.forEach(function(x){ x.kAuto = false; }); (function(){ var seen = {}, add = function(w){ w = String(w || '').trim(); if (w && !seen[w.toLowerCase()]) { seen[w.toLowerCase()] = 1; WORDS.push(w); } }; (rd && rd.recreation || []).forEach(function(r){ add(r && r.item); }); (rd && rd.skills || []).forEach(function(r){ add(r && r.item); }); (rd && rd.values || []).forEach(function(r){ add(r && r.item); }); (rd && rd.topicCategories || []).forEach(function(t){ (t.examples || []).forEach(function(w){ add(w.charAt(0).toUpperCase() + w.slice(1)); }); }); })(); (rd && rd.values || []).forEach(function(v){ var c = String(v && v.category || '').trim(); if (v && v.item && /^(social|ecological)$/i.test(c)) VALCAT[String(v.item).trim().toLowerCase()] = c.charAt(0).toUpperCase() + c.slice(1).toLowerCase(); }); items.forEach(careCat); if (rd && Array.isArray(rd.whoRelationship) && rd.whoRelationship.length) REL = rd.whoRelationship.map(String); if (rd && Array.isArray(rd.guideRoles) && rd.guideRoles.length) GUIDE_ROLES = rd.guideRoles.map(String); if (rd && Array.isArray(rd.practiceRoles) && rd.practiceRoles.length) PRACTICE_ROLES = rd.practiceRoles.map(String); var RDK = ['whoSeason', 'whoHousehold', 'whoWorkStage', 'whoAccommodation']; RDK.forEach(function(k, gi){ var l = rd && rd[k]; if (Array.isArray(l) && l.length && SERVE_GROUPS[gi]) SERVE_GROUPS[gi][1] = l.map(String); }); var NW = (rd && Array.isArray(rd.natureWords)) ? rd.natureWords.map(function(x){ return String(x).trim(); }).filter(Boolean) : []; ECO = NW.length ? NW : (rd && rd.values || []).filter(function(v){ return v && String(v.category || '').trim().toLowerCase() === 'ecological'; }).map(function(v){ return String(v.item).trim(); }).filter(Boolean); draw(); })
     .catch(function(){});
   var Q = {
     how:   { q: 'How is this of interest to you?', opts: ['Fan', 'I do it myself'], many: true },
@@ -301,6 +301,40 @@
     var catOk = !(other && !it.thing && (!it.cat || it.guess)) || (it.a.cat || []).length > 0;
     var kindOk = !(has(it, 'offer') && !it.thing) || (it.a.kind || []).length > 0;
     return catOk && kindOk;
+  }
+  function renameTo(it, nw, redraw){
+    var old = it.word; nw = String(nw || '').trim();
+    if (!nw || nw.toLowerCase() === String(old).toLowerCase()) return;
+    it.word = nw;
+    try { var all = sharedAll(); delete all[String(old).toLowerCase()]; sessionStorage.setItem('ao-details', JSON.stringify(all)); } catch (e) {}
+    if (FITP) toParent({ ao: 'rename', key: FITKEY[FITP], from: old, to: nw });
+    redraw();
+  }
+  function titleRow(box, it, redraw){
+    var wrap = el('div', ''); wrap.style.marginTop = '8px';
+    var bar = el('div', 'oline'); bar.style.maxWidth = 'none'; bar.style.marginTop = '0';
+    var inp = el('input', 'oinp'); inp.type = 'text'; inp.value = it.word; inp.setAttribute('aria-label', 'Change the word');
+    var go = el('button', 'btn', 'Change'); go.type = 'button';
+    var x = el('button', 'pen x', '\u2715'); x.type = 'button'; x.title = 'Cancel'; x.setAttribute('aria-label', 'Cancel');
+    var sug = el('div', 'row'); sug.style.alignItems = 'center';
+    var paint = function(){
+      var v = String(inp.value || '').trim(), diff = !!v && v.toLowerCase() !== String(it.word).toLowerCase();
+      go.style.display = diff ? '' : 'none'; x.style.display = diff ? '' : 'none';
+      sug.innerHTML = '';
+      if (!diff || v.length < 2) return;
+      var hits = WORDS.filter(function(w){ return w.toLowerCase().indexOf(v.toLowerCase()) > -1 && w.toLowerCase() !== String(it.word).toLowerCase(); }).slice(0, 8);
+      if (!hits.length) return;
+      sug.appendChild(el('span', 'wait', 'Or choose a match'));
+      hits.forEach(function(h){ var p = el('button', 'pill', h); p.type = 'button'; p.addEventListener('click', function(){ renameTo(it, h, redraw); }); sug.appendChild(p); });
+    };
+    inp.addEventListener('input', paint);
+    inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); renameTo(it, inp.value, redraw); } });
+    go.addEventListener('click', function(){ renameTo(it, inp.value, redraw); });
+    x.addEventListener('click', function(){ inp.value = it.word; paint(); });
+    bar.appendChild(inp); bar.appendChild(go); bar.appendChild(x);
+    wrap.appendChild(bar); wrap.appendChild(sug);
+    box.insertBefore(wrap, box.firstChild ? box.firstChild.nextSibling : null);
+    paint();
   }
   function tagBlock(c, it, redraw){
     var b = el('div', 'qbox'); b.appendChild(el('div', 'qq', tagQ(it)));
@@ -784,6 +818,7 @@
       tl.appendChild(ch); tb.appendChild(tl); c.appendChild(tb);
     } else {
       tagBlock(c, it, draw);
+      if (!it.thing) titleRow(c.lastChild, it, draw);
       if (it.tagOpen && catDone(it)) {
         var clRow = el('div', ''); clRow.style.cssText = 'text-align:right;margin-top:8px;';
         var cl = el('button', 'link', 'Collapse'); cl.type = 'button';
