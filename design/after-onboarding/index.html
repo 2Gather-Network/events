@@ -134,6 +134,14 @@
   html.ao-embed .panel{padding:4px;border-radius:0;}
   html.ao-embed .note,html.ao-embed h1,html.ao-embed .lede,html.ao-embed .prog,html.ao-embed .band,html.ao-embed .foot,html.ao-embed .msg,html.ao-embed .topbtns{display:none;}
   html.ao-embed .grid{border:0;padding:0;}
+  #ao-tools{border:1.5px solid var(--pale);border-top:0;padding:12px 14px 0;display:flex;flex-direction:column;gap:10px;}
+  #ao-tools input{font:inherit;font-size:14.5px;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:9px 12px;color:#1A2E42;width:100%;box-sizing:border-box;}
+  #ao-tools .chips{display:flex;flex-wrap:wrap;gap:7px;}
+  #ao-tools .chips button{font:inherit;font-size:13.5px;font-weight:700;padding:7px 14px;border-radius:20px;cursor:pointer;background:#fff;border:1.5px solid #C9DFF3;color:#1F699E;}
+  #ao-tools .chips button.on{background:#1F699E;border-color:#1F699E;color:#fff;}
+  #ao-tools + .grid{border-top:0;}
+  #ao-none{font-size:14px;color:#4B5A6D;grid-column:1/-1;}
+  html.ao-editing #ao-tools,html.ao-embed #ao-tools,html.ao-fit #ao-tools{display:none;}
   html.ao-inpane body{background:#fff;}
   html.ao-inpane .wrap{padding:0;max-width:none;}
   html.ao-inpane .panel{padding:0;}
@@ -640,6 +648,7 @@
   if (!items.length && !FITP) items = SAMPLE;
 
   var grid = document.getElementById('ao-grid');
+  var aoFind = '', aoKind = 'all';
   var openIx = -1, step = 0, onlyOpen = false;
 
   function el(tag, cls, text){ var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
@@ -900,11 +909,34 @@
     document.documentElement.classList.toggle('ao-editing', editIx > -1);
     if (editIx > -1) { drawEdit(); return; }
     items.forEach(selfDefault);
-    var done = 0;
-    items.forEach(function(it, ix){
+    var done = 0, shown = 0;
+    var tools = document.getElementById('ao-tools');
+    if (!tools) {
+      tools = el('div', ''); tools.id = 'ao-tools';
+      var q = document.createElement('input'); q.type = 'search'; q.placeholder = 'Search your interests'; q.setAttribute('aria-label', 'Search your interests');
+      q.addEventListener('input', function(){ aoFind = String(q.value || '').trim().toLowerCase(); draw(); });
+      var chips = el('div', 'chips');
+      [['all', 'All'], ['detail', 'Needs a detail'], ['enjoy', 'Joys'], ['care', 'Cares'], ['skill', 'Skills'], ['offer', 'Offerings'], ['seek', 'Seeking']].forEach(function(f){
+        var b = el('button', f[0] === aoKind ? 'on' : '', f[1]); b.type = 'button'; b.setAttribute('data-f', f[0]);
+        b.addEventListener('click', function(){ aoKind = f[0]; Array.prototype.forEach.call(chips.children, function(x){ x.classList.toggle('on', x.getAttribute('data-f') === aoKind); }); draw(); });
+        chips.appendChild(b);
+      });
+      tools.appendChild(q); tools.appendChild(chips);
+      grid.parentNode.insertBefore(tools, grid);
+    }
+    var order = items.map(function(it, ix){ return ix; });
+    order.sort(function(a, b){ var ma = missingHere(items[a]).length ? 0 : 1, mb = missingHere(items[b]).length ? 0 : 1; return ma - mb || a - b; });
+    order.forEach(function(ix){
+      var it = items[ix];
       var miss = missingHere(it), ok = !miss.length;
       if (ok) done++;
       if ((EMBED || onlyOpen) && ok && ix !== openIx) return;
+      if (ix !== openIx && !EMBED && !FITP) {
+        if (aoKind === 'detail' && ok) return;
+        if (aoKind !== 'all' && aoKind !== 'detail' && (it.tags || []).indexOf(aoKind) < 0) return;
+        if (aoFind && (String(it.word) + ' ' + (catLine(it) || '')).toLowerCase().indexOf(aoFind) < 0) return;
+      }
+      shown++;
       var c = el('div', 'c ' + (ix === openIx ? 'open' : ok ? 'ok' : 'more'));
       var tr = el('div', 'tr');
       if (ix === openIx) { var xo = el('button', 'pen x', '\u2715'); xo.type = 'button'; xo.title = 'Later'; xo.addEventListener('click', function(){ openIx = -1; restMode = false; draw(); }); tr.appendChild(xo); }
@@ -929,7 +961,8 @@
       }
       grid.appendChild(c);
     });
-    document.getElementById('ao-band').textContent = 'Your answers (' + items.length + ')';
+    if (!shown && items.length) { var none = el('div', '', 'Nothing matches. Try another word or filter.'); none.id = 'ao-none'; grid.appendChild(none); }
+    document.getElementById('ao-band').textContent = 'All interests (' + items.length + ')';
     document.getElementById('ao-count').textContent = done + ' of ' + items.length + ' complete';
     document.getElementById('ao-bar').style.width = (items.length ? Math.round(done * 100 / items.length) : 0) + '%';
     var left = items.length - done, rest = document.getElementById('ao-rest');
