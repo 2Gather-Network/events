@@ -1,8 +1,6 @@
 (function (w, d) {
   if (w._cwWaitWords) { return; }
   w._cwWaitWords = true;
-  var q = String(w.location.search || '');
-  if (!/[?&]waitwords=1(&|$)/.test(q)) { return; }
   var FIRST = 3000;
   var EVERY = 7000;
   var WORDS = [
