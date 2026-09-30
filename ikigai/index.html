@@ -1613,6 +1613,14 @@
         bOther.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
           + 'background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;';
         bOther.addEventListener('click', function(){
+          if (GP_NEW) {
+            var openNow = !(searchWrap.style.display === 'block' && searchWrap.previousSibling === lrow);
+            if (openNow) { lrow.parentNode.insertBefore(searchWrap, lrow.nextSibling); searchWrap.style.margin = '10px 0 10px'; }
+            searchWrap.style.display = openNow ? 'block' : 'none';
+            bOther.style.background = openNow ? '#1F699E' : '#fff'; bOther.style.color = openNow ? '#fff' : '#1F699E';
+            if (openNow) { try { search.focus(); } catch (e) {} }
+            return;
+          }
           try { gpPlaceOther(lrow); other.click(); } catch (e) {}
         });
         lrow.appendChild(bOther);
@@ -1836,6 +1844,7 @@
           searchWrap.style.margin = '10px 0 10px';
         }
         searchWrap.style.display = _shown ? 'none' : 'block';
+        if (GP_NEW) { other.style.background = _shown ? '#fff' : '#1F699E'; other.style.color = _shown ? '#1F699E' : '#fff'; }
         if (!_shown) { try { search.focus(); } catch (e) {} }
         return;
       }
@@ -2561,26 +2570,91 @@
   }
 
   var GP_BAL_CATS = ['Personal Care', 'Medicine', 'Movement', 'Home Life'];
+  var GP_INVITES = [
+    { key: 'daybalancer', list: 'balanceWords', cats: true, text: 'tend to yourself on DayBalancer' },
+    { key: 'appear', list: 'appearWords', text: 'tend to your network on Appear Network' },
+    { key: 'gather', list: 'gatherWords', text: 'gather with your community on 2Gather' }
+  ];
+  var _gpInvSent = {};
   function gpBalPaint(){
     if (!GP_NEW) { return; }
     var blk = document.getElementById('gp-bal-tick');
     if (!blk) { return; }
     if (!document.getElementById('gp-shut-css')) { var sc = document.createElement('style'); sc.id = 'gp-shut-css'; sc.textContent = '.gp-shut{display:none !important;}'; document.head.appendChild(sc); }
+    blk.classList.add('gp-shut');
+    var inv = document.getElementById('gp-invites');
+    if (!inv) {
+      inv = document.createElement('div');
+      inv.id = 'gp-invites';
+      inv.setAttribute('data-gp-step', blk.getAttribute('data-gp-step') || '4');
+      inv.style.cssText = 'margin:22px 0 0;display:flex;flex-direction:column;gap:10px;';
+      blk.parentNode.insertBefore(inv, blk.nextSibling);
+    }
     var rd = window._gpBalRd;
     if (!rd) {
-      blk.classList.add('gp-shut');
+      inv.classList.add('gp-shut');
       if (!window._gpBalAsked) { window._gpBalAsked = true; gpRefOnce().then(function(r){ window._gpBalRd = r || {}; gpBalPaint(); }).catch(function(){ window._gpBalAsked = false; }); }
       return;
     }
-    var list = {};
-    (Array.isArray(rd.balanceWords) ? rd.balanceWords : []).forEach(function(w){ w = String(w || '').trim().toLowerCase(); if (w) { list[w] = 1; } });
-    var tags = (_gpTags && _gpTags.introNeed) || {};
-    var hit = gpPickedWords('introNeed').some(function(w){
-      if (list[w.toLowerCase()]) { return true; }
-      var c = String(tags[w] || gpCatOf('introNeed', w) || '').split(' > ');
-      return c.some(function(x){ x = String(x || '').trim(); var m = GP_BAL_CATS.indexOf(x) > -1 ? x : (window.cwTopicFor ? window.cwTopicFor(x) : ''); return GP_BAL_CATS.indexOf(m) > -1; });
+    var words = gpPickedWords('introNeed'), tags = (_gpTags && _gpTags.introNeed) || {};
+    var low = function(x){ return String(x || '').trim().toLowerCase(); };
+    var hitsFor = function(inv1){
+      var list = (Array.isArray(rd[inv1.list]) ? rd[inv1.list] : []).map(low).filter(Boolean);
+      return words.filter(function(w){
+        var lw = low(w);
+        if (list.some(function(x){ return lw === x || (' ' + lw + ' ').indexOf(' ' + x + ' ') > -1; })) { return true; }
+        if (!inv1.cats) { return false; }
+        return String(tags[w] || gpCatOf('introNeed', w) || '').split(' > ').some(function(c){ c = String(c || '').trim(); var m = GP_BAL_CATS.indexOf(c) > -1 ? c : (window.cwTopicFor ? window.cwTopicFor(c) : ''); return GP_BAL_CATS.indexOf(m) > -1; });
+      });
+    };
+    inv.innerHTML = '';
+    var any = false;
+    GP_INVITES.forEach(function(v){
+      var hits = hitsFor(v);
+      if (!hits.length) { return; }
+      any = true;
+      var card = document.createElement('div');
+      card.style.cssText = 'background:#F7FBFF;border:1px solid #C9DFF3;border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;';
+      var tx = document.createElement('div');
+      tx.style.cssText = 'font-size:14.5px;color:#1A2E42;line-height:1.5;flex:1;min-width:220px;';
+      tx.appendChild(document.createTextNode('You mentioned you\u2019re seeking \u201C' + hits.join(', ') + '\u201D. You\u2019re invited to '));
+      var b = document.createElement('b'); b.textContent = v.text + '.'; tx.appendChild(b);
+      card.appendChild(tx);
+      var st = _gpInvSent[v.key];
+      if (st === 'ok') {
+        var ok = document.createElement('div');
+        ok.style.cssText = 'font-size:14px;font-weight:700;color:#1F699E;';
+        ok.textContent = 'Expect an invite soon!';
+        card.appendChild(ok);
+      } else {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = st === 'sending' ? 'Sending\u2026' : (st === 'err' ? 'Try again' : 'Learn more');
+        btn.disabled = st === 'sending';
+        btn.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:9px 18px;border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
+        btn.onclick = function(){
+          if (!meId || gpViewingSomebodyElse()) { return; }
+          _gpInvSent[v.key] = 'sending'; gpBalPaint();
+          fetch(GS_URL + '?action=requestInvite&appearId=' + encodeURIComponent(meId) + '&to=' + v.key + '&words=' + encodeURIComponent(hits.join(', ')))
+            .then(function(r){ return r.json(); })
+            .then(function(d){ _gpInvSent[v.key] = (d && d.status === 'ok') ? 'ok' : 'err'; gpBalPaint(); })
+            .catch(function(){ _gpInvSent[v.key] = 'err'; gpBalPaint(); });
+        };
+        card.appendChild(btn);
+        var nt2 = document.createElement('div');
+        nt2.style.cssText = 'font-size:12.5px;color:#4B5A6D;width:100%;';
+        nt2.textContent = 'Learn more sends your name and email to the Creating.Works team so they can invite you.';
+        card.appendChild(nt2);
+        if (st === 'err') {
+          var er = document.createElement('div');
+          er.style.cssText = 'font-size:13px;color:#C2560E;width:100%;';
+          er.textContent = 'That didn\u2019t send. Try again.';
+          card.appendChild(er);
+        }
+      }
+      inv.appendChild(card);
     });
-    blk.classList.toggle('gp-shut', !(hit || window._gpBal === true));
+    inv.classList.toggle('gp-shut', !any);
   }
   function gpStepPaint(){
     try { gpBalPaint(); } catch (e) {}
