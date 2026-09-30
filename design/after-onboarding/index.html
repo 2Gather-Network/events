@@ -173,6 +173,7 @@
   var Q = {
     how:   { q: 'How is this of interest to you?', opts: ['Fan', 'I do it myself'], many: true },
     who:   { q: 'Is it for yourself, or in service to someone or something else?', opts: ['Tending to self', 'People', 'Other'], many: true },
+    workOpen: { q: 'Is it a skill you want to work with?', opts: ['Yes, I\u2019m open to work', 'No, just for joy'] },
     level: { q: 'What is your level?', opts: ['Beginner', 'Experienced', 'Guide'] },
     gives: { q: 'What would it give you? Tag how this nourishes you.', opts: ['Create', 'Connect', 'Eat & Drink', 'Move', 'Play', 'Survive', 'Rest'], many: true },
     kind:  { q: 'Is it a skill, a thing or a space?', opts: ['Skill', 'Thing', 'Space'] },
@@ -196,9 +197,10 @@
 
   function isSkill(it){ return has(it, 'skill') || (it.a.kind || []).indexOf('Skill') > -1 || !!SKILLSET[String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase()]; }
   function has(it, t){ return (it.tags || []).indexOf(t) > -1; }
+  function wantsWork(it){ return /^Yes/.test(String(((it.a || {}).workOpen || [])[0] || '')); }
   function tagNeeds(it, t){
     if (t === 'enjoy') return ['how'];
-    if (t === 'skill') return ['level', 'who'];
+    if (t === 'skill') return FITP === 'skill' ? ['level', 'work', 'who'] : ['workOpen', 'level'].concat(!FITP && wantsWork(it) ? ['work', 'who'] : []);
     if (t === 'care') return ['who'];
     if (t === 'seek') return ['gives'];
     if (t === 'offer') return ((it.a.kind || []).indexOf('Skill') > -1 ? ['work'] : []).concat(['who']);
@@ -207,18 +209,19 @@
   function needs(it){
     var n = [], other = (it.tags || []).some(function(t){ return t !== 'care'; });
     if (has(it, 'enjoy')) n.push('how');
-    if (has(it, 'skill')) n.push('level');
+    if (has(it, 'skill')) { n.push('workOpen'); n.push('level'); }
     if (has(it, 'seek')) n.push('gives');
-    if (has(it, 'offer') && (it.a.kind || []).indexOf('Skill') > -1) n.push('work');
+    if ((has(it, 'offer') && (it.a.kind || []).indexOf('Skill') > -1) || (has(it, 'skill') && wantsWork(it))) n.push('work');
     if (has(it, 'care') && !other && !it.cat) n.push('lens');
     if ((other && !it.thing && (!it.cat || it.guess)) || (has(it, 'offer') && !it.thing)) n.push('cat');
-    if (has(it, 'care') || has(it, 'offer') || has(it, 'skill')) n.push('who');
+    if (has(it, 'care') || has(it, 'offer') || (has(it, 'skill') && wantsWork(it))) n.push('who');
     return n;
   }
   function wq(it){ return '\u201C' + String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase() + '\u201D'; }
   function qText(k, it){
     var w = wq(it);
     if (k === 'how') return 'How is ' + w + ' of interest to you?';
+    if (k === 'workOpen') return 'Is ' + w + ' a skill you want to work with?';
     if (k === 'gives') return 'What would ' + w + ' give you? Tag how this nourishes you.';
     if (k === 'kind') return 'Is ' + w + ' a skill, a thing or a space?';
     if (k === 'cat' || k === 'lens') return tagQ(it);
@@ -284,7 +287,7 @@
       lr.appendChild(p);
     });
   }
-  function serves(it){ return has(it, 'offer') || has(it, 'skill'); }
+  function serves(it){ return has(it, 'offer') || (has(it, 'skill') && wantsWork(it)); }
   function withDone(it){ return (it.a.enjoyWith || []).length > 0; }
   function withParts(it){ return (it.a.enjoyWith || []).map(function(x){ return x === 'With others' && (it.a.enjoyWho || []).length ? 'With others (' + it.a.enjoyWho.join(', ') + ')' : x; }); }
   function withBlock(c, it, redraw){
@@ -382,9 +385,10 @@
   }
   function missing(it){ return needs(it).filter(function(k){ return k === 'with' ? !withDone(it) : k === 'who' ? !whoDone(it) : k === 'work' ? !workDone(it) : k === 'cat' ? !catDone(it) : !(it.a[k] && it.a[k].length); }); }
   function selfDefault(it){
-    if (!has(it, 'skill') || has(it, 'offer')) return;
-    it.a = it.a || {}; it.a.serveWhat = it.a.serveWhat || [];
-    if (!it.a.serveWhat.length && !it.a.peopleDefault) { it.a.serveWhat.push('Self'); it.a.peopleDefault = true; it.a.who = ['In service to another']; }
+    it.a = it.a || {};
+    var sw = it.a.serveWhat || [], at = sw.indexOf('Self');
+    if (at > -1) sw.splice(at, 1);
+    if (has(it, 'skill') && it.inSkills && !(it.a.workOpen || []).length) it.a.workOpen = [Q.workOpen.opts[0]];
   }
   function missingHere(it){
     var m = missing(it);
@@ -395,6 +399,7 @@
   function missLabel(it, k){
     if (k === 'how' || k === 'with') return 'How you enjoy it';
     if (k === 'level') return 'Level';
+    if (k === 'workOpen') return 'Open to work?';
     if (k === 'who') return has(it, 'skill') && !has(it, 'offer') ? 'Beneficiary' : 'Who it is for';
     if (k === 'gives') return 'What it gives you';
     if (k === 'work') return 'Work';
@@ -444,10 +449,10 @@
     if (serves(it)) {
       it.a.who = ['In service to another'];
       var skillOnly = has(it, 'skill') && !has(it, 'offer');
-      if (skillOnly && !it.a.serveWhat.length && !it.a.peopleDefault) { it.a.serveWhat.push('Self'); it.a.peopleDefault = true; }
+      if (it.a.serveWhat.indexOf('Self') > -1) it.a.serveWhat.splice(it.a.serveWhat.indexOf('Self'), 1);
       b.appendChild(el('div', 'qq', skillOnly ? 'Beneficiary?' : 'What is \u201C' + word + '\u201D in service to?'));
       var o2 = el('div', 'row'); b.appendChild(o2);
-      chipsInto(o2, skillOnly ? ['Self', 'People', 'Other'] : ['People', 'Other'], it.a.serveWhat, false, function(){ if (it.a.serveWhat.indexOf('People') < 0) it.a.serveWho.length = 0; if (it.a.serveWhat.indexOf('Other') < 0 && it.a.serveNature) it.a.serveNature.length = 0; }, redraw);
+      chipsInto(o2, ['People', 'Other'], it.a.serveWhat, false, function(){ if (it.a.serveWhat.indexOf('People') < 0) it.a.serveWho.length = 0; if (it.a.serveWhat.indexOf('Other') < 0 && it.a.serveNature) it.a.serveNature.length = 0; }, redraw);
       if (it.a.serveWhat.indexOf('People') > -1) peopleRows(b, it, redraw, skillOnly);
       if (it.a.serveWhat.indexOf('Other') > -1) natureRows(b, it, redraw);
       c.appendChild(b);
@@ -565,6 +570,8 @@
           out.push(it);
         } else if (!it.cat && cat) { it.cat = cat; it.oldCat = ''; }
         if (it.tags.indexOf(p[1]) < 0) it.tags.push(p[1]);
+        if (p[1] === 'skill') it.inSkills = true;
+        if (p[1] === 'enjoy' && mine.canDo && it.tags.indexOf('skill') < 0) it.tags.push('skill');
         if (mine.how && !(it.a.how && it.a.how.length)) it.a.how = mine.how.slice();
         if ((it.a.how || []).indexOf('I do it myself') > -1 && !(it.a.enjoyWith && it.a.enjoyWith.length)) it.a.enjoyWith = ['Solo'];
         if (mine.level && mine.level.length && !(it.a.level && it.a.level.length)) it.a.level = mine.level.slice();
@@ -576,7 +583,7 @@
       (hand[p[0]] || []).forEach(function(w){ out.push({ word: w, tags: [p[1]], cat: '', thing: true, det: (hand[p[2]] && typeof hand[p[2]] === 'object') ? (hand[p[2]][w] || '') : (hand[p[2]] || ''), a: {} }); });
     });
     out.forEach(careCat);
-    return FITP ? out.filter(function(x){ return x.tags.indexOf(FITP) > -1; }) : out;
+    return FITP ? out.filter(function(x){ return x.tags.indexOf(FITP) > -1 && (FITP !== 'skill' || x.inSkills); }) : out;
   }
   var fromOne = /[?&]from=onepage/.test(location.search), hand = null;
   if (fromOne) { try { hand = JSON.parse(sessionStorage.getItem('if-handoff') || 'null'); } catch (e) {} }
@@ -652,7 +659,8 @@
     if ((a.kind || []).length && !(a.kind[0] === 'Skill' && has(it, 'skill'))) out.push('Kind: ' + a.kind.join(', '));
     if (needs(it).indexOf('who') > -1 && whoDone(it)) out.push((has(it, 'skill') && !has(it, 'offer') && !has(it, 'care') ? 'Skill applied for: ' : 'Who it is for: ') + whoParts(it).join(', '));
     if (has(it, 'seek') && (a.gives || []).length) out.push('What it gives me: ' + a.gives.join(', '));
-    if (has(it, 'offer')) workRows(it).forEach(function(r){ out.push(r[0] + ': ' + r[1]); });
+    if (has(it, 'skill') && !has(it, 'offer') && (a.workOpen || []).length && !wantsWork(it)) out.push('Just for joy');
+    if (has(it, 'offer') || (has(it, 'skill') && wantsWork(it))) workRows(it).forEach(function(r){ out.push(r[0] + ': ' + r[1]); });
     return out;
   }
   function applyPlan(src, ix){
@@ -688,7 +696,7 @@
           if ((p.it.a.enjoyWho || []).length && (p.it.a.enjoyWith || []).indexOf('With others') < 0) { p.it.a.enjoyWith = (p.it.a.enjoyWith || []).concat(['With others']); }
           if (has(p.it, 'enjoy')) p.it.a.how = ((p.it.a.how || []).indexOf('Fan') > -1 ? ['Fan'] : []).concat((p.it.a.enjoyWith || []).length ? ['I do it myself'] : []);
           shareDetails(p.it);
-          if (FITP) toParent({ ao: 'save', key: FITKEY[FITP], word: p.it.word, tags: p.it.tags.slice(), cat: (p.it.a.cat && p.it.a.cat.length) ? p.it.a.cat.slice() : (p.it.cat ? [p.it.cat] : []), how: (p.it.a.how || []).slice(), level: (p.it.a.level || []).slice(), roles: (p.it.a.roles || []).slice(), learned: (p.it.a.learned || []).slice() });
+          if (FITP) toParent({ ao: 'save', key: FITKEY[FITP], word: p.it.word, tags: p.it.tags.slice(), cat: (p.it.a.cat && p.it.a.cat.length) ? p.it.a.cat.slice() : (p.it.cat ? [p.it.cat] : []), how: (p.it.a.how || []).slice(), level: (p.it.a.level || []).slice(), roles: (p.it.a.roles || []).slice(), learned: (p.it.a.learned || []).slice(), workOpen: wantsWork(p.it) ? 'yes' : (p.it.a.workOpen || []).length ? 'no' : '' });
         });
         copiedWord = String(it.word).toLowerCase();
         defWord = it.word; try { sessionStorage.setItem('ao-default' + FITP, defWord); } catch (e) {}
@@ -961,6 +969,7 @@
       it.a[k] = it.a[k] || [];
       pickRow(host, qText(k, it), Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; if (k === 'level') { it.a.roles = []; it.a.rolesDefault = false; } draw(); });
       if (k === 'level') howBlock(host, it, draw);
+      if (k === 'workOpen' && FITP && wantsWork(it)) host.lastChild.appendChild(el('div', 'wait', 'Its work questions are on the Skills step.'));
     });
     if (it.thing || it.det) {
       var dbx = el('div', 'qbox'); dbx.appendChild(el('div', 'qq', 'Details')); c.appendChild(dbx);
@@ -996,7 +1005,7 @@
     items[editIx] = JSON.parse(JSON.stringify(draft));
     shareDetails(draft);
     if (!FITP) return;
-    _saveMsg = { ao: 'save', key: FITKEY[FITP], word: draft.word, tags: draft.tags.slice(), cat: (draft.a.cat && draft.a.cat.length) ? draft.a.cat.slice() : (draft.cat ? [draft.cat] : []), how: (draft.a.how || []).slice(), level: (draft.a.level || []).slice(), roles: (draft.a.roles || []).slice(), learned: (draft.a.learned || []).slice() };
+    _saveMsg = { ao: 'save', key: FITKEY[FITP], word: draft.word, tags: draft.tags.slice(), cat: (draft.a.cat && draft.a.cat.length) ? draft.a.cat.slice() : (draft.cat ? [draft.cat] : []), how: (draft.a.how || []).slice(), level: (draft.a.level || []).slice(), roles: (draft.a.roles || []).slice(), learned: (draft.a.learned || []).slice(), workOpen: wantsWork(draft) ? 'yes' : (draft.a.workOpen || []).length ? 'no' : '' };
     clearTimeout(_saveT);
     _saveT = setTimeout(flushSave, 600);
   }
