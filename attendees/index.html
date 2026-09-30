@@ -1066,8 +1066,8 @@ function _chipPasses(en, needsMode){
   var m=_memberFor(en.member && en.member.appearId);
   return !!(m && m.extra && m.extra.indexOf(_searchQ)>-1);
 }
-var _lookCounts=(function(){ try{ return new URLSearchParams(location.search).get('look')==='counts'; }catch(e){ return false; } })();
-var _lookV=(function(){ try{ var v=new URLSearchParams(location.search).get('v')||'a'; return /^[abc]$/.test(v)?v:'a'; }catch(e){ return 'a'; } })();
+var _lookCounts=(function(){ try{ return new URLSearchParams(location.search).get('look')!=='classic'; }catch(e){ return true; } })();
+var _lookV=(function(){ try{ var v=new URLSearchParams(location.search).get('v')||'c'; return /^[abc]$/.test(v)?v:'c'; }catch(e){ return 'c'; } })();
 if(_lookCounts){ try{ document.documentElement.classList.add('look-counts','look-'+_lookV); }catch(e){} }
 function _faceHTML(m, cls){
   var p=(m && m.photo)||'', nm=(m && (m.first||m.name))||'';
@@ -1099,19 +1099,21 @@ function _countChipsHTML(list, needsMode, key){
     else { cat=refFor(en.item).category||''; }
     if(cat==='Domain'){ cat=(key==='values')?'Sector interest':''; }
     var dim=_matchMode&&!g.mt;
-    var cls='chip cnt'+(n>1?' shared':'')+(dim?' dim':'')+(g.mt==='green'?' match':'')+(g.mt==='orange'?' match-need':'')+' noclick';
     var mems=g.mems||[], who=g.names.filter(Boolean).join(', ');
+    var one=(n===1 && _myId && mems[0] && mems[0].appearId);
+    var open=one?' onclick="openProfile(\''+escHTML(mems[0].appearId||'')+'\',\''+escHTML(mems[0].pageLink||'')+'\')"':'';
+    var cls='chip cnt'+(n>1?' shared':'')+(dim?' dim':'')+(g.mt==='green'?' match':'')+(g.mt==='orange'?' match-need':'')+(one?'':' noclick');
     var num=n>1?'<span class="cnt-num" aria-label="'+n+' people">'+n+'</span>':'';
     var text='<div class="chip-text"><span class="chip-label">'+escHTML(titleCase(en.item))+'</span>'
       +(cat?'<span class="chip-cat">'+escHTML(cat)+'</span>':'')+'</div>';
     var lead;
     if(_lookV==='b'){
       lead='<span class="face-wrap">'+_faceHTML(mems[0],'face')+num+'</span>';
-      return '<div class="'+cls+'" title="'+escHTML(who)+'"><span class="chip-open">'+lead+text+'</span></div>';
+      return '<div class="'+cls+'" title="'+escHTML(who)+'"><span class="chip-open"'+open+'>'+lead+text+'</span></div>';
     }
     lead='<span class="face-stack">'+mems.slice(0,3).map(function(m){ return _faceHTML(m,'face'); }).join('')+'</span>';
-    if(_lookV==='c') return '<div class="'+cls+'" title="'+escHTML(who)+'"><span class="chip-open">'+lead+text+(num?'<span class="cnt-tail">'+num+'</span>':'')+'</span></div>';
-    return '<div class="'+cls+'" title="'+escHTML(who)+'"><span class="chip-open">'+lead+(n>1?'<span class="cnt-side">'+n+'</span>':'')+text+'</span></div>';
+    if(_lookV==='c') return '<div class="'+cls+'" title="'+escHTML(who)+'"><span class="chip-open"'+open+'>'+lead+text+(num?'<span class="cnt-tail">'+num+'</span>':'')+'</span></div>';
+    return '<div class="'+cls+'" title="'+escHTML(who)+'"><span class="chip-open"'+open+'>'+lead+(n>1?'<span class="cnt-side">'+n+'</span>':'')+text+'</span></div>';
   }).join('');
   return html+'<div class="show-all-pill-wrap" style="display:none;"><a class="show-all-pill" onclick="expandSection(\''+key+'\')">Show all ('+order.length+')</a></div>';
 }
@@ -1138,9 +1140,10 @@ function renderSection(bodyId, countId, entries, needsMode, key){
     var n=Object.keys(ppl).length;
     var line=n+' '+(n===1?'person':'people');
     var ITEM_WORD={skills:'skill', interests:'interest', values:'value', needs:'request'};
+    var _distinct=(function(){ var u={}; filtered.forEach(function(en){ u[String(en.item||'').toLowerCase()]=1; }); return Object.keys(u).length; })();
     var w=ITEM_WORD[key];
-    if(key==='values'){ var rv=filtered.length; line += ' \u00b7 ' + rv + ' ' + (_groupId?(rv===1?'thing we care about':'things we care about'):(rv===1?'thing they care about':'things they care about')); }
-    else if(w){ var r=filtered.length; line += ' \u00b7 ' + r + ' ' + (r===1?w:w+'s'); }
+    if(key==='values'){ var rv=_lookCounts?_distinct:filtered.length; line += ' \u00b7 ' + rv + ' ' + (_groupId?(rv===1?'thing we care about':'things we care about'):(rv===1?'thing they care about':'things they care about')); }
+    else if(w){ var r=_lookCounts?_distinct:filtered.length; line += ' \u00b7 ' + r + ' ' + (r===1?w:w+'s'); }
     var both=_commonAndMatches(filtered, needsMode), bits=[];
     if(both.common) bits.push(both.common+' '+(both.common===1?'commonality':'commonalities'));
     if(both.match) bits.push(both.match+' '+(both.match===1?'match':'matches'));
@@ -1269,6 +1272,7 @@ function renderExpanded(){
   var entries=_chips[key]||[];
   var filtered=entries.filter(function(en){ return _chipPasses(en, meta.needsMode); });
   var chipsFor=function(list){
+    if(_lookCounts && list.length) return _countChipsHTML(list, meta.needsMode, key);
     return list.length
       ? list.map(function(en){ var mt=_matchMode?(meta.needsMode?matchNeedChip(en):matchOfferingChip(en)):''; return chipHTML(en, mt, meta.needsMode, key); }).join('')
       : '<span class="empty">Nothing here yet.</span>';
