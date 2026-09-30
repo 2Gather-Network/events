@@ -70,7 +70,10 @@
   .c.open,.c.edit{background:var(--soft);border:1.5px solid var(--blue);box-shadow:none;border-radius:14px;padding:18px 22px;}
   .c.open h3,.c.edit h3{font-size:17px;}
   .pen.x{font-size:15px;color:var(--grey);}
-  .pen.cp{font-size:18px;color:var(--blue);}
+  .pen.cp{font-size:18px;color:var(--blue);border-radius:6px;padding:2px 5px;}
+  .pen.cp.on{background:var(--blue);color:#fff;}
+  .copybox{border:1.5px solid var(--blue);background:var(--soft);}
+  .copybox .prose{margin:0;border:0;padding:0;}
   .ihelp{font:inherit;font-size:11px;font-weight:800;font-style:italic;width:18px;height:18px;line-height:15px;padding:0;border-radius:50%;border:1.5px solid var(--blue);background:#fff;color:var(--blue);cursor:pointer;vertical-align:middle;margin-left:4px;}
   .ihelp.on{background:var(--blue);color:#fff;}
   .ihelp-box{font-size:12.5px;color:var(--grey);background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:6px 0 2px;line-height:1.5;}
@@ -601,7 +604,7 @@
   var WHO = { 'Tending to self': 'yourself' };
   var VERB = { enjoy: 'You enjoy it', skill: 'You can do it', care: 'You care about it', seek: 'You’re seeking it', offer: 'You’re offering it' };
   var editIx = -1, draft = null;
-  var applyIx = -1, applyPick = {};
+  var applyIx = -1, applyPick = {}, applyTag = {}, editCopy = false, editCopied = 0;
   var defWord = '', copiedWord = '', pickDef = false, defQuery = '';
   try { defWord = sessionStorage.getItem('ao-default' + FITP) || ''; } catch (e) {}
   function defaultIx(){
@@ -669,17 +672,18 @@
     items.forEach(function(x, i){
       if (i === ix) return;
       var take = groups.filter(function(g){
-        var fits = g.tag ? has(x, g.tag) : needs(x).indexOf('who') > -1;
+        var fits = g.tag ? (has(x, g.tag) || (!!applyTag[g.tag] && has(src, g.tag))) : needs(x).indexOf('who') > -1;
         var empty = g.keys.every(function(k){ return !(x.a[k] && x.a[k].length); });
         if (g.id === 'with' && (x.a.enjoyWith || []).length && (x.a.enjoyWith || []).indexOf('With others') < 0) empty = false;
         if (g.id === 'who' && serves(x)) empty = !((x.a.serveWhat || []).length || (x.a.serveWho || []).length);
         return fits && empty;
       });
-      if (take.length) plan.push({ it: x, groups: take });
+      var add = Object.keys(applyTag).filter(function(t){ return applyTag[t] && has(src, t) && !has(x, t) && !x.thing; });
+      if (take.length || add.length) plan.push({ it: x, groups: take, add: add });
     });
     return plan;
   }
-  function applyPanel(c, it, ix){
+  function applyPanel(c, it, ix, inEdit){
     var bx = el('div', 'prose');
     bx.appendChild(el('div', 'qq', 'Use these answers on my other cards'));
     applyGroups(it).forEach(function(g){
@@ -688,11 +692,25 @@
       cb.addEventListener('change', function(){ applyPick[g.id] = cb.checked; draw(); });
       lab.appendChild(cb); lab.appendChild(el('span', '', g.label)); bx.appendChild(lab);
     });
+    var canTag = (it.tags || []).filter(function(t){ return t !== 'offer' && items.some(function(x, i){ return i !== ix && !x.thing && !has(x, t); }); });
+    if (canTag.length) {
+      var th = el('div', 'qq sub', 'Also mark my other cards:'); th.style.marginTop = '12px'; bx.appendChild(th);
+      canTag.forEach(function(t){
+        var lab2 = el('label', ''); lab2.style.cssText = 'display:flex;align-items:flex-start;gap:8px;margin-top:8px;cursor:pointer;';
+        var cb2 = el('input', ''); cb2.type = 'checkbox'; cb2.checked = !!applyTag[t];
+        cb2.addEventListener('change', function(){ applyTag[t] = cb2.checked; if (cb2.checked) applyGroups(it).forEach(function(g){ if (g.tag === t) applyPick[g.id] = true; }); draw(); });
+        lab2.appendChild(cb2); lab2.appendChild(el('span', '', FIT[t])); bx.appendChild(lab2);
+      });
+    }
     var plan = applyPlan(it, ix), nav = el('div', 'qnav');
     if (plan.length) {
       var go = el('button', 'btn', 'Apply to ' + plan.length + (plan.length === 1 ? ' card' : ' cards')); go.type = 'button';
       go.addEventListener('click', function(){
         plan.forEach(function(p){
+          (p.add || []).forEach(function(t){
+            if (!has(p.it, t)) p.it.tags.push(t);
+            if (t === 'skill' && !p.it.inSkills && !(p.it.a.workOpen || []).length) p.it.a.workOpen = [Q.workOpen.opts[1]];
+          });
           p.groups.forEach(function(g){ g.keys.forEach(function(k){ if (it.a[k] !== undefined) p.it.a[k] = JSON.parse(JSON.stringify(it.a[k])); }); });
           if ((p.it.a.enjoyWho || []).length && (p.it.a.enjoyWith || []).indexOf('With others') < 0) { p.it.a.enjoyWith = (p.it.a.enjoyWith || []).concat(['With others']); }
           if (has(p.it, 'enjoy')) p.it.a.how = ((p.it.a.how || []).indexOf('Fan') > -1 ? ['Fan'] : []).concat((p.it.a.enjoyWith || []).length ? ['I do it myself'] : []);
@@ -701,6 +719,7 @@
         });
         copiedWord = String(it.word).toLowerCase();
         defWord = it.word; try { sessionStorage.setItem('ao-default' + FITP, defWord); } catch (e) {}
+        if (inEdit) { editCopied = plan.length; editCopy = false; }
         applyIx = -1; draw();
       });
       nav.appendChild(go);
@@ -708,7 +727,7 @@
       nav.appendChild(el('span', 'wait', 'No other card has these left to answer.'));
     }
     var cn = el('button', 'link', 'Cancel'); cn.type = 'button';
-    cn.addEventListener('click', function(){ applyIx = -1; draw(); });
+    cn.addEventListener('click', function(){ applyIx = -1; editCopy = false; draw(); });
     nav.appendChild(cn); bx.appendChild(nav);
     bx.appendChild(el('div', 'wait', 'Cards you\u2019ve already answered stay as they are.'));
     c.appendChild(bx);
@@ -791,7 +810,7 @@
           ft.appendChild(okc);
         } else if (applyGroups(it).length) {
           var ap = el('button', 'btn', 'Copy to other cards'); ap.type = 'button';
-          ap.addEventListener('click', function(){ applyIx = ix; applyPick = {}; applyGroups(it).forEach(function(g){ applyPick[g.id] = g.on; }); draw(); });
+          ap.addEventListener('click', function(){ applyIx = ix; applyPick = {}; applyTag = {}; applyGroups(it).forEach(function(g){ applyPick[g.id] = g.on; }); draw(); });
           ft.appendChild(ap);
         }
         if (ft.children.length) c.appendChild(ft);
@@ -878,7 +897,7 @@
   }
 
   function startEdit(ix, keepRest){
-    openIx = -1; if (!keepRest) restMode = false; editIx = ix;
+    openIx = -1; if (!keepRest) restMode = false; editIx = ix; editCopy = false; editCopied = 0;
     draft = JSON.parse(JSON.stringify(items[ix]));
     var gap = Object.keys(TAG).filter(function(t){ return has(draft, t) && missing(draft).some(function(k){ return tagNeeds(draft, t).indexOf(k) > -1; }); });
     if (gap.length) draft.focus = gap[0];
@@ -913,11 +932,10 @@
     xb.addEventListener('click', function(){ restMode = false; finishEdit(); });
     if (items.length > 1 && applyGroups(it).length) {
       var cpb = el('button', 'pen cp', '\u29C9'); cpb.type = 'button'; cpb.title = 'Copy to other cards'; cpb.setAttribute('aria-label', 'Copy to other cards');
+      if (editCopy) cpb.className = 'pen cp on';
       cpb.addEventListener('click', function(){
-        var at = editIx; restMode = false; onlyOpen = false;
-        commitDraft(); flushSave();
-        editIx = -1; draft = null;
-        applyIx = at; applyPick = {}; applyGroups(items[at]).forEach(function(g){ applyPick[g.id] = g.on; });
+        editCopy = !editCopy; editCopied = 0;
+        if (editCopy) { applyPick = {}; applyTag = {}; applyGroups(it).forEach(function(g){ applyPick[g.id] = g.on; }); }
         draw();
       });
       tr.appendChild(cpb);
@@ -927,6 +945,8 @@
     c.appendChild(el('h3', '', it.word));
     var ecl = catLine(it); if (ecl) c.appendChild(el('div', 'cat', ecl));
     c.appendChild(el('div', 'rule'));
+    if (editCopy) { var cbx = el('div', 'qbox copybox'); c.appendChild(cbx); applyPanel(cbx, it, editIx, true); }
+    else if (editCopied) { var okl = el('div', '', '\u2713 Copied to ' + editCopied + (editCopied === 1 ? ' card' : ' cards')); okl.style.cssText = 'font-size:13px;font-weight:700;color:var(--green);margin:4px 0 8px;'; c.appendChild(okl); }
     it.tags = it.tags || [];
     if (catDone(it) && !it.tagOpen) {
       var tb = el('div', 'qbox'), tl = el('div', 'qhead2');
