@@ -35,6 +35,11 @@
   .io-step{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#1F699E;margin:0 0 6px;}
   .io-back{font:inherit;background:none;border:0;color:#1F699E;text-decoration:underline;cursor:pointer;font-size:14px;margin-right:auto;padding:0;}
   .io-savebar{font-size:13.5px;font-weight:700;color:#1A2E42;background:#EEF6EF;border:1px solid #BFE0C6;border-radius:10px;padding:8px 12px;margin:0 0 12px;}
+  .io-savebar.wait{color:#fff;background:#1F699E;border-color:#1F699E;}
+  .cw-loading{display:inline-flex;align-items:center;gap:8px;background:#1F699E;color:#fff;font-size:14px;font-weight:700;padding:10px 20px;border-radius:22px;white-space:nowrap;animation:cw-breathe 1.6s ease-in-out infinite;}
+  .io-breathe{animation:cw-breathe 1.6s ease-in-out infinite;}
+  @keyframes cw-breathe{0%,100%{opacity:1}50%{opacity:.62}}
+  @media (prefers-reduced-motion: reduce){.cw-loading,.io-breathe{animation:none;}}
   .io-savebar.bad{color:#7A2410;background:#FDECE8;border-color:#E5A492;}
   .io-savebar button{font:inherit;margin-left:8px;background:#1F699E;color:#fff;border:0;border-radius:14px;padding:4px 12px;cursor:pointer;}
   .io-need{color:#B3261E !important;font-weight:700;}
@@ -48,7 +53,6 @@
 </head>
 <body>
 <div class="wrap">
-  <a class="crumb" id="intro-back" role="link" tabindex="0">&lsaquo; Back</a>
   <div class="card">
     <div style="font-size:22px;font-weight:800;color:#1A2E42;margin:0 0 6px;" id="gp-intro-title">Before you go in</div>
     <p id="gp-intro-lede" style="font-size:14.5px;color:#4B5A6D;margin:0 0 22px;line-height:1.55;">
@@ -1164,8 +1168,6 @@
   }
 
 
-  if (!params.get('next')) { document.getElementById('intro-back').style.display = 'none'; }
-  document.getElementById('intro-back').addEventListener('click', function(){ window.location.href = _next; });
   document.getElementById('gp-intro-go').addEventListener('click', gpSaveIntro);
   
   
@@ -1354,7 +1356,7 @@
       b.style.display = on ? '' : 'none';
     });
     if (si > -1) { var first = true; STEPS[si].keys.forEach(function(k){ var b = qs.querySelector('[data-k="' + k + '"]'); if (b) { b.style.borderTop = first ? '0' : '1px solid #f0f1f5'; b.style.paddingTop = first ? '0' : '18px'; first = false; } }); }
-    title.style.display = answers ? 'none' : '';
+    title.style.display = (answers || (!done && si > 0)) ? 'none' : '';
     lede.style.display = (!done && si === 0) ? '' : 'none';
     stepLab.textContent = done ? (answers ? '' : 'Change your answers') : 'Step ' + (si + 1) + ' of ' + STEPS.length;
     stepLab.style.display = stepLab.textContent ? '' : 'none';
@@ -1393,21 +1395,23 @@
   var saveBar = document.createElement('div'); saveBar.className = 'io-savebar'; saveBar.style.display = 'none';
   stepLab.parentNode.insertBefore(saveBar, stepLab);
   var saveChain = Promise.resolve(), hideT = null;
-  function bar(text, bad, retry){
+  function bar(text, bad, retry, wait){
     clearTimeout(hideT);
-    saveBar.innerHTML = ''; saveBar.className = 'io-savebar' + (bad ? ' bad' : '');
+    saveBar.innerHTML = ''; saveBar.className = 'io-savebar' + (bad ? ' bad' : '') + (wait ? ' wait' : '');
     saveBar.appendChild(document.createTextNode(text));
     if (retry) { var b = document.createElement('button'); b.type = 'button'; b.textContent = 'Try again'; b.addEventListener('click', function(){ runSave(); }); saveBar.appendChild(b); }
     saveBar.style.display = '';
   }
   function runSave(){
-    bar('Saving your answers\u2026');
+    window._ioSaving = true;
     saveChain = saveChain.catch(function(){}).then(function(){ return window.ioSave(); }).then(function(res){
+      window._ioSaving = false;
       var dn = (res && res.dropped) || [];
       if (res && res.viewing) { bar('You\u2019re viewing as ' + res.viewing + '. Nothing is saved here.'); return; }
       if (dn.length) { bar('Saved. Removing ' + dn.slice(0, 3).join(', ') + (dn.length > 3 ? ' and others' : '') + ' is not saved yet in this test.'); return; }
-      window._ioSaveFailed = false; bar('Saved.'); hideT = setTimeout(function(){ saveBar.style.display = 'none'; }, 2500);
+      window._ioSaveFailed = false; if (/^Please wait/.test(saveBar.textContent) || saveBar.className.indexOf('bad') > -1) saveBar.style.display = 'none';
     }, function(err){
+      window._ioSaving = false;
       window._ioSaveFailed = true;
       bar(String((err && err.message) || 'Could not save just now.') + ' Your answers are still on this page. ', true, true);
     });
@@ -1423,20 +1427,24 @@
     if (si < STEPS.length - 1) { view = STEPS[si + 1].slug; show(); return; }
     if (done) { view = 'answers'; show(); return; }
     try { gpHandoff(); } catch (e) {}
-    if (backTo) { go.disabled = true; go.textContent = forGroup ? 'Joining the group\u2026' : 'Opening the event\u2026'; pend.then(function(){ if (window._ioSaveFailed) { go.disabled = false; go.textContent = 'Finish'; return; } _introDone(); }); return; }
+    if (backTo) { go.disabled = true; go.classList.add('io-breathe'); go.textContent = forGroup ? 'Joining the group\u2026' : 'Opening the event\u2026'; if (window._ioSaving) bar('Please wait while your answers save, then you go straight in.', false, false, true); pend.then(function(){ if (window._ioSaveFailed) { go.disabled = false; go.classList.remove('io-breathe'); go.textContent = 'Finish'; return; } _introDone(); }); return; }
     if (forGroup) { go.disabled = true; pend.then(function(){ location.href = '/design/group-joined/?cb=' + Date.now(); }); return; }
     done = true; railOn(); view = 'answers'; show();
   });
   qs.style.display = 'none'; foot.style.display = 'none'; lede.style.display = 'none'; stepLab.style.display = 'none';
-  title.textContent = 'Looking up your answers\u2026';
+  title.style.display = 'none';
+  var ioWait = document.createElement('span'); ioWait.className = 'cw-loading'; ioWait.textContent = 'Looking up your answers';
+  title.parentNode.insertBefore(ioWait, title);
   window._ioReady.then(function(){
     done = window._ioDoneLoaded || q.get('done') === '1';
     if (done && forGroup && !backTo) { location.replace('/design/group-joined/?cb=' + Date.now()); return; }
-    if (done && backTo) { title.textContent = forGroup ? 'Joining the group\u2026' : 'Opening the event\u2026'; _introDone(); return; }
+    if (done && backTo) { ioWait.textContent = forGroup ? 'Joining the group' : 'Opening the event'; _introDone(); return; }
+    if (ioWait.parentNode) ioWait.parentNode.removeChild(ioWait);
     if (done) railOn();
     view = done ? (ix > -1 ? STEPS[ix].slug : 'answers') : STEPS[ix > -1 ? ix : 0].slug;
     show();
   }).catch(function(){
+    if (ioWait.parentNode) ioWait.parentNode.removeChild(ioWait); title.style.display = '';
     title.textContent = 'Your saved answers did not load';
     var p = document.createElement('p'); p.style.cssText = 'font-size:14.5px;color:#7A2410;';
     p.textContent = 'Nothing here can save until they do, so your real answers are safe. ';
@@ -1445,6 +1453,7 @@
   });
 })();
 </script>
+<script src="/nav/waiting-words.js?v=2" defer></script>
 <script src="https://2gather.network/nav/topbar.js?v=6.38" defer></script>
 </body>
 <!--
