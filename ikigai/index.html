@@ -1549,6 +1549,7 @@
     });
 
     function gpRenderBrowse(tree, path){
+      if (GP_NEW && window._gpWords && (key === 'introEnjoy' || key === 'introSkills')) { tree = gpWordsTree(key) || tree; }
       browseWrap.innerHTML = '';
       var atTop = !path.length;
       row.style.display = atTop ? 'flex' : 'none';
@@ -1587,11 +1588,12 @@
       if (GP_DRILL && cfg.source === 'recreation' && !path.length) { window._gpReDrill = _reBrowse; gpCatEmojiOnce(); }
       var lrow = document.createElement('div');
       lrow.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
-      if (GP_DRILL && tree && tree.__gen && path.length) {
+      if (tree && tree.__gen && (tree.__words ? path.length > 1 : (GP_DRILL && path.length))) {
         var here = path[path.length - 1];
         var hereB = gpPill(here, gpHasWord(key, here));
         hereB.addEventListener('click', function(){
           if (gpHasWord(key, here)) gpDropWord(key, here, ta);
+          else if (tree.__words) { gpWordsAdd(key, here, path[0], ta); }
           else gpAddWord(key, here, (path.length > 1 ? path[path.length - 2] : here), ta);
           gpRenderBrowse(tree, path);
           repaint();
@@ -1613,6 +1615,7 @@
         var b = gpPill(it.name, gpHasWord(key, it.name));
         b.addEventListener('click', function(){
           if (gpHasWord(key, it.name)) gpDropWord(key, it.name, ta);
+          else if (tree && tree.__words) { gpWordsAdd(key, it.name, path[0], ta); }
           else gpAddWord(key, it.name + (cfg.kinds && cfg._kindNow ? ':' + cfg._kindNow : ''), (GP_DRILL && cfg.source === 'recreation' ? path[path.length - 1] : path[0]) || '', ta);
           gpRenderBrowse(tree, path);
           repaint();
@@ -1815,6 +1818,17 @@
       row.appendChild(b);
     });
 
+    var gpNewPills = function(swap){
+      if (!GP_NEW || !window._gpWords || (key !== 'introEnjoy' && key !== 'introSkills') || !other || !other.parentNode) { return; }
+      var host = other.parentNode, shown = [];
+      Array.prototype.slice.call(host.querySelectorAll('button[data-word]')).forEach(function(b){ if (b.style.display !== 'none') { shown.push(b.getAttribute('data-word')); } host.removeChild(b); });
+      gpWordsSuggest(key, 5, swap ? shown : []).forEach(function(word){
+        var b = gpPill(word, false);
+        b.setAttribute('data-word', word);
+        b.addEventListener('click', function(){ gpWordsAdd(key, word, '', ta); repaint(); gpNewPills(false); });
+        host.insertBefore(b, other);
+      });
+    };
     var other = document.createElement('button');
     other.type = 'button';
     other.id = 'gp-other-' + key;
@@ -1833,6 +1847,7 @@
     } else {
       row.appendChild(other);
     }
+    if (GP_NEW && (key === 'introEnjoy' || key === 'introSkills')) { gpWordsLoad().then(function(){ try { gpNewPills(false); } catch (e) {} }); }
     if (GP_NEW && _browseOn) {
       if (!document.getElementById('gp-shut-css')) { var shutCss = document.createElement('style'); shutCss.id = 'gp-shut-css'; shutCss.textContent = '.gp-shut{display:none !important;}'; document.head.appendChild(shutCss); }
       browseWrap.classList.add('gp-shut');
@@ -1870,6 +1885,7 @@
         }
         searchWrap.style.display = _shown ? 'none' : 'block';
         if (GP_NEW) { other.style.background = '#1F699E'; other.style.color = '#fff'; }
+        if (GP_NEW && !_shown) { gpNewPills(true); }
         if (!_shown) { try { search.focus(); } catch (e) {} }
         return;
       }
@@ -3328,6 +3344,59 @@
       })
       .catch(function(){ _gpWordsP = null; return null; });
     return _gpWordsP;
+  }
+  function gpWordsAdd(key, word, firstCat, ta){
+    var W = window._gpWords, w = W ? W.byName[String(word).toLowerCase()] : null;
+    var cats = w ? W.catsOf(w).slice() : [];
+    if (firstCat && cats.indexOf(firstCat) > 0) { cats.splice(cats.indexOf(firstCat), 1); cats.unshift(firstCat); }
+    gpAddWord(key, word, cats[0] || firstCat || '', ta);
+    if (cats.length > 1) { try { gpSetAlso(key, word, cats.slice(1)); } catch (e) {} }
+  }
+  var _gpWordsTrees = {};
+  function gpWordsTree(key){
+    var W = window._gpWords, want = key === 'introEnjoy' ? 'enjoy' : 'skill';
+    if (!W) { return null; }
+    if (_gpWordsTrees[key]) { return _gpWordsTrees[key]; }
+    var fits = function(w){ return w.asked.indexOf(want) > -1 || (W.kids[w.id] || []).some(fits); };
+    var node = function(w, depth){
+      var kids = depth > 6 ? [] : (W.kids[w.id] || []).filter(fits).map(function(k){ return node(k, depth + 1); });
+      return { name: w.word, kids: kids };
+    };
+    var order = (window._gpNewTopics && window._gpNewTopics.order) || [], by = {};
+    W.list.forEach(function(w){
+      if (w.kindOf && W.byId[w.kindOf]) { return; }
+      if (!fits(w)) { return; }
+      w.cats.forEach(function(c){ (by[c] = by[c] || []).push(node(w, 0)); });
+    });
+    var names = order.filter(function(c){ return by[c]; }).concat(Object.keys(by).filter(function(c){ return order.indexOf(c) < 0; }));
+    var tree = { __gen: true, __words: true, root: names.map(function(c){ return { name: c, kids: by[c] }; }) };
+    _gpWordsTrees[key] = tree;
+    return tree;
+  }
+  function gpWordsSuggest(key, n, skip){
+    var W = window._gpWords, want = key === 'introEnjoy' ? 'enjoy' : 'skill';
+    if (!W) { return []; }
+    var have = {}; gpPickedWords(key).forEach(function(x){ have[String(x).toLowerCase()] = 1; });
+    var no = {}; (skip || []).forEach(function(x){ no[String(x).toLowerCase()] = 1; });
+    var ok = function(w){ return w.asked.indexOf(want) > -1 && !have[w.word.toLowerCase()] && !no[w.word.toLowerCase()] && !(W.kids[w.id] || []).length; };
+    var mix = function(a){ a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
+    var mine = Object.keys(have).map(function(k){ return W.byName[k]; }).filter(Boolean);
+    var fam = [], myCats = {};
+    mine.forEach(function(w){
+      W.catsOf(w).forEach(function(c){ myCats[c] = 1; });
+      if (w.kindOf) { (W.kids[w.kindOf] || []).forEach(function(k){ fam.push(k); }); }
+      (W.kids[w.id] || []).forEach(function(k){ fam.push(k); });
+    });
+    var pool = W.list.filter(ok);
+    var near = pool.filter(function(w){ return W.catsOf(w).some(function(c){ return myCats[c]; }); });
+    var out = [], seen = {};
+    var take = function(list, max){ mix(list).forEach(function(w){ if (max > 0 && out.length < n && ok(w) && !seen[w.id]) { seen[w.id] = 1; out.push(w); max--; } }); };
+    take(fam, 2);
+    take(near, 2);
+    var byCat = {}; mix(pool).forEach(function(w){ var c = W.catsOf(w)[0] || ''; if (!byCat[c]) { byCat[c] = w; } });
+    take(Object.keys(byCat).map(function(c){ return byCat[c]; }), n);
+    take(pool, n);
+    return out.map(function(w){ return w.word; });
   }
   function gpWordsFind(typed, key){
     var W = window._gpWords;
