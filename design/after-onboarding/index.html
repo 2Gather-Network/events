@@ -554,6 +554,41 @@
   var VERB = { enjoy: 'You enjoy it', skill: 'You can do it', care: 'You care about it', seek: 'You’re seeking it', offer: 'You’re offering it' };
   var editIx = -1, draft = null;
   var applyIx = -1, applyPick = {};
+  var defWord = '', copiedWord = '', pickDef = false, defQuery = '';
+  try { defWord = sessionStorage.getItem('ao-default' + FITP) || ''; } catch (e) {}
+  function defaultIx(){
+    var i, low = defWord.toLowerCase();
+    if (low) { for (i = 0; i < items.length; i++) { if (String(items[i].word).toLowerCase() === low && cardLines(items[i]).length) return i; } }
+    for (i = 0; i < items.length; i++) { if (cardLines(items[i]).length) return i; }
+    return -1;
+  }
+  function defaultPanel(c, ix){
+    var bx = el('div', 'prose');
+    bx.appendChild(el('div', 'qq', 'Use another card\u2019s answers instead'));
+    var inp = el('input', 'oinp'); inp.type = 'text'; inp.placeholder = 'Search your cards'; inp.value = defQuery; inp.style.cssText = 'width:100%;margin-top:8px;';
+    bx.appendChild(inp);
+    var list = el('div', 'row'); bx.appendChild(list);
+    var paint = function(){
+      list.innerHTML = '';
+      var q = String(inp.value || '').trim().toLowerCase(), any = false;
+      items.forEach(function(x, i){
+        if (i === ix || !cardLines(x).length) return;
+        if (q && String(x.word).toLowerCase().indexOf(q) < 0) return;
+        any = true;
+        var p = el('button', 'pill', x.word); p.type = 'button';
+        p.addEventListener('click', function(){ defWord = x.word; copiedWord = ''; pickDef = false; try { sessionStorage.setItem('ao-default' + FITP, defWord); } catch (e) {} draw(); });
+        list.appendChild(p);
+      });
+      if (!any) list.appendChild(el('span', 'wait', q ? 'No card with answers matches that.' : 'No other card has answers yet.'));
+    };
+    inp.addEventListener('input', function(){ defQuery = inp.value; paint(); });
+    paint();
+    var nav = el('div', 'qnav'); nav.style.justifyContent = 'flex-end';
+    var cn = el('button', 'link', 'Cancel'); cn.type = 'button';
+    cn.addEventListener('click', function(){ pickDef = false; draw(); });
+    nav.appendChild(cn); bx.appendChild(nav);
+    c.appendChild(bx);
+  }
   function applyGroups(it){
     var g = [], a = it.a || {};
     var enj = ((a.how || []).indexOf('Fan') > -1 ? ['Fan'] : []).concat(a.enjoyWith || []);
@@ -615,6 +650,7 @@
           shareDetails(p.it);
           if (FITP) toParent({ ao: 'save', key: FITKEY[FITP], word: p.it.word, tags: p.it.tags.slice(), cat: (p.it.a.cat && p.it.a.cat.length) ? p.it.a.cat.slice() : (p.it.cat ? [p.it.cat] : []), how: (p.it.a.how || []).slice(), level: (p.it.a.level || []).slice(), roles: (p.it.a.roles || []).slice(), learned: (p.it.a.learned || []).slice() });
         });
+        copiedWord = String(it.word).toLowerCase();
         applyIx = -1; draw();
       });
       nav.appendChild(go);
@@ -694,10 +730,21 @@
       if (applyIx === ix) { applyPanel(c, it, ix); return; }
       var lines = cardLines(it), pr = lines.length;
       if (pr) { var pb = el('div', 'prose'); lines.forEach(function(l){ pb.appendChild(el('div', '', l)); }); c.appendChild(pb); }
-      if (pr && items.length > 1 && applyGroups(it).length) {
-        var ap = el('button', 'link', 'Use these answers on my other cards'); ap.type = 'button'; ap.style.marginTop = '10px';
-        ap.addEventListener('click', function(){ applyIx = ix; applyPick = {}; applyGroups(it).forEach(function(g){ applyPick[g.id] = g.on; }); draw(); });
-        c.appendChild(ap);
+      if (pr && items.length > 1 && defaultIx() === ix) {
+        if (pickDef) { defaultPanel(c, ix); return; }
+        var ft = el('div', ''); ft.style.cssText = 'display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:10px;margin-top:10px;';
+        if (copiedWord === String(it.word).toLowerCase()) {
+          var alt = el('button', 'link', 'Use another card\u2019s answers instead'); alt.type = 'button';
+          alt.addEventListener('click', function(){ pickDef = true; defQuery = ''; draw(); });
+          ft.appendChild(alt);
+          var okc = el('span', '', '\u2713 Copied'); okc.style.cssText = 'font-size:13px;font-weight:700;color:var(--green);';
+          ft.appendChild(okc);
+        } else if (applyGroups(it).length) {
+          var ap = el('button', 'btn', 'Copy to other cards'); ap.type = 'button';
+          ap.addEventListener('click', function(){ applyIx = ix; applyPick = {}; applyGroups(it).forEach(function(g){ applyPick[g.id] = g.on; }); draw(); });
+          ft.appendChild(ap);
+        }
+        if (ft.children.length) c.appendChild(ft);
       }
       return;
     }
