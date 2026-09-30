@@ -3254,6 +3254,24 @@
       document.querySelectorAll('iframe').forEach(function(f){ if (f.contentWindow === e.source) { fr = f; } });
       if (!fr) { return; }
       if (d.ao === 'h') { fr.style.height = Math.max(fr.classList.contains('gp-cards') ? 60 : 400, d.h) + 'px'; return; }
+      if (d.ao === 'word') {
+        var back = function(m){ try { fr.contentWindow.postMessage(m, location.origin); } catch (x) {} };
+        var sa = ''; try { sa = String((window.CW && CW.realMe && CW.realMe().id) || meId || ''); } catch (x) { sa = String(meId || ''); }
+        fetch(GS_URL + '?action=saveWord&appearId=' + encodeURIComponent(sa) + '&word=' + encodeURIComponent(d.word || '') + '&kindOf=' + encodeURIComponent(d.kindOf || '')
+          + '&otherNames=' + encodeURIComponent(d.otherNames || '') + '&categories=' + encodeURIComponent(d.categories || '') + '&askedIn=' + encodeURIComponent(d.askedIn || ''))
+          .then(function(r){ return r.json(); })
+          .then(function(a){
+            if (!a || a.status !== 'ok' || !a.row) { back({ ao: 'wordSaved', ok: false, word: d.word, message: (a && a.message) || 'The word table could not be saved.' }); return; }
+            var W = window._gpWords, rows = W ? W.rows.slice() : [], at = -1;
+            rows.forEach(function(r, i){ if (r[0] === a.row[0]) { at = i; } });
+            if (at > -1) { rows[at] = a.row; } else { rows.push(a.row); }
+            window._gpWords = gpWordsBuild(rows); _gpWordsTrees = {};
+            try { window.localStorage.setItem('cw-words-v1', JSON.stringify({ t: Date.now(), rows: rows })); } catch (x) {}
+            back({ ao: 'wordSaved', ok: true, word: d.word, added: !!a.added });
+          })
+          .catch(function(){ back({ ao: 'wordSaved', ok: false, word: d.word, message: 'The word table could not be reached.' }); });
+        return;
+      }
       if (d.ao === 'details') { if (!gpViewingSomebodyElse()) { gpDetailQueue(d.word, d.a); } return; }
       if (!fr.classList.contains('gp-cards')) { return; }
       if (d.ao === 'ready') { gpNewPost(fr); return; }
@@ -3336,7 +3354,7 @@
   }
   var _gpWordsP = null;
   function gpWordsBuild(rows){
-    var W = { list: [], byId: {}, kids: {}, byName: {} };
+    var W = { list: [], byId: {}, kids: {}, byName: {}, rows: rows || [] };
     (rows || []).forEach(function(r){
       var w = { id: r[0], word: r[1], kindOf: r[2] || '', cats: String(r[3] || '').split('|').map(function(x){ return x.trim(); }).filter(Boolean), asked: String(r[4] || '').toLowerCase(), names: [r[1]].concat(String(r[5] || '').split(',')).map(function(x){ return String(x).trim(); }).filter(Boolean) };
       if (!w.id || !w.word) { return; }

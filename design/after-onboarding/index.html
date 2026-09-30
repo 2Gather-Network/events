@@ -929,7 +929,8 @@
     c.appendChild(box);
   }
   var WORDBOX = false;
-  try { WORDBOX = /[?&]wordbox=1\b/.test(location.search) || /[?&]wordbox=1\b/.test(parent.location.search); } catch (e) {}
+  try { WORDBOX = (FITP === 'enjoy' || FITP === 'skill') && window.localStorage.getItem('cw-super') === 'yes'; } catch (e) {}
+  var wbMsg = {}, wbBusy = false;
   var wbState = {}, wbOpen = false;
   function wordBox(c, it){
     var key = String(it.word).toLowerCase(), W = null, row = null;
@@ -1000,9 +1001,14 @@
       cr.appendChild(cb);
     });
     var wn = el('div', 'qnav');
-    var wsv = el('button', 'btn', 'Save to the word table'); wsv.type = 'button';
-    var wmsg = el('span', 'wait', 'Look-only mockup. Nothing here saves.');
-    wsv.addEventListener('click', function(){ wmsg.textContent = 'Look-only mockup. This would change the word table for everyone.'; });
+    var wsv = el('button', 'btn', wbBusy ? 'Saving\u2026' : 'Save to the word table'); wsv.type = 'button'; wsv.disabled = wbBusy;
+    var wm = wbMsg[key];
+    var wmsg = el('span', 'wait', wm ? wm.text : ''); if (wm) { wmsg.style.color = wm.ok ? 'var(--green)' : '#B42318'; wmsg.style.fontWeight = '700'; }
+    wsv.addEventListener('click', function(){
+      if (!st.parent && !st.cats.length) { wbMsg[key] = { ok: false, text: 'Pick a category, or a word it is a kind of.' }; draw(); return; }
+      wbBusy = true; delete wbMsg[key]; draw();
+      toParent({ ao: 'word', word: it.word, kindOf: st.parent, otherNames: st.names, categories: st.parent ? '' : st.cats.join('|'), askedIn: FITP === 'skill' ? 'skill' : 'enjoy' });
+    });
     wn.appendChild(wsv); wn.appendChild(wmsg); b.appendChild(wn);
     c.appendChild(b);
   }
@@ -1207,6 +1213,13 @@
   window.addEventListener('message', function(e){
     if (e.origin !== location.origin || !e.data) return;
     if (e.data.ao === 'start') startRest();
+    if (e.data.ao === 'wordSaved') {
+      var wk = String(e.data.word || '').toLowerCase();
+      wbBusy = false;
+      wbMsg[wk] = e.data.ok ? { ok: true, text: e.data.added ? 'Added to the word table for everyone.' : 'Saved for everyone.' } : { ok: false, text: e.data.message || 'Not saved.' };
+      if (e.data.ok) delete wbState[wk];
+      if (editIx > -1) draw();
+    }
     if (e.data.ao === 'items' && e.data.hand && editIx < 0) { var keep = {}; items.forEach(function(x){ keep[String(x.word).toLowerCase()] = x; }); items = fromHand(e.data.hand, keep); takeShared(); draw(); }
   });
   if (FITP) toParent({ ao: 'ready' });
