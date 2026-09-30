@@ -191,7 +191,7 @@
   function isSkill(it){ return has(it, 'skill') || (it.a.kind || []).indexOf('Skill') > -1 || !!SKILLSET[String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase()]; }
   function has(it, t){ return (it.tags || []).indexOf(t) > -1; }
   function tagNeeds(it, t){
-    if (t === 'enjoy') return isSkill(it) ? ['how'] : ['how', 'with'];
+    if (t === 'enjoy') return ['how'];
     if (t === 'skill') return ['level', 'who'];
     if (t === 'care') return ['who'];
     if (t === 'seek') return ['gives'];
@@ -206,7 +206,6 @@
     if (has(it, 'offer') && (it.a.kind || []).indexOf('Skill') > -1) n.push('work');
     if (has(it, 'care') && !other && !it.cat) n.push('lens');
     if ((other && !it.thing && (!it.cat || it.guess)) || (has(it, 'offer') && !it.thing)) n.push('cat');
-    if (has(it, 'enjoy') && !isSkill(it)) n.push('with');
     if (has(it, 'care') || has(it, 'offer') || has(it, 'skill')) n.push('who');
     return n;
   }
@@ -271,9 +270,18 @@
   function withBlock(c, it, redraw){
     it.a.enjoyWith = it.a.enjoyWith || []; it.a.enjoyWho = it.a.enjoyWho || [];
     var b = el('div', 'qbox');
-    b.appendChild(el('div', 'qq', 'Do you enjoy ' + wq(it) + ' solo and/or with others?'));
+    it.a.how = it.a.how || [];
+    b.appendChild(el('div', 'qq', 'How do you enjoy ' + wq(it) + '?'));
     var r = el('div', 'row'); b.appendChild(r);
-    chipsInto(r, ['Solo', 'With others'], it.a.enjoyWith, false, function(){ if (it.a.enjoyWith.indexOf('With others') < 0) it.a.enjoyWho.length = 0; }, redraw);
+    var sync = function(){
+      if (it.a.enjoyWith.indexOf('With others') < 0) it.a.enjoyWho.length = 0;
+      var fanOn = it.a.how.indexOf('Fan') > -1;
+      it.a.how = (fanOn ? ['Fan'] : []).concat(it.a.enjoyWith.length ? ['I do it myself'] : []);
+    };
+    var fanP = el('button', 'pill' + (it.a.how.indexOf('Fan') > -1 ? ' on' : ''), 'Fan'); fanP.type = 'button';
+    fanP.addEventListener('click', function(){ var at = it.a.how.indexOf('Fan'); if (at > -1) it.a.how.splice(at, 1); else it.a.how.push('Fan'); sync(); redraw(); });
+    r.appendChild(fanP);
+    chipsInto(r, ['Solo', 'With others'], it.a.enjoyWith, false, sync, redraw);
     if (it.a.enjoyWith.indexOf('With others') > -1) {
       b.appendChild(el('div', 'qq sub', 'Who do you like ' + wq(it) + ' with?'));
       var known = [].concat(REL); SERVE_GROUPS.slice(0, 3).forEach(function(x){ known = known.concat(x[1]); });
@@ -482,6 +490,7 @@
         } else if (!it.cat && cat) { it.cat = cat; it.oldCat = ''; }
         if (it.tags.indexOf(p[1]) < 0) it.tags.push(p[1]);
         if (mine.how && !(it.a.how && it.a.how.length)) it.a.how = mine.how.slice();
+        if ((it.a.how || []).indexOf('I do it myself') > -1 && !(it.a.enjoyWith && it.a.enjoyWith.length)) it.a.enjoyWith = ['Solo'];
         if (mine.level && mine.level.length && !(it.a.level && it.a.level.length)) it.a.level = mine.level.slice();
         if (mine.roles && mine.roles.length && !(it.a.roles && it.a.roles.length)) it.a.roles = mine.roles.slice();
         if (mine.learned && mine.learned.length && !(it.a.learned && it.a.learned.length)) it.a.learned = mine.learned.slice();
@@ -495,7 +504,7 @@
   }
   var fromOne = /[?&]from=onepage/.test(location.search), hand = null;
   if (fromOne) { try { hand = JSON.parse(sessionStorage.getItem('if-handoff') || 'null'); } catch (e) {} }
-  if (hand) items = fromHand(hand);
+  if (hand) { items = fromHand(hand); try { var all0 = JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}; items.forEach(function(x){ var a0 = all0[String(x.word).toLowerCase()]; if (a0) Object.keys(a0).forEach(function(k){ x.a[k] = a0[k]; }); }); } catch (e) {} }
   if (!items.length && !FITP) items = SAMPLE;
 
   var grid = document.getElementById('ao-grid');
@@ -686,8 +695,22 @@
     var ecl = catLine(it); if (ecl) c.appendChild(el('div', 'cat', ecl));
     c.appendChild(el('div', 'rule'));
     it.tags = it.tags || [];
+    if (catDone(it) && !it.tagOpen) {
+      var tb = el('div', 'qbox'), tl = el('div', 'qhead2');
+      var picks = [].concat(has(it, 'offer') && !it.thing ? (it.a.kind || []) : []).concat((it.tags || []).some(function(t){ return t !== 'care'; }) ? ((it.a.cat && it.a.cat.length ? it.a.cat : (it.cat ? [it.cat] : [])).map(catLab)) : (it.a.lens || (it.cat ? [it.cat] : [])));
+      tl.appendChild(el('div', 'qq', tagQ(it) + ' ' + picks.join(', ')));
+      var ch = el('button', 'link', 'Change'); ch.type = 'button';
+      ch.addEventListener('click', function(){ it.tagOpen = true; draw(); });
+      tl.appendChild(ch); tb.appendChild(tl); c.appendChild(tb);
+    } else {
+      tagBlock(c, it, draw);
+      if (it.tagOpen && catDone(it)) {
+        var cl = el('button', 'link', 'Close'); cl.type = 'button'; cl.style.marginTop = '8px';
+        cl.addEventListener('click', function(){ it.tagOpen = false; draw(); });
+        c.lastChild.appendChild(cl);
+      }
+    }
     pickRow(c, 'How does it fit you?', Object.keys(TAG).map(function(k){ return [k, FIT[k]]; }), it.tags, true, function(v, t){ if (v.indexOf(t) > -1) it.focus = t; draw(); });
-    tagBlock(c, it, draw);
     var picked = Object.keys(TAG).filter(function(t){ return has(it, t); });
     if (picked.indexOf(it.focus) < 0) it.focus = picked[0];
     if (picked.length > 1) {
@@ -706,7 +729,7 @@
     var focusKeys = it.focus ? tagNeeds(it, it.focus) : [];
     var host = c;
     needs(it).filter(function(k){ return k !== 'cat' && k !== 'lens' && focusKeys.indexOf(k) > -1; }).forEach(function(k){
-      if (k === 'with') { withBlock(host, it, draw); return; }
+      if (k === 'how') { withBlock(host, it, draw); return; }
       if (k === 'who') { whoBlock(host, it, draw); return; }
       if (k === 'work') { it.a.workAsked = true; workBlock(host, it, draw); return; }
       it.a[k] = it.a[k] || [];
@@ -730,12 +753,22 @@
     setTimeout(tellH, 0);
   }
 
+  function sharedAll(){ try { return JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}; } catch (e) { return {}; } }
+  function shareDetails(it){
+    try { var all = sharedAll(); var a = JSON.parse(JSON.stringify(it.a || {})); delete a.cat; all[String(it.word).toLowerCase()] = a; sessionStorage.setItem('ao-details', JSON.stringify(all)); } catch (e) {}
+  }
+  function takeShared(){
+    var all = sharedAll();
+    items.forEach(function(x){ var a = all[String(x.word).toLowerCase()]; if (!a) return; Object.keys(a).forEach(function(k){ x.a[k] = a[k]; }); });
+  }
+  window.addEventListener('storage', function(e){ if (e.key !== 'ao-details' || editIx > -1) return; takeShared(); draw(); });
   var _saveT = null, _saveMsg = null;
   function commitDraft(){
     if (!draft || editIx < 0 || !draft.tags.length) return;
     if (!draft.tags.some(function(t){ return t !== 'care'; }) && draft.a.lens && draft.a.lens.length) draft.cat = draft.a.lens[0];
     if (draft.tags.some(function(t){ return t !== 'care'; }) && draft.a.cat && draft.a.cat.length) { draft.cat = draft.a.cat[0]; draft.guess = false; }
     items[editIx] = JSON.parse(JSON.stringify(draft));
+    shareDetails(draft);
     if (!FITP) return;
     _saveMsg = { ao: 'save', key: FITKEY[FITP], word: draft.word, tags: draft.tags.slice(), cat: (draft.a.cat && draft.a.cat.length) ? draft.a.cat.slice() : (draft.cat ? [draft.cat] : []), how: (draft.a.how || []).slice(), level: (draft.a.level || []).slice(), roles: (draft.a.roles || []).slice(), learned: (draft.a.learned || []).slice() };
     clearTimeout(_saveT);
@@ -825,7 +858,7 @@
   window.addEventListener('message', function(e){
     if (e.origin !== location.origin || !e.data) return;
     if (e.data.ao === 'start') startRest();
-    if (e.data.ao === 'items' && e.data.hand && editIx < 0) { var keep = {}; items.forEach(function(x){ keep[String(x.word).toLowerCase()] = x; }); items = fromHand(e.data.hand, keep); draw(); }
+    if (e.data.ao === 'items' && e.data.hand && editIx < 0) { var keep = {}; items.forEach(function(x){ keep[String(x.word).toLowerCase()] = x; }); items = fromHand(e.data.hand, keep); takeShared(); draw(); }
   });
   if (FITP) toParent({ ao: 'ready' });
   try { if (INPANE && window.ResizeObserver) new ResizeObserver(function(){ tellH(); }).observe(document.querySelector('.wrap')); } catch (e) {}
