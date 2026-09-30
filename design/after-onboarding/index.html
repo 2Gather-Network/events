@@ -609,8 +609,8 @@
     var it = draft;
     var c = el('div', 'c edit');
     var tr = el('div', 'tr');
-    var xb = el('button', 'pen x', '\u2715'); xb.type = 'button'; xb.title = 'Cancel';
-    xb.addEventListener('click', function(){ editIx = -1; draft = null; restMode = false; draw(); });
+    var xb = el('button', 'pen x', '\u2715'); xb.type = 'button'; xb.title = 'Close';
+    xb.addEventListener('click', function(){ restMode = false; finishEdit(); });
     tr.appendChild(xb); c.appendChild(tr);
     c.appendChild(el('div', 'ehead', 'Editing'));
     c.appendChild(el('h3', '', it.word));
@@ -650,26 +650,35 @@
       dbx.appendChild(ta);
     }
     var nav = el('div', 'qnav');
-    var sv = el('button', 'btn', 'Save'); sv.type = 'button';
-    sv.addEventListener('click', function(){
-      if (!draft.tags.length) return;
-      if (!draft.tags.some(function(t){ return t !== 'care'; }) && draft.a.lens && draft.a.lens.length) draft.cat = draft.a.lens[0];
-      if (draft.tags.some(function(t){ return t !== 'care'; }) && draft.a.cat && draft.a.cat.length) { draft.cat = draft.a.cat[0]; draft.guess = false; }
-      var was = editIx;
-      items[editIx] = draft;
-      if (FITP) toParent({ ao: 'save', key: FITKEY[FITP], word: draft.word, tags: draft.tags.slice(), cat: (draft.a.cat && draft.a.cat.length) ? draft.a.cat.slice() : (draft.cat ? [draft.cat] : []), how: (draft.a.how || []).slice(), level: (draft.a.level || []).slice() });
-      editIx = -1; draft = null;
-      if (restMode) { for (var i = 1; i <= items.length; i++) { var j = (was + i) % items.length; if (missing(items[j]).length) { startEdit(j, true); return; } } restMode = false; onlyOpen = false; }
-      draw();
-    });
-    var cn = el('button', 'link', 'Cancel'); cn.type = 'button';
-    cn.addEventListener('click', function(){ editIx = -1; draft = null; restMode = false; draw(); });
-    nav.appendChild(sv); nav.appendChild(cn);
+    var sv = el('button', 'btn', 'Done'); sv.type = 'button';
+    sv.addEventListener('click', function(){ finishEdit(); });
+    nav.appendChild(sv);
+    nav.appendChild(el('span', 'wait', 'Your answers save as you tap.'));
     c.appendChild(nav);
     grid.appendChild(c);
+    commitDraft();
     setTimeout(tellH, 0);
   }
 
+  var _saveT = null, _saveMsg = null;
+  function commitDraft(){
+    if (!draft || editIx < 0 || !draft.tags.length) return;
+    if (!draft.tags.some(function(t){ return t !== 'care'; }) && draft.a.lens && draft.a.lens.length) draft.cat = draft.a.lens[0];
+    if (draft.tags.some(function(t){ return t !== 'care'; }) && draft.a.cat && draft.a.cat.length) { draft.cat = draft.a.cat[0]; draft.guess = false; }
+    items[editIx] = JSON.parse(JSON.stringify(draft));
+    if (!FITP) return;
+    _saveMsg = { ao: 'save', key: FITKEY[FITP], word: draft.word, tags: draft.tags.slice(), cat: (draft.a.cat && draft.a.cat.length) ? draft.a.cat.slice() : (draft.cat ? [draft.cat] : []), how: (draft.a.how || []).slice(), level: (draft.a.level || []).slice() };
+    clearTimeout(_saveT);
+    _saveT = setTimeout(flushSave, 600);
+  }
+  function flushSave(){ clearTimeout(_saveT); if (_saveMsg) { toParent(_saveMsg); _saveMsg = null; } }
+  function finishEdit(){
+    commitDraft(); flushSave();
+    var was = editIx;
+    editIx = -1; draft = null;
+    if (restMode && was > -1) { for (var i = 1; i <= items.length; i++) { var j = (was + i) % items.length; if (missing(items[j]).length) { startEdit(j, true); return; } } restMode = false; onlyOpen = false; }
+    draw();
+  }
   var qs = [];
   function openCard(ix){
     if (ix > -1) { startEdit(ix, restMode); return; }
