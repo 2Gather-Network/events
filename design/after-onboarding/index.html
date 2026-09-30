@@ -535,26 +535,34 @@
     var more = ['how', 'level', 'kind', 'lens', 'gives'].filter(function(k){ return it.a[k] && it.a[k].length; }).map(function(k){ return it.a[k].join(', '); }).concat(workParts(it));
     return more.length ? s + ' ' + more.join(' · ') + '.' : s;
   }
-  function andList(xs){ return xs.length > 1 ? xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1] : (xs[0] || ''); }
+  function andList(xs){ return xs.length > 2 ? xs.slice(0, -1).join(', ') + ', and ' + xs[xs.length - 1] : xs.length === 2 ? xs[0] + ' and ' + xs[1] : (xs[0] || ''); }
+  function lowAll(xs){ return (xs || []).map(function(x){ return String(x).toLowerCase(); }); }
   function prose(it){
     var w = String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase(), out = [], a = it.a || {};
     var how = a.how || [], fan = how.indexOf('Fan') > -1, doIt = how.indexOf('I do it myself') > -1;
     var wi = a.enjoyWith || [], solo = wi.indexOf('Solo') > -1, others = wi.indexOf('With others') > -1;
-    var who = (a.enjoyWho || []).length ? ' (' + a.enjoyWho.join(', ') + ')' : '';
-    var withP = solo && others ? 'solo and with others' + who : solo ? 'solo' : others ? 'with others' + who : '';
-    var s1 = fan && doIt ? 'I\u2019m both a fan of ' + w + ' and do it myself' : fan ? 'I\u2019m a fan of ' + w : doIt ? 'I do ' + w + ' myself' : '';
-    if (s1 && withP) s1 += ', ' + withP; else if (!s1 && withP) s1 = 'I enjoy ' + w + ' ' + withP;
-    if (s1) out.push(s1 + '.');
-    var lv = (a.level || [])[0];
-    if (lv) out.push({ Beginner: 'I\u2019m a beginner.', Experienced: 'I\u2019m experienced.', Guide: 'I guide others in it.' }[lv] || ('My level: ' + lv + '.'));
-    if ((a.roles || []).length) out.push((lv === 'Guide' ? 'I guide as a ' : 'I do it as a ') + andList(a.roles.map(function(x){ return x.toLowerCase(); })) + '.');
-    var lrn = (a.learned || []).map(function(k){ var f = LEARNED.filter(function(h){ return h[0] === k; })[0]; return f ? f[1].toLowerCase() : ''; }).filter(Boolean);
-    if (lrn.length) out.push('How I know it: ' + andList(lrn) + '.');
+    var whoL = andList(lowAll(a.enjoyWho));
+    var withP = solo && others ? 'solo and with ' + (whoL || 'others') : solo ? 'solo' : others ? 'with ' + (whoL || 'others') : '';
+    var lv = (a.level || [])[0], lvL = lv ? lv.toLowerCase() : '';
+    var role = (a.roles || []).length ? ' as a ' + andList(lowAll(a.roles)) : '';
+    var cap = function(x){ return x.charAt(0).toUpperCase() + x.slice(1); };
+    var lvAdj = lv === 'Experienced' ? 'experienced ' : lv === 'Beginner' ? 'a beginner ' : lv === 'Guide' ? 'a guide ' : '';
+    if (fan && doIt) out.push('I\u2019m both a fan and ' + lvAdj + w + ' myself' + role + '.');
+    else if (doIt) out.push((lv ? cap(lvL) + ' ' + w + ' myself' : 'I do ' + w + ' myself') + role + '.');
+    else {
+      if (fan) out.push('I\u2019m a fan of ' + w + '.');
+      if (lv) out.push(cap(lvL) + ' in ' + w + role + '.');
+    }
+    var KNOW = { lived: 'lived it', volunteered: 'volunteered', workedas: 'worked as it', studied: 'studied it', credentialed: 'am credentialed', titled: 'worked in an official title' };
+    var bits = (a.learned || []).map(function(k){ return KNOW[k] || ''; }).filter(Boolean);
+    if (withP) bits.push('like ' + w + ' ' + withP);
+    if (bits.length) out.push('I ' + andList(bits) + '.');
     if ((a.kind || []).length && !(a.kind[0] === 'Skill' && has(it, 'skill'))) out.push('It\u2019s a ' + a.kind[0].toLowerCase() + '.');
     if ((a.lens || []).length && !has(it, 'enjoy') && !has(it, 'skill')) out.push('It\u2019s ' + andList(a.lens.map(function(x){ return x.toLowerCase(); })) + '.');
     if (whoDone(it)) {
       var parts = whoParts(it), self = parts.indexOf('Tending to self') > -1, rest = parts.filter(function(x){ return x !== 'Tending to self'; }).map(function(x){ return x.replace(/^People/, 'people').replace(/^Other/, 'other'); });
-      var sw = has(it, 'skill') && !has(it, 'offer') && !has(it, 'care') ? 'I want to apply it for ' + andList(rest) : self && rest.length ? 'It tends to me and is in service to ' + andList(rest) : self ? 'It tends to me' : 'It\u2019s in service to ' + andList(rest);
+      var forWho = lowAll((it.a.serveWho || []).concat(it.a.serveNature || []));
+      var sw = has(it, 'skill') && !has(it, 'offer') && !has(it, 'care') ? 'I apply it for ' + (forWho.length ? andList(forWho) : andList(rest)) : self && rest.length ? 'It tends to me and is in service to ' + andList(rest) : self ? 'It tends to me' : 'It\u2019s in service to ' + andList(rest);
       out.push(sw + '.');
     }
     if ((a.gives || []).length) out.push('It would give me ' + andList(a.gives) + '.');
