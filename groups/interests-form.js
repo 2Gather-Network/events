@@ -80,6 +80,17 @@
           r.appendChild(pill(n.name, !!on[key], function(){ if (on[key]) delete on[key]; else mark(key); draw(); }));
         }
       });
+      if (!at.length && shown.length > 1) {
+        var allOn = shown.every(function(n){ return on[n.name]; });
+        var addAll = document.createElement('div'); addAll.className = chip;
+        addAll.style.cssText = 'background:#1F699E;color:#fff;border-color:#1F699E;';
+        addAll.textContent = allOn ? 'Remove all' : 'Add all';
+        addAll.addEventListener('click', function(){
+          shown.forEach(function(n){ if (allOn) delete on[n.name]; else mark(n.name); });
+          draw();
+        });
+        r.appendChild(addAll);
+      }
       wrap.appendChild(r);
       return wrap;
     }
