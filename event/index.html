@@ -1915,10 +1915,15 @@ function finishRsvp() {
 }
 
 var _viewerIntake = null;
+const _introTry = /[?&]intro=1/.test(location.search);
+function _introHref(page) {
+  const back = location.href.replace(/([?&])nocache=1&?/, "$1").replace(/[?&]$/, "");
+  return page + (page.indexOf("?") > -1 ? "&" : "?") + "for=event&next=" + encodeURIComponent(back);
+}
 async function _viewerIntakeData(viewer) {
   if (_viewerIntake !== null) return _viewerIntake;
   try {
-    const res = await fetch(GS_URL + "?action=getIntake&appearId=" + encodeURIComponent(viewer));
+    const res = await fetch(GS_URL + "?action=getIntake&appearId=" + encodeURIComponent(viewer) + (_introTry && /[?&]nocache=1/.test(location.search) ? "&nocache=1&t=" + Date.now() : ""));
     const d = await res.json();
     _viewerIntake = (d && d.found && d.data) ? d.data : {};
   } catch(e) { _viewerIntake = {}; }
@@ -1949,8 +1954,16 @@ async function applyBoardGate() {
   const d = await _viewerIntakeData(viewer);   
   _boardOK = _profileComplete(d);
   const link = document.getElementById("room-gate-link");
-  if (link) link.href = "https://creating.works/profile?eventId=" + encodeURIComponent(_currentEv.id);
+  if (link) link.href = _introTry ? _introHref("https://2gather.network/intro-new/start") : "https://creating.works/profile?eventId=" + encodeURIComponent(_currentEv.id);
   _paintBoard();
+  const notes = document.getElementById("notes-section");
+  if (_introTry && _boardOK && notes && !document.getElementById("more-questions")) {
+    const more = document.createElement("p");
+    more.id = "more-questions";
+    more.style.cssText = "margin:16px 0 0;font-size:14px;color:#374151;";
+    more.innerHTML = 'Want better matches here? <a href="' + _introHref("https://2gather.network/ikigai/?new=1") + '" style="color:#1B6896;font-weight:700;">Answer more questions</a>';
+    notes.parentNode.insertBefore(more, notes);
+  }
 }
 
 async function maybeShowIntakePrompt() {
@@ -1971,7 +1984,7 @@ async function maybeShowIntakePrompt() {
     return;
   }
   const btnStyle = "display:inline-block;background:#154F74;color:#fff;font-weight:700;font-size:15px;padding:12px 20px;border-radius:10px;text-decoration:none;";
-  const url = "https://creating.works/profile?id=" + encodeURIComponent(_rsvpAppearId) + "&eventId=" + encodeURIComponent(_currentEv.id);
+  const url = _introTry ? _introHref("https://2gather.network/intro-new/start") : "https://creating.works/profile?id=" + encodeURIComponent(_rsvpAppearId) + "&eventId=" + encodeURIComponent(_currentEv.id);
   box.innerHTML = '<p style="font-size:14px;color:#1a1a2e;margin:0 0 12px;font-weight:600;line-height:1.5;">To receive compatible connections for this event, please complete your event profile next.</p>'
     + '<a href="' + url + '" style="' + btnStyle + '">' + label + '</a>';
   box.style.display = "block";

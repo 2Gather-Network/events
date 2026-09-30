@@ -1283,6 +1283,8 @@
   q.delete('step');
   var done = false;
   var forGroup = q.get('for') === 'group';
+  var forEvent = q.get('for') === 'event';
+  var backTo = !!q.get('next') && (forGroup || forEvent);
   var ix = -1;
   STEPS.forEach(function(s, i){ if (s.slug === want) ix = i; });
   var view = '';
@@ -1379,8 +1381,9 @@
       var dn = (res && res.dropped) || [];
       if (res && res.viewing) { bar('You\u2019re viewing as ' + res.viewing + '. Nothing is saved here.'); return; }
       if (dn.length) { bar('Saved. Removing ' + dn.slice(0, 3).join(', ') + (dn.length > 3 ? ' and others' : '') + ' is not saved yet in this test.'); return; }
-      bar('Saved.'); hideT = setTimeout(function(){ saveBar.style.display = 'none'; }, 2500);
+      window._ioSaveFailed = false; bar('Saved.'); hideT = setTimeout(function(){ saveBar.style.display = 'none'; }, 2500);
     }, function(err){
+      window._ioSaveFailed = true;
       bar(String((err && err.message) || 'Could not save just now.') + ' Your answers are still on this page. ', true, true);
     });
     return saveChain;
@@ -1395,6 +1398,7 @@
     if (si < STEPS.length - 1) { view = STEPS[si + 1].slug; show(); return; }
     if (done) { view = 'answers'; show(); return; }
     try { gpHandoff(); } catch (e) {}
+    if (backTo) { go.disabled = true; go.textContent = forGroup ? 'Joining the group\u2026' : 'Opening the event\u2026'; pend.then(function(){ if (window._ioSaveFailed) { go.disabled = false; go.textContent = 'Finish'; return; } _introDone(); }); return; }
     if (forGroup) { go.disabled = true; pend.then(function(){ location.href = '/design/group-joined/?cb=' + Date.now(); }); return; }
     done = true; railOn(); view = 'answers'; show();
   });
@@ -1402,7 +1406,8 @@
   title.textContent = 'Looking up your answers\u2026';
   window._ioReady.then(function(){
     done = window._ioDoneLoaded || q.get('done') === '1';
-    if (done && forGroup) { location.replace('/design/group-joined/?cb=' + Date.now()); return; }
+    if (done && forGroup && !backTo) { location.replace('/design/group-joined/?cb=' + Date.now()); return; }
+    if (done && backTo) { done = false; ix = 0; }
     if (done) railOn();
     view = done ? (ix > -1 ? STEPS[ix].slug : 'answers') : STEPS[ix > -1 ? ix : 0].slug;
     show();
