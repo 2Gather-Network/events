@@ -67,7 +67,9 @@
         r.appendChild(pill('All of ' + at[at.length - 1], !!on[here], function(){ if (on[here]) delete on[here]; else mark(here); draw(); }));
       }
       var groups = list.filter(function(n){ return n.kids.length; });
-      var shown = groups.length ? groups : list;
+      var shown = (at.length === 1 && at[0] === REC && groups.length)
+        ? groups
+        : groups.concat(list.filter(function(n){ return !n.kids.length; }));
       shown.forEach(function(n){
         var key = at.concat(n.name).join(SEP);
         if (n.kids.length) {
@@ -83,7 +85,7 @@
       if (!at.length && shown.length > 1) {
         var allOn = shown.every(function(n){ return on[n.name]; });
         var addAll = document.createElement('div'); addAll.className = chip;
-        addAll.style.cssText = 'background:#1F699E;color:#fff;border-color:#1F699E;';
+        addAll.style.cssText = 'background:#1F699E;color:#fff;border-color:#1F699E;display:inline-flex;align-items:center;justify-content:center;line-height:1;';
         addAll.textContent = allOn ? 'Remove all' : 'Add all';
         addAll.addEventListener('click', function(){
           shown.forEach(function(n){ if (allOn) delete on[n.name]; else mark(n.name); });
@@ -115,8 +117,10 @@
       return w;
     }
     function draw(){
-      if (tree) { cats.innerHTML = ''; cats.appendChild(chosenRow()); cats.appendChild(level()); }
-      if (box) {
+      var inPreview = !!(pq && pc);
+      if (tree) { cats.innerHTML = ''; if (!inPreview) cats.appendChild(chosenRow()); cats.appendChild(level()); }
+      if (box && inPreview) { box.innerHTML = ''; box.style.display = 'none'; }
+      else if (box) {
         box.innerHTML = '';
         picks.forEach(function(w, i){
           var c = document.createElement('div'); c.className = chip + ' on';
@@ -129,8 +133,8 @@
       var gname = (nm && nm.value || '').trim() || 'this group';
       pq.textContent = 'What do you enjoy most in ' + gname + '?';
       pc.innerHTML = '';
-      var list = leaves().map(function(k){ var p = k.split(SEP); return { name: p[p.length - 1], under: p.slice(0, -1).join(SEP) }; })
-        .concat(picks.map(function(w){ return { name: w, under: '' }; }));
+      var list = leaves().map(function(k){ var p = k.split(SEP); return { name: p[p.length - 1], under: p.slice(0, -1).join(SEP), key: k }; })
+        .concat(picks.map(function(w, i){ return { name: w, under: '', pick: i + 1 }; }));
       if (!list.length) {
         var e = document.createElement('span'); e.style.cssText = 'font-size:13px;color:var(--muted,#6B7A8D);';
         e.textContent = 'Pick what the group is about or add your own choices to see this.';
@@ -139,7 +143,12 @@
       list.forEach(function(w){
         var c = document.createElement('div'); c.className = chip;
         c.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.2;';
-        var t = document.createElement('span'); t.textContent = w.name; c.appendChild(t);
+        c.style.cursor = 'pointer'; c.title = 'Remove';
+        c.addEventListener('click', function(){
+          if (w.key) delete on[w.key]; else if (w.pick) picks.splice(w.pick - 1, 1);
+          draw();
+        });
+        var t = document.createElement('span'); t.textContent = w.name + '  \u00d7'; c.appendChild(t);
         if (w.under) {
           var u = document.createElement('span');
           u.style.cssText = 'font-size:11px;font-weight:500;color:var(--muted,#6B7A8D);margin-top:2px;';
