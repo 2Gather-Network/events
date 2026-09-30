@@ -2537,7 +2537,30 @@
     return out;
   }
 
+  var GP_BAL_CATS = ['Personal Care', 'Medicine', 'Movement', 'Home Life'];
+  function gpBalPaint(){
+    if (!GP_NEW) { return; }
+    var blk = document.getElementById('gp-bal-tick');
+    if (!blk) { return; }
+    if (!document.getElementById('gp-shut-css')) { var sc = document.createElement('style'); sc.id = 'gp-shut-css'; sc.textContent = '.gp-shut{display:none !important;}'; document.head.appendChild(sc); }
+    var rd = window._gpBalRd;
+    if (!rd) {
+      blk.classList.add('gp-shut');
+      if (!window._gpBalAsked) { window._gpBalAsked = true; gpRefOnce().then(function(r){ window._gpBalRd = r || {}; gpBalPaint(); }).catch(function(){ window._gpBalAsked = false; }); }
+      return;
+    }
+    var list = {};
+    (Array.isArray(rd.balanceWords) ? rd.balanceWords : []).forEach(function(w){ w = String(w || '').trim().toLowerCase(); if (w) { list[w] = 1; } });
+    var tags = (_gpTags && _gpTags.introNeed) || {};
+    var hit = gpPickedWords('introNeed').some(function(w){
+      if (list[w.toLowerCase()]) { return true; }
+      var c = String(tags[w] || gpCatOf('introNeed', w) || '').split(' > ');
+      return c.some(function(x){ x = String(x || '').trim(); var m = GP_BAL_CATS.indexOf(x) > -1 ? x : (window.cwTopicFor ? window.cwTopicFor(x) : ''); return GP_BAL_CATS.indexOf(m) > -1; });
+    });
+    blk.classList.toggle('gp-shut', !(hit || window._gpBal === true));
+  }
   function gpStepPaint(){
+    try { gpBalPaint(); } catch (e) {}
     try { gpPaintMyProfile(99); } catch (e) {}
     try { if (GP_RAIL) gpRailPaint(); } catch (e) {}
     try { if (GP_REQ) gpReqPaint(); } catch (e) {}
@@ -5279,7 +5302,7 @@
         balPick.appendChild(say);
       }
     };
-    window._gpPaintBalance = balPaint;
+    window._gpPaintBalance = function(){ balPaint(); try { gpBalPaint(); } catch (e) {} };
     balPaint();
     after(byKey('introNeed'), gpRailBlock('gp-bal-tick', 4, 'Seeking more balance in your life somehow?', 'Check out the \u201cBalance\u201d section under solutions.', balPick));
     var balBody = document.createElement('div');
