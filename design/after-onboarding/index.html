@@ -517,6 +517,66 @@
   var WHO = { 'Tending to self': 'yourself' };
   var VERB = { enjoy: 'You enjoy it', skill: 'You can do it', care: 'You care about it', seek: 'You’re seeking it', offer: 'You’re offering it' };
   var editIx = -1, draft = null;
+  var applyIx = -1, applyPick = {};
+  function applyGroups(it){
+    var g = [], a = it.a || {};
+    var enj = ((a.how || []).indexOf('Fan') > -1 ? ['Fan'] : []).concat(a.enjoyWith || []);
+    if (has(it, 'enjoy') && enj.length) g.push({ id: 'enjoy', tag: 'enjoy', label: 'How I enjoy it: ' + enj.join(', '), keys: ['how', 'enjoyWith'], on: true });
+    if (has(it, 'enjoy') && (a.enjoyWho || []).length) g.push({ id: 'with', tag: 'enjoy', label: 'Who with: ' + a.enjoyWho.join(', '), keys: ['enjoyWho'], on: true });
+    if (has(it, 'skill') && (a.level || []).length) g.push({ id: 'level', tag: 'skill', label: 'My level: ' + a.level.concat(a.roles || []).join(', '), keys: ['level', 'roles'], on: false });
+    if (has(it, 'skill') && (a.learned || []).length) g.push({ id: 'learned', tag: 'skill', label: 'How I know it: ' + a.learned.map(function(k){ var f = LEARNED.filter(function(h){ return h[0] === k; })[0]; return f ? f[1] : k; }).join(', '), keys: ['learned'], on: false });
+    if (needs(it).indexOf('who') > -1 && whoDone(it)) g.push({ id: 'who', tag: '', label: 'Who it is for: ' + whoParts(it).join(', '), keys: ['who', 'serveWhat', 'serveWho', 'serveNature'], on: true });
+    if (has(it, 'seek') && (a.gives || []).length) g.push({ id: 'gives', tag: 'seek', label: 'What it gives me: ' + a.gives.join(', '), keys: ['gives'], on: false });
+    if (has(it, 'offer') && workParts(it).length) g.push({ id: 'work', tag: 'offer', label: 'Work: ' + workParts(it).join('; '), keys: ['paid', 'unpaidTime', 'unpaidKind'], on: false });
+    return g;
+  }
+  function applyPlan(src, ix){
+    var groups = applyGroups(src).filter(function(g){ return applyPick[g.id]; }), plan = [];
+    items.forEach(function(x, i){
+      if (i === ix) return;
+      var take = groups.filter(function(g){
+        var fits = g.tag ? has(x, g.tag) : needs(x).indexOf('who') > -1;
+        var empty = g.keys.every(function(k){ return !(x.a[k] && x.a[k].length); });
+        if (g.id === 'with' && (x.a.enjoyWith || []).length && (x.a.enjoyWith || []).indexOf('With others') < 0) empty = false;
+        if (g.id === 'who' && serves(x)) empty = !((x.a.serveWhat || []).length || (x.a.serveWho || []).length);
+        return fits && empty;
+      });
+      if (take.length) plan.push({ it: x, groups: take });
+    });
+    return plan;
+  }
+  function applyPanel(c, it, ix){
+    var bx = el('div', 'prose');
+    bx.appendChild(el('div', 'qq', 'Use these answers on my other cards'));
+    applyGroups(it).forEach(function(g){
+      var lab = el('label', ''); lab.style.cssText = 'display:flex;align-items:flex-start;gap:8px;margin-top:8px;cursor:pointer;';
+      var cb = el('input', ''); cb.type = 'checkbox'; cb.checked = !!applyPick[g.id];
+      cb.addEventListener('change', function(){ applyPick[g.id] = cb.checked; draw(); });
+      lab.appendChild(cb); lab.appendChild(el('span', '', g.label)); bx.appendChild(lab);
+    });
+    var plan = applyPlan(it, ix), nav = el('div', 'qnav');
+    if (plan.length) {
+      var go = el('button', 'btn', 'Apply to ' + plan.length + (plan.length === 1 ? ' card' : ' cards')); go.type = 'button';
+      go.addEventListener('click', function(){
+        plan.forEach(function(p){
+          p.groups.forEach(function(g){ g.keys.forEach(function(k){ if (it.a[k] !== undefined) p.it.a[k] = JSON.parse(JSON.stringify(it.a[k])); }); });
+          if ((p.it.a.enjoyWho || []).length && (p.it.a.enjoyWith || []).indexOf('With others') < 0) { p.it.a.enjoyWith = (p.it.a.enjoyWith || []).concat(['With others']); }
+          if (has(p.it, 'enjoy')) p.it.a.how = ((p.it.a.how || []).indexOf('Fan') > -1 ? ['Fan'] : []).concat((p.it.a.enjoyWith || []).length ? ['I do it myself'] : []);
+          shareDetails(p.it);
+          if (FITP) toParent({ ao: 'save', key: FITKEY[FITP], word: p.it.word, tags: p.it.tags.slice(), cat: (p.it.a.cat && p.it.a.cat.length) ? p.it.a.cat.slice() : (p.it.cat ? [p.it.cat] : []), how: (p.it.a.how || []).slice(), level: (p.it.a.level || []).slice(), roles: (p.it.a.roles || []).slice(), learned: (p.it.a.learned || []).slice() });
+        });
+        applyIx = -1; draw();
+      });
+      nav.appendChild(go);
+    } else {
+      nav.appendChild(el('span', 'wait', 'No other card has these left to answer.'));
+    }
+    var cn = el('button', 'link', 'Cancel'); cn.type = 'button';
+    cn.addEventListener('click', function(){ applyIx = -1; draw(); });
+    nav.appendChild(cn); bx.appendChild(nav);
+    bx.appendChild(el('div', 'wait', 'Cards you\u2019ve already answered stay as they are.'));
+    c.appendChild(bx);
+  }
   var EMBED = /[?&]embed=1\b/.test(location.search);
   var INPANE = /[?&]inpane=1\b/.test(location.search);
   if (INPANE) document.documentElement.classList.add('ao-inpane');
@@ -581,8 +641,14 @@
   }
   function body(c, it, ix, miss){
     if (CARD === 'a') {
+      if (applyIx === ix) { applyPanel(c, it, ix); return; }
       var pr = prose(it);
       if (pr) c.appendChild(el('div', 'prose', pr));
+      if (pr && items.length > 1 && applyGroups(it).length) {
+        var ap = el('button', 'link', 'Use these answers on my other cards'); ap.type = 'button'; ap.style.marginTop = '10px';
+        ap.addEventListener('click', function(){ applyIx = ix; applyPick = {}; applyGroups(it).forEach(function(g){ applyPick[g.id] = g.on; }); draw(); });
+        c.appendChild(ap);
+      }
       return;
     }
     if (CARD === 'a0') {
