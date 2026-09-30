@@ -87,7 +87,7 @@
   }
 
   var GP_INTRO_Q = [
-    { key:'introNeed',   need:false, q:'What are you seeking right now?',
+    { key:'introNeed',   need:false, q:'Do you have anything you\u2019re seeking right now?',
       hint:'Something you need, want, or are looking for. Keep it blank if there is nothing right now.',
       ph:'A cat sitter for the last week of September, a massage therapist local to Seattle, and someone who can help me get a PT nursing job where I can travel anywhere.' },
     { key:'introEnjoy',  need:true,  q:'What do you enjoy?',
@@ -515,7 +515,7 @@
       cfg.examples.forEach(function(l){ gpShown[l.replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase()] = 1; });
       ['Social', 'Ecological'].forEach(function(lens){
         var mb = document.createElement('button'); mb.type = 'button'; mb.setAttribute('data-more', lens);
-        mb.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;';
+        mb.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;background:#1F699E;border:1.5px solid #1F699E;color:#fff;font-weight:700;';
         var added = [], open = false, loaded = false;
         var label = function(){ mb.textContent = (open ? 'Show less ' : 'Show more ') + lens.toLowerCase(); };
         label();
@@ -545,7 +545,7 @@
     other.textContent = '+ Other';
     other.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
       + 'background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;';
-    var catLabel = function(open){ var c = document.documentElement.className; var e = /cats-b/.test(c) ? '\u{1F9ED} ' : '\u{1F4C2} '; var s = key === 'introNeed' ? 'Show categories' : 'Show me categories'; return open ? e + 'Hide categories' : e + (/cats-b/.test(c) ? s + ' \u2014 browse all the topics' : s); };
+    var catLabel = function(open){ var c = document.documentElement.className; var e = ''; var s = key === 'introNeed' ? 'Show categories' : 'Show me categories'; return open ? e + 'Hide categories' : e + (/cats-b/.test(c) ? s + ' \u2014 browse all the topics' : s); };
     if (key === 'introEnjoy' || key === 'introNeed') { other.textContent = catLabel(false); other.className = 'gp-catbtn'; row.appendChild(other); }
 
     var otherBox = document.createElement('div');
@@ -655,8 +655,25 @@
           });
           lr.appendChild(b);
         });
+        if (path.length) {
+          var cat = path[path.length - 1];
+          var ob = document.createElement('button'); ob.type = 'button'; ob.textContent = '+ Other';
+          ob.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;background:#1F699E;border:1.5px solid #1F699E;color:#fff;font-weight:700;';
+          lr.appendChild(ob);
+          var ol = document.createElement('div'); ol.style.cssText = 'display:none;gap:8px;margin-top:10px;flex-wrap:wrap;';
+          var oi = document.createElement('input'); oi.type = 'text'; oi.placeholder = 'Something else under ' + cat;
+          oi.style.cssText = 'flex:1 1 220px;min-width:0;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:8px 12px;font:inherit;font-size:14px;color:#1A2E42;';
+          var oa = document.createElement('button'); oa.type = 'button'; oa.textContent = 'Add';
+          oa.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 16px;border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
+          ol.appendChild(oi); ol.appendChild(oa);
+          var oAdd = function(){ var v = String(oi.value || '').trim(); if (!v) { oi.focus(); return; } v = v.charAt(0).toUpperCase() + v.slice(1); if (!gpHasWord(key, v)) gpAddWord(key, v, cat, ta); repaint(); drawDrill(); };
+          ob.addEventListener('click', function(){ var on = ol.style.display === 'none'; ol.style.display = on ? 'flex' : 'none'; if (on) { try { oi.focus(); } catch (e) {} } });
+          oa.addEventListener('click', oAdd);
+          oi.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); oAdd(); } });
+        }
         drill.appendChild(lr);
-        if (path.length && !node().length) { var em = document.createElement('div'); em.style.cssText = 'font-size:13px;color:#4B5A6D;'; em.textContent = 'Nothing is filed here yet. Type your own above and press Add.'; drill.appendChild(em); }
+        if (path.length) drill.appendChild(ol);
+        if (path.length && !node().length) { var em = document.createElement('div'); em.style.cssText = 'font-size:13px;color:#4B5A6D;margin-top:8px;'; em.textContent = 'Nothing is filed here yet. Add yours with + Other.'; drill.appendChild(em); }
       };
       other.addEventListener('click', function(){
         if (drill.style.display !== 'none') { drill.style.display = 'none'; other.textContent = catLabel(false); return; }
@@ -729,7 +746,7 @@
         paintLenses();
         wordRow.innerHTML = '';
         lens.words.forEach(function(w){ wordRow.appendChild(gpChipBtn(key, w, ta)); });
-        wordRow.appendChild(gpMoreBtn('Show more ' + lens.label.toLowerCase(), function(){
+        var lensMore = gpMoreBtn('Show more ' + lens.label.toLowerCase(), function(){
           var note = document.createElement('span'); note.style.cssText = 'font-size:13px;color:#4B5A6D;align-self:center;'; note.textContent = 'Looking up…'; wordRow.appendChild(note);
           gpRefOnce().then(function(rd){
             var lo = lens.label.toLowerCase(), have = {};
@@ -740,7 +757,9 @@
             if (!list.length) list = lens.more || [];
             list.forEach(function(w){ wordRow.appendChild(gpChipBtn(key, w, ta)); });
           });
-        }));
+        });
+        lensMore.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;background:#1F699E;border:1.5px solid #1F699E;color:#fff;font-weight:700;';
+        wordRow.appendChild(lensMore);
       };
       cfg.lenses.forEach(function(lens){
         var b = document.createElement('button');
