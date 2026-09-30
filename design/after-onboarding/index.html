@@ -28,6 +28,7 @@
   .c.ok{border-color:var(--blue);}
   .mark{position:absolute;top:12px;right:12px;width:24px;height:24px;border-radius:50%;background:var(--green);color:#fff;font-weight:900;text-align:center;line-height:24px;font-size:14px;}
   .c.more{border:1.5px dashed var(--blue);}
+  .link.still{display:block;margin-top:10px;font-size:13px;color:var(--grey);text-align:left;}
   .flag{position:absolute;top:12px;right:12px;font-size:11px;font-weight:800;color:var(--blue);background:#E6F1FB;padding:4px 8px;border-radius:12px;}
   .need{font-size:12.5px;color:var(--grey);margin:6px 0 8px;}
   .need span{display:inline-block;border:1px solid var(--pale);border-radius:12px;padding:2px 8px;margin:2px 3px 0 0;color:var(--blue);background:#fff;}
@@ -380,6 +381,23 @@
     c.appendChild(b);
   }
   function missing(it){ return needs(it).filter(function(k){ return k === 'with' ? !withDone(it) : k === 'who' ? !whoDone(it) : k === 'work' ? !workDone(it) : k === 'cat' ? !catDone(it) : !(it.a[k] && it.a[k].length); }); }
+  function missingHere(it){
+    var m = missing(it);
+    if (!FITP || !has(it, FITP)) return m;
+    var mine = tagNeeds(it, FITP);
+    return m.filter(function(k){ return k === 'cat' || k === 'kind' || k === 'lens' || mine.indexOf(k) > -1; });
+  }
+  function missLabel(it, k){
+    if (k === 'how' || k === 'with') return 'How you enjoy it';
+    if (k === 'level') return 'Level';
+    if (k === 'who') return has(it, 'skill') && !has(it, 'offer') ? 'Beneficiary' : 'Who it is for';
+    if (k === 'gives') return 'What it gives you';
+    if (k === 'work') return 'Work';
+    if (k === 'cat') return 'Category';
+    if (k === 'kind') return 'Kind';
+    if (k === 'lens') return 'Social or ecological';
+    return k;
+  }
   var SERVE_GROUPS = [['By life stage', ['Babies', 'Toddlers', 'Kids', 'Teens', 'Young adults', 'Adults', 'Seniors']], ['By household', ['Singles', 'Families', 'Parents', 'Couples', 'Caregivers', 'Transplants']], ['By career stage', ['Students', 'Early career', 'Mid-career', 'Professionals', 'Senior professionals', 'Pre-retired', 'Retired']], ['By accommodation', ['Military veteran', 'Person with a visible or invisible disability or chronic condition', 'Neurodivergent', 'Gender identity', 'Sex identity', 'Returning to workforce after a career gap', 'Experiencing repeated layoffs', 'Person in life transition', 'Empty nester', 'Expat/ immigrant', 'Non-native speaker', 'Indigenous/ Native/ First Nations', 'Refugee', 'Incarcerated or justice-involved']]];
   function whoParts(it){
     var out = [];
@@ -804,7 +822,7 @@
     if (editIx > -1) { drawEdit(); return; }
     var done = 0;
     items.forEach(function(it, ix){
-      var miss = missing(it), ok = !miss.length;
+      var miss = missingHere(it), ok = !miss.length;
       if (ok) done++;
       if ((EMBED || onlyOpen) && ok && ix !== openIx) return;
       var c = el('div', 'c ' + (ix === openIx ? 'open' : ok ? 'ok' : 'more'));
@@ -821,7 +839,14 @@
       if (ix === openIx) {
         var s0 = sentence(it); if (CARD === 'c') c.appendChild(el('div', 'sum', s0));
         drawQuestion(c, it);
-      } else body(c, it, ix, miss);
+      } else {
+        body(c, it, ix, miss);
+        if (miss.length && applyIx !== ix) {
+          var sl = el('button', 'link still', 'Still to answer: ' + miss.map(function(k){ return missLabel(it, k); }).join(', ')); sl.type = 'button';
+          sl.addEventListener('click', function(){ startEdit(ix); });
+          c.appendChild(sl);
+        }
+      }
       grid.appendChild(c);
     });
     document.getElementById('ao-band').textContent = 'Your answers (' + items.length + ')';
@@ -842,6 +867,7 @@
     draft = JSON.parse(JSON.stringify(items[ix]));
     var gap = Object.keys(TAG).filter(function(t){ return has(draft, t) && missing(draft).some(function(k){ return tagNeeds(draft, t).indexOf(k) > -1; }); });
     if (gap.length) draft.focus = gap[0];
+    if (FITP && has(draft, FITP)) draft.focus = FITP;
     if (FITP) toParent({ ao: 'edit' });
     if (!draft.a.cat && draft.cat && !draft.thing && (draft.tags || []).some(function(t){ return t !== 'care'; })) draft.a.cat = [draft.cat];
     draw(); window.scrollTo(0, 0);
