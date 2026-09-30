@@ -209,13 +209,14 @@
     if (t === 'skill') return FITP === 'skill' ? ['level', 'work', 'who'] : ['workOpen', 'level'].concat(!FITP && wantsWork(it) ? ['work', 'who'] : []);
     if (t === 'care') return ['who'];
     if (t === 'seek') return ['gives'];
-    if (t === 'offer') return ((it.a.kind || []).indexOf('Skill') > -1 ? ['work'] : []).concat(['who']);
+    if (t === 'offer') return (it.thing && it.kind ? ['ocat'] : []).concat((it.a.kind || []).indexOf('Skill') > -1 ? ['work'] : []).concat(['who']);
     return [];
   }
   function needs(it){
     var n = [], other = (it.tags || []).some(function(t){ return t !== 'care'; });
     if (has(it, 'enjoy')) n.push('how');
     if (has(it, 'skill')) { n.push('workOpen'); n.push('level'); }
+    if (has(it, 'offer') && it.thing && it.kind) n.push('ocat');
     if (has(it, 'seek')) n.push('gives');
     if ((has(it, 'offer') && (it.a.kind || []).indexOf('Skill') > -1) || (has(it, 'skill') && wantsWork(it))) n.push('work');
     if (has(it, 'care') && !other && !it.cat) n.push('lens');
@@ -228,6 +229,7 @@
     var w = wq(it);
     if (k === 'how') return 'How is ' + w + ' of interest to you?';
     if (k === 'workOpen') return 'Is ' + w + ' a skill you want to work with?';
+    if (k === 'ocat') return it.kind === 'space' ? 'What kind of space is ' + w + '?' : 'What kind of thing is ' + w + '?';
     if (k === 'gives') return 'What would ' + w + ' give you? Tag how this nourishes you.';
     if (k === 'kind') return 'Is ' + w + ' a skill, a thing or a space?';
     if (k === 'cat' || k === 'lens') return tagQ(it);
@@ -390,7 +392,7 @@
     }
     c.appendChild(b);
   }
-  function missing(it){ return needs(it).filter(function(k){ return k === 'with' ? !withDone(it) : k === 'who' ? !whoDone(it) : k === 'work' ? !workDone(it) : k === 'cat' ? !catDone(it) : !(it.a[k] && it.a[k].length); }); }
+  function missing(it){ return needs(it).filter(function(k){ if (k === 'ocat') return !(it.a.offerCat && it.a.offerCat.length); return k === 'with' ? !withDone(it) : k === 'who' ? !whoDone(it) : k === 'work' ? !workDone(it) : k === 'cat' ? !catDone(it) : !(it.a[k] && it.a[k].length); }); }
   function selfDefault(it){
     it.a = it.a || {};
     var sw = it.a.serveWhat || [], at = sw.indexOf('Self');
@@ -408,6 +410,7 @@
     if (k === 'how' || k === 'with') return 'How you enjoy it';
     if (k === 'level') return 'Level';
     if (k === 'workOpen') return 'Open to work?';
+    if (k === 'ocat') return it.kind === 'space' ? 'Kind of space' : 'Kind of thing';
     if (k === 'who') return has(it, 'skill') && !has(it, 'offer') ? 'Beneficiary' : 'Who it is for';
     if (k === 'gives') return 'What it gives you';
     if (k === 'work') return 'Work';
@@ -551,11 +554,22 @@
   }
 
   var items = [];
-  var FITP = (location.search.match(/[?&]fit=(enjoy|skill|care)\b/) || [])[1] || '';
-  var FITKEY = { enjoy: 'introEnjoy', skill: 'introSkills', care: 'introValues', seek: 'introNeed' };
+  var FITP = (location.search.match(/[?&]fit=(enjoy|skill|care|offer)\b/) || [])[1] || '';
+  var FITKEY = { enjoy: 'introEnjoy', skill: 'introSkills', care: 'introValues', seek: 'introNeed', offer: 'introOffer' };
+  var OFFERCATS = { thing: [], space: [] };
   if (FITP) document.documentElement.classList.add('ao-fit');
   function careCat(it){ if (!it || it.cat || (it.tags || []).indexOf('care') < 0) return; var c = VALCAT[String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase()]; if (c) it.cat = c; }
   function fromHand(hand, keep){
+    if (hand && hand.offerCats) OFFERCATS = hand.offerCats;
+    if (FITP === 'offer') {
+      return (hand.offerItems || []).map(function(o){
+        var low = String(o.name).toLowerCase(), was = keep && keep[low];
+        var it = { word: o.name, tags: ['offer'], cat: '', thing: true, kind: o.kind, det: o.detail || '', a: was ? was.a : {} };
+        if (!(it.a.offerCat && it.a.offerCat.length) && o.cat && OFFERCATS[o.kind] && OFFERCATS[o.kind].indexOf(o.cat) > -1) it.a.offerCat = [o.cat];
+        if (!it.a.where && o.local) it.a.where = ['Local'];
+        return it;
+      }).reverse();
+    }
     var out = [], byWord = {}, tags = hand.tags || {}, saved = hand.saved || {};
     var split = function(s){ return String(s || '').split(/[,\n;]+/).map(function(x){ return x.trim(); }).filter(Boolean); };
     [['introEnjoy', 'enjoy'], ['introValues', 'care'], ['introSkills', 'skill'], ['introOffer', 'offer'], ['introNeed', 'seek']].forEach(function(p){
@@ -668,7 +682,8 @@
     if (needs(it).indexOf('who') > -1 && whoDone(it)) out.push((has(it, 'skill') && !has(it, 'offer') && !has(it, 'care') ? 'Skill applied for: ' : 'Who it is for: ') + whoParts(it).join(', '));
     if (has(it, 'seek') && (a.gives || []).length) out.push('What it gives me: ' + a.gives.join(', '));
     if (has(it, 'skill') && !has(it, 'offer') && (a.workOpen || []).length && !wantsWork(it)) out.push('Just for joy');
-    if (has(it, 'offer') || (has(it, 'skill') && wantsWork(it))) workRows(it).forEach(function(r){ out.push(r[0] + ': ' + r[1]); });
+    if (it.thing && has(it, 'offer')) { out.unshift((it.kind === 'space' ? 'Space' : 'Thing') + ((a.offerCat || []).length ? ' \u00B7 ' + a.offerCat[0] : '')); if ((a.where || []).length) out.splice(1, 0, 'Where: ' + (a.where[0] === 'Local' ? 'Local only' : 'Anywhere')); }
+    if ((has(it, 'offer') && !it.thing) || (has(it, 'skill') && wantsWork(it))) workRows(it).forEach(function(r){ out.push(r[0] + ': ' + r[1]); });
     return out;
   }
   function applyPlan(src, ix){
@@ -1036,7 +1051,8 @@
     if (editCopy) { var cbx = el('div', 'qbox copybox'); c.appendChild(cbx); applyPanel(cbx, it, editIx, true); }
     else if (editCopied) { var okl = el('div', '', '\u2713 Copied to ' + editCopied + (editCopied === 1 ? ' card' : ' cards')); okl.style.cssText = 'font-size:13px;font-weight:700;color:var(--green);margin:4px 0 8px;'; c.appendChild(okl); }
     it.tags = it.tags || [];
-    if (catDone(it) && !it.tagOpen) {
+    if (it.thing) {
+    } else if (catDone(it) && !it.tagOpen) {
       var tb = el('div', 'qbox'), tl = el('div', 'qhead2');
       var picks = [].concat(has(it, 'offer') && !it.thing ? (it.a.kind || []) : []).concat((it.tags || []).some(function(t){ return t !== 'care'; }) ? ((it.a.cat && it.a.cat.length ? it.a.cat : (it.cat ? [it.cat] : [])).map(catLab)) : (it.a.lens || (it.cat ? [it.cat] : [])));
       tl.appendChild(el('div', 'qq', picks.join(' | ')));
@@ -1053,7 +1069,10 @@
         clRow.appendChild(cl); c.lastChild.appendChild(clRow);
       }
     }
-    pickRow(c, 'How does it fit you?', Object.keys(TAG).map(function(k){ return [k, FIT[k]]; }), it.tags, true, function(v, t){ if (v.indexOf(t) > -1) it.focus = t; draw(); });
+    if (!it.thing) pickRow(c, 'How does it fit you?', Object.keys(TAG).map(function(k){ return [k, FIT[k]]; }), it.tags, true, function(v, t){
+      if (t === 'offer' && it.tags.indexOf('offer') > -1 && !it.thing) { it.tags.splice(it.tags.indexOf('offer'), 1); if (it.tags.indexOf('skill') < 0) it.tags.push('skill'); it.a.workOpen = [Q.workOpen.opts[0]]; t = 'skill'; }
+      if (it.tags.indexOf(t) > -1) it.focus = t; draw();
+    });
     var picked = Object.keys(TAG).filter(function(t){ return has(it, t); });
     if (picked.indexOf(it.focus) < 0) it.focus = picked[0];
     if (picked.length > 1) {
@@ -1075,6 +1094,12 @@
       if (k === 'how') { withBlock(host, it, draw); return; }
       if (k === 'who') { whoBlock(host, it, draw); return; }
       if (k === 'work') { it.a.workAsked = true; workBlock(host, it, draw); return; }
+      if (k === 'ocat') {
+        it.a.offerCat = it.a.offerCat || []; it.a.where = it.a.where || [];
+        pickRow(host, qText(k, it), (OFFERCATS[it.kind] || []).map(function(o){ return [o, o]; }), it.a.offerCat, false, function(){ draw(); });
+        pickRow(host, 'Where can people get it?', [['Local', 'Local only'], ['Anywhere', 'Anywhere']], it.a.where, false, function(){ draw(); });
+        return;
+      }
       it.a[k] = it.a[k] || [];
       pickRow(host, qText(k, it), Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; if (k === 'level') { it.a.roles = []; it.a.rolesDefault = false; } draw(); });
       if (k === 'level') howBlock(host, it, draw);
@@ -1083,7 +1108,7 @@
     if (it.thing || it.det) {
       var dbx = el('div', 'qbox'); dbx.appendChild(el('div', 'qq', 'Details')); c.appendChild(dbx);
       var ta = el('textarea', 'det'); ta.rows = 2; ta.value = it.det || '';
-      ta.addEventListener('input', function(){ it.det = ta.value; });
+      ta.addEventListener('input', function(){ it.det = ta.value; commitDraft(); });
       dbx.appendChild(ta);
     }
     if (WORDBOX && !it.thing) wordBox(c, it);
@@ -1125,7 +1150,7 @@
     items[editIx] = JSON.parse(JSON.stringify(draft));
     shareDetails(draft);
     if (!FITP) return;
-    _saveMsg = { ao: 'save', key: FITKEY[FITP], word: draft.word, tags: draft.tags.slice(), cat: (draft.a.cat && draft.a.cat.length) ? draft.a.cat.slice() : (draft.cat ? [draft.cat] : []), how: (draft.a.how || []).slice(), level: (draft.a.level || []).slice(), roles: (draft.a.roles || []).slice(), learned: (draft.a.learned || []).slice(), workOpen: wantsWork(draft) ? 'yes' : (draft.a.workOpen || []).length ? 'no' : '' };
+    _saveMsg = { ao: 'save', key: FITKEY[FITP], word: draft.word, tags: draft.tags.slice(), cat: (draft.a.cat && draft.a.cat.length) ? draft.a.cat.slice() : (draft.cat ? [draft.cat] : []), how: (draft.a.how || []).slice(), level: (draft.a.level || []).slice(), roles: (draft.a.roles || []).slice(), learned: (draft.a.learned || []).slice(), workOpen: wantsWork(draft) ? 'yes' : (draft.a.workOpen || []).length ? 'no' : '', offerCat: (draft.a.offerCat || []).slice(), where: (draft.a.where || []).slice(), det: String(draft.det || '') };
     clearTimeout(_saveT);
     _saveT = setTimeout(flushSave, 600);
   }

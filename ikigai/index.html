@@ -3152,7 +3152,9 @@
     var box = function(k){ var t = document.getElementById('gp-intro-' + k); return t ? String(t.value || '') : ''; };
     var hand = { introEnjoy: box('introEnjoy'), introValues: box('introValues'), introSkills: box('introSkills'), introNeed: box('introNeed'),
       introOffer: (_gpHaves || []).map(function(h){ return String(h).split(':')[0].trim(); }).filter(Boolean).join(', '),
-      tags: {}, saved: {}, offerThings: [], seekThings: [], offerDetails: {}, seekDetails: {} };
+      tags: {}, saved: {}, offerThings: [], seekThings: [], offerDetails: {}, seekDetails: {},
+      offerItems: (_gpHaves || []).map(function(h){ var b = gpHaveBits(h); return { name: String(b.name).replace(/^[^\p{L}\p{N}]+/u, '').trim(), cat: String(b.cat || '').replace(/^[^\p{L}\p{N}]+/u, '').trim(), kind: b.kind === 'space' ? 'space' : 'thing', local: !!b.local, detail: b.detail || '' }; }).filter(function(x){ return x.name; }),
+      offerCats: { thing: GP_OFFER_CATS.thing.map(function(p){ return String(p[0]).replace(/^[^\p{L}\p{N}]+/u, '').trim(); }), space: GP_OFFER_CATS.space.map(function(p){ return String(p[0]).replace(/^[^\p{L}\p{N}]+/u, '').trim(); }) } };
     Object.keys(_gpTags || {}).forEach(function(k){ hand.tags[k] = {}; Object.keys(_gpTags[k] || {}).forEach(function(w){ hand.tags[k][w] = String(_gpTags[k][w] || '').split(' > ').pop(); }); });
     ['introEnjoy', 'introSkills'].forEach(function(k){
       hand.saved[k] = {};
@@ -3294,6 +3296,22 @@
       }
       if (gpViewingSomebodyElse()) { return; }
       var ta = document.getElementById('gp-intro-' + d.key);
+      if (d.key === 'introOffer' && (d.ao === 'save' || d.ao === 'drop')) {
+        var lowO = String(d.word || '').toLowerCase(), atO = -1;
+        _gpHaves.forEach(function(h, i){ if (atO < 0 && String(gpHaveBits(h).name).replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase() === lowO) { atO = i; } });
+        if (atO < 0) { return; }
+        if (d.ao === 'drop') { _gpHaves.splice(atO, 1); gpDetailQueue(d.word, null); }
+        else {
+          var bO = gpHaveBits(_gpHaves[atO]);
+          if (d.offerCat && d.offerCat.length) { bO.cat = d.offerCat[0]; }
+          if (d.where) { bO.local = d.where[0] === 'Local'; }
+          if (typeof d.det === 'string') { bO.detail = d.det; }
+          _gpHaves[atO] = gpHaveJoin(bO);
+        }
+        gpTouchSave();
+        if (d.ao === 'drop') { try { var obO = document.getElementById('gp-offers'); if (obO) { gpPaintOffers(obO); } } catch (x) {} }
+        return;
+      }
       if (d.ao === 'drop') {
         if (ta) { gpDropWord(d.key, d.word, ta); }
         var lowD = String(d.word || '').toLowerCase();
@@ -4210,7 +4228,7 @@
         + gpProseQs() + gpHoldDropQs();
     if (window._gpLoaded) qs += '&havesTags=' + encodeURIComponent(gpOfferParts().havesTags)
       + '&openToPaidWork=' + encodeURIComponent(gpOtwList('paid').join('|'))
-      + '&gigWork=' + encodeURIComponent(gpWantsPartTime() ? gpOtwList('gig').join('|') : '')
+      + '&gigWork=' + encodeURIComponent((gpWantsPartTime() || GP_NEW) ? gpOtwList('gig').join('|') : '')
       + '&openToUnpaidTime=' + encodeURIComponent(gpOtwList('unpaidTime').join('|'))
       + '&openToUnpaidWork=' + encodeURIComponent(gpOtwList('unpaid').join('|'))
       + '&servesWho=' + encodeURIComponent(Object.keys(_gpServe).filter(function(k){ return _gpServe[k]; }).join('|'));
@@ -4491,7 +4509,7 @@
         + gpProseQs() + gpHoldDropQs();
     if (window._gpLoaded) qs += '&havesTags=' + encodeURIComponent(gpOfferParts().havesTags)
       + '&openToPaidWork=' + encodeURIComponent(gpOtwList('paid').join('|'))
-      + '&gigWork=' + encodeURIComponent(gpWantsPartTime() ? gpOtwList('gig').join('|') : '')
+      + '&gigWork=' + encodeURIComponent((gpWantsPartTime() || GP_NEW) ? gpOtwList('gig').join('|') : '')
       + '&openToUnpaidTime=' + encodeURIComponent(gpOtwList('unpaidTime').join('|'))
       + '&openToUnpaidWork=' + encodeURIComponent(gpOtwList('unpaid').join('|'))
       + '&servesWho=' + encodeURIComponent(Object.keys(_gpServe).filter(function(k){ return _gpServe[k]; }).join('|'));
@@ -4914,6 +4932,54 @@
     out.push(b.kind || 'thing');
     return out.join(':');
   }
+  function gpNewOfferSkills(el, names){
+    var all = {};
+    try { all = JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}; } catch (e) { all = {}; }
+    el.textContent = names.length ? names.map(function(n){
+      var a = all[String(n).toLowerCase()] || {}, bits = [];
+      if ((a.paid || []).length) { bits.push('Paid ' + a.paid.join(', ').toLowerCase()); }
+      var u = (a.unpaidKind || []).concat(a.unpaidTime || []);
+      if (u.length) { bits.push('Unpaid ' + u.join(', ').toLowerCase()); }
+      return n + (bits.length ? ' (' + bits.join('; ') + ')' : '');
+    }).join(' \u00B7 ') : 'None yet. A skill you mark \u201CYes, I\u2019m open to work\u201D shows here.';
+  }
+  function gpNewOfferCards(ob){
+    var host = document.getElementById('gp-offer-cards');
+    if (!host) {
+      host = document.createElement('div'); host.id = 'gp-offer-cards'; host.style.cssText = 'margin-top:18px;';
+      var gig = document.createElement('div'); gig.id = 'gp-offer-gig'; gig.style.cssText = 'margin-top:22px;';
+      if (ob.parentNode) { ob.parentNode.insertBefore(host, ob.nextSibling); ob.parentNode.insertBefore(gig, host.nextSibling); }
+      gpNewGigPaint();
+    }
+    var fr = host.querySelector('iframe.gp-cards');
+    if (!fr) {
+      gpNewMsgs();
+      fr = document.createElement('iframe');
+      fr.className = 'gp-cards'; fr.title = 'Your offerings';
+      fr.style.cssText = 'width:100%;height:60px;border:0;display:block;';
+      fr.src = '/design/after-onboarding/?inpane=1&fit=offer&cb=' + Date.now();
+      fr.addEventListener('load', function(){ gpNewTopicsLoad().then(function(){ gpNewPost(fr); }); });
+      host.appendChild(fr);
+    }
+    host.style.display = _gpHaves.length ? '' : 'none';
+    gpNewTopicsLoad().then(function(){ gpNewPost(fr); });
+  }
+  function gpNewGigPaint(){
+    var g = document.getElementById('gp-offer-gig');
+    if (!g) { return; }
+    g.innerHTML = '';
+    var h = document.createElement('div'); h.style.cssText = 'font-size:15px;font-weight:800;color:#1A2E42;margin:0 0 4px;';
+    h.textContent = 'Open to gig work?';
+    var sub = document.createElement('div'); sub.style.cssText = 'font-size:13.5px;color:#4B5A6D;margin:0 0 10px;';
+    sub.textContent = 'Pick any you would take on.';
+    var row = document.createElement('div'); row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;';
+    GP_GIG.forEach(function(v){
+      var b = gpPill(v, !!_gpOtw.gig[v]);
+      b.addEventListener('click', function(){ _gpOtw.gig[v] = !_gpOtw.gig[v]; gpNewGigPaint(); gpTouchSave(); });
+      row.appendChild(b);
+    });
+    g.appendChild(h); g.appendChild(sub); g.appendChild(row);
+  }
   function gpPaintOffers(ob){
     var rd = window._gpRd;
     if (!rd || !Array.isArray(rd.spaceOfferTypes)) { return false; }
@@ -5125,6 +5191,11 @@
       });
       ob.appendChild(wrap);
     });
+    if (GP_NEW) {
+      try { gpNewOfferSkills(skNames, _sk); } catch (e) {}
+      gpNewOfferCards(ob);
+      return true;
+    }
     var _liveOffers = allCards.childNodes.length;
     gpPlaceGhosts(allCards, 'haves|');
     if (allCards.childNodes.length) {
@@ -5683,7 +5754,7 @@
     });
     var tick = gpSwitch('_gpOTW');
     window._gpPaintOtwSwitch = tick._paint;   
-    after(offer, gpRailBlock('gp-otw-tick', 5, 'Open to opportunities?', "Enable if you're open to opportunities, paid or unpaid. We'll ask you questions to find the right fit and receive compatible matches.", tick));
+    if (!GP_NEW) after(offer, gpRailBlock('gp-otw-tick', 5, 'Open to opportunities?', "Enable if you're open to opportunities, paid or unpaid. We'll ask you questions to find the right fit and receive compatible matches.", tick));
     var balPick = document.createElement('div');
     balPick.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
     var balPaint = function(){
