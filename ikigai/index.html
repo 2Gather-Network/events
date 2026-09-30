@@ -2899,6 +2899,107 @@
     if (it) { return [it.parent, it.type, it.sub].filter(Boolean); }
     return name ? [name] : [];
   }
+  function gpNewTopicsLoad(){
+    if (window._gpNewTopicsP) { return window._gpNewTopicsP; }
+    window._gpNewTopicsP = Promise.all([window.cwTopicWhere(), gpEnjoyTree()]).then(function(r){
+      var w = r[0];
+      window._gpNewTopics = { order: w.order, where: w.where, tree: {} };
+      w.order.forEach(function(n){ window._gpNewTopics.tree[n] = {}; });
+      return window._gpNewTopics;
+    }).catch(function(){ window._gpNewTopicsP = null; return null; });
+    return window._gpNewTopicsP;
+  }
+  var GP_NEW_FIT = { introEnjoy: 'enjoy', introSkills: 'skill', introValues: 'care' };
+  var GP_FIT_KEY = { enjoy: 'introEnjoy', skill: 'introSkills', care: 'introValues', seek: 'introNeed' };
+  function gpNewSavedCats(key, word){
+    var nt = window._gpNewTopics;
+    var w = gpSplitWork(gpOrigFor(key, word)), first = String(w.body.split(':')[1] || '').split('~')[0].trim();
+    if (first && gpIsLevelWord(first)) { first = ''; }
+    var map = function(c){ return !nt ? c : (nt.order.indexOf(c) > -1 ? c : gpNewTopicOf(c)); };
+    var out = [];
+    [first].concat(w.also).forEach(function(c){ c = map(String(c || '').trim()); if (c && out.indexOf(c) < 0) { out.push(c); } });
+    if (!out.length && nt && key === 'introEnjoy' && !gpViewingSomebodyElse()) {
+      var g = gpNewTopicOf(word);
+      if (g) { gpSetCategory(key, word, g); out.push(g); }
+    }
+    return out;
+  }
+  function gpNewHand(){
+    var box = function(k){ var t = document.getElementById('gp-intro-' + k); return t ? String(t.value || '') : ''; };
+    var hand = { introEnjoy: box('introEnjoy'), introValues: box('introValues'), introSkills: box('introSkills'), introNeed: box('introNeed'),
+      introOffer: (_gpHaves || []).map(function(h){ return String(h).split(':')[0].trim(); }).filter(Boolean).join(', '),
+      tags: {}, saved: {}, offerThings: [], seekThings: [], offerDetails: {}, seekDetails: {} };
+    Object.keys(_gpTags || {}).forEach(function(k){ hand.tags[k] = {}; Object.keys(_gpTags[k] || {}).forEach(function(w){ hand.tags[k][w] = String(_gpTags[k][w] || '').split(' > ').pop(); }); });
+    ['introEnjoy', 'introSkills'].forEach(function(k){
+      hand.saved[k] = {};
+      gpPickedWords(k).forEach(function(w){
+        var lv = gpLevelOf(k, w), sv = { cat: gpNewSavedCats(k, w) };
+        var doing = GP_DO_LEVELS.filter(function(v){ return lv.indexOf(v) > -1; });
+        if (k === 'introEnjoy') { sv.how = (lv.indexOf('Fan') > -1 ? ['Fan'] : []).concat(doing.length || _gpDoOpen[k + '|' + w.toLowerCase()] ? ['I do it myself'] : []); }
+        else { sv.level = doing.slice(0, 1); }
+        hand.saved[k][w] = sv;
+      });
+    });
+    return hand;
+  }
+  function gpNewPost(fr){
+    if (!window._gpNewTopics) { return; }
+    try { fr.contentWindow.postMessage({ ao: 'items', hand: gpNewHand() }, location.origin); } catch (e) {}
+  }
+  function gpNewCards(key, rows){
+    var fr = rows.querySelector('iframe.gp-cards');
+    if (!fr) {
+      rows.innerHTML = '';
+      rows.style.display = 'block';
+      fr = document.createElement('iframe');
+      fr.className = 'gp-cards'; fr.title = 'Your answers';
+      fr.style.cssText = 'width:100%;height:160px;border:0;display:block;';
+      fr.src = '/design/after-onboarding/?inpane=1&fit=' + GP_NEW_FIT[key] + '&cb=' + Date.now();
+      rows.appendChild(fr);
+    }
+    if (!window._gpNewTopics) { gpNewTopicsLoad().then(function(){ gpNewPost(fr); }); return; }
+    gpNewPost(fr);
+  }
+  function gpNewMsgs(){
+    if (window._gpNewMsgs) { return; }
+    window._gpNewMsgs = true;
+    window.addEventListener('message', function(e){
+      if (e.origin !== location.origin || !e.data || !e.data.ao) { return; }
+      var d = e.data, fr = null;
+      document.querySelectorAll('iframe').forEach(function(f){ if (f.contentWindow === e.source) { fr = f; } });
+      if (!fr) { return; }
+      if (d.ao === 'h') { fr.style.height = Math.max(fr.classList.contains('gp-cards') ? 60 : 400, d.h) + 'px'; return; }
+      if (!fr.classList.contains('gp-cards')) { return; }
+      if (d.ao === 'ready') { gpNewPost(fr); return; }
+      if (d.ao === 'edit') { try { fr.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) {} return; }
+      if (gpViewingSomebodyElse()) { return; }
+      var ta = document.getElementById('gp-intro-' + d.key);
+      if (d.ao === 'drop') { if (ta) { gpDropWord(d.key, d.word, ta); } return; }
+      if (d.ao !== 'save') { return; }
+      var w = d.word, tags = d.tags || [], cats = (d.cat || []).filter(Boolean), how = d.how || [];
+      Object.keys(GP_FIT_KEY).forEach(function(t){
+        var k = GP_FIT_KEY[t], box = document.getElementById('gp-intro-' + k);
+        if (!box) { return; }
+        var there = gpPickedWords(k).some(function(x){ return x.toLowerCase() === String(w).toLowerCase(); });
+        if (tags.indexOf(t) > -1 && !there) { gpAddWord(k, w, '', box); }
+        if (tags.indexOf(t) < 0 && there && k === d.key) { gpDropWord(k, w, box); }
+      });
+      ['introEnjoy', 'introSkills'].forEach(function(k){
+        if (!gpPickedWords(k).some(function(x){ return x.toLowerCase() === String(w).toLowerCase(); })) { return; }
+        var lv = gpLevelOf(k, w), doing = GP_DO_LEVELS.filter(function(v){ return lv.indexOf(v) > -1; })[0] || '';
+        if (cats.length) { gpSetCategory(k, w, cats[0]); gpSetAlso(k, w, cats.slice(1)); }
+        if (k === 'introEnjoy') {
+          var mine = how.indexOf('I do it myself') > -1;
+          _gpDoOpen[k + '|' + String(w).toLowerCase()] = mine;
+          gpSetLevel(k, w, (how.indexOf('Fan') > -1 ? ['Fan'] : []).concat(mine && doing ? [doing] : []));
+        } else {
+          gpSetLevel(k, w, (d.level && d.level.length ? d.level : (doing ? [doing] : [])).slice(0, 1));
+        }
+        gpTagPaint(k);
+      });
+      if (d.key === 'introValues') { gpTagPaint(d.key); }
+    });
+  }
   function gpNewTopicOf(name){
     var nt = window._gpNewTopics, low = String(name || '').trim().toLowerCase();
     if (!nt || !low) { return ''; }
@@ -2913,13 +3014,7 @@
     var t = window._gpEnjoyTree, tops = _gpCatOrder.slice(), nt = null;
     if (GP_NEW) {
       nt = window._gpNewTopics;
-      if (!nt) {
-        if (!window._gpNewTopicsAsked) {
-          window._gpNewTopicsAsked = true;
-          Promise.all([window.cwTopicWhere(), gpEnjoyTree()]).then(function(r){ var w = r[0]; window._gpNewTopics = { order: w.order, where: w.where, tree: {} }; w.order.forEach(function(n){ window._gpNewTopics.tree[n] = {}; }); try { gpTagPaint(key); } catch (e) {} }).catch(function(){ window._gpNewTopicsAsked = false; });
-        }
-        return null;
-      }
+      if (!nt) { gpNewTopicsLoad().then(function(){ try { gpTagPaint(key); } catch (e) {} }); return null; }
       t = nt.tree; tops = nt.order.slice();
     }
     if (!t || !tops.length) {
@@ -3204,6 +3299,12 @@
     var tbox = rows.parentNode ? rows.parentNode.parentNode : null;
     var bar = (tbox && tbox.querySelector('#gp-tagbar-' + key)) || document.getElementById('gp-tagbar-' + key);
     if (bar) { bar.textContent = spec.head + ' (' + words.length + ')'; }
+    if (GP_NEW && GP_NEW_FIT[key]) {
+      if (tbox) { tbox.style.display = words.length ? '' : 'none'; }
+      gpNewMsgs();
+      gpNewCards(key, rows);
+      return;
+    }
     rows.innerHTML = '';
     var _ghosts = gpDelGhosts(key + '|');
     if (tbox) { tbox.style.display = (words.length || _ghosts.length) ? '' : 'none'; }
@@ -4930,18 +5031,14 @@
   }
   function gpNewAnswers(){
     var el = document.getElementById('gp-preview'); if (!el) return;
-    var box = function(k){ var t = document.getElementById('gp-intro-' + k); return t ? String(t.value || '') : ''; };
-    var hand = { introEnjoy: box('introEnjoy'), introValues: box('introValues'), introSkills: box('introSkills'), introNeed: box('introNeed'),
-      introOffer: (_gpHaves || []).map(function(h){ return String(h).split(':')[0].trim(); }).filter(Boolean).join(', '),
-      tags: {}, offerThings: [], seekThings: [], offerDetails: {}, seekDetails: {} };
-    Object.keys(_gpTags || {}).forEach(function(k){ hand.tags[k] = {}; Object.keys(_gpTags[k] || {}).forEach(function(w){ hand.tags[k][w] = String(_gpTags[k][w] || '').split(' > ').pop(); }); });
+    var hand = gpNewHand();
     try { sessionStorage.setItem('if-handoff', JSON.stringify(hand)); } catch (e) {}
     el.innerHTML = '<div style="font-size:13px;color:#4B5A6D;margin:0 0 10px;">The details on each card do not save yet.</div>';
     var fr = document.createElement('iframe'); fr.title = 'Your answers';
     fr.style.cssText = 'width:100%;height:900px;border:0;';
     fr.src = '/design/after-onboarding/?from=onepage&inpane=1&cb=' + Date.now();
     el.appendChild(fr);
-    if (!window._gpNewH) { window._gpNewH = true; window.addEventListener('message', function(e){ if (e.origin === location.origin && e.data && e.data.ao === 'h') { var f = document.querySelector('#gp-preview iframe'); if (f) f.style.height = Math.max(400, e.data.h) + 'px'; } }); }
+    gpNewMsgs();
   }
   function gpNewArrange(){
     var box = document.getElementById('gp-intro-qs'); if (!box) return;
