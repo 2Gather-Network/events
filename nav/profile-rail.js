@@ -100,7 +100,7 @@
 
     if (opts.shape === 'network') {
       var nbox = document.createElement('div'); nbox.className = 'cw-prail-list';
-      [{ key: 'bookmarks', label: 'My bookmarks', url: 'https://2gather.network/network/' }].forEach(function (it) {
+      [{ key: 'bookmarks', label: 'People I want to meet', url: 'https://2gather.network/network/' }].forEach(function (it) {
         var nb = document.createElement('button'); nb.type = 'button'; nb.textContent = it.label;
         if (it.key === opts.active) { nb.className = 'on'; nb.setAttribute('aria-current', 'page'); }
         nb.onclick = function () { if (it.key === opts.active) { return; } go(it.url); };
