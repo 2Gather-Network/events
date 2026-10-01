@@ -70,7 +70,7 @@
       if (released && released.has(el)) { continue; }
       if (firstText && !firstText.has(el)) { firstText.set(el, el.textContent); }
       if (firstText && el.textContent !== firstText.get(el)) {
-        if (/(\.\.\.|\u2026)\s*$/.test(el.textContent)) {
+        if (/(\.\.\.|\u2026)\s*$/.test(el.textContent) || /^\s*(Loading|Looking|Opening|Finding|Checking|Getting|Fetching|Gathering|Searching|Joining|Saving|Sending|Preparing|Waking|Starting)\b/i.test(el.textContent)) {
           firstText.set(el, el.textContent);
           if (chip && chip.parentNode) { chip.parentNode.removeChild(chip); }
           chip = null;
