@@ -299,6 +299,7 @@
       <div class="q">Group passcode</div>
       <div class="help">This code is shared with people you invite so keep it memorable 🎉</div>
       <input type="text" id="e-passcode" maxlength="10">
+      <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:14px;cursor:pointer;"><input type="checkbox" id="e-approve" style="width:auto;margin:0;"> Ask me to approve people who join with the passcode</label>
 
       <div class="q">Group agreements</div>
       <textarea id="e-agreements"></textarea>
@@ -746,6 +747,7 @@
             : ['skills', 'things', 'spaces', 'work'];
           if (typeof _eInterests !== 'undefined' && _eInterests) _eInterests.set(g.interestKinds, g.joinChoices);
         })();
+        (function(){ var ap = document.getElementById('e-approve'); if (ap) ap.checked = (g.joinNeedsApproval === true || String(g.joinNeedsApproval).toLowerCase() === 'true'); })();
         var _ciRaw = String(g.membersCanInvite || '').trim().toLowerCase();
         var ci = (_ciRaw === 'false') ? 'off' : 'on';
         document.querySelectorAll('[data-caninvite]').forEach(function(t){
@@ -1294,7 +1296,8 @@
       .then(function(r){ return r.json(); }).then(keepFreshToken)
       .then(function(d){
         var reqs = (d && d.requests) || [];
-        document.getElementById('tab-req-count').textContent = ' (' + reqs.length + ')';
+        var asks = (d && d.joinRequests) || [];
+        document.getElementById('tab-req-count').textContent = ' (' + (reqs.length + asks.length) + ')';
         document.getElementById('req-heading').textContent = reqs.length
           ? (reqs.length + (reqs.length === 1 ? ' person needs the passcode' : ' people need the passcode'))
           : 'There are no requests to join this group at this time.';
@@ -1302,6 +1305,14 @@
         if (_rw) _rw.style.display = 'none';
         _refreshPanelHeader();
         list.innerHTML = '';
+        if (asks.length) {
+          var ah = document.createElement('p');
+          ah.className = 'lede';
+          ah.style.cssText = 'margin:0 0 10px;font-size:13.5px;color:var(--muted);';
+          ah.textContent = asks.length + (asks.length === 1 ? ' person is' : ' people are') + ' waiting for you to let them in';
+          list.appendChild(ah);
+          asks.forEach(function(rq){ list.appendChild(_joinAskCard(rq)); });
+        }
         reqs.forEach(function(rq){ list.appendChild(renderRequestCard(rq)); });
         _joinedRows = (d && d.joined) || [];
         _paintJoinedCount();
@@ -1312,6 +1323,44 @@
         document.getElementById('req-heading').textContent = 'Could not load this just now';
         list.innerHTML = '<p class="lede">Could not reach the server. Try again in a moment.</p>';
       });
+  }
+
+  function _joinAskCard(rq){
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = 'margin:0 0 10px;padding:14px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;';
+    var nm = document.createElement('div');
+    nm.style.cssText = 'flex:1;min-width:160px;font-weight:700;color:var(--ink,#1A2E42);';
+    nm.textContent = rq.name || 'Somebody';
+    var say = document.createElement('div');
+    say.style.cssText = 'width:100%;font-size:13px;color:var(--muted);';
+    card.appendChild(nm);
+    [['Let them in', 'approve', 'btn sm'], ['Decline', 'decline', 'btn ghost sm']].forEach(function(b){
+      var x = document.createElement('button');
+      x.type = 'button'; x.className = b[2]; x.textContent = b[0];
+      x.addEventListener('click', function(){
+        card.querySelectorAll('button').forEach(function(y){ y.disabled = true; });
+        say.textContent = 'Saving…';
+        fetch(GS_URL + '?action=respondJoinRequest&groupId=' + encodeURIComponent(groupId)
+              + '&hostAppearId=' + encodeURIComponent(meId)
+              + '&sessionToken=' + encodeURIComponent(getToken() || '')
+              + '&requestId=' + encodeURIComponent(rq.requestId || '')
+              + '&answer=' + b[1])
+          .then(function(r){ return r.json(); }).then(keepFreshToken)
+          .then(function(d){
+            if (d && d.status === 'ok') { say.textContent = d.approved ? 'Let in. They are a member now.' : 'Declined.'; return; }
+            card.querySelectorAll('button').forEach(function(y){ y.disabled = false; });
+            say.textContent = (d && d.message) ? d.message : 'That did not go through.';
+          })
+          .catch(function(){
+            card.querySelectorAll('button').forEach(function(y){ y.disabled = false; });
+            say.textContent = 'Could not reach the server. Try again in a moment.';
+          });
+      });
+      card.appendChild(x);
+    });
+    card.appendChild(say);
+    return card;
   }
 
   var _joinedRows = [];
@@ -1933,6 +1982,7 @@
       slug: (function(){ var sl = document.getElementById('e-slug'); var v = sl ? String(sl.value || '').trim().replace(/\s+/g, '-') : ''; return v; })(),
       interestKinds: _eInterests.get().kinds,
       joinChoices: _eInterests.get().choices,
+      joinNeedsApproval: (document.getElementById('e-approve') || {}).checked ? 'true' : '',
       membersCanInvite: ((document.querySelector('[data-caninvite].on') || {}).getAttribute
         ? document.querySelector('[data-caninvite].on').getAttribute('data-caninvite') : 'off') === 'on' ? 'true' : 'false'
     };
