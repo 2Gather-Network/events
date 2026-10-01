@@ -380,17 +380,40 @@
     chipsInto(r, ['Solo', 'With others'], it.a.enjoyWith, false, sync, redraw);
     if (it.a.enjoyWith.indexOf('With others') > -1) {
       b.appendChild(el('div', 'qq sub', 'Who do you like ' + wq(it) + ' with?'));
-      var known = [].concat(REL); SERVE_GROUPS.slice(0, 3).forEach(function(x){ known = known.concat(x[1]); });
-      var relOpts = REL.concat(it.a.enjoyWho.filter(function(v){ return known.indexOf(v) < 0; }));
-      [['By relationship', relOpts]].concat(SERVE_GROUPS.slice(0, 3)).forEach(function(g, gi){
-        var rr = foldGroup(b, it.word + '|with', g[0], g[1], it.a.enjoyWho, redraw, gi === 0);
+      var seenW = {};
+      it.a.enjoyWho = it.a.enjoyWho.map(function(v){ return WITH_MAP[v] || v; }).filter(function(v){ var k = v.toLowerCase(); if (seenW[k]) return false; seenW[k] = 1; return true; });
+      var knownW = [];
+      WITH_GROUPS.forEach(function(g){ knownW = knownW.concat(g[1]); });
+      WITH_GROUPS.forEach(function(g, gi){
+        var near = it.a.enjoyWho.filter(function(v){ return /^Near me/.test(v); });
+        var rr = foldGroup(b, it.word + '|with', g[0], gi === 1 ? near.concat(g[1]) : g[1], it.a.enjoyWho, redraw, gi === 0);
         if (!rr) return;
+        if (gi === 1) {
+          var lv = nearLevels();
+          if (lv.length) {
+            lv.forEach(function(x){
+              var v = 'Near me: ' + x, p = el('button', 'pill' + (it.a.enjoyWho.indexOf(v) > -1 ? ' on' : ''), v); p.type = 'button';
+              p.addEventListener('click', function(){ var was = it.a.enjoyWho.indexOf(v) > -1; for (var i = it.a.enjoyWho.length - 1; i > -1; i--) if (/^Near me/.test(it.a.enjoyWho[i])) it.a.enjoyWho.splice(i, 1); if (!was) it.a.enjoyWho.push(v); redraw(); });
+              rr.appendChild(p);
+            });
+          } else {
+            var al = el('a', 'pill', 'Near me: add your location'); al.href = '/ikigai/start?new=1'; al.target = '_top'; al.style.textDecoration = 'none';
+            rr.appendChild(al);
+          }
+        }
         chipsInto(rr, g[1], it.a.enjoyWho, false, null, redraw);
-        if (gi === 0) otherPill(rr, it.a.enjoyWho, redraw);
       });
+      var extraW = it.a.enjoyWho.filter(function(v){ return knownW.indexOf(v) < 0 && !/^Near me/.test(v); });
+      var orow = el('div', 'row'); b.appendChild(orow);
+      chipsInto(orow, extraW, it.a.enjoyWho, false, null, redraw);
+      otherPill(orow, it.a.enjoyWho, redraw);
     }
     c.appendChild(b);
   }
+  var WITH_GROUPS = [['People I already know', ['Friends', 'Family', 'Partner', 'Coworkers', 'Neighbors']], ['People I\u2019d like to meet', ['Community members', 'Professionals', 'Leaders', 'Mentors', 'People new to it', 'Business owners', 'Creatives', 'Volunteers']], ['People within a stage of life', ['Kids and teens', 'Students', 'Parents', 'Caregivers', 'Seniors', 'New to the area']]];
+  var WITH_MAP = { 'Families': 'Family', 'Couples': 'Partner', 'Transplants': 'New to the area', 'Organization leaders': 'Leaders', 'Community leaders': 'Leaders', 'Community': 'Community members', 'Kids': 'Kids and teens', 'Teens': 'Kids and teens', 'Babies': 'Kids and teens', 'Toddlers': 'Kids and teens' };
+  var HAND_PLACE = {};
+  function nearLevels(){ var p = HAND_PLACE || {}, out = []; if (p.postal) out.push(p.postal); if (p.county) out.push(/county/i.test(p.county) ? p.county : p.county + ' County'); if (p.state) out.push(p.state); if (p.region) out.push(p.region); if (out.length) out.push('Global'); return out; }
   function whoDone(it){ if (serves(it)) return (it.a.serveWhat || []).length > 0 || (it.a.serveWho || []).length > 0; var w = it.a.who || []; return w.length > 0 && (w.indexOf('In service to another') < 0 || (it.a.serveWhat || []).length > 0); }
   function catDone(it){
     var other = (it.tags || []).some(function(t){ return t !== 'care'; });
@@ -726,7 +749,7 @@
   }
   var fromOne = /[?&]from=onepage/.test(location.search), hand = null;
   if (fromOne) { try { hand = JSON.parse(sessionStorage.getItem('if-handoff') || 'null'); } catch (e) {} }
-  if (hand) { items = fromHand(hand); try { var all0 = JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}; items.forEach(function(x){ var a0 = all0[String(x.word).toLowerCase()]; if (a0) Object.keys(a0).forEach(function(k){ x.a[k] = a0[k]; }); }); } catch (e) {} }
+  if (hand) { HAND_PLACE = hand.place || {}; items = fromHand(hand); try { var all0 = JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}; items.forEach(function(x){ var a0 = all0[String(x.word).toLowerCase()]; if (a0) Object.keys(a0).forEach(function(k){ x.a[k] = a0[k]; }); }); } catch (e) {} }
   if (!items.length && !FITP) items = SAMPLE;
 
   var grid = document.getElementById('ao-grid');
@@ -1474,7 +1497,7 @@
       if (e.data.ok) delete wbState[wk];
       if (editIx > -1) draw();
     }
-    if (e.data.ao === 'items' && e.data.hand && editIx < 0) { var keep = {}; items.forEach(function(x){ keep[String(x.word).toLowerCase()] = x; }); items = fromHand(e.data.hand, keep); takeShared(); draw(); var ow = String(e.data.hand.openWord || '').toLowerCase(); if (ow) { for (var oi = 0; oi < items.length; oi++) { if (String(items[oi].word).toLowerCase() === ow) { startEdit(oi); break; } } } }
+    if (e.data.ao === 'items' && e.data.hand && editIx < 0) { var keep = {}; items.forEach(function(x){ keep[String(x.word).toLowerCase()] = x; }); HAND_PLACE = e.data.hand.place || {}; items = fromHand(e.data.hand, keep); takeShared(); draw(); var ow = String(e.data.hand.openWord || '').toLowerCase(); if (ow) { for (var oi = 0; oi < items.length; oi++) { if (String(items[oi].word).toLowerCase() === ow) { startEdit(oi); break; } } } }
   });
   if (FITP) toParent({ ao: 'ready' });
   try { if (INPANE && window.ResizeObserver) new ResizeObserver(function(){ tellH(); }).observe(document.querySelector('.wrap')); } catch (e) {}
