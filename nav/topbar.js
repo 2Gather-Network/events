@@ -908,7 +908,8 @@
     var old = d.getElementById('cw-viewas-pick'); if (old) { old.remove(); return; }
     var panel = d.createElement('div');
     panel.id = 'cw-viewas-pick';
-    panel.style.cssText = 'position:sticky;top:calc(var(--cw-adminbar, 34px));z-index:99999;background:#fff;color:#1A2E42;'
+    var _pTop = 34; try { _pTop = Math.round(bar.getBoundingClientRect().bottom) || 34; } catch (e) {}
+    panel.style.cssText = 'position:fixed;left:0;right:0;top:' + _pTop + 'px;max-height:70vh;overflow:auto;box-shadow:0 6px 18px rgba(26,46,66,.12);z-index:100000;background:#fff;color:#1A2E42;'
       + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "DM Sans",system-ui,sans-serif;';
 
     var _faSeq = 0;   
@@ -919,7 +920,7 @@
       + 'padding:9px 12px;font:inherit;outline:none;';
     var out = d.createElement('div');
     out.style.cssText = 'margin-top:8px;display:flex;flex-direction:column;gap:5px;max-width:420px;';
-    if (w.CW.viewSignedOut) {
+    if (w.CW && w.CW.viewSignedOut) {
       var outLine = d.createElement('div');
       outLine.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;';
       var asOut = d.createElement('button');
