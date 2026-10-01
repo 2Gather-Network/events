@@ -48,6 +48,11 @@
   .quiet a{color:var(--brand);font-weight:700;cursor:pointer;text-decoration:none;}
   .step2{display:none;}
   .step0{display:none;}
+  .step3{display:none;}
+  .tick{display:flex;align-items:flex-start;gap:10px;font-size:14px;font-weight:500;margin:0 0 10px;line-height:1.45;cursor:pointer;}
+  .tick > span{min-width:0;}
+  .tick a{color:var(--brand);font-weight:700;}
+  .tick input{width:18px;height:18px;flex-shrink:0;margin:1px 0 0;accent-color:var(--brand);}
 </style>
   <script src="/nav/identity.js?v=29"></script>
   <script src="/nav/firststop.js?v=3"></script>
@@ -67,32 +72,43 @@
     </div>
 
     <div class="step1" id="step1">
-      <h1>Sign in</h1>
+      <h1>Sign in or sign up</h1>
       <div id="cw-g-slot" hidden></div>
       <label for="email">Your email</label>
       <input id="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com">
-      <button id="send">Send my code</button>
+      <button id="send">Continue with my email</button>
       <div class="say" id="say1"></div>
-      <p class="quiet">New here? <a role="link" tabindex="0" id="to-signup" data-nav="/signup/"
-        onclick="return _safeNavGo(this)">Sign up instead.</a></p>
     </div>
 
     <div class="step2" id="step2">
       <h1>Check your email</h1>
       <p class="lede" id="sentTo">We sent a six digit code. It expires in fifteen minutes.</p>
-      <p class="lede" id="orOther" style="display:none;font-size:14px;">Nothing after a minute? You may have
-         joined under a different email address &mdash; try that one, or
-         <a href="/signup/" style="color:#1F699E;font-weight:700;">sign up</a> and we will bring the two
-         together.</p>
       <label for="code">Your code</label>
       <input id="code" class="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6"
              autocomplete="one-time-code" placeholder="000000">
       <button id="verify">Sign me in</button>
       <div class="say" id="say2"></div>
-      <p class="quiet">Nothing arrived? Check the spam folder, or
-        <a role="link" tabindex="0" id="again">send another code</a>.</p>
+      <p class="quiet">Nothing arrived? Check your spam folder, or
+        <a role="link" tabindex="0" id="again">send another code</a>. If it still does not come,
+        <a href="/support/?topic=login">click here for support</a>.</p>
       <p class="quiet">Wrong address? <a role="link" tabindex="0" id="changeEmail">Use a different
         email.</a></p>
+    </div>
+
+    <div class="step3" id="step3">
+      <h1>Welcome to 2Gather</h1>
+      <p class="lede">There is no account for this email yet. A few details and you are in.</p>
+      <label for="first">Your first name</label>
+      <input id="first" type="text" autocomplete="given-name">
+      <label for="last" style="margin-top:16px;">Your last name</label>
+      <input id="last" type="text" autocomplete="family-name">
+      <label class="tick" style="margin-top:20px;"><input id="agree" type="checkbox"><span>I agree to the <a
+        href="https://2gather.network/terms-of-service.html" target="_blank">Terms of Service</a>, <a
+        href="https://2gather.network/privacy-policy.html" target="_blank">Privacy Policy</a> and <a
+        href="https://2gather.network/code-of-conduct.html" target="_blank">Code of Conduct</a>.</span></label>
+      <label class="tick"><input id="over18" type="checkbox"><span>I confirm that I am at least 18 years of age or older.</span></label>
+      <button id="create">Create my account</button>
+      <div class="say" id="say3"></div>
     </div>
 
   </div>
@@ -124,10 +140,6 @@ window._safeNavGo = window._safeNavGo || function (el) {
   if (next.charAt(0) !== '/' || next.indexOf('//') === 0) { next = '/events/'; asked = ''; }
   if (next.indexOf('/signin') === 0) { next = '/events/'; asked = ''; }
 
-  try {
-    var _su = document.getElementById('to-signup');
-    if (_su && asked) { _su.setAttribute('data-nav', '/signup/?next=' + encodeURIComponent(next)); }
-  } catch (e) {}
 
   var email = '';
   var nextNew = asked ? next : '/events/';
@@ -153,19 +165,18 @@ window._safeNavGo = window._safeNavGo || function (el) {
     document.getElementById('sentTo').textContent =
       'Your six digit code is on its way to ' + email + '. It takes a few seconds to arrive, and it expires in fifteen minutes.';
     document.getElementById('code').focus();
-    (function () { var o = document.getElementById('orOther'); if (o) { o.style.display = 'none'; } })();
 
     fetch(GS_URL + '?action=sendSigninPin&email=' + encodeURIComponent(email))
       .then(function (r) { return r.json(); })
       .then(function () {
         btn.disabled = false;
-        btn.textContent = 'Send my code';
+        btn.textContent = 'Continue with my email';
         document.getElementById('sentTo').textContent =
           'We sent a six digit code to ' + email + '. It expires in fifteen minutes.';
       })
       .catch(function () {
         btn.disabled = false;
-        btn.textContent = 'Send my code';
+        btn.textContent = 'Continue with my email';
         document.getElementById('step2').style.display = 'none';
         document.getElementById('step1').style.display = 'block';
         tell('say1', 'That did not send. Check your connection and try once more.', false);
@@ -213,9 +224,16 @@ window._safeNavGo = window._safeNavGo || function (el) {
   document.getElementById('again').addEventListener('click', function () {
     fetch(GS_URL + '?action=sendSigninPin&email=' + encodeURIComponent(email));
     tell('say2', 'Another code is on its way to ' + email + '.', true);
-    var other = document.getElementById('orOther');
-    if (other) { other.style.display = 'block'; }
   });
+
+  function refParam() {
+    try {
+      var k = JSON.parse(localStorage.getItem('cw-ref') || 'null');
+      if (!k || !k.r || !/^[0-9a-z]{6}$/.test(k.r) || !(Date.now() - Number(k.at) < 30 * 86400000)) return '';
+      return '&ref=' + encodeURIComponent(k.r) + (k.eventId ? '&refEvent=' + encodeURIComponent(k.eventId) : '');
+    } catch (e) { return ''; }
+  }
+  var signup = '', firstName = '';
 
   function verify() {
     var code = document.getElementById('code').value.trim();
@@ -224,13 +242,25 @@ window._safeNavGo = window._safeNavGo || function (el) {
     btn.disabled = true;
     btn.textContent = 'Checking…';
 
+    var btn3 = document.getElementById('create');
     fetch(GS_URL + '?action=verifySigninPin&email=' + encodeURIComponent(email) +
-          '&code=' + encodeURIComponent(code))
+          '&code=' + encodeURIComponent(code) + signup)
       .then(function (r) { return r.json(); })
       .then(function (d) {
+        if (d && d.status === 'new') {
+          btn.disabled = false;
+          btn.textContent = 'Sign me in';
+          btn3.disabled = false;
+          btn3.textContent = 'Create my account';
+          document.getElementById('step2').style.display = 'none';
+          document.getElementById('step3').style.display = 'block';
+          document.getElementById('first').focus();
+          return;
+        }
         if (d && d.status === 'ok' && d.appearId) {
           try {
             localStorage.setItem('cw-id', d.appearId);
+            if (firstName) { localStorage.setItem('cw-first', firstName); }
             localStorage.setItem('appear-id', d.appearId);
             lastEmailRemember(email);
             if (d.editToken) {
@@ -242,19 +272,24 @@ window._safeNavGo = window._safeNavGo || function (el) {
             }
           } catch (e) {}
           btn.textContent = 'One moment\u2026';
-          CW.firstStop(d.appearId, next, function (where) {
+          btn3.textContent = 'One moment\u2026';
+          CW.firstStop(d.appearId, signup ? nextNew : next, function (where) {
             window.location.href = where;
           });
         } else {
           btn.disabled = false;
           btn.textContent = 'Sign me in';
-          tell('say2', (d && d.message) || 'That code did not work. Ask for another.', false);
+          btn3.disabled = false;
+          btn3.textContent = 'Create my account';
+          tell(signup ? 'say3' : 'say2', (d && d.message) || 'That code did not work. Ask for another.', false);
         }
       })
       .catch(function () {
         btn.disabled = false;
         btn.textContent = 'Sign me in';
-        tell('say2', 'That did not reach us. Press Sign me in again \u2014 and if it says the code has expired, send another code.', false);
+        btn3.disabled = false;
+        btn3.textContent = 'Create my account';
+        tell(signup ? 'say3' : 'say2', 'That did not reach us. Press Sign me in again \u2014 and if it says the code has expired, send another code.', false);
       });
   }
 
@@ -266,6 +301,21 @@ window._safeNavGo = window._safeNavGo || function (el) {
     var em = document.getElementById('email');
     em.focus();
     em.select();
+  });
+
+  document.getElementById('create').addEventListener('click', function () {
+    var f = document.getElementById('first'), l = document.getElementById('last');
+    var fv = f.value.trim(), lv = l.value.trim();
+    if (!fv) { tell('say3', 'Put in the first name you would like people to see.', false); f.focus(); return; }
+    if (!lv) { tell('say3', 'Put in your last name.', false); l.focus(); return; }
+    if (!document.getElementById('agree').checked) { tell('say3', 'Please read the terms and tick the box to agree.', false); return; }
+    if (!document.getElementById('over18').checked) { tell('say3', 'Please confirm you are at least 18.', false); return; }
+    firstName = fv;
+    signup = '&first=' + encodeURIComponent(fv) + '&last=' + encodeURIComponent(lv) + '&terms=1&age=1' + refParam();
+    var b3 = document.getElementById('create');
+    b3.disabled = true;
+    b3.textContent = 'Creating\u2026';
+    verify();
   });
 
   document.getElementById('verify').addEventListener('click', verify);
