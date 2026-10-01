@@ -196,7 +196,7 @@
     how:   { q: 'How is this of interest to you?', opts: ['Fan', 'I do it myself'], many: true },
     who:   { q: 'Is it for yourself, or in service to someone or something else?', opts: ['Tending to self', 'People', 'Other'], many: true },
     workOpen: { q: 'Is it a skill you want to work with?', opts: ['Yes, I\u2019m open to work', 'No, just for joy'] },
-    level: { q: 'What is your level?', opts: ['Beginner', 'Experienced', 'Guide'] },
+    level: { q: 'What is your level?', opts: ['Beginner', 'Experienced', 'Guide'], many: true },
     gives: { q: 'What would it give you? Tag how this nourishes you.', opts: ['Create', 'Connect', 'Eat & Drink', 'Move', 'Play', 'Survive', 'Rest'], many: true },
     kind:  { q: 'Is it a skill, a thing or a space?', opts: ['Skill', 'Thing', 'Space'] },
     lens:  { q: 'Is it social or ecological?', opts: ['Social', 'Ecological'], many: true },
@@ -292,24 +292,26 @@
   var GUIDE_ROLES = ['Coach', 'Mentor', 'Consultant', 'Facilitator', 'Trainer', 'Host'];
   var PRACTICE_ROLES = ['Casual', 'Volunteer', 'Service provider', 'Performer', 'Creator', 'Maker', 'Competitor', 'Practitioner'];
   var LEARNED = [['selftaught', 'Self-taught'], ['volunteered', 'Volunteered'], ['lived', 'Experienced'], ['studied', 'Officially studied'], ['trained', 'Trained'], ['credentialed', 'Credentialed'], ['workedas', 'Responsible for others'], ['titled', 'Held the title'], ['guide', 'Guide']];
-  var LEARNED_ASK = LEARNED.filter(function(h){ return h[0] !== 'lived'; });
+  var LEARNED_ASK = LEARNED.filter(function(h){ return h[0] !== 'lived' && h[0] !== 'guide'; });
   var LEARNED_HELP = { lived: 'You have done it yourself, in your own life.', volunteered: 'You did it unpaid for a group or a cause.', studied: 'You learned it in a class, a course or a program.', workedas: 'You were responsible for other people in it, in a job or a role, whatever your title was.', credentialed: 'You hold a license, a certificate or a degree in it.', titled: 'It was your official title.', selftaught: 'You learned it on your own, from books, videos or practice.', trained: 'An apprenticeship or on-the-job training, without a credential.', guide: 'You have guided others in it. That can be as a trainer, an educator or a facilitator, or all three.' };
   var knowHelp = false;
   function howBlock(c, it, redraw){
-    var lv = (it.a.level || [])[0];
+    var lvs = it.a.level || [], isG = lvs.indexOf('Guide') > -1, isE = lvs.indexOf('Experienced') > -1 && has(it, 'enjoy');
     it.a.roles = it.a.roles || []; it.a.learned = it.a.learned || [];
     if (!it.a.learned.length && !it.a.learnedDefault) { it.a.learned.push('lived'); }
     it.a.learnedDefault = true;
-    if (lv === 'Experienced' && !it.a.roles.length && !it.a.rolesDefault) { it.a.roles.push('Casual'); }
-    if (lv === 'Experienced') it.a.rolesDefault = true;
+    if (isE && !it.a.roles.length && !it.a.rolesDefault) { it.a.roles.push('Casual'); }
+    if (isE) it.a.rolesDefault = true;
     var last = c.lastChild;
-    if (lv === 'Guide' || lv === 'Experienced') {
-      last.appendChild(el('div', 'qq sub', (lv === 'Guide' ? 'How do you guide ' : 'How do you enjoy ') + wq(it) + '?'));
+    [['Experienced', PRACTICE_ROLES, 'How do you enjoy '], ['Guide', GUIDE_ROLES, 'How do you guide ']].forEach(function(g){
+      if (g[0] === 'Experienced' ? !isE : !isG) return;
+      var fixed = g[1], ownCustom = g[0] === 'Experienced' || !isE;
+      last.appendChild(el('div', 'qq sub', g[2] + wq(it) + '?'));
       var rr = el('div', 'row'); last.appendChild(rr);
-      var fixed = lv === 'Guide' ? GUIDE_ROLES : PRACTICE_ROLES;
-      chipsInto(rr, fixed.concat(it.a.roles.filter(function(r){ return fixed.indexOf(r) < 0; })), it.a.roles, false, null, redraw);
-      otherPill(rr, it.a.roles, redraw);
-    }
+      var custom = ownCustom ? it.a.roles.filter(function(r){ return GUIDE_ROLES.indexOf(r) < 0 && PRACTICE_ROLES.indexOf(r) < 0; }) : [];
+      chipsInto(rr, fixed.concat(custom), it.a.roles, false, null, redraw);
+      if (ownCustom) otherPill(rr, it.a.roles, redraw);
+    });
     var kh = el('div', 'qq sub', 'How do you know ' + wq(it) + '? ');
     var ib = el('button', 'ihelp' + (knowHelp ? ' on' : ''), 'i'); ib.type = 'button'; ib.title = 'What these mean'; ib.setAttribute('aria-label', 'What these mean'); ib.setAttribute('aria-expanded', knowHelp ? 'true' : 'false');
     ib.addEventListener('click', function(){ knowHelp = !knowHelp; redraw(); });
@@ -910,10 +912,10 @@
     var wi = a.enjoyWith || [], solo = wi.indexOf('Solo') > -1, others = wi.indexOf('With others') > -1;
     var whoL = andList(lowAll(a.enjoyWho));
     var withP = solo && others ? 'solo and with ' + (whoL || 'others') : solo ? 'solo' : others ? 'with ' + (whoL || 'others') : '';
-    var lv = (a.level || [])[0], lvL = lv ? lv.toLowerCase() : '';
+    var lvA = lowAll(a.level || []), lv = lvA.length ? andList(lvA) : '', lvL = lv;
     var role = (a.roles || []).length ? ' as a ' + andList(lowAll(a.roles)) : '';
     var cap = function(x){ return x.charAt(0).toUpperCase() + x.slice(1); };
-    var lvAdj = lv === 'Experienced' ? 'experienced ' : lv === 'Beginner' ? 'a beginner ' : lv === 'Guide' ? 'a guide ' : '';
+    var lvAdj = lvA.length ? andList(lvA.map(function(x){ return x === 'experienced' ? 'experienced' : 'a ' + x; })) + ' ' : '';
     if (fan && doIt) out.push('I\u2019m both a fan and ' + lvAdj + w + ' myself' + role + '.');
     else if (doIt) out.push((lv ? cap(lvL) + ' ' + w + ' myself' : 'I do ' + w + ' myself') + role + '.');
     else {
@@ -1269,7 +1271,7 @@
         return;
       }
       it.a[k] = it.a[k] || [];
-      pickRow(host, qText(k, it), Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; if (k === 'level') { it.a.roles = []; it.a.rolesDefault = false; } draw(); });
+      pickRow(host, qText(k, it), Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; if (k === 'level') { var lg = it.a.level.indexOf('Guide') > -1, le = it.a.level.indexOf('Experienced') > -1; it.a.roles = (it.a.roles || []).filter(function(r){ return GUIDE_ROLES.indexOf(r) > -1 ? lg : PRACTICE_ROLES.indexOf(r) > -1 ? le : (lg || le); }); if (!le) it.a.rolesDefault = false; } draw(); });
       if (k === 'level') howBlock(host, it, draw);
       if (k === 'workOpen' && FITP && wantsWork(it)) host.lastChild.appendChild(el('div', 'wait', 'Its work questions are on the Skills step.'));
     });

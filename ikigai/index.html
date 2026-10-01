@@ -2997,6 +2997,11 @@
     _gpOrigEdited[key + '|' + kw] = _gpOrig[key][kw];
     try { gpTouchSave(); } catch (e) {}
   }
+  function gpSplitRoles(key, word, levels, roles){
+    var g = levels.indexOf('Guide') > -1, e = levels.indexOf('Experienced') > -1;
+    var isG = function(r){ return GP_GUIDE_ROLES.indexOf(r) > -1; };
+    gpSetRoles(key, word, g ? roles.filter(function(r){ return isG(r) || !e; }) : [], e ? roles.filter(function(r){ return !isG(r); }) : []);
+  }
   function gpSetLevel(key, word, levels){
     if (!_gpOrig[key]) { _gpOrig[key] = {}; }
     var raw = gpOrigFor(key, word);
@@ -3181,9 +3186,9 @@
         var doing = GP_DO_LEVELS.filter(function(v){ return lv.indexOf(v) > -1; });
         if (k === 'introEnjoy') {
           sv.how = (lv.indexOf('Fan') > -1 ? ['Fan'] : []).concat(doing.length || _gpDoOpen[k + '|' + w.toLowerCase()] ? ['I do it myself'] : []);
-          if (doing.length) { sv.canDo = true; sv.level = doing.slice(0, 1); sv.roles = doing[0] === 'Guide' ? gpRolesOf(k, w) : gpPracticeOf(k, w); sv.learned = gpHowOf(k, w); }
+          if (doing.length) { sv.canDo = true; sv.level = doing.slice(); sv.roles = (doing.indexOf('Guide') > -1 ? gpRolesOf(k, w) : []).concat(doing.indexOf('Experienced') > -1 ? gpPracticeOf(k, w) : []); sv.learned = gpHowOf(k, w); }
         }
-        else { sv.level = doing.slice(0, 1); sv.roles = doing[0] === 'Guide' ? gpRolesOf(k, w) : gpPracticeOf(k, w); sv.learned = gpHowOf(k, w); }
+        else { sv.level = doing.slice(); sv.roles = (doing.indexOf('Guide') > -1 ? gpRolesOf(k, w) : []).concat(doing.indexOf('Experienced') > -1 ? gpPracticeOf(k, w) : []); sv.learned = gpHowOf(k, w); }
         hand.saved[k][w] = sv;
       });
     });
@@ -3374,15 +3379,15 @@
           var mine = how.indexOf('I do it myself') > -1;
           _gpDoOpen[k + '|' + String(w).toLowerCase()] = mine;
           var joySkill = tags.indexOf('skill') > -1 && d.workOpen !== 'yes';
-          var lvJ = joySkill ? (d.level || []).slice(0, 1) : [];
+          var lvJ = joySkill ? (d.level || []).filter(function(v){ return GP_DO_LEVELS.indexOf(v) > -1; }) : [];
           gpSetLevel(k, w, (how.indexOf('Fan') > -1 ? ['Fan'] : []).concat(lvJ));
-          if (joySkill && d.roles) { gpSetRoles(k, w, lvJ[0] === 'Guide' ? d.roles : [], lvJ[0] === 'Experienced' ? d.roles : []); }
+          if (joySkill && d.roles) { gpSplitRoles(k, w, lvJ, d.roles); }
           if (joySkill && d.learned) { gpSetHow(k, w, d.learned); }
           if (!joySkill && tags.indexOf('skill') > -1 && (gpPracticeOf(k, w).length || gpRolesOf(k, w).length || gpHowOf(k, w).length)) { gpSetRoles(k, w, [], []); gpSetHow(k, w, []); }
         } else {
-          var lvNew = (d.level || (doing ? [doing] : [])).slice(0, 1);
+          var lvNew = (d.level || (doing ? [doing] : [])).filter(function(v){ return GP_DO_LEVELS.indexOf(v) > -1; });
           gpSetLevel(k, w, lvNew);
-          if (d.roles) { gpSetRoles(k, w, lvNew[0] === 'Guide' ? d.roles : [], lvNew[0] === 'Experienced' ? d.roles : []); }
+          if (d.roles) { gpSplitRoles(k, w, lvNew, d.roles); }
           if (d.learned) { gpSetHow(k, w, d.learned); }
         }
         gpTagPaint(k);
