@@ -136,7 +136,9 @@
   html.ao-embed .panel{padding:4px;border-radius:0;}
   html.ao-embed .note,html.ao-embed h1,html.ao-embed .lede,html.ao-embed .prog,html.ao-embed .band,html.ao-embed .foot,html.ao-embed .msg,html.ao-embed .topbtns{display:none;}
   html.ao-embed .grid{border:0;padding:0;}
-  #ao-tools{border:1.5px solid var(--pale);border-top:0;padding:12px 14px 0;display:flex;flex-direction:column;gap:10px;}
+  #ao-tools{border:1.5px solid var(--pale);border-top:0;border-bottom:0;padding:12px 14px 0;display:flex;flex-direction:column;gap:10px;}
+  #ao-tools .row1{display:flex;gap:8px;}
+  #ao-tools select{font:inherit;font-size:14px;font-weight:700;color:#1F699E;border:1.5px solid #C9DFF3;background:#fff;border-radius:10px;padding:8px 10px;flex:0 0 auto;}
   #ao-tools input{font:inherit;font-size:14.5px;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:9px 12px;color:#1A2E42;width:100%;box-sizing:border-box;}
   #ao-tools .chips{display:flex;flex-wrap:wrap;gap:7px;}
   #ao-tools .chips button{font:inherit;font-size:13.5px;font-weight:700;padding:7px 14px;border-radius:20px;cursor:pointer;background:#fff;border:1.5px solid #C9DFF3;color:#1F699E;}
@@ -650,7 +652,7 @@
   if (!items.length && !FITP) items = SAMPLE;
 
   var grid = document.getElementById('ao-grid');
-  var aoFind = '', aoKind = 'all';
+  var aoFind = '', aoKind = 'all', aoNeed = false;
   var openIx = -1, step = 0, onlyOpen = false;
 
   function el(tag, cls, text){ var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
@@ -916,14 +918,18 @@
     if (!tools) {
       tools = el('div', ''); tools.id = 'ao-tools';
       var q = document.createElement('input'); q.type = 'search'; q.placeholder = 'Search your interests'; q.setAttribute('aria-label', 'Search your interests');
+      var st = document.createElement('select'); st.setAttribute('aria-label', 'Show');
+      [['all', 'All'], ['detail', 'Needs a detail']].forEach(function(o){ var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; st.appendChild(op); });
+      st.addEventListener('change', function(){ aoNeed = st.value === 'detail'; draw(); });
       q.addEventListener('input', function(){ aoFind = String(q.value || '').trim().toLowerCase(); draw(); });
       var chips = el('div', 'chips');
-      [['all', 'All'], ['detail', 'Needs a detail'], ['enjoy', 'Joys'], ['care', 'Cares'], ['skill', 'Skills'], ['offer', 'Offerings'], ['seek', 'Seeking']].forEach(function(f){
+      [['all', 'All'], ['enjoy', 'Joys'], ['care', 'Cares'], ['skill', 'Skills'], ['offer', 'Offerings'], ['seek', 'Seeking']].forEach(function(f){
         var b = el('button', f[0] === aoKind ? 'on' : '', f[1]); b.type = 'button'; b.setAttribute('data-f', f[0]);
         b.addEventListener('click', function(){ aoKind = f[0]; Array.prototype.forEach.call(chips.children, function(x){ x.classList.toggle('on', x.getAttribute('data-f') === aoKind); }); draw(); });
         chips.appendChild(b);
       });
-      tools.appendChild(q); tools.appendChild(chips);
+      var r1 = el('div', 'row1'); r1.appendChild(q); r1.appendChild(st);
+      tools.appendChild(r1); tools.appendChild(chips);
       grid.parentNode.insertBefore(tools, grid);
     }
     var order = items.map(function(it, ix){ return ix; });
@@ -934,8 +940,8 @@
       if (ok) done++;
       if ((EMBED || onlyOpen) && ok && ix !== openIx) return;
       if (ix !== openIx && !EMBED && !FITP) {
-        if (aoKind === 'detail' && ok) return;
-        if (aoKind !== 'all' && aoKind !== 'detail' && (it.tags || []).indexOf(aoKind) < 0) return;
+        if (aoNeed && ok) return;
+        if (aoKind !== 'all' && (it.tags || []).indexOf(aoKind) < 0) return;
         if (aoFind && (String(it.word) + ' ' + (catLine(it) || '')).toLowerCase().indexOf(aoFind) < 0) return;
       }
       shown++;
