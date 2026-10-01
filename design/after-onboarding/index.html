@@ -226,9 +226,11 @@
   function isSkill(it){ return has(it, 'skill') || (it.a.kind || []).indexOf('Skill') > -1 || !!SKILLSET[String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase()]; }
   function has(it, t){ return (it.tags || []).indexOf(t) > -1; }
   function wantsWork(it){ return /^Yes/.test(String(((it.a || {}).workOpen || [])[0] || '')); }
+  function skillOffer(it){ return !it.thing && has(it, 'skill') && !has(it, 'offer') && wantsWork(it); }
   function tagNeeds(it, t){
     if (t === 'enjoy') return ['how'];
-    if (t === 'skill') return FITP === 'skill' ? ['level', 'work', 'who'] : ['level', 'workOpen'].concat(!FITP && wantsWork(it) ? ['work', 'who'] : []);
+    if (t === 'skill') return FITP === 'skill' ? ['level', 'work', 'who'] : ['level', 'workOpen'].concat(!FITP && wantsWork(it) && !skillOffer(it) ? ['work', 'who'] : []);
+    if (t === 'offer' && skillOffer(it)) return ['work', 'who'];
     if (t === 'care') return ['careWays'];
     if (t === 'seek') return ['gives'];
     if (t === 'offer') return (it.thing && it.kind ? ['ocat'] : []).concat((it.a.kind || []).indexOf('Skill') > -1 ? ['work'] : []).concat(it.thing ? [] : ['who']);
@@ -1313,19 +1315,19 @@
         clRow.appendChild(cl); c.lastChild.appendChild(clRow);
       }
     }
-    var fitView = it.tags.slice(), skillOffer = !it.thing && has(it, 'skill') && !has(it, 'offer') && wantsWork(it);
-    if (skillOffer) fitView.push('offer');
+    var fitView = it.tags.slice(), skOff = skillOffer(it);
+    if (skOff) fitView.push('offer');
     if (!it.thing) pickRow(c, 'How does it fit you?', Object.keys(TAG).map(function(k){ return [k, FIT[k]]; }), fitView, true, function(v, t){
       if (t === 'offer' && !it.thing && !has(it, 'offer')) {
-        if (skillOffer) { it.a.workOpen = [Q.workOpen.opts[1]]; it.a.roles = (it.a.roles || []).filter(function(r){ return GUIDE_ROLES.indexOf(r) < 0; }); }
-        else { if (it.tags.indexOf('skill') < 0) it.tags.push('skill'); it.a.workOpen = [Q.workOpen.opts[0]]; it.focus = 'skill'; }
+        if (skOff) { it.a.workOpen = [Q.workOpen.opts[1]]; it.a.roles = (it.a.roles || []).filter(function(r){ return GUIDE_ROLES.indexOf(r) < 0; }); }
+        else { if (it.tags.indexOf('skill') < 0) it.tags.push('skill'); it.a.workOpen = [Q.workOpen.opts[0]]; it.focus = 'offer'; }
         draw(); return;
       }
       var at = it.tags.indexOf(t);
       if (at > -1) it.tags.splice(at, 1); else it.tags.push(t);
       if (it.tags.indexOf(t) > -1) it.focus = t; draw();
     });
-    var picked = Object.keys(TAG).filter(function(t){ return has(it, t); });
+    var picked = Object.keys(TAG).filter(function(t){ return has(it, t) || (t === 'offer' && !FITP && skillOffer(it)); });
     if (picked.indexOf(it.focus) < 0) it.focus = picked[0];
     if (picked.length > 1) {
       var tabs = el('div', 'tabs');
@@ -1346,7 +1348,7 @@
       if (k === 'how') { withBlock(host, it, draw); return; }
       if (k === 'who') { whoBlock(host, it, draw); return; }
       if (k === 'careWays') { careWaysBlock(host, it, draw); return; }
-      if (k === 'work') { it.a.workAsked = true; workBlock(host, it, draw); var gk = el('div', 'qbox'); host.appendChild(gk); rolesRows(gk, it, draw, true); if (wantsWork(it)) knowRows(gk, it, draw); if (!gk.children.length) host.removeChild(gk); else if (gk.firstChild.className.indexOf('sub') > -1) gk.firstChild.style.marginTop = '0'; return; }
+      if (k === 'work') { it.a.workAsked = true; workBlock(host, it, draw); var gk = el('div', 'qbox'); host.appendChild(gk); rolesRows(gk, it, draw, true); if (wantsWork(it) && !(skillOffer(it) && it.focus === 'offer')) knowRows(gk, it, draw); if (!gk.children.length) host.removeChild(gk); else if (gk.firstChild.className.indexOf('sub') > -1) gk.firstChild.style.marginTop = '0'; return; }
       if (k === 'ocat') {
         it.a.offerCat = it.a.offerCat || []; it.a.where = it.a.where || [];
         if (it.kind === 'thing' && !it.a.where.length && !it.a.whereDefault) it.a.where.push('Local');
@@ -1358,7 +1360,7 @@
       it.a[k] = it.a[k] || [];
       pickRow(host, qText(k, it), Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; if (k === 'workOpen' && !wantsWork(it)) it.a.roles = (it.a.roles || []).filter(function(r){ return GUIDE_ROLES.indexOf(r) < 0; }); if (k === 'level') { var lg = it.a.level.indexOf('Guide') > -1, le = it.a.level.indexOf('Experienced') > -1; it.a.roles = (it.a.roles || []).filter(function(r){ return GUIDE_ROLES.indexOf(r) > -1 ? lg : PRACTICE_ROLES.indexOf(r) > -1 ? le : (lg || le); }); if (!le) it.a.rolesDefault = false; } draw(); });
       if (k === 'level') howBlock(host, it, draw, focusKeys.indexOf('workOpen') < 0 && wantsWork(it));
-      if (k === 'workOpen' && focusKeys.indexOf('work') < 0) { rolesRows(host.lastChild, it, draw, true); if (wantsWork(it)) knowRows(host.lastChild, it, draw); }
+      if (k === 'workOpen' && focusKeys.indexOf('work') < 0) { if (!skillOffer(it)) rolesRows(host.lastChild, it, draw, true); if (wantsWork(it)) knowRows(host.lastChild, it, draw); }
       if (k === 'workOpen' && FITP && wantsWork(it)) host.lastChild.appendChild(el('div', 'wait', 'Its work questions are on the Skills step.'));
     });
     if (it.thing || it.det) {
