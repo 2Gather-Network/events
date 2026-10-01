@@ -64,9 +64,15 @@
       if (released && released.has(el)) { continue; }
       if (firstText && !firstText.has(el)) { firstText.set(el, el.textContent); }
       if (firstText && el.textContent !== firstText.get(el)) {
-        if (released) { released.add(el); }
-        el.style.visibility = '';
-        continue;
+        if (/(\.\.\.|\u2026)\s*$/.test(el.textContent)) {
+          firstText.set(el, el.textContent);
+          if (chip && chip.parentNode) { chip.parentNode.removeChild(chip); }
+          chip = null;
+        } else {
+          if (released) { released.add(el); }
+          el.style.visibility = '';
+          continue;
+        }
       }
       if (el.offsetParent !== null) { out.push(el); }
     }
