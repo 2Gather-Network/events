@@ -614,6 +614,7 @@
   var ECO = [];
   var REL = ['Friends', 'Family', 'Partner', 'Coworkers', 'Neighbors', 'New people'];
   var WHO1 = true;
+  var COPYV = (function(){ var m = (location.search.match(/[?&]copyv=([ab])\b/) || [])[1]; if (m) return m; try { return (parent.location.search.match(/[?&]copyv=([ab])\b/) || [])[1] || ''; } catch (e) { return ''; } })();
   function natureRows(b, it, redraw){
     it.a.serveNature = it.a.serveNature || [];
     var r = foldGroup(b, it.word + '|serve', 'By other', ECO.concat(it.a.serveNature), it.a.serveNature, redraw, true);
@@ -779,7 +780,7 @@
   }
   function applyPanel(c, it, ix, inEdit){
     var bx = el('div', 'prose');
-    bx.appendChild(el('div', 'qq', 'Use these answers on my other cards'));
+    bx.appendChild(el('div', 'qq', copyLabel(it).replace(/^Copy to other /, 'Use these answers on my other ')));
     applyGroups(it).forEach(function(g){
       var lab = el('label', ''); lab.style.cssText = 'display:flex;align-items:flex-start;gap:8px;margin-top:8px;cursor:pointer;';
       var cb = el('input', ''); cb.type = 'checkbox'; cb.checked = !!applyPick[g.id];
@@ -796,10 +797,37 @@
         lab2.appendChild(cb2); lab2.appendChild(el('span', '', FIT[t])); bx.appendChild(lab2);
       });
     }
-    var ovl = el('label', ''); ovl.style.cssText = 'display:flex;align-items:flex-start;gap:8px;margin-top:12px;cursor:pointer;';
-    var ovb = el('input', ''); ovb.type = 'checkbox'; ovb.checked = !!applyOver;
-    ovb.addEventListener('change', function(){ applyOver = ovb.checked; applySure = false; draw(); });
-    ovl.appendChild(ovb); ovl.appendChild(el('span', '', 'Also replace answers I\u2019ve already given')); bx.appendChild(ovl);
+    if (COPYV === 'a' || COPYV === 'b') {
+      var ch = el('div', ''); ch.style.cssText = 'margin-top:14px;';
+      var opts = [[false, 'Fill in empty answers only', 'Cards where you already answered stay as they are.'], [true, 'Replace all my answers', 'Overwrites answers you already gave on these cards.']];
+      if (COPYV === 'a') {
+        var seg = el('div', ''); seg.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
+        opts.forEach(function(o){
+          var on = applyOver === o[0], p = el('button', 'pill' + (on ? ' on' : ''), o[1]); p.type = 'button';
+          if (o[0] && on) p.style.cssText = 'background:#7A2410;border-color:#7A2410;color:#fff;';
+          p.addEventListener('click', function(){ applyOver = o[0]; applySure = false; draw(); });
+          seg.appendChild(p);
+        });
+        ch.appendChild(seg);
+        var nt = el('div', '', opts[applyOver ? 1 : 0][2]); nt.style.cssText = 'font-size:13.5px;margin-top:6px;' + (applyOver ? 'color:#7A2410;font-weight:700;' : 'color:#4B5A6D;');
+        ch.appendChild(nt);
+      } else {
+        opts.forEach(function(o){
+          var on = applyOver === o[0], box = el('label', '');
+          box.style.cssText = 'display:flex;gap:10px;align-items:flex-start;cursor:pointer;border-radius:12px;padding:10px 12px;margin-top:8px;border:2px solid ' + (on ? (o[0] ? '#7A2410' : '#1F699E') : '#DDE4EE') + ';background:' + (on ? (o[0] ? '#FDECE8' : '#EEF6FC') : '#fff') + ';';
+          var rb = el('input', ''); rb.type = 'radio'; rb.name = 'ao-over-' + ix; rb.checked = on; rb.style.marginTop = '3px';
+          rb.addEventListener('change', function(){ applyOver = o[0]; applySure = false; draw(); });
+          var tx = el('div', ''); var t1 = el('div', '', o[1]); t1.style.cssText = 'font-weight:800;color:' + (o[0] ? '#7A2410' : '#1A2E42') + ';'; var t2 = el('div', '', o[2]); t2.style.cssText = 'font-size:13px;color:#4B5A6D;';
+          tx.appendChild(t1); tx.appendChild(t2); box.appendChild(rb); box.appendChild(tx); ch.appendChild(box);
+        });
+      }
+      bx.appendChild(ch);
+    } else {
+      var ovl = el('label', ''); ovl.style.cssText = 'display:flex;align-items:flex-start;gap:8px;margin-top:12px;cursor:pointer;';
+      var ovb = el('input', ''); ovb.type = 'checkbox'; ovb.checked = !!applyOver;
+      ovb.addEventListener('change', function(){ applyOver = ovb.checked; applySure = false; draw(); });
+      ovl.appendChild(ovb); ovl.appendChild(el('span', '', 'Also replace answers I\u2019ve already given')); bx.appendChild(ovl);
+    }
     var plan = applyPlan(it, ix), nav = el('div', 'qnav');
     if (plan.length) {
       var go = el('button', 'btn', applySure ? 'Yes, replace them' : 'Apply to ' + plan.length + (plan.length === 1 ? ' card' : ' cards')); go.type = 'button';
@@ -830,7 +858,7 @@
     cn.addEventListener('click', function(){ applyIx = -1; editCopy = false; applyOver = false; applySure = false; draw(); });
     nav.appendChild(cn); bx.appendChild(nav);
     if (applySure) { var sure = el('div', '', 'This replaces answers you already gave on ' + plan.length + (plan.length === 1 ? ' card' : ' cards') + '. Are you sure?'); sure.style.cssText = 'font-size:14px;font-weight:700;color:#7A2410;margin-top:8px;'; bx.appendChild(sure); }
-    else bx.appendChild(el('div', 'wait', applyOver ? 'Answers you already gave on these cards will be replaced.' : 'Cards you\u2019ve already answered stay as they are.'));
+    else if (COPYV !== 'a' && COPYV !== 'b') bx.appendChild(el('div', 'wait', applyOver ? 'Answers you already gave on these cards will be replaced.' : 'Cards you\u2019ve already answered stay as they are.'));
     c.appendChild(bx);
   }
   var EMBED = /[?&]embed=1\b/.test(location.search);
