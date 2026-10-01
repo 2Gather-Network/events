@@ -21,7 +21,7 @@
     }
     return a;
   }
-  var ONE = /[?&]onechip=1(&|$)/.test(String(w.location.search || ''));
+  var ONE = true;
   var seen = typeof WeakSet === 'function' ? new WeakSet() : null;
   function start(el) {
     if (!el || (seen && seen.has(el))) { return; }
@@ -72,7 +72,7 @@
     }
     return out;
   }
-  var firstDone = false, hideSince = 0, HIDE_MAX = 40000;
+  var hideSince = 0, HIDE_MAX = 40000;
   function pageHidden(on) {
     var h = d.documentElement;
     if (on) {
@@ -92,14 +92,12 @@
     if (!src.length) {
       if (chip && chip.parentNode) { chip.parentNode.removeChild(chip); }
       chip = null;
-      if (hideSince) { firstDone = true; }
+      hideSince = 0;
       pageHidden(false);
       return;
     }
-    if (!firstDone) {
-      if (!hideSince) { hideSince = Date.now(); }
-      if (Date.now() - hideSince < HIDE_MAX) { pageHidden(true); } else { firstDone = true; pageHidden(false); }
-    }
+    if (!hideSince) { hideSince = Date.now(); }
+    pageHidden(Date.now() - hideSince < HIDE_MAX);
     if (!chip) {
       chip = d.createElement('span');
       chip.className = 'cw-loading cw-onechip';
