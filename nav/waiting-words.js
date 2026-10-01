@@ -22,6 +22,12 @@
     return a;
   }
   var ONE = true;
+  (function () {
+    var st = d.createElement('style');
+    st.id = 'cw-onechip-early';
+    st.textContent = '.cw-loading:not(.cw-onechip):not(.cw-loading-shown){visibility:hidden !important}';
+    (d.head || d.documentElement).appendChild(st);
+  })();
   var seen = typeof WeakSet === 'function' ? new WeakSet() : null;
   function start(el) {
     if (!el || (seen && seen.has(el))) { return; }
@@ -71,6 +77,7 @@
         } else {
           if (released) { released.add(el); }
           el.style.visibility = '';
+          el.classList.add('cw-loading-shown');
           continue;
         }
       }
@@ -94,6 +101,7 @@
     }
   }
   function oneChip() {
+    if (!d.body) { return; }
     var src = sources();
     if (!src.length) {
       if (chip && chip.parentNode) { chip.parentNode.removeChild(chip); }
@@ -133,10 +141,7 @@
     }
     for (var k = 0; k < src.length; k++) { src[k].style.visibility = 'hidden'; }
   }
-  function begin() {
-    if (ONE) { oneChip(); setInterval(oneChip, 250); }
-    scan(d.body);
-    if (typeof MutationObserver !== 'function') { return; }
+  if (typeof MutationObserver === 'function') {
     new MutationObserver(function (muts) {
       for (var m = 0; m < muts.length; m++) {
         var added = muts[m].addedNodes;
@@ -144,7 +149,12 @@
           if (added[n].nodeType === 1) { scan(added[n]); }
         }
       }
-    }).observe(d.body, { childList: true, subtree: true });
+      if (ONE) { oneChip(); }
+    }).observe(d.documentElement, { childList: true, subtree: true });
+  }
+  function begin() {
+    if (ONE) { oneChip(); setInterval(oneChip, 250); }
+    scan(d.body);
   }
   if (d.readyState === 'loading') { d.addEventListener('DOMContentLoaded', begin); } else { begin(); }
 })(window, document);
