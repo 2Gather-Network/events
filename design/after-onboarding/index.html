@@ -766,7 +766,7 @@
   var WHO = { 'Tending to self': 'yourself' };
   var VERB = { enjoy: 'You enjoy it', skill: 'You can do it', care: 'You care about it', seek: 'You’re seeking it', offer: 'You’re offering it' };
   var editIx = -1, draft = null;
-  var applyIx = -1, applyPick = {}, applyTag = {}, editCopy = false, editCopied = 0, applyOver = false, applySure = false;
+  var applyScope = '', applyIx = -1, applyPick = {}, applyTag = {}, editCopy = false, editCopied = 0, applyOver = false, applySure = false;
   var defWord = '', copiedWord = '', pickDef = false, defQuery = '';
   try { defWord = sessionStorage.getItem('ao-default' + FITP) || ''; } catch (e) {}
   function defaultIx(){
@@ -812,6 +812,7 @@
     if (needs(it).indexOf('who') > -1 && whoDone(it)) g.push({ id: 'who', tag: '', label: 'Who it is for: ' + whoParts(it).join(', '), keys: ['who', 'serveWhat', 'serveWho', 'serveNature'], on: true });
     if (has(it, 'seek') && (a.gives || []).length) g.push({ id: 'gives', tag: 'seek', label: 'What it gives me: ' + a.gives.join(', '), keys: ['gives'], on: false });
     if (has(it, 'offer') && workParts(it).length) g.push({ id: 'work', tag: 'offer', label: 'Work: ' + workParts(it).join('; '), keys: ['paid', 'unpaidTime', 'unpaidKind'], on: false });
+    if (applyScope) g = g.filter(function(x){ return x.tag === applyScope; });
     return g;
   }
   function cardLines(it){
@@ -850,6 +851,7 @@
     return plan;
   }
   function copyLabel(it){
+    if (applyScope && TAG[applyScope]) return 'Copy to other ' + TAG[applyScope] + ' cards';
     var k = (it.tags || []).map(function(t){ return TAG[t]; }).filter(Boolean);
     if (!k.length) return 'Copy to other cards';
     return 'Copy to other ' + (k.length > 1 ? k.slice(0, -1).join(', ') + ' and ' + k[k.length - 1] : k[0]) + ' cards';
@@ -923,7 +925,7 @@
         });
         copiedWord = String(it.word).toLowerCase();
         defWord = it.word; try { sessionStorage.setItem('ao-default' + FITP, defWord); } catch (e) {}
-        if (inEdit) { editCopied = plan.length; editCopy = false; }
+        if (inEdit) { editCopied = plan.length; editCopy = false; applyScope = ''; }
         applyIx = -1; draw();
       });
       nav.appendChild(go);
@@ -931,7 +933,7 @@
       nav.appendChild(el('span', 'wait', 'No other card has these left to answer.'));
     }
     var cn = el('button', 'link', 'Cancel'); cn.type = 'button';
-    cn.addEventListener('click', function(){ applyIx = -1; editCopy = false; applyOver = false; applySure = false; draw(); });
+    cn.addEventListener('click', function(){ applyIx = -1; editCopy = false; applyScope = ''; applyOver = false; applySure = false; draw(); });
     nav.appendChild(cn); bx.appendChild(nav);
     if (applySure) { var sure = el('div', '', 'This replaces answers you already gave on ' + plan.length + (plan.length === 1 ? ' card' : ' cards') + '. Are you sure?'); sure.style.cssText = 'font-size:14px;font-weight:700;color:#7A2410;margin-top:8px;'; bx.appendChild(sure); }
     else if (COPYV !== 'a' && COPYV !== 'b') bx.appendChild(el('div', 'wait', applyOver ? 'Answers you already gave on these cards will be replaced.' : 'Cards you\u2019ve already answered stay as they are.'));
@@ -1013,7 +1015,7 @@
           ft.appendChild(alt);
           var okc = el('span', '', '\u2713 Copied'); okc.style.cssText = 'font-size:13px;font-weight:700;color:var(--green);';
           ft.appendChild(okc);
-        } else if (applyGroups(it).length) {
+        } else if ((it.tags || []).length === 1 && applyGroups(it).length) {
           var ap = el('button', 'btn', copyLabel(it)); ap.type = 'button';
           ap.addEventListener('click', function(){ applyIx = ix; applyPick = {}; applyTag = {}; applyOver = false; applySure = false; applyGroups(it).forEach(function(g){ applyPick[g.id] = g.on; }); draw(); });
           ft.appendChild(ap);
@@ -1162,7 +1164,7 @@
   }
 
   function startEdit(ix, keepRest){
-    openIx = -1; if (!keepRest) restMode = false; editIx = ix; editCopy = false; editCopied = 0;
+    openIx = -1; if (!keepRest) restMode = false; editIx = ix; editCopy = false; editCopied = 0; applyScope = '';
     draft = JSON.parse(JSON.stringify(items[ix]));
     var gap = Object.keys(TAG).filter(function(t){ return has(draft, t) && missing(draft).some(function(k){ return tagNeeds(draft, t).indexOf(k) > -1; }); });
     if (gap.length) draft.focus = gap[0];
@@ -1279,7 +1281,7 @@
     var tr = el('div', 'tr');
     var xb = el('button', 'pen x', '\u2715'); xb.type = 'button'; xb.title = 'Close';
     xb.addEventListener('click', function(){ restMode = false; finishEdit(); });
-    if (items.length > 1 && applyGroups(it).length) {
+    if (items.length > 1 && (it.tags || []).length === 1 && applyGroups(it).length) {
       var cpb = el('button', 'pen cp', '\u29C9'); cpb.type = 'button'; cpb.title = copyLabel(it); cpb.setAttribute('aria-label', copyLabel(it));
       if (editCopy) cpb.className = 'pen cp on';
       cpb.addEventListener('click', function(){
@@ -1294,7 +1296,7 @@
     c.appendChild(el('h3', '', it.word));
     var ecl = catLine(it); if (ecl) c.appendChild(el('div', 'cat', ecl));
     c.appendChild(el('div', 'rule'));
-    if (editCopy) { var cbx = el('div', 'qbox copybox'); c.appendChild(cbx); applyPanel(cbx, it, editIx, true); }
+    if (editCopy && !applyScope) { var cbx = el('div', 'qbox copybox'); c.appendChild(cbx); applyPanel(cbx, it, editIx, true); }
     else if (editCopied) { var okl = el('div', '', '\u2713 Copied to ' + editCopied + (editCopied === 1 ? ' card' : ' cards')); okl.style.cssText = 'font-size:13px;font-weight:700;color:var(--green);margin:4px 0 8px;'; c.appendChild(okl); }
     it.tags = it.tags || [];
     if (it.thing) {
@@ -1363,6 +1365,16 @@
       if (k === 'workOpen' && focusKeys.indexOf('work') < 0) { if (!skillOffer(it)) rolesRows(host.lastChild, it, draw, true); if (wantsWork(it)) knowRows(host.lastChild, it, draw); }
       if (k === 'workOpen' && FITP && wantsWork(it)) host.lastChild.appendChild(el('div', 'wait', 'Its work questions are on the Skills step.'));
     });
+    if (picked.length > 1 && items.length > 1 && it.focus && TAG[it.focus]) {
+      var scopeWas = applyScope; applyScope = it.focus; var hasG = applyGroups(it).length; if (!(editCopy && scopeWas === it.focus)) applyScope = scopeWas;
+      if (hasG && editCopy && applyScope === it.focus) { var sbx = el('div', 'qbox copybox'); c.appendChild(sbx); applyPanel(sbx, it, editIx, true); }
+      else if (hasG) {
+        var sft = el('div', ''); sft.style.cssText = 'display:flex;justify-content:flex-end;margin-top:10px;';
+        var sbt = el('button', 'btn', 'Copy to other ' + TAG[it.focus] + ' cards'); sbt.type = 'button';
+        sbt.addEventListener('click', function(){ applyScope = it.focus; editCopy = true; editCopied = 0; applyOver = false; applySure = false; applyPick = {}; applyTag = {}; applyGroups(it).forEach(function(g){ applyPick[g.id] = g.on; }); draw(); });
+        sft.appendChild(sbt); c.appendChild(sft);
+      }
+    }
     if (it.thing || it.det) {
       var dbx = el('div', 'qbox'); dbx.appendChild(el('div', 'qq', 'Details')); c.appendChild(dbx);
       var ta = el('textarea', 'det'); ta.rows = 2; ta.value = it.det || '';
