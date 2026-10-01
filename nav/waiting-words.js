@@ -72,12 +72,33 @@
     }
     return out;
   }
+  var firstDone = false, hideSince = 0, HIDE_MAX = 40000;
+  function pageHidden(on) {
+    var h = d.documentElement;
+    if (on) {
+      if (!d.getElementById('cw-onechip-style')) {
+        var st = d.createElement('style');
+        st.id = 'cw-onechip-style';
+        st.textContent = 'html.cw-waiting body > *:not(#cw-topbar):not(#cw-viewas):not(#cw-viewas-pick):not(.cw-onechip){visibility:hidden !important}';
+        d.head.appendChild(st);
+      }
+      h.classList.add('cw-waiting');
+    } else {
+      h.classList.remove('cw-waiting');
+    }
+  }
   function oneChip() {
     var src = sources();
     if (!src.length) {
       if (chip && chip.parentNode) { chip.parentNode.removeChild(chip); }
       chip = null;
+      if (hideSince) { firstDone = true; }
+      pageHidden(false);
       return;
+    }
+    if (!firstDone) {
+      if (!hideSince) { hideSince = Date.now(); }
+      if (Date.now() - hideSince < HIDE_MAX) { pageHidden(true); } else { firstDone = true; pageHidden(false); }
     }
     if (!chip) {
       chip = d.createElement('span');
