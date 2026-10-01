@@ -2,10 +2,19 @@
   var SEP = ' › ';
   var REC = 'Recreation & Hobbies';
   var REC_KINDS = ['Sports', 'Outdoor & Nature', 'Making & Collecting', 'Movement & Performance', 'Games & Strategy'];
-  function loadTree(){ return window.cwCategoryTree({ skills: 'always' }); }
+  function loadTree(){ return window.cwCategoryTree({ skills: 'always', topics: true }); }
   function normalise(key){
     key = String(key || '').trim();
     if (!key) return '';
+    if (window.cwTopicFor) {
+      var segs = key.split(SEP).map(function(x){ return x.trim(); }).filter(Boolean);
+      var last = segs[segs.length - 1] || '';
+      var t = window.cwTopicFor(last);
+      if (t) return t;
+      var up = '';
+      for (var i = segs.length - 2; i >= 0 && !up; i--) up = window.cwTopicFor(segs[i]);
+      if (up) return up + SEP + last;
+    }
     if (key.indexOf(SEP) === -1 && REC_KINDS.indexOf(key) > -1) return REC + SEP + key;
     return key;
   }
