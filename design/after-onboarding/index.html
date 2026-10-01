@@ -692,7 +692,7 @@
   var WHO = { 'Tending to self': 'yourself' };
   var VERB = { enjoy: 'You enjoy it', skill: 'You can do it', care: 'You care about it', seek: 'You’re seeking it', offer: 'You’re offering it' };
   var editIx = -1, draft = null;
-  var applyIx = -1, applyPick = {}, applyTag = {}, editCopy = false, editCopied = 0;
+  var applyIx = -1, applyPick = {}, applyTag = {}, editCopy = false, editCopied = 0, applyOver = false, applySure = false;
   var defWord = '', copiedWord = '', pickDef = false, defQuery = '';
   try { defWord = sessionStorage.getItem('ao-default' + FITP) || ''; } catch (e) {}
   function defaultIx(){
@@ -765,7 +765,7 @@
         var empty = g.keys.every(function(k){ return !(x.a[k] && x.a[k].length); });
         if (g.id === 'with' && (x.a.enjoyWith || []).length && (x.a.enjoyWith || []).indexOf('With others') < 0) empty = false;
         if (g.id === 'who' && serves(x)) empty = !((x.a.serveWhat || []).length || (x.a.serveWho || []).length);
-        return fits && empty;
+        return fits && (empty || applyOver);
       });
       var add = Object.keys(applyTag).filter(function(t){ return applyTag[t] && has(src, t) && !has(x, t) && !x.thing; });
       if (take.length || add.length) plan.push({ it: x, groups: take, add: add });
@@ -796,10 +796,16 @@
         lab2.appendChild(cb2); lab2.appendChild(el('span', '', FIT[t])); bx.appendChild(lab2);
       });
     }
+    var ovl = el('label', ''); ovl.style.cssText = 'display:flex;align-items:flex-start;gap:8px;margin-top:12px;cursor:pointer;';
+    var ovb = el('input', ''); ovb.type = 'checkbox'; ovb.checked = !!applyOver;
+    ovb.addEventListener('change', function(){ applyOver = ovb.checked; applySure = false; draw(); });
+    ovl.appendChild(ovb); ovl.appendChild(el('span', '', 'Also replace answers I\u2019ve already given')); bx.appendChild(ovl);
     var plan = applyPlan(it, ix), nav = el('div', 'qnav');
     if (plan.length) {
-      var go = el('button', 'btn', 'Apply to ' + plan.length + (plan.length === 1 ? ' card' : ' cards')); go.type = 'button';
+      var go = el('button', 'btn', applySure ? 'Yes, replace them' : 'Apply to ' + plan.length + (plan.length === 1 ? ' card' : ' cards')); go.type = 'button';
       go.addEventListener('click', function(){
+        if (applyOver && !applySure) { applySure = true; draw(); return; }
+        applySure = false; applyOver = false;
         plan.forEach(function(p){
           (p.add || []).forEach(function(t){
             if (!has(p.it, t)) p.it.tags.push(t);
@@ -821,9 +827,10 @@
       nav.appendChild(el('span', 'wait', 'No other card has these left to answer.'));
     }
     var cn = el('button', 'link', 'Cancel'); cn.type = 'button';
-    cn.addEventListener('click', function(){ applyIx = -1; editCopy = false; draw(); });
+    cn.addEventListener('click', function(){ applyIx = -1; editCopy = false; applyOver = false; applySure = false; draw(); });
     nav.appendChild(cn); bx.appendChild(nav);
-    bx.appendChild(el('div', 'wait', 'Cards you\u2019ve already answered stay as they are.'));
+    if (applySure) { var sure = el('div', '', 'This replaces answers you already gave on ' + plan.length + (plan.length === 1 ? ' card' : ' cards') + '. Are you sure?'); sure.style.cssText = 'font-size:14px;font-weight:700;color:#7A2410;margin-top:8px;'; bx.appendChild(sure); }
+    else bx.appendChild(el('div', 'wait', applyOver ? 'Answers you already gave on these cards will be replaced.' : 'Cards you\u2019ve already answered stay as they are.'));
     c.appendChild(bx);
   }
   var EMBED = /[?&]embed=1\b/.test(location.search);
@@ -904,7 +911,7 @@
           ft.appendChild(okc);
         } else if (applyGroups(it).length) {
           var ap = el('button', 'btn', copyLabel(it)); ap.type = 'button';
-          ap.addEventListener('click', function(){ applyIx = ix; applyPick = {}; applyTag = {}; applyGroups(it).forEach(function(g){ applyPick[g.id] = g.on; }); draw(); });
+          ap.addEventListener('click', function(){ applyIx = ix; applyPick = {}; applyTag = {}; applyOver = false; applySure = false; applyGroups(it).forEach(function(g){ applyPick[g.id] = g.on; }); draw(); });
           ft.appendChild(ap);
         }
         if (ft.children.length) c.appendChild(ft);
@@ -1140,7 +1147,7 @@
       var cpb = el('button', 'pen cp', '\u29C9'); cpb.type = 'button'; cpb.title = copyLabel(it); cpb.setAttribute('aria-label', copyLabel(it));
       if (editCopy) cpb.className = 'pen cp on';
       cpb.addEventListener('click', function(){
-        editCopy = !editCopy; editCopied = 0;
+        editCopy = !editCopy; editCopied = 0; applyOver = false; applySure = false;
         if (editCopy) { applyPick = {}; applyTag = {}; applyGroups(it).forEach(function(g){ applyPick[g.id] = g.on; }); }
         draw();
       });
