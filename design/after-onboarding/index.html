@@ -91,6 +91,8 @@
   .qbox .row{margin-top:8px;}
   .qq.sub{margin-top:14px;}
   .qhint{font-size:12.5px;color:var(--grey);margin-top:3px;}
+  .cway{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);margin-top:8px;cursor:pointer;}
+  .cway input{width:17px;height:17px;accent-color:var(--blue);}
   .pill.other{border:1.5px solid var(--blue);font-weight:700;}
   .oline{display:flex;gap:8px;margin-top:8px;max-width:420px;}
   .oinp{flex:1;min-width:0;border:1.5px solid #DDE3EA;background:var(--soft);border-radius:10px;padding:8px 12px;font:inherit;font-size:14px;color:var(--ink);}
@@ -226,7 +228,7 @@
   function tagNeeds(it, t){
     if (t === 'enjoy') return ['how'];
     if (t === 'skill') return FITP === 'skill' ? ['level', 'work', 'who'] : ['level', 'workOpen'].concat(!FITP && wantsWork(it) ? ['work', 'who'] : []);
-    if (t === 'care') return [];
+    if (t === 'care') return ['careWays'];
     if (t === 'seek') return ['gives'];
     if (t === 'offer') return (it.thing && it.kind ? ['ocat'] : []).concat((it.a.kind || []).indexOf('Skill') > -1 ? ['work'] : []).concat(it.thing ? [] : ['who']);
     return [];
@@ -241,6 +243,7 @@
     if (has(it, 'care') && !other && !it.cat) n.push('lens');
     if ((other && !it.thing && (!it.cat || it.guess)) || (has(it, 'offer') && !it.thing)) n.push('cat');
     if ((has(it, 'offer') && !it.thing) || (has(it, 'skill') && wantsWork(it))) n.push('who');
+    if (has(it, 'care')) n.push('careWays');
     return n;
   }
   function wq(it){ return '\u201C' + String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase() + '\u201D'; }
@@ -300,7 +303,7 @@
   var knowHelp = false;
   function rolesRows(last, it, redraw, guide){
     var lvs = it.a.level || [], isG = lvs.indexOf('Guide') > -1 && wantsWork(it), isE = lvs.indexOf('Experienced') > -1 && has(it, 'enjoy');
-    [['Experienced', PRACTICE_ROLES, 'How do you enjoy '], ['Guide', GUIDE_ROLES, 'How do you guide ']].forEach(function(g){
+    [['Experienced', PRACTICE_ROLES, 'How do you want to enjoy '], ['Guide', GUIDE_ROLES, 'How do you guide ']].forEach(function(g){
       if ((g[0] === 'Guide') !== guide) return;
       if (g[0] === 'Experienced' ? !isE : !isG) return;
       var fixed = g[1], ownCustom = g[0] === 'Experienced' || !isE;
@@ -312,7 +315,7 @@
       if (ownCustom) otherPill(rr, it.a.roles, redraw);
     });
   }
-  function howBlock(c, it, redraw){
+  function howBlock(c, it, redraw, showKnow){
     var lvs = it.a.level || [], isG = lvs.indexOf('Guide') > -1, isE = lvs.indexOf('Experienced') > -1 && has(it, 'enjoy');
     it.a.roles = it.a.roles || []; it.a.learned = it.a.learned || [];
     if (!it.a.learned.length && !it.a.learnedDefault) { it.a.learned.push('lived'); }
@@ -321,6 +324,9 @@
     if (isE) it.a.rolesDefault = true;
     var last = c.lastChild;
     rolesRows(last, it, redraw, false);
+    if (showKnow) knowRows(last, it, redraw);
+  }
+  function knowRows(last, it, redraw){
     var kh = el('div', 'qq sub', 'How do you know ' + wq(it) + '? ');
     var ib = el('button', 'ihelp' + (knowHelp ? ' on' : ''), 'i'); ib.type = 'button'; ib.title = 'What these mean'; ib.setAttribute('aria-label', 'What these mean'); ib.setAttribute('aria-expanded', knowHelp ? 'true' : 'false');
     ib.addEventListener('click', function(){ knowHelp = !knowHelp; redraw(); });
@@ -337,6 +343,19 @@
       lr.appendChild(p);
     });
     selectAll(lr, LEARNED_ASK.map(function(h){ return h[0]; }), it.a.learned, redraw);
+  }
+  var CARE_WAYS = [['dialogue', 'I like talking about it'], ['events', 'I like events that represent this topic'], ['connect', 'I want to meet others who care about it'], ['learn', 'I\u2019d like to learn more about it'], ['volunteer', 'I\u2019d volunteer my time for it'], ['give', 'I\u2019d give money or things to it'], ['organize', 'I\u2019d help organize around it'], ['work', 'I want to work in this field'], ['policy', 'I want to influence policy on this topic']];
+  function careWaysBlock(c, it, redraw){
+    it.a.careWays = it.a.careWays || [];
+    var b = el('div', 'qbox');
+    b.appendChild(el('div', 'qq', 'How do you care about ' + wq(it) + '?'));
+    b.appendChild(el('div', 'qhint', 'Check any that fit.'));
+    CARE_WAYS.forEach(function(w){
+      var lab = el('label', 'cway'), cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = it.a.careWays.indexOf(w[0]) > -1;
+      cb.addEventListener('change', function(){ var at = it.a.careWays.indexOf(w[0]); if (cb.checked && at < 0) it.a.careWays.push(w[0]); if (!cb.checked && at > -1) it.a.careWays.splice(at, 1); redraw(); });
+      lab.appendChild(cb); lab.appendChild(document.createTextNode(' ' + w[1])); b.appendChild(lab);
+    });
+    c.appendChild(b);
   }
   function serves(it){ return has(it, 'offer') || (has(it, 'skill') && wantsWork(it)); }
   function withDone(it){ return (it.a.enjoyWith || []).length > 0; }
@@ -435,7 +454,7 @@
     }
     c.appendChild(b);
   }
-  function missing(it){ return needs(it).filter(function(k){ if (k === 'who') return false; if (k === 'ocat') return !(it.a.offerCat && it.a.offerCat.length); return k === 'with' ? !withDone(it) : k === 'who' ? !whoDone(it) : k === 'work' ? !workDone(it) : k === 'cat' ? !catDone(it) : !(it.a[k] && it.a[k].length); }); }
+  function missing(it){ return needs(it).filter(function(k){ if (k === 'who' || k === 'careWays') return false; if (k === 'ocat') return !(it.a.offerCat && it.a.offerCat.length); return k === 'with' ? !withDone(it) : k === 'who' ? !whoDone(it) : k === 'work' ? !workDone(it) : k === 'cat' ? !catDone(it) : !(it.a[k] && it.a[k].length); }); }
   function selfDefault(it){
     it.a = it.a || {};
     var sw = it.a.serveWhat || [], at = sw.indexOf('Self');
@@ -777,6 +796,7 @@
     if ((a.kind || []).length && !(a.kind[0] === 'Skill' && has(it, 'skill'))) out.push('Kind: ' + a.kind.join(', '));
     if (needs(it).indexOf('who') > -1 && whoDone(it)) out.push((has(it, 'skill') && !has(it, 'offer') && !has(it, 'care') ? 'Skill applied for: ' : 'Who it is for: ') + whoParts(it).join(', '));
     if (has(it, 'seek') && (a.gives || []).length) out.push('What it gives me: ' + a.gives.join(', '));
+    if (has(it, 'care') && (a.careWays || []).length) out.push('How I care: ' + CARE_WAYS.filter(function(w){ return a.careWays.indexOf(w[0]) > -1; }).map(function(w){ return w[1]; }).join('; '));
     var joyOnly = has(it, 'skill') && !has(it, 'offer') && (a.workOpen || []).length && !wantsWork(it), rl = has(it, 'skill') ? (a.roles || []).slice() : [];
     if (joyOnly) rl.push('Just for joy');
     if (rl.length) out.push(rl.join(', '));
@@ -1288,6 +1308,7 @@
     needs(it).filter(function(k){ return k !== 'cat' && k !== 'lens' && focusKeys.indexOf(k) > -1; }).forEach(function(k){
       if (k === 'how') { withBlock(host, it, draw); return; }
       if (k === 'who') { whoBlock(host, it, draw); return; }
+      if (k === 'careWays') { careWaysBlock(host, it, draw); return; }
       if (k === 'work') { it.a.workAsked = true; workBlock(host, it, draw); return; }
       if (k === 'ocat') {
         it.a.offerCat = it.a.offerCat || []; it.a.where = it.a.where || [];
@@ -1299,8 +1320,8 @@
       }
       it.a[k] = it.a[k] || [];
       pickRow(host, qText(k, it), Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; if (k === 'workOpen' && !wantsWork(it)) it.a.roles = (it.a.roles || []).filter(function(r){ return GUIDE_ROLES.indexOf(r) < 0; }); if (k === 'level') { var lg = it.a.level.indexOf('Guide') > -1, le = it.a.level.indexOf('Experienced') > -1; it.a.roles = (it.a.roles || []).filter(function(r){ return GUIDE_ROLES.indexOf(r) > -1 ? lg : PRACTICE_ROLES.indexOf(r) > -1 ? le : (lg || le); }); if (!le) it.a.rolesDefault = false; } draw(); });
-      if (k === 'level') howBlock(host, it, draw);
-      if (k === 'workOpen') rolesRows(host.lastChild, it, draw, true);
+      if (k === 'level') howBlock(host, it, draw, focusKeys.indexOf('workOpen') < 0 && wantsWork(it));
+      if (k === 'workOpen') { rolesRows(host.lastChild, it, draw, true); if (wantsWork(it)) knowRows(host.lastChild, it, draw); }
       if (k === 'workOpen' && FITP && wantsWork(it)) host.lastChild.appendChild(el('div', 'wait', 'Its work questions are on the Skills step.'));
     });
     if (it.thing || it.det) {
@@ -1325,7 +1346,7 @@
     try { var all = sharedAll(); var a = JSON.parse(JSON.stringify(it.a || {})); delete a.cat; all[String(it.word).toLowerCase()] = a; sessionStorage.setItem('ao-details', JSON.stringify(all)); } catch (e) {}
     if (INPANE) toParent({ ao: 'details', word: it.word, a: slimDetails(it.a) });
   }
-  var KEPT = ['enjoyWith', 'enjoyWho', 'who', 'whoAdded', 'serveWhat', 'serveWho', 'serveNature', 'gives', 'paid', 'unpaidKind', 'unpaidTime', 'workAsked', 'workOpen'];
+  var KEPT = ['enjoyWith', 'enjoyWho', 'who', 'whoAdded', 'serveWhat', 'serveWho', 'serveNature', 'gives', 'paid', 'unpaidKind', 'unpaidTime', 'workAsked', 'workOpen', 'careWays'];
   function slimDetails(a){
     var out = {}, any = false;
     KEPT.forEach(function(k){
