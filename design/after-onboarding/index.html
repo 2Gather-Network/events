@@ -295,15 +295,10 @@
   var LEARNED_ASK = LEARNED.filter(function(h){ return h[0] !== 'lived' && h[0] !== 'guide'; });
   var LEARNED_HELP = { lived: 'You have done it yourself, in your own life.', volunteered: 'You did it unpaid for a group or a cause.', studied: 'You learned it in a class, a course or a program.', workedas: 'You were responsible for other people in it, in a job or a role, whatever your title was.', credentialed: 'You hold a license, a certificate or a degree in it.', titled: 'It was your official title.', selftaught: 'You learned it on your own, from books, videos or practice.', trained: 'An apprenticeship or on-the-job training, without a credential.', guide: 'You have guided others in it. That can be as a trainer, an educator or a facilitator, or all three.' };
   var knowHelp = false;
-  function howBlock(c, it, redraw){
-    var lvs = it.a.level || [], isG = lvs.indexOf('Guide') > -1, isE = lvs.indexOf('Experienced') > -1 && has(it, 'enjoy');
-    it.a.roles = it.a.roles || []; it.a.learned = it.a.learned || [];
-    if (!it.a.learned.length && !it.a.learnedDefault) { it.a.learned.push('lived'); }
-    it.a.learnedDefault = true;
-    if (isE && !it.a.roles.length && !it.a.rolesDefault) { it.a.roles.push('Casual'); }
-    if (isE) it.a.rolesDefault = true;
-    var last = c.lastChild;
+  function rolesRows(last, it, redraw, guide){
+    var lvs = it.a.level || [], isG = lvs.indexOf('Guide') > -1 && wantsWork(it), isE = lvs.indexOf('Experienced') > -1 && has(it, 'enjoy');
     [['Experienced', PRACTICE_ROLES, 'How do you enjoy '], ['Guide', GUIDE_ROLES, 'How do you guide ']].forEach(function(g){
+      if ((g[0] === 'Guide') !== guide) return;
       if (g[0] === 'Experienced' ? !isE : !isG) return;
       var fixed = g[1], ownCustom = g[0] === 'Experienced' || !isE;
       last.appendChild(el('div', 'qq sub', g[0] === 'Guide' ? 'Select how you want to guide people right now on ' + wq(it) + '?' : g[2] + wq(it) + '?'));
@@ -313,6 +308,16 @@
       chipsInto(rr, fixed.concat(custom), it.a.roles, false, null, redraw);
       if (ownCustom) otherPill(rr, it.a.roles, redraw);
     });
+  }
+  function howBlock(c, it, redraw){
+    var lvs = it.a.level || [], isG = lvs.indexOf('Guide') > -1, isE = lvs.indexOf('Experienced') > -1 && has(it, 'enjoy');
+    it.a.roles = it.a.roles || []; it.a.learned = it.a.learned || [];
+    if (!it.a.learned.length && !it.a.learnedDefault) { it.a.learned.push('lived'); }
+    it.a.learnedDefault = true;
+    if (isE && !it.a.roles.length && !it.a.rolesDefault) { it.a.roles.push('Casual'); }
+    if (isE) it.a.rolesDefault = true;
+    var last = c.lastChild;
+    rolesRows(last, it, redraw, false);
     var kh = el('div', 'qq sub', 'How do you know ' + wq(it) + '? ');
     var ib = el('button', 'ihelp' + (knowHelp ? ' on' : ''), 'i'); ib.type = 'button'; ib.title = 'What these mean'; ib.setAttribute('aria-label', 'What these mean'); ib.setAttribute('aria-expanded', knowHelp ? 'true' : 'false');
     ib.addEventListener('click', function(){ knowHelp = !knowHelp; redraw(); });
@@ -1272,8 +1277,9 @@
         return;
       }
       it.a[k] = it.a[k] || [];
-      pickRow(host, qText(k, it), Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; if (k === 'level') { var lg = it.a.level.indexOf('Guide') > -1, le = it.a.level.indexOf('Experienced') > -1; it.a.roles = (it.a.roles || []).filter(function(r){ return GUIDE_ROLES.indexOf(r) > -1 ? lg : PRACTICE_ROLES.indexOf(r) > -1 ? le : (lg || le); }); if (!le) it.a.rolesDefault = false; } draw(); });
+      pickRow(host, qText(k, it), Q[k].opts.map(function(o){ return [o, o]; }), it.a[k], !!Q[k].many, function(){ if (k === 'gives') it.gAutoSet = false; if (k === 'workOpen' && !wantsWork(it)) it.a.roles = (it.a.roles || []).filter(function(r){ return GUIDE_ROLES.indexOf(r) < 0; }); if (k === 'level') { var lg = it.a.level.indexOf('Guide') > -1, le = it.a.level.indexOf('Experienced') > -1; it.a.roles = (it.a.roles || []).filter(function(r){ return GUIDE_ROLES.indexOf(r) > -1 ? lg : PRACTICE_ROLES.indexOf(r) > -1 ? le : (lg || le); }); if (!le) it.a.rolesDefault = false; } draw(); });
       if (k === 'level') howBlock(host, it, draw);
+      if (k === 'workOpen') rolesRows(host.lastChild, it, draw, true);
       if (k === 'workOpen' && FITP && wantsWork(it)) host.lastChild.appendChild(el('div', 'wait', 'Its work questions are on the Skills step.'));
     });
     if (it.thing || it.det) {
