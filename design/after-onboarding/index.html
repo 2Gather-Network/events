@@ -530,7 +530,7 @@
   function whoParts(it){
     var out = [];
     if ((it.a.who || []).indexOf('Tending to self') > -1) out.push('Tending to self');
-    (it.a.serveWhat || []).forEach(function(x){ var sub = x === 'People' ? (it.a.serveWho || []) : x === 'Other' ? (it.a.serveNature || []) : []; out.push(sub.length ? x + ' (' + sub.join(', ') + ')' : x); });
+    (it.a.serveWhat || []).forEach(function(x){ var sub = x === 'People' ? (it.a.serveWho || []) : x === 'Other' ? (it.a.serveNature || []) : []; var xl = x === 'Other' ? 'Ecological' : x; out.push(sub.length ? xl + ' (' + sub.join(', ') + ')' : xl); });
     if ((it.a.serveWho || []).length && (it.a.serveWhat || []).indexOf('People') < 0) out.push('People (' + it.a.serveWho.join(', ') + ')');
     return out;
   }
@@ -581,6 +581,7 @@
       b.appendChild(el('div', 'qq', skillOnly ? 'Would you like your work to serve a specific beneficiary?' : 'What is \u201C' + word + '\u201D in service to?'));
       var o2 = el('div', 'row'); b.appendChild(o2);
       chipsInto(o2, ['People', 'Other'], it.a.serveWhat, false, function(){ if (it.a.serveWhat.indexOf('People') < 0) it.a.serveWho.length = 0; if (it.a.serveWhat.indexOf('Other') < 0 && it.a.serveNature) it.a.serveNature.length = 0; }, redraw);
+      Array.prototype.forEach.call(o2.children, function(x){ if (x.textContent === 'Other') x.textContent = 'Ecological'; });
       if (it.a.serveWhat.indexOf('People') > -1) peopleRows(b, it, redraw, skillOnly);
       if (it.a.serveWhat.indexOf('Other') > -1) natureRows(b, it, redraw);
       c.appendChild(b);
@@ -627,61 +628,35 @@
     c.appendChild(b);
   }
   function peopleRows(b, it, redraw, noAsk){
-    it.a.whoAdded = it.a.whoAdded || {};
-    var head = el('div', 'qhead2');
-    head.appendChild(el('div', 'qq sub', noAsk ? '' : 'Who are you compelled to serve when it comes to ' + wq(it) + '?'));
-    var ob = el('button', 'btn small', '+ Other'); ob.type = 'button';
-    head.appendChild(ob);
-    b.appendChild(head);
-    var panel = el('div', 'opanel'); panel.style.display = it.oOpen ? '' : 'none';
-    var inp = el('input', 'oinp'); inp.type = 'text'; inp.placeholder = 'Type who';
-    panel.appendChild(inp);
-    panel.appendChild(el('div', 'glab plain', 'Tag it as:'));
-    var gr = el('div', 'row'); panel.appendChild(gr);
-    var pick = [];
-    [['By relationship', REL]].concat(SERVE_GROUPS).forEach(function(g){
-      var name = g[0].replace(/^By /, '');
-      var p = el('button', 'pill', name.charAt(0).toUpperCase() + name.slice(1)); p.type = 'button';
-      p.addEventListener('click', function(){ pick = [g[0]]; Array.prototype.forEach.call(gr.children, function(x){ x.className = 'pill'; }); p.className = 'pill on'; });
-      gr.appendChild(p);
-    });
-    var nav = el('div', 'qnav');
-    var add = el('button', 'btn', 'Add'); add.type = 'button';
-    var msg = el('span', 'wait', '');
-    add.addEventListener('click', function(){
-      var v = String(inp.value || '').trim();
-      if (!v) { msg.textContent = 'Type who first.'; return; }
-      if (!pick.length) { msg.textContent = 'Pick which group it belongs to.'; return; }
-      (it.a.whoAdded[pick[0]] = it.a.whoAdded[pick[0]] || []);
-      if (it.a.whoAdded[pick[0]].indexOf(v) < 0) it.a.whoAdded[pick[0]].push(v);
-      if (it.a.serveWho.indexOf(v) < 0) it.a.serveWho.push(v);
-      it.oOpen = false; redraw();
-    });
-    var cancel = el('button', 'link', 'Cancel'); cancel.type = 'button';
-    cancel.addEventListener('click', function(){ it.oOpen = false; redraw(); });
-    nav.appendChild(add); nav.appendChild(cancel); nav.appendChild(msg);
-    panel.appendChild(nav);
-    b.appendChild(panel);
-    ob.addEventListener('click', function(){ it.oOpen = true; panel.style.display = ''; setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0); });
-    [['By relationship', REL]].concat(SERVE_GROUPS).forEach(function(g, gi){
-      var opts = g[1].concat(it.a.whoAdded[g[0]] || []);
-      var r3 = foldGroup(b, it.word + '|serve', g[0], opts, it.a.serveWho, redraw, gi === 0);
-      if (!r3) return;
-      chipsInto(r3, opts, it.a.serveWho, false, null, redraw);
-      if (gi > 0) {
-        var added = [];
-        otherPill(r3, added, function(){
-          added.forEach(function(v){
-            v = v.charAt(0).toUpperCase() + v.slice(1);
-            (it.a.whoAdded[g[0]] = it.a.whoAdded[g[0]] || []);
-            if (it.a.whoAdded[g[0]].indexOf(v) < 0) it.a.whoAdded[g[0]].push(v);
-            if (it.a.serveWho.indexOf(v) < 0) it.a.serveWho.push(v);
+    it.a.serveWho = it.a.serveWho || [];
+    if (!noAsk) b.appendChild(el('div', 'qq sub', 'Who are you compelled to serve when it comes to ' + wq(it) + '?'));
+    var knownS = [];
+    WITH_GROUPS.forEach(function(g){ knownS = knownS.concat(g[1]); });
+    WITH_GROUPS.forEach(function(g, gi){
+      var near = it.a.serveWho.filter(function(v){ return /^Within my location/.test(v); });
+      var rr = foldGroup(b, it.word + '|serve', g[0], gi === 1 ? near.concat(g[1]) : g[1], it.a.serveWho, redraw, false);
+      if (!rr) return;
+      if (gi === 1) {
+        var lv = nearLevels();
+        if (lv.length) {
+          lv.forEach(function(x){
+            var v = 'Within my location: ' + x, p = el('button', 'pill' + (it.a.serveWho.indexOf(v) > -1 ? ' on' : ''), v); p.type = 'button';
+            p.addEventListener('click', function(){ var was = it.a.serveWho.indexOf(v) > -1; for (var i = it.a.serveWho.length - 1; i > -1; i--) if (/^Within my location/.test(it.a.serveWho[i])) it.a.serveWho.splice(i, 1); if (!was) it.a.serveWho.push(v); redraw(); });
+            rr.appendChild(p);
           });
-          redraw();
-        });
+        } else {
+          var al = el('a', 'pill', 'Add your location'); al.href = '/ikigai/start?new=1'; al.target = '_top'; al.style.textDecoration = 'none';
+          rr.appendChild(al);
+        }
       }
+      chipsInto(rr, g[1], it.a.serveWho, false, null, redraw);
     });
+    var extraS = it.a.serveWho.filter(function(v){ return knownS.indexOf(v) < 0 && !/^Within my location/.test(v); });
+    var orow = el('div', 'row'); b.appendChild(orow);
+    chipsInto(orow, extraS, it.a.serveWho, false, null, redraw);
+    otherPill(orow, it.a.serveWho, redraw);
   }
+
 
   var FOLD = {};
   function foldGroup(b, key, name, opts, picked, redraw, first){
