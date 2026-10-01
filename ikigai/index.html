@@ -487,7 +487,7 @@
       });
     };
     var bar = document.createElement('div');
-    bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px;align-items:center;';
+    bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px;align-items:center;justify-content:flex-end;';
     [['Select all', true], ['Select none', false]].forEach(function(pair){
       var b = document.createElement('button');
       b.type = 'button';
@@ -883,6 +883,7 @@
     }).join('');
   }
   function gpAddWord(key, word, cat, ta){
+    try { var _p = GP_DROP_PARAM[key], _w = String(word || '').split(':')[0].replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase(), _d = window._gpTagDrop || {}; if (_p && _d[_p]) _d[_p] = _d[_p].filter(function(x){ return String(x).toLowerCase() !== _w; }); } catch (e) {}
     word = String(word || '').trim(); if (!word) return;
     if (key === 'introEnjoy') { try { _gpDoOpen[key + '|' + word.toLowerCase()] = true; } catch (e) {} }
     if (!_gpTags[key]) _gpTags[key] = {};
@@ -960,7 +961,16 @@
     });
     gpDelRepaint();
   }
+  var GP_DROP_PARAM = { introEnjoy: 'interestsTags', introSkills: 'skillsTags', introValues: 'valuesTags', introNeed: 'needsTags', introOffer: 'havesTags' };
+  function gpNoteDrop(key, word){
+    var p = GP_DROP_PARAM[key], w = String(word || '').split(':')[0].replace(/^[^\p{L}\p{N}]+/u, '').trim();
+    if (!p || !w) return;
+    var d = window._gpTagDrop = window._gpTagDrop || {};
+    d[p] = d[p] || [];
+    if (d[p].indexOf(w) < 0) d[p].push(w);
+  }
   function gpDropWord(key, word, ta){
+    gpNoteDrop(key, word);
     if (_gpTags[key]) delete _gpTags[key][word];
     try { if (_gpChipsPicked[key]) delete _gpChipsPicked[key][word]; } catch (e) {}
     delete _gpUserAdded[String(key) + '|' + String(word).toLowerCase()];
@@ -3309,7 +3319,7 @@
         var lowO = String(d.word || '').toLowerCase(), atO = -1;
         _gpHaves.forEach(function(h, i){ if (atO < 0 && String(gpHaveBits(h).name).replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase() === lowO) { atO = i; } });
         if (atO < 0) { return; }
-        if (d.ao === 'drop') { _gpHaves.splice(atO, 1); gpDetailQueue(d.word, null); }
+        if (d.ao === 'drop') { gpNoteDrop('introOffer', gpHaveBits(_gpHaves[atO]).name); _gpHaves.splice(atO, 1); gpDetailQueue(d.word, null); }
         else {
           var bO = gpHaveBits(_gpHaves[atO]);
           if (d.offerCat && d.offerCat.length) { bO.cat = d.offerCat[0]; }
@@ -3326,6 +3336,7 @@
         var lowD = String(d.word || '').toLowerCase();
         var still = Object.keys(GP_FIT_KEY).some(function(t){ return gpPickedWords(GP_FIT_KEY[t]).some(function(x){ return x.toLowerCase() === lowD; }); });
         if (!still) { gpDetailQueue(d.word, null); }
+        if (fr && fr.id === 'gp-ans-frame') { gpTouchSave(); }
         return;
       }
       if (d.ao === 'rename') {
@@ -4024,8 +4035,9 @@
     return box;
   }
   function gpHoldDropQs(){
-    var d = window._gpHoldDrop || {};
-    return Object.keys(d).length ? '&holdDrop=' + encodeURIComponent(JSON.stringify(d)) : '';
+    var d = window._gpHoldDrop || {}, t = window._gpTagDrop || {};
+    return (Object.keys(d).length ? '&holdDrop=' + encodeURIComponent(JSON.stringify(d)) : '')
+      + (Object.keys(t).length ? '&tagDrop=' + encodeURIComponent(JSON.stringify(t)) : '');
   }
   function gpRenderIntro(prefill){
     var box = document.getElementById('gp-intro-qs');
@@ -4992,6 +5004,9 @@
       host.appendChild(fr);
     }
     host.style.display = _gpHaves.length ? '' : 'none';
+    var _oh = document.getElementById('gp-offer-cards-head');
+    if (!_oh) { _oh = document.createElement('div'); _oh.id = 'gp-offer-cards-head'; _oh.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin:0 0 10px;'; host.insertBefore(_oh, host.firstChild); }
+    _oh.textContent = 'Your offerings (' + _gpHaves.length + ')';
     gpNewTopicsLoad().then(function(){ gpNewPost(fr); window._gpOpenAfterAdd = ''; });
   }
   function gpNewGigPaint(){
@@ -5024,7 +5039,7 @@
     };
     var drop = function(w){
       for (var i = 0; i < _gpHaves.length; i++) {
-        if (_gpHaves[i] === w) { _gpHaves.splice(i, 1); break; }
+        if (_gpHaves[i] === w) { gpNoteDrop('introOffer', gpHaveBits(w).name); _gpHaves.splice(i, 1); break; }
       }
       gpPaintOffers(ob);
     };
