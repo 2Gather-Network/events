@@ -753,7 +753,7 @@
   if (!items.length && !FITP) items = SAMPLE;
 
   var grid = document.getElementById('ao-grid');
-  var aoFind = '', aoKind = 'all', aoNeed = false, delAsk = -1, careF = 'all';
+  var aoFind = '', aoKind = 'all', aoNeed = false, delAsk = -1, careF = 'all', aoSort = 'new';
   var openIx = -1, step = 0, onlyOpen = false;
 
   function el(tag, cls, text){ var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
@@ -1062,8 +1062,8 @@
       tools = el('div', ''); tools.id = 'ao-tools';
       var q = document.createElement('input'); q.type = 'search'; q.placeholder = 'Search your interests'; q.setAttribute('aria-label', 'Search your interests');
       var st = document.createElement('select'); st.setAttribute('aria-label', 'Show');
-      [['all', 'All'], ['detail', 'Needs a detail']].forEach(function(o){ var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; st.appendChild(op); });
-      st.addEventListener('change', function(){ aoNeed = st.value === 'detail'; draw(); });
+      [['new', 'Newest added'], ['edited', 'Last edited'], ['old', 'Oldest added'], ['detail', 'Needs a detail']].forEach(function(o){ var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; st.appendChild(op); });
+      st.addEventListener('change', function(){ aoNeed = st.value === 'detail'; aoSort = aoNeed ? 'new' : st.value; draw(); });
       q.addEventListener('input', function(){ aoFind = String(q.value || '').trim().toLowerCase(); draw(); });
       var chips = el('div', 'chips');
       [['all', 'All'], ['enjoy', 'Joys'], ['care', 'Cares'], ['skill', 'Skills'], ['offer', 'Offerings'], ['seek', 'Seeking']].forEach(function(f){
@@ -1090,7 +1090,9 @@
         cf.appendChild(p);
       });
     }
-    order.sort(function(a, b){ var ga = FITP === 'care' ? careG(items[a]) : 0, gb = FITP === 'care' ? careG(items[b]) : 0; var ma = missingHere(items[a]).length ? 0 : 1, mb = missingHere(items[b]).length ? 0 : 1; return ga - gb || ma - mb || a - b; });
+    var dOf = function(ix, k){ return String((items[ix].a || {})[k] || ''); };
+    if (INPANE && !FITP && !EMBED) order.sort(function(a, b){ if (aoSort === 'edited') { return dOf(b, 'editedDate').localeCompare(dOf(a, 'editedDate')) || b - a; } if (aoSort === 'old') { return dOf(a, 'addedDate').localeCompare(dOf(b, 'addedDate')) || a - b; } return dOf(b, 'addedDate').localeCompare(dOf(a, 'addedDate')) || b - a; });
+    else order.sort(function(a, b){ var ga = FITP === 'care' ? careG(items[a]) : 0, gb = FITP === 'care' ? careG(items[b]) : 0; var ma = missingHere(items[a]).length ? 0 : 1, mb = missingHere(items[b]).length ? 0 : 1; return ga - gb || ma - mb || a - b; });
     order.forEach(function(ix){
       var it = items[ix];
       var miss = missingHere(it), ok = !miss.length;
@@ -1377,10 +1379,11 @@
 
   function sharedAll(){ try { return JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}; } catch (e) { return {}; } }
   function shareDetails(it){
+    try { it.a = it.a || {}; var nowD = new Date().toISOString(); it.a.editedDate = nowD; if (!it.a.addedDate) it.a.addedDate = nowD; } catch (e) {}
     try { var all = sharedAll(); var a = JSON.parse(JSON.stringify(it.a || {})); delete a.cat; all[String(it.word).toLowerCase()] = a; sessionStorage.setItem('ao-details', JSON.stringify(all)); } catch (e) {}
     if (INPANE) toParent({ ao: 'details', word: it.word, a: slimDetails(it.a) });
   }
-  var KEPT = ['enjoyWith', 'enjoyWho', 'who', 'whoAdded', 'serveWhat', 'serveWho', 'serveNature', 'gives', 'paid', 'unpaidKind', 'unpaidTime', 'workAsked', 'workOpen', 'careWays'];
+  var KEPT = ['enjoyWith', 'enjoyWho', 'who', 'whoAdded', 'serveWhat', 'serveWho', 'serveNature', 'gives', 'paid', 'unpaidKind', 'unpaidTime', 'workAsked', 'workOpen', 'careWays', 'addedDate', 'editedDate'];
   function slimDetails(a){
     var out = {}, any = false;
     KEPT.forEach(function(k){
