@@ -110,9 +110,9 @@
       chip.style.color = '#1F699E';
       chip.style.border = '0';
       chip.style.boxShadow = '0 6px 24px rgba(16, 42, 67, .22)';
-      chip.style.padding = '12px 24px';
-      chip.style.borderRadius = '24px';
-      chip.style.fontSize = '15px';
+      chip.style.padding = '10px 20px';
+      chip.style.borderRadius = '22px';
+      chip.style.fontSize = '14px';
       chip.style.fontWeight = '700';
       chip.style.position = 'fixed';
       chip.style.left = '50%';
