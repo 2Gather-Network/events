@@ -208,7 +208,8 @@
         + '<div class="gnm">' + esc(g.name || 'Group') + '</div>'
         + (g.intro ? '<div class="gin">' + esc(String(g.intro)) + '</div>' : '')
         + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><div class="gst" data-gid="' + esc(String(g.groupId || '')) + '"><b>' + n(g.members) + '</b> people' + _gstTail(g.groupId) + '</div>'
-        + '<span class="gpill">' + ({ host: 'Host', cohost: 'Co-host' }[String(g.role || '').toLowerCase()] || 'Member') + '</span></div>'
+        + '<span class="gpill">' + ({ host: 'Host', cohost: 'Co-host' }[String(g.role || '').toLowerCase()] || 'Member') + '</span>'
+        + (g.adminOnly ? '<span class="gpill" style="background:#FBF1DC;color:#7A4D00;">Admin</span>' : '') + '</div>'
         + (n(g.pending) ? '<div><span class="gpill">' + n(g.pending) + ' waiting to join</span></div>' : '')
         + '<div class="gact">'
         +   '<a class="gopen" role="link" tabindex="0" data-nav="' + esc(groupUrl(g, 'group')) + '" onclick="return _safeNavGo(this)">Open group</a>'
@@ -621,6 +622,9 @@
       } },
     { key: 'staronly', label: 'Starred only', cmp: function(a, b){
         return String(a.name||'').localeCompare(String(b.name||''));
+      } },
+    { key: 'adminonly', label: 'Admin-only groups', needsAdmin: true, cmp: function(a, b){
+        return String(a.name||'').localeCompare(String(b.name||''));
       } }
   ];
   function _toggleStar(g, btn){
@@ -652,7 +656,8 @@
   function renderSort(){
     var sel = document.getElementById('rail-sort'); if (!sel) return;
     var dates = _haveDates();
-    var opts = SORTS.filter(function(o){ return !o.needsDate || dates; });
+    var admins = _groups.some(function(g){ return g.adminOnly; });
+    var opts = SORTS.filter(function(o){ return (!o.needsDate || dates) && (!o.needsAdmin || admins); });
     if (!opts.some(function(o){ return o.key === _sort; })) _sort = opts[0].key;
     var head = _sortChosen ? '' : '<option value="" selected>Filter</option>';
     sel.innerHTML = head + opts.map(function(o){
@@ -673,6 +678,7 @@
     var shown = _groups.filter(function(g){
       if (!_inPane(g)) return false;
       if (_sort === 'staronly' && _sortChosen && !g.starred) return false;
+      if (_sort === 'adminonly' && _sortChosen && !g.adminOnly) return false;
       return !q || String(g.name||'').toLowerCase().indexOf(q) !== -1;
     });
     renderSort();
@@ -687,6 +693,7 @@
       }
       var _msg = q ? 'No groups match.'
         : (_sort === 'staronly' && _sortChosen) ? 'No starred groups here yet. Tap the \u2606 on a card to star it.'
+        : (_sort === 'adminonly' && _sortChosen) ? 'No admin-only groups on this tab.'
         : (_pane === 'member'
              ? "You aren't part of any groups yet. Join one and it will show up here."
              : "You don't host any groups yet. Start one and it'll show up here.");
