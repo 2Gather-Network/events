@@ -4976,7 +4976,29 @@
       try { gpAutoSave(); } catch (e) {}
     };
   }
+  function gpPurposeLines(){ return gpRailPurpose().split('\n').map(function(x){ return x.trim(); }).filter(Boolean); }
+  function gpPaintPurposePub(){
+    var host = document.getElementById('gp-purpose-pub'); if (!host) return;
+    var lines = gpPurposeLines(), on = !!window._gpPurposeOn, pick = String(window._gpPurposePick || '').trim();
+    if (on && lines.length > 1 && lines.indexOf(pick) < 0) { pick = lines[0]; window._gpPurposePick = pick; }
+    var esc = _gpEsc, h = '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;">'
+      + '<div><div style="font-size:15px;font-weight:700;color:#1A2E42;">Show my purpose on my profile</div>'
+      + '<div style="font-size:13px;color:#4B5A6D;margin-top:2px;">' + (on ? 'People who view your profile see the one you choose.' : 'Only you see it until you turn this on.') + '</div></div>'
+      + '<button type="button" role="switch" aria-checked="' + (on ? 'true' : 'false') + '" aria-label="Show my purpose on my profile" data-gp-pp-switch="1" style="flex-shrink:0;width:48px;height:28px;border-radius:14px;border:0;cursor:pointer;position:relative;background:' + (on ? '#1F699E' : '#C9D3DE') + ';">'
+      + '<span style="position:absolute;top:3px;' + (on ? 'right:3px;' : 'left:3px;') + 'width:22px;height:22px;border-radius:50%;background:#fff;"></span></button></div>';
+    if (on && lines.length > 1) {
+      h += '<div style="font-size:13px;color:#4B5A6D;margin:14px 0 4px;">Choose which one shows</div>';
+      lines.forEach(function(l, i){
+        h += '<label style="display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid #EEF1F5;font-size:14.5px;color:#1A2E42;cursor:pointer;"><input type="radio" name="gp-pp-pick" data-gp-pp-pick="' + i + '"' + (l === pick ? ' checked' : '') + ' style="margin-top:3px;accent-color:#1F699E;"> <span>' + esc(l) + '</span></label>';
+      });
+    }
+    host.innerHTML = h;
+    var sw = host.querySelector('[data-gp-pp-switch]');
+    if (sw) sw.onclick = function(){ window._gpPurposeOn = !window._gpPurposeOn; gpPaintPurposePub(); gpTouchSave(); };
+    Array.prototype.forEach.call(host.querySelectorAll('[data-gp-pp-pick]'), function(r){ r.onchange = function(){ window._gpPurposePick = lines[parseInt(r.getAttribute('data-gp-pp-pick'), 10)] || ''; gpTouchSave(); }; });
+  }
   function gpPaintPurposePicks(){
+    try { gpPaintPurposePub(); } catch (e) {}
     if (GP_PURPOSE_TRY === 'c') { try { gpPaintPurposeBuilder(); } catch (e) {} return; }
     var box = document.getElementById('gp-purpose-picks'), ta = document.getElementById('gp-purpose-box');
     if (!box || !ta) return;
@@ -5020,7 +5042,12 @@
   function gpRailExtraQs(){
     if (!GP_RAIL || !window._gpLoaded) return '';
     var qs = '&workValuesTags=' + encodeURIComponent(Object.keys(_gpWork).filter(function(k){ return _gpWork[k]; }).join('|'));
-    if (GP_V2 && document.getElementById('gp-purpose-box')) qs += '&purpose=' + encodeURIComponent(gpRailPurpose());
+    if (GP_V2 && document.getElementById('gp-purpose-box')) {
+      qs += '&purpose=' + encodeURIComponent(gpRailPurpose());
+      var _pl = gpPurposeLines(), _pk = String(window._gpPurposePick || '').trim();
+      if (_pl.indexOf(_pk) < 0) _pk = _pl.length === 1 ? _pl[0] : '';
+      qs += '&purposeOnProfile=' + (window._gpPurposeOn ? 'TRUE' : 'FALSE') + '&purposePublic=' + encodeURIComponent(_pk);
+    }
     qs += '&county=' + encodeURIComponent(_gpPlace.county || '') + '&city=' + encodeURIComponent(_gpPlace.city || '')
         + '&postal=' + encodeURIComponent(_gpPlace.postal || '');
     if (window._gpBal === true || window._gpBal === false) qs += '&seekingBalance=' + (window._gpBal ? 'TRUE' : 'FALSE');
@@ -5934,7 +5961,8 @@
       var pown = document.createElement('div');
       pown.style.cssText = 'font-size:13.5px;font-weight:700;color:#1A2E42;margin:0 0 6px;';
       pown.textContent = 'Or write your own:';
-      var pbody = document.createElement('div'); pbody.appendChild(pp); pbody.appendChild(pown); pbody.appendChild(pb);
+      var ppub = document.createElement('div'); ppub.id = 'gp-purpose-pub'; ppub.style.cssText = 'margin-top:18px;padding:14px 16px;border:1.5px solid #DDE3EA;border-radius:12px;background:#fff;';
+      var pbody = document.createElement('div'); pbody.appendChild(pp); pbody.appendChild(pown); pbody.appendChild(pb); pbody.appendChild(ppub);
       pb.addEventListener('input', gpPaintPurposePicks);
       purposeB = gpRailBlock('gp-purpose-block', GP_STEP_TITLES.indexOf('Purpose'), 'What is your purpose?', 'What you do, for whom, and in service to what.', pbody);   
       var _ppT = null, _ppLater = function(){ clearTimeout(_ppT); _ppT = setTimeout(gpPaintPurposePicks, 0); };
@@ -6369,6 +6397,7 @@
           window._gpOTW = _owPaid.length > 0 || _owTime.length > 0 || _owUnpaid.length > 0 || Object.keys(_gpWork).length > 0;
           _ow(have.domains || have.sectors).forEach(function(v){ var n = String(v).split(':')[0].trim(); if (n) { _gpSectors[n] = true; _gpSectorsRaw[n.toLowerCase()] = v; } });
           window._gpPurpose = String(have.purpose || '');
+          window._gpPurposeOn = String(have.purposeOnProfile || '').trim().toUpperCase() === 'TRUE'; window._gpPurposePick = String(have.purposePublic || '').trim();
           _gpHaves = _ow(have.haves);
           _gpPlace = { county: String(have.county || '').trim(), city: String(have.city || '').trim(), postal: String(have.postal || '').trim() };
           var _bal = String(have.seekingBalance || '').trim().toLowerCase();
