@@ -28,9 +28,9 @@
     }
   };
   var SECTIONS = [
-    { key: 'joys', title: 'Joys', sub: 'Recreation and hobbies', kind: 'Recreation', own: 'Something else under Joys?' },
-    { key: 'skills', title: 'Skills', sub: 'Work and services', kind: 'Professional', own: 'Something else under Skills?' },
-    { key: 'cares', title: 'Cares', sub: 'Ecological and social causes', kind: 'Ecological or Social', own: 'Something else under Cares?' }
+    { key: 'joys', title: 'Joys', head: 'Recreation and hobbies', sub: 'Interests that bring enjoyment', kind: 'Recreation', own: 'Something else under Recreation and hobbies?' },
+    { key: 'skills', title: 'Skills', head: 'Professional', sub: 'Work and services', kind: 'Professional', own: 'Something else under Professional?' },
+    { key: 'cares', title: 'Cares', head: 'Eco/Social Causes', sub: 'Ecological and social causes', kind: 'Ecological or Social', own: 'Something else under Eco/Social Causes?' }
   ];
   function normalise(key){
     key = String(key || '').trim();
@@ -93,14 +93,14 @@
       var crumb = el('div', 'font-size:14px;font-weight:700;color:var(--ink,#1A2E42);margin:4px 0 10px;');
       if (!at.length) {
         crumb.style.fontWeight = '500'; crumb.style.color = 'var(--muted,#6B7A8D)';
-        crumb.textContent = 'All of ' + sec.title;
+        crumb.textContent = 'All of ' + sec.head;
       } else {
         var link = function(text, to){
           var a = el('a', 'color:#1F699E;text-decoration:underline;cursor:pointer;', text); a.href = '#';
           a.addEventListener('click', function(e){ e.preventDefault(); at = to; draw(); });
           return a;
         };
-        crumb.appendChild(link('All of ' + sec.title, []));
+        crumb.appendChild(link('All of ' + sec.head, []));
         at.forEach(function(seg, i){
           crumb.appendChild(el('span', 'color:var(--muted,#6B7A8D);font-weight:400;margin:0 4px;', ' › '));
           if (i === at.length - 1) crumb.appendChild(el('span', '', seg));
@@ -166,25 +166,22 @@
     var prevBody = el('div', '');
     prev.appendChild(prevBody);
     root.appendChild(prev);
-    var parts = {}, boxes = {}, open = {}, chosenKind = '';
+    var parts = {}, boxes = {}, open = {};
     function gname(){ return (nm && String(nm.value || '').trim()) || 'this group'; }
     function paintKinds(){
       kinds.innerHTML = '';
       SECTIONS.forEach(function(s){
-        var c = document.createElement('div'); c.className = chip + (chosenKind === s.key ? ' on' : '');
-        c.textContent = (chosenKind === s.key ? '✓ ' : '') + s.kind;
-        c.addEventListener('click', function(){ chosenKind = s.key; open[s.key] = true; paintKinds(); layout(); });
+        var c = document.createElement('div'); c.className = chip + (open[s.key] ? ' on' : '');
+        c.textContent = (open[s.key] ? '\u2713 ' : '') + s.kind;
+        c.addEventListener('click', function(){
+          if (open[s.key] && parts[s.key].picks().length) return;
+          open[s.key] = !open[s.key]; paintKinds(); layout();
+        });
         kinds.appendChild(c);
       });
     }
     function layout(){
-      var order = SECTIONS.slice().sort(function(a, b){ return (a.key === chosenKind ? -1 : 0) - (b.key === chosenKind ? -1 : 0); });
-      order.forEach(function(s){
-        var b = boxes[s.key];
-        holder.appendChild(b.wrap);
-        b.body.style.display = open[s.key] ? '' : 'none';
-        b.more.style.display = open[s.key] ? 'none' : '';
-      });
+      SECTIONS.forEach(function(s){ boxes[s.key].wrap.style.display = open[s.key] ? '' : 'none'; });
     }
     function preview(){
       prevBody.innerHTML = '';
@@ -208,32 +205,28 @@
         });
         prevBody.appendChild(r);
       });
-      if (!any) prevBody.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);margin-top:6px;', 'Pick under Joys, Skills or Cares to see this.'));
+      if (!any) prevBody.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);margin-top:6px;', 'Pick a kind of group above, then your suggestions, to see this.'));
     }
     SECTIONS.forEach(function(s){
       var wrap = el('div', 'border-top:1px solid var(--panel-line,#E3EAF2);padding:12px 0 6px;');
       var head = el('div', 'display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;');
-      head.appendChild(el('div', 'font-size:16px;font-weight:800;color:var(--ink,#1A2E42);', s.title));
+      head.appendChild(el('div', 'font-size:16px;font-weight:800;color:var(--ink,#1A2E42);', s.head));
       head.appendChild(el('div', 'font-size:13.5px;color:var(--muted,#6B7A8D);', s.sub));
-      var more = el('a', 'margin-left:auto;font-size:14px;font-weight:700;color:#1F699E;cursor:pointer;text-decoration:underline;', 'Add ' + s.title);
-      more.href = '#';
-      more.addEventListener('click', function(e){ e.preventDefault(); open[s.key] = true; layout(); });
-      head.appendChild(more);
       wrap.appendChild(head);
       var body = el('div', '');
       wrap.appendChild(body);
-      boxes[s.key] = { wrap: wrap, body: body, more: more };
+      holder.appendChild(wrap);
+      boxes[s.key] = { wrap: wrap, body: body };
       parts[s.key] = makePicker(body, s, chip, preview);
     });
     if (nm) nm.addEventListener('input', preview);
-    open.joys = true;
     paintKinds(); layout(); preview();
     return {
       get: function(){ return { joys: parts.joys.get(), skills: parts.skills.get(), cares: parts.cares.get() }; },
       set: function(joys, skills, cares){
         parts.joys.set(joys); parts.skills.set(skills); parts.cares.set(cares);
         SECTIONS.forEach(function(s){ if (parts[s.key].picks().length) open[s.key] = true; });
-        layout(); preview();
+        paintKinds(); layout(); preview();
       }
     };
   };
