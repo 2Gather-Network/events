@@ -2616,12 +2616,10 @@ var myPill = document.getElementById('gp-myprofile-pill');
             sub.style.cssText = 'font-size:14px;color:#4B5A6D;margin-bottom:12px;';
             sub.textContent = 'Pick one or more.';
             box.appendChild(sub);
-            var wrap = document.createElement('div');
-            wrap.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;';
-            box.appendChild(wrap);
+            var wrap = null, ownWrap = null;
             var order = [], on = {};
-            function pill(name, under, isOn){
-              var key = under ? under + SEP + name : name;
+            function pill(name, under, isOn, prefix){
+              var key = (prefix ? prefix + ':' : '') + (under ? under + SEP + name : name);
               if (on.hasOwnProperty(key)) return;
               order.push(key); on[key] = !!isOn;
               var c = document.createElement('button');
@@ -2640,14 +2638,29 @@ var myPill = document.getElementById('gp-myprofile-pill');
               }
               c.addEventListener('click', function(){ on[key] = !on[key]; paint(); err.textContent = ''; });
               paint();
-              wrap.appendChild(c);
+              (prefix ? wrap : (ownWrap || wrap)).appendChild(c);
             }
-            var kinds = String(res && res.kinds || '');
-            kinds.split(/[;|]/.test(kinds) ? /[;|]/ : ',').forEach(function(k){
-              var seg = k.split(/\s*\u203a\s*/).map(function(x){ return x.trim(); }).filter(Boolean);
-              if (seg.length) pill(seg[seg.length - 1], seg.slice(0, -1).join(SEP), false);
+            function list(v){ v = String(v || ''); return v.split(/[;|]/.test(v) ? /[;|]/ : ',').map(function(x){ return x.trim(); }).filter(Boolean); }
+            var secs = [['joys', 'Joys', res && res.joys], ['skills', 'Skills', res && res.skills], ['cares', 'Cares', res && res.cares]];
+            if (!secs.some(function(x){ return String(x[2] || '').trim(); })) secs[0][2] = [res && res.kinds, res && res.choices].join(';');
+            secs.forEach(function(sx){
+              var items = list(sx[2]);
+              if (!items.length) return;
+              var lab = document.createElement('div');
+              lab.style.cssText = 'font-size:13px;font-weight:700;color:#5A6473;margin:4px 0 6px;';
+              lab.textContent = sx[1];
+              box.appendChild(lab);
+              wrap = document.createElement('div');
+              wrap.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;';
+              box.appendChild(wrap);
+              items.forEach(function(k){
+                var seg = k.split(/\s*\u203a\s*/).map(function(x){ return x.trim(); }).filter(Boolean);
+                if (seg.length) pill(seg[seg.length - 1], seg.slice(0, -1).join(SEP), false, sx[0]);
+              });
             });
-            String(res && res.choices || '').split(/[;|]/).forEach(function(w){ w = w.trim(); if (w) pill(w, '', false); });
+            ownWrap = document.createElement('div');
+            ownWrap.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;';
+            box.appendChild(ownWrap);
             var more = document.createElement('div');
             more.style.cssText = 'font-size:14px;color:#4B5A6D;margin-bottom:6px;';
             more.textContent = 'Something else?';
@@ -2667,7 +2680,7 @@ var myPill = document.getElementById('gp-myprofile-pill');
             function addOwn(){
               String(inp.value || '').split(',').forEach(function(w){
                 w = w.trim().replace(/[|;]/g, '');
-                if (w) pill(w, '', true);
+                if (w) pill(w, '', true, '');
               });
               inp.value = ''; err.textContent = '';
             }
