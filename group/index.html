@@ -2601,7 +2601,95 @@ var myPill = document.getElementById('gp-myprofile-pill');
             } catch (e) {}
             return false;
           }
-          function tryJoin(code, go){
+          function askInterests(code, res){
+            if (stat) { stat.textContent = ''; stat.style.display = 'none'; }
+            box.innerHTML = '';
+            var gname = groupName || 'this group';
+            var SEP = ' \u203a ';
+            var h = document.createElement('div');
+            h.style.cssText = 'font-size:17px;font-weight:700;color:#1A2E42;margin-bottom:4px;line-height:1.4;';
+            h.textContent = 'What are your interests for joining ' + gname + '?';
+            box.appendChild(h);
+            var sub = document.createElement('div');
+            sub.style.cssText = 'font-size:14px;color:#4B5A6D;margin-bottom:12px;';
+            sub.textContent = 'Pick one or more.';
+            box.appendChild(sub);
+            var wrap = document.createElement('div');
+            wrap.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;';
+            box.appendChild(wrap);
+            var order = [], on = {};
+            function pill(name, under, isOn){
+              var key = under ? under + SEP + name : name;
+              if (on.hasOwnProperty(key)) return;
+              order.push(key); on[key] = !!isOn;
+              var c = document.createElement('button');
+              c.type = 'button';
+              function paint(){
+                c.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.2;cursor:pointer;'
+                  + 'border-radius:999px;padding:8px 16px;font:inherit;font-size:15px;font-weight:700;'
+                  + (on[key] ? 'background:#1F699E;color:#fff;border:1.5px solid #1F699E;' : 'background:#fff;color:#1A2E42;border:1.5px solid #DDE3EA;');
+                c.innerHTML = '';
+                var t = document.createElement('span'); t.textContent = (on[key] ? '\u2713 ' : '') + name; c.appendChild(t);
+                if (under) {
+                  var u = document.createElement('span');
+                  u.style.cssText = 'font-size:12px;font-weight:500;margin-top:2px;color:' + (on[key] ? '#E6F1FB' : '#5A6473') + ';';
+                  u.textContent = under; c.appendChild(u);
+                }
+              }
+              c.addEventListener('click', function(){ on[key] = !on[key]; paint(); err.textContent = ''; });
+              paint();
+              wrap.appendChild(c);
+            }
+            var kinds = String(res && res.kinds || '');
+            kinds.split(/[;|]/.test(kinds) ? /[;|]/ : ',').forEach(function(k){
+              var seg = k.split(/\s*\u203a\s*/).map(function(x){ return x.trim(); }).filter(Boolean);
+              if (seg.length) pill(seg[seg.length - 1], seg.slice(0, -1).join(SEP), false);
+            });
+            String(res && res.choices || '').split(/[;|]/).forEach(function(w){ w = w.trim(); if (w) pill(w, '', false); });
+            var more = document.createElement('div');
+            more.style.cssText = 'font-size:14px;color:#4B5A6D;margin-bottom:6px;';
+            more.textContent = 'Something else?';
+            box.appendChild(more);
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;';
+            var inp = document.createElement('input');
+            inp.type = 'text';
+            inp.placeholder = 'Type one, then press Add';
+            inp.style.cssText = 'flex:1;min-width:160px;border:1.5px solid #DDE3EA;background:#fff;'
+              + 'border-radius:10px;padding:11px 13px;font:inherit;font-size:15px;color:#1A2E42;outline:none;';
+            var add = document.createElement('button');
+            add.type = 'button';
+            add.className = 'btn';
+            add.textContent = 'Add';
+            add.setAttribute('style', 'background:#fff;color:#1F699E;border:1.5px solid #1F699E;');
+            function addOwn(){
+              String(inp.value || '').split(',').forEach(function(w){
+                w = w.trim().replace(/[|;]/g, '');
+                if (w) pill(w, '', true);
+              });
+              inp.value = ''; err.textContent = '';
+            }
+            add.addEventListener('click', addOwn);
+            inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); addOwn(); } });
+            row.appendChild(inp); row.appendChild(add);
+            box.appendChild(row);
+            var err = document.createElement('div');
+            err.style.cssText = 'font-size:14px;color:#7A2410;margin-bottom:8px;';
+            box.appendChild(err);
+            var go = document.createElement('button');
+            go.type = 'button';
+            go.className = 'btn';
+            go.textContent = 'Join ' + gname;
+            box.appendChild(go);
+            go.addEventListener('click', function(){
+              if (String(inp.value || '').trim()) addOwn();
+              var chosen = order.filter(function(k){ return on[k]; });
+              if (!chosen.length) { err.textContent = 'Pick at least one.'; return; }
+              tryJoin(code, go, chosen.join(';'));
+            });
+          }
+
+          function tryJoin(code, go, interests){
             if (_lookingAs()) {
               say('You are looking at this as somebody else, so nothing can be saved - joining included. They have to join from their own sign-in.', true);
               if (go) go.disabled = false;
@@ -2617,7 +2705,8 @@ var myPill = document.getElementById('gp-myprofile-pill');
             }, 15000);
             fetch(GS_URL + '?action=saveJoinRequest&groupId=' + encodeURIComponent(groupId)
                   + '&appearId=' + encodeURIComponent(meId)
-                  + '&passcode=' + encodeURIComponent(code))
+                  + '&passcode=' + encodeURIComponent(code)
+                  + (interests ? '&joinInterests=' + encodeURIComponent(interests) : ''))
               .then(function(r){ return r.json(); })
               .then(function(res){
                 if (res && res.status === 'ok') {
@@ -2634,6 +2723,10 @@ var myPill = document.getElementById('gp-myprofile-pill');
                 if (res && (res.code === 'passcode-wrong' || res.code === 'passcode-needed')) {
                   go.disabled = false;
                   say('That passcode does not match. Try again, or ask the host to remind you.', true);
+                  return;
+                }
+                if (res && res.code === 'interests-needed') {
+                  askInterests(code, res);
                   return;
                 }
                 if (res && res.code === 'profile-incomplete') {
