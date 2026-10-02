@@ -28,7 +28,8 @@
   .fgb{padding:10px 12px 12px;}
   .row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
   .sub{margin-top:12px;}
-  .sub.deep{margin-left:12px;}
+  .sub.deep{margin:10px 0 0 4px;padding-left:12px;border-left:3px solid var(--pale);}
+  .pick.open{border-color:var(--blue);box-shadow:0 0 0 1.5px var(--blue) inset;}
   .subh{font-size:13px;font-weight:700;color:var(--ink);}
   .grid{display:flex;flex-wrap:wrap;gap:8px;}
   .tile,.pick{font:inherit;font-size:13px;font-weight:600;border-radius:20px;padding:7px 14px;cursor:pointer;line-height:1.25;text-align:left;}
@@ -164,14 +165,12 @@
   }
 
   function otherRow(node, preset){
-    var wrap = el('div', '');
-    var open = st.other || !!preset;
+    var wrap = el('div', ''), key = node ? node.id : '_';
+    var open = st.other === key || !!preset;
     if (!open) {
       var ob = el('button', 'pick other', '+ Other'); ob.type = 'button';
-      ob.addEventListener('click', function(){ st.other = true; drawBrowse(); var i = els.browse.querySelector('.otherbox input'); if (i) i.focus(); });
-      wrap.appendChild(el('div', 'grid')).appendChild(ob);
-      wrap.firstChild.style.marginTop = '10px';
-      return wrap;
+      ob.addEventListener('click', function(){ st.other = key; drawBrowse(); var i = els.browse.querySelector('.otherbox input'); if (i) i.focus(); });
+      return ob;
     }
     var row = el('div', 'otherbox'), inp = el('input'); inp.type = 'text'; inp.maxLength = 60; inp.placeholder = 'Type an interest'; inp.setAttribute('aria-label', 'Type an interest');
     if (preset) inp.value = cap(clean(st.q));
@@ -179,7 +178,7 @@
     var go = function(){
       var w = cap(clean(inp.value)); if (!w) return;
       var hit = st.byName[lc(w)];
-      var area = hit ? areaOf(hit) : (current() ? areaOf(current()) : 'Other');
+      var area = hit ? areaOf(hit) : (node ? areaOf(node) : 'Other');
       var name = hit ? hit.word : w;
       st.other = false; st.q = ''; els.search.value = '';
       if (!has(name)) { st.mine.push({ word: name, area: area }); emit(); }
@@ -197,24 +196,25 @@
     st.mine.forEach(function(m){ if (lc(m.area) === lc(root.word)) out.push(m.word); });
     return out;
   }
+  function under(n){ return n.kids.some(function(k){ return has(k.word) || under(k); }); }
   function kidsInto(box, node, depth){
-    var leaves = el('div', 'row'), anyLeaf = false;
-    node.kids.forEach(function(n){ if (!n.kids.length) { leaves.appendChild(pillFor(n)); anyLeaf = true; } });
-    if (anyLeaf) box.appendChild(leaves);
+    st.drill = st.drill || {};
+    var r = el('div', 'row'), openKid = null, oth = null;
+    if (depth) { var all = pillFor(node); all.textContent = 'All of ' + node.word; r.appendChild(all); }
     node.kids.forEach(function(n){
-      if (!n.kids.length) return;
-      var sub = el('div', 'sub' + (depth ? ' deep' : ''));
-      sub.appendChild(el('div', 'subh', n.word));
-      var r = el('div', 'row');
-      var all = pillFor(n); all.textContent = 'All of ' + n.word; r.appendChild(all);
-      n.kids.forEach(function(k){ if (!k.kids.length) r.appendChild(pillFor(k)); });
-      sub.appendChild(r);
-      if (n.kids.some(function(k){ return k.kids.length; })) {
-        var deeper = { kids: n.kids.filter(function(k){ return k.kids.length; }) };
-        kidsInto(sub, deeper, depth + 1);
-      }
-      box.appendChild(sub);
+      if (!n.kids.length) { r.appendChild(pillFor(n)); return; }
+      var on = st.drill[node.id] === n.id, lit = has(n.word) || under(n);
+      var b = el('button', 'pick' + (lit ? ' on' : '') + (on ? ' open' : ''), n.word);
+      b.type = 'button'; b.setAttribute('aria-expanded', on ? 'true' : 'false');
+      b.addEventListener('click', function(){ st.drill[node.id] = on ? null : n.id; drawBrowse(); });
+      r.appendChild(b);
+      if (on) openKid = n;
     });
+    oth = otherRow(node, '');
+    if (oth.className === 'pick other') r.appendChild(oth);
+    box.appendChild(r);
+    if (oth.className !== 'pick other') box.appendChild(oth);
+    if (openKid) { var sub = el('div', 'sub deep'); kidsInto(sub, openKid, depth + 1); box.appendChild(sub); }
   }
   function drawBrowse(){
     var box = els.browse; box.innerHTML = '';
@@ -232,7 +232,7 @@
       if (on) { var inner = el('div', 'fgb'); kidsInto(inner, root, 0); g.appendChild(inner); }
       box.appendChild(g);
     });
-    box.appendChild(otherRow(null, ''));
+    var o = otherRow(null, ''); if (o.className === 'pick other') { var gw = el('div', 'grid'); gw.style.marginTop = '10px'; gw.appendChild(o); box.appendChild(gw); } else box.appendChild(o);
   }
 
   function setFit(word, tag, on){
@@ -293,7 +293,7 @@
     var h = el('h3', '', st.mine.length ? 'Your interests (' + st.mine.length + ')' : 'Your interests');
     box.appendChild(h);
     box.appendChild(el('p', 'privacy', 'Only you can see these. They are used to find people, events and groups that fit. Turn on Show on my profile for any you want others to see.'));
-    if (!st.mine.length) { box.appendChild(el('p', 'none', 'Nothing chosen yet. Choosing one means you are interested in it, not that it describes you.')); return; }
+    if (!st.mine.length) return;
     var g = el('div', 'cards');
     st.mine.forEach(function(m){ g.appendChild(card(m)); });
     box.appendChild(g);
