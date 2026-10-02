@@ -1056,6 +1056,41 @@
       }
       box.appendChild(b);
     });
+    if (window.GP_JOINING) gpJoinIntBlock(box);
+  }
+  function gpJoinIntBlock(box){
+    var m = String(params.get('next') || '').match(/\/group\/([^\/?#]+)/); if (!m) return;
+    var jb = document.createElement('div'); jb.setAttribute('data-k', 'joinInt'); jb.style.cssText = 'border-top:1px solid #f0f1f5;padding:18px 0;display:none;';
+    box.appendChild(jb);
+    fetch(GS_URL + '?action=groupIdBySlug&slug=' + encodeURIComponent(decodeURIComponent(m[1])))
+      .then(function(r){ return r.json(); })
+      .then(function(g){
+        if (!g || !g.found || !g.groupId) return;
+        var split = function(v){ v = String(v || ''); var sep = /[;|]/.test(v) ? /[;|]/ : /,/; return v.split(sep).map(function(x){ return x.trim(); }).filter(Boolean); };
+        var keys = split(g.interestKinds).concat(split(g.joinChoices));
+        if (!keys.length) return;
+        var KEY = 'cw-join-interests-' + g.groupId, picked = {};
+        try { String(sessionStorage.getItem(KEY) || '').split(';').forEach(function(x){ x = x.trim(); if (x) picked[x] = true; }); } catch (e) {}
+        var t = document.createElement('div'); t.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;';
+        t.textContent = 'What are your interests for joining ' + (g.name || 'this group') + '?';
+        var sub = document.createElement('div'); sub.style.cssText = 'font-size:14px;color:#4B5A6D;margin-bottom:12px;'; sub.textContent = 'Pick one or more.';
+        var row = document.createElement('div'); row.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
+        var keep = function(){ try { var v = keys.filter(function(k){ return picked[k]; }).join(';'); if (v) sessionStorage.setItem(KEY, v); else sessionStorage.removeItem(KEY); } catch (e) {} };
+        keys.forEach(function(k){
+          var parts = k.split('\u203A').map(function(x){ return x.trim(); }), last = parts.pop();
+          var b = document.createElement('button'); b.type = 'button';
+          var paint = function(){ var on = !!picked[k]; b.style.cssText = 'font:inherit;font-size:14px;padding:8px 16px;border-radius:20px;cursor:pointer;text-align:left;line-height:1.25;' + (on ? 'background:#1F699E;color:#fff;border:1.5px solid #1F699E;font-weight:700;' : 'background:#fff;color:#1F699E;border:1.5px solid #C9DFF3;font-weight:600;'); };
+          b.appendChild(document.createTextNode(last));
+          if (parts.length) { var sm = document.createElement('span'); sm.style.cssText = 'display:block;font-size:11.5px;font-weight:500;opacity:.8;'; sm.textContent = parts.join(' \u203A '); b.appendChild(sm); }
+          paint();
+          b.addEventListener('click', function(){ picked[k] = !picked[k]; paint(); keep(); });
+          row.appendChild(b);
+        });
+        jb.appendChild(t); jb.appendChild(sub); jb.appendChild(row);
+        var onJoys = /\/intro\/joys/.test(window.location.pathname) || (typeof view !== 'undefined' && view === 'joys');
+        jb.style.display = onJoys ? '' : 'none';
+      })
+      .catch(function(){});
   }
 
   var GP_REGIONS = ['North America','South America','Europe','Asia','Africa','Oceania','Antarctica'];
@@ -1322,7 +1357,7 @@
   var BASE = '/intro/';
   var STEPS = [
     { slug: 'start', rail: 'About you', keys: ['photo', 'loc', 'lang'] },
-    { slug: 'joys', rail: 'Joys', keys: ['introEnjoy'] },
+    { slug: 'joys', rail: 'Joys', keys: ['introEnjoy', 'joinInt'] },
     { slug: 'cares', rail: 'Cares', keys: ['introValues'] },
     { slug: 'skills', rail: 'Skills', keys: ['methods', 'introSkills', 'thanks'] },
     { slug: 'offer', rail: 'Offerings', keys: ['introOffer'] },
