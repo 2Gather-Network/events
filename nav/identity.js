@@ -198,6 +198,7 @@
     for (var i = 0; i < OPEN.length; i++) {
       if (here === OPEN[i] || here.indexOf(OPEN[i] + '/') === 0 || here.indexOf(OPEN[i] + '.') === 0) { return; }
     }
+    if (!onCW && /^\/support\/?(index\.html)?$/.test(here)) { return; }
 
     if (found) { return; }
 
