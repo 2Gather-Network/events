@@ -17,8 +17,21 @@
   .crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:14px 0 8px;font-size:13px;font-weight:700;color:var(--muted);}
   .crumbs button{font:inherit;font-weight:700;color:var(--blue);background:none;border:0;padding:2px 3px;cursor:pointer;text-decoration:underline;}
   .crumbs .now{color:var(--ink);padding:2px 3px;}
+  .fg{border:1px solid var(--line);border-radius:10px;margin-top:8px;background:#fff;}
+  .fgh{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:9px 12px;cursor:pointer;font:inherit;text-align:left;}
+  .fgh .ch{color:var(--blue);font-size:12px;width:12px;}
+  .fgn{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);white-space:nowrap;}
+  .fgs{flex:1;min-width:0;font-size:13px;color:var(--grey);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .fgc{font-size:12px;font-weight:700;color:var(--blue);background:#E6F1FB;border-radius:10px;padding:1px 8px;}
+  .fg.open .fgh{background:var(--blue);border-radius:9px 9px 0 0;}
+  .fg.open .fgh .fgn,.fg.open .fgh .ch{color:#fff;}
+  .fgb{padding:10px 12px 12px;}
+  .row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+  .sub{margin-top:12px;}
+  .sub.deep{margin-left:12px;}
+  .subh{font-size:13px;font-weight:700;color:var(--ink);}
   .grid{display:flex;flex-wrap:wrap;gap:8px;}
-  .tile,.pick{font:inherit;font-size:13.5px;font-weight:700;border-radius:20px;padding:8px 14px;cursor:pointer;line-height:1.25;text-align:left;}
+  .tile,.pick{font:inherit;font-size:13px;font-weight:600;border-radius:20px;padding:7px 14px;cursor:pointer;line-height:1.25;text-align:left;}
   .tile{background:#fff;color:var(--blue);border:1.5px solid var(--pale);}
   .pick{background:#fff;color:var(--blue);border:1.5px solid var(--pale);}
   .pick.on{background:var(--blue);color:#fff;border-color:var(--blue);}
@@ -179,38 +192,47 @@
     return wrap;
   }
 
+  function areaPicks(root){
+    var out = [];
+    st.mine.forEach(function(m){ if (lc(m.area) === lc(root.word)) out.push(m.word); });
+    return out;
+  }
+  function kidsInto(box, node, depth){
+    var leaves = el('div', 'row'), anyLeaf = false;
+    node.kids.forEach(function(n){ if (!n.kids.length) { leaves.appendChild(pillFor(n)); anyLeaf = true; } });
+    if (anyLeaf) box.appendChild(leaves);
+    node.kids.forEach(function(n){
+      if (!n.kids.length) return;
+      var sub = el('div', 'sub' + (depth ? ' deep' : ''));
+      sub.appendChild(el('div', 'subh', n.word));
+      var r = el('div', 'row');
+      var all = pillFor(n); all.textContent = 'All of ' + n.word; r.appendChild(all);
+      n.kids.forEach(function(k){ if (!k.kids.length) r.appendChild(pillFor(k)); });
+      sub.appendChild(r);
+      if (n.kids.some(function(k){ return k.kids.length; })) {
+        var deeper = { kids: n.kids.filter(function(k){ return k.kids.length; }) };
+        kidsInto(sub, deeper, depth + 1);
+      }
+      box.appendChild(sub);
+    });
+  }
   function drawBrowse(){
     var box = els.browse; box.innerHTML = '';
-    var here = current();
-    var crumbs = el('div', 'crumbs');
-    var root = el('button', '', 'All areas'); root.type = 'button';
-    root.addEventListener('click', function(){ st.path = []; st.other = false; drawBrowse(); });
-    if (!here) { crumbs.appendChild(el('span', 'now', 'All areas')); }
-    else {
-      crumbs.appendChild(root);
-      st.path.forEach(function(id, i){
-        crumbs.appendChild(el('span', '', '›'));
-        if (i === st.path.length - 1) { crumbs.appendChild(el('span', 'now', st.byId[id].word)); return; }
-        var cb = el('button', '', st.byId[id].word); cb.type = 'button';
-        cb.addEventListener('click', function(){ st.path = st.path.slice(0, i + 1); st.other = false; drawBrowse(); });
-        crumbs.appendChild(cb);
-      });
-    }
-    box.appendChild(crumbs);
-    var g = el('div', 'grid');
-    if (here) {
-      var all = pillFor(here); all.textContent = 'All of ' + here.word; all.classList.add('all');
-      g.appendChild(all);
-    }
-    (here ? here.kids : st.roots).forEach(function(n){
-      if (n.kids.length) {
-        var t = el('button', 'tile', n.word); t.type = 'button';
-        t.addEventListener('click', function(){ st.path.push(n.id); st.other = false; drawBrowse(); });
-        g.appendChild(t);
-      } else { g.appendChild(pillFor(n)); }
+    st.open = st.open || {};
+    st.roots.forEach(function(root){
+      var on = !!st.open[root.id], mine = areaPicks(root);
+      var g = el('div', 'fg' + (on ? ' open' : ''));
+      var h = el('button', 'fgh'); h.type = 'button'; h.setAttribute('aria-expanded', on ? 'true' : 'false');
+      h.appendChild(el('span', 'ch', on ? '\u25BE' : '\u25B8'));
+      h.appendChild(el('span', 'fgn', root.word));
+      h.appendChild(el('span', 'fgs', on ? '' : (mine.length ? mine.join(', ') : 'Nothing picked')));
+      if (mine.length) h.appendChild(el('span', 'fgc', String(mine.length)));
+      h.addEventListener('click', function(){ st.open[root.id] = !st.open[root.id]; drawBrowse(); });
+      g.appendChild(h);
+      if (on) { var inner = el('div', 'fgb'); kidsInto(inner, root, 0); g.appendChild(inner); }
+      box.appendChild(g);
     });
-    box.appendChild(g);
-    box.appendChild(otherRow(here, ''));
+    box.appendChild(otherRow(null, ''));
   }
 
   function setFit(word, tag, on){
@@ -281,7 +303,6 @@
 
   function skeleton(){
     app.innerHTML = '';
-    app.appendChild(el('p', 'lede', 'Choose what you are interested in. Choosing one means you are interested, never that it is about you. Search, or open an area to look around.'));
     var s = el('input', 'search'); s.type = 'search'; s.placeholder = 'Search interests'; s.setAttribute('aria-label', 'Search interests'); s.autocomplete = 'off';
     s.addEventListener('input', function(){ st.q = s.value; drawSearch(); });
     els.search = s; app.appendChild(s);
