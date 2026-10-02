@@ -28,7 +28,7 @@
     }
   };
   var SECTIONS = [
-    { key: 'joys', title: 'Joys', sub: 'Hobbies and fun', kind: 'Recreation', own: 'Something else under Joys?' },
+    { key: 'joys', title: 'Joys', sub: 'Recreation and hobbies', kind: 'Recreation', own: 'Something else under Joys?' },
     { key: 'skills', title: 'Skills', sub: 'Work and services', kind: 'Professional', own: 'Something else under Skills?' },
     { key: 'cares', title: 'Cares', sub: 'Ecological and social causes', kind: 'Ecological or Social', own: 'Something else under Cares?' }
   ];
@@ -154,7 +154,7 @@
     root.innerHTML = '';
     var q = el('div', '', 'What kind of group is this?'); q.className = 'q';
     root.appendChild(q);
-    var help = el('div', 'margin:0 0 8px;', 'This opens the right list first. You can still pick from all three. People who join see your picks on the matching question.');
+    var help = el('div', 'margin:0 0 8px;', 'Select any group category that represents your group. Drill down as far as you\u2019d like. People who join see your suggested picks, in addition to their own picks.');
     help.className = 'help';
     root.appendChild(help);
     var kinds = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;');
@@ -193,7 +193,8 @@
         var picks = parts[s.key] ? parts[s.key].picks() : [];
         if (!picks.length) return;
         any = true;
-        prevBody.appendChild(el('div', 'font-size:13.5px;font-weight:600;color:var(--muted,#6B7A8D);margin:10px 0 8px;', 'On ' + s.title + ', from ' + gname()));
+        prevBody.appendChild(el('div', 'font-size:13.5px;font-weight:600;color:var(--muted,#6B7A8D);margin:10px 0 2px;', 'On ' + s.title + ', from ' + gname()));
+        prevBody.appendChild(el('div', 'font-size:13.5px;color:var(--ink,#1A2E42);margin:0 0 8px;', 'Select your interests below. Your answers are shared with ' + gname() + ' members and also help build your global profile.'));
         var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
         picks.forEach(function(k){
           var p = k.split(SEP);
