@@ -467,11 +467,48 @@
     return b;
   }
 
+  var GP_JOIN_SEC = { introEnjoy: 'joys', introSkills: 'skills', introValues: 'cares' }, _gpJoinP = null, _gpJoinOffered = {}, _gpJoinWordsP = null;
+  function gpJoinGroup(){
+    if (_gpJoinP) return _gpJoinP;
+    var m = String(params.get('next') || '').match(/\/group\/([^\/?#]+)/);
+    if (!window.GP_JOINING || !m) { _gpJoinP = Promise.resolve(null); return _gpJoinP; }
+    _gpJoinP = fetch(GS_URL + '?action=groupIdBySlug&slug=' + encodeURIComponent(decodeURIComponent(m[1])))
+      .then(function(r){ return r.json(); })
+      .then(function(g){ return (g && g.found && g.groupId) ? g : null; })
+      .catch(function(){ return null; });
+    return _gpJoinP;
+  }
+  function gpJoinWords(){
+    if (_gpJoinWordsP) return _gpJoinWordsP;
+    var build = function(rows){ var W = { byId: {}, byName: {}, kids: {}, rows: rows || [] }; W.rows.forEach(function(r){ if (!r || !r[0] || !r[1] || String(r[4] || '').trim().toLowerCase() === 'stage') return; var w = { id: r[0], word: r[1], kindOf: r[2] || '', cats: String(r[3] || '').split('|').map(function(x){ return x.trim(); }).filter(Boolean), asked: String(r[4] || '').toLowerCase() }; W.byId[w.id] = w; if (!W.byName[w.word.toLowerCase()]) W.byName[w.word.toLowerCase()] = w; }); Object.keys(W.byId).forEach(function(id){ var w = W.byId[id]; if (w.kindOf && W.byId[w.kindOf]) (W.kids[w.kindOf] = W.kids[w.kindOf] || []).push(w); }); return W; };
+    var kept = null; try { kept = JSON.parse(localStorage.getItem('cw-words-v1') || 'null'); } catch (e) {}
+    if (kept && kept.rows && kept.rows.length && Date.now() - kept.t < 21600000) { _gpJoinWordsP = Promise.resolve(build(kept.rows)); return _gpJoinWordsP; }
+    _gpJoinWordsP = fetch(GS_URL + '?action=getCategories&words=1').then(function(r){ return r.json(); }).then(function(d){ if (!d || !d.words || !d.words.length) return null; try { localStorage.setItem('cw-words-v1', JSON.stringify({ t: Date.now(), rows: d.words })); } catch (e) {} return build(d.words); }).catch(function(){ _gpJoinWordsP = null; return null; });
+    return _gpJoinWordsP;
+  }
+  function gpJoinSplit(v){ v = String(v || ''); var sep = /[;|]/.test(v) ? /[;|]/ : /,/; return v.split(sep).map(function(x){ return x.trim(); }).filter(Boolean); }
+  function gpJoinList(g, sec){
+    var l = gpJoinSplit(g[sec]);
+    if (sec === 'joys' && !l.length && !g.joys && !g.skills && !g.cares) l = gpJoinSplit(g.interestKinds).concat(gpJoinSplit(g.joinChoices));
+    return l;
+  }
+  function gpJoinLast(path){ return String(path).split('\u203A').pop().trim(); }
+  function gpJoinKeep(g){
+    var out = [];
+    Object.keys(GP_JOIN_SEC).forEach(function(k){
+      var sec = GP_JOIN_SEC[k];
+      Object.keys(_gpJoinOffered[k] || {}).forEach(function(pth){ if (gpHasWord(k, gpJoinLast(pth))) out.push(sec + ':' + pth); });
+    });
+    try { var KEY = 'cw-join-interests-' + g.groupId; if (out.length) sessionStorage.setItem(KEY, out.join(';')); else sessionStorage.removeItem(KEY); } catch (e) {}
+  }
   function gpPicker(key, ta){
     var cfg = GP_PICK[key];
     if (!GP_CHIPS_ON || !cfg) return null;
     var box = document.createElement('div');
     box.style.cssText = 'margin-top:12px;';
+    var gsec = GP_JOIN_SEC[key] && window.GP_JOINING ? GP_JOIN_SEC[key] : '';
+    var gbox = document.createElement('div'); gbox.style.cssText = 'display:none;margin-bottom:16px;';
+    box.appendChild(gbox);
 
     var lead = document.createElement('div');
     lead.style.cssText = 'font-size:13px;color:#4B5A6D;margin-bottom:8px;';
@@ -492,9 +529,61 @@
     results.style.cssText = 'margin-top:6px;';
     box.appendChild(results);
 
+    var moreLab = document.createElement('div');
+    moreLab.style.cssText = 'display:none;font-size:14px;color:#4B5A6D;margin-top:14px;';
+    moreLab.textContent = 'If you have other interests that you\u2019d like to share, select them below.';
+    box.appendChild(moreLab);
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;';
     box.appendChild(row);
+    if (gsec) gpJoinGroup().then(function(g){
+      if (!g) return;
+      var list = gpJoinList(g, gsec); if (!list.length) return;
+      _gpJoinOffered[key] = _gpJoinOffered[key] || {};
+      list.forEach(function(pth){ _gpJoinOffered[key][pth] = 1; });
+      var pillCss = function(on){ return 'font:inherit;font-size:14px;padding:8px 16px;border-radius:20px;cursor:pointer;text-align:left;line-height:1.25;' + (on ? 'background:#1F699E;color:#fff;border:1.5px solid #1F699E;font-weight:700;' : 'background:#fff;color:#1F699E;border:1.5px solid #C9DFF3;font-weight:600;'); };
+      var gl = document.createElement('div'); gl.style.cssText = 'font-size:14px;color:#4B5A6D;margin-bottom:8px;'; gl.textContent = 'From ' + (g.name || 'this group');
+      var grow = document.createElement('div'); grow.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
+      var rel = document.createElement('div'); rel.style.cssText = 'margin-top:10px;';
+      var btns = [], W = null;
+      var toggle = function(w, cat, pth){ _gpJoinOffered[key][pth] = 1; if (gpHasWord(key, w)) gpDropWord(key, w, ta); else gpAddWord(key, w, cat || '', ta); try { repaint(); } catch (e) {} paintG(); gpJoinKeep(g); };
+      var paintRel = function(){
+        rel.innerHTML = '';
+        if (!W || gsec === 'cares') return;
+        var want = gsec === 'joys' ? 'enjoy' : 'skill', seen = {};
+        btns.forEach(function(x){ seen[x.w.toLowerCase()] = 1; });
+        btns.forEach(function(x){
+          if (!gpHasWord(key, x.w)) return;
+          var me = W.byName[x.w.toLowerCase()], kids = [], up = null;
+          if (me) {
+            kids = (W.kids[me.id] || []).filter(function(k){ return k.asked.indexOf(want) > -1; });
+            if (me.kindOf && W.byId[me.kindOf]) up = W.byId[me.kindOf];
+          } else {
+            kids = Object.keys(W.byId).map(function(id){ return W.byId[id]; }).filter(function(k){ return !k.kindOf && k.cats.indexOf(x.w) > -1 && k.asked.indexOf(want) > -1; });
+          }
+          kids = kids.filter(function(k){ return !seen[k.word.toLowerCase()]; }).slice(0, 10);
+          if (!kids.length && !up) return;
+          var line = document.createElement('div'); line.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;';
+          var lab = document.createElement('span'); lab.style.cssText = 'font-size:13px;color:#4B5A6D;margin-right:4px;'; lab.textContent = kids.length ? 'More specific than ' + x.w + ':' : 'Or broader:'; line.appendChild(lab);
+          kids.forEach(function(k){ seen[k.word.toLowerCase()] = 1; var kb = document.createElement('button'); kb.type = 'button'; kb.textContent = k.word; kb.style.cssText = pillCss(gpHasWord(key, k.word)).replace('14px;padding:8px 16px', '13.5px;padding:6px 13px'); kb.addEventListener('click', function(){ toggle(k.word, k.cats[0] || x.cat, x.pth.indexOf('\u203A') > -1 ? x.pth + ' \u203A ' + k.word : k.word); }); line.appendChild(kb); });
+          if (up && !seen[up.word.toLowerCase()]) { seen[up.word.toLowerCase()] = 1; var ub = document.createElement('button'); ub.type = 'button'; ub.textContent = 'All of ' + up.word; ub.style.cssText = pillCss(gpHasWord(key, up.word)).replace('14px;padding:8px 16px', '13.5px;padding:6px 13px'); ub.addEventListener('click', function(){ toggle(up.word, up.cats[0] || x.cat, up.word); }); line.appendChild(ub); }
+          rel.appendChild(line);
+        });
+      };
+      var paintG = function(){ btns.forEach(function(x){ x.b.style.cssText = pillCss(gpHasWord(key, x.w)); }); paintRel(); };
+      list.forEach(function(pth){
+        var parts = String(pth).split('\u203A').map(function(x){ return x.trim(); }), w = parts.pop();
+        var b = document.createElement('button'); b.type = 'button'; b.appendChild(document.createTextNode(w));
+        if (parts.length) { var sm = document.createElement('span'); sm.style.cssText = 'display:block;font-size:11.5px;font-weight:500;opacity:.8;'; sm.textContent = parts.join(' \u203A '); b.appendChild(sm); }
+        b.addEventListener('click', function(){ toggle(w, parts[0] || '', pth); });
+        btns.push({ b: b, w: w, pth: pth, cat: parts[0] || '' }); grow.appendChild(b);
+      });
+      gbox.appendChild(gl); gbox.appendChild(grow); gbox.appendChild(rel); gbox.style.display = '';
+      moreLab.style.display = '';
+      box.addEventListener('click', function(){ setTimeout(function(){ paintG(); gpJoinKeep(g); }, 0); });
+      paintG(); gpJoinKeep(g);
+      if (gsec !== 'cares') gpJoinWords().then(function(w){ W = w; paintRel(); });
+    });
 
     var corpus = [];
     gpRefOnce().then(function(rd){ corpus = gpCorpus(cfg.source, rd); });
@@ -1056,41 +1145,6 @@
       }
       box.appendChild(b);
     });
-    if (window.GP_JOINING) gpJoinIntBlock(box);
-  }
-  function gpJoinIntBlock(box){
-    var m = String(params.get('next') || '').match(/\/group\/([^\/?#]+)/); if (!m) return;
-    var jb = document.createElement('div'); jb.setAttribute('data-k', 'joinInt'); jb.style.cssText = 'border-top:1px solid #f0f1f5;padding:18px 0;display:none;';
-    box.appendChild(jb);
-    fetch(GS_URL + '?action=groupIdBySlug&slug=' + encodeURIComponent(decodeURIComponent(m[1])))
-      .then(function(r){ return r.json(); })
-      .then(function(g){
-        if (!g || !g.found || !g.groupId) return;
-        var split = function(v){ v = String(v || ''); var sep = /[;|]/.test(v) ? /[;|]/ : /,/; return v.split(sep).map(function(x){ return x.trim(); }).filter(Boolean); };
-        var keys = split(g.interestKinds).concat(split(g.joinChoices));
-        if (!keys.length) return;
-        var KEY = 'cw-join-interests-' + g.groupId, picked = {};
-        try { String(sessionStorage.getItem(KEY) || '').split(';').forEach(function(x){ x = x.trim(); if (x) picked[x] = true; }); } catch (e) {}
-        var t = document.createElement('div'); t.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;';
-        t.textContent = 'What are your interests for joining ' + (g.name || 'this group') + '?';
-        var sub = document.createElement('div'); sub.style.cssText = 'font-size:14px;color:#4B5A6D;margin-bottom:12px;'; sub.textContent = 'Pick one or more.';
-        var row = document.createElement('div'); row.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
-        var keep = function(){ try { var v = keys.filter(function(k){ return picked[k]; }).join(';'); if (v) sessionStorage.setItem(KEY, v); else sessionStorage.removeItem(KEY); } catch (e) {} };
-        keys.forEach(function(k){
-          var parts = k.split('\u203A').map(function(x){ return x.trim(); }), last = parts.pop();
-          var b = document.createElement('button'); b.type = 'button';
-          var paint = function(){ var on = !!picked[k]; b.style.cssText = 'font:inherit;font-size:14px;padding:8px 16px;border-radius:20px;cursor:pointer;text-align:left;line-height:1.25;' + (on ? 'background:#1F699E;color:#fff;border:1.5px solid #1F699E;font-weight:700;' : 'background:#fff;color:#1F699E;border:1.5px solid #C9DFF3;font-weight:600;'); };
-          b.appendChild(document.createTextNode(last));
-          if (parts.length) { var sm = document.createElement('span'); sm.style.cssText = 'display:block;font-size:11.5px;font-weight:500;opacity:.8;'; sm.textContent = parts.join(' \u203A '); b.appendChild(sm); }
-          paint();
-          b.addEventListener('click', function(){ picked[k] = !picked[k]; paint(); keep(); });
-          row.appendChild(b);
-        });
-        jb.appendChild(t); jb.appendChild(sub); jb.appendChild(row);
-        var onJoys = /\/intro\/joys/.test(window.location.pathname) || (typeof view !== 'undefined' && view === 'joys');
-        jb.style.display = onJoys ? '' : 'none';
-      })
-      .catch(function(){});
   }
 
   var GP_REGIONS = ['North America','South America','Europe','Asia','Africa','Oceania','Antarctica'];
@@ -1357,7 +1411,7 @@
   var BASE = '/intro/';
   var STEPS = [
     { slug: 'start', rail: 'About you', keys: ['photo', 'loc', 'lang'] },
-    { slug: 'joys', rail: 'Joys', keys: ['introEnjoy', 'joinInt'] },
+    { slug: 'joys', rail: 'Joys', keys: ['introEnjoy'] },
     { slug: 'cares', rail: 'Cares', keys: ['introValues'] },
     { slug: 'skills', rail: 'Skills', keys: ['methods', 'introSkills', 'thanks'] },
     { slug: 'offer', rail: 'Offerings', keys: ['introOffer'] },
