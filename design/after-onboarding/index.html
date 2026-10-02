@@ -237,7 +237,7 @@
     if (t === 'skill') return skillOffer(it) ? ['level'] : ['level', 'workOpen'].concat(wantsWork(it) ? ['work', 'who'] : []);
     if (t === 'offer' && skillOffer(it)) return ['workOpen', 'work', 'who'];
     if (t === 'care') return ['careWays'];
-    if (t === 'seek') return [];
+    if (t === 'seek') return ['seekWays'];
     if (t === 'offer') return (it.thing && it.kind ? ['ocat'] : []).concat((it.a.kind || []).indexOf('Skill') > -1 ? ['work'] : []).concat(it.thing ? [] : ['who']);
     return [];
   }
@@ -256,6 +256,7 @@
     if ((other && !it.thing && (!it.cat || it.guess)) || (has(it, 'offer') && !it.thing)) n.push('cat');
     if ((has(it, 'offer') && !it.thing) || (has(it, 'skill') && wantsWork(it))) n.push('who');
     if (has(it, 'care')) n.push('careWays');
+    if (has(it, 'seek')) n.push('seekWays');
     return n;
   }
   function wq(it){ return '\u201C' + String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase() + '\u201D'; }
@@ -358,6 +359,15 @@
   }
   var ENJOY_WAYS = [['casual', 'I enjoy it casually'], ['competitive', 'I enjoy it competitively'], ['professional', 'I enjoy it professionally'], ['dialogue', 'I like talking about it'], ['events', 'I like events that represent this topic'], ['learn', 'I\u2019d like to learn more about it']];
   var CARE_WAYS = [['connect', 'I want to meet others who care about it'], ['volunteer', 'I\u2019d volunteer my time for it'], ['give', 'I\u2019d give money or things to it'], ['organize', 'I\u2019d help organize around it'], ['work', 'I want to work in this area'], ['policy', 'I want to influence policy on this topic'], ['updates', 'I\u2019d like updated information on this']];
+  var SEEK_WAYS = [['seek:teach', 'Someone to teach or mentor me'], ['seek:do', 'Someone to do it for me'], ['seek:with', 'People to do it with'], ['seek:info', 'Information or resources about it'], ['seek:event', 'An event or group about it'], ['seek:now', 'Help with it right now']];
+  function seekWaysBlock(c, it, redraw){
+    it.a.careWays = it.a.careWays || [];
+    var b = el('div', 'qbox');
+    b.appendChild(el('div', 'qq', 'What are you looking for with ' + wq(it) + '?'));
+    b.appendChild(el('div', 'qhint', 'Check any that fit.'));
+    wayBoxes(b, it, SEEK_WAYS, redraw);
+    c.appendChild(b);
+  }
   function wayBoxes(b, it, list, redraw){
     it.a.careWays = it.a.careWays || [];
     list.forEach(function(w){
@@ -384,6 +394,16 @@
           prow.appendChild(pin); prow.appendChild(ps); b.appendChild(prow);
         }
       }
+      if (w[0] === 'seek:now' && cb.checked) {
+        var nr = el('div', 'row'); nr.style.margin = '6px 0 0 27px';
+        [['week', 'This week'], ['month', 'This month'], ['any', 'Whenever']].forEach(function(o){
+          var code = 'seekwhen:' + o[0], on = it.a.careWays.indexOf(code) > -1, p = el('button', 'pill' + (on ? ' on' : ''), o[1]); p.type = 'button';
+          p.addEventListener('click', function(){ it.a.careWays = it.a.careWays.filter(function(x){ return x.indexOf('seekwhen:') !== 0; }); if (!on) it.a.careWays.push(code); redraw(); });
+          nr.appendChild(p);
+        });
+        b.appendChild(nr);
+      }
+      if (w[0] === 'seek:now' && !cb.checked) it.a.careWays = it.a.careWays.filter(function(x){ return x.indexOf('seekwhen:') !== 0; });
       if (w[0] === 'updates' && !cb.checked) it.a.careWays = it.a.careWays.filter(function(x){ return x.indexOf('updates:') !== 0; });
     });
   }
@@ -528,7 +548,7 @@
     }
     c.appendChild(b);
   }
-  function missing(it){ return needs(it).filter(function(k){ if (k === 'who' || k === 'careWays') return false; if (k === 'ocat') return !(it.a.offerCat && it.a.offerCat.length); return k === 'with' ? !withDone(it) : k === 'who' ? !whoDone(it) : k === 'work' ? !workDone(it) : k === 'cat' ? !catDone(it) : !(it.a[k] && it.a[k].length); }); }
+  function missing(it){ return needs(it).filter(function(k){ if (k === 'who' || k === 'careWays' || k === 'seekWays') return false; if (k === 'ocat') return !(it.a.offerCat && it.a.offerCat.length); return k === 'with' ? !withDone(it) : k === 'who' ? !whoDone(it) : k === 'work' ? !workDone(it) : k === 'cat' ? !catDone(it) : !(it.a[k] && it.a[k].length); }); }
   function selfDefault(it){
     it.a = it.a || {};
     var sw = it.a.serveWhat || [], at = sw.indexOf('Self');
@@ -849,6 +869,8 @@
     if (has(it, 'seek') && (a.gives || []).length) out.push('What it gives me: ' + a.gives.join(', '));
     var careL = CARE_WAYS.filter(function(w){ return (a.careWays || []).indexOf(w[0]) > -1; }).map(function(w){ if (w[0] !== 'updates') return w[1]; var sc = ['local', 'regional', 'global'].filter(function(x){ return a.careWays.indexOf('updates:' + x) > -1; }); return w[1] + (sc.length ? ' (' + sc.join(', ') + ')' : ''); });
     if (has(it, 'care') && careL.length) out.push('How I care: ' + careL.join('; '));
+    var seekL = SEEK_WAYS.filter(function(w){ return (a.careWays || []).indexOf(w[0]) > -1; }).map(function(w){ if (w[0] !== 'seek:now') return w[1]; var wn = { week: 'this week', month: 'this month', any: 'whenever' }, sw = (a.careWays || []).filter(function(x){ return x.indexOf('seekwhen:') === 0; }).map(function(x){ return wn[x.slice(9)] || ''; }).filter(Boolean); return w[1] + (sw.length ? ' (' + sw[0] + ')' : ''); });
+    if (has(it, 'seek') && seekL.length) out.push('What I\u2019m looking for: ' + seekL.join('; '));
     var joyOnly = has(it, 'skill') && !has(it, 'offer') && (a.workOpen || []).length && !wantsWork(it), rl = has(it, 'skill') ? (a.roles || []).slice() : [];
     if (joyOnly) rl.push('Just for joy');
     if (rl.length) out.push(rl.join(', '));
@@ -1403,6 +1425,7 @@
       if (k === 'how') { withBlock(host, it, draw); return; }
       if (k === 'who') { whoBlock(host, it, draw); return; }
       if (k === 'careWays') { careWaysBlock(host, it, draw); return; }
+      if (k === 'seekWays') { seekWaysBlock(host, it, draw); return; }
       if (k === 'work') { it.a.workAsked = true; workBlock(host, it, draw); var gk = el('div', 'qbox'); host.appendChild(gk); rolesRows(gk, it, draw, true); if (wantsWork(it)) knowRows(gk, it, draw); if (!gk.children.length) host.removeChild(gk); mergeBoxes(); return; }
       if (k === 'ocat') {
         it.a.offerCat = it.a.offerCat || []; it.a.where = it.a.where || [];
