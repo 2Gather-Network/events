@@ -426,7 +426,7 @@
   }
   function serves(it){ return has(it, 'offer') || (has(it, 'skill') && wantsWork(it)); }
   function withDone(it){ return (it.a.enjoyWith || []).length > 0; }
-  function placeLab(v){ if (INTEREST_KINDS.indexOf(String(v)) > -1) return 'People interested in ' + String(v).toLowerCase(); return String(v).replace(/^(Within my location|Near me): /, ''); }
+  function placeLab(v){ if (INTEREST_KINDS.indexOf(String(v)) > -1) return 'People interested in ' + String(v).toLowerCase(); if (/^Interest: /.test(String(v))) return 'People interested in ' + String(v).replace(/^Interest: /, '').toLowerCase(); return String(v).replace(/^(Within my location|Near me): /, ''); }
   function withParts(it){ return (it.a.enjoyWith || []).map(function(x){ return x === 'With others' && (it.a.enjoyWho || []).length ? 'With others (' + it.a.enjoyWho.map(placeLab).join(', ') + ')' : x; }); }
   function withBlock(c, it, redraw){
     it.a.enjoyWith = it.a.enjoyWith || []; it.a.enjoyWho = it.a.enjoyWho || [];
@@ -454,7 +454,8 @@
       WITH_GROUPS.forEach(function(g){ knownW = knownW.concat(g[1]); });
       WITH_GROUPS.forEach(function(g, gi){
         var near = it.a.enjoyWho.filter(function(v){ return /^(Near me|Within my location)/.test(v); });
-        var rr = foldGroup(b, it.word + '|with', g[0], gi === 1 ? near.concat(g[1]) : g[1], it.a.enjoyWho, redraw, gi === 0);
+        var ownI = g[1] === INTEREST_KINDS ? it.a.enjoyWho.filter(function(v){ return /^Interest: /.test(v); }) : [];
+        var rr = foldGroup(b, it.word + '|with', g[0], gi === 1 ? near.concat(g[1]) : g[1].concat(ownI), it.a.enjoyWho, redraw, gi === 0);
         if (!rr) return;
         if (gi === 1) {
           var lv = nearLevels();
@@ -470,8 +471,9 @@
           }
         }
         chipsInto(rr, g[1], it.a.enjoyWho, false, null, redraw);
+        if (g[1] === INTEREST_KINDS) interestOwn(rr, it.a.enjoyWho, redraw);
       });
-      var extraW = it.a.enjoyWho.filter(function(v){ return knownW.indexOf(v) < 0 && !/^(Near me|Within my location)/.test(v); });
+      var extraW = it.a.enjoyWho.filter(function(v){ return knownW.indexOf(v) < 0 && !/^(Near me|Within my location|Interest: )/.test(v); });
       var orow = el('div', 'row'); b.appendChild(orow);
       chipsInto(orow, extraW, it.a.enjoyWho, false, null, redraw);
       otherPill(orow, it.a.enjoyWho, redraw);
@@ -584,13 +586,21 @@
     if ((it.a.serveWho || []).length && (it.a.serveWhat || []).indexOf('People') < 0) out.push('People (' + it.a.serveWho.map(placeLab).join(', ') + ')');
     return out;
   }
-  function otherPill(row, list, redraw){
+  function interestOwn(rr, list, redraw){
+    list.filter(function(v){ return /^Interest: /.test(v); }).forEach(function(v){
+      var p = el('button', 'pill on', v.replace(/^Interest: /, '')); p.type = 'button';
+      p.addEventListener('click', function(){ var at = list.indexOf(v); if (at > -1) list.splice(at, 1); redraw(); });
+      rr.appendChild(p);
+    });
+    otherPill(rr, list, redraw, 'Interest: ');
+  }
+  function otherPill(row, list, redraw, prefix){
     var o = el('button', 'pill other', '+ Other'); o.type = 'button';
     o.addEventListener('click', function(){
       var line = el('div', 'oline');
       var inp = el('input', 'oinp'); inp.type = 'text'; inp.placeholder = 'Type your own';
       var add = el('button', 'btn', 'Add'); add.type = 'button';
-      var go = function(){ var v = String(inp.value || '').trim(); if (v && list.indexOf(v) < 0) list.push(v); redraw(); };
+      var go = function(){ var v = String(inp.value || '').trim(); if (v && prefix) v = prefix + v; if (v && list.indexOf(v) < 0) list.push(v); redraw(); };
       add.addEventListener('click', go);
       inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
       line.appendChild(inp); line.appendChild(add);
@@ -684,7 +694,8 @@
     WITH_GROUPS.forEach(function(g){ knownS = knownS.concat(g[1]); });
     WITH_GROUPS.forEach(function(g, gi){
       var near = it.a.serveWho.filter(function(v){ return /^Within my location/.test(v); });
-      var rr = foldGroup(b, it.word + '|serve', g[0], gi === 1 ? near.concat(g[1]) : g[1], it.a.serveWho, redraw, false);
+      var ownS = g[1] === INTEREST_KINDS ? it.a.serveWho.filter(function(v){ return /^Interest: /.test(v); }) : [];
+      var rr = foldGroup(b, it.word + '|serve', g[0], gi === 1 ? near.concat(g[1]) : g[1].concat(ownS), it.a.serveWho, redraw, false);
       if (!rr) return;
       if (gi === 1) {
         var lv = nearLevels();
@@ -700,8 +711,9 @@
         }
       }
       chipsInto(rr, g[1], it.a.serveWho, false, null, redraw);
+      if (g[1] === INTEREST_KINDS) interestOwn(rr, it.a.serveWho, redraw);
     });
-    var extraS = it.a.serveWho.filter(function(v){ return knownS.indexOf(v) < 0 && !/^Within my location/.test(v); });
+    var extraS = it.a.serveWho.filter(function(v){ return knownS.indexOf(v) < 0 && !/^(Within my location|Interest: )/.test(v); });
     var orow = el('div', 'row'); b.appendChild(orow);
     chipsInto(orow, extraS, it.a.serveWho, false, null, redraw);
     otherPill(orow, it.a.serveWho, redraw);
@@ -717,7 +729,7 @@
     var h = el('button', 'fgh'); h.type = 'button'; h.setAttribute('aria-expanded', FOLD[k] ? 'true' : 'false');
     h.appendChild(el('span', 'ch', FOLD[k] ? '\u25BE' : '\u25B8'));
     h.appendChild(el('span', 'fgn', name));
-    h.appendChild(el('span', 'fgs', FOLD[k] ? '' : (mine.length ? mine.map(function(v){ return String(v).replace(/^(Within my location|Near me): /, ''); }).join(', ') : 'Nothing picked')));
+    h.appendChild(el('span', 'fgs', FOLD[k] ? '' : (mine.length ? mine.map(function(v){ return String(v).replace(/^(Within my location|Near me|Interest): /, ''); }).join(', ') : 'Nothing picked')));
     if (mine.length) h.appendChild(el('span', 'fgc', String(mine.length)));
     h.addEventListener('click', function(){ FOLD[k] = !FOLD[k]; redraw(); });
     box.appendChild(h);
