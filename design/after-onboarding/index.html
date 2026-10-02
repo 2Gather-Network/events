@@ -525,7 +525,7 @@
   }
   function serves(it){ return has(it, 'offer') || (has(it, 'skill') && wantsWork(it)); }
   function withDone(it){ return (it.a.enjoyWith || []).length > 0; }
-  function placeLab(v){ if (INTEREST_KINDS.indexOf(String(v)) > -1) return 'People interested in ' + String(v).toLowerCase(); if (/^Interest: /.test(String(v))) return 'People interested in ' + String(v).replace(/^Interest: /, '').toLowerCase(); return String(v).replace(/^(Within my location|Near me): /, ''); }
+  function placeLab(v){ if (INTEREST_KINDS.indexOf(String(v)) > -1) return 'People interested in ' + String(v).toLowerCase(); if (/^Interest: /.test(String(v))) return 'People interested in ' + String(v).replace(/^Interest: /, '').toLowerCase(); return String(v).replace(/^(Within my location|Near me|Space): /, ''); }
   function withParts(it){ return (it.a.enjoyWith || []).map(function(x){ return x === 'With others' && (it.a.enjoyWho || []).length ? 'With others (' + it.a.enjoyWho.map(placeLab).join(', ') + ')' : x; }); }
   function withBlock(c, it, redraw){
     it.a.enjoyWith = it.a.enjoyWith || []; it.a.enjoyWho = it.a.enjoyWho || [];
@@ -572,7 +572,8 @@
         chipsInto(rr, g[1], it.a.enjoyWho, false, null, redraw);
         if (g[1] === INTEREST_KINDS) interestOwn(rr, it.a.enjoyWho, redraw);
       });
-      var extraW = it.a.enjoyWho.filter(function(v){ return knownW.indexOf(v) < 0 && !/^(Near me|Within my location|Interest: )/.test(v); });
+      if (SPACEMOCK) spaceRows(b, it, redraw);
+      var extraW = it.a.enjoyWho.filter(function(v){ return knownW.indexOf(v) < 0 && !/^(Near me|Within my location|Interest|Space): /.test(v); });
       var orow = el('div', 'row'); b.appendChild(orow);
       chipsInto(orow, extraW, it.a.enjoyWho, false, null, redraw);
       otherPill(orow, it.a.enjoyWho, redraw);
@@ -582,6 +583,27 @@
   var INTEREST_KINDS = ['Community building', 'Professional growth', 'Leadership', 'Mentoring', 'Getting started', 'Business ownership', 'Creative work', 'Volunteering'];
   var WITH_GROUPS = [['People I already know', ['Friends', 'Family', 'Partner', 'Coworkers', 'Neighbors']], ['People I\u2019d like to meet', []], ['People within a stage of life', ['Kids and teens', 'Students', 'Parents', 'Caregivers', 'Seniors', 'Elderly', 'Hospice']], ['People interested in\u2026', INTEREST_KINDS]];
   var WITH_MAP = {};
+  var SPACEMOCK = /[?&]space=1\b/.test(location.search);
+  var SPACE_SETS = [['All genders', ['Women and nonbinary people', 'Women only', 'Men only']], ['All ages', ['20s', '30s', '40s', '50s', '60s', '70s+']]];
+  function spaceRows(b, it, redraw){
+    var opts = [];
+    SPACE_SETS.forEach(function(g){ opts.push('Space: ' + g[0]); g[1].forEach(function(x){ opts.push('Space: ' + x); }); });
+    var rr = foldGroup(b, it.word + '|with', 'What kind of space?', opts, it.a.enjoyWho, redraw, false);
+    if (!rr) return;
+    var w = it.a.enjoyWho, on = function(x){ return w.indexOf('Space: ' + x) > -1; };
+    var put = function(x, yes){ var v = 'Space: ' + x, at = w.indexOf(v); if (yes && at < 0) w.push(v); if (!yes && at > -1) w.splice(at, 1); };
+    SPACE_SETS.forEach(function(g, gi){
+      var row = gi ? el('div', 'row') : rr; if (gi) rr.parentNode.appendChild(row);
+      var all = el('button', 'pill' + (on(g[0]) ? ' on' : ''), g[0]); all.type = 'button';
+      all.addEventListener('click', function(){ var yes = !on(g[0]); put(g[0], yes); g[1].forEach(function(x){ put(x, yes); }); redraw(); });
+      row.appendChild(all);
+      g[1].forEach(function(x){
+        var p = el('button', 'pill' + (on(x) ? ' on' : ''), x); p.type = 'button';
+        p.addEventListener('click', function(){ put(x, !on(x)); put(g[0], g[1].every(on)); redraw(); });
+        row.appendChild(p);
+      });
+    });
+  }
   var HAND_PLACE = {};
   function nearLevels(){ var p = HAND_PLACE || {}, out = []; if (p.postal) out.push(p.postal); if (p.county) out.push(/county/i.test(p.county) ? p.county : p.county + ' County'); if (p.state) out.push(p.state); if (p.region) out.push(p.region); if (out.length) out.push('Global'); return out; }
   function whoDone(it){ if (serves(it)) return (it.a.serveWhat || []).length > 0 || (it.a.serveWho || []).length > 0; var w = it.a.who || []; return w.length > 0 && (w.indexOf('In service to another') < 0 || (it.a.serveWhat || []).length > 0); }
@@ -831,7 +853,7 @@
     var h = el('button', 'fgh'); h.type = 'button'; h.setAttribute('aria-expanded', FOLD[k] ? 'true' : 'false');
     h.appendChild(el('span', 'ch', FOLD[k] ? '\u25BE' : '\u25B8'));
     h.appendChild(el('span', 'fgn', name));
-    h.appendChild(el('span', 'fgs', FOLD[k] ? '' : (mine.length ? mine.map(function(v){ return String(v).replace(/^(Within my location|Near me|Interest): /, ''); }).join(', ') : 'Nothing picked')));
+    h.appendChild(el('span', 'fgs', FOLD[k] ? '' : (mine.length ? mine.map(function(v){ return String(v).replace(/^(Within my location|Near me|Interest|Space): /, ''); }).join(', ') : 'Nothing picked')));
     if (mine.length) h.appendChild(el('span', 'fgc', String(mine.length)));
     h.addEventListener('click', function(){ FOLD[k] = !FOLD[k]; redraw(); });
     box.appendChild(h);
