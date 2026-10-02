@@ -497,7 +497,6 @@
     var _runsIt = _isHosted(g);
     html += '<div class="acts">'
       + '<a class="btn solid sm" role="link" tabindex="0" data-nav="' + groupUrl(g,'group') + '" onclick="return _safeNavGo(this)">Open group</a>'
-      + (_runsIt ? '<a class="btn ghost sm" role="link" tabindex="0" data-nav="' + groupUrl(g,'admin') + '" onclick="return _safeNavGo(this)">Manage</a>' : '')
       + '<a class="btn ghost sm" role="link" tabindex="0" data-nav="https://2gather.network/myevents/?groupId='
         + encodeURIComponent(String(g.groupId || '')) + '&groupName=' + encodeURIComponent(String(g.name || ''))
         + '#new" onclick="return _safeNavGo(this)">Post an event</a>'
@@ -506,10 +505,24 @@
           : '')
       + '<a class="btn ghost sm" role="link" tabindex="0" data-nav="' + groupUrl(g,'events') + '" onclick="return _safeNavGo(this)">View events</a>'
       + '<a class="btn ghost sm" role="link" tabindex="0" data-nav="' + groupUrl(g,'board') + '" onclick="return _safeNavGo(this)">View board</a>'
+      + (_runsIt ? '<a class="btn ghost sm" role="link" tabindex="0" data-nav="' + groupUrl(g,'admin') + '" onclick="return _safeNavGo(this)">Manage</a>' : '')
       + (_runsIt && pending ? '<a class="btn sm" role="link" tabindex="0" data-nav="' + groupUrl(g,'admin') + '" onclick="return _safeNavGo(this)">View requests (' + pending + ')</a>' : '')
       + '</div>';
     if (_showEvents) html += '<div id="detail-events" style="margin-top:18px;"></div>';
     detail.innerHTML = html;
+    (function(){
+      var cv = detail.querySelector('img.cover') || detail.querySelector('img');
+      if (!cv || !cv.parentNode) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'gcard'; wrap.style.cssText = 'position:relative;border:0;padding:0;background:none;';
+      cv.parentNode.insertBefore(wrap, cv); wrap.appendChild(cv);
+      var star = document.createElement('button');
+      star.type = 'button'; star.className = 'gstar';
+      star.style.top = '12px'; star.style.right = '12px';
+      _paintStar(star, !!g.starred);
+      star.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); _toggleStar(g, star, wrap); renderRailStars(); });
+      wrap.appendChild(star);
+    })();
     _countSeq++;
     if (_showEvents) loadGroupEvents(g, _countSeq);
   }
@@ -659,6 +672,17 @@
         if (_sort === 'staronly' || _sort === 'starfirst') renderRail();
       });
   }
+  function renderRailStars(){
+    try {
+      document.querySelectorAll('#rail-items .item').forEach(function(it){
+        var nm = (it.querySelector('.nm') || {}).textContent || '';
+        var g = _groups.filter(function(x){ return (x.name || 'Group') === nm; })[0];
+        var st = it.querySelector('.rstar');
+        if (g && g.starred && !st) { st = document.createElement('span'); st.className = 'rstar'; st.style.cssText = 'color:#D99A00;margin-left:4px;'; st.textContent = '\u2605'; it.querySelector('.nm').after(st); }
+        if (g && !g.starred && st) st.remove();
+      });
+    } catch (e) {}
+  }
   function _paintStar(btn, on){
     if (!btn) return;
     btn.classList.toggle('on', !!on);
@@ -727,7 +751,7 @@
     shown.forEach(function(g, i){
       var it = document.createElement('div'); it.className = 'item' + (i===_openAt?' on':'');
       it.innerHTML = '<img class="img" src="' + esc(groupImg(g)) + '" alt="">'
-        + '<span class="nm">' + esc(g.name || 'Group') + '</span>' + (g.starred ? '<span aria-label="Starred" style="color:#D99A00;margin-left:4px;">\u2605</span>' : '')
+        + '<span class="nm">' + esc(g.name || 'Group') + '</span>' + (g.starred ? '<span class="rstar" aria-label="Starred" style="color:#D99A00;margin-left:4px;">\u2605</span>' : '')
         + (g.pending ? '<span class="dot">' + g.pending + '</span>' : '');
       it.addEventListener('click', function(){
         rail.querySelectorAll('.item').forEach(function(x){ x.classList.remove('on'); });
