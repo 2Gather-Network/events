@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Interests · 2Gather</title>
+<style>
+  :root{--blue:#1F699E;--ink:#1A2E42;--grey:#4B5A6D;--muted:#6B7A8D;--line:#DDE4EE;--soft:#F7FBFF;--pale:#C9DFF3;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:transparent;font-family:'DM Sans','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);}
+  .wrap{padding:2px 2px 6px;}
+  .lede{font-size:14px;line-height:1.5;color:var(--grey);margin:0 0 12px;}
+  .search{width:100%;font:inherit;font-size:15px;padding:11px 14px;border:1.5px solid var(--pale);border-radius:12px;color:var(--ink);background:#fff;}
+  .search:focus{outline:2px solid var(--blue);outline-offset:1px;}
+  .crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:14px 0 8px;font-size:13px;font-weight:700;color:var(--muted);}
+  .crumbs button{font:inherit;font-weight:700;color:var(--blue);background:none;border:0;padding:2px 3px;cursor:pointer;text-decoration:underline;}
+  .crumbs .now{color:var(--ink);padding:2px 3px;}
+  .grid{display:flex;flex-wrap:wrap;gap:8px;}
+  .tile,.pick{font:inherit;font-size:14px;font-weight:700;border-radius:20px;padding:8px 14px;cursor:pointer;line-height:1.25;text-align:left;}
+  .tile{background:#fff;color:var(--blue);border:1.5px solid var(--pale);}
+  .tile .go{margin-left:6px;opacity:.7;}
+  .pick{background:#fff;color:var(--blue);border:1.5px solid var(--line);}
+  .pick.on{background:var(--blue);color:#fff;border-color:var(--blue);}
+  .pick.all{border-style:dashed;}
+  .pick.other{border-style:dashed;color:var(--grey);}
+  .pick .sub{display:block;font-size:11.5px;font-weight:600;opacity:.8;margin-top:1px;}
+  .otherbox{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;}
+  .otherbox input{flex:1 1 200px;font:inherit;font-size:14px;padding:9px 12px;border:1.5px solid var(--pale);border-radius:12px;}
+  .btn{font:inherit;font-size:14px;font-weight:700;border-radius:20px;padding:8px 16px;border:0;background:var(--blue);color:#fff;cursor:pointer;}
+  .btn.ghost{background:#fff;color:var(--blue);border:1.5px solid var(--pale);}
+  .none{font-size:13.5px;color:var(--grey);margin:8px 0 0;}
+  h3{font-size:17px;font-weight:800;margin:22px 0 4px;color:var(--ink);}
+  .privacy{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.45;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px;}
+  .card{border:1px solid var(--line);border-radius:12px;padding:12px 14px 14px;background:var(--soft);}
+  .top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+  .nm{font-size:15px;font-weight:800;line-height:1.3;}
+  .path{font-size:12px;font-weight:700;color:var(--blue);margin:3px 0 0;}
+  .x{font:inherit;font-size:17px;line-height:1;border:0;background:none;cursor:pointer;color:var(--muted);padding:0 2px;}
+  .cap{font-size:12px;font-weight:800;color:var(--muted);margin:12px 0 6px;}
+  .lv{display:flex;flex-wrap:wrap;gap:6px;}
+  .pill{font:inherit;font-size:13px;font-weight:700;background:#fff;color:var(--blue);border:1.5px solid var(--line);border-radius:18px;padding:5px 11px;cursor:pointer;white-space:nowrap;}
+  .pill.on{background:var(--blue);color:#fff;border-color:var(--blue);}
+  .pill.fixed{background:var(--blue);color:#fff;border-color:var(--blue);cursor:default;}
+  .way{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;line-height:1.35;margin:0 0 6px;cursor:pointer;}
+  .way input{margin:2px 0 0;accent-color:var(--blue);}
+  .show{display:flex;gap:8px;align-items:center;font-size:13.5px;font-weight:700;margin-top:10px;cursor:pointer;color:var(--ink);}
+  .show input{accent-color:var(--blue);}
+  .wait{font-size:14px;color:var(--grey);}
+  button:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="wait">Looking for your interests…</div></div>
+<script>
+(function(){
+  var FITS = [['enjoy', 'I enjoy it'], ['skill', 'I can do it'], ['care', 'I care about it'], ['seek', 'I’m seeking it']];
+  var WAYS = [['connect:meet', 'Meet others interested in it'], ['connect:offer', 'I can share experience or help'], ['connect:seek', 'I’m looking for information or support'], ['connect:events', 'Events or groups about it']];
+  var st = { byId: {}, byName: {}, roots: [], mine: [], fits: {}, path: [], q: '', other: false, ready: false };
+  var app = document.getElementById('app');
+  var els = {};
+
+  function lc(s){ return String(s || '').trim().toLowerCase(); }
+  function el(tag, cls, text){ var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = text; return e; }
+  function toParent(m){ try { window.parent.postMessage(m, location.origin); } catch (e) {} }
+  function clean(s){ return String(s || '').replace(/[:|,]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60); }
+  function cap(s){ return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+  function build(rows){
+    st.byId = {}; st.byName = {}; st.roots = [];
+    var list = [];
+    (rows || []).forEach(function(r){
+      if (!r || !r[0] || !r[1]) return;
+      if (String(r[4] || '').toLowerCase().indexOf('interest') < 0) return;
+      var n = { id: String(r[0]), word: String(r[1]).trim(), parentIds: String(r[2] || '').split('|').map(function(x){ return x.trim(); }).filter(Boolean), kids: [], parents: [],
+        names: [String(r[1]).trim()].concat(String(r[5] || '').split(',')).map(function(x){ return x.trim(); }).filter(Boolean) };
+      st.byId[n.id] = n; list.push(n);
+    });
+    list.forEach(function(n){
+      n.parents = n.parentIds.filter(function(p){ return st.byId[p] && p !== n.id; }).map(function(p){ return st.byId[p]; });
+      n.parents.forEach(function(p){ p.kids.push(n); });
+      n.names.forEach(function(nm){ if (!st.byName[lc(nm)]) st.byName[lc(nm)] = n; });
+    });
+    st.roots = list.filter(function(n){ return !n.parents.length; });
+  }
+  function pathOf(n){
+    var out = [], seen = {}, at = n, guard = 0;
+    while (at && !seen[at.id] && guard++ < 12) { seen[at.id] = 1; out.unshift(at); at = at.parents[0]; }
+    return out;
+  }
+  function areaOf(n){ var p = pathOf(n); return p.length ? p[0].word : 'Other'; }
+  function current(){ return st.path.length ? st.byId[st.path[st.path.length - 1]] : null; }
+  function mineIx(word){ for (var i = 0; i < st.mine.length; i++) { if (lc(st.mine[i].word) === lc(word)) return i; } return -1; }
+  function has(word){ return mineIx(word) > -1; }
+
+  function emit(){ toParent({ ao: 'ints', list: st.mine.map(function(m){ return m.word + ':' + m.area; }) }); }
+  function allD(){ try { return JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}; } catch (e) { return {}; } }
+  function getA(word){ var a = allD()[lc(word)]; return (a && typeof a === 'object' && !Array.isArray(a)) ? a : {}; }
+  function putA(word, a){
+    var all = allD(), k = lc(word), filled = !!Object.keys(a || {}).length;
+    if (filled) all[k] = a; else delete all[k];
+    try { sessionStorage.setItem('ao-details', JSON.stringify(all)); } catch (e) {}
+    toParent({ ao: 'details', word: word, a: filled ? a : null });
+  }
+
+  function pick(word, area){
+    var ix = mineIx(word);
+    if (ix > -1) { dropMine(ix); return; }
+    st.mine.push({ word: word, area: area });
+    emit(); drawAll();
+  }
+  function dropMine(ix){
+    var m = st.mine.splice(ix, 1)[0];
+    var a = getA(m.word);
+    var ways = (a.careWays || []).filter(function(c){ return c.indexOf('connect:') !== 0; });
+    if (ways.length) a.careWays = ways; else delete a.careWays;
+    delete a.showOnProfile;
+    putA(m.word, a);
+    emit(); drawAll();
+  }
+
+  function pillFor(n){
+    var on = has(n.word), b = el('button', 'pick' + (on ? ' on' : ''), n.word);
+    b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.addEventListener('click', function(){ pick(n.word, areaOf(n)); });
+    return b;
+  }
+
+  function drawSearch(){
+    var box = els.results; box.innerHTML = '';
+    var q = lc(st.q);
+    if (q.length < 2) { box.style.display = 'none'; els.browse.style.display = ''; return; }
+    els.browse.style.display = 'none'; box.style.display = '';
+    var hits = [];
+    Object.keys(st.byId).forEach(function(id){
+      var n = st.byId[id];
+      if (n.names.some(function(nm){ return lc(nm).indexOf(q) > -1; })) hits.push(n);
+    });
+    hits.sort(function(a, b){ var x = lc(a.word).indexOf(q) === 0 ? 0 : 1, y = lc(b.word).indexOf(q) === 0 ? 0 : 1; return x - y || a.word.localeCompare(b.word); });
+    if (!hits.length) {
+      box.appendChild(el('p', 'none', 'Nothing matches “' + st.q.trim() + '” yet.'));
+    } else {
+      var g = el('div', 'grid');
+      hits.slice(0, 40).forEach(function(n){
+        var b = pillFor(n), p = pathOf(n).slice(0, -1).map(function(x){ return x.word; }).join(' › ');
+        if (p) b.appendChild(el('span', 'sub', p));
+        g.appendChild(b);
+      });
+      box.appendChild(g);
+    }
+    box.appendChild(otherRow(null, q));
+  }
+
+  function otherRow(node, preset){
+    var wrap = el('div', '');
+    var open = st.other || !!preset;
+    if (!open) {
+      var ob = el('button', 'pick other', '+ Other'); ob.type = 'button';
+      ob.addEventListener('click', function(){ st.other = true; drawBrowse(); var i = els.browse.querySelector('.otherbox input'); if (i) i.focus(); });
+      wrap.appendChild(el('div', 'grid')).appendChild(ob);
+      wrap.firstChild.style.marginTop = '10px';
+      return wrap;
+    }
+    var row = el('div', 'otherbox'), inp = el('input'); inp.type = 'text'; inp.maxLength = 60; inp.placeholder = 'Type an interest'; inp.setAttribute('aria-label', 'Type an interest');
+    if (preset) inp.value = cap(clean(st.q));
+    var add = el('button', 'btn', 'Add'); add.type = 'button';
+    var go = function(){
+      var w = cap(clean(inp.value)); if (!w) return;
+      var hit = st.byName[lc(w)];
+      var area = hit ? areaOf(hit) : (current() ? areaOf(current()) : 'Other');
+      var name = hit ? hit.word : w;
+      st.other = false; st.q = ''; els.search.value = '';
+      if (!has(name)) { st.mine.push({ word: name, area: area }); emit(); }
+      drawAll();
+    };
+    add.addEventListener('click', go);
+    inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
+    row.appendChild(inp); row.appendChild(add);
+    wrap.appendChild(row);
+    return wrap;
+  }
+
+  function drawBrowse(){
+    var box = els.browse; box.innerHTML = '';
+    var here = current();
+    var crumbs = el('div', 'crumbs');
+    var root = el('button', '', 'All areas'); root.type = 'button';
+    root.addEventListener('click', function(){ st.path = []; st.other = false; drawBrowse(); });
+    if (!here) { crumbs.appendChild(el('span', 'now', 'All areas')); }
+    else {
+      crumbs.appendChild(root);
+      st.path.forEach(function(id, i){
+        crumbs.appendChild(el('span', '', '›'));
+        if (i === st.path.length - 1) { crumbs.appendChild(el('span', 'now', st.byId[id].word)); return; }
+        var cb = el('button', '', st.byId[id].word); cb.type = 'button';
+        cb.addEventListener('click', function(){ st.path = st.path.slice(0, i + 1); st.other = false; drawBrowse(); });
+        crumbs.appendChild(cb);
+      });
+    }
+    box.appendChild(crumbs);
+    var g = el('div', 'grid');
+    if (here) {
+      var all = pillFor(here); all.textContent = 'All of ' + here.word; all.classList.add('all');
+      g.appendChild(all);
+    }
+    (here ? here.kids : st.roots).forEach(function(n){
+      if (n.kids.length) {
+        var t = el('button', 'tile', n.word); t.type = 'button';
+        t.appendChild(el('span', 'go', '›'));
+        t.addEventListener('click', function(){ st.path.push(n.id); st.other = false; drawBrowse(); });
+        g.appendChild(t);
+      } else { g.appendChild(pillFor(n)); }
+    });
+    box.appendChild(g);
+    box.appendChild(otherRow(here, ''));
+  }
+
+  function setFit(word, tag, on){
+    var k = lc(word), cur = (st.fits[k] || []).slice(), at = cur.indexOf(tag);
+    if (on && at < 0) cur.push(tag);
+    if (!on && at > -1) cur.splice(at, 1);
+    st.fits[k] = cur;
+    toParent({ ao: 'intfit', word: word, tags: cur.slice() });
+  }
+
+  function card(m){
+    var c = el('div', 'card'), top = el('div', 'top'), left = el('div', '');
+    left.appendChild(el('div', 'nm', m.word));
+    var node = st.byName[lc(m.word)];
+    var path = node ? pathOf(node).slice(0, -1).map(function(x){ return x.word; }) : [];
+    if (!path.length && m.area && lc(m.area) !== lc(m.word)) path = [m.area];
+    if (path.length) left.appendChild(el('div', 'path', path.join(' › ')));
+    var x = el('button', 'x', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Remove ' + m.word);
+    x.addEventListener('click', function(){ var i = mineIx(m.word); if (i > -1) dropMine(i); });
+    top.appendChild(left); top.appendChild(x); c.appendChild(top);
+
+    c.appendChild(el('div', 'cap', 'How does it fit you?'));
+    var lv = el('div', 'lv'), me = el('span', 'pill fixed', 'I’m interested in it'); lv.appendChild(me);
+    FITS.forEach(function(f){
+      var on = (st.fits[lc(m.word)] || []).indexOf(f[0]) > -1, b = el('button', 'pill' + (on ? ' on' : ''), f[1]);
+      b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.addEventListener('click', function(){ var now = !b.classList.contains('on'); b.classList.toggle('on', now); b.setAttribute('aria-pressed', now ? 'true' : 'false'); setFit(m.word, f[0], now); });
+      lv.appendChild(b);
+    });
+    c.appendChild(lv);
+
+    c.appendChild(el('div', 'cap', 'How would you like to connect around it?'));
+    var a0 = getA(m.word);
+    WAYS.forEach(function(w){
+      var lab = el('label', 'way'), cb = document.createElement('input'); cb.type = 'checkbox';
+      cb.checked = (a0.careWays || []).indexOf(w[0]) > -1;
+      cb.addEventListener('change', function(){
+        var a = getA(m.word), list = (a.careWays || []).slice(), at = list.indexOf(w[0]);
+        if (cb.checked && at < 0) list.push(w[0]);
+        if (!cb.checked && at > -1) list.splice(at, 1);
+        if (list.length) a.careWays = list; else delete a.careWays;
+        putA(m.word, a);
+      });
+      lab.appendChild(cb); lab.appendChild(el('span', '', w[1])); c.appendChild(lab);
+    });
+    var sl = el('label', 'show'), sc = document.createElement('input'); sc.type = 'checkbox'; sc.checked = a0.showOnProfile === true;
+    sc.addEventListener('change', function(){
+      var a = getA(m.word);
+      if (sc.checked) a.showOnProfile = true; else delete a.showOnProfile;
+      putA(m.word, a);
+    });
+    sl.appendChild(sc); sl.appendChild(el('span', '', 'Show on my profile')); c.appendChild(sl);
+    return c;
+  }
+
+  function drawCards(){
+    var box = els.cards; box.innerHTML = '';
+    var h = el('h3', '', st.mine.length ? 'Your interests (' + st.mine.length + ')' : 'Your interests');
+    box.appendChild(h);
+    box.appendChild(el('p', 'privacy', 'Only you can see these. They are used to find people, events and groups that fit. Turn on Show on my profile for any you want others to see.'));
+    if (!st.mine.length) { box.appendChild(el('p', 'none', 'Nothing chosen yet. Choosing one means you are interested in it, not that it describes you.')); return; }
+    var g = el('div', 'cards');
+    st.mine.forEach(function(m){ g.appendChild(card(m)); });
+    box.appendChild(g);
+  }
+
+  function drawAll(){ drawSearch(); drawBrowse(); drawCards(); }
+
+  function skeleton(){
+    app.innerHTML = '';
+    app.appendChild(el('p', 'lede', 'Choose what you are interested in. Choosing one means you are interested, never that it is about you. Search, or open an area to look around.'));
+    var s = el('input', 'search'); s.type = 'search'; s.placeholder = 'Search interests'; s.setAttribute('aria-label', 'Search interests'); s.autocomplete = 'off';
+    s.addEventListener('input', function(){ st.q = s.value; drawSearch(); });
+    els.search = s; app.appendChild(s);
+    els.results = el('div', ''); els.browse = el('div', ''); els.cards = el('div', '');
+    app.appendChild(els.results); app.appendChild(els.browse); app.appendChild(els.cards);
+  }
+
+  function takeMine(list){
+    st.mine = [];
+    (list || []).forEach(function(s){
+      s = String(s || ''); var at = s.lastIndexOf(':');
+      var word = (at > -1 ? s.slice(0, at) : s).trim(), area = (at > -1 ? s.slice(at + 1) : '').trim() || 'Other';
+      if (word && mineIx(word) < 0) st.mine.push({ word: word, area: area });
+    });
+  }
+
+  window.addEventListener('message', function(e){
+    if (e.origin !== location.origin || e.source !== window.parent || !e.data || e.data.ao !== 'ints') return;
+    if (e.data.fitsOnly) { st.fits = e.data.fits || {}; if (st.ready) { drawCards(); } return; }
+    build(e.data.rows);
+    takeMine(e.data.mine);
+    st.fits = e.data.fits || {};
+    if (!st.ready) { st.ready = true; skeleton(); }
+    drawAll();
+  });
+
+  var lastH = 0;
+  function reportH(){
+    var h = Math.ceil(document.body.getBoundingClientRect().height + 8);
+    if (h !== lastH) { lastH = h; toParent({ ao: 'h', h: h }); }
+  }
+  if (window.ResizeObserver) { new ResizeObserver(reportH).observe(document.body); }
+  window.addEventListener('load', reportH);
+  window.addEventListener('resize', reportH);
+  toParent({ ao: 'iready' });
+})();
+</script>
+</body>
+</html>

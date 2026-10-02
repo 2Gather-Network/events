@@ -124,7 +124,7 @@
   var GP_NEW = GP_RAIL && (params.get('new') || '1') !== '0';
   var GP_NEW_ORDER = [0, 1, 3, 2, 5, 4];
   var GP_NEW_LABELS = { 0: 'About you', 1: 'Joys', 2: 'Skills', 3: 'Cares', 4: 'Seeking', 5: 'Offerings' };
-  function gpNewOrder(){ return GP_NEW_ORDER.concat([GP_LAST]); }
+  function gpNewOrder(){ return GP_NEW_ORDER.filter(function(n){ return n !== GP_INT || gpIntOn(); }).concat([GP_LAST]); }
   var GP_OTHER = (function(){ var v = parseInt(params.get('other'), 10); return (v >= 1 && v <= 4) ? v : 0; })();
   var GP_PURPOSE_TRY = (function(){ var v = String(params.get('purpose') || '').toLowerCase(); if (v === 'a' || v === 'b') return v; return (v === '0' || v === 'off') ? '' : 'c'; })();
   var GP_VALUES_TRY = GP_RAIL && (params.get('values') || '') === '1';
@@ -2624,6 +2624,13 @@
   var GP_BAL_ON_RAIL = false;
   var GP_RAIL_QUESTIONS_ONLY = true;
   if (GP_RAIL && GP_BAL_ON_RAIL) GP_STEP_TITLES.splice(GP_STEP_TITLES.length - 1, 0, 'Balance');
+  var GP_INT = -1;
+  if (GP_NEW) {
+    GP_STEP_TITLES.splice(GP_STEP_TITLES.length - 1, 0, 'Interests');
+    GP_INT = GP_STEP_TITLES.length - 2;
+    GP_NEW_ORDER.splice(1, 0, GP_INT);
+    GP_NEW_LABELS[GP_INT] = 'Interests';
+  }
   var GP_BAL = GP_STEP_TITLES.indexOf('Balance');
   var GP_PURPOSE = GP_STEP_TITLES.indexOf('Purpose');
   function gpReqAllDone(){ try { return GP_REQ_ITEMS.every(function(r){ return r.done(); }); } catch (e) { return false; } }
@@ -2909,7 +2916,7 @@
   function gpStepFromSlug(v){
     v = String(v || '').trim().toLowerCase();
     if (!v) return -1;
-    var ALIAS = { 'joy': 'joys', 'care': 'cares', 'group-permissions': 'permissions', 'your-answers': 'all-interests', 'open-to-work': 'work', 'your answers': 'all-interests', 'answers': 'all-interests' };
+    var ALIAS = { 'interest': 'interests', 'joy': 'joys', 'care': 'cares', 'group-permissions': 'permissions', 'your-answers': 'all-interests', 'open-to-work': 'work', 'your answers': 'all-interests', 'answers': 'all-interests' };
     if (ALIAS[v]) v = ALIAS[v];
     for (var i = 0; i < GP_STEP_TITLES.length; i++) { if (gpStepSlug(i) === v) return i; }
     return -1;
@@ -2941,6 +2948,7 @@
     gpStepPaint();
     try { gpRevealThanks(); } catch (e) {}
     if (_gpStep === GP_PERM) { try { gpPermPaint(); } catch (e) {} }   
+    if (GP_INT > -1 && _gpStep === GP_INT) { try { gpIntShow(); } catch (e) {} }
     if (_gpStep === GP_LAST) { try { gpBuildPreview(); } catch (e) {} if (GP_NEW) { try { gpNewAnswers(); } catch (e) {} } }
     if (GP_V2 && (_gpStep === GP_STEP_TITLES.indexOf('Purpose') || (GP_NEW && _gpStep === GP_STEP_TITLES.indexOf('Cares')))) { try { gpPaintPurposePicks(); } catch (e) {} }
     gpStepToUrl(_gpStep);
@@ -3348,7 +3356,7 @@
     var got = {};
     try { got = JSON.parse(String(raw || '') || '{}') || {}; } catch (e) { got = {}; }
     if (typeof got !== 'object' || Array.isArray(got)) { got = {}; }
-    var KEPT = ['enjoyWith', 'enjoyWho', 'who', 'whoAdded', 'serveWhat', 'serveWho', 'serveNature', 'gives', 'paid', 'unpaidKind', 'unpaidTime', 'workAsked', 'workOpen', 'careWays', 'addedDate', 'editedDate'];
+    var KEPT = ['showOnProfile', 'enjoyWith', 'enjoyWho', 'who', 'whoAdded', 'serveWhat', 'serveWho', 'serveNature', 'gives', 'paid', 'unpaidKind', 'unpaidTime', 'workAsked', 'workOpen', 'careWays', 'addedDate', 'editedDate'];
     try {
       var all = JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {};
       Object.keys(got).forEach(function(k){
@@ -3389,6 +3397,7 @@
         return;
       }
       if (d.ao === 'details') { if (!gpViewingSomebodyElse()) { gpDetailQueue(d.word, d.a); } return; }
+      if (fr.classList.contains('gp-int')) { gpIntMsg(d); return; }
       if (!fr.classList.contains('gp-cards') && fr.id !== 'gp-ans-frame') { return; }
       if (d.ao === 'ready') { if (fr.classList.contains('gp-cards')) gpNewPost(fr); return; }
       if (d.ao === 'edit') {
@@ -3513,17 +3522,98 @@
     W.catsOf = function(w){ var seen = {}, n = 0; while (w && !w.cats.length && w.kindOf && W.byId[w.kindOf] && !seen[w.id] && n++ < 12) { seen[w.id] = 1; w = W.byId[w.kindOf]; } return w ? w.cats : []; };
     return W;
   }
+  function gpRowsHaveInterest(rows){ return (rows || []).some(function(r){ return String((r && r[4]) || '').toLowerCase().indexOf('interest') > -1; }); }
+  function gpIntOn(){
+    try {
+      if (GP_INT < 0 || gpViewingSomebodyElse()) return false;
+      return !!(window._gpWords && gpRowsHaveInterest(window._gpWords.rows));
+    } catch (e) { return false; }
+  }
+  function gpIntReady(){
+    try {
+      if (!gpIntOn()) return;
+      try { gpRailPaint(); } catch (e) {}
+      if (window._gpIntWant && !window._gpIntLanded) { window._gpIntLanded = true; gpShowStep(GP_INT); return; }
+      if (_gpStep === GP_INT) { gpIntPost(); }
+    } catch (e) {}
+  }
+  function gpIntShow(){
+    var host = document.getElementById('gp-ints-host'); if (!host) { return; }
+    gpNewMsgs();
+    var fr = host.querySelector('iframe.gp-int');
+    if (!fr) {
+      fr = document.createElement('iframe');
+      fr.className = 'gp-int'; fr.title = 'Your interests';
+      fr.style.cssText = 'width:100%;height:160px;border:0;display:block;';
+      fr.setAttribute('scrolling', 'no');
+      fr.src = '/design/interests/?inpane=1&cb=' + Date.now();
+      host.appendChild(fr);
+      return;
+    }
+    gpIntPost();
+  }
+  function gpIntFits(){
+    var fits = {};
+    (window._gpInts || []).forEach(function(s){
+      var at = String(s).lastIndexOf(':'), w = (at > -1 ? String(s).slice(0, at) : String(s)).trim(), tags = [];
+      Object.keys(GP_FIT_KEY).forEach(function(t){
+        if (gpPickedWords(GP_FIT_KEY[t]).some(function(x){ return x.toLowerCase() === w.toLowerCase(); })) { tags.push(t); }
+      });
+      fits[w.toLowerCase()] = tags;
+    });
+    return fits;
+  }
+  function gpIntPost(only){
+    var fr = document.querySelector('iframe.gp-int');
+    if (!fr || !fr.contentWindow || !window._gpWords) { return; }
+    var msg = { ao: 'ints', fits: gpIntFits() };
+    if (only) { msg.fitsOnly = true; }
+    else {
+      msg.rows = window._gpWords.rows.filter(function(r){ return String((r && r[4]) || '').toLowerCase().indexOf('interest') > -1; });
+      msg.mine = (window._gpInts || []).slice();
+    }
+    try { fr.contentWindow.postMessage(msg, location.origin); } catch (e) {}
+  }
+  function gpIntMsg(d){
+    if (d.ao === 'iready') { gpIntPost(); return; }
+    if (gpViewingSomebodyElse()) { return; }
+    if (d.ao === 'ints') {
+      window._gpInts = (d.list || []).map(function(x){ return String(x || '').trim(); }).filter(Boolean).slice(0, 300);
+      window._gpIntsTouched = true;
+      gpTouchSave();
+      try { gpRailPaint(); } catch (e) {}
+      gpIntPost(true);
+      return;
+    }
+    if (d.ao === 'intfit') {
+      var w = String(d.word || '').trim(), tags = d.tags || [], changed = false;
+      if (!w) { return; }
+      Object.keys(GP_FIT_KEY).forEach(function(t){
+        var k = GP_FIT_KEY[t], box = document.getElementById('gp-intro-' + k);
+        if (!box) { return; }
+        var there = gpPickedWords(k).some(function(x){ return x.toLowerCase() === w.toLowerCase(); });
+        var want = tags.indexOf(t) > -1;
+        if (want && !there) { gpAddWord(k, w, '', box); changed = true; }
+        if (!want && there) { gpDropWord(k, w, box); changed = true; }
+        if (changed) { try { gpTagPaint(k); } catch (e) {} }
+      });
+      if (changed) { gpTouchSave(); }
+    }
+  }
   function gpWordsLoad(){
     if (_gpWordsP) { return _gpWordsP; }
     var KEY = 'cw-words-v1', kept = null;
     try { kept = JSON.parse(window.localStorage.getItem(KEY) || 'null'); } catch (e) { kept = null; }
-    if (kept && kept.rows && kept.rows.length && Date.now() - kept.t < 21600000) { window._gpWords = gpWordsBuild(kept.rows); _gpWordsP = Promise.resolve(window._gpWords); return _gpWordsP; }
+    var seenInt = false; try { seenInt = window.sessionStorage.getItem('cw-words-int') === '1'; } catch (e) {}
+    if (kept && kept.rows && kept.rows.length && Date.now() - kept.t < 21600000 && (seenInt || gpRowsHaveInterest(kept.rows))) { window._gpWords = gpWordsBuild(kept.rows); _gpWordsP = Promise.resolve(window._gpWords); setTimeout(gpIntReady, 0); return _gpWordsP; }
     _gpWordsP = fetch(GS_URL + '?action=getCategories&words=1')
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (!d || !d.words || !d.words.length) { _gpWordsP = null; return null; }
         try { window.localStorage.setItem(KEY, JSON.stringify({ t: Date.now(), rows: d.words })); } catch (e) {}
+        try { window.sessionStorage.setItem('cw-words-int', '1'); } catch (e) {}
         window._gpWords = gpWordsBuild(d.words);
+        setTimeout(gpIntReady, 0);
         return window._gpWords;
       })
       .catch(function(){ _gpWordsP = null; return null; });
@@ -5048,6 +5138,7 @@
       if (_pl.indexOf(_pk) < 0) _pk = _pl.length === 1 ? _pl[0] : '';
       qs += '&purposeOnProfile=' + (window._gpPurposeOn ? 'TRUE' : 'FALSE') + '&purposePublic=' + encodeURIComponent(_pk);
     }
+    if (gpIntOn() && window._gpInts) { qs += '&interestAreasTags=' + encodeURIComponent(window._gpInts.join('|')); }
     qs += '&county=' + encodeURIComponent(_gpPlace.county || '') + '&city=' + encodeURIComponent(_gpPlace.city || '')
         + '&postal=' + encodeURIComponent(_gpPlace.postal || '');
     if (window._gpBal === true || window._gpBal === false) qs += '&seekingBalance=' + (window._gpBal ? 'TRUE' : 'FALSE');
@@ -6038,6 +6129,10 @@
     if (GP_V2 && purposeB) box.insertBefore(purposeB, document.getElementById('gp-preview'));
     box.insertBefore(gpRailBlock('gp-balance-block', GP_BAL, 'Balance', '', balBody), document.getElementById('gp-preview'));
     set(document.getElementById('gp-preview'), GP_LAST);
+    if (GP_NEW && GP_INT > -1 && !document.getElementById('gp-ints-block')) {
+      var ihost = document.createElement('div'); ihost.id = 'gp-ints-host';
+      box.insertBefore(gpRailBlock('gp-ints-block', GP_INT, 'What are you interested in?', 'Interests help match you with people, events and groups. Only you see them.', ihost), document.getElementById('gp-preview'));
+    }
     if (GP_PERM > -1) {
       var pm = document.createElement('div'); pm.id = 'gp-perm';
       box.appendChild(gpRailBlock('gp-perm-block', GP_PERM, 'Group permissions', 'Choose what shows on your profile, and to whom, group by group.', pm));
@@ -6050,6 +6145,7 @@
       _gpRender0(p); gpRailArrange(); if (GP_NEW) gpNewArrange();
       var _want = gpStepFromSlug(params.get('step') || gpPathStep());
       if (_want < 0 && GP_NEW && params.get('from') === 'group') _want = GP_LAST;
+      if (GP_NEW && _want === GP_INT && gpSkipped(_want)) { window._gpIntWant = true; }
       if (GP_NEW && _want > -1 && gpSkipped(_want)) { var _wt = String(GP_STEP_TITLES[_want] || ''); _want = /Purpose/.test(_wt) ? gpStepFromSlug('cares') : /Appreciation/.test(_wt) ? gpStepFromSlug('skills') : /Open to opportunities/.test(_wt) ? gpStepFromSlug('offerings') : 0; }
       if (_want === GP_PERM && GP_PERM === -1) _want = -1;
       if (_want < 0 && meId && !window._gpDrawn && !window._gpLoadFailed) { window._gpLandLater = true; var _gr = document.getElementById('gp-rail'); if (_gr) _gr.innerHTML = ''; return; }
@@ -6127,6 +6223,7 @@
         return Object.keys(_gpThanksPicked || {}).some(function(k){ return _gpThanksPicked[k]; });
       }
       if (title === 'Purpose') { return !!String(gpRailPurpose() || '').trim(); }
+      if (title === 'Interests') { return !!(window._gpInts && window._gpInts.length); }
       return false;
     } catch (e) { return false; }
   }
@@ -6144,7 +6241,7 @@
       if (GP_RAIL_QUESTIONS_ONLY && i === GP_PERM) return;
       if (!GP_NEW && i === 0 && i !== _gpStep && GP_REQ && gpReqAllDone()) return;
       if (waiting) return;
-      if (i > reach && i !== _gpStep) return;
+      if (i > reach && i !== _gpStep && !(i === GP_INT && reach >= 1)) return;
       var _badge = '', _need = '';
       if (GP_REQ && i <= 3) {
         var _ok = gpReqStepDone(i);
@@ -6276,6 +6373,7 @@
     try { ['introNeed','introEnjoy','introSkills','introValues','introOffer'].forEach(function(k){ if (_gpProseDirty[k]) { set(k, String(_gpProse[k] || '')); } }); } catch (e) {}
     set('skills', tag('introSkills'));
     set('values', tag('introValues')); set('cares', tag('introValues'));
+    try { if (gpIntOn() && window._gpInts) { set('interestAreas', window._gpInts.join('|')); } } catch (e) {}
     try { set('haves', gpOfferParts().havesTags); } catch (e) {}
     try { set('methods', join(_gpMethodPicked, '|')); } catch (e) {}
     try { set('languages', join(_gpLangPicked, ', ')); } catch (e) {}
@@ -6397,6 +6495,7 @@
           window._gpOTW = _owPaid.length > 0 || _owTime.length > 0 || _owUnpaid.length > 0 || Object.keys(_gpWork).length > 0;
           _ow(have.domains || have.sectors).forEach(function(v){ var n = String(v).split(':')[0].trim(); if (n) { _gpSectors[n] = true; _gpSectorsRaw[n.toLowerCase()] = v; } });
           window._gpPurpose = String(have.purpose || '');
+          if (!window._gpIntsTouched) { window._gpInts = _ow(have.interestAreas); }
           window._gpPurposeOn = String(have.purposeOnProfile || '').trim().toUpperCase() === 'TRUE'; window._gpPurposePick = String(have.purposePublic || '').trim();
           _gpHaves = _ow(have.haves);
           _gpPlace = { county: String(have.county || '').trim(), city: String(have.city || '').trim(), postal: String(have.postal || '').trim() };
@@ -6427,7 +6526,7 @@
         if (gpLocString(_gpLoc)) any = true;
         window._gpDrawn = true;
         if (fresh) { window._gpLoaded = true; }
-        if (fresh && GP_NEW) { gpDetailsFromServer(have.answerDetails); }
+        if (fresh && GP_NEW) { gpDetailsFromServer(have.answerDetails); gpWordsLoad(); }
         if (any || fresh) { gpRenderIntro(use); }
         if (fresh && window._gpWantedSave) { window._gpWantedSave = false; var _st = document.getElementById('gp-intro-status'); if (_st) _st.textContent = ''; gpQuietSave(); }
         gpWaiting(false);
