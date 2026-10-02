@@ -81,7 +81,8 @@
   .av img{width:100%;height:100%;object-fit:cover;}
   .who{flex:1;min-width:0;}
   .who .name{font-size:14px;font-weight:700;color:var(--ink);}
-  .who .sub{font-size:12px;color:var(--muted);margin-top:1px;}
+  .who .sub{font-size:13px;color:var(--ink,#1A2E42);margin-top:2px;line-height:1.45;}
+  .who .sub b{font-weight:800;}
   .actions-row{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;}
   .pin-gate{background:#FFF4CC;border:1px solid #E8C766;border-radius:10px;padding:12px 14px;font-size:13px;color:#5A3A00;margin-bottom:14px;line-height:1.55;}
   .req-card{background:var(--panel);border:1px solid var(--panel-line);border-radius:12px;padding:14px 16px;margin-bottom:10px;}
@@ -1309,7 +1310,10 @@
         }
         reqs.forEach(function(rq){ list.appendChild(renderRequestCard(rq)); });
         _joinedRows = (d && d.joined) || [];
+        _joinAnswers = {};
+        ((d && d.joinAnswers) || []).forEach(function(x){ var k = _nrmId(x.appearId); if (k) _joinAnswers[k] = String(x.joinInterests || ''); });
         _paintJoinedCount();
+        try { if (typeof filterMembers === 'function' && _members && _members.length) filterMembers((document.getElementById('mem-search') || {}).value || ''); } catch (e) {}
       })
       .catch(function(){
         var _rw2 = document.getElementById('req-waiting');
@@ -1364,6 +1368,22 @@
   }
 
   var _joinedRows = [];
+  var _joinAnswers = {};
+  function _memberLines(m){
+    var words = function(v){ return String(v || '').split(/[|;]/).map(function(t){ return String(t).split(':')[0].trim(); }).filter(Boolean); };
+    var picked = { joys: [], skills: [], cares: [] };
+    String(_joinAnswers[_nrmId(m.appearId)] || '').split(';').forEach(function(k){
+      k = k.trim(); if (!k) return;
+      var mm = /^(joys|skills|cares):(.*)$/.exec(k), sec = mm ? mm[1] : 'joys', w = (mm ? mm[2] : k).split('\u203a').pop().trim();
+      if (w && picked[sec].indexOf(w) === -1) picked[sec].push(w);
+    });
+    var own = { joys: words(m.interests), cares: words(m.values).concat(words(m.domains)), skills: words(m.skills) };
+    return [['joys', 'Joys'], ['cares', 'Cares'], ['skills', 'Skills']].map(function(x){
+      var g = picked[x[0]], low = g.map(function(w){ return w.toLowerCase(); });
+      var rest = own[x[0]].filter(function(w, i, a){ return low.indexOf(w.toLowerCase()) === -1 && a.indexOf(w) === i; });
+      return { label: x[1], group: g, rest: rest };
+    }).filter(function(l){ return l.group.length || l.rest.length; });
+  }
   function _paintJoinedCount(){
     var h = document.getElementById('mem-heading');
     if (!h) return;
@@ -1815,16 +1835,29 @@
       var nm = document.createElement('div'); nm.className = 'name';
       nm.textContent = (m.name || m.first || m.appearId);
       who.appendChild(nm);
-      var tags = String(m.values || '').split('|')
-        .concat(String(m.domains || '').split('|'))
-        .map(function(t){ return String(t).split(':')[0].trim(); })
-        .filter(Boolean);
-      if (tags.length) {
+      _memberLines(m).forEach(function(l){
         var sub = document.createElement('div'); sub.className = 'sub';
-        sub.textContent = tags.slice(0, 3).join(' / ');
+        var lab = document.createElement('span'); lab.textContent = l.label + ': '; lab.style.color = 'var(--muted,#5A6473)';
+        sub.appendChild(lab);
+        var all = l.group.map(function(w){ return [w, true]; }).concat(l.rest.map(function(w){ return [w, false]; }));
+        var used = 0, shownN = 0;
+        all.forEach(function(p, i){
+          if (used && used + p[0].length > 80) return;
+          used += p[0].length + 2; shownN++;
+          if (i) sub.appendChild(document.createTextNode(', '));
+          var w = document.createElement(p[1] ? 'b' : 'span'); w.textContent = p[0];
+          sub.appendChild(w);
+        });
+        if (all.length > shownN) sub.appendChild(document.createTextNode('  + ' + (all.length - shownN) + ' more'));
         who.appendChild(sub);
-      }
+      });
       var acts = document.createElement('div'); acts.className = 'actions-row';
+      if (m.appearId) {
+        var visit = document.createElement('a');
+        visit.className = 'btn ghost sm'; visit.textContent = 'Visit profile'; visit.target = '_blank'; visit.rel = 'noopener';
+        visit.href = 'https://2gather.network/profile/?show=' + encodeURIComponent(m.appearId) + '&cb=' + Date.now();
+        acts.appendChild(visit);
+      }
       var runs = _runsThisGroup(m);
       if (runs) {
         var badge = document.createElement('span');
