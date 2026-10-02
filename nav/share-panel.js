@@ -8,6 +8,20 @@
     s.onload = done; s.onerror = fail;
     document.head.appendChild(s);
   }
+  function trimQr(src, margin){
+    var w = src.width, h = src.height, ctx = src.getContext('2d'), px = ctx.getImageData(0, 0, w, h).data;
+    var minX = w, minY = h, maxX = -1, maxY = -1;
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      if (px[(y * w + x) * 4] < 128) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+    }
+    if (maxX < 0) return src;
+    var side = Math.max(maxX - minX, maxY - minY) + 1, out = document.createElement('canvas');
+    out.width = out.height = side + margin * 2;
+    var oc = out.getContext('2d');
+    oc.fillStyle = '#ffffff'; oc.fillRect(0, 0, out.width, out.height);
+    oc.drawImage(src, minX, minY, side, side, margin, margin, side, side);
+    return out;
+  }
   window.cwSharePanel = function(o){
     var host = o.after;
     if (!host || !host.parentNode) return null;
@@ -41,12 +55,13 @@
       wrap.appendChild(wait);
       qrSlot.appendChild(wrap);
       loadQrLib(function(){
-        var c = document.createElement('canvas');
-        c.style.cssText = 'max-width:100%;border-radius:8px;display:block;margin:0 auto;';
-        new window.QRious({ element: c, value: o.url, size: 220, foreground: '#1a1a2e', background: '#ffffff', level: 'H', padding: 12 });
+        var raw = document.createElement('canvas');
+        new window.QRious({ element: raw, value: o.url, size: 440, foreground: '#1a1a2e', background: '#ffffff', level: 'H', padding: 0 });
+        var c = trimQr(raw, 24);
+        c.style.cssText = 'width:200px;max-width:100%;height:auto;display:block;margin:0 auto;';
         wait.remove();
         wrap.appendChild(c);
-        if (o.title) wrap.appendChild(el('div', 'font-size:13px;font-weight:700;color:#1A2E42;margin-top:8px;', o.title));
+        if (o.title) wrap.appendChild(el('div', 'font-size:13px;font-weight:700;color:#1A2E42;margin-top:4px;', o.title));
         wrap.appendChild(el('div', 'font-size:12px;color:#4B5A6D;word-break:break-all;margin-top:2px;', o.url));
         var dl = el('a', 'display:inline-block;margin-top:10px;font-size:14px;font-weight:700;color:#1F699E;', 'Download PNG');
         dl.href = c.toDataURL('image/png'); dl.download = (o.fileName || 'qr-code') + '.png';
