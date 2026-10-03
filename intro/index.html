@@ -269,10 +269,110 @@
     return gpBlock('Which languages do you speak?', 'So people know they can talk to you in theirs.', wrap);
   }
 
+  var GP_STAGE_LIST = [
+    ['Analyzing', '\u{1F4CA}', 'p', 'researching, investigating, interviewing, comparing'],
+    ['Designing', '\u{1F3A8}', 'p', 'imagining, sketching, outlining, setting goals'],
+    ['Modeling', '\u{1F9E9}', 'p', 'prototyping, mocking up, simulating, diagramming'],
+    ['Planning', '\u{1F5C2}', 'p', 'organizing, scheduling, budgeting, prioritizing'],
+    ['Funding', '\u{1F4B0}', 'p', 'fundraising, investing, pitching, lending'],
+    ['Sourcing', '\u{1F50D}', 'p', 'gathering materials, finding suppliers, finding people, finding spaces'],
+    ['Making', '\u{1F6E0}\uFE0F', 'p', 'building, crafting, constructing, creating'],
+    ['Manufacturing', '\u{1F3ED}', 'p', 'producing, assembling, fabricating, processing'],
+    ['Testing', '\u{1F9EA}', 'p', 'checking quality, piloting, reviewing drafts, experimenting'],
+    ['Delivering', '\u{1F69A}', 'p', 'packaging, shipping, installing, launching'],
+    ['Demonstrating', '\u{1F4DA}', 'p', 'teaching, training, showing, explaining'],
+    ['Promoting', '\u{1F4E3}', 'p', 'storytelling, writing, photographing, marketing'],
+    ['Supporting', '\u{1F6DF}', 'p', 'helping, guiding, answering questions, troubleshooting'],
+    ['Repairing', '\u{1F527}', 'p', 'fixing, maintaining, restoring, mending'],
+    ['Evaluating', '\u2705', 'p', 'measuring results, assessing, surveying, reflecting'],
+    ['Improving', '\u{1F4C8}', 'p', 'listening, refining, iterating, updating'],
+    ['Repurposing', '\u267B\uFE0F', 'p', 'recycling, reselling, reusing, passing on'],
+    ['Advising', '\u{1F9ED}', 'a', 'consulting, advising, mentoring, recommending'],
+    ['Facilitating', '\u{1F300}', 'a', 'coaching, connecting, mediating, convening'],
+    ['Caring', '\u{1F33F}', 'a', 'healing, comforting, nurturing, tending']
+  ];
+  var _gpStageOpen = false;
+  var GP_METHOD_OLD = { 'organizing and planning': ['Planning'], 'repairing and fixing': ['Repairing'], 'demonstrating what i know': ['Demonstrating'], 'consulting and advising': ['Advising'], 'facilitating and coaching': ['Facilitating'], 'making and designing': ['Making', 'Designing'], 'caring and healing': ['Caring'], 'finding problems to fix': ['Analyzing'], 'diagnosing and treating': ['Caring'] };
+  function gpMethodsNorm(){
+    var names = {}; GP_STAGE_LIST.forEach(function(s){ names[s[0].toLowerCase()] = s[0]; });
+    Object.keys(_gpMethodPicked).forEach(function(k){
+      if (!_gpMethodPicked[k]) { delete _gpMethodPicked[k]; return; }
+      var bare = String(k).replace(/^[^A-Za-z]+/, '').trim().toLowerCase();
+      if (names[bare]) { if (names[bare] !== k) { delete _gpMethodPicked[k]; _gpMethodPicked[names[bare]] = true; } return; }
+      var to = GP_METHOD_OLD[bare];
+      if (to) { delete _gpMethodPicked[k]; to.forEach(function(n){ _gpMethodPicked[n] = true; }); }
+    });
+  }
+  function gpStagesBody(){
+    var body = document.createElement('div');
+    var paint = function(){
+      gpMethodsNorm();
+      body.innerHTML = '';
+      var names = GP_STAGE_LIST.filter(function(s){ return _gpMethodPicked[s[0]]; }).map(function(s){ return s[0]; });
+      var head = document.createElement('div');
+      head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;';
+      var left = document.createElement('div');
+      left.style.cssText = 'display:flex;flex-wrap:wrap;gap:7px;min-width:0;';
+      if (names.length) {
+        names.forEach(function(n){
+          var c = document.createElement('span');
+          c.textContent = n;
+          c.style.cssText = 'font-size:13.5px;font-weight:700;padding:7px 14px;border-radius:20px;background:#1F699E;border:1px solid #1F699E;color:#fff;';
+          left.appendChild(c);
+        });
+      } else {
+        var none = document.createElement('span');
+        none.textContent = 'Nothing chosen yet.';
+        none.style.cssText = 'font-size:13.5px;color:#4B5A6D;';
+        left.appendChild(none);
+      }
+      var tg = document.createElement('button');
+      tg.type = 'button';
+      tg.setAttribute('aria-expanded', _gpStageOpen ? 'true' : 'false');
+      tg.textContent = _gpStageOpen ? 'Hide choices ▴' : (names.length ? 'Change choices ▾' : 'Show all ' + GP_STAGE_LIST.length + ' ▾');
+      tg.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:7px 14px;border-radius:20px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;margin-left:auto;flex-shrink:0;';
+      tg.onclick = function(){ _gpStageOpen = !_gpStageOpen; paint(); };
+      head.appendChild(left); head.appendChild(tg);
+      body.appendChild(head);
+      if (_gpStageOpen) {
+        var mk = function(group){
+          var grid = document.createElement('div');
+          grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:12px;margin-top:12px;';
+          GP_STAGE_LIST.filter(function(s){ return s[2] === group; }).forEach(function(s){
+            var on = !!_gpMethodPicked[s[0]];
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+            b.style.cssText = 'font:inherit;text-align:left;cursor:pointer;color:#1A2E42;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;'
+              + (on ? 'background:#EAF4FB;border:1.5px solid #1F699E;box-shadow:inset 0 0 0 1px #1F699E;' : 'background:#fff;border:1.5px solid #DDE3EA;');
+            var top = document.createElement('div');
+            top.style.cssText = 'display:flex;gap:8px;align-items:center;width:100%;';
+            var e = document.createElement('span'); e.textContent = s[1]; e.style.cssText = 'font-size:20px;line-height:1;';
+            var w = document.createElement('span'); w.textContent = s[0]; w.style.cssText = 'font-weight:800;font-size:16px;';
+            var t = document.createElement('span'); t.textContent = '✓';
+            t.style.cssText = 'margin-left:auto;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;'
+              + (on ? 'background:#1F699E;border:1.5px solid #1F699E;color:#fff;' : 'border:1.5px solid #DDE3EA;');
+            top.appendChild(e); top.appendChild(w); top.appendChild(t);
+            var v = document.createElement('div'); v.textContent = s[3]; v.style.cssText = 'font-size:12.5px;color:#6B7A8D;';
+            b.appendChild(top); b.appendChild(v);
+            b.onclick = function(){ if (_gpMethodPicked[s[0]]) delete _gpMethodPicked[s[0]]; else _gpMethodPicked[s[0]] = true; paint(); try { if (window.gpMethodsChanged) window.gpMethodsChanged(); } catch (e2) {} };
+            grid.appendChild(b);
+          });
+          return grid;
+        };
+        body.appendChild(mk('p'));
+        var rule = document.createElement('div');
+        rule.style.cssText = 'height:0;border-top:1px solid #DDE3EA;margin:18px 0 6px;';
+        body.appendChild(rule);
+        body.appendChild(mk('a'));
+      }
+    };
+    window._gpPaintMethods = paint;
+    paint();
+    return body;
+  }
   function gpMethodsBlock(){
-    return gpBlock('What comes most naturally to you?',
-      'How you like to help, rather than what you know.',
-      gpPickRow(GP_METHODS, _gpMethodPicked, 0).row);
+    return gpBlock('What comes most naturally to you?', 'How you like to help, rather than what you know.', gpStagesBody());
   }
 
   
@@ -1325,6 +1425,7 @@
         });
         String(have.languages || '').split(/[|,]/).forEach(function(l){ var v = String(l).trim(); if (v) _gpLangPicked[v] = true; });
         String(have.methods || '').split('|').forEach(function(m){ var v = String(m).trim(); if (v) _gpMethodPicked[v] = true; });
+        try { gpMethodsNorm(); if (window._gpPaintMethods) window._gpPaintMethods(); } catch (e) {}
         String(have.appreciation || '').split('|').forEach(function(m){ var v = String(m).trim(); if (v) _gpThanksPicked[v] = true; });
         window._ioLocText = String(have.location || '').trim();
         ioLocFrom(window._ioLocText, have);
