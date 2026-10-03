@@ -62,15 +62,18 @@
   .nm{font-size:16px;font-weight:800;line-height:1.3;}
   .path{font-size:12.5px;font-weight:700;color:var(--blue);margin:3px 0 0;}
   .x{font:inherit;font-size:17px;line-height:1;border:0;background:none;cursor:pointer;color:var(--muted);padding:0 2px;}
-  .cap{font-size:12px;font-weight:800;color:var(--muted);margin:12px 0 6px;}
+  .cap{font-size:12px;font-weight:800;color:var(--ink);margin:12px 0 6px;}
   .lv{display:flex;flex-wrap:wrap;gap:6px;}
   .pill{font:inherit;font-size:13px;font-weight:700;background:#fff;color:var(--blue);border:1.5px solid var(--line);border-radius:18px;padding:5px 11px;cursor:pointer;white-space:nowrap;}
   .pill.on{background:var(--blue);color:#fff;border-color:var(--blue);}
   .pill.fixed{background:var(--blue);color:#fff;border-color:var(--blue);cursor:default;}
   .way{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;line-height:1.35;margin:0 0 6px;cursor:pointer;}
   .way input{margin:2px 0 0;accent-color:var(--blue);}
-  .show{display:flex;gap:8px;align-items:center;font-size:13.5px;font-weight:700;margin-top:10px;cursor:pointer;color:var(--ink);}
-  .show input{accent-color:var(--blue);}
+  .show{display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:13.5px;font-weight:700;margin-top:12px;color:var(--ink);}
+  .sw{flex-shrink:0;width:48px;height:28px;border-radius:14px;border:0;cursor:pointer;position:relative;background:#C9D3DE;padding:0;}
+  .sw.on{background:#1F699E;}
+  .sw .knob{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s;}
+  .sw.on .knob{left:23px;}
   .wait{font-size:14px;color:var(--grey);}
   button:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
 </style>
@@ -141,8 +144,12 @@
   function pick(word, area){
     var ix = mineIx(word);
     if (ix > -1) { dropMine(ix); return; }
-    st.mine.push({ word: word, area: area });
+    addMine(word, area);
     emit(); drawAll();
+  }
+  function addMine(word, area){
+    st.mine.push({ word: word, area: area });
+    var a = getA(word); a.showOnProfile = true; putA(word, a);
   }
   function dropMine(ix){
     var m = st.mine.splice(ix, 1)[0];
@@ -201,7 +208,7 @@
       var area = hit ? areaOf(hit) : (node ? areaOf(node) : 'Other');
       var name = hit ? hit.word : w;
       st.other = false; st.q = ''; els.search.value = '';
-      if (!has(name)) { st.mine.push({ word: name, area: area }); emit(); }
+      if (!has(name)) { addMine(name, area); emit(); }
       drawAll();
     };
     add.addEventListener('click', go);
@@ -298,13 +305,16 @@
       });
       lab.appendChild(cb); lab.appendChild(el('span', '', w[1])); c.appendChild(lab);
     });
-    var sl = el('label', 'show'), sc = document.createElement('input'); sc.type = 'checkbox'; sc.checked = a0.showOnProfile === true;
-    sc.addEventListener('change', function(){
-      var a = getA(m.word);
-      if (sc.checked) a.showOnProfile = true; else delete a.showOnProfile;
+    var sl = el('div', 'show'), son = a0.showOnProfile === true, sw = el('button', 'sw' + (son ? ' on' : ''));
+    sw.type = 'button'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', son ? 'true' : 'false'); sw.setAttribute('aria-label', 'Show ' + m.word + ' on my profile');
+    sw.appendChild(el('span', 'knob'));
+    sw.addEventListener('click', function(){
+      var a = getA(m.word), now = a.showOnProfile !== true;
+      if (now) a.showOnProfile = true; else delete a.showOnProfile;
       putA(m.word, a);
+      sw.classList.toggle('on', now); sw.setAttribute('aria-checked', now ? 'true' : 'false');
     });
-    sl.appendChild(sc); sl.appendChild(el('span', '', 'Show on my profile')); c.appendChild(sl);
+    sl.appendChild(el('span', '', 'Show on my profile')); sl.appendChild(sw); c.appendChild(sl);
     return c;
   }
 
@@ -319,7 +329,6 @@
     wrap.appendChild(bar);
     if (!shut) {
       var body = el('div', 'foldbody');
-      body.appendChild(el('p', 'privacy', 'Only you can see these. They are used to find people, events and groups that fit. Turn on Show on my profile for any you want others to see.'));
       var g = el('div', 'cards');
       st.mine.forEach(function(m){ g.appendChild(card(m)); });
       body.appendChild(g);
