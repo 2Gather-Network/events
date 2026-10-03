@@ -35,7 +35,7 @@
   h1{font-size:24px;font-weight:800;margin:0;line-height:1.25;}
   .lede{font-size:15px;color:var(--soft);margin:10px 0 22px;line-height:1.55;}
   .q{font-size:16px;font-weight:700;color:var(--ink);margin:22px 0 6px;}
-  input[type=text]{width:100%;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:15px;color:var(--ink);background:#F7F9FC;}
+  input[type=text],input[type=email]{width:100%;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:15px;color:var(--ink);background:#F7F9FC;}
   input:focus{outline:none;border-color:var(--brand);background:#fff;}
   .invitees{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
   .invitee{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--panel-line);border-radius:22px;padding:5px 12px 5px 5px;font-size:14px;color:var(--ink);}
@@ -67,22 +67,21 @@
 </head>
 <body>
 <div class="wrap">
+  <div class="breadcrumb"><a role="link" tabindex="0" data-nav="https://2gather.network/mygroups/" onclick="return _safeNavGo(this)">My groups</a> / <a role="link" tabindex="0" id="crumb-group" onclick="return _safeNavGo(this)">Group</a> / <span class="now">Invite people</span></div>
   <div class="card">
     <h1 id="page-title">Invite people</h1>
-    <p class="lede">Add people you already know. They'll get an invitation to join. Skip this and invite from inside the group later.</p>
+    <p class="lede">Type their email address and we'll send them an invitation from 2Gather with the group's link and passcode.</p>
 
-    <div class="q">Find people by name:</div>
-    <input type="text" id="lookup-input" placeholder="Start typing a name…" autocomplete="off">
-    <div class="lookup-results" id="lookup-results"></div>
-
-    <div class="q">Invited (<span id="invitee-count">0</span>):</div>
-    <div class="invitees" id="invitees-list"></div>
+    <div class="q">Their first name</div>
+    <input type="text" id="inv-first" placeholder="Their first name" maxlength="60" autocomplete="off">
+    <div class="q">Their email address</div>
+    <input type="email" id="inv-email" placeholder="name@example.com" autocomplete="off">
 
     <div id="save-status" class="status"></div>
 
     <div class="actions">
       <a class="btn ghost" id="skip-btn" role="link" tabindex="0" onclick="return _safeNavGo(this)">Done for now</a>
-      <button class="btn" id="send-btn" disabled>Send invitations</button>
+      <button class="btn" id="send-btn">Send invitation</button>
     </div>
   </div>
 
@@ -122,6 +121,7 @@
   function _withRef(url) { return (window.CW && CW.withRef) ? CW.withRef(url) : url; }
   var groupHref = _withRef('https://2gather.network/group/?id=' + encodeURIComponent(groupId));
   document.getElementById('skip-btn').setAttribute('data-nav', groupHref);
+  document.getElementById('crumb-group').setAttribute('data-nav', groupHref);
 
   if (!groupId) {
     document.querySelector('.card').innerHTML = '<h1>Missing group.</h1><p class="lede">This page needs <code>?id=&lt;groupId&gt;</code>. Start a group first.</p>'
@@ -140,10 +140,12 @@
       if (d && d.group && d.group.slug && !window.CW_GROUP_SLUG) {
         groupHref = _withRef(window.cwGroupLink(d.group.slug, groupId));
         document.getElementById('skip-btn').setAttribute('data-nav', groupHref);
+        document.getElementById('crumb-group').setAttribute('data-nav', groupHref);
         window._drawInviteQr();
       }
       var nm = (d && d.group && d.group.name) || '';
       if (nm) document.getElementById('page-title').textContent = 'Invite people to ' + nm;
+      if (nm) document.getElementById('crumb-group').textContent = nm;
       if (nm) document.getElementById('qr-lede').textContent = 'Anyone who scans it opens ' + nm + '\u2019s page, where they can ask to join.';
     })
     .catch(function(){});
@@ -171,105 +173,6 @@
   };
   if (window.CW_GROUP_SLUG) { groupHref = _withRef(window.cwGroupLink(window.CW_GROUP_SLUG, groupId)); document.getElementById('skip-btn').setAttribute('data-nav', groupHref); }
   window._drawInviteQr();
-
-  var lookupInput = document.getElementById('lookup-input');
-  var lookupResults = document.getElementById('lookup-results');
-  var invitees = [];
-  var _lookupTimer = null;
-
-  function renderInvitees(){
-    var list = document.getElementById('invitees-list');
-    list.innerHTML = '';
-    invitees.forEach(function(p, idx){
-      var chip = document.createElement('div');
-      chip.className = 'invitee';
-      var av = document.createElement('span'); av.className = 'av';
-      if (p.photo) av.innerHTML = '<img src="' + p.photo + '" alt="">';
-      else av.textContent = String(p.first || p.name || '?').charAt(0).toUpperCase();
-      var nm = document.createElement('span'); nm.className = 'name';
-      nm.textContent = p.first || p.name || p.appearId;
-      var role = document.createElement('span'); role.className = 'role';
-      if (p.role) role.textContent = '· ' + p.role;
-      var x = document.createElement('span'); x.className = 'x'; x.textContent = '×';
-      x.addEventListener('click', function(){
-        invitees.splice(idx, 1); renderInvitees();
-      });
-      chip.appendChild(av); chip.appendChild(nm);
-      if (p.role) chip.appendChild(role);
-      chip.appendChild(x);
-      list.appendChild(chip);
-    });
-    document.getElementById('invitee-count').textContent = invitees.length;
-    document.getElementById('send-btn').disabled = invitees.length === 0;
-  }
-  renderInvitees();
-
-  lookupInput.addEventListener('input', function(){
-    var q = lookupInput.value.trim();
-    if (_lookupTimer) clearTimeout(_lookupTimer);
-    if (q.length < 3) { lookupResults.classList.remove('on'); lookupResults.innerHTML = ''; return; }
-    lookupResults.innerHTML = '<div class="lookup-item" style="cursor:default;color:var(--muted);">Searching…</div>';
-    lookupResults.classList.add('on');
-    _lookupTimer = setTimeout(function(){
-      fetch(GS_URL + '?action=findPeople&q=' + encodeURIComponent(q)
-        + '&groupId=' + encodeURIComponent(groupId)
-        + '&hostAppearId=' + encodeURIComponent(meId))
-        .then(function(r){ return r.json(); })
-        .then(function(matches){
-          lookupResults.innerHTML = '';
-          var arr = Array.isArray(matches) ? matches : (matches && matches.matches) || [];
-          var _err = (!Array.isArray(matches) && matches && matches.status === 'error') ? matches.message : '';
-          var _notBuilt = !Array.isArray(matches) && !!matches && matches.matches === undefined && !_err;
-          if (_err) {
-            lookupResults.innerHTML = '';
-            var _e = document.createElement('div');
-            _e.className = 'lookup-item';
-            _e.setAttribute('style', 'cursor:default;color:var(--muted);');
-            _e.textContent = _err;
-            lookupResults.appendChild(_e);
-          } else if (_notBuilt) {
-            lookupResults.innerHTML = '<div class="lookup-item" style="cursor:default;color:var(--muted);">'
-              + 'Searching by name is not switched on yet, so this finds nobody. It is not that they are missing.</div>';
-          } else if (!arr.length) {
-            lookupResults.innerHTML = '<div class="lookup-item" style="cursor:default;color:var(--muted);">No matches for "' + q + '"</div>';
-          } else {
-            arr.slice(0, 8).forEach(function(p){
-              if (invitees.some(function(x){ return x.appearId === p.appearId; })) return;
-              var item = document.createElement('div');
-              item.className = 'lookup-item';
-              var av = document.createElement('span'); av.className = 'av';
-              if (p.photo) av.innerHTML = '<img src="' + p.photo + '" alt="">';
-              else av.textContent = String(p.first || p.name || '?').charAt(0).toUpperCase();
-              var who = document.createElement('span'); who.className = 'who';
-              who.textContent = (p.first || p.name || p.appearId) + (p.role ? ' · ' + p.role : '');
-              var add = document.createElement('span'); add.className = 'add';
-              if (p.inGroup) {
-                add.textContent = 'Already in this group';
-                add.style.color = 'var(--muted)';
-                item.style.cursor = 'default';
-                item.style.opacity = '.7';
-                item.appendChild(av); item.appendChild(who); item.appendChild(add);
-                lookupResults.appendChild(item);
-                return;
-              }
-              add.textContent = '+ Add';
-              item.appendChild(av); item.appendChild(who); item.appendChild(add);
-              item.addEventListener('click', function(){
-                invitees.push(p);
-                lookupInput.value = ''; lookupResults.classList.remove('on'); lookupResults.innerHTML = '';
-                renderInvitees();
-              });
-              lookupResults.appendChild(item);
-            });
-          }
-          lookupResults.classList.add('on');
-        })
-        .catch(function(){
-          lookupResults.innerHTML = '<div class="lookup-item" style="cursor:default;color:var(--muted);">Lookup unavailable — try again in a moment.</div>';
-          lookupResults.classList.add('on');
-        });
-    }, 220);
-  });
 
   var statusEl = document.getElementById('save-status');
   var sendBtn = document.getElementById('send-btn');
@@ -317,36 +220,36 @@
   }
   loadSent();
 
+  function _adminTok(){
+    var keys = ['cw_admin_' + groupId + '_' + String(meId || '').split('.').join('').toLowerCase(), 'cw_admin_super_' + meId];
+    for (var k = 0; k < keys.length; k++) {
+      try { var o = JSON.parse(localStorage.getItem(keys[k]) || 'null'); if (o && o.token && o.expiresAt > Date.now()) return o.token; } catch (e) {}
+    }
+    return '';
+  }
   sendBtn.addEventListener('click', function(){
-    if (!invitees.length) return;
+    var first = (document.getElementById('inv-first').value || '').trim();
+    var to = (document.getElementById('inv-email').value || '').trim();
+    if (!to) { showStatus('err', 'Type their email address.'); return; }
+    if (/[,;\s]/.test(to) || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) { showStatus('err', 'Type one email address, like name@example.com.'); return; }
     sendBtn.disabled = true;
-    showStatus('ok', 'Sending invitations…');
-    var ids = invitees.map(function(p){ return p.appearId; }).join('|');
-    var url = GS_URL + '?action=inviteToGroup'
-      + '&groupId=' + encodeURIComponent(groupId)
-      + '&invitedById=' + encodeURIComponent(meId)
-      + '&appearIds=' + encodeURIComponent(ids);
-    fetch(url)
+    showStatus('ok', 'Sending\u2026');
+    fetch(GS_URL + '?action=sendGroupInvite&groupId=' + encodeURIComponent(groupId)
+      + '&hostAppearId=' + encodeURIComponent(meId)
+      + '&sessionToken=' + encodeURIComponent(_adminTok())
+      + '&toEmail=' + encodeURIComponent(to) + '&toName=' + encodeURIComponent(first))
       .then(function(r){ return r.json(); })
       .then(function(d){
+        sendBtn.disabled = false;
         if (d && d.status === 'ok') {
-          var _n = (d.sent === undefined) ? invitees.length : d.sent;
-          var _sk = d.skipped || 0;
-          showStatus('ok', _n + (_n === 1 ? ' invitation sent' : ' invitations sent')
-            + (_sk ? ', ' + _sk + ' already invited' : '') + '.');
-          invitees.length = 0;
-          renderInvitees();
-          loadSent();
+          showStatus('ok', 'Invitation sent to ' + to + '.');
+          document.getElementById('inv-email').value = '';
+          document.getElementById('inv-first').value = '';
         } else {
-          sendBtn.disabled = false;
-          var msg = (d && d.message) ? d.message : 'Those invitations did not send. Your list is still here, so press Send invitations again.';
-          showStatus('err', msg);
+          showStatus('err', (d && d.message) ? d.message : 'That did not go through. Try again.');
         }
       })
-      .catch(function(){
-        sendBtn.disabled = false;
-        showStatus('err', 'Those invitations did not send. Your list is still here, so press Send invitations again.');
-      });
+      .catch(function(){ sendBtn.disabled = false; showStatus('err', 'Could not reach the server. Try again in a moment.'); });
   });
 })();
 </script>
