@@ -268,7 +268,7 @@
   };
   var SHORT = { with: 'Solo or with others?', how: 'Fan or I do it?', who: 'In service to', level: 'Your level', gives: 'What would it give you?', kind: 'Skill, thing or space?', work: 'Open to work?', lens: 'Social or ecological?', cat: 'Tags' };
   var FIT = { enjoy: 'I enjoy it', skill: 'I can do it', care: 'I care about it', seek: 'I\u2019m seeking it', offer: 'I can offer it' };
-  var TAG = { enjoy: 'joy', skill: 'skill', care: 'care', seek: 'seeking', offer: 'offering' };
+  var TAG = { enjoy: 'joy', skill: 'skill', care: 'care', seek: 'seeking', offer: 'offering', interest: 'interest' };
 
   var SAMPLE = [
     { word: 'Clean Air', tags: ['care'], cat: 'Ecological', a: { who: ['In service to another'], serveWhat: ['People', 'Other'] } },
@@ -300,7 +300,7 @@
     return n;
   }
   function needs(it){
-    var n = [], other = (it.tags || []).some(function(t){ return t !== 'care'; });
+    var n = [], other = (it.tags || []).some(function(t){ return t !== 'care' && t !== 'interest'; });
     if (has(it, 'enjoy')) n.push('how');
     if (has(it, 'skill')) { n.push('level'); n.push('workOpen'); }
     if (has(it, 'offer') && it.thing && it.kind) n.push('ocat');
@@ -903,7 +903,7 @@
   var aoShut = false;
   var DENSE = !/[?&]dense=0\b/.test(location.search), aoMore = false;
   var FITP = (location.search.match(/[?&]fit=(enjoy|skill|care|offer)\b/) || [])[1] || '';
-  var FITKEY = { enjoy: 'introEnjoy', skill: 'introSkills', care: 'introValues', seek: 'introNeed', offer: 'introOffer' };
+  var FITKEY = { enjoy: 'introEnjoy', skill: 'introSkills', care: 'introValues', seek: 'introNeed', offer: 'introOffer', interest: 'introInterest' };
   var OFFERCATS = { thing: [], space: [] };
   if (FITP) document.documentElement.classList.add('ao-fit');
   function careCat(it){ if (!it || it.cat || (it.tags || []).indexOf('care') < 0) return; var c = VALCAT[String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase()]; if (c) it.cat = c; }
@@ -920,10 +920,11 @@
     }
     var out = [], byWord = {}, tags = hand.tags || {}, saved = hand.saved || {};
     var split = function(s){ return String(s || '').split(/[,\n;]+/).map(function(x){ return x.trim(); }).filter(Boolean); };
-    [['introEnjoy', 'enjoy'], ['introValues', 'care'], ['introSkills', 'skill'], ['introOffer', 'offer'], ['introNeed', 'seek']].forEach(function(p){
+    [['introEnjoy', 'enjoy'], ['introValues', 'care'], ['introSkills', 'skill'], ['introOffer', 'offer'], ['introNeed', 'seek'], ['introInterest', 'interest']].forEach(function(p){
       var t = tags[p[0]] || {}, sv = saved[p[0]] || {};
       split(hand[p[0]]).forEach(function(w){
-        var cat = t[w] || '', mine = sv[w] || {};
+        var cat = t[w] || '', mine = sv[w] || {}, iarea = '';
+        if (p[1] === 'interest') { iarea = cat; cat = ''; }
         if (/^(arts|style)$/i.test(cat)) cat = 'Arts & Expression';
         if (mine.cat) mine.cat = mine.cat.map(function(x){ return /^(arts|style)$/i.test(x) ? 'Arts & Expression' : x; });
         if (p[1] === 'care' && !/^(social|ecological)$/i.test(cat)) cat = '';
@@ -940,6 +941,7 @@
           out.push(it);
         } else if (!it.cat && cat) { it.cat = cat; it.oldCat = ''; }
         if (it.tags.indexOf(p[1]) < 0) it.tags.push(p[1]);
+        if (iarea) it.iarea = iarea;
         if (p[1] === 'skill') it.inSkills = true;
         if (p[1] === 'enjoy' && mine.canDo && it.tags.indexOf('skill') < 0) it.tags.push('skill');
         if (mine.how && !(it.a.how && it.a.how.length)) it.a.how = mine.how.slice();
@@ -1157,7 +1159,9 @@
   var told = false;
   function tellCount(){ if (!EMBED) return; var left = items.filter(function(x){ return missing(x).length; }).length; try { parent.postMessage({ ao: 'count', left: left, total: items.length }, location.origin); } catch (e) {} }
   function tell(){ if (!EMBED || !told || openIx > -1 || editIx > -1) return; var left = items.filter(function(x){ return missing(x).length; }).length; try { parent.postMessage({ ao: 'done', left: left, total: items.length }, location.origin); } catch (e) {} }
+  function interestOnly(it){ return (it.tags || []).length === 1 && it.tags[0] === 'interest'; }
   function catLine(it){
+    if (interestOnly(it)) return it.iarea || '';
     var c = (it.a.cat && it.a.cat.length) ? it.a.cat.join(', ') : it.cat;
     if (!c) return it.thing ? '' : (it.oldCat ? it.oldCat + ', we think' : 'Not tagged yet');
     return c + (it.guess && !(it.a.cat && it.a.cat.length) ? ', we think' : '');
@@ -1315,7 +1319,7 @@
       st.addEventListener('change', function(){ aoNeed = st.value === 'detail'; aoSort = aoNeed ? 'new' : st.value; draw(); });
       q.addEventListener('input', function(){ aoFind = String(q.value || '').trim().toLowerCase(); draw(); });
       var chips = el('div', 'chips');
-      [['all', 'All'], ['enjoy', 'Joys'], ['care', 'Cares'], ['skill', 'Skills'], ['offer', 'Offerings'], ['seek', 'Seeking']].forEach(function(f){
+      [['all', 'All'], ['interest', 'Interests'], ['enjoy', 'Joys'], ['care', 'Cares'], ['skill', 'Skills'], ['offer', 'Offerings'], ['seek', 'Seeking']].forEach(function(f){
         var b = el('button', f[0] === aoKind ? 'on' : '', f[1]); b.type = 'button'; b.setAttribute('data-f', f[0]);
         b.addEventListener('click', function(){ aoKind = f[0]; Array.prototype.forEach.call(chips.children, function(x){ x.classList.toggle('on', x.getAttribute('data-f') === aoKind); }); draw(); });
         chips.appendChild(b);
@@ -1390,7 +1394,7 @@
       var c = el('div', 'c ' + (ix === openIx ? 'open' : ok ? 'ok' : 'more'));
       var tr = el('div', 'tr');
       if (ix === openIx) { var xo = el('button', 'pen x', '\u2715'); xo.type = 'button'; xo.title = 'Later'; xo.addEventListener('click', function(){ openIx = -1; restMode = false; draw(); }); tr.appendChild(xo); }
-      if (ix !== openIx) { var pen = el('button', 'pen', '✏️'); pen.type = 'button'; pen.title = 'Edit'; pen.addEventListener('click', function(){ startEdit(ix); }); tr.appendChild(pen); }
+      if (ix !== openIx && !interestOnly(it)) { var pen = el('button', 'pen', '✏️'); pen.type = 'button'; pen.title = 'Edit'; pen.addEventListener('click', function(){ startEdit(ix); }); tr.appendChild(pen); }
       if (ok) tr.appendChild(el('div', 'mark', '✓'));
       if (INPANE && !FITP && !EMBED && ix !== openIx) { var xa = el('button', 'pen x', '\u2715'); xa.type = 'button'; xa.title = 'Delete'; xa.setAttribute('aria-label', 'Delete ' + it.word); xa.addEventListener('click', function(){ delAsk = ix; draw(); }); tr.appendChild(xa); }
       if (FITP && ix !== openIx) { var xr = el('button', 'pen x', '\u2715'); xr.type = 'button'; xr.title = 'Remove'; xr.setAttribute('aria-label', 'Remove ' + it.word); xr.addEventListener('click', function(){ toParent({ ao: 'drop', key: FITKEY[FITP], word: it.word }); }); tr.appendChild(xr); }
