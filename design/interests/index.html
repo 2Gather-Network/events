@@ -161,9 +161,24 @@
     toParent({ ao: 'details', word: word, a: filled ? a : null });
   }
 
+  function below(n){ var out = []; (n.kids || []).forEach(function(k){ out.push(k); out = out.concat(below(k)); }); return out; }
+  function above(n){ var out = [], at = n.parents && n.parents[0], g = 0; while (at && g++ < 12) { out.push(at); at = at.parents[0]; } return out; }
+  function dropQuiet(word){
+    var ix = mineIx(word); if (ix < 0) return;
+    var m = st.mine.splice(ix, 1)[0], a = getA(m.word);
+    var ways = (a.careWays || []).filter(function(c){ return c.indexOf('connect:') !== 0; });
+    if (ways.length) a.careWays = ways; else delete a.careWays;
+    delete a.showOnProfile;
+    putA(m.word, a);
+  }
   function pick(word, area){
     var ix = mineIx(word);
     if (ix > -1) { dropMine(ix); return; }
+    var node = st.byName[lc(word)];
+    if (node && !node.extra) {
+      if (node.kids.length) below(node).forEach(function(k){ dropQuiet(k.word); });
+      above(node).forEach(function(p){ dropQuiet(p.word); });
+    }
     addMine(word, area);
     emit(); drawAll();
   }
@@ -253,7 +268,11 @@
       var on = st.drill[node.id] === n.id, lit = has(n.word) || under(n);
       var b = el('button', 'pick' + (lit ? ' on' : '') + (on ? ' open' : ''), n.word);
       b.type = 'button'; b.setAttribute('aria-expanded', on ? 'true' : 'false');
-      b.addEventListener('click', function(){ st.drill[node.id] = on ? null : n.id; drawBrowse(); });
+      b.addEventListener('click', function(){
+        if (on) { st.drill[node.id] = null; drawBrowse(); return; }
+        st.drill[node.id] = n.id;
+        if (!has(n.word) && !under(n)) { addMine(n.word, areaOf(n)); emit(); drawAll(); } else drawBrowse();
+      });
       r.appendChild(b);
       if (on) openKid = n;
     });
