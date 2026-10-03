@@ -1,5 +1,5 @@
 (function(){
-  var SECTION_OF_VIEW = { members: 'members', events: 'events', intro: 'introductions', messages: 'messages', invites: 'invites' };
+  var SECTION_OF_VIEW = { feed: 'matches', members: 'members', events: 'events', intro: 'introductions', messages: 'messages', invites: 'invites' };
   window.cwGroupAddress = function(slug, section){
     try {
       slug = String(slug || '').split(',')[0].trim();
