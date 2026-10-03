@@ -91,10 +91,10 @@
   .way{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;line-height:1.35;margin:0 0 6px;cursor:pointer;}
   .way input{margin:2px 0 0;accent-color:var(--blue);}
   .show{display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:13.5px;font-weight:700;margin-top:12px;color:var(--ink);}
-  .sw{flex-shrink:0;width:48px;height:28px;border-radius:14px;border:0;cursor:pointer;position:relative;background:#C9D3DE;padding:0;}
+  .sw{flex-shrink:0;width:38px;height:22px;border-radius:11px;border:0;cursor:pointer;position:relative;background:#C9D3DE;padding:0;}
   .sw.on{background:#1F699E;}
-  .sw .knob{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s;}
-  .sw.on .knob{left:23px;}
+  .sw .knob{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;}
+  .sw.on .knob{left:19px;}
   .wait{font-size:14px;color:var(--grey);}
   button:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
 </style>
@@ -184,7 +184,7 @@
     emit(); drawAll();
   }
   function addMine(word, area){
-    setNone(area, false);
+    setNone(String(area).split(' > ')[0], false);
     st.mine.push({ word: word, area: area });
     var a = getA(word); a.showOnProfile = true; putA(word, a);
   }
@@ -224,12 +224,21 @@
         if (!n.kids || !n.kids.length) b.addEventListener('click', clearQ);
         g.appendChild(b);
       });
+      var tl = lc(clean(st.q));
+      var target = hits.filter(function(n){ return lc(n.word) === tl; })[0] || hits.filter(function(n){ return n.kids && n.kids.length; })[0] || hits[0];
+      var om = otherRow(target, '', 'm');
+      if (om.className === 'pick other') g.appendChild(om);
       box.appendChild(g);
+      if (om.className !== 'pick other') box.appendChild(om);
       hits.filter(function(n){ return n.kids && n.kids.length; }).slice(0, 3).forEach(function(n){
         var sub = el('div', 'sub'), r = el('div', 'row');
         sub.appendChild(el('div', 'subh', n.word));
         below(n).forEach(function(k){ if (shownIds[k.id]) return; shownIds[k.id] = 1; var kb = pillFor(k); kb.addEventListener('click', clearQ); r.appendChild(kb); });
-        if (r.children.length) { sub.appendChild(r); box.appendChild(sub); }
+        var os = otherRow(n, '', 's');
+        if (os.className === 'pick other') r.appendChild(os);
+        sub.appendChild(r);
+        if (os.className !== 'pick other') sub.appendChild(os);
+        box.appendChild(sub);
       });
     }
     var typed = cap(clean(st.q));
@@ -245,12 +254,13 @@
     }
   }
 
-  function otherRow(node, preset){
-    var wrap = el('div', ''), key = node ? node.id : '_';
+  function assocArea(node){ if (!node) return 'Other'; var root = areaOf(node); return (node.parents && node.parents.length) ? root + ' > ' + node.word : root; }
+  function otherRow(node, preset, tag){
+    var wrap = el('div', ''), key = (node ? node.id : '_') + (tag || '');
     var open = st.other === key || !!preset;
     if (!open) {
       var ob = el('button', 'pick other', '+ Other'); ob.type = 'button';
-      ob.addEventListener('click', function(){ st.other = key; drawBrowse(); var i = els.browse.querySelector('.otherbox input'); if (i) i.focus(); });
+      ob.addEventListener('click', function(){ st.other = key; drawAll(); var i = document.querySelector('.otherbox input'); if (i) i.focus(); });
       return ob;
     }
     var row = el('div', 'otherbox'), inp = el('input'); inp.type = 'text'; inp.maxLength = 60; inp.placeholder = 'Type an interest'; inp.setAttribute('aria-label', 'Type an interest');
@@ -259,7 +269,7 @@
     var go = function(){
       var w = cap(clean(inp.value)); if (!w) return;
       var hit = st.byName[lc(w)];
-      var area = hit ? areaOf(hit) : (node ? areaOf(node) : 'Other');
+      var area = hit ? areaOf(hit) : assocArea(node);
       var name = hit ? hit.word : w;
       st.other = false; st.q = ''; els.search.value = '';
       if (!has(name)) { addMine(name, area); emit(); }
@@ -278,7 +288,7 @@
 
   function areaPicks(root){
     var out = [];
-    st.mine.forEach(function(m){ if (lc(m.area) === lc(root.word)) out.push(m.word); });
+    st.mine.forEach(function(m){ if (lc(String(m.area).split(' > ')[0]) === lc(root.word)) out.push(m.word); });
     return out;
   }
   function under(n){ return n.kids.some(function(k){ return has(k.word) || under(k); }); }
@@ -302,9 +312,9 @@
       r.appendChild(b);
       if (on) openKid = n;
     });
-    if (!depth && !(node.parents && node.parents.length) && !areaPicks(node).length) {
+    if (!depth && !(node.parents && node.parents.length)) {
       var nb = el('button', 'pick', 'None of these'); nb.type = 'button';
-      nb.addEventListener('click', function(){ setNone(node.word, true); drawBrowse(); });
+      nb.addEventListener('click', function(){ areaPicks(node).forEach(function(w){ dropQuiet(w); }); setNone(node.word, true); emit(); drawAll(); });
       r.appendChild(nb);
     }
     oth = otherRow(node, '');
@@ -354,7 +364,7 @@
     var node = st.byName[lc(m.word)];
     var path = node ? pathOf(node).slice(0, -1).map(function(x){ return x.word; }) : [];
     if (!path.length && m.area && lc(m.area) !== lc(m.word)) path = [m.area];
-    if (path.length) left.appendChild(el('div', 'path', path.join(' › ')));
+    if (path.length) left.appendChild(el('div', 'path', path.join(' › ').replace(/ > /g, ' › ')));
     var x = el('button', 'x', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Remove ' + m.word);
     x.addEventListener('click', function(){ var i = mineIx(m.word); if (i > -1) dropMine(i); });
     var tools = el('div', 'ctools');
@@ -416,7 +426,7 @@
     if (!path.length && m.area && lc(m.area) !== lc(m.word)) path = [m.area];
     var b = el('button', 'cmb'); b.type = 'button'; b.setAttribute('aria-expanded', 'false');
     b.appendChild(el('span', 'cmn', m.word));
-    if (path.length) b.appendChild(el('span', 'cmp', path.join(' \u203A ')));
+    if (path.length) b.appendChild(el('span', 'cmp', path.join(' \u203A ').replace(/ > /g, ' \u203A ')));
     b.addEventListener('click', function(){ st.openCard = st.openCard || {}; st.openCard[lc(m.word)] = true; drawCards(); });
     var x = el('button', 'cmx', '\u00D7'); x.type = 'button'; x.setAttribute('aria-label', 'Remove ' + m.word);
     x.addEventListener('click', function(){ var i = mineIx(m.word); if (i > -1) dropMine(i); });
