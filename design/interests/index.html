@@ -56,6 +56,8 @@
   .pastebtns{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
   .recs{margin-top:12px;}
   .otherbox{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;}
+  .dym{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;}
+  .dyml{font-size:13px;font-weight:700;color:var(--grey);margin-right:2px;}
   .otherbox input{flex:1 1 200px;font:inherit;font-size:14px;padding:9px 12px;border:1.5px solid var(--pale);border-radius:12px;}
   .btn{font:inherit;font-size:14px;font-weight:700;border-radius:20px;padding:8px 16px;border:0;background:var(--blue);color:#fff;cursor:pointer;}
   .btn.ghost{background:#fff;color:var(--blue);border:1.5px solid var(--pale);}
@@ -291,7 +293,48 @@
     inp.addEventListener('keydown', function(e){ if (e.key === 'Escape') { e.preventDefault(); quit(); } });
     row.appendChild(inp); row.appendChild(add); row.appendChild(cn);
     wrap.appendChild(row);
+    var dym = el('div', 'dym'); dym.hidden = true; wrap.appendChild(dym);
+    var hint = function(){
+      var found = nearWords(inp.value); dym.innerHTML = ''; dym.hidden = !found.length;
+      if (!found.length) return;
+      dym.appendChild(el('span', 'dyml', 'Did you mean'));
+      found.forEach(function(n){
+        var p = el('button', 'pick', n.word); p.type = 'button';
+        p.addEventListener('click', function(){ st.other = false; st.q = ''; els.search.value = ''; if (!has(n.word)) { addMine(n.word, areaOf(n)); emit(); } drawAll(); });
+        dym.appendChild(p);
+      });
+    };
+    if (DYM) { inp.addEventListener('input', hint); if (preset) hint(); }
     return wrap;
+  }
+  function squash(s){ return lc(s).replace(/[^a-z0-9]/g, ''); }
+  function editGap(a, b, cap){
+    if (Math.abs(a.length - b.length) > cap) return cap + 1;
+    var prev = [], i, j;
+    for (j = 0; j <= b.length; j++) prev[j] = j;
+    for (i = 1; i <= a.length; i++) {
+      var cur = [i], best = i;
+      for (j = 1; j <= b.length; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+        if (cur[j] < best) best = cur[j];
+      }
+      if (best > cap) return cap + 1;
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  function nearWords(typed){
+    var k = squash(typed); if (k.length < 3) return [];
+    var cap2 = k.length > 7 ? 2 : 1, seen = {}, out = [];
+    Object.keys(st.byName).forEach(function(nm){
+      var n = st.byName[nm]; if (!n || seen[n.id || n.word]) return;
+      var nk = squash(nm); if (!nk) return;
+      var d = nk === k ? 0 : editGap(k, nk, cap2);
+      var pre = k.length >= 4 && nk.indexOf(k) === 0;
+      if (d <= cap2 || pre) { seen[n.id || n.word] = 1; out.push({ n: n, d: d <= cap2 ? d : cap2 + 0.5 }); }
+    });
+    out.sort(function(a, b){ return a.d - b.d || a.n.word.length - b.n.word.length; });
+    return out.slice(0, 3).map(function(x){ return x.n; });
   }
 
   function areaPicks(root){
@@ -491,6 +534,7 @@
   }
 
   var PASTE = !/[?&]paste=0/.test(location.search);
+  var DYM = /[?&]dym=1/.test(location.search);
   var LEAD = /^(and|also|so|care about|caring about|learning about|getting into|about|i|i'm|im|i am|i've|ive|been|really|like|love|enjoy|into|interested in|interest in|my|the|a|an|some|lots of|things like|stuff like|especially)\s+/i;
   function esc(x){ return x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
   function parsePaste(text){
