@@ -51,6 +51,17 @@
   .btn.ghost{background:#fff;color:var(--blue);border:1.5px solid var(--pale);}
   .none{font-size:13.5px;color:var(--grey);margin:8px 0 0;}
   h3{font-size:17px;font-weight:800;margin:22px 0 4px;color:var(--ink);}
+  .vrow{display:flex;justify-content:flex-end;margin-top:20px;}
+  .vtog{display:inline-flex;border:1.5px solid var(--blue);border-radius:20px;overflow:hidden;}
+  .vtog button{font:inherit;font-size:13px;font-weight:700;padding:6px 14px;border:0;background:#fff;color:var(--blue);cursor:pointer;}
+  .vtog button.on{background:var(--blue);color:#fff;}
+  .vrow + .fold{margin-top:10px;}
+  .cmlist{grid-template-columns:minmax(0,1fr);gap:6px;}
+  .cm{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:12px;background:var(--soft);min-height:52px;}
+  .cmb{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px;font:inherit;background:none;border:0;padding:8px 4px 8px 12px;text-align:left;cursor:pointer;}
+  .cmn{font-size:15px;font-weight:700;color:var(--ink);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cmp{font-size:12px;color:var(--grey);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cmx{flex-shrink:0;font:inherit;font-size:20px;line-height:1;background:none;border:0;color:var(--muted);padding:12px 14px;cursor:pointer;}
   .fold{margin-top:20px;}
   .foldbar{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;background:#1F699E;color:#fff;border:0;border-radius:10px 10px 0 0;padding:11px 16px;cursor:pointer;text-align:left;font:inherit;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;}
   .fold.shut .foldbar{border-radius:10px;}
@@ -321,9 +332,32 @@
     return c;
   }
 
+  function isCompact(){ try { return window.localStorage.getItem('ao-compact') !== '0'; } catch (e) { return true; } }
+  function setCompact(v){ try { window.localStorage.setItem('ao-compact', v ? '1' : '0'); } catch (e) {} }
+  function miniRow(m){
+    var c = el('div', 'cm'), node = st.byName[lc(m.word)];
+    var path = node ? pathOf(node).slice(0, -1).map(function(x){ return x.word; }) : [];
+    if (!path.length && m.area && lc(m.area) !== lc(m.word)) path = [m.area];
+    var b = el('button', 'cmb'); b.type = 'button'; b.setAttribute('aria-expanded', 'false');
+    b.appendChild(el('span', 'cmn', m.word));
+    if (path.length) b.appendChild(el('span', 'cmp', path.join(' \u203A ')));
+    b.addEventListener('click', function(){ st.openCard = st.openCard || {}; st.openCard[lc(m.word)] = true; drawCards(); });
+    var x = el('button', 'cmx', '\u00D7'); x.type = 'button'; x.setAttribute('aria-label', 'Remove ' + m.word);
+    x.addEventListener('click', function(){ var i = mineIx(m.word); if (i > -1) dropMine(i); });
+    c.appendChild(b); c.appendChild(x);
+    return c;
+  }
   function drawCards(){
     var box = els.cards; box.innerHTML = '';
     if (!st.mine.length) return;
+    var compact = isCompact();
+    var vr = el('div', 'vrow'), vt = el('div', 'vtog');
+    [[true, 'Compact cards'], [false, 'Full cards']].reverse().forEach(function(o){
+      var vb = el('button', o[0] === compact ? 'on' : '', o[1]); vb.type = 'button';
+      vb.addEventListener('click', function(){ setCompact(o[0]); st.openCard = {}; drawCards(); });
+      vt.appendChild(vb);
+    });
+    vr.appendChild(vt); box.appendChild(vr);
     var wrap = el('div', 'fold'), shut = !!st.cardsShut;
     var bar = el('button', 'foldbar'); bar.type = 'button'; bar.setAttribute('aria-expanded', shut ? 'false' : 'true');
     bar.appendChild(el('span', '', 'Interests added (' + st.mine.length + ')'));
@@ -332,9 +366,17 @@
     wrap.appendChild(bar);
     if (!shut) {
       var body = el('div', 'foldbody');
-      var g = el('div', 'cards');
-      st.mine.forEach(function(m){ g.appendChild(card(m)); });
+      var g = el('div', compact ? 'cards cmlist' : 'cards');
+      var open = st.openCard || {};
+      var list = st.mine.slice().reverse(), cap = compact && !st.moreCards && list.length > 10 ? 10 : list.length;
+      list.slice(0, cap).forEach(function(m){ g.appendChild(compact && !open[lc(m.word)] ? miniRow(m) : card(m)); });
       body.appendChild(g);
+      if (compact && list.length > 10) {
+        var mw = el('div', 'vrow'); mw.style.justifyContent = 'center';
+        var mb = el('button', 'btn ghost', st.moreCards ? 'Show only the 10 newest' : 'Show ' + (list.length - 10) + ' more'); mb.type = 'button';
+        mb.addEventListener('click', function(){ st.moreCards = !st.moreCards; drawCards(); });
+        mw.appendChild(mb); body.appendChild(mw);
+      }
       wrap.appendChild(body);
     } else wrap.classList.add('shut');
     box.appendChild(wrap);
