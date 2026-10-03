@@ -183,6 +183,7 @@
     emit(); drawAll();
   }
   function addMine(word, area){
+    setNone(area, false);
     st.mine.push({ word: word, area: area });
     var a = getA(word); a.showOnProfile = true; putA(word, a);
   }
@@ -264,6 +265,9 @@
     return out;
   }
   function under(n){ return n.kids.some(function(k){ return has(k.word) || under(k); }); }
+  function readNone(){ try { return JSON.parse(window.localStorage.getItem('int-none') || '{}') || {}; } catch (e) { return {}; } }
+  function noneOn(name){ return !!readNone()[lc(name)]; }
+  function setNone(name, v){ var o = readNone(); if (v) o[lc(name)] = 1; else delete o[lc(name)]; try { window.localStorage.setItem('int-none', JSON.stringify(o)); } catch (e) {} }
   function kidsInto(box, node, depth){
     st.drill = st.drill || {};
     var r = el('div', 'row'), openKid = null, oth = null;
@@ -281,6 +285,11 @@
       r.appendChild(b);
       if (on) openKid = n;
     });
+    if (!depth && !(node.parents && node.parents.length) && !areaPicks(node).length) {
+      var nb = el('button', 'pick', 'None of these'); nb.type = 'button';
+      nb.addEventListener('click', function(){ setNone(node.word, true); drawBrowse(); });
+      r.appendChild(nb);
+    }
     oth = otherRow(node, '');
     if (oth.className === 'pick other') r.appendChild(oth);
     box.appendChild(r);
@@ -296,11 +305,21 @@
       var h = el('button', 'fgh'); h.type = 'button'; h.setAttribute('aria-expanded', on ? 'true' : 'false');
       h.appendChild(el('span', 'ch', on ? '\u25BE' : '\u25B8'));
       h.appendChild(el('span', 'fgn', root.word));
-      h.appendChild(el('span', 'fgs', on ? '' : (mine.length ? mine.join(', ') : 'Nothing picked')));
+      var none = !mine.length && noneOn(root.word);
+      h.appendChild(el('span', 'fgs', on ? '' : (mine.length ? mine.join(', ') : (none ? 'None of these' : 'Nothing picked'))));
       if (mine.length) h.appendChild(el('span', 'fgc', String(mine.length)));
       h.addEventListener('click', function(){ st.open[root.id] = !st.open[root.id]; drawBrowse(); });
       g.appendChild(h);
-      if (on) { var inner = el('div', 'fgb'); kidsInto(inner, root, 0); g.appendChild(inner); }
+      if (on) {
+        var inner = el('div', 'fgb');
+        if (none) {
+          inner.appendChild(el('p', 'none', 'You chose none of these.'));
+          var gi = el('button', 'btn ghost', 'Give me ideas'); gi.type = 'button';
+          gi.addEventListener('click', function(){ setNone(root.word, false); drawBrowse(); });
+          inner.appendChild(gi);
+        } else kidsInto(inner, root, 0);
+        g.appendChild(inner);
+      }
       box.appendChild(g);
     });
     var o = otherRow(null, ''); if (o.className === 'pick other') { var gw = el('div', 'grid'); gw.style.marginTop = '10px'; gw.appendChild(o); box.appendChild(gw); } else box.appendChild(o);
