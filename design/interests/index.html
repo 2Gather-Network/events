@@ -43,6 +43,7 @@
   .grid{row-gap:12px;}
   .pastelink .dn{font-size:17px;line-height:1;vertical-align:-2px;}
   .pw{display:inline-flex;align-items:stretch;border:1.5px solid var(--pale);border-radius:20px;background:#fff;overflow:hidden;}
+  .pw.hid{opacity:.6;border-style:dashed;}
   .pw .pick{border:0;border-radius:0;background:none;padding:7px 10px 7px 14px;}
   .hidebtn{font:inherit;font-size:12px;font-weight:600;color:var(--grey);background:none;border:0;border-left:1px solid var(--pale);padding:0 12px 0 10px;cursor:pointer;}
   .pastebox{border:1px solid var(--line);border-radius:10px;background:var(--soft);padding:10px 12px 12px;margin-top:8px;}
@@ -298,10 +299,10 @@
   function readHid(){ try { return JSON.parse(window.localStorage.getItem('int-hid') || '{}') || {}; } catch (e) { return {}; } }
   function writeHid(o){ try { window.localStorage.setItem('int-hid', JSON.stringify(o)); } catch (e) {} }
   function isHid(n){ return !!readHid()[n.id] && !has(n.word) && !under(n); }
-  function pillWithHide(n, pill){
-    var w = el('span', 'pw'); w.appendChild(pill);
-    var hb = el('button', 'hidebtn', 'Hide'); hb.type = 'button'; hb.setAttribute('aria-label', 'Hide ' + n.word);
-    hb.addEventListener('click', function(){ var o = readHid(); o[n.id] = 1; writeHid(o); drawBrowse(); });
+  function pillWithHide(n, pill, was){
+    var w = el('span', 'pw' + (was ? ' hid' : '')); w.appendChild(pill);
+    var hb = el('button', 'hidebtn', was ? 'Unhide' : 'Hide'); hb.type = 'button'; hb.setAttribute('aria-label', (was ? 'Unhide ' : 'Hide ') + n.word);
+    hb.addEventListener('click', function(){ var o = readHid(); if (was) delete o[n.id]; else o[n.id] = 1; if (!Object.keys(o).length) st.showHid = false; writeHid(o); drawBrowse(); });
     w.appendChild(hb); return w;
   }
   function kidsInto(box, node, depth){
@@ -310,8 +311,9 @@
     if (depth) { var all = pillFor(node); all.textContent = 'All of ' + node.word; r.appendChild(all); }
     var hiddenHere = 0;
     node.kids.forEach(function(n){
-      if (isHid(n)) { hiddenHere++; return; }
-      if (!n.kids.length) { var lp = pillFor(n); r.appendChild(has(n.word) ? lp : pillWithHide(n, lp)); return; }
+      var wasHid = isHid(n);
+      if (wasHid) { hiddenHere++; if (!st.showHid) return; }
+      if (!n.kids.length) { var lp = pillFor(n); r.appendChild(has(n.word) ? lp : pillWithHide(n, lp, wasHid)); return; }
       var on = st.drill[node.id] === n.id, lit = has(n.word) || under(n);
       var b = el('button', 'pick' + (lit ? ' on' : '') + (on ? ' open' : ''), n.word);
       b.type = 'button'; b.setAttribute('aria-expanded', on ? 'true' : 'false');
@@ -320,7 +322,7 @@
         st.drill[node.id] = n.id;
         if (!has(n.word) && !under(n)) { addMine(n.word, areaOf(n)); emit(); drawAll(); } else drawBrowse();
       });
-      r.appendChild(lit || on ? b : pillWithHide(n, b));
+      r.appendChild(lit || on ? b : pillWithHide(n, b, wasHid));
       if (on) openKid = n;
     });
     oth = otherRow(node, '');
@@ -329,9 +331,9 @@
     if (oth.className !== 'pick other') box.appendChild(oth);
     if (hiddenHere) {
       var sh = el('button', 'pastelink', ''); sh.type = 'button';
-      sh.appendChild(document.createTextNode('Show hidden '));
-      sh.appendChild(el('span', 'dn', '\u25BE'));
-      sh.addEventListener('click', function(){ var o = readHid(); node.kids.forEach(function(k){ delete o[k.id]; }); writeHid(o); drawBrowse(); });
+      sh.appendChild(document.createTextNode(st.showHid ? 'Hide hidden ' : 'Show hidden '));
+      sh.appendChild(el('span', 'dn', st.showHid ? '\u25B4' : '\u25BE'));
+      sh.addEventListener('click', function(){ st.showHid = !st.showHid; drawBrowse(); });
       box.appendChild(sh);
     }
     if (openKid) { var sub = el('div', 'sub deep'); kidsInto(sub, openKid, depth + 1); box.appendChild(sub); }
