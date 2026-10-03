@@ -41,6 +41,9 @@
   .pick .sub{display:block;font-size:11.5px;font-weight:600;opacity:.8;margin-top:1px;}
   .pastelink{display:block;margin-left:auto;font:inherit;font-size:13px;font-weight:700;color:var(--blue);background:none;border:0;padding:10px 2px 14px;cursor:pointer;text-decoration:underline;}
   .grid{row-gap:12px;}
+  .pastelink .dn{font-size:17px;line-height:1;vertical-align:-2px;}
+  .pw{display:inline-flex;align-items:center;gap:6px;}
+  .hidebtn{font:inherit;font-size:12px;font-weight:600;color:var(--grey);background:none;border:0;padding:4px 2px;cursor:pointer;text-decoration:underline;}
   .pastebox{border:1px solid var(--line);border-radius:10px;background:var(--soft);padding:10px 12px 12px;margin-top:8px;}
   .pastebox textarea{width:100%;box-sizing:border-box;min-height:110px;font:inherit;font-size:14px;line-height:1.45;padding:9px 12px;border:1.5px solid var(--pale);border-radius:12px;resize:vertical;background:#fff;}
   .pastehint{font-size:12.5px;color:var(--grey);margin:0 0 8px;line-height:1.45;}
@@ -184,7 +187,6 @@
     emit(); drawAll();
   }
   function addMine(word, area){
-    setNone(String(area).split(' > ')[0], false);
     st.mine.push({ word: word, area: area });
     var a = getA(word); a.showOnProfile = true; putA(word, a);
   }
@@ -292,15 +294,23 @@
     return out;
   }
   function under(n){ return n.kids.some(function(k){ return has(k.word) || under(k); }); }
-  function readNone(){ try { return JSON.parse(window.localStorage.getItem('int-none') || '{}') || {}; } catch (e) { return {}; } }
-  function noneOn(name){ return !!readNone()[lc(name)]; }
-  function setNone(name, v){ var o = readNone(); if (v) o[lc(name)] = 1; else delete o[lc(name)]; try { window.localStorage.setItem('int-none', JSON.stringify(o)); } catch (e) {} }
+  function readHid(){ try { return JSON.parse(window.localStorage.getItem('int-hid') || '{}') || {}; } catch (e) { return {}; } }
+  function writeHid(o){ try { window.localStorage.setItem('int-hid', JSON.stringify(o)); } catch (e) {} }
+  function isHid(n){ return !!readHid()[n.id] && !has(n.word) && !under(n); }
+  function pillWithHide(n, pill){
+    var w = el('span', 'pw'); w.appendChild(pill);
+    var hb = el('button', 'hidebtn', 'Hide'); hb.type = 'button'; hb.setAttribute('aria-label', 'Hide ' + n.word);
+    hb.addEventListener('click', function(){ var o = readHid(); o[n.id] = 1; writeHid(o); drawBrowse(); });
+    w.appendChild(hb); return w;
+  }
   function kidsInto(box, node, depth){
     st.drill = st.drill || {};
     var r = el('div', 'row'), openKid = null, oth = null;
     if (depth) { var all = pillFor(node); all.textContent = 'All of ' + node.word; r.appendChild(all); }
+    var hiddenHere = 0;
     node.kids.forEach(function(n){
-      if (!n.kids.length) { r.appendChild(pillFor(n)); return; }
+      if (isHid(n)) { hiddenHere++; return; }
+      if (!n.kids.length) { var lp = pillFor(n); r.appendChild(has(n.word) ? lp : pillWithHide(n, lp)); return; }
       var on = st.drill[node.id] === n.id, lit = has(n.word) || under(n);
       var b = el('button', 'pick' + (lit ? ' on' : '') + (on ? ' open' : ''), n.word);
       b.type = 'button'; b.setAttribute('aria-expanded', on ? 'true' : 'false');
@@ -309,18 +319,20 @@
         st.drill[node.id] = n.id;
         if (!has(n.word) && !under(n)) { addMine(n.word, areaOf(n)); emit(); drawAll(); } else drawBrowse();
       });
-      r.appendChild(b);
+      r.appendChild(lit || on ? b : pillWithHide(n, b));
       if (on) openKid = n;
     });
-    if (!depth && !(node.parents && node.parents.length)) {
-      var nb = el('button', 'pick', 'None of these'); nb.type = 'button';
-      nb.addEventListener('click', function(){ areaPicks(node).forEach(function(w){ dropQuiet(w); }); setNone(node.word, true); emit(); drawAll(); });
-      r.appendChild(nb);
-    }
     oth = otherRow(node, '');
     if (oth.className === 'pick other') r.appendChild(oth);
     box.appendChild(r);
     if (oth.className !== 'pick other') box.appendChild(oth);
+    if (hiddenHere) {
+      var sh = el('button', 'pastelink', ''); sh.type = 'button';
+      sh.appendChild(document.createTextNode('Show hidden '));
+      sh.appendChild(el('span', 'dn', '\u25BE'));
+      sh.addEventListener('click', function(){ var o = readHid(); node.kids.forEach(function(k){ delete o[k.id]; }); writeHid(o); drawBrowse(); });
+      box.appendChild(sh);
+    }
     if (openKid) { var sub = el('div', 'sub deep'); kidsInto(sub, openKid, depth + 1); box.appendChild(sub); }
   }
   function drawBrowse(){
@@ -332,18 +344,13 @@
       var h = el('button', 'fgh'); h.type = 'button'; h.setAttribute('aria-expanded', on ? 'true' : 'false');
       h.appendChild(el('span', 'ch', on ? '\u25BE' : '\u25B8'));
       h.appendChild(el('span', 'fgn', root.word));
-      var none = !mine.length && noneOn(root.word);
-      h.appendChild(el('span', 'fgs', on ? '' : (mine.length ? mine.join(', ') : (none ? 'None of these' : 'Nothing picked'))));
+      h.appendChild(el('span', 'fgs', on ? '' : (mine.length ? mine.join(', ') : 'Nothing picked')));
       if (mine.length) h.appendChild(el('span', 'fgc', String(mine.length)));
       h.addEventListener('click', function(){ st.open[root.id] = !st.open[root.id]; drawBrowse(); });
       g.appendChild(h);
       if (on) {
         var inner = el('div', 'fgb');
-        if (none) {
-          var gi = el('button', 'btn ghost', 'Give me ideas'); gi.type = 'button';
-          gi.addEventListener('click', function(){ setNone(root.word, false); drawBrowse(); });
-          inner.appendChild(gi);
-        } else kidsInto(inner, root, 0);
+        kidsInto(inner, root, 0);
         g.appendChild(inner);
       }
       box.appendChild(g);
@@ -494,7 +501,7 @@
   function drawPaste(){
     var box = els.paste; if (!box) return; box.innerHTML = '';
     if (!st.pasteOpen) {
-      var l = el('button', 'pastelink', 'Add notes instead \u25BE'); l.type = 'button'; l.setAttribute('aria-expanded', 'false');
+      var l = el('button', 'pastelink', ''); l.type = 'button'; l.setAttribute('aria-expanded', 'false'); l.appendChild(document.createTextNode('Add notes instead ')); l.appendChild(el('span', 'dn', '\u25BE'));
       l.addEventListener('click', function(){ st.pasteOpen = true; drawPaste(); var a = box.querySelector('textarea'); if (a) a.focus(); });
       box.appendChild(l); return;
     }
