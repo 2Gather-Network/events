@@ -56,6 +56,13 @@
   .pastebtns{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
   .recs{margin-top:12px;}
   .otherbox{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;}
+  .lnk{margin-top:10px;}
+  .lnkt{font:inherit;font-size:13px;font-weight:700;color:var(--blue);background:none;border:0;padding:4px 0;cursor:pointer;text-decoration:underline;}
+  .lnkr{margin-top:8px;}
+  .lnkl{display:block;font-size:13px;font-weight:700;color:var(--ink,#1A2E42);margin-bottom:4px;}
+  .lnki{display:flex;gap:8px;flex-wrap:wrap;}
+  .lnki input{flex:1 1 180px;min-width:0;font:inherit;font-size:14px;padding:8px 12px;border:1.5px solid var(--pale);border-radius:12px;}
+  .lnkm{font-size:13px;color:var(--grey);margin-top:4px;}
   .dym{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;}
   .dyml{font-size:13px;font-weight:700;color:var(--grey);margin-right:2px;}
   .otherbox input{flex:1 1 200px;font:inherit;font-size:14px;padding:9px 12px;border:1.5px solid var(--pale);border-radius:12px;}
@@ -284,6 +291,7 @@
       var name = hit ? hit.word : w;
       st.other = false; st.q = ''; els.search.value = '';
       if (!has(name)) { addMine(name, area); emit(); }
+      if (DYM && !hit && node && !node.extra) teach({ text: name, kindOf: node.word, askedIn: 'interest' });
       drawAll();
     };
     add.addEventListener('click', go);
@@ -301,12 +309,64 @@
       dym.appendChild(el('span', 'dyml', 'Did you mean'));
       found.forEach(function(n){
         var p = el('button', 'pick', n.word); p.type = 'button';
-        p.addEventListener('click', function(){ st.other = false; st.q = ''; els.search.value = ''; if (!has(n.word)) { addMine(n.word, areaOf(n)); emit(); } drawAll(); });
+        p.addEventListener('click', function(){
+          var typed = clean(inp.value), tk = squash(typed);
+          if (tk && tk === squash(n.word) && lc(typed) !== lc(n.word) && !st.byName[lc(typed)]) teach({ text: cap(typed), sameAs: n.word });
+          st.other = false; st.q = ''; els.search.value = ''; if (!has(n.word)) { addMine(n.word, areaOf(n)); emit(); } drawAll();
+        });
         dym.appendChild(p);
       });
     };
     if (DYM) { inp.addEventListener('input', hint); if (preset) hint(); }
     return wrap;
+  }
+  var teachN = 0, teachWait = {};
+  function teach(q, done){
+    var id = 't' + (++teachN); if (done) teachWait[id] = done;
+    toParent({ ao: 'addword', id: id, text: q.text || '', kindOf: q.kindOf || '', sameAs: q.sameAs || '', askedIn: q.askedIn || '' });
+  }
+  window.addEventListener('message', function(e){
+    if (e.origin !== location.origin || e.source !== window.parent || !e.data || e.data.ao !== 'addwordres') return;
+    var f = teachWait[e.data.id]; delete teachWait[e.data.id]; if (f) f(e.data.res || null);
+  });
+  function wordList(){
+    var dl = document.getElementById('int-words');
+    if (!dl) { dl = el('datalist'); dl.id = 'int-words'; document.body.appendChild(dl); }
+    if (!dl.childNodes.length) Object.keys(st.byName).forEach(function(k){ var n = st.byName[k]; if (n && lc(n.word) === k) { var o = el('option'); o.value = n.word; dl.appendChild(o); } });
+    return dl.id;
+  }
+  function linkBox(m){
+    var w = el('div', 'lnk'), open = st.linkOpen && st.linkOpen[lc(m.word)];
+    var t = el('button', 'lnkt', ''); t.type = 'button'; t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    t.appendChild(document.createTextNode('Suggest a link ')); t.appendChild(el('span', 'dn', open ? '\u25B4' : '\u25BE'));
+    t.addEventListener('click', function(){ st.linkOpen = st.linkOpen || {}; st.linkOpen[lc(m.word)] = !open; drawCards(); });
+    w.appendChild(t);
+    if (!open) return w;
+    var known = st.byName[lc(m.word)];
+    var mk = function(label, ph, kind){
+      var r = el('div', 'lnkr'), lb = el('label', 'lnkl', label), i = el('input'); i.type = 'text'; i.maxLength = 60; i.placeholder = ph; i.setAttribute('list', wordList());
+      var id = 'lnk-' + kind + '-' + lc(m.word).replace(/[^a-z0-9]/g, ''); i.id = id; lb.setAttribute('for', id);
+      var go = el('button', 'btn', 'Send'), msg = el('div', 'lnkm'); go.type = 'button';
+      var send = function(){
+        var v = cap(clean(i.value)); if (!v) return;
+        var q = kind === 'same' ? (known ? { text: v, sameAs: m.word } : { text: m.word, sameAs: v }) : { text: m.word, kindOf: v, askedIn: 'interest' };
+        msg.textContent = 'Sending\u2026'; go.disabled = true;
+        teach(q, function(res){
+          go.disabled = false;
+          if (!res || res.status !== 'ok') { msg.textContent = 'That did not go through. Please try again.'; return; }
+          var sk = (res.skipped || [])[0];
+          if (sk) { msg.textContent = sk.why || 'Not added.'; return; }
+          msg.textContent = 'Thank you. Everyone can now find it this way.'; i.value = '';
+        });
+      };
+      go.addEventListener('click', send);
+      i.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); send(); } });
+      r.appendChild(lb); var line = el('div', 'lnki'); line.appendChild(i); line.appendChild(go); r.appendChild(line); r.appendChild(msg);
+      return r;
+    };
+    w.appendChild(mk('Means the same as', 'Another way to say \u201C' + m.word + '\u201D', 'same'));
+    w.appendChild(mk('Is a kind of', 'A broader interest, like Outdoors', 'kind'));
+    return w;
   }
   function squash(s){ return lc(s).replace(/[^a-z0-9]/g, ''); }
   function editGap(a, b, cap){
@@ -474,6 +534,7 @@
       sw.classList.toggle('on', now); sw.setAttribute('aria-checked', now ? 'true' : 'false');
     });
     sl.appendChild(el('span', '', 'Show on my profile')); sl.appendChild(sw); c.appendChild(sl);
+    if (DYM) c.appendChild(linkBox(m));
     if (isCompact()) {
       var dn = el('button', 'btn ghost cdone', 'Done'); dn.type = 'button';
       dn.addEventListener('click', function(){ if (st.openCard) delete st.openCard[lc(m.word)]; drawCards(); });
