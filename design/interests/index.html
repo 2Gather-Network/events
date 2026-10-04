@@ -138,7 +138,7 @@
   .tagq{width:100%;box-sizing:border-box;font:inherit;font-size:14px;border:1.5px solid var(--pale);border-radius:10px;padding:8px 10px;margin:0 0 8px;}
   .catlink{font:inherit;font-size:12.5px;font-weight:700;color:var(--blue);background:none;border:0;padding:3px 0 0;cursor:pointer;text-decoration:underline;display:block;text-align:left;}
   .morelink.inline{display:inline-block;padding:5px 6px;}
-  .rmicon{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border-radius:50%;border:1.5px solid var(--pale);background:#fff;color:#8A2D1A;cursor:pointer;}
+  .rmicon{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border-radius:50%;border:1.5px solid var(--pale);background:#fff;color:var(--blue);cursor:pointer;}
   .rmicon svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
   .misscat{font:inherit;font-size:12.5px;font-weight:700;color:#C4501A;background:none;border:0;padding:3px 0 0;cursor:pointer;text-decoration:underline;display:block;}
   .tagbox2{border:1.5px solid var(--pale);border-radius:12px;padding:10px;margin-top:10px;background:#fff;}
@@ -660,16 +660,65 @@
     b.addEventListener('click', function(){ st.more = ''; askDelete(m.word); });
     return b;
   }
+  var ENJOY_WAYS = [['casual', 'I enjoy it casually'], ['events', 'I like events that represent this topic'], ['competitive', 'I enjoy it competitively'], ['professional', 'I enjoy it professionally'], ['dialogue', 'I like talking about it'], ['learn', 'I’d like to learn more about it']];
+  var CARE_WAYS = [['connect', 'I want to meet others who care about it'], ['volunteer', 'I’d volunteer my time for it'], ['give', 'I’d give money or things to it'], ['organize', 'I’d help organize around it'], ['work', 'I want to work in this area'], ['policy', 'I want to influence policy on this topic'], ['updates', 'I’d like updated information on this']];
+  var SEEK_WAYS = [['seek:teach', 'Someone to teach or mentor me'], ['seek:do', 'Someone to do it for me'], ['seek:with', 'People to do it with'], ['seek:info', 'Information or resources about it'], ['seek:event', 'An event or group about it'], ['seek:now', 'Help with it right now']];
+  function pillRow(host, title, opts, field, many, word){
+    host.appendChild(el('div', 'cap', title));
+    var row = el('div', 'lv');
+    opts.forEach(function(o){
+      var cur = getA(word)[field] || [], on = cur.indexOf(o) > -1, b = el('button', 'pill' + (on ? ' on' : ''), o); b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.addEventListener('click', function(){
+        var a = getA(word), list = (a[field] || []).slice(), at = list.indexOf(o);
+        if (at > -1) { list.splice(at, 1); } else { if (!many) { list = []; } list.push(o); }
+        if (list.length) { a[field] = list; } else { delete a[field]; }
+        putA(word, a);
+        Array.prototype.forEach.call(row.children, function(x){ var v = (getA(word)[field] || []).indexOf(x.textContent) > -1; x.classList.toggle('on', v); x.setAttribute('aria-pressed', v ? 'true' : 'false'); });
+      });
+      row.appendChild(b);
+    });
+    host.appendChild(row);
+  }
+  function wayList(host, title, ways, word){
+    host.appendChild(el('div', 'cap', title));
+    ways.forEach(function(w){
+      var lab = el('label', 'way'), cb = document.createElement('input'); cb.type = 'checkbox';
+      cb.checked = (getA(word).careWays || []).indexOf(w[0]) > -1;
+      cb.addEventListener('change', function(){
+        var a = getA(word), list = (a.careWays || []).slice(), at = list.indexOf(w[0]);
+        if (cb.checked && at < 0) { list.push(w[0]); } if (!cb.checked && at > -1) { list.splice(at, 1); }
+        if (list.length) { a.careWays = list; } else { delete a.careWays; }
+        putA(word, a);
+      });
+      lab.appendChild(cb); lab.appendChild(el('span', '', w[1])); host.appendChild(lab);
+    });
+  }
+  function fitPane(pane, word, key){
+    if (key === 'enjoy') {
+      pillRow(pane, 'How is this of interest to you?', ['Fan', 'I do it myself'], 'how', true, word);
+      wayList(pane, 'How do you enjoy it?', ENJOY_WAYS, word);
+    } else if (key === 'skill') {
+      pillRow(pane, 'What is your level?', ['Beginner', 'Experienced', 'Guide'], 'level', true, word);
+      pillRow(pane, 'Is it a skill you want to work with?', ['Yes, I’m open to work', 'No, just for joy'], 'workOpen', false, word);
+    } else if (key === 'care') {
+      pillRow(pane, 'Is it social or ecological?', ['Social', 'Ecological'], 'lens', true, word);
+      wayList(pane, 'How do you care about it?', CARE_WAYS, word);
+    } else if (key === 'seek') {
+      wayList(pane, 'What are you looking for with ' + word + '?', SEEK_WAYS, word);
+    } else {
+      wayList(pane, 'How would you like to connect around it?', WAYS, word);
+    }
+  }
   function moreView(m){
     var c = el('div', 'card more'), fitsOn = FITS.filter(function(f){ return (st.fits[lc(m.word)] || []).indexOf(f[0]) > -1; });
     var mh = el('div', 'top'), ml = el('div', ''); ml.appendChild(el('div', 'nm', m.word));
     var cats = catListOf(m.word); ml.appendChild(el('div', 'path', cats.length ? cats.join(' | ') : 'Missing category'));
     mh.appendChild(ml); mh.appendChild(removeIcon(m)); c.appendChild(mh);
     var tabs = el('div', 'mtabs'), pane = el('div', 'mpane');
-    var names = [['interest', 'Interested']].concat(fitsOn.map(function(f){ return [f[0], f[1]]; })).concat([['match', 'Show and match']]);
+    var names = [['interest', 'Interested']].concat(fitsOn.map(function(f){ return [f[0], f[1]]; })).concat([['match', 'Show & Match']]);
     st.moreTab = st.moreTab && names.some(function(t){ return t[0] === st.moreTab; }) ? st.moreTab : names[0][0];
     names.forEach(function(t){
-      var tb = el('button', 'mtab' + (t[0] === st.moreTab ? ' on' : ''), ({ interest: 'Interested', match: 'Show and match', enjoy: 'Enjoy', skill: 'Skill', care: 'Cares', seek: 'Seeking' })[t[0]] || t[1]); tb.type = 'button';
+      var tb = el('button', 'mtab' + (t[0] === st.moreTab ? ' on' : ''), ({ interest: 'Interested', match: 'Show & Match', enjoy: 'Enjoy', skill: 'Skill', care: 'Cares', seek: 'Seeking' })[t[0]] || t[1]); tb.type = 'button';
       tb.addEventListener('click', function(){ st.moreTab = t[0]; drawCards(); });
       tabs.appendChild(tb);
     });
@@ -677,23 +726,14 @@
     if (st.moreTab === 'match') {
       csRows(pane, getA(m.word), m.word, function(a){ putA(m.word, a); }, el);
     } else {
-      pane.appendChild(el('div', 'cap', 'How would you like to connect around it?'));
-      var a0 = getA(m.word);
-      WAYS.forEach(function(w){
-        var lab = el('label', 'way'), cb = document.createElement('input'); cb.type = 'checkbox';
-        cb.checked = (a0.careWays || []).indexOf(w[0]) > -1;
-        cb.addEventListener('change', function(){
-          var a = getA(m.word), list = (a.careWays || []).slice(), at = list.indexOf(w[0]);
-          if (cb.checked && at < 0) list.push(w[0]); if (!cb.checked && at > -1) list.splice(at, 1);
-          if (list.length) a.careWays = list; else delete a.careWays; putA(m.word, a);
-        });
-        lab.appendChild(cb); lab.appendChild(el('span', '', w[1])); pane.appendChild(lab);
-      });
-      pane.appendChild(el('div', 'tagn', 'Mockup: more questions for this tab come from the Joys, Skills, Cares and Seeking cards.'));
+      fitPane(pane, m.word, st.moreTab);
+      pane.appendChild(el('div', 'tagn', 'Mockup: these answers are kept on this screen only until they are wired to save.'));
     }
     c.appendChild(pane);
-    var bk = el('button', 'btn ghost small', 'Back to cards'); bk.type = 'button'; bk.addEventListener('click', function(){ st.more = ''; drawCards(); });
-    var row = cardButtons(m); row.insertBefore(bk, row.firstChild); c.appendChild(row);
+    var row = el('div', 'cbtns'), dn = el('button', 'btn small', 'Done'); dn.type = 'button';
+    dn.addEventListener('click', function(){ st.more = ''; drawCards(); });
+    if (CONSENT && window.parent !== window) { row.appendChild(csIcon(el)); }
+    row.appendChild(dn); c.appendChild(row);
     return c;
   }
   function askDelete(word){
