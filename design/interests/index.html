@@ -118,10 +118,11 @@
   button:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
 
   .cs{margin-top:12px;border-top:1px solid #DDE4EE;padding-top:4px;}
-  .cs-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid #EEF2F6;}
-  .cs-row:first-of-type{border-top:0;}
+  .cs-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;}
+  .cs-pills{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px;}
+  .cs-more{text-align:right;margin-top:4px;}
+  .cs-link{font:inherit;font-size:13px;font-weight:700;color:#1F699E;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;}
   .cs-t b{display:block;font-size:14px;color:#1A2E42;}
-  .cs-h{display:block;font-size:12.5px;font-weight:400;color:#4B5A6D;line-height:1.45;margin-top:2px;}
   .cs-sw{flex:0 0 auto;width:40px;height:22px;border-radius:11px;border:0;cursor:pointer;position:relative;background:#C5CED9;padding:0;margin-top:2px;}
   .cs-sw.on{background:#1F699E;}
   .cs-k{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;}
@@ -657,23 +658,33 @@
     var st = !CWSENS && !CWSENS_FAIL ? 'wait' : (CWSENS_FAIL ? 'fail' : 'ready');
     if (st === 'wait') { wrap.appendChild(mk('div', 'cs-note', 'Checking this card…')); host.appendChild(wrap); return wrap; }
     if (st === 'fail') { wrap.appendChild(mk('div', 'cs-note', 'We could not check this card just now, so these switches are paused. Try again in a moment.')); host.appendChild(wrap); return wrap; }
-    if (cwIsSens(w)) {
-      var pv = mk('div', 'cs-priv'); pv.appendChild(mk('span', 'cs-tag', 'Private')); pv.appendChild(document.createTextNode(' This stays private unless you turn these on.')); wrap.appendChild(pv);
-    }
-    [['show', 'Show on my profile', 'People who can see this part of your profile see this card.'],
-     ['match', 'Use to find matches', 'We use this to suggest people, groups and events. Someone you match with sees what you have in common.']].forEach(function(r){
+    var pills = mk('div', 'cs-pills');
+    var paint = function(){
+      pills.innerHTML = '';
+      if (!csShow(a, w)) { pills.appendChild(mk('span', 'cs-tag', 'Not public')); }
+      if (!csMatch(a, w)) { pills.appendChild(mk('span', 'cs-tag', 'Not matching')); }
+      pills.style.display = pills.firstChild ? '' : 'none';
+    };
+    wrap.appendChild(pills); paint();
+    [['show', 'Show my profile'], ['match', 'Use to find matches']].forEach(function(r){
       var on = r[0] === 'show' ? csShow(a, w) : csMatch(a, w);
       var row = mk('div', 'cs-row'), txt = mk('div', 'cs-t'), sw = mk('button', 'cs-sw' + (on ? ' on' : ''));
-      txt.appendChild(mk('b', '', r[1])); txt.appendChild(mk('span', 'cs-h', r[2]));
+      txt.appendChild(mk('b', '', r[1]));
       sw.type = 'button'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', on ? 'true' : 'false'); sw.setAttribute('aria-label', r[1] + ': ' + w);
       sw.appendChild(mk('span', 'cs-k'));
       sw.addEventListener('click', function(){
         var now = !sw.classList.contains('on');
         csSet(a, w, r[0], now); onSet(a);
         Array.prototype.forEach.call(wrap.querySelectorAll('.cs-sw'), function(b, i){ var v = i === 0 ? csShow(a, w) : csMatch(a, w); b.classList.toggle('on', v); b.setAttribute('aria-checked', v ? 'true' : 'false'); });
+        paint();
       });
       row.appendChild(txt); row.appendChild(sw); wrap.appendChild(row);
     });
+    if (window.parent !== window) {
+      var more = mk('div', 'cs-more'), lk = mk('button', 'cs-link', 'Show my choices'); lk.type = 'button';
+      lk.addEventListener('click', function(){ try { window.parent.postMessage({ ao: 'matching' }, location.origin); } catch (e) {} });
+      more.appendChild(lk); wrap.appendChild(more);
+    }
     host.appendChild(wrap); return wrap;
   }
   if (CONSENT) { cwSensLoad(function(){}); }
@@ -779,6 +790,10 @@
     drawAll();
   });
 
+  window.addEventListener('message', function(e){
+    if (e.origin !== location.origin || e.source !== window.parent || !e.data || e.data.ao !== 'shared') return;
+    if (st.ready) { drawCards(); }
+  });
   var lastH = 0;
   function reportH(){
     var h = Math.ceil(document.body.getBoundingClientRect().height + 8);
