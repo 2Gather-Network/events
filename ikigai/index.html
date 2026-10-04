@@ -3774,7 +3774,7 @@
           var nl = document.createElement('a'); nl.textContent = w; nl.href = '/ikigai/interests?focus=' + encodeURIComponent(w);
           nl.style.cssText = 'color:#1F699E;font-weight:700;text-decoration:underline;cursor:pointer;';
           nl.addEventListener('click', function(ev){
-            var fr = document.querySelector('iframe.gp-int');
+            var fr = document.querySelector('#gp-ints-list-host iframe.gp-int') || document.querySelector('iframe.gp-int');
             if (!fr || !fr.contentWindow) { return; }
             ev.preventDefault();
             try { gpDetailSend(); } catch (e) {}
@@ -3844,7 +3844,7 @@
       }
       if (d.ao === 'matching') { gpMatchOpen(); return; }
       if (d.ao === 'details') { if (!gpViewingSomebodyElse()) { gpDetailQueue(d.word, d.a); } return; }
-      if (fr.classList.contains('gp-int')) { gpIntMsg(d); return; }
+      if (fr.classList.contains('gp-int')) { gpIntMsg(d, e.source); return; }
       if (!fr.classList.contains('gp-cards') && fr.id !== 'gp-ans-frame') { return; }
       if (d.ao === 'ready') { if (fr.classList.contains('gp-cards')) gpNewPost(fr); return; }
       if (d.ao === 'edit') {
@@ -3997,16 +3997,20 @@
   function gpIntShow(){
     var host = document.getElementById('gp-ints-host'); if (!host) { return; }
     gpNewMsgs();
-    var fr = host.querySelector('iframe.gp-int');
-    if (!fr) {
-      fr = document.createElement('iframe');
-      fr.className = 'gp-int'; fr.title = 'Your interests';
-      fr.style.cssText = 'width:100%;height:160px;border:0;display:block;';
+    var lhost = document.getElementById('gp-ints-list-host');
+    var mk = function(h, part){
+      if (h.querySelector('iframe.gp-int')) { return false; }
+      var fr = document.createElement('iframe');
+      fr.className = 'gp-int'; fr.title = part === 'list' ? 'Your interests added' : 'Your interests';
+      fr.style.cssText = (part === 'top' ? 'width:calc(100% + 8px);margin:-2px -4px 0;' : 'width:100%;') + 'height:' + (part === 'list' ? '120px' : '160px') + ';border:0;display:block;';
       fr.setAttribute('scrolling', 'no');
-      fr.src = '/design/interests/?inpane=1' + (/[?&]paste=1/.test(location.search) ? '&paste=1' : '') + (params.get('iopen') ? '&iopen=' + encodeURIComponent(params.get('iopen')) : '') + (params.get('iq') ? '&iq=' + encodeURIComponent(params.get('iq')) : '') + (params.get('dym') === '1' ? '&dym=1' : '') + (GP_ONE ? '' : '&one=0') + (params.get('cards2') === '0' ? '&cards2=0' : '') + (params.get('tags') === '0' ? '&tags=0' : '') + (params.get('photo') === '1' ? '&photo=1' : '') + (params.get('sub') === '1' ? '&sub=1' : '') + (params.get('imore') ? '&imore=' + encodeURIComponent(params.get('imore')) : '') + (params.get('focus') ? '&focus=' + encodeURIComponent(params.get('focus')) : '') + GP_CQ + '&cb=' + Date.now();
-      host.appendChild(fr);
-      return;
-    }
+      fr.src = '/design/interests/?inpane=1' + (part !== 'list' && /[?&]paste=1/.test(location.search) ? '&paste=1' : '') + (part ? '&part=' + part : '') + (params.get('iopen') ? '&iopen=' + encodeURIComponent(params.get('iopen')) : '') + (params.get('iq') ? '&iq=' + encodeURIComponent(params.get('iq')) : '') + (params.get('dym') === '1' ? '&dym=1' : '') + (GP_ONE ? '' : '&one=0') + (params.get('cards2') === '0' ? '&cards2=0' : '') + (params.get('tags') === '0' ? '&tags=0' : '') + (params.get('photo') === '1' ? '&photo=1' : '') + (params.get('sub') === '1' ? '&sub=1' : '') + (params.get('imore') ? '&imore=' + encodeURIComponent(params.get('imore')) : '') + (params.get('focus') ? '&focus=' + encodeURIComponent(params.get('focus')) : '') + GP_CQ + '&cb=' + Date.now();
+      h.appendChild(fr);
+      return true;
+    };
+    var made = mk(host, lhost ? 'top' : '');
+    if (lhost && mk(lhost, 'list')) { made = true; }
+    if (made) { return; }
     gpIntPost();
   }
   function gpIntFits(){
@@ -4042,11 +4046,11 @@
     return out.reverse();
   }
   function gpIntPost(only){
-    var fr = document.querySelector('iframe.gp-int');
-    if (!fr || !fr.contentWindow || !window._gpWords) { return; }
+    var frs = Array.prototype.slice.call(document.querySelectorAll('iframe.gp-int')).filter(function(f){ return f.contentWindow; });
+    if (!frs.length || !window._gpWords) { return; }
     var msg = { ao: 'ints', fits: gpIntFits() };
     if (GP_ONE) { try { msg.all = gpAllItems(); } catch (e) {} }
-    if (only) { msg.fitsOnly = true; }
+    if (only) { msg.fitsOnly = true; msg.mine = (window._gpInts || []).slice(); }
     else {
       msg.rows = window._gpWords.rows.filter(function(r){ return r && r[0] && r[1]; });
       msg.mine = (window._gpInts || []).slice();
@@ -4065,9 +4069,9 @@
         });
       } catch (e) {}
     }
-    try { fr.contentWindow.postMessage(msg, location.origin); } catch (e) {}
+    frs.forEach(function(fr){ try { fr.contentWindow.postMessage(msg, location.origin); } catch (e) {} });
   }
-  function gpIntMsg(d){
+  function gpIntMsg(d, src){
     if (d.ao === 'iready') { gpIntPost(); return; }
     if (gpViewingSomebodyElse()) { return; }
     if (d.ao === 'ints') {
@@ -4079,7 +4083,7 @@
       return;
     }
     if (d.ao === 'addword') {
-      var fra = document.querySelector('iframe.gp-int'), back = function(res){ try { fra.contentWindow.postMessage({ ao: 'addwordres', id: d.id, res: res }, location.origin); } catch (x) {} };
+      var back = function(res){ try { (src || document.querySelector('iframe.gp-int').contentWindow).postMessage({ ao: 'addwordres', id: d.id, res: res }, location.origin); } catch (x) {} };
       var tx = String(d.text || '').trim().slice(0, 60);
       if (!tx || !meId) { back(null); return; }
       var q = GS_URL + '?action=addWord&appearId=' + encodeURIComponent(meId) + '&text=' + encodeURIComponent(tx);
@@ -6707,6 +6711,7 @@
       ifold.body.appendChild(ihint); ifold.body.appendChild(ihost);
       var iblk = document.createElement('div'); iblk.id = 'gp-ints-block'; iblk.setAttribute('data-gp-step', String(GP_INT));
       iblk.appendChild(ifold.box);
+      var lhostEl = document.createElement('div'); lhostEl.id = 'gp-ints-list-host'; lhostEl.style.cssText = 'margin:14px 0 0;'; iblk.appendChild(lhostEl);
       box.insertBefore(iblk, document.getElementById('gp-preview'));
     }
     if (GP_PERM > -1) {
@@ -6902,14 +6907,6 @@
       k++;
     });
     sel.innerHTML = h;
-    var pv = document.getElementById('gp-preview');
-    if (GP_INT > -1 && pv && pv.parentNode && !document.getElementById('gp-bnav-sol')) {
-      var sb = document.createElement('button'); sb.type = 'button'; sb.id = 'gp-bnav-sol'; sb.textContent = 'Solutions';
-      sb.setAttribute('data-gp-step', String(GP_INT));
-      sb.style.display = (_gpStep === GP_INT) ? '' : 'none';
-      sb.onclick = function(){ try { gpQuietSave(); } catch (e) {} window.location.href = 'https://2gather.network/account/#gather'; };
-      pv.parentNode.insertBefore(sb, pv.nextSibling);
-    }
   }
   document.getElementById('gp-step-next').addEventListener('click', function(){
     try { Array.prototype.forEach.call(document.querySelectorAll('iframe.gp-cards, #gp-ans-frame'), function(f){ if (f.contentWindow) f.contentWindow.postMessage({ ao: 'finish' }, location.origin); }); } catch (e) {}
