@@ -544,7 +544,7 @@
     var path = node ? pathOf(node).slice(0, -1).map(function(x){ return x.word; }) : [];
     if (!path.length && m.area && lc(m.area) !== lc(m.word)) path = [m.area];
     var catLinkEl = null;
-    if (CARDS2) {
+    if (CARDS2 && TAGS2) {
       var cl0 = catListOf(m.word);
       catLinkEl = el('button', cl0.length ? 'catlink' : 'misscat', cl0.length ? cl0.join(' | ') : 'Missing category'); catLinkEl.type = 'button';
       catLinkEl.addEventListener('click', function(){ st.tagOpen = st.tagOpen || {}; st.tagOpen[lc(m.word)] = !st.tagOpen[lc(m.word)]; drawCards(); });
@@ -557,7 +557,7 @@
     if (CARDS2) { tools.appendChild(removeIcon(m)); }
     if (!CARDS2) { tools.appendChild(x); }
     top.appendChild(left); top.appendChild(tools); c.appendChild(top);
-    if (CARDS2 && st.tagOpen && st.tagOpen[lc(m.word)]) {
+    if (CARDS2 && TAGS2 && st.tagOpen && st.tagOpen[lc(m.word)]) {
       c.appendChild(tagBox(m, function(){ st.tagOpen[lc(m.word)] = false; drawCards(); }, function(){
         var cl1 = catListOf(m.word); catLinkEl.textContent = cl1.length ? cl1.join(' | ') : 'Missing category'; catLinkEl.className = cl1.length ? 'catlink' : 'misscat';
       }));
@@ -720,13 +720,13 @@
   }
   function fitPane(pane, word, key){
     if (key === 'enjoy') {
-      pillRow(pane, 'How is this of interest to you?', ['Fan', 'I do it myself'], 'how', true, word);
+      if (TAGS2) { pillRow(pane, 'How is this of interest to you?', ['Fan', 'I do it myself'], 'how', true, word); }
       wayList(pane, 'How do you enjoy it?', ENJOY_WAYS, word);
     } else if (key === 'skill') {
       pillRow(pane, 'What is your level?', ['Beginner', 'Experienced', 'Guide'], 'level', true, word);
       pillRow(pane, 'Is it a skill you want to work with?', ['Yes, I’m open to work', 'No, just for joy'], 'workOpen', false, word);
     } else if (key === 'care') {
-      pillRow(pane, 'Is it social or ecological?', ['Social', 'Ecological'], 'lens', true, word);
+      if (TAGS2) { pillRow(pane, 'Is it social or ecological?', ['Social', 'Ecological'], 'lens', true, word); }
       wayList(pane, 'How do you care about it?', CARE_WAYS, word);
     } else if (key === 'seek') {
       wayList(pane, 'What are you looking for with ' + word + '?', SEEK_WAYS, word);
@@ -737,10 +737,15 @@
   function moreView(m){
     var c = el('div', 'card more'), fitsOn = FITS.filter(function(f){ return (st.fits[lc(m.word)] || []).indexOf(f[0]) > -1; });
     var mh = el('div', 'top'), ml = el('div', ''); ml.appendChild(el('div', 'nm', m.word));
-    var cats = catListOf(m.word); ml.appendChild(el('div', 'path', cats.length ? cats.join(' | ') : 'Missing category'));
+    if (TAGS2) { var cats = catListOf(m.word); ml.appendChild(el('div', 'path', cats.length ? cats.join(' | ') : 'Missing category')); }
+    else {
+      var mn = st.byName[lc(m.word)], mp = mn ? pathOf(mn).slice(0, -1).map(function(x){ return x.word; }) : [];
+      if (!mp.length && m.area && lc(m.area) !== lc(m.word)) { mp = [m.area]; }
+      if (mp.length) { ml.appendChild(el('div', 'path', mp.join(' \u203A ').replace(/ > /g, ' \u203A '))); }
+    }
     mh.appendChild(ml); mh.appendChild(removeIcon(m)); c.appendChild(mh);
     var tabs = el('div', 'mtabs'), pane = el('div', 'mpane');
-    var names = [['interest', 'Interested']].concat(fitsOn.map(function(f){ return [f[0], f[1]]; })).concat([['match', 'Show & Match']]);
+    var names = [['interest', 'Interested']].concat(fitsOn.filter(function(f){ return TAGS2 || f[0] !== 'skill'; }).map(function(f){ return [f[0], f[1]]; })).concat([['match', 'Show & Match']]);
     st.moreTab = st.moreTab && names.some(function(t){ return t[0] === st.moreTab; }) ? st.moreTab : names[0][0];
     names.forEach(function(t){
       var tb = el('button', 'mtab' + (t[0] === st.moreTab ? ' on' : ''), ({ interest: 'Interested', match: 'Show & Match', enjoy: 'Enjoy', skill: 'Skill', care: 'Cares', seek: 'Seeking' })[t[0]] || t[1]); tb.type = 'button';
@@ -752,7 +757,7 @@
       csRows(pane, getA(m.word), m.word, function(a){ putA(m.word, a); }, el);
     } else {
       fitPane(pane, m.word, st.moreTab);
-      pane.appendChild(el('div', 'tagn', 'Mockup: these answers are kept on this screen only until they are wired to save.'));
+      if (TAGS2) { pane.appendChild(el('div', 'tagn', 'Mockup: these answers are kept on this screen only until they are wired to save.')); }
     }
     c.appendChild(pane);
     var row = el('div', 'cbtns'), dn = el('button', 'btn small', 'Done'); dn.type = 'button';
@@ -789,7 +794,7 @@
     sel.addEventListener('change', function(){ st.lsort = sel.value; drawCards(); });
     r1.appendChild(q); r1.appendChild(sel); tools.appendChild(r1);
     var chips = el('div', 'lchips');
-    [['all', 'All'], ['interest', 'Interests'], ['enjoy', 'Joys'], ['care', 'Cares'], ['skill', 'Skills'], ['offer', 'Offerings'], ['seek', 'Seeking']].forEach(function(f){
+    [['all', 'All interests'], ['enjoy', 'Joys'], ['care', 'Cares'], ['skill', 'Skills'], ['offer', 'Offerings'], ['seek', 'Seeking']].forEach(function(f){
       var b = el('button', 'lchip' + ((st.lkind || 'all') === f[0] ? ' on' : ''), f[1]); b.type = 'button';
       b.addEventListener('click', function(){ st.lkind = f[0]; st.cardLimit = 4; drawCards(); });
       chips.appendChild(b);
@@ -849,7 +854,8 @@
   }
 
   var PASTE = !/[?&]paste=0/.test(location.search);
-  var CARDS2 = /[?&]cards2=1\b/.test(location.search);
+  var CARDS2 = !/[?&]cards2=0\b/.test(location.search);
+  var TAGS2 = /[?&]tags=1\b/.test(location.search);
   var DYM = /[?&]dym=1/.test(location.search);
 
   var CONSENT = !/[?&]consent=0\b/.test(location.search);
