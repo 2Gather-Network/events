@@ -3617,7 +3617,7 @@
     var got = {};
     try { got = JSON.parse(String(raw || '') || '{}') || {}; } catch (e) { got = {}; }
     if (typeof got !== 'object' || Array.isArray(got)) { got = {}; }
-    var KEPT = ['show', 'match', 'showOnProfile', 'enjoyWith', 'enjoyWho', 'who', 'whoAdded', 'serveWhat', 'serveWho', 'serveNature', 'gives', 'paid', 'unpaidKind', 'unpaidTime', 'workAsked', 'workOpen', 'careWays', 'addedDate', 'editedDate'];
+    var KEPT = ['show', 'match', 'cats', 'showOnProfile', 'enjoyWith', 'enjoyWho', 'who', 'whoAdded', 'serveWhat', 'serveWho', 'serveNature', 'gives', 'paid', 'unpaidKind', 'unpaidTime', 'workAsked', 'workOpen', 'careWays', 'addedDate', 'editedDate'];
     try {
       var all = JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {};
       Object.keys(got).forEach(function(k){
@@ -4022,6 +4022,17 @@
     else {
       msg.rows = window._gpWords.rows.filter(function(r){ return r && r[0] && r[1]; });
       msg.mine = (window._gpInts || []).slice();
+      msg.marks = {};
+      try {
+        ['introEnjoy', 'introSkills'].forEach(function(k){
+          gpPickedWords(k).forEach(function(w){
+            var low = w.toLowerCase(), lv = gpLevelOf(k, w), mk = msg.marks[low] || (msg.marks[low] = {});
+            var lvl = lv.filter(function(v){ return GP_DO_LEVELS.indexOf(v) > -1; });
+            if (lvl.length) { mk.level = lvl; }
+            if (k === 'introEnjoy') { var hw = []; if (lv.indexOf('Fan') > -1) { hw.push('Fan'); } if (_gpDoOpen[k + '|' + low]) { hw.push('I do it myself'); } if (hw.length) { mk.how = hw; } }
+          });
+        });
+      } catch (e) {}
     }
     try { fr.contentWindow.postMessage(msg, location.origin); } catch (e) {}
   }
@@ -4045,6 +4056,34 @@
       if (d.kindOf) { q += '&kindOf=' + encodeURIComponent(String(d.kindOf).slice(0, 60)); }
       if (d.askedIn) { q += '&askedIn=' + encodeURIComponent(d.askedIn); }
       fetch(q).then(function(r){ return r.json(); }).then(back).catch(function(){ back(null); });
+      return;
+    }
+    if (d.ao === 'intcat') {
+      var cw = String(d.word || '').trim(), cl = (d.cats || []).map(function(x){ return String(x || '').trim(); }).filter(Boolean);
+      if (!cw || !cl.length) { return; }
+      ['introEnjoy', 'introSkills'].forEach(function(k){
+        if (!gpPickedWords(k).some(function(x){ return x.toLowerCase() === cw.toLowerCase(); })) { return; }
+        gpSetCategory(k, cw, cl[0]); gpSetAlso(k, cw, cl.slice(1)); try { gpTagPaint(k); } catch (e) {}
+      });
+      gpTouchSave();
+      return;
+    }
+    if (d.ao === 'intsave') {
+      var sw = String(d.word || '').trim(), stags = d.tags || [], show = d.how || [], slevel = d.level || [];
+      if (!sw) { return; }
+      ['introEnjoy', 'introSkills'].forEach(function(k){
+        if (!gpPickedWords(k).some(function(x){ return x.toLowerCase() === sw.toLowerCase(); })) { return; }
+        if (k === 'introEnjoy') {
+          _gpDoOpen[k + '|' + sw.toLowerCase()] = show.indexOf('I do it myself') > -1;
+          var joySkill = stags.indexOf('skill') > -1 && d.workOpen !== 'yes';
+          var lvJ = joySkill ? slevel.filter(function(v){ return GP_DO_LEVELS.indexOf(v) > -1; }) : [];
+          gpSetLevel(k, sw, (show.indexOf('Fan') > -1 ? ['Fan'] : []).concat(lvJ));
+        } else {
+          gpSetLevel(k, sw, slevel.filter(function(v){ return GP_DO_LEVELS.indexOf(v) > -1; }));
+        }
+        try { gpTagPaint(k); } catch (e) {}
+      });
+      gpTouchSave();
       return;
     }
     if (d.ao === 'intfit') {
