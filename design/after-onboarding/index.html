@@ -229,6 +229,19 @@
   @media(min-width:769px) and (max-width:980px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
   @media(min-width:561px){html.ao-inpane:not(.ao-fit) .grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
   @media(min-width:561px){html.ao-fit .grid{grid-template-columns:repeat(3,minmax(0,1fr));}html.ao-fit .c h3{margin-right:52px;}html.ao-fit .c.ok h3{margin-right:80px;}}
+
+  .cs{margin-top:12px;border-top:1px solid #DDE4EE;padding-top:4px;}
+  .cs-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid #EEF2F6;}
+  .cs-row:first-of-type{border-top:0;}
+  .cs-t b{display:block;font-size:14px;color:#1A2E42;}
+  .cs-h{display:block;font-size:12.5px;font-weight:400;color:#4B5A6D;line-height:1.45;margin-top:2px;}
+  .cs-sw{flex:0 0 auto;width:40px;height:22px;border-radius:11px;border:0;cursor:pointer;position:relative;background:#C5CED9;padding:0;margin-top:2px;}
+  .cs-sw.on{background:#1F699E;}
+  .cs-k{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;}
+  .cs-sw.on .cs-k{left:21px;}
+  .cs-priv{background:#FBF2DC;color:#7A5A10;font-size:13px;font-weight:700;border-radius:8px;padding:7px 10px;margin:8px 0 4px;}
+  .cs-tag{display:inline-block;background:#7A5A10;color:#fff;font-size:11px;font-weight:800;border-radius:999px;padding:1px 8px;margin-right:6px;letter-spacing:.03em;}
+  .cs-note{font-size:13px;color:#4B5A6D;padding:8px 0;}
 </style>
 </head>
 <body>
@@ -1167,6 +1180,65 @@
   }
   var EMBED = /[?&]embed=1\b/.test(location.search);
   var INPANE = /[?&]inpane=1\b/.test(location.search);
+
+  var CONSENT = /[?&]consent=1\b/.test(location.search);
+  var CW_API = 'https://cw-api-gate.jessieupp.workers.dev';
+  var CWSENS = null, CWSENS_FAIL = false, CWSENS_Q = [];
+  function cwSensLoad(cb){
+    if (CWSENS || CWSENS_FAIL) { cb(); return; }
+    CWSENS_Q.push(cb); if (CWSENS_Q.length > 1) { return; }
+    var done = function(set, fail){ CWSENS = set; CWSENS_FAIL = !!fail; CWSENS_Q.splice(0).forEach(function(f){ try { f(); } catch (e) {} }); };
+    try {
+      var k = JSON.parse(sessionStorage.getItem('cw-sens-v1') || 'null');
+      if (k && k.t && Date.now() - k.t < 3600000 && k.w) { var s0 = {}; k.w.forEach(function(w){ s0[w] = 1; }); done(s0, false); return; }
+    } catch (e) {}
+    fetch(CW_API + '?action=getCategories&words=1').then(function(r){ return r.json(); }).then(function(d){
+      var at = d && d.wordCols ? d.wordCols.indexOf('sensitive') : -1;
+      if (at < 0 || !d.words || !d.words.length) { done(null, true); return; }
+      var s = {}, arr = [];
+      d.words.forEach(function(r){ if (String(r[at]).toUpperCase() === 'TRUE') { var w = String(r[1]).toLowerCase(); s[w] = 1; arr.push(w); } });
+      try { sessionStorage.setItem('cw-sens-v1', JSON.stringify({ t: Date.now(), w: arr })); } catch (e) {}
+      done(s, false);
+    }).catch(function(){ done(null, true); });
+  }
+  function cwIsSens(word){ return !!(CWSENS && CWSENS[String(word || '').toLowerCase()]); }
+  function csOn(v){ return v !== false && v !== 'no'; }
+  function csShow(a, w){ if (a.show !== undefined) { return csOn(a.show); } if (a.showOnProfile !== undefined) { return csOn(a.showOnProfile); } return !cwIsSens(w); }
+  function csMatch(a, w){ if (a.match !== undefined) { return csOn(a.match); } return !cwIsSens(w); }
+  function csSet(a, w, key, val){
+    var s = csShow(a, w), m = csMatch(a, w);
+    if (key === 'show') { s = val; } else { m = val; }
+    a.show = s; a.match = m; delete a.showOnProfile;
+  }
+  function csSeedSensitive(a, w){
+    if (cwIsSens(w) && a.show === undefined && a.match === undefined && a.showOnProfile === undefined) { a.show = false; a.match = false; return true; }
+    return false;
+  }
+  function csRows(host, a, w, onSet, mk){
+    var wrap = mk('div', 'cs');
+    var st = !CWSENS && !CWSENS_FAIL ? 'wait' : (CWSENS_FAIL ? 'fail' : 'ready');
+    if (st === 'wait') { wrap.appendChild(mk('div', 'cs-note', 'Checking this card…')); host.appendChild(wrap); return wrap; }
+    if (st === 'fail') { wrap.appendChild(mk('div', 'cs-note', 'We could not check this card just now, so these switches are paused. Try again in a moment.')); host.appendChild(wrap); return wrap; }
+    if (cwIsSens(w)) {
+      var pv = mk('div', 'cs-priv'); pv.appendChild(mk('span', 'cs-tag', 'Private')); pv.appendChild(document.createTextNode(' This stays private unless you turn these on.')); wrap.appendChild(pv);
+    }
+    [['show', 'Show on my profile', 'People who can see this part of your profile see this card.'],
+     ['match', 'Use to find matches', 'We use this to suggest people, groups and events. Someone you match with sees what you have in common.']].forEach(function(r){
+      var on = r[0] === 'show' ? csShow(a, w) : csMatch(a, w);
+      var row = mk('div', 'cs-row'), txt = mk('div', 'cs-t'), sw = mk('button', 'cs-sw' + (on ? ' on' : ''));
+      txt.appendChild(mk('b', '', r[1])); txt.appendChild(mk('span', 'cs-h', r[2]));
+      sw.type = 'button'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', on ? 'true' : 'false'); sw.setAttribute('aria-label', r[1] + ': ' + w);
+      sw.appendChild(mk('span', 'cs-k'));
+      sw.addEventListener('click', function(){
+        var now = !sw.classList.contains('on');
+        csSet(a, w, r[0], now); onSet(a);
+        Array.prototype.forEach.call(wrap.querySelectorAll('.cs-sw'), function(b, i){ var v = i === 0 ? csShow(a, w) : csMatch(a, w); b.classList.toggle('on', v); b.setAttribute('aria-checked', v ? 'true' : 'false'); });
+      });
+      row.appendChild(txt); row.appendChild(sw); wrap.appendChild(row);
+    });
+    host.appendChild(wrap); return wrap;
+  }
+  if (CONSENT) { cwSensLoad(function(){}); }
   if (INPANE) document.documentElement.classList.add('ao-inpane');
   function tellH(){ if (!INPANE) return; var w = document.querySelector('.wrap'), h = 0; try { var bs = getComputedStyle(document.body), mb = parseFloat(bs.marginBottom) || 0; h = Math.ceil(document.body.getBoundingClientRect().bottom + (window.scrollY || 0) + mb); } catch (e) { h = document.documentElement.scrollHeight; } try { parent.postMessage({ ao: 'h', h: h }, location.origin); } catch (e) {} }
   function toParent(m){ try { parent.postMessage(m, location.origin); } catch (e) {} }
@@ -1734,6 +1806,11 @@
       dbx.appendChild(ta);
     }
     if (WORDBOX && !it.thing) wordBox(c, it);
+    if (CONSENT && !it.thing) {
+      var csHost = el('div', 'csh'); c.appendChild(csHost);
+      var csDraw = function(){ csHost.innerHTML = ''; if (CWSENS && csSeedSensitive(it.a, it.word)) { commitDraft(); } csRows(csHost, it.a, it.word, function(){ commitDraft(); }, el); };
+      csDraw(); cwSensLoad(csDraw);
+    }
     var nav = el('div', 'qnav qend');
     var sv = el('button', 'btn', 'Done'); sv.type = 'button';
     sv.addEventListener('click', function(){ finishEdit(); });
@@ -1750,12 +1827,12 @@
     try { var all = sharedAll(); var a = JSON.parse(JSON.stringify(it.a || {})); delete a.cat; all[String(it.word).toLowerCase()] = a; sessionStorage.setItem('ao-details', JSON.stringify(all)); } catch (e) {}
     if (INPANE) toParent({ ao: 'details', word: it.word, a: slimDetails(it.a) });
   }
-  var KEPT = ['img', 'enjoyWith', 'enjoyWho', 'who', 'whoAdded', 'serveWhat', 'serveWho', 'serveNature', 'gives', 'paid', 'unpaidKind', 'unpaidTime', 'workAsked', 'workOpen', 'careWays', 'addedDate', 'editedDate'];
+  var KEPT = ['show', 'match', 'img', 'enjoyWith', 'enjoyWho', 'who', 'whoAdded', 'serveWhat', 'serveWho', 'serveNature', 'gives', 'paid', 'unpaidKind', 'unpaidTime', 'workAsked', 'workOpen', 'careWays', 'addedDate', 'editedDate'];
   function slimDetails(a){
     var out = {}, any = false;
     KEPT.forEach(function(k){
       var v = (a || {})[k];
-      if (Array.isArray(v) ? v.length : (v === true || (typeof v === 'string' && v))) { out[k] = JSON.parse(JSON.stringify(v)); any = true; }
+      if (Array.isArray(v) ? v.length : (v === true || ((k === 'show' || k === 'match') && v === false) || (typeof v === 'string' && v))) { out[k] = JSON.parse(JSON.stringify(v)); any = true; }
     });
     return any ? out : null;
   }
