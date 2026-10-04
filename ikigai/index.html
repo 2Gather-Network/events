@@ -124,6 +124,7 @@
   var GP_AVATAR = GP_RAIL && (params.get('avatar') || '') === '1';
   var GP_NEW = GP_RAIL && (params.get('new') || '1') !== '0';
   var GP_NEW_ORDER = [0, 1, 3, 2, 5, 4];
+  var GP_JOYS2 = GP_NEW && params.get('joys2') === '1';
   var GP_NEW_LABELS = { 0: 'About you', 1: 'Joys', 2: 'Skills', 3: 'Cares', 4: 'Seeking', 5: 'Offerings' };
   function gpNewOrder(){ return GP_NEW_ORDER.filter(function(n){ return n !== GP_INT || gpIntOn(); }).concat([GP_LAST]); }
   var GP_OTHER = (function(){ var v = parseInt(params.get('other'), 10); return (v >= 1 && v <= 4) ? v : 0; })();
@@ -1720,7 +1721,7 @@
       searchWrap.insertBefore(sBar, search);
       sBar.appendChild(search);
       search.style.flex = '1'; search.style.minWidth = '0'; search.style.width = 'auto';
-      search.placeholder = 'Add your own';
+      search.placeholder = (GP_JOYS2 && key === 'introEnjoy') ? '\u{1F50D} Search or add a joy' : 'Add your own';
       var sAdd = document.createElement('button');
       sAdd.type = 'button'; sAdd.textContent = 'Add';
       sAdd.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:9px 18px;border-radius:10px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
@@ -2141,13 +2142,14 @@
       browseWrap.classList.add('gp-shut');
       var catBtn = document.createElement('button');
       catBtn.type = 'button';
-      var catWord = key === 'introNeed' ? 'Show categories' : 'Show me categories';
+      var _jz = GP_JOYS2 && key === 'introEnjoy';
+      var catWord = _jz ? 'Show me ideas' : key === 'introNeed' ? 'Show categories' : 'Show me categories';
       catBtn.textContent = catWord;
       catBtn.setAttribute('aria-expanded', 'false');
       catBtn.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;background:#1F699E;border:1.5px solid #1F699E;color:#fff;font-weight:700;';
       catBtn.addEventListener('click', function(){
         var open = browseWrap.classList.toggle('gp-shut') === false;
-        catBtn.textContent = open ? 'Hide categories' : catWord;
+        catBtn.textContent = open ? (_jz ? 'Hide ideas' : 'Hide categories') : catWord;
         catBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
       });
       if (other.parentNode && other.style.display !== 'none') { other.parentNode.insertBefore(catBtn, other.nextSibling); } else { row.appendChild(catBtn); }
@@ -3195,6 +3197,30 @@
     introValues: { multi:false, list:['Exploring','Engaged','Leading'],        head:'Cares added', across:true }
   };
   var _gpFoldShut = {};
+  function gpJoysLikeInts(wrap, title){
+    if (!wrap || wrap.getAttribute('data-joys2')) { return; }
+    wrap.setAttribute('data-joys2', '1');
+    var fold = gpFoldBar('joysq', 'What do you enjoy?');
+    fold.box.style.margin = '0';
+    var hint = document.createElement('div');
+    hint.textContent = 'Only you see them until you want to be matched with compatible people, resources, and opportunities.';
+    hint.style.cssText = 'font-size:14px;color:#4B5A6D;margin:0 0 12px;line-height:1.45;';
+    fold.body.appendChild(hint);
+    var kids = Array.prototype.slice.call(wrap.childNodes), tag = document.getElementById('gp-tagbox-introEnjoy');
+    var srch = null;
+    kids.forEach(function(k){ if (!srch && k.querySelector && k.querySelector('input[placeholder*="Search or add a joy"]')) { srch = k; } });
+    if (srch) { fold.body.appendChild(srch); }
+    kids.forEach(function(k){
+      if (k === title || k === srch || k === tag) { return; }
+      if (k.nodeType === 1 && k.tagName === 'TEXTAREA' && k.style.display === 'none') { fold.body.appendChild(k); return; }
+      fold.body.appendChild(k);
+    });
+    var inp = fold.body.querySelector('input[placeholder*="Search or add a joy"]');
+    if (inp && srch && srch !== inp) { var n = inp; while (n.parentNode && n.parentNode !== srch) { n = n.parentNode; } if (n.parentNode === srch && n !== srch.firstChild) { srch.insertBefore(n, srch.firstChild); n.style.marginBottom = '12px'; } }
+    if (title) { title.style.display = 'none'; }
+    wrap.insertBefore(fold.box, wrap.firstChild);
+    if (tag) { tag.style.margin = '18px 0 0'; fold.body.appendChild(tag); }
+  }
   function gpFoldBar(key, head){
     var box = document.createElement('div');
     box.id = 'gp-tagbox-' + key;
@@ -4590,6 +4616,7 @@
       var _map = { introEnjoy:'1', introExpression:'1', introSkills:'2', introValues:'3', introNeed:'4', introOffer:'4' };
       wrap.setAttribute('data-gp-step', _map[q.key] || '4');
       box.appendChild(wrap);
+      if (GP_JOYS2 && q.key === 'introEnjoy') { gpJoysLikeInts(wrap, t); }
       if (q.key === 'introSkills') {
         var _m = gpMethodsBlock();
         _m.id = 'gp-methods-block';
