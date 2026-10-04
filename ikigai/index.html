@@ -3838,7 +3838,6 @@
         return;
       }
       if (d.ao === 'matching') { gpMatchOpen(); return; }
-      if (d.ao === 'doneedit') { gpMoreClose(); return; }
       if (d.ao === 'details') { if (!gpViewingSomebodyElse()) { gpDetailQueue(d.word, d.a); } return; }
       if (fr.classList.contains('gp-int')) { gpIntMsg(d); return; }
       if (!fr.classList.contains('gp-cards') && fr.id !== 'gp-ans-frame') { return; }
@@ -4045,33 +4044,19 @@
     else {
       msg.rows = window._gpWords.rows.filter(function(r){ return r && r[0] && r[1]; });
       msg.mine = (window._gpInts || []).slice();
+      msg.marks = {};
+      try {
+        ['introEnjoy', 'introSkills'].forEach(function(k){
+          gpPickedWords(k).forEach(function(w){
+            var low = w.toLowerCase(), lv = gpLevelOf(k, w), mk = msg.marks[low] || (msg.marks[low] = {});
+            var lvl = lv.filter(function(v){ return GP_DO_LEVELS.indexOf(v) > -1; });
+            if (lvl.length) { mk.level = lvl; }
+            if (k === 'introEnjoy') { var hw = []; if (lv.indexOf('Fan') > -1) { hw.push('Fan'); } if (_gpDoOpen[k + '|' + low]) { hw.push('I do it myself'); } if (hw.length) { mk.how = hw; } }
+          });
+        });
+      } catch (e) {}
     }
     try { fr.contentWindow.postMessage(msg, location.origin); } catch (e) {}
-  }
-  function gpMoreClose(){
-    var ov = document.getElementById('gp-more-modal');
-    if (ov && ov.parentNode) { ov.parentNode.removeChild(ov); }
-    window._gpOpenAfterAdd = '';
-    try { gpDetailSend(); } catch (e) {}
-    try { gpIntPost(true); } catch (e) {}
-    try { document.querySelectorAll('iframe.gp-int').forEach(function(f){ if (f.contentWindow) { f.contentWindow.postMessage({ ao: 'shared' }, location.origin); } }); } catch (e) {}
-  }
-  function gpMoreOpen(word){
-    if (!word || document.getElementById('gp-more-modal')) { return; }
-    gpNewMsgs();
-    var ov = document.createElement('div'); ov.id = 'gp-more-modal';
-    ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(26,46,66,.6);z-index:100000;overflow:auto;padding:24px 12px;';
-    var box = document.createElement('div');
-    box.style.cssText = 'background:#fff;border-radius:16px;max-width:760px;margin:0 auto;padding:14px 14px 18px;box-sizing:border-box;';
-    var fr = document.createElement('iframe');
-    fr.className = 'gp-cards'; fr.id = 'gp-more-frame'; fr.title = 'More about ' + word;
-    fr.style.cssText = 'width:100%;height:480px;border:0;display:block;';
-    fr.setAttribute('scrolling', 'no');
-    fr.src = '/design/after-onboarding/?inpane=1&only=' + encodeURIComponent(word) + '&cb=' + Date.now();
-    box.appendChild(fr); ov.appendChild(box); document.body.appendChild(ov);
-    window._gpOpenAfterAdd = word;
-    var go = function(){ gpNewPost(fr); };
-    if (!window._gpNewTopics) { gpNewTopicsLoad().then(go); }
   }
   function gpIntMsg(d){
     if (d.ao === 'iready') { gpIntPost(); return; }
@@ -4109,13 +4094,30 @@
       gpIntPost(true);
       return;
     }
-    if (d.ao === 'moreinfo') { gpMoreOpen(String(d.word || '').trim()); return; }
     if (d.ao === 'intcat') {
       var cw = String(d.word || '').trim(), cl = (d.cats || []).map(function(x){ return String(x || '').trim(); }).filter(Boolean);
       if (!cw || !cl.length) { return; }
       ['introEnjoy', 'introSkills'].forEach(function(k){
         if (!gpPickedWords(k).some(function(x){ return x.toLowerCase() === cw.toLowerCase(); })) { return; }
         gpSetCategory(k, cw, cl[0]); gpSetAlso(k, cw, cl.slice(1)); try { gpTagPaint(k); } catch (e) {}
+      });
+      gpTouchSave();
+      return;
+    }
+    if (d.ao === 'intsave') {
+      var sw = String(d.word || '').trim(), stags = d.tags || [], show = d.how || [], slevel = d.level || [];
+      if (!sw) { return; }
+      ['introEnjoy', 'introSkills'].forEach(function(k){
+        if (!gpPickedWords(k).some(function(x){ return x.toLowerCase() === sw.toLowerCase(); })) { return; }
+        if (k === 'introEnjoy') {
+          _gpDoOpen[k + '|' + sw.toLowerCase()] = show.indexOf('I do it myself') > -1;
+          var joySkill = stags.indexOf('skill') > -1 && d.workOpen !== 'yes';
+          var lvJ = joySkill ? slevel.filter(function(v){ return GP_DO_LEVELS.indexOf(v) > -1; }) : [];
+          gpSetLevel(k, sw, (show.indexOf('Fan') > -1 ? ['Fan'] : []).concat(lvJ));
+        } else {
+          gpSetLevel(k, sw, slevel.filter(function(v){ return GP_DO_LEVELS.indexOf(v) > -1; }));
+        }
+        try { gpTagPaint(k); } catch (e) {}
       });
       gpTouchSave();
       return;

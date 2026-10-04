@@ -583,7 +583,7 @@
     });
     if (CARDS2) {
       var mi = el('button', 'morelink inline', 'Add more info'); mi.type = 'button';
-      mi.addEventListener('click', function(){ toParent({ ao: 'moreinfo', word: m.word }); });
+      mi.addEventListener('click', function(){ st.more = lc(m.word); st.moreTab = ''; drawCards(); });
       lv.appendChild(mi);
     }
     c.appendChild(lv);
@@ -685,15 +685,119 @@
   function cardButtons(m){
     var row = el('div', 'cbtns'), dn = el('button', 'btn small', 'Done');
     dn.type = 'button';
-    dn.addEventListener('click', function(){ setCompact(true); st.openCard = {}; drawCards(); });
+    dn.addEventListener('click', function(){ setCompact(true); st.openCard = {}; st.more = ''; drawCards(); });
     if (CONSENT && window.parent !== window) { row.appendChild(csIcon(el)); }
     row.appendChild(dn); return row;
   }
   function removeIcon(m){
     var b = el('button', 'rmicon', ''); b.type = 'button'; b.title = 'Remove ' + m.word; b.setAttribute('aria-label', 'Remove ' + m.word);
     b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
-    b.addEventListener('click', function(){ askDelete(m.word); });
+    b.addEventListener('click', function(){ st.more = ''; askDelete(m.word); });
     return b;
+  }
+  var ENJOY_WAYS = [['casual', 'I enjoy it casually'], ['events', 'I like events that represent this topic'], ['competitive', 'I enjoy it competitively'], ['professional', 'I enjoy it professionally'], ['dialogue', 'I like talking about it'], ['learn', 'I’d like to learn more about it']];
+  var CARE_WAYS = [['connect', 'I want to meet others who care about it'], ['volunteer', 'I’d volunteer my time for it'], ['give', 'I’d give money or things to it'], ['organize', 'I’d help organize around it'], ['work', 'I want to work in this area'], ['policy', 'I want to influence policy on this topic'], ['updates', 'I’d like updated information on this']];
+  var SEEK_WAYS = [['seek:teach', 'Someone to teach or mentor me'], ['seek:do', 'Someone to do it for me'], ['seek:with', 'People to do it with'], ['seek:info', 'Information or resources about it'], ['seek:event', 'An event or group about it'], ['seek:now', 'Help with it right now']];
+  function curVal(word, field){
+    var a = getA(word); if (a[field] !== undefined) { return a[field]; }
+    var mk = (st.marks || {})[lc(word)] || {}; return mk[field] || [];
+  }
+  function sendIntSave(word){
+    var wo = curVal(word, 'workOpen');
+    toParent({ ao: 'intsave', word: word, tags: (st.fits[lc(word)] || []).slice(), how: curVal(word, 'how').slice(), level: curVal(word, 'level').slice(), workOpen: /^Yes/.test(String(wo[0] || '')) ? 'yes' : '' });
+  }
+  function pillRow(host, title, opts, field, many, word){
+    host.appendChild(el('div', 'cap', title));
+    var row = el('div', 'lv');
+    opts.forEach(function(o){
+      var on = curVal(word, field).indexOf(o) > -1, b = el('button', 'pill' + (on ? ' on' : ''), o); b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.addEventListener('click', function(){
+        var a = getA(word), list = curVal(word, field).slice(), at = list.indexOf(o);
+        if (at > -1) { list.splice(at, 1); } else { if (!many) { list = []; } list.push(o); }
+        a[field] = list;
+        putA(word, a); sendIntSave(word);
+        Array.prototype.forEach.call(row.children, function(x){ var v = curVal(word, field).indexOf(x.textContent) > -1; x.classList.toggle('on', v); x.setAttribute('aria-pressed', v ? 'true' : 'false'); });
+      });
+      row.appendChild(b);
+    });
+    host.appendChild(row);
+  }
+  function lensRow(host, word){
+    host.appendChild(el('div', 'cap', 'Is it social or ecological?'));
+    var row = el('div', 'lv');
+    ['Social', 'Ecological'].forEach(function(o){
+      var code = 'lens:' + o.toLowerCase(), on = (getA(word).careWays || []).indexOf(code) > -1, b = el('button', 'pill' + (on ? ' on' : ''), o); b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.addEventListener('click', function(){
+        var a = getA(word), list = (a.careWays || []).slice(), at = list.indexOf(code);
+        if (at > -1) { list.splice(at, 1); } else { list.push(code); }
+        if (list.length) { a.careWays = list; } else { delete a.careWays; }
+        putA(word, a);
+        b.classList.toggle('on', at < 0); b.setAttribute('aria-pressed', at < 0 ? 'true' : 'false');
+      });
+      row.appendChild(b);
+    });
+    host.appendChild(row);
+  }
+  function wayList(host, title, ways, word){
+    host.appendChild(el('div', 'cap', title));
+    ways.forEach(function(w){
+      var lab = el('label', 'way'), cb = document.createElement('input'); cb.type = 'checkbox';
+      cb.checked = (getA(word).careWays || []).indexOf(w[0]) > -1;
+      cb.addEventListener('change', function(){
+        var a = getA(word), list = (a.careWays || []).slice(), at = list.indexOf(w[0]);
+        if (cb.checked && at < 0) { list.push(w[0]); } if (!cb.checked && at > -1) { list.splice(at, 1); }
+        if (list.length) { a.careWays = list; } else { delete a.careWays; }
+        putA(word, a);
+      });
+      lab.appendChild(cb); lab.appendChild(el('span', '', w[1])); host.appendChild(lab);
+    });
+  }
+  function fitPane(pane, word, key){
+    if (key === 'enjoy') {
+      if (TAGS2) { pillRow(pane, 'How is this of interest to you?', ['Fan', 'I do it myself'], 'how', true, word); }
+      wayList(pane, 'How do you enjoy it?', ENJOY_WAYS, word);
+    } else if (key === 'skill') {
+      pillRow(pane, 'What is your level?', ['Beginner', 'Experienced', 'Guide'], 'level', true, word);
+      pillRow(pane, 'Is it a skill you want to work with?', ['Yes, I’m open to work', 'No, just for joy'], 'workOpen', false, word);
+    } else if (key === 'care') {
+      if (TAGS2) { lensRow(pane, word); }
+      wayList(pane, 'How do you care about it?', CARE_WAYS, word);
+    } else if (key === 'seek') {
+      wayList(pane, 'What are you looking for with ' + word + '?', SEEK_WAYS, word);
+    } else {
+      wayList(pane, 'How would you like to connect around it?', WAYS, word);
+    }
+  }
+  function moreView(m){
+    var c = el('div', 'card more'), fitsOn = FITS.filter(function(f){ return (st.fits[lc(m.word)] || []).indexOf(f[0]) > -1; });
+    var mh = el('div', 'top'), ml = el('div', ''); ml.appendChild(el('div', 'nm', m.word));
+    if (TAGS2) { var cats = catListOf(m.word); ml.appendChild(el('div', 'path', cats.length ? cats.join(' | ') : 'Missing category')); }
+    else {
+      var mn = st.byName[lc(m.word)], mp = mn ? pathOf(mn).slice(0, -1).map(function(x){ return x.word; }) : [];
+      if (!mp.length && m.area && lc(m.area) !== lc(m.word)) { mp = [m.area]; }
+      if (mp.length) { ml.appendChild(el('div', 'path', mp.join(' \u203A ').replace(/ > /g, ' \u203A '))); }
+    }
+    mh.appendChild(ml); mh.appendChild(removeIcon(m)); c.appendChild(mh);
+    var tabs = el('div', 'mtabs'), pane = el('div', 'mpane');
+    var names = [['interest', 'Interested']].concat(fitsOn.filter(function(f){ return TAGS2 || f[0] !== 'skill'; }).map(function(f){ return [f[0], f[1]]; })).concat([['match', 'Show & Match']]);
+    st.moreTab = st.moreTab && names.some(function(t){ return t[0] === st.moreTab; }) ? st.moreTab : names[0][0];
+    names.forEach(function(t){
+      var tb = el('button', 'mtab' + (t[0] === st.moreTab ? ' on' : ''), ({ interest: 'Interested', match: 'Show & Match', enjoy: 'Enjoy', skill: 'Skill', care: 'Cares', seek: 'Seeking' })[t[0]] || t[1]); tb.type = 'button';
+      tb.addEventListener('click', function(){ st.moreTab = t[0]; drawCards(); });
+      tabs.appendChild(tb);
+    });
+    c.appendChild(tabs);
+    if (st.moreTab === 'match') {
+      csRows(pane, getA(m.word), m.word, function(a){ putA(m.word, a); }, el);
+    } else {
+      fitPane(pane, m.word, st.moreTab);
+    }
+    c.appendChild(pane);
+    var row = el('div', 'cbtns'), dn = el('button', 'btn small', 'Done'); dn.type = 'button';
+    dn.addEventListener('click', function(){ st.more = ''; drawCards(); });
+    if (CONSENT && window.parent !== window) { row.appendChild(csIcon(el)); }
+    row.appendChild(dn); c.appendChild(row);
+    return c;
   }
   function askDelete(word){
     if (!window.confirm('Are you sure you want to delete this?')) { return; }
@@ -786,11 +890,12 @@
         mb.addEventListener('click', function(){ st.cardLimit = all ? 4 : (st.cardLimit || 4) + 4; drawCards(); });
         return mb;
       };
-      var topMore = moreLink(); if (topMore) { body.insertBefore(topMore, body.children[1] || null); }
-      list.slice(0, cap).forEach(function(m){ g.appendChild(compact && !open[lc(m.word)] ? miniRow(m) : card(m)); });
-      if (CARDS2) { body.appendChild(listTools()); }
+      var topMore = (CARDS2 && st.more) ? null : moreLink(); if (topMore) { body.insertBefore(topMore, body.children[1] || null); }
+      var moreM = CARDS2 && st.more ? list.filter(function(m){ return lc(m.word) === st.more; })[0] : null;
+      if (moreM) { g.appendChild(moreView(moreM)); } else list.slice(0, cap).forEach(function(m){ g.appendChild(compact && !open[lc(m.word)] ? miniRow(m) : card(m)); });
+      if (CARDS2 && !st.more) { body.appendChild(listTools()); }
       body.appendChild(g);
-      var botMore = (CARDS2 && compact) ? null : moreLink(); if (botMore) { body.appendChild(botMore); }
+      var botMore = (CARDS2 && (st.more || compact)) ? null : moreLink(); if (botMore) { body.appendChild(botMore); }
       wrap.appendChild(body);
     } else wrap.classList.add('shut');
     box.appendChild(wrap);
@@ -949,6 +1054,7 @@
   window.addEventListener('message', function(e){
     if (e.origin !== location.origin || e.source !== window.parent || !e.data || e.data.ao !== 'ints') return;
     if (e.data.fitsOnly) { st.fits = e.data.fits || {}; if (e.data.all) { st.all = e.data.all; } if (st.ready) { drawCards(); } return; }
+    st.marks = e.data.marks || st.marks || {};
     if (e.data.all) { st.all = e.data.all; }
     build(e.data.rows);
     takeMine(e.data.mine);
@@ -967,7 +1073,7 @@
         });
       }
       if (iq) { st.q = iq; els.search.value = iq; }
-      var im = qp.get('imore'); if (CARDS2 && im && has(im)) { toParent({ ao: 'moreinfo', word: im }); }
+      var im = qp.get('imore'); if (CARDS2 && im && has(im)) { setCompact(false); st.more = lc(im); st.moreTab = ''; }
     }
     drawAll();
   });
