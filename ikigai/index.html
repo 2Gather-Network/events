@@ -107,6 +107,7 @@
 })();
 
   var params = new URLSearchParams(window.location.search);
+  var GP_ONE = params.get('one') === '1';
   var GP_CONSENT = params.get('consent') !== '0', GP_CQ = GP_CONSENT ? '' : '&consent=0';
   var GP_OPEN_Q = String(params.get('open') || '').trim();
   var GP_PATH_STEP = (function(){
@@ -3183,7 +3184,7 @@
     if (GP_INT > -1 && _gpStep === GP_INT) { try { gpIntShow(); } catch (e) {} }
     if (GP_NEW && _gpStep === GP_STEP_TITLES.indexOf('Offerings')) { try { var _ofb = document.getElementById('gp-offers'); if (_ofb) { gpPaintOffers(_ofb); } } catch (e) {} }
     if (_gpStep === GP_LAST) { try { gpBuildPreview(); } catch (e) {} if (GP_NEW) { try { gpNewAnswers(); } catch (e) {} } }
-    if (GP_ONETAB && GP_INT > -1 && _gpStep === GP_INT) { try { gpOneTab(); } catch (e) {} }
+    if (GP_ONETAB && !GP_ONE && GP_INT > -1 && _gpStep === GP_INT) { try { gpOneTab(); } catch (e) {} }
     if (GP_V2 && (_gpStep === GP_STEP_TITLES.indexOf('Purpose') || (GP_NEW && _gpStep === GP_STEP_TITLES.indexOf('Cares')))) { try { gpPaintPurposePicks(); } catch (e) {} }
     gpStepToUrl(_gpStep);
     try { window.scrollTo(0, 0); } catch (e) {}
@@ -3998,7 +3999,7 @@
       fr.className = 'gp-int'; fr.title = 'Your interests';
       fr.style.cssText = 'width:100%;height:160px;border:0;display:block;';
       fr.setAttribute('scrolling', 'no');
-      fr.src = '/design/interests/?inpane=1' + (/[?&]paste=1/.test(location.search) ? '&paste=1' : '') + (params.get('iopen') ? '&iopen=' + encodeURIComponent(params.get('iopen')) : '') + (params.get('iq') ? '&iq=' + encodeURIComponent(params.get('iq')) : '') + (params.get('dym') === '1' ? '&dym=1' : '') + (params.get('cards2') === '0' ? '&cards2=0' : '') + (params.get('tags') === '0' ? '&tags=0' : '') + (params.get('imore') ? '&imore=' + encodeURIComponent(params.get('imore')) : '') + GP_CQ + '&cb=' + Date.now();
+      fr.src = '/design/interests/?inpane=1' + (/[?&]paste=1/.test(location.search) ? '&paste=1' : '') + (params.get('iopen') ? '&iopen=' + encodeURIComponent(params.get('iopen')) : '') + (params.get('iq') ? '&iq=' + encodeURIComponent(params.get('iq')) : '') + (params.get('dym') === '1' ? '&dym=1' : '') + (GP_ONE ? '&one=1' : '') + (params.get('cards2') === '0' ? '&cards2=0' : '') + (params.get('tags') === '0' ? '&tags=0' : '') + (params.get('imore') ? '&imore=' + encodeURIComponent(params.get('imore')) : '') + GP_CQ + '&cb=' + Date.now();
       host.appendChild(fr);
       return;
     }
@@ -4015,10 +4016,31 @@
     });
     return fits;
   }
+  function gpAllItems(){
+    var out = [], idx = {}, h = gpNewHand();
+    var add = function(w, tag, area){
+      w = String(w || '').trim(); if (!w) { return; }
+      var k = w.toLowerCase(), it = idx[k];
+      if (!it) { it = idx[k] = { word: w, tags: [], area: '' }; out.push(it); }
+      if (tag && it.tags.indexOf(tag) < 0) { it.tags.push(tag); }
+      if (area && !it.area) { it.area = area; }
+    };
+    var split = function(v){ return String(v || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean); };
+    (window._gpInts || []).forEach(function(x){ var at = String(x).lastIndexOf(':'); add(at > -1 ? String(x).slice(0, at) : x, 'interest', at > -1 ? String(x).slice(at + 1) : ''); });
+    split(h.introEnjoy).forEach(function(w){ add(w, 'enjoy'); });
+    split(h.introSkills).forEach(function(w){ add(w, 'skill'); });
+    split(h.introValues).forEach(function(w){ add(w, 'care'); });
+    split(h.introNeed).forEach(function(w){ add(w, 'seek'); });
+    split(h.introOffer).forEach(function(w){ add(w, 'offer'); });
+    (h.offerThings || []).forEach(function(w){ add(w, 'offer'); });
+    (h.seekThings || []).forEach(function(w){ add(w, 'seek'); });
+    return out.reverse();
+  }
   function gpIntPost(only){
     var fr = document.querySelector('iframe.gp-int');
     if (!fr || !fr.contentWindow || !window._gpWords) { return; }
     var msg = { ao: 'ints', fits: gpIntFits() };
+    if (GP_ONE) { try { msg.all = gpAllItems(); } catch (e) {} }
     if (only) { msg.fitsOnly = true; }
     else {
       msg.rows = window._gpWords.rows.filter(function(r){ return r && r[0] && r[1]; });
@@ -4071,6 +4093,20 @@
       if (d.kindOf) { q += '&kindOf=' + encodeURIComponent(String(d.kindOf).slice(0, 60)); }
       if (d.askedIn) { q += '&askedIn=' + encodeURIComponent(d.askedIn); }
       fetch(q).then(function(r){ return r.json(); }).then(back).catch(function(){ back(null); });
+      return;
+    }
+    if (d.ao === 'dropword') {
+      var dw = String(d.word || '').trim(), lowW = dw.toLowerCase();
+      if (!dw) { return; }
+      Object.keys(GP_FIT_KEY).forEach(function(t){
+        var k = GP_FIT_KEY[t], bx = document.getElementById('gp-intro-' + k);
+        if (bx && gpPickedWords(k).some(function(x){ return x.toLowerCase() === lowW; })) { gpDropWord(k, dw, bx); }
+      });
+      window._gpInts = (window._gpInts || []).filter(function(x){ var at = String(x).lastIndexOf(':'); return (at > -1 ? String(x).slice(0, at) : String(x)).trim().toLowerCase() !== lowW; });
+      window._gpIntsTouched = true;
+      gpDetailQueue(dw, null);
+      gpTouchSave();
+      gpIntPost(true);
       return;
     }
     if (d.ao === 'moreinfo') { gpMoreOpen(String(d.word || '').trim()); return; }
