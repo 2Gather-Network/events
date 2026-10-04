@@ -145,6 +145,7 @@
   .tagh{font-weight:800;font-size:13px;margin-bottom:8px;}
   .tagp{display:flex;flex-wrap:wrap;gap:6px;}
   .tagn{font-size:12px;color:var(--grey);margin-top:8px;}
+  .tagn.nomatch{flex:0 0 100%;font-size:13px;font-weight:700;color:var(--ink);margin:2px 0 4px;}
   .morelink{font:inherit;font-size:13px;font-weight:700;color:var(--blue);background:none;border:0;padding:8px 0 0;cursor:pointer;text-decoration:underline;display:block;}
   .cmhint2{font-size:12.5px;color:var(--grey);}
   .mtabs{display:flex;flex-wrap:wrap;gap:6px;border-bottom:2px solid var(--line);margin:12px 0;}
@@ -621,6 +622,14 @@
     if (top && !top.extra && (st.mainCats || []).indexOf(top.word) > -1) { return top.word; }
     return '';
   }
+  var EMO = {};
+  function catLab(c){ return EMO[c] ? EMO[c] + ' ' + c : c; }
+  if (CARDS2) {
+    fetch(CW_API + '?action=getReferenceData').then(function(r){ return r.json(); }).then(function(rd){
+      (rd && rd.topicCategories || []).forEach(function(t){ if (t && t.label) { EMO[t.label] = t.emoji || ''; } });
+      if (st.ready) { drawCards(); }
+    }).catch(function(){});
+  }
   function tagBox(m, onClose, onChange){
     var b = el('div', 'tagbox2');
     b.appendChild(el('div', 'tagh', 'Tag ' + m.word + ':'));
@@ -630,8 +639,13 @@
     var paint = function(){
       pills.innerHTML = '';
       var q = lc(sr.value), chosen = catListOf(m.word);
-      (st.mainCats || []).filter(function(c){ return !q || lc(c).indexOf(q) > -1; }).forEach(function(c){
-        var on = chosen.indexOf(c) > -1, p = el('button', 'pill' + (on ? ' on' : ''), c); p.type = 'button'; p.setAttribute('aria-pressed', on ? 'true' : 'false');
+      var shown = (st.mainCats || []).filter(function(c){ return !q || lc(c).indexOf(q) > -1; });
+      if (!shown.length) {
+        pills.appendChild(el('div', 'tagn nomatch', 'We have a few categories to select from and this isn\u2019t one. Select from the most applicable one below:'));
+        shown = (st.mainCats || []).slice();
+      }
+      shown.forEach(function(c){
+        var on = chosen.indexOf(c) > -1, p = el('button', 'pill' + (on ? ' on' : ''), catLab(c)); p.type = 'button'; p.setAttribute('aria-pressed', on ? 'true' : 'false');
         p.addEventListener('click', function(){
           var a = getA(m.word), list = catListOf(m.word), at = list.indexOf(c);
           if (at > -1) { list.splice(at, 1); } else { list.push(c); }
@@ -640,7 +654,6 @@
         });
         pills.appendChild(p);
       });
-      if (!pills.firstChild) { pills.appendChild(el('span', 'tagn', 'No category matches that.')); }
     };
     sr.addEventListener('input', paint); paint();
     var dr = el('div', 'cbtns'), dn = el('button', 'btn small', 'Done'); dn.type = 'button'; dn.addEventListener('click', onClose); dr.appendChild(dn); b.appendChild(dr);
