@@ -42,7 +42,7 @@
   .pastelink{display:block;margin-left:auto;font:inherit;font-size:13px;font-weight:700;color:var(--blue);background:none;border:0;padding:10px 2px 14px;cursor:pointer;text-decoration:underline;}
   .grid{row-gap:12px;}
   .btn.ideas{margin:0;}
-  .ibar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0 6px;}
+  .ibar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:16px 0 8px;}
   .btn.notes{background:#fff;color:var(--blue);border:1.5px solid var(--blue);}
   .btn.notes .dn{font-size:20px;line-height:0;vertical-align:-1px;position:relative;top:-1px;}
   .rw{display:flex;align-items:flex-start;gap:10px;}
@@ -56,7 +56,7 @@
   .pastebox{border:1px solid var(--line);border-radius:10px;background:var(--soft);padding:10px 12px 12px;margin-top:8px;}
   .pastebox textarea{width:100%;box-sizing:border-box;min-height:110px;font:inherit;font-size:14px;line-height:1.45;padding:9px 12px;border:1.5px solid var(--pale);border-radius:12px;resize:vertical;background:#fff;}
   .pastehint{font-size:12.5px;color:var(--grey);margin:0 0 8px;line-height:1.45;}
-  .pastebtns{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+  .pastebtns{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:flex-end;}
   .recs{margin-top:12px;}
   .otherbox{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;}
   .lnk{margin-top:10px;}
@@ -121,7 +121,7 @@
   button:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
 
   .cs{margin-top:10px;}
-  .cs-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;}
+  .cs-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:3px 0;}
   .cs-pills{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px;}
   .cs-t b{display:block;font-size:14px;color:#1A2E42;}
   .cs-sw{flex:0 0 auto;width:40px;height:22px;border-radius:11px;border:0;cursor:pointer;position:relative;background:#C5CED9;padding:0;margin-top:2px;}
@@ -469,12 +469,13 @@
   function drawBrowse(){
     var box = els.browse; box.innerHTML = '';
     st.open = st.open || {};
+    if (PASTE && st.pasteOpen) { return; }
     var ib = el('button', 'btn ideas', st.ideas ? 'Hide ideas' : 'Show me ideas'); ib.type = 'button'; ib.setAttribute('aria-expanded', st.ideas ? 'true' : 'false');
     ib.addEventListener('click', function(){ st.ideas = !st.ideas; drawBrowse(); });
     var ibar = el('div', 'ibar'); ibar.appendChild(ib);
     if (PASTE && !st.pasteOpen) {
       var nb = el('button', 'btn ghost notes', ''); nb.type = 'button'; nb.setAttribute('aria-expanded', 'false');
-      nb.appendChild(document.createTextNode('Add notes instead ')); nb.appendChild(el('span', 'dn', '\u25BE'));
+      nb.appendChild(document.createTextNode('Add notes instead'));
       nb.addEventListener('click', function(){ st.pasteOpen = true; drawPaste(); drawBrowse(); var a = els.paste && els.paste.querySelector('textarea'); if (a) a.focus(); });
       ibar.appendChild(nb);
     }
@@ -515,14 +516,9 @@
     if (!path.length && m.area && lc(m.area) !== lc(m.word)) path = [m.area];
     if (path.length) left.appendChild(el('div', 'path', path.join(' › ').replace(/ > /g, ' › ')));
     var x = el('button', 'x', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Remove ' + m.word);
-    x.addEventListener('click', function(){ var i = mineIx(m.word); if (i > -1) dropMine(i); });
+    x.addEventListener('click', function(){ askDelete(m.word); });
     var tools = el('div', 'ctools');
     if (CONSENT && window.parent !== window) { tools.appendChild(csIcon(el)); }
-    if (isCompact()) {
-      var cl = el('button', 'cxl', '\u25B2 Close'); cl.type = 'button'; cl.setAttribute('aria-label', 'Close ' + m.word);
-      cl.addEventListener('click', function(){ if (st.openCard) delete st.openCard[lc(m.word)]; drawCards(); });
-      tools.appendChild(cl);
-    }
     tools.appendChild(x);
     top.appendChild(left); top.appendChild(tools); c.appendChild(top);
 
@@ -567,14 +563,16 @@
       sl.appendChild(el('span', '', 'Show on my profile')); sl.appendChild(sw); c.appendChild(sl);
     }
     if (DYM) c.appendChild(linkBox(m));
-    if (isCompact()) {
-      var dn = el('button', 'btn ghost cdone', 'Done'); dn.type = 'button';
-      dn.addEventListener('click', function(){ if (st.openCard) delete st.openCard[lc(m.word)]; drawCards(); });
-      c.appendChild(dn);
-    }
+    var dn = el('button', 'btn ghost cdone', 'Done'); dn.type = 'button';
+    dn.addEventListener('click', function(){ setCompact(true); st.openCard = {}; drawCards(); });
+    c.appendChild(dn);
     return c;
   }
 
+  function askDelete(word){
+    if (!window.confirm('Are you sure you want to delete this?')) { return; }
+    var i = mineIx(word); if (i > -1) { dropMine(i); }
+  }
   function isCompact(){ try { return window.localStorage.getItem('ao-compact') !== '0'; } catch (e) { return true; } }
   function setCompact(v){ try { window.localStorage.setItem('ao-compact', v ? '1' : '0'); } catch (e) {} }
   function miniRow(m){
@@ -584,10 +582,9 @@
     var b = el('button', 'cmb'); b.type = 'button'; b.setAttribute('aria-expanded', 'false');
     b.appendChild(el('span', 'cmn', m.word));
     if (path.length) b.appendChild(el('span', 'cmp', path.join(' \u203A ').replace(/ > /g, ' \u203A ')));
-    b.addEventListener('click', function(){ st.openCard = st.openCard || {}; st.openCard[lc(m.word)] = true; drawCards(); });
+    b.addEventListener('click', function(){ setCompact(false); st.openCard = {}; drawCards(); });
     var x = el('button', 'cmx', '\u00D7'); x.type = 'button'; x.setAttribute('aria-label', 'Remove ' + m.word);
-    x.addEventListener('click', function(){ var i = mineIx(m.word); if (i > -1) dropMine(i); });
-    b.appendChild(el('span', 'cmv', '\u25BE'));
+    x.addEventListener('click', function(){ askDelete(m.word); });
     c.appendChild(b); c.appendChild(x);
     return c;
   }
@@ -614,15 +611,17 @@
       if (compact) body.appendChild(el('p', 'cmhint', 'Tap an interest to open it.'));
       var g = el('div', compact ? 'cards cmlist' : 'cards');
       var open = st.openCard || {};
-      var list = st.mine.slice().reverse(), cap = compact && !st.moreCards && list.length > 10 ? 10 : list.length;
+      var list = st.mine.slice().reverse(), lim = st.cardLimit || 4, cap = Math.min(lim, list.length);
+      var moreLink = function(){
+        if (list.length <= 4) { return null; }
+        var all = cap >= list.length, mb = el('button', 'pastelink', all ? 'Show fewer' : 'Show more (' + cap + ' of ' + list.length + ')'); mb.type = 'button';
+        mb.addEventListener('click', function(){ st.cardLimit = all ? 4 : (st.cardLimit || 4) + 4; drawCards(); });
+        return mb;
+      };
+      var topMore = moreLink(); if (topMore) { body.insertBefore(topMore, body.children[1] || null); }
       list.slice(0, cap).forEach(function(m){ g.appendChild(compact && !open[lc(m.word)] ? miniRow(m) : card(m)); });
       body.appendChild(g);
-      if (compact && list.length > 10) {
-        var mw = el('div', 'vrow'); mw.style.justifyContent = 'center';
-        var mb = el('button', 'btn ghost', st.moreCards ? 'Show only the 10 newest' : 'Show ' + (list.length - 10) + ' more'); mb.type = 'button';
-        mb.addEventListener('click', function(){ st.moreCards = !st.moreCards; drawCards(); });
-        mw.appendChild(mb); body.appendChild(mw);
-      }
+      var botMore = moreLink(); if (botMore) { body.appendChild(botMore); }
       wrap.appendChild(body);
     } else wrap.classList.add('shut');
     box.appendChild(wrap);
@@ -727,7 +726,7 @@
     w.appendChild(el('p', 'pastehint', 'Paste anything: a list with commas, a few sentences, or a transcript. We\u2019ll suggest interests from it, and nothing is added until you tap it.'));
     var ta = el('textarea'); ta.value = st.pasteText || ''; ta.setAttribute('aria-label', 'Add notes'); ta.placeholder = 'pickleball, gardening, foster parenting, I\u2019ve been getting into pottery\u2026';
     w.appendChild(ta);
-    var bs = el('div', 'pastebtns'), go = el('button', 'btn', 'Suggest interests'), cl = el('button', 'btn ghost', 'Close');
+    var bs = el('div', 'pastebtns'), go = el('button', 'btn', 'Parse interests'), cl = el('button', 'btn ghost', 'Close');
     go.type = 'button'; cl.type = 'button';
     go.addEventListener('click', function(){ st.pasteText = ta.value; st.recs = parsePaste(ta.value); drawPaste(); });
     cl.addEventListener('click', function(){ st.pasteOpen = false; st.recs = null; st.pasteText = ''; drawPaste(); drawBrowse(); });
