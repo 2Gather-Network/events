@@ -73,7 +73,15 @@
     row.appendChild(inp); row.appendChild(add); host.appendChild(row);
     function mark(k, isOwn){ if (!on[k]) { on[k] = true; order.push(k); } if (isOwn) own[k] = 1; }
     function unmark(k){ delete on[k]; delete own[k]; order = order.filter(function(x){ return x !== k; }); }
-    function toggle(k){ if (on[k]) unmark(k); else mark(k); draw(); onChange(); }
+    function under(k){ return order.some(function(x){ return on[x] && x.indexOf(k + SEP) === 0; }); }
+    function toggle(k){
+      if (on[k]) unmark(k); else mark(k);
+      if (at.length) {
+        var here = at.join(SEP);
+        if (k !== here) { if (under(here)) unmark(here); else mark(here); }
+      }
+      draw(); onChange();
+    }
     function nodeAt(path){
       var list = tree || [];
       for (var i = 0; i < path.length; i++) {
@@ -122,7 +130,12 @@
           var d = document.createElement('div'); d.className = chip;
           d.style.cssText = 'color:#1F699E;border-color:#1F699E;';
           d.textContent = (n.emoji ? n.emoji + ' ' : '') + n.name;
-          d.addEventListener('click', function(){ at = at.concat(n.name); draw(); });
+          d.addEventListener('click', function(){
+            at = at.concat(n.name);
+            var hk = at.join(SEP);
+            if (!on[hk] && !under(hk)) { mark(hk); onChange(); }
+            draw();
+          });
           r.appendChild(d);
         } else {
           r.appendChild(pill(n.name, !!on[key], function(){ toggle(key); }));
@@ -206,7 +219,6 @@
         var picks = parts[s.key] ? parts[s.key].picks() : [];
         if (!picks.length) return;
         any = true;
-        prevBody.appendChild(el('div', 'font-size:13.5px;font-weight:600;color:var(--muted,#6B7A8D);margin:10px 0 2px;', 'On ' + s.title + ', from ' + gname()));
         prevBody.appendChild(el('div', 'font-size:13.5px;color:var(--ink,#1A2E42);margin:0 0 8px;', 'Select your interests below. Your answers are shared with ' + gname() + ' members and also help build your global profile.'));
         var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
         picks.forEach(function(k){
