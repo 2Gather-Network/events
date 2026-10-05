@@ -12,8 +12,8 @@
   }
   function withKids(t){ return (t || []).filter(function(n){ return n.kids && n.kids.length; }); }
   var TREES = {
-    joys: function(){ return window.cwCategoryTree({ skills: 'none', topics: true }).then(withKids); },
-    skills: function(){ return window.cwCategoryTree({ skills: 'always', topics: true, skillsOnly: true }).then(withKids); },
+    joys: function(){ return window.cwCategoryTree({ skills: 'always', topics: true }).then(withKids); },
+    skills: function(){ return window.cwCategoryTree({ skills: 'always', topics: true }).then(withKids); },
     cares: function(){
       return refData().then(function(rd){
         var by = {}, out = [];
@@ -28,9 +28,15 @@
     }
   };
   var SECTIONS = [
-    { key: 'joys', title: 'Joys', head: 'Recreation and hobbies', sub: 'Interests that bring enjoyment', kind: 'Recreation', own: 'Something else under Recreation and hobbies?' },
-    { key: 'skills', title: 'Skills', head: 'Professional', sub: 'Work and services', kind: 'Professional', own: 'Something else under Professional?' },
-    { key: 'cares', title: 'Cares', head: 'Eco/Social Causes', sub: 'Ecological and social causes', kind: 'Ecological or Social', own: 'Something else under Eco/Social Causes?' }
+    { key: 'joys', title: 'Interests', head: 'Recreational and personal', sub: 'Interests that bring enjoyment', own: 'Something else under Recreational or Personal?' },
+    { key: 'skills', title: 'Interests', head: 'Professional', sub: 'Work and services', own: 'Something else under Professional?' },
+    { key: 'cares', title: 'Interests', head: 'Eco/Social Causes', sub: 'Ecological and social causes', own: 'Something else under Eco/Social Causes?' }
+  ];
+  var KINDS = [
+    { label: 'Recreational', key: 'joys' },
+    { label: 'Personal', key: 'joys' },
+    { label: 'Professional', key: 'skills' },
+    { label: 'Eco/social cause', key: 'cares' }
   ];
   function normalise(key){
     key = String(key || '').trim();
@@ -166,22 +172,23 @@
     var prevBody = el('div', '');
     prev.appendChild(prevBody);
     root.appendChild(prev);
-    var parts = {}, boxes = {}, open = {};
+    var parts = {}, boxes = {}, open = {}, kindOn = {};
+    function boxOpen(key){ return KINDS.some(function(k){ return k.key === key && kindOn[k.label]; }); }
     function gname(){ return (nm && String(nm.value || '').trim()) || 'this group'; }
     function paintKinds(){
       kinds.innerHTML = '';
-      SECTIONS.forEach(function(s){
-        var c = document.createElement('div'); c.className = chip + (open[s.key] ? ' on' : '');
-        c.textContent = (open[s.key] ? '\u2713 ' : '') + s.kind;
+      KINDS.forEach(function(k){
+        var c = document.createElement('div'); c.className = chip + (kindOn[k.label] ? ' on' : '');
+        c.textContent = (kindOn[k.label] ? '\u2713 ' : '') + k.label;
         c.addEventListener('click', function(){
-          if (open[s.key] && parts[s.key].picks().length) return;
-          open[s.key] = !open[s.key]; paintKinds(); layout();
+          if (kindOn[k.label] && parts[k.key].picks().length && KINDS.filter(function(o){ return o.key === k.key && kindOn[o.label]; }).length === 1) return;
+          kindOn[k.label] = !kindOn[k.label]; paintKinds(); layout();
         });
         kinds.appendChild(c);
       });
     }
     function layout(){
-      SECTIONS.forEach(function(s){ boxes[s.key].wrap.style.display = open[s.key] ? '' : 'none'; });
+      SECTIONS.forEach(function(s){ open[s.key] = boxOpen(s.key); boxes[s.key].wrap.style.display = open[s.key] ? '' : 'none'; });
     }
     function preview(){
       prevBody.innerHTML = '';
@@ -225,7 +232,7 @@
       get: function(){ return { joys: parts.joys.get(), skills: parts.skills.get(), cares: parts.cares.get() }; },
       set: function(joys, skills, cares){
         parts.joys.set(joys); parts.skills.set(skills); parts.cares.set(cares);
-        SECTIONS.forEach(function(s){ if (parts[s.key].picks().length) open[s.key] = true; });
+        KINDS.forEach(function(k){ if (parts[k.key].picks().length && !KINDS.some(function(o){ return o.key === k.key && kindOn[o.label]; })) kindOn[k.label] = true; });
         paintKinds(); layout(); preview();
       }
     };
