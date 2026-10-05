@@ -33,7 +33,7 @@
   .btn{background:var(--brand);color:#fff;border:0;font:inherit;font-size:14.5px;font-weight:700;
     padding:11px 22px;border-radius:24px;cursor:pointer;}
   .btn[disabled]{opacity:.6;cursor:default;}
-  .cw-intro-box::placeholder{color:#4B5A6D;opacity:1;}
+  .cw-intro-box::placeholder{color:#4B5A6D;opacity:.38;}
   .io-step{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#1F699E;margin:0 0 6px;}
   .io-back{font:inherit;background:none;border:0;color:#1F699E;text-decoration:underline;cursor:pointer;font-size:14px;margin-right:auto;padding:0;}
   .io-savebar{font-size:13.5px;font-weight:700;color:#1A2E42;background:#EEF6EF;border:1px solid #BFE0C6;border-radius:10px;padding:8px 12px;margin:0 0 12px;}
@@ -73,6 +73,13 @@
 <script>
   var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
   var params = new URLSearchParams(window.location.search);
+  (function(){
+    var g = String(params.get('group') || '').trim();
+    if (g && !params.get('next') && /^[A-Za-z0-9._~-]+$/.test(g)) {
+      params.set('for', 'group');
+      params.set('next', 'https://2gather.network/group/' + encodeURIComponent(g) + '?joining=1');
+    }
+  })();
   var meId = CW.me().id;
   if (!meId) { window.location.replace('/signin/?next=' + encodeURIComponent(location.pathname + location.search)); }
   
@@ -601,6 +608,8 @@
     });
     try { var KEY = 'cw-join-interests-' + g.groupId; if (out.length) sessionStorage.setItem(KEY, out.join(';')); else sessionStorage.removeItem(KEY); } catch (e) {}
   }
+  var _gpIntHost = {};
+  function gpIntHost(key){ if (!_gpIntHost[key]) { var d = document.createElement('div'); d.style.cssText = 'margin-bottom:6px;'; _gpIntHost[key] = d; } return _gpIntHost[key]; }
   function gpPicker(key, ta){
     var cfg = GP_PICK[key];
     if (!GP_CHIPS_ON || !cfg) return null;
@@ -608,7 +617,7 @@
     box.style.cssText = 'margin-top:12px;';
     var gsec = GP_JOIN_SEC[key] && window.GP_JOINING ? GP_JOIN_SEC[key] : '';
     var gbox = document.createElement('div'); gbox.style.cssText = 'display:none;margin-bottom:16px;';
-    box.appendChild(gbox);
+    (gsec ? gpIntHost(key) : box).appendChild(gbox);
 
     var lead = document.createElement('div');
     lead.style.cssText = 'font-size:13px;color:#4B5A6D;margin-bottom:8px;';
@@ -642,7 +651,7 @@
       _gpJoinOffered[key] = _gpJoinOffered[key] || {};
       list.forEach(function(pth){ _gpJoinOffered[key][pth] = 1; });
       var pillCss = function(on){ return 'font:inherit;font-size:14px;padding:8px 16px;border-radius:20px;cursor:pointer;text-align:left;line-height:1.25;' + (on ? 'background:#1F699E;color:#fff;border:1.5px solid #1F699E;font-weight:700;' : 'background:#fff;color:#1F699E;border:1.5px solid #C9DFF3;font-weight:600;'); };
-      var gl = document.createElement('div'); gl.style.cssText = 'font-size:14px;color:#4B5A6D;margin-bottom:8px;'; gl.textContent = 'Select your interests below. Your answers are shared with ' + (g.name || 'this group') + ' members and also help build your global profile.';
+      var gl = document.createElement('div'); gl.style.cssText = 'font-size:14px;font-weight:700;color:#1A2E42;margin-bottom:8px;'; var gMany = ['joys', 'cares', 'skills'].filter(function(x){ return gpJoinList(g, x).length; }).length > 1; gl.textContent = gMany ? ({ joys: 'What you enjoy', cares: 'What you care about', skills: 'Your skills' }[gsec] || '') : ''; if (!gl.textContent) gl.style.display = 'none';
       var grow = document.createElement('div'); grow.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
       var rel = document.createElement('div'); rel.style.cssText = 'margin-top:10px;';
       var btns = [], W = null;
@@ -679,7 +688,6 @@
         btns.push({ b: b, w: w, pth: pth, cat: parts[0] || '' }); grow.appendChild(b);
       });
       gbox.appendChild(gl); gbox.appendChild(grow); gbox.appendChild(rel); gbox.style.display = '';
-      moreLab.style.display = '';
       box.addEventListener('click', function(){ setTimeout(function(){ paintG(); gpJoinKeep(g); }, 0); });
       paintG(); gpJoinKeep(g);
       if (gsec !== 'cares') gpJoinWords().then(function(w){ W = w; paintRel(); });
@@ -1035,6 +1043,58 @@
     var b = document.getElementById('gp-photo-btn'); if (b) b.textContent = 'Change photo';
   }
 
+
+  var _gpHandle = { have: '', auto: false, ready: false };
+  function gpHandleClean(v){ return String(v || '').trim().toLowerCase(); }
+  function gpHandleFromName(nm){
+    var parts = String(nm || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/\s+/).map(function(x){ return x.replace(/[^a-z0-9]/g, ''); }).filter(Boolean);
+    if (!parts.length) return '';
+    var slug = parts.length > 1 ? parts[0] + '-' + parts[parts.length - 1] : parts[0];
+    return slug.slice(0, 30).replace(/-+$/, '');
+  }
+  function gpHandleOk(v){ return /^[a-z0-9-]{2,30}$/.test(v); }
+  function gpHandleSay(m, bad){ var el = document.getElementById('gp-handle-say'); if (el) { el.textContent = m || ''; el.style.color = bad ? '#7A2410' : '#4B5A6D'; } }
+  function gpHandleFree(v){
+    return fetch(GS_URL + '?action=checkVanity&slug=' + encodeURIComponent(v)).then(function(r){ return r.json(); }).then(function(d){ return !!(d && d.available); }).catch(function(){ return null; });
+  }
+  function gpHandleInit(d, wrap){
+    var el = wrap.querySelector('#gp-handle-in'), holder = wrap.querySelector('#gp-handle');
+    if (!el || !holder) return;
+    var have = gpHandleClean(d && d.vanity), nm = String((d && d.name) || '').trim();
+    var sug = have || gpHandleFromName(nm);
+    if (!sug) return;
+    _gpHandle.have = have; _gpHandle.auto = !have; _gpHandle.ready = true;
+    el.value = sug; holder.style.display = '';
+    var timer = null;
+    el.addEventListener('input', function(){
+      _gpHandle.auto = false;
+      var v = gpHandleClean(el.value);
+      if (timer) clearTimeout(timer);
+      if (v === _gpHandle.have) { gpHandleSay(''); return; }
+      if (!gpHandleOk(v)) { gpHandleSay(v ? 'Use 2 to 30 letters, numbers or dashes.' : '', true); return; }
+      gpHandleSay('Checking…');
+      timer = setTimeout(function(){ gpHandleFree(v).then(function(ok){ if (gpHandleClean(el.value) !== v) return; if (ok === null) gpHandleSay('Could not check that just now.', true); else gpHandleSay(ok ? v + ' is free.' : 'Somebody already has that name.', !ok); }); }, 450);
+    });
+    if (!have) gpHandleFree(sug).then(function(ok){ if (ok === false && _gpHandle.auto) gpHandleSay('That one is taken. A number is added when you continue.'); });
+  }
+  function gpHandleSave(){
+    var el = document.getElementById('gp-handle-in');
+    if (!el || !_gpHandle.ready) return Promise.resolve();
+    var want = gpHandleClean(el.value);
+    if (!want || want === _gpHandle.have || !gpHandleOk(want) || !gpToken()) return Promise.resolve();
+    var tryNext = function(n){
+      var cand = n ? want.slice(0, 27) + '-' + (n + 1) : want;
+      return gpHandleFree(cand).then(function(ok){
+        if (ok === null) return;
+        if (!ok) { if (_gpHandle.auto && n < 5) return tryNext(n + 1); gpHandleSay('Somebody already has that name.', true); return; }
+        return fetch(GS_URL + '?action=saveVanity&appearId=' + encodeURIComponent(meId) + '&editToken=' + encodeURIComponent(gpToken()) + '&slug=' + encodeURIComponent(cand))
+          .then(function(r){ return r.json(); })
+          .then(function(d){ if (d && d.status === 'ok' && d.slug) { _gpHandle.have = String(d.slug); el.value = _gpHandle.have; _gpHandle.auto = false; gpHandleSay(''); } else gpHandleSay((d && d.message) || 'That name did not save.', true); });
+      });
+    };
+    return tryNext(0).catch(function(){});
+  }
+
   function gpPhotoBlock(){
     var wrap = document.createElement('div');
     wrap.style.cssText = 'display:flex;align-items:center;gap:16px;padding:0 0 18px;flex-wrap:wrap;';
@@ -1050,6 +1110,11 @@
       + 'padding:8px 16px;border-radius:20px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;'
       + 'cursor:pointer;">Add a photo</button>'
       + '<div id="gp-photo-stat" style="font-size:13px;color:#4B5A6D;margin-top:6px;"></div>'
+      + '<div id="gp-handle" style="display:none;margin-top:14px;"><div style="font-size:14px;font-weight:800;color:#1A2E42;margin-bottom:2px;">Your link</div>'
+      + '<div style="font-size:13px;color:#4B5A6D;margin-bottom:6px;">This is where people find your profile. It is made from your name and you can change it.</div>'
+      + '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="font-size:14px;color:#4B5A6D;">2gather.network/hi/</span>'
+      + '<input id="gp-handle-in" type="text" autocomplete="off" spellcheck="false" maxlength="30" style="flex:0 1 220px;min-width:140px;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:9px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;"></div>'
+      + '<div id="gp-handle-say" style="font-size:13px;color:#4B5A6D;margin-top:6px;min-height:18px;"></div></div>'
       + '</div>';
     var btn = wrap.querySelector('#gp-photo-btn');
     btn.addEventListener('click', gpChoosePhoto);
@@ -1057,7 +1122,7 @@
     if (meId) {
       fetch(GS_URL + '?action=lookupProfile&appearId=' + encodeURIComponent(meId) + (gpToken() ? '&editToken=' + encodeURIComponent(gpToken()) : ''))
         .then(function(r){ return r.json(); })
-        .then(function(d){ if (d && d.photo) gpPhotoShow(d.photo); })
+        .then(function(d){ if (d && d.photo) gpPhotoShow(d.photo); try { gpHandleInit(d, wrap); } catch (e) {} })
         .catch(function(){});
     }
     return wrap;
@@ -1142,6 +1207,7 @@
         + 'people find you and what puts the right people in front of you. Answer the required '
         + 'ones ' + (window.GP_JOINING ? 'to join' : 'to get started') + '. The rest can wait.';
     box.innerHTML = '';
+    _gpIntHost = {};
     var blocks = {};
     blocks.photo = gpPhotoBlock();
     var loc = document.createElement('div');
@@ -1221,12 +1287,20 @@
       }
       blocks[q.key] = wrap;
       if (q.key === 'introSkills') {
+        if (window.GP_JOINING) {
+          var ib = document.createElement('div');
+          ib.innerHTML = '<div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;">Your interests<span id="gp-int-gn"></span></div>'
+            + '<div style="font-size:13.5px;color:#4B5A6D;line-height:1.5;margin-bottom:12px;">Select your interests below. Your answers are shared with <span id="gp-int-gn2">this group</span> members and also help build your global profile.</div>';
+          ['introEnjoy', 'introValues', 'introSkills'].forEach(function(k){ ib.appendChild(gpIntHost(k)); });
+          blocks.groupInterests = ib;
+          gpJoinGroup().then(function(g){ if (!g || !g.name) return; var a = document.getElementById('gp-int-gn'), b2 = document.getElementById('gp-int-gn2'); if (a) a.textContent = ' in ' + g.name; if (b2) b2.textContent = g.name; });
+        }
         blocks.lang = gpLanguagesBlock();
         blocks.methods = gpMethodsBlock();
         blocks.thanks = gpThanksBlock();
       }
     });
-    var ORDER = [['photo', 'Required'], ['loc', 'Required'], ['lang', 'Required'], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Required'], ['introSkills', 'Required · at least one'], ['introOffer', 'Optional'], ['thanks', 'Required'], ['introNeed', 'Optional']];
+    var ORDER = [['photo', 'Required'], ['loc', 'Required'], ['lang', 'Required'], ['groupInterests', 'Optional'], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Required'], ['introSkills', 'Required · at least one'], ['introOffer', 'Optional'], ['thanks', 'Required'], ['introNeed', 'Optional']];
     ORDER.forEach(function(o, i){
       var b = blocks[o[0]]; if (!b) return;
       b.setAttribute('data-k', o[0]);
@@ -1502,7 +1576,7 @@
         if (loc && window._ioLocTouched) { window._ioLocText = loc; window._ioLocTouched = false; }
         if (pz) window._ioPostalSaved = pz;
         dropped.forEach(function(x){ delete window._ioLoaded[x.k][x.lw]; });
-        return { dropped: [] };
+        return gpHandleSave().then(function(){ return { dropped: [] }; });
       });
   };
   window._ioReady = meId ? ioLoad() : Promise.reject(new Error('signed out'));
@@ -1590,11 +1664,17 @@
     }
     title.style.display = (answers || (!done && si > 0)) ? 'none' : '';
     lede.style.display = (!done && si === 0) ? '' : 'none';
-    stepLab.textContent = done ? (answers ? '' : 'Change your answers') : 'Step ' + (si + 1) + ' of ' + STEPS.length;
+    stepLab.textContent = window._ioJoinOnly ? '' : done ? (answers ? '' : 'Change your answers') : 'Step ' + (si + 1) + ' of ' + STEPS.length;
     stepLab.style.display = stepLab.textContent ? '' : 'none';
     title.textContent = done ? STEPS[si] && STEPS[si].rail || '' : (window.GP_JOINING ? 'Before you go in' : 'Set up your profile');
-    back.style.display = si > 0 ? '' : 'none';
-    go.textContent = (si === STEPS.length - 1) ? (done ? 'Done' : 'Finish') : 'Next';
+    back.style.display = (si > 0 && !window._ioJoinOnly) ? '' : 'none';
+    go.textContent = window._ioJoinOnly ? ('Go into ' + (window._ioGroupName || 'the group')) : (si === STEPS.length - 1) ? (done ? 'Done' : 'Finish') : 'Next';
+    if (window._ioJoinOnly && !window._ioFirstBtn) {
+      var fb2 = document.createElement('button'); fb2.type = 'button'; fb2.className = 'io-back'; fb2.style.cssText = 'margin-right:14px;'; fb2.textContent = 'Update my profile first';
+      fb2.addEventListener('click', function(){ window._ioJoinOnly = false; fb2.style.display = 'none'; view = STEPS[0].slug; show(); });
+      go.parentNode.insertBefore(fb2, go); window._ioFirstBtn = fb2;
+    }
+    if (window._ioFirstBtn) window._ioFirstBtn.style.display = window._ioJoinOnly ? '' : 'none';
     url(view);
     paintRail();
     if (!/^(Saved\.|You\u2019re viewing)/.test(stat.textContent)) stat.textContent = ''; Array.prototype.forEach.call(qs.querySelectorAll('.io-miss'), function(b){ b.classList.remove('io-miss'); });
@@ -1656,7 +1736,7 @@
     if (miss.length) { stat.textContent = (miss.length === 1 && miss[0] === 'your postal code') ? 'Please enter your postal code.' : 'Still needed: ' + (miss.length > 1 ? miss.slice(0, -1).join(', ') + ' and ' + miss[miss.length - 1] : miss[0]) + '.'; stat.className = 'io-need'; var fb = qs.querySelector('.io-miss'); if (fb && fb.scrollIntoView) fb.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     stat.textContent = ''; stat.className = '';
     var pend = runSave();
-    if (si < STEPS.length - 1) { view = STEPS[si + 1].slug; show(); return; }
+    if (si < STEPS.length - 1 && !window._ioJoinOnly) { view = STEPS[si + 1].slug; show(); return; }
     try { gpHandoff(); } catch (e) {}
     var toAll = function(){ go.disabled = true; go.classList.add('io-breathe'); go.textContent = 'Opening your interests\u2026'; pend.then(function(){ if (window._ioSaveFailed) { go.disabled = false; go.classList.remove('io-breathe'); go.textContent = done ? 'Done' : 'Finish'; return; } location.href = '/ikigai/all-interests?new=1&cb=' + Date.now(); }); };
     if (done && !backTo) { toAll(); return; }
@@ -1671,20 +1751,32 @@
   window._ioReady.then(function(){
     done = window._ioDoneLoaded || q.get('done') === '1';
     if (done && forGroup && !backTo) { location.replace('/design/group-joined/?cb=' + Date.now()); return; }
-    if (done && window.GP_JOINING && ix < 0 && typeof gpJoinGroup === 'function') {
-      gpJoinGroup().then(function(g){
-        var sec = g ? ['joys', 'cares', 'skills'].filter(function(x){ return gpJoinList(g, x).length; })[0] : '';
-        if (!sec && backTo) { ioWait.textContent = 'Joining the group'; _introDone(); return; }
-        if (ioWait.parentNode) ioWait.parentNode.removeChild(ioWait);
-        view = sec || STEPS[0].slug;
-        show();
-      });
-      return;
-    }
-    if (done && backTo) { ioWait.textContent = forGroup ? 'Joining the group' : 'Opening the event'; _introDone(); return; }
-    if (ioWait.parentNode) ioWait.parentNode.removeChild(ioWait);
-    view = STEPS[ix > -1 ? ix : 0].slug;
-    show();
+    var gp = (window.GP_JOINING && typeof gpJoinGroup === 'function') ? gpJoinGroup() : Promise.resolve(null);
+    return gp.then(function(g){
+      var has = !!(g && ['joys', 'cares', 'skills'].some(function(x){ return gpJoinList(g, x).length; }));
+      if (g && g.name) {
+        window._ioGroupName = g.name;
+        var cb = document.getElementById('intro-back'); if (cb && params.get('next') && !params.get('groupName')) cb.textContent = '\u2039 Back to ' + g.name;
+      }
+      if (has) {
+        STEPS.splice(1, 0, { slug: 'interests', rail: 'Interests', keys: ['groupInterests'] });
+        ix = -1; STEPS.forEach(function(s, i){ if (s.slug === want) ix = i; });
+      }
+      if (done && window.GP_JOINING && (ix < 0 || (STEPS[ix] && STEPS[ix].slug === 'interests'))) {
+        if (!has && backTo) { ioWait.textContent = 'Joining the group'; _introDone(); return; }
+        if (has) {
+          window._ioJoinOnly = true;
+          if (ioWait.parentNode) ioWait.parentNode.removeChild(ioWait);
+          view = 'interests';
+          show();
+          return;
+        }
+      }
+      if (done && backTo) { ioWait.textContent = forGroup ? 'Joining the group' : 'Opening the event'; _introDone(); return; }
+      if (ioWait.parentNode) ioWait.parentNode.removeChild(ioWait);
+      view = STEPS[ix > -1 ? ix : 0].slug;
+      show();
+    });
   }).catch(function(){
     if (ioWait.parentNode) ioWait.parentNode.removeChild(ioWait); title.style.display = '';
     title.textContent = 'Your saved answers did not load';
