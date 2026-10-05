@@ -28,14 +28,13 @@
     }
   };
   var SECTIONS = [
-    { key: 'joys', title: 'Interests', head: 'Recreational or personal', sub: 'All of Recreational or personal', own: 'Something else under Recreational or Personal?' },
-    { key: 'skills', title: 'Interests', head: 'Professional', sub: 'Work and services', own: 'Something else under Professional?' },
-    { key: 'cares', title: 'Interests', head: 'Eco/Social Causes', sub: 'Ecological and social causes', own: 'Something else under Eco/Social Causes?' }
+    { key: 'joys', title: 'Interests', head: 'Recreational, personal and professional', sub: '', own: 'Something else?' },
+    { key: 'cares', title: 'Interests', head: 'Eco/Social Causes', sub: '', own: 'Something else under Eco/Social Causes?' }
   ];
   var KINDS = [
     { label: 'Recreational', key: 'joys' },
     { label: 'Personal', key: 'joys' },
-    { label: 'Professional', key: 'skills' },
+    { label: 'Professional', key: 'joys' },
     { label: 'Eco/social cause', key: 'cares' }
   ];
   function normalise(key){
@@ -117,6 +116,10 @@
       if (at.length) {
         var here = at.join(SEP);
         r.appendChild(pill('All of ' + at[at.length - 1], !!on[here], function(){ toggle(here); }));
+      } else if (sec.rootKinds) {
+        sec.rootKinds().forEach(function(kn){
+          r.appendChild(pill('All of ' + kn, !!on[kn], function(){ toggle(kn); }));
+        });
       }
       list.filter(function(n){ return n.kids.length; }).concat(list.filter(function(n){ return !n.kids.length; })).forEach(function(n){
         var key = at.concat(n.name).join(SEP);
@@ -146,6 +149,7 @@
     return {
       picks: function(){ return order.filter(function(k){ return on[k]; }); },
       remove: function(k){ unmark(k); draw(); onChange(); },
+      redraw: function(){ draw(); },
       get: function(){ if (String(inp.value || '').trim()) addOwn(); return order.filter(function(k){ return on[k]; }).join(';'); },
       set: function(v){ on = {}; order = []; own = {}; splitList(v).forEach(function(k){ k = normalise(k); if (k) mark(k, k.indexOf(SEP) === -1); }); draw(); }
     };
@@ -188,6 +192,9 @@
     }
     function layout(){
       SECTIONS.forEach(function(s){ open[s.key] = boxOpen(s.key); boxes[s.key].wrap.style.display = open[s.key] ? '' : 'none'; });
+      var names = KINDS.filter(function(k){ return k.key === 'joys' && kindOn[k.label]; }).map(function(k){ return k.label; });
+      if (names.length) boxes.joys.head.textContent = names.join(', ');
+      if (parts.joys) parts.joys.redraw();
     }
     function preview(){
       prevBody.innerHTML = '';
@@ -216,21 +223,25 @@
     SECTIONS.forEach(function(s){
       var wrap = el('div', 'border-top:1px solid var(--panel-line,#E3EAF2);padding:12px 0 6px;');
       var head = el('div', 'display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;');
-      head.appendChild(el('div', 'font-size:16px;font-weight:800;color:var(--ink,#1A2E42);', s.head));
-      head.appendChild(el('div', 'font-size:13.5px;color:var(--muted,#6B7A8D);', s.sub));
+      var headEl = el('div', 'font-size:16px;font-weight:800;color:var(--ink,#1A2E42);', s.head);
+      head.appendChild(headEl);
+      boxes[s.key] = { head: headEl };
+      if (s.sub) head.appendChild(el('div', 'font-size:13.5px;color:var(--muted,#6B7A8D);', s.sub));
       wrap.appendChild(head);
       var body = el('div', '');
       wrap.appendChild(body);
       holder.appendChild(wrap);
-      boxes[s.key] = { wrap: wrap, body: body };
+      boxes[s.key].wrap = wrap; boxes[s.key].body = body;
+      if (s.key === 'joys') s.rootKinds = function(){ return KINDS.filter(function(k){ return k.key === 'joys' && kindOn[k.label]; }).map(function(k){ return k.label; }); };
       parts[s.key] = makePicker(body, s, chip, preview);
     });
     if (nm) nm.addEventListener('input', preview);
     paintKinds(); layout(); preview();
     return {
-      get: function(){ return { joys: parts.joys.get(), skills: parts.skills.get(), cares: parts.cares.get() }; },
+      get: function(){ return { joys: parts.joys.get(), skills: '', cares: parts.cares.get() }; },
       set: function(joys, skills, cares){
-        parts.joys.set(joys); parts.skills.set(skills); parts.cares.set(cares);
+        parts.joys.set([joys, skills].filter(Boolean).join(';')); parts.cares.set(cares);
+        if (String(skills || '').trim()) kindOn.Professional = true;
         KINDS.forEach(function(k){ if (parts[k.key].picks().length && !KINDS.some(function(o){ return o.key === k.key && kindOn[o.label]; })) kindOn[k.label] = true; });
         paintKinds(); layout(); preview();
       }
