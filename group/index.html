@@ -1958,6 +1958,25 @@ function pick(el, key){
     if (!old) layout.parentNode.insertBefore(box, layout);
   }
   var _gpJoinedNow = /[?&]joined=1/.test(location.search);
+  function _gpSentKey(gid) { return 'cw-join-sent-' + gid + '-' + (CW.me().id || ''); }
+  function _gpSentMark(gid) {
+    try { var m = JSON.parse(localStorage.getItem(_gpSentKey(gid)) || 'null'); return (m && Date.now() - m.t < 21600000) ? m : null; } catch (e) { return null; }
+  }
+  function _gpSentShow(box, gid, again) {
+    var m = _gpSentMark(gid); if (!m) return false;
+    box.innerHTML = '';
+    var t = document.createElement('div');
+    t.style.cssText = 'font-size:15px;color:#1F699E;font-weight:700;line-height:1.55;margin-bottom:10px;';
+    t.textContent = m.joined ? 'Your passcode was accepted. This page cannot see your place yet, so reload in a minute.' : 'Your request was sent. The host will get back to you.';
+    box.appendChild(t);
+    if (m.joined) { var r = document.createElement('button'); r.type = 'button'; r.className = 'btn'; r.textContent = 'Reload'; r.onclick = function () { location.reload(); }; box.appendChild(r); }
+    var a = document.createElement('a'); a.setAttribute('role', 'link'); a.tabIndex = 0;
+    a.style.cssText = 'display:block;margin-top:12px;font-size:14px;font-weight:700;color:#1F699E;cursor:pointer;';
+    a.textContent = 'Enter the passcode again';
+    a.onclick = function () { try { localStorage.removeItem(_gpSentKey(gid)); } catch (e) {} again(); };
+    box.appendChild(a);
+    return true;
+  }
   setTimeout(function () { if (!_gpAnswered) _gpSay(_gpJoinedNow ? 'You are in. The group page is slow to open.' : 'This group is taking longer than usual to load.'); }, 45000);
 
   (function () {
@@ -2555,9 +2574,13 @@ var myPill = document.getElementById('gp-myprofile-pill');
               var _ji = '';
               try { _ji = String(sessionStorage.getItem('cw-join-interests-' + groupId) || ''); sessionStorage.removeItem('cw-join-interests-' + groupId); } catch (e) {}
               setTimeout(function(){ tryJoin(_kept, { disabled: false }, _ji); }, 0);
+            } else if (_gpSentMark(groupId)) {
+              _gpSentShow(box, groupId, askPasscode);
             } else {
               setTimeout(askPasscode, 0);
             }
+          } else if (_gpSentMark(groupId)) {
+            _gpSentShow(box, groupId, askPasscode);
           }
 
           function say(msg, bad, blue){
@@ -2741,6 +2764,7 @@ var myPill = document.getElementById('gp-myprofile-pill');
               .then(function(r){ return r.json(); })
               .then(function(res){
                 if (res && res.status === 'ok') {
+                  try { localStorage.setItem(_gpSentKey(groupId), JSON.stringify({ t: Date.now(), joined: !!res.joined })); } catch (e) {}
                   say(res.joined ? 'You\u2019re in\u2026 walking you in.' : 'Request sent. The host will get back to you.', false, !!res.joined);
                   if (res.joined) {
                     setTimeout(function(){
