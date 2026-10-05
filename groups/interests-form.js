@@ -98,8 +98,51 @@
       c.addEventListener('click', fn);
       return c;
     }
+    var openN = {};
+    function drawAcc(){
+      cats.innerHTML = '';
+      var heads = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 10px;');
+      tree.forEach(function(n){
+        var h = document.createElement('div'); h.className = chip + (openN[n.name] ? ' on' : '');
+        h.textContent = n.name;
+        h.addEventListener('click', function(){
+          openN[n.name] = !openN[n.name];
+          if (openN[n.name] && !on[n.name] && !under(n.name)) { mark(n.name); onChange(); }
+          draw();
+        });
+        heads.appendChild(h);
+      });
+      var names = tree.map(function(n){ return n.name; });
+      var allOn = names.length && names.every(function(k){ return !!on[k]; });
+      heads.appendChild(pill('Select all', allOn, function(){
+        names.forEach(function(k){
+          if (allOn) unmark(k); else { mark(k); order.slice().forEach(function(x){ if (x.indexOf(k + SEP) === 0) unmark(x); }); }
+        });
+        draw(); onChange();
+      }));
+      cats.appendChild(heads);
+      tree.forEach(function(n){
+        if (!openN[n.name]) return;
+        cats.appendChild(el('div', 'font-size:14px;font-weight:700;color:var(--ink,#1A2E42);margin:8px 0 6px;', n.name));
+        var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
+        r.appendChild(pill('All of ' + n.name, !!on[n.name], function(){
+          if (on[n.name]) unmark(n.name); else { mark(n.name); order.slice().forEach(function(x){ if (x.indexOf(n.name + SEP) === 0) unmark(x); }); }
+          draw(); onChange();
+        }));
+        n.kids.forEach(function(kd){
+          var key = n.name + SEP + kd.name;
+          r.appendChild(pill(kd.name, !!on[key], function(){
+            if (on[key]) unmark(key); else mark(key);
+            if (under(n.name)) unmark(n.name); else mark(n.name);
+            draw(); onChange();
+          }));
+        });
+        cats.appendChild(r);
+      });
+    }
     function draw(){
       if (!tree) return;
+      if (sec.accordion) { drawAcc(); return; }
       cats.innerHTML = '';
       var list = nodeAt(at);
       if (!list) { at = []; list = tree; }
@@ -247,7 +290,9 @@
       wrap.appendChild(body);
       holder.appendChild(wrap);
       boxes[s.key].wrap = wrap; boxes[s.key].body = body;
-      if (s.key === 'joys') { s.selectAll = true; s.tag = true; }
+      s.selectAll = true;
+      if (s.key === 'joys') s.tag = true;
+      if (s.key === 'cares') s.accordion = true;
       parts[s.key] = makePicker(body, s, chip, preview);
     });
     if (nm) nm.addEventListener('input', preview);
