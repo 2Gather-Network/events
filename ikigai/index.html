@@ -3884,7 +3884,7 @@
             rows.forEach(function(r, i){ if (r[0] === a.row[0]) { at = i; } });
             if (at > -1) { rows[at] = a.row; } else { rows.push(a.row); }
             window._gpWords = gpWordsBuild(rows); _gpWordsTrees = {};
-            try { window.localStorage.setItem('cw-words-v1', JSON.stringify({ t: Date.now(), rows: rows })); } catch (x) {}
+            try { window.localStorage.setItem('cw-words-v2', JSON.stringify({ t: Date.now(), rows: rows })); } catch (x) {}
             back({ ao: 'wordSaved', ok: true, word: d.word, added: !!a.added });
           })
           .catch(function(){ back({ ao: 'wordSaved', ok: false, word: d.word, message: 'The word table could not be reached.' }); });
@@ -4210,7 +4210,8 @@
   }
   function gpWordsLoad(){
     if (_gpWordsP) { return _gpWordsP; }
-    var KEY = 'cw-words-v1', kept = null;
+    var KEY = 'cw-words-v2', kept = null;
+    try { window.localStorage.removeItem('cw-words-v1'); } catch (e) {}
     try { kept = JSON.parse(window.localStorage.getItem(KEY) || 'null'); } catch (e) { kept = null; }
     var seenInt = false; try { seenInt = window.sessionStorage.getItem('cw-words-int') === '1'; } catch (e) {}
     if (kept && kept.rows && kept.rows.length && Date.now() - kept.t < 21600000 && (seenInt || gpRowsHaveInterest(kept.rows))) { window._gpWords = gpWordsBuild(kept.rows); _gpWordsP = Promise.resolve(window._gpWords); setTimeout(gpIntReady, 0); return _gpWordsP; }
@@ -5212,9 +5213,14 @@
       + 'font-weight:700;line-height:1.5;'
       + (bad ? 'background:#FDECE8;border:1.5px solid #E5A492;color:#7A2410;'
              : 'background:#FFF6E0;border:1.5px solid #E8C97A;color:#6B4A00;');
-    if (bad) {
+    if (bad && window._gpShowingKept) {
+      st.innerHTML = 'Showing your last saved answers. Could not check for changes yet, so changes here cannot be saved right now.' + ((window._gpLoadTries || 1) < 3 ? ' Trying again in a moment. ' : ' ')
+        + '<button type="button" onclick="location.reload()" style="font:inherit;font-size:13px;font-weight:700;padding:5px 12px;border-radius:20px;border:1.5px solid #7A2410;background:#fff;color:#7A2410;cursor:pointer;margin-left:4px;">Try again</button>';
+    } else if (bad) {
       st.innerHTML = 'Your saved answers have not loaded yet, so changes here cannot be saved right now.' + ((window._gpLoadTries || 1) < 3 ? ' Trying again in a moment. ' : ' ')
         + '<button type="button" onclick="location.reload()" style="font:inherit;font-size:13px;font-weight:700;padding:5px 12px;border-radius:20px;border:1.5px solid #7A2410;background:#fff;color:#7A2410;cursor:pointer;margin-left:4px;">Try again</button>';
+    } else if (window._gpShowingKept) {
+      st.innerHTML = 'Showing your last saved answers. Checking for changes\u2026 Anything you change is kept and saved once that finishes.';
     } else {
       st.innerHTML = 'Still loading your saved answers, so nothing has saved yet. '
         + 'What you add is kept and sent the moment they arrive \u2014 stay on this page a few seconds.';
@@ -5382,7 +5388,7 @@
         try { j = JSON.parse(t); } catch (e) { j = null; }
         var ok = !!(j && j.status === 'ok');
         _gpSaveSaid = ok ? '' : String((j && j.message) || '');
-        if (ok) { _gpLastSaved = _u; gpPendDone(_u); }
+        if (ok) { _gpLastSaved = _u; gpPendDone(_u); try { gpFreshenKept(); } catch (e) {} }
         if (_gpSaving === _u) { _gpSaving = ''; }
         gpDelSettle(ok, _bt);
         return ok;
@@ -7041,6 +7047,7 @@
   function gpFreshenKept(){
     var kept = null;
     try { kept = gpReadAnswers(); } catch (e) { kept = null; }
+    if ((!kept || !kept.data) && window._gpIntakeBase && window._gpLoaded) { try { kept = { data: JSON.parse(JSON.stringify(window._gpIntakeBase)) }; } catch (e) { kept = null; } }
     if (!kept || !kept.data) { return; }
     var d = kept.data;
     var box = function(k){ var el = document.getElementById('gp-intro-' + k); return el ? String(el.value || '') : null; };
@@ -7080,6 +7087,7 @@
     } catch (e) { return null; }
   }
   function gpSaveAnswers(d){
+    try { if (d && d.data) { window._gpIntakeBase = JSON.parse(JSON.stringify(d.data)); } } catch (e) {}
     try { window.localStorage.setItem(gpAnsKey(), JSON.stringify({ data: (d && d.data) || {} })); } catch (e) {}
   }
 
@@ -7229,14 +7237,14 @@
     if (GP_FRESH) { try { window.localStorage.removeItem(gpAnsKey()); window.localStorage.removeItem(gpPendKey()); } catch (e) {} gpWhy('fresh=1: the copy kept in this browser was thrown away'); }
     var _gpRemembered = GP_FRESH ? null : gpReadAnswers();
     if (_gpRemembered) {
-      try { gpApplyIntake(_gpRemembered); } catch (e) {}
+      try { gpApplyIntake(_gpRemembered); window._gpShowingKept = true; gpLoadNote(); } catch (e) {}
       gpWhy('applied the copy kept in THIS BROWSER first');
       gpWhy('   its interests: [' + String((_gpRemembered.data && _gpRemembered.data.interests) || '') + ']');
       gpWhy('   its introEnjoy: [' + String((_gpRemembered.data && _gpRemembered.data.introEnjoy) || '') + ']');
       gpWhy('   its needs: [' + String((_gpRemembered.data && _gpRemembered.data.needs) || '') + ']');
     }
     var gpIntakeIn = function(d){
-        if (window._gpLoadFailed) { window._gpLoadFailed = false; var _sl = document.getElementById('gp-intro-status'); if (_sl) { _sl.textContent = ''; _sl.style.display = 'none'; } }
+        if (window._gpLoadFailed || window._gpShowingKept) { window._gpLoadFailed = false; window._gpShowingKept = false; var _sl = document.getElementById('gp-intro-status'); if (_sl) { _sl.textContent = ''; _sl.style.display = 'none'; } }
         gpWhy('the SERVER answered');
         gpWhy('   its interests: [' + String((d && d.data && d.data.interests) || '') + ']');
         gpWhy('   its introEnjoy: [' + String((d && d.data && d.data.introEnjoy) || '') + ']');
@@ -7250,9 +7258,9 @@
     };
     var gpIntakeTry = function(p, n){
       p.then(gpIntakeIn).catch(function(){
-        if (window._gpDrawn) return;
+        if (window._gpLoaded) return;
         window._gpLoadFailed = true; window._gpLoadTries = n; gpWaiting(false); gpLoadNote();
-        if (n < 3) setTimeout(function(){ if (!window._gpDrawn) gpIntakeTry(gpAskIntake(), n + 1); }, 20000);
+        if (n < 3) setTimeout(function(){ if (!window._gpLoaded) gpIntakeTry(gpAskIntake(), n + 1); }, 20000);
       });
     };
     gpIntakeTry(gpPendResend().then(gpAskIntake), 1);

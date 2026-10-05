@@ -408,6 +408,14 @@
     return b;
   }
 
+  var STOPW = { a:1, an:1, and:1, are:1, as:1, at:1, be:1, for:1, i:1, im:1, in:1, is:1, it:1, my:1, of:1, on:1, or:1, that:1, the:1, to:1, with:1, about:1, like:1, love:1, into:1 };
+  function qTokens(q){ return String(q || '').split(/[^a-z0-9]+/).filter(function(t){ return t.length > 1 && !STOPW[t]; }); }
+  function tokMatch(name, toks){ var l = lc(name); return toks.every(function(t){ return l.indexOf(t) > -1; }); }
+  function fuzzyFor(toks){
+    var nodes = Object.keys(st.byId).map(function(id){ return st.byId[id]; }).concat(st.extra || []).filter(function(n){ return n.names.some(function(nm){ return tokMatch(nm, toks); }); }).slice(0, 12);
+    var care = Object.keys(st.careWords || {}).map(function(k){ return st.careWords[k]; }).filter(function(c){ return tokMatch(c.word, toks); }).slice(0, 12);
+    return { nodes: nodes, care: care, any: nodes.length + care.length > 0 };
+  }
   function careHitsFor(q, hits){
     var seen = {}; hits.forEach(function(n){ seen[lc(n.word)] = 1; });
     return Object.keys(st.careWords || {}).map(function(k){ return st.careWords[k]; }).filter(function(c){ return !seen[lc(c.word)] && lc(c.word).indexOf(q) > -1; }).sort(function(a, b){ return a.word.localeCompare(b.word); });
@@ -439,9 +447,16 @@
       if (n.names.some(function(nm){ return lc(nm).indexOf(q) > -1; })) hits.push(n);
     });
     hits.sort(function(a, b){ var x = (lc(a.word).indexOf(q) === 0 ? 0 : 1) + (a.extra ? 2 : 0), y = (lc(b.word).indexOf(q) === 0 ? 0 : 1) + (b.extra ? 2 : 0); return x - y || a.word.localeCompare(b.word); });
-    var careHits = careHitsFor(q, hits);
+    var careHits = careHitsFor(q, hits), fuzzy = null, qt = qTokens(q);
+    if (!hits.length && !careHits.length && qt.length >= 2) { fuzzy = fuzzyFor(qt); }
     if (!hits.length && careHits.length) {
       var cg = el('div', 'grid'); careHits.slice(0, 40).forEach(function(c){ cg.appendChild(carePill(c)); }); box.appendChild(cg);
+    } else if (!hits.length && fuzzy && fuzzy.any) {
+      box.appendChild(el('p', 'none', 'Did you mean:'));
+      var fg = el('div', 'grid'), clearF = function(){ st.q = ''; els.search.value = ''; drawAll(); };
+      fuzzy.care.forEach(function(c){ fg.appendChild(carePill(c)); });
+      fuzzy.nodes.forEach(function(n){ var fb = pillFor(n); if (!n.kids || !n.kids.length) { fb.addEventListener('click', clearF); } fg.appendChild(fb); });
+      box.appendChild(fg);
     } else if (!hits.length) {
       box.appendChild(el('p', 'none', 'Nothing matches “' + st.q.trim() + '” yet.'));
     } else {
@@ -471,7 +486,7 @@
     }
     var typed = cap(clean(st.q));
     if (typed && !hits.length && !st.byName[lc(typed)] && !careFor(typed)) {
-      var ap = el('button', 'pick other', '+ Add \u201C' + typed + '\u201D'); ap.type = 'button';
+      var ap = el('button', 'pick other', (fuzzy && fuzzy.any ? 'None of these: + Add \u201C' : '+ Add \u201C') + typed + '\u201D'); ap.type = 'button';
       ap.style.marginTop = '10px';
       ap.addEventListener('click', function(){
         st.q = ''; els.search.value = '';
