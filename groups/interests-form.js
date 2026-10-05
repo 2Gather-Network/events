@@ -28,7 +28,7 @@
     }
   };
   var SECTIONS = [
-    { key: 'joys', title: 'Interests', head: 'Recreational and personal', sub: 'Interests that bring enjoyment', own: 'Something else under Recreational or Personal?' },
+    { key: 'joys', title: 'Interests', head: 'Recreational or personal', sub: 'All of Recreational or personal', own: 'Something else under Recreational or Personal?' },
     { key: 'skills', title: 'Interests', head: 'Professional', sub: 'Work and services', own: 'Something else under Professional?' },
     { key: 'cares', title: 'Interests', head: 'Eco/Social Causes', sub: 'Ecological and social causes', own: 'Something else under Eco/Social Causes?' }
   ];
@@ -98,8 +98,7 @@
       if (!list) { at = []; list = tree; }
       var crumb = el('div', 'font-size:14px;font-weight:700;color:var(--ink,#1A2E42);margin:4px 0 10px;');
       if (!at.length) {
-        crumb.style.fontWeight = '500'; crumb.style.color = 'var(--muted,#6B7A8D)';
-        crumb.textContent = 'All of ' + sec.head;
+        crumb.style.display = 'none';
       } else {
         var link = function(text, to){
           var a = el('a', 'color:#1F699E;text-decoration:underline;cursor:pointer;', text); a.href = '#';
