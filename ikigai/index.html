@@ -1174,7 +1174,7 @@
   }
   function gpDelFailNote(key){
     if (!_gpDelFailed[key]) return null;
-    var d = document.createElement('div'); d.className = 'gp-del-fail'; d.textContent = 'That did not delete. Press the x to try again.';
+    var d = document.createElement('div'); d.className = 'gp-del-fail'; d.textContent = 'Could not reach the server just now, so this is still here. Press the x to try again.';
     return d;
   }
   function gpDelRepaint(){
@@ -4738,7 +4738,7 @@
           _gpProse[q.key] = was;
           w.classList.remove('gp-going');
           if (say.parentNode) { say.parentNode.removeChild(say); }
-          var f = document.createElement('div'); f.className = 'gp-del-fail'; f.textContent = 'That did not delete. Press the x to try again.';
+          var f = document.createElement('div'); f.className = 'gp-del-fail'; f.textContent = 'Could not reach the server just now, so this is still here. Press the x to try again.';
           w.appendChild(f);
         },
         gone: function(){ if (w.parentNode) { w.parentNode.removeChild(w); } } });
@@ -5212,7 +5212,7 @@
       + (bad ? 'background:#FDECE8;border:1.5px solid #E5A492;color:#7A2410;'
              : 'background:#FFF6E0;border:1.5px solid #E8C97A;color:#6B4A00;');
     if (bad) {
-      st.innerHTML = 'Your saved answers did not load, so NOTHING here is saving. '
+      st.innerHTML = 'Your saved answers have not loaded yet, so changes here cannot be saved right now.' + ((window._gpLoadTries || 1) < 3 ? ' Trying again in a moment. ' : ' ')
         + '<button type="button" onclick="location.reload()" style="font:inherit;font-size:13px;font-weight:700;padding:5px 12px;border-radius:20px;border:1.5px solid #7A2410;background:#fff;color:#7A2410;cursor:pointer;margin-left:4px;">Try again</button>';
     } else {
       st.innerHTML = 'Still loading your saved answers, so nothing has saved yet. '
@@ -7232,8 +7232,8 @@
       gpWhy('   its introEnjoy: [' + String((_gpRemembered.data && _gpRemembered.data.introEnjoy) || '') + ']');
       gpWhy('   its needs: [' + String((_gpRemembered.data && _gpRemembered.data.needs) || '') + ']');
     }
-    gpPendResend().then(gpAskIntake)
-      .then(function(d){
+    var gpIntakeIn = function(d){
+        if (window._gpLoadFailed) { window._gpLoadFailed = false; var _sl = document.getElementById('gp-intro-status'); if (_sl) { _sl.textContent = ''; _sl.style.display = 'none'; } }
         gpWhy('the SERVER answered');
         gpWhy('   its interests: [' + String((d && d.data && d.data.interests) || '') + ']');
         gpWhy('   its introEnjoy: [' + String((d && d.data && d.data.introEnjoy) || '') + ']');
@@ -7244,8 +7244,15 @@
           var _f = document.getElementById('gp-intro-introEnjoy');
           gpWhy('   the enjoy BOX now holds: [' + String((_f && _f.value) || '') + ']');
         } catch (e) {}
-      })
-      .catch(function(){ if (!window._gpDrawn) { window._gpLoadFailed = true; gpWaiting(false); gpLoadNote(); } });
+    };
+    var gpIntakeTry = function(p, n){
+      p.then(gpIntakeIn).catch(function(){
+        if (window._gpDrawn) return;
+        window._gpLoadFailed = true; window._gpLoadTries = n; gpWaiting(false); gpLoadNote();
+        if (n < 3) setTimeout(function(){ if (!window._gpDrawn) gpIntakeTry(gpAskIntake(), n + 1); }, 20000);
+      });
+    };
+    gpIntakeTry(gpPendResend().then(gpAskIntake), 1);
   }
 </script>
 </body>
