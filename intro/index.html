@@ -609,6 +609,7 @@
     try { var KEY = 'cw-join-interests-' + g.groupId; if (out.length) sessionStorage.setItem(KEY, out.join(';')); else sessionStorage.removeItem(KEY); } catch (e) {}
   }
   var _gpIntHost = {};
+  function gpIntMode(){ return !!(window.GP_JOINING && (window._ioDoneLoaded || /[?&]done=1\b/.test(location.search))); }
   function gpIntHost(key){ if (!_gpIntHost[key]) { var d = document.createElement('div'); d.style.cssText = 'margin-bottom:6px;'; _gpIntHost[key] = d; } return _gpIntHost[key]; }
   function gpPicker(key, ta){
     var cfg = GP_PICK[key];
@@ -617,7 +618,8 @@
     box.style.cssText = 'margin-top:12px;';
     var gsec = GP_JOIN_SEC[key] && window.GP_JOINING ? GP_JOIN_SEC[key] : '';
     var gbox = document.createElement('div'); gbox.style.cssText = 'display:none;margin-bottom:16px;';
-    (gsec ? gpIntHost(key) : box).appendChild(gbox);
+    var inInt = !!(gsec && gpIntMode());
+    (inInt ? gpIntHost(key) : box).appendChild(gbox);
 
     var lead = document.createElement('div');
     lead.style.cssText = 'font-size:13px;color:#4B5A6D;margin-bottom:8px;';
@@ -651,7 +653,7 @@
       _gpJoinOffered[key] = _gpJoinOffered[key] || {};
       list.forEach(function(pth){ _gpJoinOffered[key][pth] = 1; });
       var pillCss = function(on){ return 'font:inherit;font-size:14px;padding:8px 16px;border-radius:20px;cursor:pointer;text-align:left;line-height:1.25;' + (on ? 'background:#1F699E;color:#fff;border:1.5px solid #1F699E;font-weight:700;' : 'background:#fff;color:#1F699E;border:1.5px solid #C9DFF3;font-weight:600;'); };
-      var gl = document.createElement('div'); gl.style.cssText = 'font-size:14px;font-weight:700;color:#1A2E42;margin-bottom:8px;'; var gMany = ['joys', 'cares', 'skills'].filter(function(x){ return gpJoinList(g, x).length; }).length > 1; gl.textContent = gMany ? ({ joys: 'What you enjoy', cares: 'What you care about', skills: 'Your skills' }[gsec] || '') : ''; if (!gl.textContent) gl.style.display = 'none';
+      var gl = document.createElement('div'); if (inInt) { gl.style.cssText = 'font-size:14px;font-weight:700;color:#1A2E42;margin-bottom:8px;'; var gMany = ['joys', 'cares', 'skills'].filter(function(x){ return gpJoinList(g, x).length; }).length > 1; gl.textContent = gMany ? ({ joys: 'What you enjoy', cares: 'What you care about', skills: 'Your skills' }[gsec] || '') : ''; if (!gl.textContent) gl.style.display = 'none'; } else { gl.style.cssText = 'font-size:14px;color:#4B5A6D;margin-bottom:8px;'; gl.textContent = 'Select your interests below. Your answers are shared with ' + (g.name || 'this group') + ' members and also help build your global profile.'; }
       var grow = document.createElement('div'); grow.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
       var rel = document.createElement('div'); rel.style.cssText = 'margin-top:10px;';
       var btns = [], W = null;
@@ -688,6 +690,7 @@
         btns.push({ b: b, w: w, pth: pth, cat: parts[0] || '' }); grow.appendChild(b);
       });
       gbox.appendChild(gl); gbox.appendChild(grow); gbox.appendChild(rel); gbox.style.display = '';
+      if (!inInt) moreLab.style.display = '';
       box.addEventListener('click', function(){ setTimeout(function(){ paintG(); gpJoinKeep(g); }, 0); });
       paintG(); gpJoinKeep(g);
       if (gsec !== 'cares') gpJoinWords().then(function(w){ W = w; paintRel(); });
@@ -1287,7 +1290,7 @@
       }
       blocks[q.key] = wrap;
       if (q.key === 'introSkills') {
-        if (window.GP_JOINING) {
+        if (gpIntMode()) {
           var ib = document.createElement('div');
           ib.innerHTML = '<div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;">Your interests<span id="gp-int-gn"></span></div>'
             + '<div style="font-size:13.5px;color:#4B5A6D;line-height:1.5;margin-bottom:12px;">Select your interests below. Your answers are shared with <span id="gp-int-gn2">this group</span> members and also help build your global profile.</div>';
@@ -1758,13 +1761,13 @@
         window._ioGroupName = g.name;
         var cb = document.getElementById('intro-back'); if (cb && params.get('next') && !params.get('groupName')) cb.textContent = '\u2039 Back to ' + g.name;
       }
-      if (has) {
+      if (has && done) {
         STEPS.splice(1, 0, { slug: 'interests', rail: 'Interests', keys: ['groupInterests'] });
         ix = -1; STEPS.forEach(function(s, i){ if (s.slug === want) ix = i; });
       }
       if (done && window.GP_JOINING && (ix < 0 || (STEPS[ix] && STEPS[ix].slug === 'interests'))) {
         if (!has && backTo) { ioWait.textContent = 'Joining the group'; _introDone(); return; }
-        if (has) {
+        if (has && STEPS.some(function(s){ return s.slug === 'interests'; })) {
           window._ioJoinOnly = true;
           if (ioWait.parentNode) ioWait.parentNode.removeChild(ioWait);
           view = 'interests';
