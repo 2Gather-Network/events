@@ -1216,6 +1216,35 @@
     return !!(_gpTags[key] && _gpTags[key][word] !== undefined);
   }
 
+  function gpDraftCard(o){
+    var card = document.createElement('div');
+    card.className = 'gp-draft';
+    card.style.cssText = 'flex:1 1 100%;width:100%;box-sizing:border-box;border:1.5px dashed #1F699E;border-radius:12px;padding:12px 14px 13px;background:#F7FBFF;margin:4px 0 6px;';
+    var ty = document.createElement('div'); ty.style.cssText = 'font-size:12.5px;color:#4B5A6D;margin:0 0 8px;'; ty.textContent = o.typeLabel || '';
+    var css = 'width:100%;box-sizing:border-box;border:1.5px solid #DDE3EA;background:#fff;border-radius:10px;padding:8px 10px;font:inherit;font-size:13.5px;color:#1A2E42;outline:none;margin-bottom:8px;';
+    var t = document.createElement('input'); t.type = 'text'; t.placeholder = o.titlePh || 'Title (required)'; t.style.cssText = css;
+    var d = document.createElement('textarea'); d.rows = 1; d.placeholder = o.detailPh || 'Details (optional)'; d.style.cssText = css + 'resize:none;line-height:1.45;';
+    var lab = document.createElement('label'); lab.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13.5px;color:#1A2E42;margin:2px 0 10px;cursor:pointer;';
+    var lc = document.createElement('input'); lc.type = 'checkbox'; lab.appendChild(lc); lab.appendChild(document.createTextNode('\u{1F4CD} Local'));
+    var err = document.createElement('div'); err.style.cssText = 'display:none;font-size:13px;color:#7A2410;margin:-4px 0 8px;'; err.textContent = 'Add a title first.';
+    var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;';
+    var sv = document.createElement('button'); sv.type = 'button'; sv.textContent = 'Save';
+    sv.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 20px;border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
+    var cn = document.createElement('button'); cn.type = 'button'; cn.textContent = 'Cancel';
+    cn.style.cssText = 'font:inherit;font-size:13.5px;font-weight:700;padding:8px 18px;border-radius:20px;border:1.5px solid #DDE4EE;background:#fff;color:#4B5A6D;cursor:pointer;';
+    var go = function(){
+      var v = String(t.value || '').trim();
+      if (!v) { err.style.display = 'block'; t.style.borderColor = '#C4501A'; try { t.focus(); } catch (e) {} return; }
+      o.onSave(v.charAt(0).toUpperCase() + v.slice(1), String(d.value || '').trim(), !!lc.checked);
+    };
+    sv.onclick = go; cn.onclick = function(){ o.onCancel(); };
+    t.addEventListener('input', function(){ if (String(t.value || '').trim()) { err.style.display = 'none'; t.style.borderColor = '#DDE3EA'; } });
+    t.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
+    row.appendChild(sv); row.appendChild(cn);
+    card.appendChild(ty); card.appendChild(t); card.appendChild(err); card.appendChild(d); card.appendChild(lab); card.appendChild(row);
+    setTimeout(function(){ try { t.focus(); } catch (e) {} }, 0);
+    return card;
+  }
   function gpPill(label, on){
     var b = document.createElement('button');
     b.type = 'button';
@@ -1669,9 +1698,26 @@
         catRow.style.display = 'flex';
         try { if (row && row.parentNode && catRow.previousSibling !== row) { row.parentNode.insertBefore(catRow, row.nextSibling); } } catch (e) {}
         list.forEach(function(pair){
-          var b2 = gpPill(pair[0], gpHasWord(key, String(pair[0]).replace(/^[^A-Za-z0-9]+/, '').trim() + ':' + kind + ':' + String(pair[0]).replace(/^[^A-Za-z0-9]+/, '').trim()));
           var plain = String(pair[0]).replace(/^[^A-Za-z0-9]+/, '').trim();
           var asNeed = plain + ':' + kind + ':' + plain;
+          var b2 = gpPill(pair[0], GP_NEW ? cfg._draftFor === kind + '|' + plain : gpHasWord(key, asNeed));
+          if (GP_NEW) {
+            b2.onclick = function(){
+              var me = kind + '|' + plain;
+              cfg._draftFor = cfg._draftFor === me ? '' : me;
+              _needCat = cfg._draftFor ? pair[0] : '';
+              if (cfg._kindInput && cfg._kindInput.parentNode) { cfg._kindInput.parentNode.style.display = 'none'; }
+              cfg._needCats(kind);
+            };
+            catRow.appendChild(b2);
+            if (cfg._draftFor === kind + '|' + plain) {
+              var _close = function(){ cfg._draftFor = ''; _needCat = ''; cfg._needCats(kind); };
+              cfg._draftEl = gpDraftCard({ typeLabel: pair[0], titlePh: 'Title (required), for example ' + String(pair[1] || '').toLowerCase(), detailPh: 'Details: what exactly are you seeking?',
+                onSave: function(title, detail, local){ gpAddWord(key, gpNeedJoin({ name: title, kind: kind, cat: plain, local: local, detail: detail }), plain, ta); _close(); repaint(); },
+                onCancel: _close });
+            }
+            return;
+          }
           b2.onclick = function(){
             if (gpHasWord(key, asNeed)) {
               gpDropWord(key, asNeed, ta);
@@ -1701,6 +1747,7 @@
           };
           catRow.appendChild(b3);
         }
+        if (GP_NEW && cfg._draftEl) { catRow.appendChild(cfg._draftEl); cfg._draftEl = null; }
 
       };
     }
@@ -5921,21 +5968,12 @@
         var on = mine(kind).some(function(w){ return gpHaveBits(w).name.toLowerCase() === plain.toLowerCase(); });
         if (GP_NEW) { on = !!(window._gpOfferOpen && window._gpOfferOpen.kind === kind && window._gpOfferOpen.cat === plain); }
         var b = gpPill(pair[0], on);
-        if (GP_NEW && on) { pickedCat = plain; inp.placeholder = pair[1]; field.style.display = 'flex'; setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0); }
+        if (GP_NEW && on) { window._gpOfferDraft = gpDraftCard({ typeLabel: pair[0], titlePh: 'Title (required). ' + pair[1], detailPh: 'Details: what exactly are you offering?',
+          onSave: function(title, detail, local){ _gpHaves.push(gpHaveJoin({ name: title, cat: plain, kind: kind, local: local, detail: detail })); window._gpOfferOpen = null; gpTouchSave(); gpPaintOffers(ob); },
+          onCancel: function(){ window._gpOfferOpen = null; gpPaintOffers(ob); } }); }
         b.onclick = function(){
           if (GP_NEW) {
-            if (on) {
-              window._gpOfferOpen = null;
-              var _had = mine(kind).filter(function(w){ return gpHaveBits(w).name.toLowerCase() === plain.toLowerCase(); });
-              if (_had.length) { _had.forEach(function(w){ drop(w); }); } else { gpPaintOffers(ob); }
-              return;
-            }
-            if (!mine(kind).some(function(w){ return gpHaveBits(w).name.toLowerCase() === plain.toLowerCase(); })) {
-              _gpHaves.push(gpHaveJoin({ name: plain, cat: plain, kind: kind, local: false, detail: '' }));
-              window._gpOfferEdit = plain.toLowerCase();
-              gpTouchSave();
-            }
-            window._gpOfferOpen = { kind: kind, cat: plain };
+            window._gpOfferOpen = on ? null : { kind: kind, cat: plain };
             gpPaintOffers(ob);
             return;
           }
@@ -5953,7 +5991,9 @@
       var otherOn = GP_NEW && !!(window._gpOfferOpen && window._gpOfferOpen.kind === kind && !window._gpOfferOpen.cat);
       var bOther = gpPill('+ Other', otherOn);
       if (!otherOn) { bOther.style.border = '1.5px solid #1F699E'; bOther.style.fontWeight = '700'; }
-      if (otherOn) { pickedCat = ''; inp.placeholder = kind === 'space' ? 'What space?' : 'What thing?'; field.style.display = 'flex'; setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 0); }
+      if (otherOn) { window._gpOfferDraft = gpDraftCard({ typeLabel: kind === 'space' ? '\u{1F3E0} Other space' : '\u{1F4E6} Other', titlePh: kind === 'space' ? 'Title (required). What space?' : 'Title (required). What is it?', detailPh: 'Details: what exactly are you offering?',
+          onSave: function(title, detail, local){ _gpHaves.push(gpHaveJoin({ name: title, cat: '', kind: kind, local: local, detail: detail })); window._gpOfferOpen = null; gpTouchSave(); gpPaintOffers(ob); },
+          onCancel: function(){ window._gpOfferOpen = null; gpPaintOffers(ob); } }); }
       bOther.onclick = function(){
         if (GP_NEW) { window._gpOfferOpen = otherOn ? null : { kind: kind, cat: '' }; gpPaintOffers(ob); return; }
         pickedCat = '';
@@ -5968,6 +6008,7 @@
         chips.appendChild(bSpace);
       }
       chips.appendChild(bOther);
+      if (GP_NEW && window._gpOfferDraft) { wrap.insertBefore(window._gpOfferDraft, field); window._gpOfferDraft = null; }
       var cards = allCards;
       mine(kind).forEach(function(w){
         var b = gpHaveBits(w);
