@@ -12,8 +12,8 @@
   }
   function withKids(t){ return (t || []).filter(function(n){ return n.kids && n.kids.length; }); }
   var TREES = {
-    joys: function(){ return window.cwCategoryTree({ skills: 'always', topics: true }).then(withKids); },
-    skills: function(){ return window.cwCategoryTree({ skills: 'always', topics: true }).then(withKids); },
+    joys: function(){ return window.cwCategoryTree({ skills: 'none', topics: true }).then(withKids); },
+    skills: function(){ return window.cwCategoryTree({ skills: 'none', topics: true }).then(withKids); },
     cares: function(){
       return refData().then(function(rd){
         var by = {}, out = [];
