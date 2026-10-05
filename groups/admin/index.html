@@ -498,10 +498,27 @@
     if (superTok) stamp(SUPER_TOK_KEY, superTok);
   }
 
+  var _renewing = false;
+  function renewPass(){
+    if (_renewing) return;
+    _renewing = true;
+    var done = function(){ _renewing = false; };
+    try {
+      fetch(GS_URL + '?action=groupPassFromSignin&groupId=' + encodeURIComponent(groupId)
+            + '&hostAppearId=' + encodeURIComponent(meId) + '&editToken=' + encodeURIComponent(_signinToken()))
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if (d && d.status === 'ok' && d.sessionToken) setToken(d.sessionToken, d.superToken); done(); })
+        .catch(done);
+    } catch (e) { done(); }
+  }
   function keepFreshToken(d){
     try {
       if (!d || typeof d !== 'object') return d;
       if (d.sessionToken || d.superToken) setToken(d.sessionToken, d.superToken);
+      if (d.status === 'error' && /session expired/i.test(String(d.message || ''))) {
+        d.message = 'Your Manage session ran out after an hour. Press it again. If it still does not work, reload this page.';
+        renewPass();
+      }
     } catch (e) {}
     return d;
   }
