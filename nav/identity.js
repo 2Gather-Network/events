@@ -4,6 +4,10 @@
 
   var WHO   = ['CWid', 'memberCard', 'appearId', 'me'];
   var KEEP  = ['cw-id', 'appear-id'];           
+  var ANSWER_KEYS = ['cw-intro-answers:', 'cw-intro-pending:'];
+  function clearAnswerCopies() {
+    try { Object.keys(w.localStorage).forEach(function (k) { for (var j = 0; j < ANSWER_KEYS.length; j++) { if (k.indexOf(ANSWER_KEYS[j]) === 0) { w.localStorage.removeItem(k); } } }); } catch (e) {}
+  }
   var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-photo-at', 'cw-token', 'cw-first',
                'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-super-for', 'cw-lastEmail'];
   var VIEW_KEY = 'cw-view-as';
@@ -97,7 +101,7 @@
   }
   var stored = fromDevice();
   if (stored && !proven(stored)) {
-    ls(function () { for (var ci = 0; ci < CLEAR.length; ci++) { w.localStorage.removeItem(CLEAR[ci]); } });
+    ls(function () { for (var ci = 0; ci < CLEAR.length; ci++) { w.localStorage.removeItem(CLEAR[ci]); } clearAnswerCopies(); });
     stored = '';
   }
   var fromLink = fromUrl();
@@ -321,6 +325,7 @@
         Object.keys(w.localStorage).forEach(function (k) {
           if (k.indexOf('cw-edit-') === 0) { w.localStorage.removeItem(k); }
         });
+        clearAnswerCopies();
       });
       w.CW_ID = '';
     }
