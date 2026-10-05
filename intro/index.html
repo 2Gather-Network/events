@@ -1718,14 +1718,22 @@
     if (retry) { var b = document.createElement('button'); b.type = 'button'; b.textContent = 'Try again'; b.addEventListener('click', function(){ runSave(); }); saveBar.appendChild(b); }
     saveBar.style.display = '';
   }
+  function saveTry(n){
+    return window.ioSave().catch(function(err){
+      var m = String((err && err.message) || '');
+      if (n >= 2 || /did not load/i.test(m)) { throw err; }
+      bar('The save is taking a while. Trying again\u2026', false, false, true);
+      return new Promise(function(ok){ setTimeout(ok, 8000); }).then(function(){ return saveTry(n + 1); });
+    });
+  }
   function runSave(){
     window._ioSaving = true;
-    saveChain = saveChain.catch(function(){}).then(function(){ return window.ioSave(); }).then(function(res){
+    saveChain = saveChain.catch(function(){}).then(function(){ return saveTry(0); }).then(function(res){
       window._ioSaving = false;
       var dn = (res && res.dropped) || [];
       if (res && res.viewing) { bar('You\u2019re viewing as ' + res.viewing + '. Nothing is saved here.'); return; }
       if (dn.length) { bar('Saved. Removing ' + dn.slice(0, 3).join(', ') + (dn.length > 3 ? ' and others' : '') + ' is not saved yet in this test.'); return; }
-      window._ioSaveFailed = false; if (/^Please wait/.test(saveBar.textContent) || saveBar.className.indexOf('bad') > -1) saveBar.style.display = 'none';
+      window._ioSaveFailed = false; if (/^(Please wait|The save is taking)/.test(saveBar.textContent) || saveBar.className.indexOf('bad') > -1) saveBar.style.display = 'none';
     }, function(err){
       window._ioSaving = false;
       window._ioSaveFailed = true;
