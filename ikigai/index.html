@@ -51,6 +51,7 @@
 </script>
 <script src="/nav/identity.js?v=29"></script>
 <script src="/nav/category-tree.js?v=7"></script>
+<script src="/nav/tag-picker.js?v=1"></script>
 <script src="/nav/waiting-words.js?v=11"></script>
 <script src="/nav/search-select.js?v=1"></script>
 </head>
@@ -1580,7 +1581,7 @@
             };
             btns.appendChild(save); btns.appendChild(cancel);
             fName.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save.onclick(); } });
-            panel.appendChild(fTitle); panel.appendChild(fKind); panel.appendChild(fCat); panel.appendChild(fName); panel.appendChild(locLine); panel.appendChild(btns);
+            panel.appendChild(fTitle); panel.appendChild(fKind); panel.appendChild(fCat); panel.appendChild(gpTopicPicker(cur.name)); panel.appendChild(fName); panel.appendChild(locLine); panel.appendChild(btns);
             try { fName.focus(); } catch (e) {}
           };
           card.appendChild(panel);
@@ -5788,6 +5789,32 @@
       ['\u{1FAB4} Living thing', 'Examples: a plant, a cutting, seeds']
     ]
   };
+  function gpTopicPicker(word){
+    if (!window.cwTagPicker || !window._gpWords || !String(word || '').trim()) { return document.createDocumentFragment(); }
+    var ix = window.cwTagPicker.index(window._gpWords.rows), key = String(word).trim().toLowerCase();
+    var all = function(){ try { return JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}; } catch (e) { return {}; } };
+    var getA = function(){ var a = all()[key]; return (a && typeof a === 'object' && !Array.isArray(a)) ? a : {}; };
+    var putA = function(a){
+      var m = all(), filled = !!Object.keys(a || {}).length;
+      if (filled) { m[key] = a; } else { delete m[key]; }
+      try { sessionStorage.setItem('ao-details', JSON.stringify(m)); } catch (e) {}
+      gpDetailQueue(word, filled ? a : null);
+    };
+    var tp = window.cwTagPicker({
+      title: 'Topic category for ' + String(word).trim() + ':',
+      mainCats: function(){ return ix.mainCats; },
+      emoji: function(c){ return (typeof _gpCatEmoji !== 'undefined' && _gpCatEmoji && _gpCatEmoji[String(c).toLowerCase()]) || ''; },
+      getA: getA, putA: putA,
+      catList: function(){ return (getA().cats || []).slice(); },
+      rowByName: function(n){ return ix.byName[n]; },
+      rowById: function(i){ return ix.byId[i]; },
+      kids: function(id){ return ix.kids[id] || []; },
+      roots: ix.roots,
+      multi: true
+    });
+    try { gpCatEmojiOnce().then(function(){ tp.repaint(); }); } catch (e) {}
+    return tp.el;
+  }
   function gpHaveBits(w){
     var bits = String(w || '').split(':');
     var out = { name: bits[0] || '', cat: '', local: false, detail: '', kind: '' };
@@ -6089,10 +6116,11 @@
           (function(){
             var none = document.createElement('option'); none.value = ''; none.textContent = 'No category'; fCat.appendChild(none);
             var list = (GP_OFFER_CATS[cur.kind || 'thing'] || []).map(function(pr){ return String(pr[0]).replace(/^[^A-Za-z0-9]+/, '').trim(); });
-            if (cur.cat && list.map(function(x){ return x.toLowerCase(); }).indexOf(String(cur.cat).toLowerCase()) === -1) { list.push(cur.cat); }
+            var _one = function(x){ x = String(x || '').toLowerCase().trim(); return x.length > 3 && x.slice(-1) === 's' ? x.slice(0, -1) : x; };
+            if (cur.cat && list.map(_one).indexOf(_one(cur.cat)) === -1) { list.push(cur.cat); }
             list.forEach(function(pl){
               var op = document.createElement('option'); op.value = pl; op.textContent = pl;
-              if (pl.toLowerCase() === String(cur.cat).toLowerCase()) { op.selected = true; }
+              if (_one(pl) === _one(cur.cat)) { op.selected = true; }
               fCat.appendChild(op);
             });
           })();
@@ -6119,7 +6147,7 @@
           };
           fName.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sv.onclick(); } });
           btns.appendChild(sv); btns.appendChild(cn);
-          panel.appendChild(fTitle); panel.appendChild(fCat); panel.appendChild(fName); panel.appendChild(locLine); panel.appendChild(btns);
+          panel.appendChild(fTitle); panel.appendChild(fCat); panel.appendChild(gpTopicPicker(cur.name)); panel.appendChild(fName); panel.appendChild(locLine); panel.appendChild(btns);
           try { fName.focus(); } catch (e) {}
         };
         card.appendChild(panel);

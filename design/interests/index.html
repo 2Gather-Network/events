@@ -290,6 +290,7 @@
 </head>
 <body>
 <div class="wrap" id="app"><div class="wait">Looking for your interests…</div></div>
+<script src="/nav/tag-picker.js?v=1"></script>
 <script>
 (function(){
   var FITS = [['enjoy', 'I enjoy it'], ['skill', 'I can do it'], ['care', 'I care about it'], ['seek', 'I’m seeking it'], ['offer', 'I can offer it']];
@@ -908,112 +909,27 @@
   }
   function tagBox(m, onClose, onChange){
     loadEmo();
-    var b = el('div', 'tagbox2');
-    b.appendChild(el('div', 'tagh', 'Tag ' + m.word + ':'));
-    var sr = el('input', 'tagq'); sr.type = 'search'; sr.placeholder = '\u{1F50D} Search categories'; sr.setAttribute('aria-label', 'Search the categories'); sr.autocomplete = 'off';
-    b.appendChild(sr);
-    var pills = el('div', 'tagp'); b.appendChild(pills);
-    var subs = el('div', 'tagsub'); b.appendChild(subs);
-    var drillLevels = function(sec, main, cur, own, idx){
-      var path = [], node = cur ? st.rowByName[lc(cur)] : null, guard = 0;
-      while (node && guard++ < 8) { path.unshift(node); var pid = String(node[2] || '').split('|')[0].trim(); node = pid ? st.rowById[pid] : null; }
-      var nm = function(r){ return String(r[1]).trim(); };
-      var setSub = function(v){
-        var a = getA(m.word);
-        if (idx === 0) { if (v) { a.sub = v; delete a.subOff; } else { delete a.sub; a.subOff = true; } }
-        else { a.subs = a.subs || {}; if (v) { a.subs[main] = v; } else { delete a.subs[main]; } }
-        putA(m.word, a); drawCards();
-      };
-      var level = function(title, opts, chosen, upName){
-        var box = el('div', 'tagsec'); sec.appendChild(box);
-        box.appendChild(el('div', 'tagh', title));
-        var sp = el('div', 'tagp'); box.appendChild(sp);
-        var shown = opts.slice();
-        if (chosen && shown.map(lc).indexOf(lc(chosen)) < 0) { shown.push(chosen); }
-        shown.forEach(function(o){
-          var on = lc(chosen) === lc(o), b = el('button', 'pill' + (on ? ' on' : ''), o); b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false');
-          b.addEventListener('click', function(){ setSub(on ? upName : o); });
-          sp.appendChild(b);
-        });
-        var oth = el('button', 'pill other', '+ Other'); oth.type = 'button'; sp.appendChild(oth);
-        oth.addEventListener('click', function(){
-          oth.hidden = true;
-          var line = el('div', 'oline'), inp = el('input', 'oinp'); inp.type = 'text'; inp.placeholder = 'Type your own'; inp.setAttribute('aria-label', 'Your own word under ' + (upName || main));
-          var add = el('button', 'btn small', 'Add'); add.type = 'button';
-          var go = function(){ var v = String(inp.value || '').trim(); if (!v) { inp.focus(); return; } setSub(v.charAt(0).toUpperCase() + v.slice(1)); };
-          add.addEventListener('click', go); inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
-          line.appendChild(inp); line.appendChild(add); box.appendChild(line); setTimeout(function(){ try { inp.focus(); } catch (x) {} }, 0);
-        });
-      };
-      var known = path.length && lc(nm(path[path.length - 1])) === lc(cur || '');
-      var top = subChoices(main);
-      level('Part of ' + main + ':', top, known ? nm(path[0]) : (own && !(idx === 0 && getA(m.word).subOff) ? own : ''), '');
-      for (var i = 0; known && i < path.length; i++) {
-        var kids = (subKids()[String(path[i][0])] || []).map(nm).sort(function(a, b){ return a.localeCompare(b); });
-        if (!kids.length) { break; }
-        level('Part of ' + nm(path[i]) + ':', kids, path[i + 1] ? nm(path[i + 1]) : '', nm(path[i]));
-      }
-    };
-    var paintSubs = function(){
-      subs.innerHTML = '';
-      if (!SUBPICK_ON) { return; }
-      var chosenC = catListOf(m.word), cList = SUBS_MULTI ? chosenC : chosenC.slice(0, 1);
-      cList.forEach(function(main, idx){
-        var opts = subChoices(main); if (!opts.length && !SUBS_MULTI) { return; }
-        var sec = el('div', 'tagsec'); subs.appendChild(sec);
-        var a0 = getA(m.word);
-        var cur = idx === 0 ? (a0.sub || ((subOf(m) || { parent: { word: '' } }).parent.word)) : String((a0.subs || {})[main] || '');
-        var own = idx === 0 ? a0.sub : (a0.subs || {})[main];
-        drillLevels(sec, main, cur, own, idx); return;
-        sec.appendChild(el('div', 'tagh', 'Part of ' + main + ':'));
-        var sp = el('div', 'tagp'); sec.appendChild(sp);
-        var shownOpts = opts.slice();
-        if (own && !(idx === 0 && a0.subOff) && opts.map(lc).indexOf(lc(own)) < 0) { shownOpts.push(own); }
-        var setSub = function(nm){
-          var a = getA(m.word);
-          if (idx === 0) { if (nm) { a.sub = nm; delete a.subOff; } else { delete a.sub; a.subOff = true; } }
-          else { a.subs = a.subs || {}; if (nm) { a.subs[main] = nm; } else { delete a.subs[main]; } }
-          putA(m.word, a); drawCards();
-        };
-        shownOpts.forEach(function(nm){
-          var on = lc(cur) === lc(nm), p = el('button', 'pill' + (on ? ' on' : ''), nm); p.type = 'button'; p.setAttribute('aria-pressed', on ? 'true' : 'false');
-          p.addEventListener('click', function(){ setSub(on ? '' : nm); });
-          sp.appendChild(p);
-        });
-        var oth = el('button', 'pill other', '+ Other'); oth.type = 'button'; sp.appendChild(oth);
-        oth.addEventListener('click', function(){
-          oth.hidden = true;
-          var line = el('div', 'oline'), inp = el('input', 'oinp'); inp.type = 'text'; inp.placeholder = 'Type your own'; inp.setAttribute('aria-label', 'Your own sub-category in ' + main);
-          var add = el('button', 'btn small', 'Add'); add.type = 'button';
-          var go = function(){ var v = String(inp.value || '').trim(); if (!v) { inp.focus(); return; } setSub(v.charAt(0).toUpperCase() + v.slice(1)); };
-          add.addEventListener('click', go); inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
-          line.appendChild(inp); line.appendChild(add); sec.appendChild(line); setTimeout(function(){ try { inp.focus(); } catch (x) {} }, 0);
-        });
-      });
-    };
-    var paint = function(){
-      paintSubs();
-      pills.innerHTML = '';
-      var q = lc(sr.value), chosen = catListOf(m.word);
-      var shown = (st.mainCats || []).filter(function(c){ return !q || lc(c).indexOf(q) > -1; });
-      if (!shown.length) {
-        pills.appendChild(el('div', 'tagn nomatch', 'We have a few categories to select from and this isn\u2019t one. Select from the most applicable one below:'));
-        shown = (st.mainCats || []).slice();
-      }
-      shown.forEach(function(c){
-        var on = chosen.indexOf(c) > -1, p = el('button', 'pill' + (on ? ' on' : ''), ''); if (EMO[c]) { p.appendChild(el('span', 'catemo', EMO[c])); } p.appendChild(document.createTextNode(c)); p.type = 'button'; p.setAttribute('aria-pressed', on ? 'true' : 'false');
-        p.addEventListener('click', function(){
-          var a = getA(m.word), list = catListOf(m.word), at = list.indexOf(c);
-          if (at > -1) { list.splice(at, 1); } else { list.push(c); }
-          if (list.length) { a.cats = list; } else { delete a.cats; }
-          putA(m.word, a); toParent({ ao: 'intcat', word: m.word, cats: list.slice() }); paint(); if (onChange) { onChange(); }
-        });
-        pills.appendChild(p);
-      });
-    };
-    sr.addEventListener('input', paint); paint(); emoPaint = paint;
-    var dr = el('div', 'cbtns'), dn = el('button', 'btn small', 'Done'); dn.type = 'button'; dn.addEventListener('click', onClose); dr.appendChild(dn); b.appendChild(dr);
-    return b;
+    var tp = window.cwTagPicker({
+      title: 'Tag ' + m.word + ':',
+      mainCats: function(){ return st.mainCats || []; },
+      emoji: function(c){ return EMO[c] || ''; },
+      getA: function(){ return getA(m.word); },
+      putA: function(a){ putA(m.word, a); },
+      catList: function(){ return catListOf(m.word); },
+      rowByName: function(n){ return st.rowByName && st.rowByName[n]; },
+      rowById: function(i){ return st.rowById && st.rowById[i]; },
+      kids: function(id){ return subKids()[id] || []; },
+      roots: subChoices,
+      ownSub: function(){ return (subOf(m) || { parent: { word: '' } }).parent.word; },
+      subPick: SUBPICK_ON,
+      multi: SUBS_MULTI,
+      onCats: function(list){ toParent({ ao: 'intcat', word: m.word, cats: list.slice() }); },
+      onChange: onChange,
+      redraw: drawCards,
+      onClose: onClose
+    });
+    emoPaint = tp.repaint;
+    return tp.el;
   }
   function cardButtons(m){
     var row = el('div', 'cbtns'), dn = el('button', 'btn small donesym', 'Close');
