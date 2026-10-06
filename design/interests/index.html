@@ -38,6 +38,13 @@
   .pick{background:#fff;color:var(--blue);border:1.5px solid var(--pale);}
   .pick.on{background:var(--blue);color:#fff;border-color:var(--blue);}
   .pick.other{border:1.5px solid var(--blue);color:var(--blue);}
+  .pick.addsel{background:var(--blue);color:#fff;border-color:var(--blue);}
+  .pick.addsel[hidden]{display:none;}
+  .tagask{background:#fff;border:1.5px solid var(--pale);border-radius:14px;padding:10px 12px;margin:0 0 10px;}
+  .tagq{margin:0 0 8px;font-size:14px;font-weight:700;color:var(--ink);}
+  .ideasbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px;}
+  .gsearch{flex:1 1 180px;min-width:0;font:inherit;font-size:14px;padding:8px 14px;border:1.5px solid var(--pale);border-radius:20px;background:#fff;color:var(--ink);}
+  .addedmsg{margin:4px 0 8px;font-size:13px;font-weight:600;color:var(--blue);}
   .pick .sub{display:block;font-size:11.5px;font-weight:600;opacity:.8;margin-top:1px;}
   .pastelink{display:block;margin-left:auto;font:inherit;font-size:13px;font-weight:700;color:var(--blue);background:none;border:0;padding:10px 2px 14px;cursor:pointer;text-decoration:underline;}
   .grid{row-gap:12px;}
@@ -290,7 +297,7 @@
 </head>
 <body>
 <div class="wrap" id="app"><div class="wait">Looking for your interests…</div></div>
-<script src="/nav/tag-picker.js?v=1"></script>
+<script src="/nav/tag-picker.js?v=2"></script>
 <script>
 (function(){
   var FITS = [['enjoy', 'I enjoy it'], ['skill', 'I can do it'], ['care', 'I care about it'], ['seek', 'I’m seeking it'], ['offer', 'I can offer it']];
@@ -402,10 +409,29 @@
     emit(); drawAll();
   }
 
+  function isSel(word){ return !!(st.sel && st.sel[lc(word)]); }
+  function setSel(n, on){ st.msg = ''; st.sel = st.sel || {}; if (on) { st.sel[lc(n.word)] = { word: n.word, area: areaOf(n) }; } else { delete st.sel[lc(n.word)]; } }
   function pillFor(n){
-    var on = has(n.word), b = el('button', 'pick' + (on ? ' on' : ''), n.word);
+    var on = has(n.word) || isSel(n.word), b = el('button', 'pick' + (on ? ' on' : ''), n.word);
     b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    b.addEventListener('click', function(){ pick(n.word, areaOf(n)); });
+    b.addEventListener('click', function(){ if (has(n.word)) { askRemove(n.word); return; } setSel(n, !isSel(n.word)); drawAll(); });
+    return b;
+  }
+  function askRemove(word){
+    st.rmAsk = word; st.msg = ''; drawAll();
+    try { els.browse.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) {}
+  }
+  function addBtn(nodes){
+    var ready = [], seen = {};
+    nodes.forEach(function(n){ var k = lc(n.word); if (!seen[k] && isSel(n.word) && !has(n.word)) { seen[k] = 1; ready.push(n); } });
+    var b = el('button', 'pick addsel', 'Add' + (ready.length > 1 ? ' ' + ready.length : '')); b.type = 'button';
+    if (!ready.length) { b.hidden = true; return b; }
+    b.addEventListener('click', function(){
+      st.msg = '';
+      st.tagging = ready.map(function(n){ var rp = pathOf(n)[0]; return { word: n.word, area: areaOf(n), root: rp ? rp.id : '' }; });
+      st.q = ''; if (els.search) { els.search.value = ''; }
+      drawAll();
+    });
     return b;
   }
 
@@ -456,7 +482,7 @@
       box.appendChild(el('p', 'none', 'Did you mean:'));
       var fg = el('div', 'grid'), clearF = function(){ st.q = ''; els.search.value = ''; drawAll(); };
       fuzzy.care.forEach(function(c){ fg.appendChild(carePill(c)); });
-      fuzzy.nodes.forEach(function(n){ var fb = pillFor(n); if (!n.kids || !n.kids.length) { fb.addEventListener('click', clearF); } fg.appendChild(fb); });
+      fuzzy.nodes.forEach(function(n){ fg.appendChild(pillFor(n)); });
       box.appendChild(fg);
     } else if (!hits.length) {
       box.appendChild(el('p', 'none', 'Nothing matches “' + st.q.trim() + '” yet.'));
@@ -464,7 +490,6 @@
       var g = el('div', 'grid'), clearQ = function(){ st.q = ''; els.search.value = ''; drawAll(); }, shownIds = {};
       hits.slice(0, 40).forEach(function(n){
         var b = pillFor(n); shownIds[n.id] = 1;
-        if (!n.kids || !n.kids.length) b.addEventListener('click', clearQ);
         g.appendChild(b);
       });
       var tl = lc(clean(st.q));
@@ -472,14 +497,16 @@
       careHits.slice(0, 12).forEach(function(c){ g.appendChild(carePill(c)); });
       var om = otherRow(target, '', 'm');
       if (om.className === 'pick other') g.appendChild(om);
+      g.appendChild(addBtn(hits.slice(0, 40)));
       box.appendChild(g);
       if (om.className !== 'pick other') box.appendChild(om);
       hits.filter(function(n){ return n.kids && n.kids.length; }).slice(0, 3).forEach(function(n){
         var sub = el('div', 'sub'), r = el('div', 'row');
         sub.appendChild(el('div', 'subh', n.word));
-        below(n).forEach(function(k){ if (shownIds[k.id]) return; shownIds[k.id] = 1; var kb = pillFor(k); kb.addEventListener('click', clearQ); r.appendChild(kb); });
+        below(n).forEach(function(k){ if (shownIds[k.id]) return; shownIds[k.id] = 1; r.appendChild(pillFor(k)); });
         var os = otherRow(n, '', 's');
         if (os.className === 'pick other') r.appendChild(os);
+        r.appendChild(addBtn(below(n)));
         sub.appendChild(r);
         if (os.className !== 'pick other') sub.appendChild(os);
         box.appendChild(sub);
@@ -634,36 +661,68 @@
   function under(n){ return n.kids.some(function(k){ return has(k.word) || under(k); }); }
   function readHid(){ try { return JSON.parse(window.localStorage.getItem('int-hid') || '{}') || {}; } catch (e) { return {}; } }
   function writeHid(o){ try { window.localStorage.setItem('int-hid', JSON.stringify(o)); } catch (e) {} }
-  function isHid(n){ return !!readHid()[n.id] && !has(n.word) && !under(n); }
-  function pillWithHide(n, pill, was){
-    var w = el('span', 'pw' + (was ? ' hid' : '')); w.appendChild(pill);
-    if (was) pill.addEventListener('click', function(){ var o = readHid(); delete o[n.id]; if (!Object.keys(o).length) st.showHid = false; writeHid(o); drawBrowse(); });
-    var hb = el('button', 'hidebtn', was ? 'Unhide' : 'Hide'); hb.type = 'button'; hb.setAttribute('aria-label', (was ? 'Unhide ' : 'Hide ') + n.word);
-    hb.addEventListener('click', function(){ var o = readHid(); if (was) delete o[n.id]; else o[n.id] = 1; if (!Object.keys(o).length) st.showHid = false; writeHid(o); drawBrowse(); });
-    w.appendChild(hb); return w;
+  function isHid(n){ return false; }
+  function pillWithHide(n, pill, was){ return pill; }
+  var GPAGE = 8;
+  function shuffled(a){ var o = a.slice(), i, j, t; for (i = o.length - 1; i > 0; i--) { j = Math.floor(Math.random() * (i + 1)); t = o[i]; o[i] = o[j]; o[j] = t; } return o; }
+  function pageKids(node){
+    st.gq = st.gq || {}; st.gord = st.gord || {}; st.goff = st.goff || {};
+    var q = lc(st.gq[node.id] || '').trim(), kids = node.kids;
+    var keep = function(k){ return has(k.word) || isSel(k.word) || st.drill[node.id] === k.id; };
+    if (q) { return kids.filter(function(k){ return lc(k.word).indexOf(q) > -1 || keep(k); }); }
+    if (kids.length <= GPAGE) { return kids; }
+    if (!st.gord[node.id]) { st.gord[node.id] = kids.map(function(k){ return k.id; }); st.goff[node.id] = 0; }
+    var ord = st.gord[node.id], off = st.goff[node.id] || 0, byId = {}, pick = {};
+    kids.forEach(function(k){ byId[k.id] = k; });
+    ord.slice(off, off + GPAGE).forEach(function(id){ pick[id] = 1; });
+    return kids.filter(function(k){ return pick[k.id] || keep(k); });
+  }
+  function ideasBar(node){
+    var bar = el('div', 'ideasbar'), inp = el('input', 'gsearch'); inp.type = 'search'; inp.placeholder = 'Search ' + node.word; inp.setAttribute('aria-label', 'Search ' + node.word);
+    inp.value = (st.gq && st.gq[node.id]) || '';
+    inp.addEventListener('input', function(){
+      st.gq = st.gq || {}; st.gq[node.id] = inp.value;
+      var at = inp.selectionStart; drawBrowse();
+      var again = els.browse.querySelector('input.gsearch[aria-label="Search ' + node.word + '"]'); if (again) { again.focus(); try { again.setSelectionRange(at, at); } catch (e) {} }
+    });
+    bar.appendChild(inp);
+    if (node.kids.length > GPAGE) {
+      var nb = el('button', 'btn ghost', 'Give me other ideas'); nb.type = 'button';
+      nb.addEventListener('click', function(){
+        st.gq[node.id] = ''; st.gord = st.gord || {}; st.goff = st.goff || {};
+        var off = (st.goff[node.id] || 0) + GPAGE;
+        if (off >= node.kids.length || !st.gord[node.id]) { st.gord[node.id] = shuffled(node.kids.map(function(k){ return k.id; })); off = 0; }
+        st.goff[node.id] = off; drawBrowse();
+      });
+      bar.appendChild(nb);
+    }
+    return bar;
   }
   function kidsInto(box, node, depth){
     st.drill = st.drill || {};
     var r = el('div', 'row'), openKid = null, oth = null;
-    if (depth) { var all = pillFor(node); all.textContent = 'All of ' + node.word; r.appendChild(all); }
     var hiddenHere = 0;
-    node.kids.forEach(function(n){
+    var kidList = depth ? node.kids : pageKids(node);
+    kidList.forEach(function(n){
       var wasHid = !depth && isHid(n);
       if (wasHid) { hiddenHere++; if (!st.showHid) return; }
-      if (!n.kids.length) { var lp = pillFor(n); r.appendChild(has(n.word) || depth ? lp : pillWithHide(n, lp, wasHid)); return; }
-      var on = st.drill[node.id] === n.id, lit = has(n.word) || under(n);
+      if (!n.kids.length) { var lp = pillFor(n); r.appendChild(has(n.word) || isSel(n.word) || depth ? lp : pillWithHide(n, lp, wasHid)); return; }
+      var on = st.drill[node.id] === n.id, lit = has(n.word) || isSel(n.word);
       var b = el('button', 'pick' + (lit ? ' on' : '') + (on ? ' open' : ''), n.word);
       b.type = 'button'; b.setAttribute('aria-expanded', on ? 'true' : 'false');
       b.addEventListener('click', function(){
-        if (on) { st.drill[node.id] = null; drawBrowse(); return; }
+        if (on && has(n.word)) { askRemove(n.word); return; }
+        if (on) { st.drill[node.id] = null; if (!has(n.word)) { setSel(n, false); } drawBrowse(); return; }
         st.drill[node.id] = n.id;
-        if (!has(n.word) && !under(n)) { addMine(n.word, areaOf(n)); emit(); drawAll(); } else drawBrowse();
+        if (!has(n.word)) { setSel(n, true); }
+        drawBrowse();
       });
       r.appendChild(lit || on || depth ? b : pillWithHide(n, b, wasHid));
       if (on) openKid = n;
     });
     oth = otherRow(node, '');
     if (oth.className === 'pick other') r.appendChild(oth);
+    r.appendChild(addBtn(node.kids));
     var rw = el('div', 'rw'); rw.appendChild(r);
     if (hiddenHere) {
       var sh = el('button', 'pastelink', ''); sh.type = 'button';
@@ -690,6 +749,32 @@
       ibar.appendChild(nb);
     }
     box.appendChild(ibar);
+    if (st.msg && !(st.tagging || []).length) { var am = el('p', 'addedmsg', st.msg); am.setAttribute('role', 'status'); box.appendChild(am); }
+    if (st.rmAsk && has(st.rmAsk)) {
+      var rw = st.rmAsk, rq = el('div', 'tagask'), rt = el('p', 'tagq', 'Are you sure you want to remove ' + rw + '?'), rr = el('div', 'cbtns');
+      var yes = el('button', 'btn', 'Yes, remove'); yes.type = 'button';
+      yes.addEventListener('click', function(){ var ix = mineIx(rw); st.rmAsk = ''; st.tagging = (st.tagging || []).filter(function(x){ return lc(x.word) !== lc(rw); }); if (ix > -1) { dropMine(ix); } st.msg = 'Removed ' + rw; drawAll(); });
+      var no = el('button', 'btn ghost', 'Keep it'); no.type = 'button';
+      no.addEventListener('click', function(){ st.rmAsk = ''; drawAll(); });
+      rr.appendChild(yes); rr.appendChild(no); rq.appendChild(rt); rq.appendChild(rr); box.appendChild(rq);
+    }
+    (st.tagging || []).forEach(function(t){
+      var ask = el('div', 'tagask');
+      var closeAll = function(){
+        st.tagging = (st.tagging || []).filter(function(x){ return x !== t; });
+        st.msg = '';
+        if (t.root) { st.open[t.root] = false; } else { st.open = {}; }
+        drawAll(); try { els.browse.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) {}
+      };
+      var confirm = function(){
+        if (!has(t.word)) { addMine(t.word, t.area); }
+        if (st.sel) { delete st.sel[lc(t.word)]; }
+        t.added = true; emit(); drawAll();
+      };
+      var ix2 = mineIx(t.word);
+      ask.appendChild(tagBox(t.added && ix2 > -1 ? st.mine[ix2] : { word: t.word, area: t.area }, t.added ? closeAll : confirm, function(){}, t.added ? { title: 'Tag \u201C' + t.word + '\u201D:', noSubs: true, doneLabel: 'Done', doneNote: 'Interest added' } : { title: 'Tag \u201C' + t.word + '\u201D:', noSubs: true, doneLabel: 'Looks good' }));
+      box.appendChild(ask);
+    });
     if (!st.ideas) return;
     st.roots.filter(function(root){ return root.kids && root.kids.length; }).forEach(function(root){
       var on = !!st.open[root.id], mine = areaPicks(root);
@@ -703,6 +788,7 @@
       g.appendChild(h);
       if (on) {
         var inner = el('div', 'fgb');
+        inner.appendChild(ideasBar(root));
         kidsInto(inner, root, 0);
         var dnr = el('div', 'cbtns'), dnb = el('button', 'btn small', 'Done'); dnb.type = 'button';
         dnb.addEventListener('click', function(){ st.open[root.id] = false; drawBrowse(); try { els.cards.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) {} });
@@ -891,13 +977,15 @@
     cr.appendChild(cl); b.appendChild(cr);
     return b;
   }
-  function fillCats(host, list, missing, plain){ host.textContent = ''; if (!list.length) { host.textContent = missing; return; } list.forEach(function(c){ var sp = el('span', 'catx', ''); if (!plain && EMO[c]) { sp.appendChild(el('span', 'catemo', EMO[c])); } sp.appendChild(document.createTextNode(c)); host.appendChild(sp); }); }
+  function fillCats(host, list, missing, plain){ host.textContent = ''; if (!list.length) { host.textContent = missing; return; } list.forEach(function(c, ci){ if (plain && ci > 0) { host.appendChild(document.createTextNode(', ')); } var sp = el('span', 'catx', ''); if (!plain && EMO[c]) { sp.appendChild(el('span', 'catemo', EMO[c])); } sp.appendChild(document.createTextNode(c)); host.appendChild(sp); }); }
   var emoAsked = false, emoPaint = null;
   function loadEmo(){
     if (emoAsked) { return; }
     emoAsked = true;
     fetch(CW_API + '?action=getReferenceData').then(function(r){ return r.json(); }).then(function(rd){
       (rd && rd.topicCategories || []).forEach(function(t){ if (t && t.label) { EMO[t.label] = t.emoji || ''; } });
+      if (!EMO.Professional) { EMO.Professional = '\u{1F4BC}'; }
+      if (!EMO.Medical) { EMO.Medical = '\u{1FA7A}'; }
       if (!EMO.Ecological) { EMO.Ecological = '\u{1F310}'; }
       if (!EMO.Social) { EMO.Social = '\u{1F465}'; }
       st.careWords = st.careWords || {};
@@ -907,10 +995,11 @@
       if (st.ready) { drawCards(); }
     }).catch(function(){ emoAsked = false; });
   }
-  function tagBox(m, onClose, onChange){
+  function tagBox(m, onClose, onChange, opt){
+    opt = opt || {};
     loadEmo();
     var tp = window.cwTagPicker({
-      title: 'Tag ' + m.word + ':',
+      title: opt.title || 'Tag ' + m.word + ':',
       mainCats: function(){ return st.mainCats || []; },
       emoji: function(c){ return EMO[c] || ''; },
       getA: function(){ return getA(m.word); },
@@ -921,11 +1010,13 @@
       kids: function(id){ return subKids()[id] || []; },
       roots: subChoices,
       ownSub: function(){ return (subOf(m) || { parent: { word: '' } }).parent.word; },
-      subPick: SUBPICK_ON,
+      subPick: SUBPICK_ON && !opt.noSubs,
       multi: SUBS_MULTI,
       onCats: function(list){ toParent({ ao: 'intcat', word: m.word, cats: list.slice() }); },
       onChange: onChange,
       redraw: drawCards,
+      doneLabel: opt.doneLabel,
+      doneNote: opt.doneNote,
       onClose: onClose
     });
     emoPaint = tp.repaint;

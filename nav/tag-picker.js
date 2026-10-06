@@ -14,7 +14,8 @@
     + '.cwtp .cwtp-line{display:flex;gap:8px;margin-top:8px;max-width:420px;}'
     + '.cwtp .cwtp-inp{flex:1;min-width:0;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:8px 12px;font:inherit;font-size:14px;color:#1A2E42;}'
     + '.cwtp .cwtp-btn{font:inherit;font-size:13px;font-weight:700;border-radius:20px;padding:5px 14px;border:0;background:#1F699E;color:#fff;cursor:pointer;}'
-    + '.cwtp .cwtp-done{display:flex;justify-content:flex-end;margin-top:14px;}';
+    + '.cwtp .cwtp-done{display:flex;justify-content:flex-end;align-items:center;margin-top:14px;}'
+    + '.cwtp .cwtp-note{color:#1F699E;font-weight:700;font-size:13px;margin-right:12px;}';
   function css(){
     if (document.getElementById('cwtp-css')) { return; }
     var s = document.createElement('style'); s.id = 'cwtp-css'; s.textContent = CSS; document.head.appendChild(s);
@@ -137,7 +138,7 @@
     };
     sr.addEventListener('input', paint); paint();
     if (ctx.onClose) {
-      var dr = el('div', 'cwtp-done'), dn = el('button', 'cwtp-btn', 'Done'); dn.type = 'button'; dn.addEventListener('click', ctx.onClose); dr.appendChild(dn); root.appendChild(dr);
+      var dr = el('div', 'cwtp-done'), dn = el('button', 'cwtp-btn', ctx.doneLabel || 'Done'); dn.type = 'button'; dn.addEventListener('click', ctx.onClose); if (ctx.doneNote) { dr.appendChild(el('span', 'cwtp-note', ctx.doneNote)); } dr.appendChild(dn); root.appendChild(dr);
     }
     return { el: root, repaint: paint };
   }
