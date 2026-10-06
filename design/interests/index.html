@@ -118,7 +118,7 @@
   .catx{display:inline-block;margin-right:14px;white-space:nowrap;}
   .catx:last-child{margin-right:0;}
   .catlink .catx:first-child{text-decoration:underline;}
-  .catemo{display:inline-block;text-decoration:none;}
+  .catemo{display:inline-block;text-decoration:none;margin-right:.45em;}
   .cmsy{margin-left:auto;display:inline-flex;gap:6px;flex:none;}
   .cms{cursor:pointer;width:26px;height:26px;border-radius:50%;background:#EEF1F4;color:#A9B4C0;display:inline-flex;align-items:center;justify-content:center;}
   .cms.on{background:var(--blue);color:#fff;}
@@ -881,7 +881,7 @@
     cr.appendChild(cl); b.appendChild(cr);
     return b;
   }
-  function fillCats(host, list, missing, plain){ host.textContent = ''; if (!list.length) { host.textContent = missing; return; } list.forEach(function(c){ var sp = el('span', 'catx', ''); if (!plain && EMO[c]) { sp.appendChild(el('span', 'catemo', EMO[c] + ' ')); } sp.appendChild(document.createTextNode(c)); host.appendChild(sp); }); }
+  function fillCats(host, list, missing, plain){ host.textContent = ''; if (!list.length) { host.textContent = missing; return; } list.forEach(function(c){ var sp = el('span', 'catx', ''); if (!plain && EMO[c]) { sp.appendChild(el('span', 'catemo', EMO[c])); } sp.appendChild(document.createTextNode(c)); host.appendChild(sp); }); }
   var emoAsked = false, emoPaint = null;
   function loadEmo(){
     if (emoAsked) { return; }
@@ -905,6 +905,46 @@
     b.appendChild(sr);
     var pills = el('div', 'tagp'); b.appendChild(pills);
     var subs = el('div', 'tagsub'); b.appendChild(subs);
+    var drillLevels = function(sec, main, cur, own, idx){
+      var path = [], node = cur ? st.rowByName[lc(cur)] : null, guard = 0;
+      while (node && guard++ < 8) { path.unshift(node); var pid = String(node[2] || '').split('|')[0].trim(); node = pid ? st.rowById[pid] : null; }
+      var nm = function(r){ return String(r[1]).trim(); };
+      var setSub = function(v){
+        var a = getA(m.word);
+        if (idx === 0) { if (v) { a.sub = v; delete a.subOff; } else { delete a.sub; a.subOff = true; } }
+        else { a.subs = a.subs || {}; if (v) { a.subs[main] = v; } else { delete a.subs[main]; } }
+        putA(m.word, a); drawCards();
+      };
+      var level = function(title, opts, chosen, upName){
+        var box = el('div', 'tagsec'); sec.appendChild(box);
+        box.appendChild(el('div', 'tagh', title));
+        var sp = el('div', 'tagp'); box.appendChild(sp);
+        var shown = opts.slice();
+        if (chosen && shown.map(lc).indexOf(lc(chosen)) < 0) { shown.push(chosen); }
+        shown.forEach(function(o){
+          var on = lc(chosen) === lc(o), b = el('button', 'pill' + (on ? ' on' : ''), o); b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          b.addEventListener('click', function(){ setSub(on ? upName : o); });
+          sp.appendChild(b);
+        });
+        var oth = el('button', 'pill other', '+ Other'); oth.type = 'button'; sp.appendChild(oth);
+        oth.addEventListener('click', function(){
+          oth.hidden = true;
+          var line = el('div', 'oline'), inp = el('input', 'oinp'); inp.type = 'text'; inp.placeholder = 'Type your own'; inp.setAttribute('aria-label', 'Your own word under ' + (upName || main));
+          var add = el('button', 'btn small', 'Add'); add.type = 'button';
+          var go = function(){ var v = String(inp.value || '').trim(); if (!v) { inp.focus(); return; } setSub(v.charAt(0).toUpperCase() + v.slice(1)); };
+          add.addEventListener('click', go); inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
+          line.appendChild(inp); line.appendChild(add); box.appendChild(line); setTimeout(function(){ try { inp.focus(); } catch (x) {} }, 0);
+        });
+      };
+      var known = path.length && lc(nm(path[path.length - 1])) === lc(cur || '');
+      var top = subChoices(main);
+      level('Part of ' + main + ':', top, known ? nm(path[0]) : (own && !(idx === 0 && getA(m.word).subOff) ? own : ''), '');
+      for (var i = 0; known && i < path.length; i++) {
+        var kids = (subKids()[String(path[i][0])] || []).map(nm).sort(function(a, b){ return a.localeCompare(b); });
+        if (!kids.length) { break; }
+        level('Part of ' + nm(path[i]) + ':', kids, path[i + 1] ? nm(path[i + 1]) : '', nm(path[i]));
+      }
+    };
     var paintSubs = function(){
       subs.innerHTML = '';
       if (!SUBPICK_ON) { return; }
@@ -915,6 +955,7 @@
         var a0 = getA(m.word);
         var cur = idx === 0 ? (a0.sub || ((subOf(m) || { parent: { word: '' } }).parent.word)) : String((a0.subs || {})[main] || '');
         var own = idx === 0 ? a0.sub : (a0.subs || {})[main];
+        drillLevels(sec, main, cur, own, idx); return;
         sec.appendChild(el('div', 'tagh', 'Part of ' + main + ':'));
         var sp = el('div', 'tagp'); sec.appendChild(sp);
         var shownOpts = opts.slice();
@@ -951,7 +992,7 @@
         shown = (st.mainCats || []).slice();
       }
       shown.forEach(function(c){
-        var on = chosen.indexOf(c) > -1, p = el('button', 'pill' + (on ? ' on' : ''), catLab(c)); p.type = 'button'; p.setAttribute('aria-pressed', on ? 'true' : 'false');
+        var on = chosen.indexOf(c) > -1, p = el('button', 'pill' + (on ? ' on' : ''), ''); if (EMO[c]) { p.appendChild(el('span', 'catemo', EMO[c])); } p.appendChild(document.createTextNode(c)); p.type = 'button'; p.setAttribute('aria-pressed', on ? 'true' : 'false');
         p.addEventListener('click', function(){
           var a = getA(m.word), list = catListOf(m.word), at = list.indexOf(c);
           if (at > -1) { list.splice(at, 1); } else { list.push(c); }
@@ -1642,7 +1683,7 @@
   var PASTE = !/[?&]paste=0/.test(location.search);
   var CARDS2 = !/[?&]cards2=0\b/.test(location.search);
   var PART = (/[?&]part=(top|list)\b/.exec(location.search) || [])[1] || '';
-  var PHOTO_ON = !/[?&]photo=0\b/.test(location.search), SUBPICK_ON = !/[?&]sub=0\b/.test(location.search), SUBS_MULTI = /[?&]subs=1\b/.test(location.search);
+  var PHOTO_ON = !/[?&]photo=0\b/.test(location.search), SUBPICK_ON = !/[?&]sub=0\b/.test(location.search), SUBS_MULTI = !/[?&]subs=0\b/.test(location.search);
   var TAGS2 = !/[?&]tags=0\b/.test(location.search);
   var ONE = !/[?&]one=0\b/.test(location.search);
   var DYM = /[?&]dym=1/.test(location.search);
