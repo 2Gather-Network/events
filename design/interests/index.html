@@ -418,6 +418,23 @@
     b.addEventListener('click', function(){ if (has(n.word)) { askRemove(n.word); return; } setSel(n, !isSel(n.word)); drawAll(); });
     return b;
   }
+  function tagPanel(t){
+    var ask = el('div', 'tagask');
+    var closeAll = function(){
+      st.tagging = (st.tagging || []).filter(function(x){ return x !== t; });
+      st.msg = '';
+      if (t.root) { st.open[t.root] = false; } else { st.open = {}; }
+      drawAll(); try { els.browse.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) {}
+    };
+    var confirm = function(){
+      if (!has(t.word)) { addMine(t.word, t.area); }
+      if (st.sel) { delete st.sel[lc(t.word)]; }
+      t.added = true; emit(); drawAll();
+    };
+    var ix2 = mineIx(t.word);
+    ask.appendChild(tagBox(t.added && ix2 > -1 ? st.mine[ix2] : { word: t.word, area: t.area }, t.added ? closeAll : confirm, function(){}, t.added ? { title: 'Tag \u201C' + t.word + '\u201D:', noSubs: true, doneLabel: 'Done', doneNote: 'Interest added' } : { title: 'Tag \u201C' + t.word + '\u201D:', noSubs: true, doneLabel: 'Looks good' }));
+    return ask;
+  }
   function rmPanel(rw){
     var rq = el('div', 'tagask'), rt = el('p', 'tagq', 'Are you sure you want to remove the ' + rw + ' card?'), rr = el('div', 'cbtns');
     rq.setAttribute('role', 'alert');
@@ -762,23 +779,7 @@
     var rmRoot = '';
     if (st.rmAsk && has(st.rmAsk)) { var rn = st.byName[lc(st.rmAsk)], rp0 = rn && !rn.extra ? pathOf(rn)[0] : null; if (rp0 && st.open && st.open[rp0.id]) { rmRoot = rp0.id; } }
     if (st.rmAsk && has(st.rmAsk) && !rmRoot) { box.appendChild(rmPanel(st.rmAsk)); }
-    (st.tagging || []).forEach(function(t){
-      var ask = el('div', 'tagask');
-      var closeAll = function(){
-        st.tagging = (st.tagging || []).filter(function(x){ return x !== t; });
-        st.msg = '';
-        if (t.root) { st.open[t.root] = false; } else { st.open = {}; }
-        drawAll(); try { els.browse.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) {}
-      };
-      var confirm = function(){
-        if (!has(t.word)) { addMine(t.word, t.area); }
-        if (st.sel) { delete st.sel[lc(t.word)]; }
-        t.added = true; emit(); drawAll();
-      };
-      var ix2 = mineIx(t.word);
-      ask.appendChild(tagBox(t.added && ix2 > -1 ? st.mine[ix2] : { word: t.word, area: t.area }, t.added ? closeAll : confirm, function(){}, t.added ? { title: 'Tag \u201C' + t.word + '\u201D:', noSubs: true, doneLabel: 'Done', doneNote: 'Interest added' } : { title: 'Tag \u201C' + t.word + '\u201D:', noSubs: true, doneLabel: 'Looks good' }));
-      box.appendChild(ask);
-    });
+    (st.tagging || []).forEach(function(t){ if (!(st.ideas && t.root && st.open && st.open[t.root])) { box.appendChild(tagPanel(t)); } });
     if (!st.ideas) return;
     st.roots.filter(function(root){ return root.kids && root.kids.length; }).forEach(function(root){
       var on = !!st.open[root.id], mine = areaPicks(root);
@@ -792,6 +793,7 @@
       g.appendChild(h);
       if (on) {
         var inner = el('div', 'fgb');
+        (st.tagging || []).forEach(function(t){ if (t.root === root.id) { inner.appendChild(tagPanel(t)); } });
         if (rmRoot === root.id) { inner.appendChild(rmPanel(st.rmAsk)); }
         inner.appendChild(ideasBar(root));
         kidsInto(inner, root, 0);
