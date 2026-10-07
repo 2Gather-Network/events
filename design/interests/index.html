@@ -396,6 +396,7 @@
   }
   function addMine(word, area){
     st.mine.push({ word: word, area: area }); st.lastPicked = lc(word);
+    try { window.sessionStorage.setItem('int-lastpick', lc(word)); } catch (e) {}
     if (CONSENT) { cwSensLoad(function(){ var a1 = getA(word); if (csSeedSensitive(a1, word)) { putA(word, a1); } }); return; }
     var a = getA(word); a.showOnProfile = true; putA(word, a);
   }
@@ -1853,12 +1854,21 @@
   }
 
   function takeMine(list){
+    var prev = {}, had = (st.mine || []).length;
+    (st.mine || []).forEach(function(m){ prev[lc(m.word)] = 1; });
     st.mine = [];
     (list || []).forEach(function(s){
       s = String(s || ''); var at = s.lastIndexOf(':');
       var word = (at > -1 ? s.slice(0, at) : s).trim(), area = (at > -1 ? s.slice(at + 1) : '').trim() || 'Other';
       if (word && mineIx(word) < 0) st.mine.push({ word: word, area: area });
     });
+    if (had) {
+      var old = st.mine.filter(function(m){ return prev[lc(m.word)]; }), fresh = st.mine.filter(function(m){ return !prev[lc(m.word)]; });
+      st.mine = old.concat(fresh);
+      if (fresh.length && !(st.lastPicked && mineIx(st.lastPicked) > -1)) { st.lastPicked = lc(fresh[fresh.length - 1].word); }
+    } else if (!st.lastPicked) {
+      try { var lp = window.sessionStorage.getItem('int-lastpick') || ''; if (lp && mineIx(lp) > -1) { st.lastPicked = lp; } } catch (e) {}
+    }
   }
 
   window.addEventListener('message', function(e){
