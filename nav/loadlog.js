@@ -42,6 +42,7 @@
       body = d.createElement('div');
       body.style.whiteSpace = 'pre-wrap';
       box.appendChild(bar); box.appendChild(body);
+      box.style.setProperty('visibility', 'visible', 'important');
       d.body.appendChild(box);
     }
     body.textContent = lines.join('\n');
