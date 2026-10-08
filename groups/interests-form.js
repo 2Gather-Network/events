@@ -61,6 +61,10 @@
 
   function makePicker(host, sec, chip, onChange){
     var on = {}, order = [], tree = null, at = [], own = {};
+    var find = document.createElement('input');
+    find.type = 'search'; find.placeholder = 'Search a topic to tag'; find.maxLength = 60; find.style.cssText = 'width:100%;box-sizing:border-box;margin:6px 0 8px;';
+    var found = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px;');
+    host.appendChild(find); host.appendChild(found);
     var cats = el('div', 'margin:6px 0 4px;');
     cats.innerHTML = '<span style="font-size:13px;color:#1F699E;">Loading the list…</span>';
     host.appendChild(cats);
@@ -140,8 +144,43 @@
         cats.appendChild(r);
       });
     }
+    function allNodes(list, path, out){
+      (list || []).forEach(function(n){
+        var p = path.concat(n.name);
+        out.push({ name: n.name, path: p, emoji: n.emoji });
+        if (n.kids && n.kids.length) allNodes(n.kids, p, out);
+      });
+      return out;
+    }
+    function drawFound(){
+      found.innerHTML = '';
+      var q = String(find.value || '').trim().toLowerCase();
+      if (!q || !tree) return;
+      var hits = allNodes(tree, [], []).filter(function(n){ return n.name.toLowerCase().indexOf(q) > -1; });
+      if (!hits.length) { found.appendChild(el('span', 'font-size:13px;color:var(--muted,#6B7A8D);', 'Nothing matches. Use Something else below to add it.')); return; }
+      hits.slice(0, 30).forEach(function(n){
+        var key = n.path.join(SEP);
+        var c = document.createElement('div'); c.className = chip + (on[key] ? ' on' : '');
+        c.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.2;';
+        c.appendChild(el('span', '', (on[key] ? '✓ ' : '') + n.name));
+        if (n.path.length > 1) c.appendChild(el('span', 'font-size:11px;font-weight:500;color:var(--muted,#6B7A8D);margin-top:2px;', n.path.slice(0, -1).join(SEP)));
+        c.addEventListener('click', function(){
+          if (on[key]) unmark(key);
+          else {
+            mark(key);
+            for (var i = 1; i < n.path.length; i++) unmark(n.path.slice(0, i).join(SEP));
+            order.slice().forEach(function(x){ if (x.indexOf(key + SEP) === 0) unmark(x); });
+          }
+          draw(); onChange();
+        });
+        found.appendChild(c);
+      });
+    }
+    find.addEventListener('input', drawFound);
+    find.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') ev.preventDefault(); });
     function draw(){
       if (!tree) return;
+      drawFound();
       if (sec.accordion) { drawAcc(); return; }
       cats.innerHTML = '';
       var list = nodeAt(at);
