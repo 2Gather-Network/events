@@ -91,11 +91,11 @@
         });
       };
       var known = path.length && lc(nm(path[path.length - 1])) === lc(cur || '');
-      level('Part of ' + main + ':', ctx.roots(main), known ? nm(path[0]) : (own && !(idx === 0 && ctx.getA().subOff) ? own : ''), '');
+      level('Subcategory of ' + main + ':', ctx.roots(main), known ? nm(path[0]) : (own && !(idx === 0 && ctx.getA().subOff) ? own : ''), '');
       for (var i = 0; known && i < path.length; i++) {
         var kids = kidsOf(path[i]);
         if (!kids.length) { break; }
-        level('Part of ' + nm(path[i]) + ':', kids, path[i + 1] ? nm(path[i + 1]) : '', nm(path[i]));
+        level('Subcategory of ' + nm(path[i]) + ':', kids, path[i + 1] ? nm(path[i + 1]) : '', nm(path[i]));
       }
     };
 
