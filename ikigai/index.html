@@ -134,7 +134,6 @@
   function gpNewOrder(){ return GP_NEW_ORDER.filter(function(n){ return n !== GP_INT || gpIntOn(); }).concat([GP_LAST]); }
   var GP_OTHER = (function(){ var v = parseInt(params.get('other'), 10); return (v >= 1 && v <= 4) ? v : 0; })();
   var GP_PURPOSE_TRY = (function(){ var v = String(params.get('purpose') || '').toLowerCase(); if (v === 'a' || v === 'b') return v; return (v === '0' || v === 'off') ? '' : 'c'; })();
-  var GP_VALUES_TRY = GP_RAIL && (params.get('values') || '') === '1';
   var GP_VALUE_WORDS = [
     ['Open',     'hearing and receiving whatever arrives'],
     ['Fair',     'treating others as I would be treated'],
@@ -154,7 +153,6 @@
     4: 'background:#fff;border:1.5px dashed #1F699E;color:#1F699E;font-weight:700;'                 
   };
   function gpOtherStyle(){ return GP_OTHER_STYLES[GP_OTHER] || GP_OTHER_STYLES[2]; }
-  var GP_PERM_ON = false;
   var meId = CW.me().id;
   var _next = (function(){
     var raw = params.get('next') || '';
@@ -677,7 +675,6 @@
     return w;
   }
 
-  var GP_STAGES_MOCK = (params.get('stages') || '') === '1';
   var GP_STAGE_LIST = [
     ['Analyzing', '\u{1F4CA}', 'p', 'researching, investigating, interviewing, comparing'],
     ['Designing', '\u{1F3A8}', 'p', 'imagining, sketching, outlining, setting goals'],
@@ -2904,7 +2901,6 @@
   if (GP_NEW && GP_APPR > -1) { GP_NEW_ORDER.push(GP_APPR); GP_NEW_LABELS[GP_APPR] = 'Appreciation'; }
   var GP_BAL = GP_STEP_TITLES.indexOf('Balance');
   var GP_PURPOSE = GP_STEP_TITLES.indexOf('Purpose');
-  function gpReqAllDone(){ try { return GP_REQ_ITEMS.every(function(r){ return r.done(); }); } catch (e) { return false; } }
   function gpSkipped(n){ if (GP_NEW) return gpNewOrder().indexOf(n) < 0; return GP_RAIL && ((n === 6 && window._gpDrawn && !window._gpOTW) || (n === GP_BAL && window._gpBal !== true)
     || (GP_REQ && n === GP_PURPOSE && !gpReqAllDone())); }
   function gpPrevFrom(n){ if (GP_NEW) { var o = gpNewOrder(), i = o.indexOf(n); return i > 0 ? o[i - 1] : 0; } return n - 1; }
@@ -2912,7 +2908,6 @@
   var _gpStep = 0;
   var GP_LAST = GP_STEP_TITLES.length - 1;
   var GP_PERM = -1;
-  if (GP_PERM_ON) { GP_STEP_TITLES.push('Group permissions'); GP_PERM = GP_STEP_TITLES.length - 1; }
   var GP_GROUP = String(params.get('groupName') || '').trim();
   var _gpEsc = function (t) {
     return String(t).replace(/[&<>"']/g, function (ch) {
@@ -3609,22 +3604,6 @@
     }
     try { fr.contentWindow.postMessage({ ao: 'items', hand: h }, location.origin); } catch (e) {}
   }
-  function gpNewCards(key, rows){
-    gpWordsLoad();
-    var fr = rows.querySelector('iframe.gp-cards');
-    if (!fr) {
-      rows.innerHTML = '';
-      rows.style.display = 'block';
-      fr = document.createElement('iframe');
-      fr.className = 'gp-cards'; fr.title = 'Your answers';
-      fr.style.cssText = 'width:100%;height:160px;border:0;display:block;';
-      fr.setAttribute('scrolling', 'no');
-      fr.src = '/design/after-onboarding/?inpane=1&fit=' + GP_NEW_FIT[key] + (/[?&]space=1/.test(location.search) ? '&space=1' : '') + (/[?&]dense=1/.test(location.search) ? '&dense=1' : '') + GP_CQ + '&cb=' + Date.now();
-      rows.appendChild(fr);
-    }
-    if (!window._gpNewTopics) { gpNewTopicsLoad().then(function(){ gpNewPost(fr); }); return; }
-    gpNewPost(fr);
-  }
   var _gpDet = {}, _gpDetSent = {}, _gpDetT = null, _gpDetBusy = false, _gpDetTries = 0;
   function gpDetailQueue(word, a){
     var k = String(word || '').trim().toLowerCase();
@@ -3710,45 +3689,6 @@
     var s = csShow(a, w), m = csMatch(a, w);
     if (key === 'show') { s = val; } else { m = val; }
     a.show = s; a.match = m; delete a.showOnProfile;
-  }
-  function csSeedSensitive(a, w){
-    if (cwIsSens(w) && a.show === undefined && a.match === undefined && a.showOnProfile === undefined) { a.show = false; a.match = false; return true; }
-    return false;
-  }
-  function csIcon(mk){
-    var b = mk('button', 'cs-ic'); b.type = 'button'; b.title = 'Info used for matching'; b.setAttribute('aria-label', 'Info used for matching');
-    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>';
-    b.addEventListener('click', function(){ try { window.parent.postMessage({ ao: 'matching' }, location.origin); } catch (e) {} });
-    return b;
-  }
-  function csRows(host, a, w, onSet, mk){
-    var wrap = mk('div', 'cs');
-    var st = !CWSENS && !CWSENS_FAIL ? 'wait' : (CWSENS_FAIL ? 'fail' : 'ready');
-    if (st === 'wait') { wrap.appendChild(mk('div', 'cs-note', 'Checking this card…')); host.appendChild(wrap); return wrap; }
-    if (st === 'fail') { wrap.appendChild(mk('div', 'cs-note', 'We could not check this card just now, so these switches are paused. Try again in a moment.')); host.appendChild(wrap); return wrap; }
-    var pills = mk('div', 'cs-pills');
-    var paint = function(){
-      pills.innerHTML = '';
-      if (!csShow(a, w)) { pills.appendChild(mk('span', 'cs-tag', 'Not public')); }
-      if (!csMatch(a, w)) { pills.appendChild(mk('span', 'cs-tag', 'Not matching')); }
-      pills.style.display = pills.firstChild ? '' : 'none';
-    };
-    wrap.appendChild(pills); paint();
-    [['show', 'Show on my profile'], ['match', 'Use to find matches']].forEach(function(r){
-      var on = r[0] === 'show' ? csShow(a, w) : csMatch(a, w);
-      var row = mk('div', 'cs-row'), txt = mk('div', 'cs-t'), sw = mk('button', 'cs-sw' + (on ? ' on' : ''));
-      txt.appendChild(mk('b', '', r[1]));
-      sw.type = 'button'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', on ? 'true' : 'false'); sw.setAttribute('aria-label', r[1] + ': ' + w);
-      sw.appendChild(mk('span', 'cs-k'));
-      sw.addEventListener('click', function(){
-        var now = !sw.classList.contains('on');
-        csSet(a, w, r[0], now); onSet(a);
-        Array.prototype.forEach.call(wrap.querySelectorAll('.cs-sw'), function(b, i){ var v = i === 0 ? csShow(a, w) : csMatch(a, w); b.classList.toggle('on', v); b.setAttribute('aria-checked', v ? 'true' : 'false'); });
-        paint();
-      });
-      row.appendChild(txt); row.appendChild(sw); wrap.appendChild(row);
-    });
-    host.appendChild(wrap); return wrap;
   }
   if (CONSENT) { cwSensLoad(function(){}); }
 
@@ -6213,12 +6153,6 @@
     { label: 'One language',             head: 'Which languages do you speak?', step: GP_NEW ? 0 : 2, done: function(){ return gpHasLang(); } },
     { label: 'One thing you care about', head: 'What do you care about?',       step: 3, done: function(){ return gpAnswered('introValues'); } }
   ];
-  function gpWelcomeDone(){
-    try {
-      var mine = GP_REQ_ITEMS.filter(function (r) { return r.step === 0; });
-      return mine.length > 0 && mine.every(function (r) { return r.done(); });
-    } catch (e) { return false; }
-  }
   function gpReqStepDone(n){ return GP_REQ_ITEMS.filter(function(r){ return r.step === n; }).every(function(r){ return r.done(); }); }
   function gpReqPaint(){
     var box = document.getElementById('gp-intro-qs'); if (!box) return;
@@ -6300,13 +6234,6 @@
     } catch (e) {}
     if (window.cwCountedGroups) { try { list = window.cwCountedGroups(list); } catch (e) {} }   
     gpPermSetGroups(list);
-    if (!list.length && meId && GP_PERM_ON) {
-      fetch(GS_URL + '?action=getMyGroups&appearId=' + encodeURIComponent(meId)).then(function(r){ return r.json(); }).then(function(d){
-        var l = ((d && d.groups) || []).map(function(g){ return { id: String(g.groupID || g.groupId || g.id || '').trim(), name: String(g.groupName || g.name || '').trim() }; });
-        if (window.cwCountedGroups) { try { l = window.cwCountedGroups(l); } catch (e) {} }
-        gpPermSetGroups(l); gpPermPaint();
-      }).catch(function(){});
-    }
   })();
   function gpPermSetGroups(list){
     GP_PERM_AUD = GP_PERM_AUD.filter(function(a){ return a.key === 'anyone' || a.key === 'member'; });
