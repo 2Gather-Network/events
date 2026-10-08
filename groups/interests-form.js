@@ -62,7 +62,7 @@
   function makePicker(host, sec, chip, onChange){
     var on = {}, order = [], tree = null, at = [], own = {};
     var find = document.createElement('input');
-    find.type = 'search'; find.placeholder = 'Search a topic to tag'; find.maxLength = 60; find.style.cssText = 'width:100%;box-sizing:border-box;margin:6px 0 8px;';
+    find.type = 'text'; find.placeholder = 'Search a topic to tag'; find.maxLength = 60; find.style.cssText = 'width:100%;box-sizing:border-box;margin:6px 0 8px;';
     var found = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px;');
     host.appendChild(find); host.appendChild(found);
     var cats = el('div', 'margin:6px 0 4px;');
