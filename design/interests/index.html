@@ -355,8 +355,8 @@
       if (cur.length) { st.fits[k] = cur; }
     });
   }
-  function listItems(){ return ONE && st.all ? st.all : st.mine; }
-  function canRemove(m){ if (!ONE || !m.tags) { return true; } return m.tags.some(function(t){ return t === 'interest' || t === 'enjoy' || t === 'skill' || t === 'care' || t === 'seek'; }); }
+  function listItems(){ return st.all ? st.all : st.mine; }
+  function canRemove(m){ if (!m.tags) { return true; } return m.tags.some(function(t){ return t === 'interest' || t === 'enjoy' || t === 'skill' || t === 'care' || t === 'seek'; }); }
   function mineIx(word){ for (var i = 0; i < st.mine.length; i++) { if (lc(st.mine[i].word) === lc(word)) return i; } return -1; }
   function has(word){ return mineIx(word) > -1; }
 
@@ -395,8 +395,7 @@
   function addMine(word, area){
     st.mine.push({ word: word, area: area }); st.lastPicked = lc(word);
     try { window.sessionStorage.setItem('int-lastpick', lc(word)); } catch (e) {}
-    if (CONSENT) { cwSensLoad(function(){ var a1 = getA(word); if (csSeedSensitive(a1, word)) { putA(word, a1); } }); return; }
-    var a = getA(word); a.showOnProfile = true; putA(word, a);
+     cwSensLoad(function(){ var a1 = getA(word); if (csSeedSensitive(a1, word)) { putA(word, a1); } }); return; 
   }
   function dropMine(ix){
     var m = st.mine.splice(ix, 1)[0];
@@ -799,11 +798,11 @@
   function drawBrowse(){
     var box = els.browse; box.innerHTML = '';
     st.open = st.open || {};
-    if (PASTE && st.pasteOpen) { return; }
+    if (st.pasteOpen) { return; }
     var ib = el('button', 'btn ideas', st.ideas ? 'Hide ideas' : 'Show me ideas'); ib.type = 'button'; ib.setAttribute('aria-expanded', st.ideas ? 'true' : 'false');
     ib.addEventListener('click', function(){ st.ideas = !st.ideas; drawBrowse(); });
     var ibar = el('div', 'ibar'); ibar.appendChild(ib);
-    if (PASTE && !st.pasteOpen) {
+    if (!st.pasteOpen) {
       var nb = el('button', 'btn ghost notes', ''); nb.type = 'button'; nb.setAttribute('aria-expanded', 'false');
       nb.appendChild(document.createTextNode('Add notes instead'));
       nb.addEventListener('click', function(){ st.pasteOpen = true; drawPaste(); drawBrowse(); var a = els.paste && els.paste.querySelector('textarea'); if (a) a.focus(); });
@@ -856,28 +855,24 @@
     var path = node ? pathOf(node).slice(0, -1).map(function(x){ return x.word; }) : [];
     if (!path.length && m.area && lc(m.area) !== lc(m.word)) path = [m.area];
     var catLinkEl = null;
-    if (CARDS2 && TAGS2) {
       var cl0 = catListOf(m.word);
       catLinkEl = el('button', cl0.length ? 'catlink' : 'misscat', ''); fillCats(catLinkEl, cl0, 'Missing category'); catLinkEl.type = 'button';
       catLinkEl.addEventListener('click', function(){ st.tagOpen = st.tagOpen || {}; st.tagOpen[lc(m.word)] = !st.tagOpen[lc(m.word)]; drawCards(); });
       left.appendChild(catRow(m, catLinkEl));
-    } else if (path.length) left.appendChild(el('div', 'path', path.join(' › ').replace(/ > /g, ' › ')));
     var x = el('button', 'x', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Remove ' + m.word);
     x.addEventListener('click', function(){ askDelete(m.word); });
     var tools = el('div', 'ctools');
-    if (CONSENT && window.parent !== window && !CARDS2) { tools.appendChild(csIcon(el)); }
-    if (CARDS2 && canRemove(m)) { tools.appendChild(removeIcon(m)); }
-    if (!CARDS2) { tools.appendChild(x); }
+    if (canRemove(m)) { tools.appendChild(removeIcon(m)); }
     top.appendChild(left); top.appendChild(tools); c.appendChild(top);
-    if (CARDS2 && TAGS2 && st.tagOpen && st.tagOpen[lc(m.word)]) {
+    if (st.tagOpen && st.tagOpen[lc(m.word)]) {
       c.appendChild(tagBox(m, function(){ st.tagOpen[lc(m.word)] = false; drawCards(); }, function(){
         var cl1 = catListOf(m.word); fillCats(catLinkEl, cl1, 'Missing category'); catLinkEl.className = cl1.length ? 'catlink' : 'misscat';
       }));
       return c;
     }
-    if (CARDS2) { var sbx = subBox(m); if (sbx) { c.appendChild(sbx); } }
+     var sbx = subBox(m); if (sbx) { c.appendChild(sbx); } 
 
-    var fitHost = c; if (CARDS2) { fitHost = el('div', 'fbox'); c.appendChild(fitHost); }
+    var fitHost = c;  fitHost = el('div', 'fbox'); c.appendChild(fitHost); 
     fitHost.appendChild(el('div', 'cap', 'How does it fit you?'));
     var lv = el('div', 'lv'), me = el('span', 'pill fixed', 'I’m interested in it'); lv.appendChild(me);
     FITS.forEach(function(f){
@@ -886,59 +881,17 @@
       b.addEventListener('click', function(){ var now = !b.classList.contains('on'); b.classList.toggle('on', now); b.setAttribute('aria-pressed', now ? 'true' : 'false'); setFit(m.word, f[0], now); });
       lv.appendChild(b);
     });
-    if (CARDS2) {
       var mi = el('button', 'morelink inline', 'Add more info'); mi.type = 'button';
       mi.addEventListener('click', function(){ st.more = lc(m.word); st.moreTab = ({ enjoy: 1, skill: 1, care: 1, seek: 1, offer: 1 })[st.lkind] ? st.lkind : ''; drawCards(); });
       lv.appendChild(mi);
-    }
     fitHost.appendChild(lv);
 
-    if (!CARDS2) {
-    var wayHost = c;
-    wayHost.appendChild(el('div', 'cap', 'How would you like to connect around it?'));
-    var a0 = getA(m.word);
-    WAYS.forEach(function(w){
-      var lab = el('label', 'way'), cb = document.createElement('input'); cb.type = 'checkbox';
-      cb.checked = (a0.careWays || []).indexOf(w[0]) > -1;
-      cb.addEventListener('change', function(){
-        var a = getA(m.word), list = (a.careWays || []).slice(), at = list.indexOf(w[0]);
-        if (cb.checked && at < 0) list.push(w[0]);
-        if (!cb.checked && at > -1) list.splice(at, 1);
-        if (list.length) a.careWays = list; else delete a.careWays;
-        putA(m.word, a);
-      });
-      lab.appendChild(cb); lab.appendChild(el('span', '', w[1])); wayHost.appendChild(lab);
-    });
-    }
-    if (CARDS2) {
-      if (CONSENT) {
         var fstrip = el('div', 'mstrip'), fcs = csRows(fstrip, getA(m.word), m.word, function(a){ putA(m.word, a); }, el);
         if (window.parent !== window) { fcs.appendChild(csIcon(el)); }
         c.appendChild(fstrip);
         cwSensLoad(function(){ fstrip.innerHTML = ''; var fc2 = csRows(fstrip, getA(m.word), m.word, function(a){ putA(m.word, a); }, el); if (window.parent !== window) { fc2.appendChild(csIcon(el)); } });
-      }
-    } else if (CONSENT) {
-      var csHost = el('div', 'csh'); c.appendChild(csHost);
-      var csDraw = function(){ csHost.innerHTML = ''; csRows(csHost, getA(m.word), m.word, function(a){ putA(m.word, a); }, el); };
-      csDraw(); cwSensLoad(csDraw);
-    } else {
-      var sl = el('div', 'show'), son = a0.showOnProfile !== 'no', sw = el('button', 'sw' + (son ? ' on' : ''));
-      sw.type = 'button'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', son ? 'true' : 'false'); sw.setAttribute('aria-label', 'Show ' + m.word + ' on my profile');
-      sw.appendChild(el('span', 'knob'));
-      sw.addEventListener('click', function(){
-        var a = getA(m.word), now = a.showOnProfile === 'no';
-        a.showOnProfile = now ? true : 'no';
-        putA(m.word, a);
-        sw.classList.toggle('on', now); sw.setAttribute('aria-checked', now ? 'true' : 'false');
-      });
-      sl.appendChild(el('span', '', 'Show on my profile')); sl.appendChild(sw); c.appendChild(sl);
-    }
     if (DYM) c.appendChild(linkBox(m));
-    if (CARDS2) { c.appendChild(cardButtons(m)); return c; }
-    var dn = el('button', 'btn ghost cdone', 'Done'); dn.type = 'button';
-    dn.addEventListener('click', function(){ setCompact(true); st.openCard = {}; drawCards(); });
-    c.appendChild(dn);
-    return c;
+     c.appendChild(cardButtons(m)); return c; 
   }
 
     function catListOf(word){
@@ -1051,8 +1004,8 @@
       kids: function(id){ return subKids()[id] || []; },
       roots: subChoices,
       ownSub: function(){ return (subOf(m) || { parent: { word: '' } }).parent.word; },
-      subPick: SUBPICK_ON && !opt.noSubs,
-      multi: SUBS_MULTI,
+      subPick: !opt.noSubs,
+      multi: true,
       onCats: function(list){ toParent({ ao: 'intcat', word: m.word, cats: list.slice() }); },
       onChange: onChange,
       redraw: drawCards,
@@ -1340,7 +1293,7 @@
       var r8 = el('div', 'row'); bb.appendChild(r8);
       chipsInto(r8, ['Nature', 'Animals'].concat(a.serveNature.filter(function(v){ return ['Nature', 'Animals'].indexOf(v) < 0; })), a.serveNature, false, null, redraw); otherPill(r8, a.serveNature, redraw);
     }
-    if (PHOTO_ON) { picBlock(pane, { word: word, a: a }, redraw); }
+     picBlock(pane, { word: word, a: a }, redraw); 
   }
   var OFFER_WAYS = [['offer:teach', 'Someone to teach or mentor'], ['offer:do', 'Someone I can do this for'], ['offer:with', 'People I can do this with'], ['offer:info', 'Information or resources about it'], ['offer:event', 'An event or group about it']];
   function offerPane(pane, word){
@@ -1361,7 +1314,7 @@
     } else if (key === 'offer') {
       offerPane(pane, word);
     } else if (key === 'care') {
-      if (TAGS2) { lensRow(pane, word); }
+       lensRow(pane, word); 
       wayList(pane, 'How do you care about ' + qWord(word) + '?', CARE_WAYS, word);
     } else if (key === 'seek') {
       wayList(pane, 'What are you looking for with ' + qWord(word) + '?', SEEK_WAYS, word);
@@ -1373,19 +1326,10 @@
     var c = el('div', 'card more aoq'), fitsOn = FITS.filter(function(f){ return (st.fits[lc(m.word)] || []).indexOf(f[0]) > -1; });
     var mh = el('div', 'top'), ml = el('div', ''); ml.appendChild(el('div', 'nm', m.word));
     var mCatEl = null;
-    if (TAGS2) {
       var cats = catListOf(m.word);
-      if (CARDS2) {
         mCatEl = el('button', cats.length ? 'catlink' : 'misscat', ''); fillCats(mCatEl, cats, 'Missing category'); mCatEl.type = 'button';
         mCatEl.addEventListener('click', function(){ st.tagOpen = st.tagOpen || {}; st.tagOpen[lc(m.word)] = !st.tagOpen[lc(m.word)]; drawCards(); });
         ml.appendChild(catRow(m, mCatEl));
-      } else { ml.appendChild(el('div', 'path', cats.length ? cats.join(' | ') : 'Missing category')); }
-    }
-    else {
-      var mn = st.byName[lc(m.word)], mp = mn ? pathOf(mn).slice(0, -1).map(function(x){ return x.word; }) : [];
-      if (!mp.length && m.area && lc(m.area) !== lc(m.word)) { mp = [m.area]; }
-      if (mp.length) { ml.appendChild(el('div', 'path', mp.join(' \u203A ').replace(/ > /g, ' \u203A '))); }
-    }
     var mtools = el('div', 'mtools'), tg = el('button', 'rmicon' + (!st.fitShut ? ' on' : ''), ''); tg.type = 'button'; tg.title = 'Change how it fits you'; tg.setAttribute('aria-label', 'Change how it fits you'); tg.setAttribute('aria-expanded', !st.fitShut ? 'true' : 'false');
     tg.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="8.5" r="1.2"/></svg>';
     tg.addEventListener('click', function(){ st.fitShut = !st.fitShut; drawCards(); });
@@ -1414,7 +1358,7 @@
     }
     var sbm = subBox(m); if (sbm) { c.appendChild(sbm); }
     var tabs = el('div', 'mtabs'), pane = el('div', 'mpane');
-    var names = [['interest', 'Interested']].concat(fitsOn.filter(function(f){ return TAGS2 || f[0] !== 'skill'; }).map(function(f){ return [f[0], f[1]]; }));
+    var names = [['interest', 'Interested']].concat(fitsOn.filter(function(f){ return true; }).map(function(f){ return [f[0], f[1]]; }));
     st.moreTab = st.moreTab && names.some(function(t){ return t[0] === st.moreTab; }) ? st.moreTab : names[0][0];
     names.forEach(function(t){
       var tb = el('button', 'mtab' + (t[0] === st.moreTab ? ' on' : ''), ({ interest: 'Interest', match: 'Show & Match', enjoy: 'Joy', skill: 'Skill', care: 'Care', seek: 'Seek', offer: 'Offer' })[t[0]] || t[1]); tb.type = 'button';
@@ -1424,7 +1368,7 @@
     c.appendChild(tabs);
     fitPane(pane, m.word, st.moreTab);
     c.appendChild(pane);
-    var mstrip = el('div', 'mstrip'); var mcs = csRows(mstrip, getA(m.word), m.word, function(a){ putA(m.word, a); }, el); if (CONSENT && window.parent !== window) { mcs.appendChild(csIcon(el)); } c.appendChild(mstrip);
+    var mstrip = el('div', 'mstrip'); var mcs = csRows(mstrip, getA(m.word), m.word, function(a){ putA(m.word, a); }, el); if (window.parent !== window) { mcs.appendChild(csIcon(el)); } c.appendChild(mstrip);
     var row = el('div', 'cbtns'), dn = el('button', 'btn small', 'Done'); dn.type = 'button';
     dn.addEventListener('click', function(){ st.more = ''; drawCards(); });
     row.appendChild(dn); c.appendChild(row);
@@ -1528,7 +1472,7 @@
         chipsInto(rr, g[1], it.a.enjoyWho, false, null, redraw);
         if (g[1] === INTEREST_KINDS) interestOwn(rr, it.a.enjoyWho, redraw);
       });
-      if (SPACEMOCK) spaceRows(wb, it, redraw);
+      spaceRows(wb, it, redraw);
       var extraW = it.a.enjoyWho.filter(function(v){ return knownW.indexOf(v) < 0 && !/^(Near me|Within my location|Interest|Space): /.test(v); });
       var orow = el('div', 'row'); wb.appendChild(orow);
       chipsInto(orow, extraW, it.a.enjoyWho, false, null, redraw);
@@ -1540,7 +1484,6 @@
   var INTEREST_KINDS = ['Community building', 'Professional growth', 'Leadership', 'Mentoring', 'Getting started', 'Business ownership', 'Creative work', 'Volunteering'];
   var WITH_GROUPS = [['People I already know', ['Friends', 'Family', 'Partner', 'Coworkers', 'Neighbors']], ['People I\u2019d like to meet', []], ['People within a stage of life', ['Kids and teens', 'Students', 'Parents', 'Caregivers', 'Seniors', 'Elderly', 'Hospice']], ['People interested in\u2026', INTEREST_KINDS]];
   var WITH_MAP = {};
-  var SPACEMOCK = !/[?&]space=0\b/.test(location.search);
   var SPACE_SETS = [['All genders', ['Women and nonbinary people', 'Women only', 'Men only']], ['All ages', ['20s', '30s', '40s', '50s', '60s', '70s+']]];
   function spaceRows(b, it, redraw){
     var opts = [];
@@ -1617,7 +1560,7 @@
   function askDelete(word){
     if (!window.confirm('Are you sure you want to delete this?')) { return; }
     var i = mineIx(word); if (i > -1) { dropMine(i); }
-    if (ONE) { toParent({ ao: 'dropword', word: word }); }
+     toParent({ ao: 'dropword', word: word }); 
   }
   function isCompact(){ try { return window.localStorage.getItem('ao-compact') !== '0'; } catch (e) { return true; } }
   function setCompact(v){ try { window.localStorage.setItem('ao-compact', v ? '1' : '0'); } catch (e) {} }
@@ -1626,22 +1569,16 @@
     var path = node ? pathOf(node).slice(0, -1).map(function(x){ return x.word; }) : [];
     if (!path.length && m.area && lc(m.area) !== lc(m.word)) path = [m.area];
     var b = el('button', 'cmb'); b.type = 'button'; b.setAttribute('aria-expanded', 'false');
-    if (CARDS2) {
       var cl0 = catListOf(m.word), tw = el('span', 'cmt'), emos = cl0.map(function(c){ return EMO[c] || ''; }).filter(Boolean).join(' ');
       c.className = 'cm emo';
       if (emos) { b.appendChild(el('span', 'cmemo' + (cl0.length > 1 ? ' multi' : ''), emos)); }
       else if (cl0.length) { b.appendChild(el('span', 'cmemo', '\u00B7')); }
       else { var mq = el('span', 'cmq', '?'); mq.title = 'Missing category'; mq.setAttribute('aria-label', 'Missing category'); b.appendChild(mq); }
       tw.appendChild(el('span', 'cmn', shownName(m)));
-      var line = cl0.length ? cl0.join(' | ') : (TAGS2 ? 'Missing category' : (path.length ? path.join(' \u203A ').replace(/ > /g, ' \u203A ') : ''));
+      var line = cl0.length ? cl0.join(' | ') : 'Missing category';
       if (line) { var cps = el('span', 'cmp', ''); if (cl0.length) { fillCats(cps, cl0, '', true); } else { cps.textContent = line; } tw.appendChild(cps); }
       b.appendChild(tw);
-    } else {
-      b.appendChild(el('span', 'cmn', shownName(m)));
-      if (path.length) b.appendChild(el('span', 'cmp', path.join(' \u203A ').replace(/ > /g, ' \u203A ')));
-    }
-    if (CARDS2) {
-      if (CONSENT && CWSENS) {
+      if (CWSENS) {
         var ca = getA(m.word), csy = el('span', 'cmsy');
         [['Shows on my profile', 'Not showing on my profile', csShow(ca, m.word), 'show', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'],
          ['Used to find matches', 'Not used to find matches', csMatch(ca, m.word), 'match', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>']].forEach(function(o){
@@ -1656,15 +1593,13 @@
         b.appendChild(csy);
       }
       b.appendChild(el('span', 'cmopen', 'Open'));
-    }
     b.addEventListener('click', function(){
-      if (CARDS2) { st.more = lc(m.word); st.moreTab = ({ enjoy: 1, skill: 1, care: 1, seek: 1, offer: 1 })[st.lkind] ? st.lkind : ''; }
-      else { setCompact(false); st.openCard = {}; }
+       st.more = lc(m.word); st.moreTab = ({ enjoy: 1, skill: 1, care: 1, seek: 1, offer: 1 })[st.lkind] ? st.lkind : ''; 
       drawCards();
     });
     var x = el('button', 'cmx', '\u00D7'); x.type = 'button'; x.setAttribute('aria-label', 'Remove ' + m.word);
     x.addEventListener('click', function(){ askDelete(m.word); });
-    c.appendChild(b); if (!CARDS2) { c.appendChild(x); }
+    c.appendChild(b); 
     return c;
   }
   function listTools(){
@@ -1676,7 +1611,7 @@
     sel.addEventListener('change', function(){ st.lsort = sel.value; drawCards(); });
     r1.appendChild(q); r1.appendChild(sel); tools.appendChild(r1);
     var chips = el('div', 'lchips');
-    (ONE ? [['all', 'All interests'], ['enjoy', 'Joy'], ['skill', 'Skill'], ['care', 'Care'], ['seek', 'Seek'], ['offer', 'Offer']] : [['all', 'All interests'], ['enjoy', 'Joys'], ['care', 'Cares'], ['skill', 'Skills'], ['offer', 'Offerings'], ['seek', 'Seeking']]).forEach(function(f){
+    ([['all', 'All interests'], ['enjoy', 'Joy'], ['skill', 'Skill'], ['care', 'Care'], ['seek', 'Seek'], ['offer', 'Offer']]).forEach(function(f){
       var b = el('button', 'lchip' + ((st.lkind || 'all') === f[0] ? ' on' : ''), f[1]); b.type = 'button';
       b.addEventListener('click', function(){ st.lkind = f[0]; st.cardLimit = 12; drawCards(); });
       chips.appendChild(b);
@@ -1685,7 +1620,7 @@
     return tools;
   }
   function drawCards(){
-    if (CARDS2) { loadEmo(); }
+     loadEmo(); 
     var box = els.cards; box.innerHTML = '';
     if (!listItems().length) return;
     var compact = isCompact();
@@ -1695,7 +1630,7 @@
       vb.addEventListener('click', function(){ setCompact(o[0]); st.openCard = {}; drawCards(); });
       vt.appendChild(vb);
     });
-    if (CARDS2) { vr.style.justifyContent = 'space-between'; vr.style.alignItems = 'center'; vr.style.gap = '8px 10px'; vr.style.flexWrap = 'wrap'; vr.appendChild(el('span', 'cmhint2', 'Your joys, cares, skills, offerings and needs.')); }
+     vr.style.justifyContent = 'space-between'; vr.style.alignItems = 'center'; vr.style.gap = '8px 10px'; vr.style.flexWrap = 'wrap'; vr.appendChild(el('span', 'cmhint2', 'Your joys, cares, skills, offerings and needs.')); 
     vr.appendChild(vt);
     var wrap = el('div', 'fold'), shut = !!st.cardsShut;
     var bar = el('button', 'foldbar'); bar.type = 'button'; bar.setAttribute('aria-expanded', shut ? 'false' : 'true');
@@ -1705,19 +1640,15 @@
     wrap.appendChild(bar);
     if (!shut) {
       var body = el('div', 'foldbody');
-      if (!(CARDS2 && st.more)) { body.appendChild(vr); }
-      if (compact && !CARDS2) body.appendChild(el('p', 'cmhint', 'Tap an interest to open it.'));
+      if (!st.more) { body.appendChild(vr); }
       var g = el('div', compact ? 'cards cmlist' : 'cards');
       var open = st.openCard || {};
-      var list = listItems().slice(); if (!ONE) { list.reverse(); }
-      if (CARDS2) {
+      var list = listItems().slice(); 
         var lk = st.lkind || 'all', lq = lc(st.lq || '');
         if (lq) { list = list.filter(function(m){ return lc(m.word).indexOf(lq) > -1; }); }
-        if (ONE) { if (lk !== 'all') { list = list.filter(function(m){ return (m.tags || []).indexOf(lk) > -1; }); } }
-        else if (lk !== 'all' && lk !== 'interest') { list = list.filter(function(m){ return (st.fits[lc(m.word)] || []).indexOf(lk) > -1; }); }
+         if (lk !== 'all') { list = list.filter(function(m){ return (m.tags || []).indexOf(lk) > -1; }); } 
         if (st.lsort === 'old') { list.reverse(); }
         else if (st.lsort === 'edited') { var ed = function(m){ return String(getA(m.word).editedDate || ''); }; list = list.map(function(m, i){ return [m, i]; }).sort(function(x, y){ return ed(y[0]) < ed(x[0]) ? -1 : ed(y[0]) > ed(x[0]) ? 1 : x[1] - y[1]; }).map(function(x){ return x[0]; }); }
-      }
       if (st.lastPicked && (!st.lsort || st.lsort === 'new')) {
         var lpAt = -1; list.forEach(function(m, i){ if (lc(m.word) === st.lastPicked) { lpAt = i; } });
         if (lpAt > 0) { list.unshift(list.splice(lpAt, 1)[0]); }
@@ -1729,27 +1660,21 @@
         mb.addEventListener('click', function(){ st.cardLimit = all ? 12 : first ? 100 : cap + 100; drawCards(); });
         return mb;
       };
-      var topMore = (CARDS2 && st.more) ? null : moreLink(); if (topMore) { body.insertBefore(topMore, body.children[1] || null); }
-      var moreM = CARDS2 && st.more ? list.concat(listItems()).filter(function(m){ return lc(m.word) === st.more; })[0] : null;
+      var topMore = st.more ? null : moreLink(); if (topMore) { body.insertBefore(topMore, body.children[1] || null); }
+      var moreM = st.more ? list.concat(listItems()).filter(function(m){ return lc(m.word) === st.more; })[0] : null;
       if (moreM) { g.appendChild(moreView(moreM)); } else list.slice(0, cap).forEach(function(m){ g.appendChild(compact && !open[lc(m.word)] ? miniRow(m) : card(m)); });
-      if (CARDS2 && !st.more) { body.appendChild(listTools()); }
+      if (!st.more) { body.appendChild(listTools()); }
       body.appendChild(g);
-      var botMore = (CARDS2 && (st.more || compact)) ? null : moreLink(); if (botMore) { body.appendChild(botMore); }
+      var botMore = ((st.more || compact)) ? null : moreLink(); if (botMore) { body.appendChild(botMore); }
       wrap.appendChild(body);
     } else wrap.classList.add('shut');
     box.appendChild(wrap);
     if (st.lfocus) { st.lfocus = false; var ls = box.querySelector('.ltsearch'); if (ls) { ls.focus(); try { ls.setSelectionRange(ls.value.length, ls.value.length); } catch (e) {} } }
   }
 
-  var PASTE = !/[?&]paste=0/.test(location.search);
-  var CARDS2 = !/[?&]cards2=0\b/.test(location.search);
   var PART = (/[?&]part=(top|list)\b/.exec(location.search) || [])[1] || '';
-  var PHOTO_ON = !/[?&]photo=0\b/.test(location.search), SUBPICK_ON = !/[?&]sub=0\b/.test(location.search), SUBS_MULTI = !/[?&]subs=0\b/.test(location.search);
-  var TAGS2 = !/[?&]tags=0\b/.test(location.search);
-  var ONE = !/[?&]one=0\b/.test(location.search);
   var DYM = /[?&]dym=1/.test(location.search);
 
-  var CONSENT = !/[?&]consent=0\b/.test(location.search);
   var CW_API = 'https://cw-api-gate.jessieupp.workers.dev';
   var CWSENS = null, CWSENS_FAIL = false, CWSENS_Q = [];
   function cwSensLoad(cb){
@@ -1817,7 +1742,7 @@
     });
     host.appendChild(wrap); return wrap;
   }
-  if (CONSENT) { cwSensLoad(function(){}); }
+   cwSensLoad(function(){}); 
   var LEAD = /^(and|also|so|care about|caring about|learning about|getting into|about|i|i'm|im|i am|i've|ive|been|really|like|love|enjoy|into|interested in|interest in|my|the|a|an|some|lots of|things like|stuff like|especially)\s+/i;
   function esc(x){ return x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
   function parsePaste(text){
@@ -1887,7 +1812,7 @@
       drawAll();
     });
     els.search = s; app.appendChild(s);
-    if (PASTE) { els.paste = el('div', ''); app.appendChild(els.paste); }
+     els.paste = el('div', ''); app.appendChild(els.paste); 
     els.results = el('div', ''); els.browse = el('div', ''); els.cards = el('div', '');
     app.appendChild(els.results); app.appendChild(els.browse); app.appendChild(els.cards);
     if (PART) { document.body.classList.add('part-' + PART); }
@@ -1935,8 +1860,8 @@
         });
       }
       if (iq) { st.q = iq; els.search.value = iq; }
-      var fw = qp.get('focus'); if (CARDS2 && fw) { setCompact(false); st.lq = fw; st.lkind = 'all'; }
-      var im = qp.get('imore'); if (CARDS2 && im && has(im)) { setCompact(false); st.more = lc(im); st.moreTab = ''; }
+      var fw = qp.get('focus'); if (fw) { setCompact(false); st.lq = fw; st.lkind = 'all'; }
+      var im = qp.get('imore'); if (im && has(im)) { setCompact(false); st.more = lc(im); st.moreTab = ''; }
     }
     drawAll();
   });
