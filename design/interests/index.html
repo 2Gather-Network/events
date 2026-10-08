@@ -432,7 +432,7 @@
       t.added = true; emit(); drawAll();
     };
     var ix2 = mineIx(t.word);
-    ask.appendChild(tagBox(t.added && ix2 > -1 ? st.mine[ix2] : { word: t.word, area: t.area }, t.added ? closeAll : confirm, function(){}, t.added ? { title: 'Tag \u201C' + t.word + '\u201D:', noSubs: true, doneLabel: 'Done', doneNote: 'Interest added' } : { title: 'Tag \u201C' + t.word + '\u201D:', noSubs: true, doneLabel: 'Looks good' }));
+    ask.appendChild(tagBox(t.added && ix2 > -1 ? st.mine[ix2] : { word: t.word, area: t.area }, t.added ? closeAll : confirm, function(){}, t.added ? { title: 'Tag \u201C' + t.word + '\u201D', noSubs: true, doneLabel: 'Done', doneNote: 'Interest added' } : { title: 'Tag \u201C' + t.word + '\u201D', noSubs: true, doneLabel: 'Looks good', doneNote: 'Do the tagged categories look good?' }));
     return ask;
   }
   function rmPanel(rw){
@@ -557,20 +557,20 @@
     var open = st.other === key || !!preset;
     if (!open) {
       var ob = el('button', 'pick other', '+ Other'); ob.type = 'button';
-      ob.addEventListener('click', function(){ st.other = key; drawAll(); var i = document.querySelector('.otherbox input'); if (i) i.focus(); });
+      ob.addEventListener('click', function(){ st.other = key; st.otherText = ''; drawAll(); var i = document.querySelector('.otherbox input'); if (i) i.focus(); });
       return ob;
     }
     var row = el('div', 'otherbox'), inp = el('input'); inp.type = 'text'; inp.maxLength = 60; inp.placeholder = 'Type an interest'; inp.setAttribute('aria-label', 'Type an interest');
-    if (preset) inp.value = cap(clean(st.q));
+    if (preset) inp.value = cap(clean(st.q)); else if (st.otherText) inp.value = st.otherText;
     var add = el('button', 'btn', 'Add'); add.type = 'button';
     var go = function(){
       var w = cap(clean(inp.value)); if (!w) return;
       var cw0 = careFor(w);
-      if (cw0) { st.other = false; st.q = ''; els.search.value = ''; addCare(cw0); drawAll(); return; }
+      if (cw0) { st.other = false; st.otherText = ''; st.q = ''; els.search.value = ''; addCare(cw0); drawAll(); return; }
       var hit = st.byName[lc(w)];
       var area = hit ? areaOf(hit) : assocArea(node);
       var name = hit ? hit.word : w;
-      st.other = false; st.q = ''; els.search.value = '';
+      st.other = false; st.otherText = ''; st.q = ''; els.search.value = '';
       if (!has(name)) { addMine(name, area); emit(); }
       if (DYM && !hit && node && !node.extra) teach({ text: name, kindOf: node.word, askedIn: 'interest' });
       drawAll();
@@ -578,7 +578,7 @@
     add.addEventListener('click', go);
     inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
     var cn = el('button', 'btn ghost', 'Cancel'); cn.type = 'button';
-    var quit = function(){ st.other = false; if (preset) { st.q = ''; els.search.value = ''; } drawAll(); };
+    var quit = function(){ st.other = false; st.otherText = ''; if (preset) { st.q = ''; els.search.value = ''; } drawAll(); };
     cn.addEventListener('click', quit);
     inp.addEventListener('keydown', function(e){ if (e.key === 'Escape') { e.preventDefault(); quit(); } });
     row.appendChild(inp); row.appendChild(add); row.appendChild(cn);
@@ -593,12 +593,24 @@
         p.addEventListener('click', function(){
           var typed = clean(inp.value), tk = squash(typed);
           if (tk && tk === squash(n.word) && lc(typed) !== lc(n.word) && !st.byName[lc(typed)]) teach({ text: cap(typed), sameAs: n.word });
-          st.other = false; st.q = ''; els.search.value = ''; if (!has(n.word)) { addMine(n.word, areaOf(n)); emit(); } drawAll();
+          st.other = false; st.otherText = ''; st.q = ''; els.search.value = ''; if (!has(n.word)) { addMine(n.word, areaOf(n)); emit(); } drawAll();
         });
         dym.appendChild(p);
       });
     };
     if (DYM) { inp.addEventListener('input', hint); if (preset) hint(); }
+    var have = el('div', 'dym'); have.hidden = true; wrap.appendChild(have);
+    var haveDraw = function(){
+      st.otherText = inp.value;
+      var found = haveWords(inp.value); have.innerHTML = ''; have.hidden = !found.length;
+      if (!found.length) return;
+      have.appendChild(el('span', 'dyml', 'We have'));
+      found.forEach(function(n){ have.appendChild(pillFor(n)); });
+      var ab = addBtn(found);
+      ab.addEventListener('click', function(){ st.other = false; st.otherText = ''; }, true);
+      have.appendChild(ab);
+    };
+    inp.addEventListener('input', haveDraw); haveDraw();
     return wrap;
   }
   var teachN = 0, teachWait = {};
@@ -664,6 +676,27 @@
       prev = cur;
     }
     return prev[b.length];
+  }
+  function haveWords(typed){
+    var q = lc(clean(typed)), toks = String(q).split(/[^a-z0-9]+/).filter(function(t){ return t.length > 2 && !STOPW[t]; });
+    if (q.length < 2) return [];
+    var seen = {}, out = [];
+    var test = function(n){
+      if (!n || seen[n.id || n.word]) return;
+      var sc = 0;
+      n.names.forEach(function(nm){
+        var l = lc(nm), s = 0;
+        if (l === q) { s = 100; } else if (l.indexOf(q) > -1) { s = 50; } else if (l.length > 3 && q.indexOf(l) > -1) { s = 40; }
+        else { toks.forEach(function(t){ if (new RegExp('(^|[^a-z0-9])' + t.slice(0, 4).replace(/[^a-z0-9]/g, '')).test(l)) { s += 10; } }); }
+        if (s > sc) { sc = s; }
+      });
+      if (sc) { seen[n.id || n.word] = 1; out.push({ n: n, s: sc }); }
+    };
+    Object.keys(st.byId).forEach(function(id){ test(st.byId[id]); });
+    (st.extra || []).forEach(test);
+    nearWords(typed).forEach(function(n){ if (!seen[n.id || n.word]) { seen[n.id || n.word] = 1; out.push({ n: n, s: 5 }); } });
+    out.sort(function(x, y){ return y.s - x.s || x.n.word.length - y.n.word.length; });
+    return out.slice(0, 8).map(function(x){ return x.n; });
   }
   function nearWords(typed){
     var k = squash(typed); if (k.length < 3) return [];
@@ -1017,7 +1050,7 @@
     opt = opt || {};
     loadEmo();
     var tp = window.cwTagPicker({
-      title: opt.title || 'Tag ' + m.word + ':',
+      title: opt.title || 'Tag ' + m.word,
       mainCats: function(){ return st.mainCats || []; },
       emoji: function(c){ return EMO[c] || ''; },
       getA: function(){ return getA(m.word); },
