@@ -1336,9 +1336,9 @@ function resolveCategory(val) {
 }
 
 async function loadCategories() {
-  for (var attempt = 0; attempt < 6; attempt++) {
+  for (var attempt = 0; attempt < 2; attempt++) {
     try {
-      var res = await fetch(GS_URL + "?action=getCategories&t=" + Date.now() + "_" + attempt);
+      var res = await fetchWithLimit(GS_URL + "?action=getCategories&t=" + Date.now() + "_" + attempt, 60000);
       if (!res.ok) throw new Error("HTTP " + res.status);
       var text = await res.text();
       var data = JSON.parse(text);
@@ -1347,8 +1347,8 @@ async function loadCategories() {
       if (data.serving && data.serving.length) { SERVING = data.serving; }
       return;
     } catch(e) {
-      if (attempt === 5) { console.warn("Failed to load categories from sheet after 6 attempts:", e); return; }
-      await new Promise(function(r) { setTimeout(r, 500); });
+      if (attempt === 1) { console.warn("Failed to load categories after 2 attempts:", e); return; }
+      await new Promise(function(r) { setTimeout(r, 1000); });
     }
   }
 }
@@ -2283,16 +2283,22 @@ function sheetToEv(row) {
   };
 }
 
+function fetchWithLimit(url, ms) {
+  var ctl = typeof AbortController === "function" ? new AbortController() : null;
+  var timer = ctl ? setTimeout(function () { ctl.abort(); }, ms) : null;
+  return fetch(url, ctl ? { signal: ctl.signal } : undefined).finally(function () { if (timer) clearTimeout(timer); });
+}
+
 async function fetchEvents() {
-  for (var attempt = 0; attempt < 6; attempt++) {
+  for (var attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await fetch(GS_URL + "?t=" + Date.now() + "_" + attempt);
+      const res = await fetchWithLimit(GS_URL + "?t=" + Date.now() + "_" + attempt, 60000);
       if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
       return JSON.parse(text);
     } catch(err) {
-      if (attempt === 5) throw err;
-      await new Promise(function(r) { setTimeout(r, 500); });
+      if (attempt === 1) throw err;
+      await new Promise(function(r) { setTimeout(r, 1000); });
     }
   }
 }
@@ -2315,14 +2321,16 @@ function jsonp(params) {
 
 
 async function loadEvents() {
+  var categoriesReady = null;
   try {
     showLoading(true);
     events = [];
     renderEvents();
-    await loadCategories();
-    renderServingFilter();
-    renderServingForm();
-    try { buildFormChips(); } catch (e) {}
+    categoriesReady = loadCategories().then(function () {
+      renderServingFilter();
+      renderServingForm();
+      try { buildFormChips(); } catch (e) {}
+    });
     const data = await fetchEvents();
     const allRows = (data.events || []).filter(r => r.id).map(sheetToEv);
     RECURRING_EVENTS = allRows.filter(e => e.id.startsWith("rec-") && e.recurFreq && e.dayOfWeek);
@@ -2353,23 +2361,14 @@ async function loadEvents() {
     });
     syncCancelledOccurrences(events);
   } catch(e) {
-    console.warn("Events load failed, retrying...", e);
-    try {
-      await new Promise(r => setTimeout(r, 2000));
-      const data = await fetchEvents();
-      const allRows = (data.events || []).filter(r => r.id).map(sheetToEv);
-      RECURRING_EVENTS = allRows.filter(e => e.id.startsWith("rec-") && e.recurFreq && e.dayOfWeek);
-      events = allRows.filter(e => !e.id.startsWith("rec-"));
-      syncCancelledOccurrences(events);
-    } catch(e2) {
-      console.warn("Events retry also failed - showing recurring events only", e2);
-      const bar = document.getElementById("loading-bar");
-      if (bar) {
-        bar.style.cssText = "display:block;background:#FFF8E7;border:1.5px solid #F0B429;border-radius:10px;padding:12px 16px;font-size:13px;color:#7B5800;text-align:center;margin-bottom:14px;";
-        bar.innerHTML = "⚠️ Having trouble loading events? Try disabling your browser\'s ad blocker or shields for this page.";
-      }
+    console.warn("Events load failed", e);
+    const bar = document.getElementById("loading-bar");
+    if (bar) {
+      bar.style.cssText = "display:block;background:#FFF8E7;border:1.5px solid #F0B429;border-radius:10px;padding:12px 16px;font-size:13px;color:#7B5800;text-align:center;margin-bottom:14px;";
+      bar.textContent = "The events are taking longer than usual to arrive. Reload the page in a minute.";
     }
   } finally {
+    try { await categoriesReady; } catch (e) {}
     isLoadingData = false;
     showLoading(false);
     populateHostFilter();
