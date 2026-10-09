@@ -156,21 +156,33 @@
           + (ppl.length ? ' Start one above.' : '')));
         return;
       }
+      list.style.gap = '10px';
       ts.forEach(function (t) {
         var asking = t.status === 'request' && !t.iStarted;
-        var row = el('div', 'display:flex;gap:12px;align-items:flex-start;padding:12px 4px;border-top:1px solid #EEF1F5;cursor:pointer;');
+        var base = 'display:flex;gap:14px;align-items:center;padding:14px 16px;border:1.5px solid #DDE4EE;border-radius:14px;background:#fff;cursor:pointer;transition:border-color .12s,background .12s,box-shadow .12s;';
+        var row = el('div', base + (t.unread ? 'border-color:#B5D3EA;background:#F7FBFF;' : ''));
+        row.setAttribute('role', 'button'); row.tabIndex = 0;
+        var on = function () { row.style.borderColor = '#1F699E'; row.style.background = '#F7FBFF'; row.style.boxShadow = '0 2px 10px rgba(31,105,158,.14)'; };
+        var off = function () { row.style.borderColor = t.unread ? '#B5D3EA' : '#DDE4EE'; row.style.background = t.unread ? '#F7FBFF' : '#fff'; row.style.boxShadow = 'none'; };
+        row.addEventListener('mouseenter', on); row.addEventListener('mouseleave', off);
+        row.addEventListener('focus', on); row.addEventListener('blur', off);
+        var nm = t.other.name || 'Someone';
+        var initials = nm.split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('') || '?';
+        row.appendChild(el('div', 'width:44px;height:44px;border-radius:50%;flex:none;background:linear-gradient(135deg,#C9DFF3,#7FB6E2);color:#1A2E42;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;', initials));
         var txt = el('div', 'flex:1;min-width:0;');
         var top = el('div', 'display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;');
-        top.appendChild(el('b', 'font-size:15px;color:#1A2E42;', t.other.name || 'Someone'));
-        if (t.other.role && t.other.role !== 'member') top.appendChild(el('span', 'font-size:12px;font-weight:700;color:#1F699E;background:#E6F1FB;border-radius:10px;padding:1px 8px;', t.other.role === 'cohost' ? 'Co-host' : 'Host'));
+        top.appendChild(el('b', 'font-size:16px;color:#1A2E42;' + (t.unread ? '' : 'font-weight:700;'), nm));
         if (t.last) top.appendChild(el('span', 'font-size:12.5px;color:#6B7A8D;margin-left:auto;', when(t.last.at)));
         txt.appendChild(top);
         var line = asking ? 'Wants to message you' : (t.status === 'request' ? 'Waiting for them to accept' : (t.status === 'pending' ? 'Delivering\u2026' : (t.status === 'refused' ? 'Did not go through' : (t.status === 'closed' ? 'Closed' : ''))));
         var prev = t.last ? (t.last.mine ? 'You: ' : '') + t.last.body : '';
-        txt.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;', line ? line + (prev && asking ? ': ' + prev : '') : prev));
+        txt.appendChild(el('div', 'font-size:14px;margin-top:2px;color:' + (t.unread ? '#1A2E42' : '#4B5A6D') + ';font-weight:' + (t.unread ? '700' : '400') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;', line ? line + (prev && asking ? ': ' + prev : '') : prev));
         row.appendChild(txt);
-        if (t.unread) row.appendChild(el('span', 'width:10px;height:10px;border-radius:50%;background:#1F699E;flex:none;margin-top:6px;'));
-        row.onclick = function () { drawThread(t.id); };
+        if (t.unread) row.appendChild(el('span', 'min-width:22px;height:22px;border-radius:11px;background:#1F699E;color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;flex:none;', String(t.unread > 99 ? '99+' : t.unread)));
+        row.appendChild(el('span', 'font-size:22px;line-height:1;color:#7FB6E2;flex:none;', '\u203a'));
+        var openIt = function () { drawThread(t.id); };
+        row.onclick = openIt;
+        row.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openIt(); } });
         list.appendChild(row);
       });
     }).catch(function () { say(wait, 'Your messages did not load. Reload the page to try again.', true); });
@@ -316,7 +328,7 @@
     }
     var asks = el('div', '');
     box.appendChild(asks);
-    var msgs = el('div', 'display:flex;flex-direction:column;gap:8px;min-height:80px;');
+    var msgs = el('div', 'display:flex;flex-direction:column;max-height:460px;overflow:auto;padding-right:4px;min-height:80px;');
     box.appendChild(msgs);
     var bar = el('div', 'display:flex;gap:8px;margin-top:14px;align-items:flex-end;');
     var ta = el('textarea', 'flex:1;min-width:0;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:18px;padding:9px 14px;min-height:42px;resize:vertical;');
@@ -374,12 +386,22 @@
         if (d.messages.length === seen) return;
         seen = d.messages.length;
         msgs.innerHTML = '';
+        var otherName = (t.other && t.other.name) || 'Someone';
         d.messages.forEach(function (m) {
-          var b = el('div', 'max-width:80%;padding:9px 13px;border-radius:14px;font-size:14.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;'
-            + (m.mine ? 'align-self:flex-end;background:#1F699E;color:#fff;' : 'align-self:flex-start;background:#F7F9FC;border:1px solid #DDE4EE;color:#1A2E42;'), m.body);
-          b.title = new Date(m.at).toLocaleString();
-          msgs.appendChild(b);
+          var row = el('div', 'display:flex;gap:10px;align-items:flex-start;padding:6px 0;');
+          var nameShown = m.mine ? 'You' : otherName;
+          var ini = nameShown.split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('') || '?';
+          row.appendChild(el('div', 'width:32px;height:32px;border-radius:50%;flex:none;background:linear-gradient(135deg,#C9DFF3,#7FB6E2);color:#1A2E42;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;', ini));
+          var mb = el('div', 'min-width:0;flex:1;');
+          var who = el('div', 'font-size:13.5px;font-weight:800;color:#1A2E42;', nameShown);
+          who.appendChild(el('span', 'font-weight:600;color:#6B7A8D;margin-left:6px;font-size:12.5px;', when(m.at)));
+          mb.appendChild(who);
+          mb.appendChild(el('div', 'font-size:14.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;color:#1A2E42;', m.body));
+          row.appendChild(mb);
+          row.title = new Date(m.at).toLocaleString();
+          msgs.appendChild(row);
         });
+        msgs.scrollTop = msgs.scrollHeight;
         if (!first) return;
         tileRefresh();
       }).catch(function () { if (first) say(sub, 'This conversation did not load. Reload the page to try again.', true); });
@@ -751,7 +773,8 @@
       box = document.getElementById(ctx.boxId || 'gp-messages');
       if (!box) return;
       box.innerHTML = '';
-      var w = el('div', 'font-size:14px;color:#4B5A6D;', 'Opening your messages…');
+      var w = el('div', 'font-size:14px;color:#4B5A6D;', '');
+      w.appendChild(waitPill('Opening your messages…'));
       box.appendChild(w);
       start().then(function (ok) {
         if (!ok) { say(w, 'Sign in again to see your messages.', true); return; }
