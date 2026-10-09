@@ -780,6 +780,7 @@
         document.querySelectorAll('[data-caninvite]').forEach(function(t){
           t.classList.toggle('on', t.getAttribute('data-caninvite') === ci);
         });
+        _infoReady = true; _infoWas = null;
         var _mem = (d && d.attendees) ? d.attendees.slice() : [];
         (function(){
           var _hIds = (g.hostIds || []).concat(g.coHostIds || []);
@@ -1277,7 +1278,7 @@
               if (p && p.status === 'ok' && p.url) {
                 if (_eImg) _eImg.value = p.url;
                 _updateEThumb();
-                _eImgSay('Ready. Press Save changes to keep it.');
+                _eImgSay('');
               } else {
                 _eImgSay((p && p.message) ? ('That picture did not go up: ' + p.message) : 'That picture did not go up. Try again in a moment.');
               }
@@ -1332,7 +1333,7 @@
       e.preventDefault();
       _eImg.value = url;
       _updateEThumb();
-      _eImgSay('Picture taken from the page you copied it from. Press Save changes to keep it.');
+      _eImgSay('');
     });
   })();
 
@@ -2054,10 +2055,8 @@
     filterMembers(document.getElementById('mem-search').value);
   });
 
-  document.getElementById('info-save').addEventListener('click', function(){
-    var btn = this;
-    btn.disabled = true;
-    var payload = {
+  function _infoPayload(){
+    return {
       name: document.getElementById('e-name').value.trim(),
       description: document.getElementById('e-description').value.trim(),
       image: document.getElementById('e-image').value.trim(),
@@ -2079,6 +2078,29 @@
       membersCanInvite: ((document.querySelector('[data-caninvite].on') || {}).getAttribute
         ? document.querySelector('[data-caninvite].on').getAttribute('data-caninvite') : 'off') === 'on' ? 'true' : 'false'
     };
+  }
+  var _infoWas = null, _infoReady = false;
+  (function(){
+    var card = document.getElementById('tab-info');
+    if (!card) return;
+    var first = function(){ if (_infoReady && _infoWas === null) _infoMark(); };
+    ['pointerdown', 'keydown', 'focusin'].forEach(function(t){ card.addEventListener(t, first, true); });
+  })();
+  function _infoMark(){ try { _infoWas = JSON.stringify(_infoPayload()); } catch (e) { _infoWas = null; } }
+  function _infoDirty(){
+    if (_infoWas === null) return false;
+    try { return JSON.stringify(_infoPayload()) !== _infoWas; } catch (e) { return false; }
+  }
+  window.addEventListener('beforeunload', function(ev){
+    if (!_infoDirty()) return;
+    ev.preventDefault();
+    ev.returnValue = '';
+    return '';
+  });
+  document.getElementById('info-save').addEventListener('click', function(){
+    var btn = this;
+    btn.disabled = true;
+    var payload = _infoPayload();
     var tok = getToken() || '';
     var url = GS_URL + '?action=updateGroup'
       + '&groupId=' + encodeURIComponent(groupId)
@@ -2093,6 +2115,9 @@
       .then(function(d){
         btn.disabled = false;
         if (d && d.status === 'ok') {
+          _infoMark();
+          try { localStorage.setItem('cw-gp-member-changed-' + groupId, String(Date.now())); } catch (e) {}
+          try { localStorage.removeItem('cw-gadmin-' + String(groupId || '') + '-' + String(meId || '')); } catch (e) {}
           showStatus('save-info-status', 'ok', '');
           showStatus('save-info-status-top', 'ok', 'Saved.');
           try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { try { window.scrollTo(0, 0); } catch (e2) {} }
