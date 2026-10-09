@@ -129,13 +129,15 @@
   }
   function photoOk(u) {
     var v = String(u || '');
-    return v.indexOf('https://cw-photos.jessieupp.workers.dev/') === 0 || v.indexOf('https://storage.googleapis.com/glide-prod.appspot.com/uploads-v2/') === 0;
+    if (v.length >= 400) return false;
+    return v.indexOf('https://cw-photos.jessieupp.workers.dev/') === 0
+      || /^https:\/\/storage\.googleapis\.com\/glide-prod\.appspot\.com\/uploads-v2\/[A-Za-z0-9_-]+\/pub\/[^\s"'<>]+$/.test(v);
   }
   function photoCircle(src, size) {
     var c = el('div', 'width:' + size + 'px;height:' + size + 'px;border-radius:50%;flex:none;overflow:hidden;background:linear-gradient(135deg,#C9DFF3,#7FB6E2);');
     if (src && photoOk(src)) {
       var im = document.createElement('img');
-      im.alt = ''; im.width = size; im.height = size; im.loading = 'lazy';
+      im.alt = ''; im.width = size; im.height = size; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer';
       im.setAttribute('style', 'width:' + size + 'px;height:' + size + 'px;border-radius:50%;object-fit:cover;display:block;');
       im.onerror = function () { if (im.parentNode) im.parentNode.removeChild(im); };
       c.appendChild(im); im.src = src;
@@ -580,7 +582,7 @@
     var av = el('div', 'width:32px;height:32px;border-radius:50%;flex:none;background:' + (m.removed ? '#E7ECF2' : 'linear-gradient(135deg,#C9DFF3,#7FB6E2)') + ';');
     if (!m.removed && m.photo && photoOk(m.photo)) {
       var im = document.createElement('img');
-      im.alt = ''; im.width = 32; im.height = 32; im.loading = 'lazy';
+      im.alt = ''; im.width = 32; im.height = 32; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer';
       im.setAttribute('style', 'width:32px;height:32px;border-radius:50%;object-fit:cover;display:block;');
       im.onerror = function () { if (im.parentNode) im.parentNode.removeChild(im); };
       av.appendChild(im); im.src = m.photo;
