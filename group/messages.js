@@ -84,6 +84,7 @@
   }
 
   function frame(title) {
+    if (title === 'Messages') title = (ctx.groupName() ? ctx.groupName() + ' messages' : 'Messages');
     box.innerHTML = '';
     var head = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;');
     head.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', title));
@@ -145,14 +146,45 @@
     var ppl = people();
     var lab = el('div', 'font-size:16px;font-weight:700;color:#1A2E42;margin:4px 0 6px;', 'To');
     box.appendChild(lab);
-    var sel = el('select', 'width:100%;font:inherit;font-size:15px;padding:9px 12px;border:1.5px solid #DDE4EE;border-radius:12px;background:#fff;color:#1A2E42;');
-    ppl.forEach(function (p) {
-      var o = el('option', '', p.name + (p.host ? ' (host)' : ''));
-      o.value = p.code;
-      if (pick && pick === p.code) o.selected = true;
-      sel.appendChild(o);
-    });
-    box.appendChild(sel);
+    var chosen = null;
+    var field = el('div', 'position:relative;');
+    var inp = el('input', 'width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:10px 14px;border:1.5px solid #DDE4EE;border-radius:12px;background:#fff;color:#1A2E42;');
+    inp.type = 'text'; inp.id = 'msg-to'; inp.placeholder = 'Type a name'; inp.autocomplete = 'off';
+    var chip = el('div', 'display:none;align-items:center;gap:8px;padding:8px 14px;border:1.5px solid #1F699E;background:#E6F1FB;border-radius:12px;font-size:15px;font-weight:700;color:#1A2E42;');
+    var list = el('div', 'display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#fff;border:1.5px solid #DDE4EE;border-radius:12px;box-shadow:0 6px 18px rgba(26,46,66,.12);max-height:240px;overflow:auto;z-index:5;');
+    field.appendChild(inp); field.appendChild(chip); field.appendChild(list);
+    box.appendChild(field);
+    function choose(p) {
+      chosen = p; inp.style.display = 'none'; list.style.display = 'none';
+      chip.style.display = 'flex'; chip.innerHTML = '';
+      chip.appendChild(el('span', 'flex:1;', p.name + (p.host ? ' (host)' : '')));
+      var x = el('button', 'font:inherit;font-size:14px;font-weight:700;border:0;background:none;color:#1F699E;cursor:pointer;', 'Change');
+      x.type = 'button';
+      x.onclick = function () { chosen = null; chip.style.display = 'none'; inp.style.display = ''; inp.value = ''; inp.focus(); };
+      chip.appendChild(x);
+      setTimeout(function () { if (ta) ta.focus(); }, 0);
+    }
+    function suggest() {
+      var q = inp.value.trim().toLowerCase();
+      list.innerHTML = '';
+      if (!q) { list.style.display = 'none'; return; }
+      var hits = ppl.filter(function (p) { return p.name.toLowerCase().indexOf(q) > -1; }).slice(0, 8);
+      if (!hits.length) {
+        list.appendChild(el('div', 'padding:10px 14px;font-size:14px;color:#6B7A8D;', 'No one in this group matches that name.'));
+      } else {
+        hits.forEach(function (p) {
+          var r = el('div', 'padding:10px 14px;font-size:15px;color:#1A2E42;cursor:pointer;', p.name + (p.host ? ' (host)' : ''));
+          r.onmousedown = function (ev) { ev.preventDefault(); choose(p); };
+          r.ontouchstart = function () { choose(p); };
+          list.appendChild(r);
+        });
+      }
+      list.style.display = 'block';
+    }
+    inp.addEventListener('input', suggest);
+    inp.addEventListener('blur', function () { setTimeout(function () { list.style.display = 'none'; }, 150); });
+    var exact = pick && ppl.filter(function (p) { return p.code === pick; })[0];
+    if (exact) choose(exact);
     var ta = el('textarea', 'width:100%;box-sizing:border-box;margin-top:12px;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:12px;padding:10px 12px;min-height:110px;resize:vertical;');
     ta.placeholder = 'Say hello, and what you would like to talk about';
     ta.maxLength = 2000;
@@ -165,17 +197,24 @@
     box.appendChild(bar);
     send.onclick = function () {
       var text = ta.value.trim();
+      if (!chosen) {
+        var q = inp.value.trim().toLowerCase();
+        var one = q ? ppl.filter(function (p) { return p.name.toLowerCase() === q; }) : [];
+        if (one.length === 1) choose(one[0]); else { say(note, 'Pick who it is for first.', true); inp.focus(); return; }
+      }
       if (!text) { say(note, 'Write something first.', true); return; }
       send.disabled = true; say(note, 'Sending…');
-      api('/start', { body: { id: ctx.meId, token: token(), to: sel.value, groupId: ctx.groupId, body: text } }).then(function (d) {
+      var slow = setTimeout(function () { say(note, 'Still sending. The first message can take up to a minute.'); }, 12000);
+      api('/start', { body: { id: ctx.meId, token: token(), to: chosen.code, groupId: ctx.groupId, body: text } }).then(function (d) {
+        clearTimeout(slow);
         send.disabled = false;
         if (again(d)) { return start().then(function () { send.onclick(); }); }
         if (!d || d.status !== 'ok') { say(note, (d && d.message) || 'That did not go through. Try again in a moment.', true); return; }
         if (!d.sent) { say(note, d.message || 'That did not go through.', true); return; }
         drawThread(d.threadId);
-      }).catch(function () { send.disabled = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
+      }).catch(function () { clearTimeout(slow); send.disabled = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
     };
-    ta.focus();
+    (exact ? ta : inp).focus();
   }
 
   function drawThread(id) {
