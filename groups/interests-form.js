@@ -284,7 +284,7 @@
     var holder = el('div', '');
     root.appendChild(holder);
     var prev = el('div', 'background:var(--panel,#F7FBFF);border:1.5px solid var(--panel-line,#C9DFF3);border-radius:12px;padding:14px 16px;margin:14px 0 6px;');
-    prev.appendChild(el('div', 'font-size:16px;font-weight:800;color:var(--ink,#1A2E42);margin:0 0 4px;', 'What someone joining sees'));
+    prev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 4px;', 'What someone joining sees'));
     var prevBody = el('div', '');
     prev.appendChild(prevBody);
     root.appendChild(prev);
@@ -335,7 +335,7 @@
     SECTIONS.forEach(function(s){
       var wrap = el('div', 'border-top:1px solid var(--panel-line,#E3EAF2);padding:12px 0 6px;');
       var head = el('div', 'display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;');
-      var headEl = el('div', 'font-size:16px;font-weight:800;color:var(--ink,#1A2E42);', s.head);
+      var headEl = el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);', s.head);
       head.appendChild(headEl);
       boxes[s.key] = { head: headEl };
       if (s.sub) head.appendChild(el('div', 'font-size:13.5px;color:var(--muted,#6B7A8D);', s.sub));
