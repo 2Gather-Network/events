@@ -109,7 +109,7 @@
   <script src="/nav/identity.js?v=29"></script>
   <script src="/nav/category-tree.js?v=7"></script>
   <script src="/groups/interests-form.js?v=25"></script>
-  <script src="/group/messages.js?v=4"></script>
+  <script src="/group/messages.js?v=8"></script>
 </head>
 <body>
 <div class="wrap">
@@ -207,6 +207,12 @@ We translate self-promotion to collaboration.</textarea>
       <div class="q">Welcome message (optional)</div>
       <p class="help">Pinned at the top of the chat. Each person sees it once, when they first open the chat, and then it goes away for them. You can change it later from the chat.</p>
       <textarea id="f-welcome" maxlength="800" rows="3" placeholder="Example: Welcome! Say hello, and keep it kind."></textarea>
+      <div class="q">Can new members read past messages?</div>
+      <p class="help">With Yes, someone who joins later can scroll back and read what was said before they arrived. With No, they see only messages sent after they first open the chat. Hosts always see everything. A change applies to people who have not opened the chat yet.</p>
+      <div class="chip-row" id="f-history">
+        <div class="chip on" data-history="on">Yes</div>
+        <div class="chip" data-history="off">No</div>
+      </div>
     </div>
 
     <div class="q">Can members message each other?</div>
@@ -246,6 +252,12 @@ We translate self-promotion to collaboration.</textarea>
       document.querySelectorAll('#f-groupchat [data-groupchat]').forEach(function(x){ x.classList.remove('on'); });
       t.classList.add('on');
       document.getElementById('f-welcome-wrap').style.display = t.getAttribute('data-groupchat') === 'on' ? '' : 'none';
+    });
+  });
+  document.querySelectorAll('#f-history [data-history]').forEach(function(t){
+    t.addEventListener('click', function(){
+      document.querySelectorAll('#f-history [data-history]').forEach(function(x){ x.classList.remove('on'); });
+      t.classList.add('on');
     });
   });
   document.querySelectorAll('#f-membermsg [data-membermsg]').forEach(function(t){
@@ -629,9 +641,13 @@ We translate self-promotion to collaboration.</textarea>
         if (d && d.status === 'ok' && d.groupId) {
           var nextUrl = 'https://2gather.network/groups/invite?id=' + encodeURIComponent(d.groupId);
           var _welcomeText = (((document.querySelector('#f-groupchat [data-groupchat].on') || {}).getAttribute('data-groupchat') === 'on') ? (document.getElementById('f-welcome').value || '').trim() : '');
-          var _welcomeSave = _welcomeText && window.cwGroupWelcome
-            ? window.cwGroupWelcome.save(meId, _groupToken(), String(d.groupId), _welcomeText).catch(function(){})
-            : Promise.resolve();
+          var _chatYes = ((document.querySelector('#f-groupchat [data-groupchat].on') || {}).getAttribute('data-groupchat') === 'on');
+          var _histNo = _chatYes && ((document.querySelector('#f-history [data-history].on') || {}).getAttribute('data-history') === 'off');
+          var _welcomeSave = Promise.resolve();
+          if (window.cwGroupWelcome && (_welcomeText || _histNo)) {
+            _welcomeSave = (_welcomeText ? window.cwGroupWelcome.save(meId, _groupToken(), String(d.groupId), _welcomeText).catch(function(){}) : Promise.resolve())
+              .then(function(){ return _histNo ? window.cwGroupWelcome.saveHistory(meId, _groupToken(), String(d.groupId), false).catch(function(){}) : null; });
+          }
           if (_groupPhotoBlob) {
             showStatus('ok', 'Group made. Sending the picture\u2026');
             var _cuDone = false;

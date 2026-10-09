@@ -413,7 +413,10 @@
     box.innerHTML = '';
     var gname = chat.ctx.groupName() || 'This group';
     var head = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;');
-    head.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', gname + ' chat'));
+    var titleBox = el('div', '');
+    titleBox.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', gname + ' Group Chat'));
+    titleBox.appendChild(el('div', 'font-size:13px;color:#4B5A6D;margin-top:2px;', 'All members can see chat messages here'));
+    head.appendChild(titleBox);
     var muteBtn = el('button', 'width:40px;height:40px;border-radius:50%;border:1.5px solid #DDE4EE;background:#fff;color:#4B5A6D;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;', '');
     muteBtn.type = 'button';
     var headBtns = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
@@ -587,6 +590,8 @@
       });
     },
     get: function (meId, tok, groupId) { return this.call(meId, tok, '/chat/welcome?group=' + encodeURIComponent(groupId)); },
+    getHistory: function (meId, tok, groupId) { return this.call(meId, tok, '/chat/history?group=' + encodeURIComponent(groupId)); },
+    saveHistory: function (meId, tok, groupId, yes) { return this.call(meId, tok, '/chat/history', { groupId: groupId, historyForNew: !!yes, id: meId, token: devAs || tok }); },
     save: function (meId, tok, groupId, note) { return this.call(meId, tok, '/chat/welcome', { groupId: groupId, note: note, id: meId, token: devAs || tok }); }
   };
 

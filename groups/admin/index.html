@@ -105,7 +105,7 @@
   <script src="/group/offer-count.js?v=1"></script>
   <script src="/nav/category-tree.js?v=7"></script>
   <script src="/groups/interests-form.js?v=25"></script>
-  <script src="/group/messages.js?v=4"></script>
+  <script src="/group/messages.js?v=8"></script>
 <script src="/nav/waiting-words.js?v=11"></script>
 </head>
 <body>
@@ -415,6 +415,12 @@
         <div class="q">Welcome message</div>
         <p class="lede" style="font-size:13.5px;">Pinned at the top of the chat. Each person sees it once, when they first open the chat, and then it goes away for them. If you change it, only people who have not seen it yet will see the new one.</p>
         <textarea id="e-welcome" maxlength="800" rows="3" placeholder="Example: Welcome! Say hello, and keep it kind."></textarea>
+        <div class="q">Can new members read past messages?</div>
+        <p class="lede" style="font-size:13.5px;">With Yes, someone who joins later can scroll back and read what was said before they arrived. With No, they see only messages sent after they first open the chat. Hosts always see everything. A change applies to people who have not opened the chat yet.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <div class="tab on" data-history="on">Yes</div>
+          <div class="tab" data-history="off">No</div>
+        </div>
       </div>
 
       <div class="q">Can members message each other?</div>
@@ -1496,6 +1502,7 @@
   } catch (e) {}
 
   var _eWelcomeSaved = null;
+  var _eHistorySaved = null;
   function _eWelcomeOn(){ var t = document.querySelector('[data-groupchat].on'); return !!t && t.getAttribute('data-groupchat') === 'on'; }
   function _eWelcomeShow(){ var w = document.getElementById('e-welcome-wrap'); if (w) w.style.display = _eWelcomeOn() ? '' : 'none'; }
   function _eWelcomeLoad(gid){
@@ -1503,15 +1510,26 @@
     window.cwGroupWelcome.get(meId, getToken() || '', gid).then(function(d){
       if (d && d.status === 'ok') { _eWelcomeSaved = d.note || ''; document.getElementById('e-welcome').value = _eWelcomeSaved; }
     }).catch(function(){});
+    window.cwGroupWelcome.getHistory(meId, getToken() || '', gid).then(function(d){
+      if (d && d.status === 'ok') {
+        _eHistorySaved = d.historyForNew !== false;
+        document.querySelectorAll('[data-history]').forEach(function(t){ t.classList.toggle('on', (t.getAttribute('data-history') === 'on') === _eHistorySaved); });
+      }
+    }).catch(function(){});
   }
   function _eWelcomeSave(){
     var el = document.getElementById('e-welcome');
-    if (!window.cwGroupWelcome || !el || !_eWelcomeOn() || _eWelcomeSaved === null) return;
+    if (!window.cwGroupWelcome || !el || !_eWelcomeOn()) return;
+    if (_eHistorySaved !== null) {
+      var hv = (document.querySelector('[data-history].on') || {}).getAttribute ? document.querySelector('[data-history].on').getAttribute('data-history') === 'on' : true;
+      if (hv !== _eHistorySaved) window.cwGroupWelcome.saveHistory(meId, getToken() || '', String(groupId), hv).then(function(d){ if (d && d.status === 'ok') _eHistorySaved = d.historyForNew !== false; }).catch(function(){});
+    }
+    if (_eWelcomeSaved === null) return;
     var v = el.value.trim();
     if (v === _eWelcomeSaved.trim()) return;
     window.cwGroupWelcome.save(meId, getToken() || '', String(groupId), v).then(function(d){ if (d && d.status === 'ok') _eWelcomeSaved = d.note || ''; }).catch(function(){});
   }
-  ['data-caninvite', 'data-succession', 'data-membermsg', 'data-groupchat'].forEach(function(attr){
+  ['data-caninvite', 'data-succession', 'data-membermsg', 'data-groupchat', 'data-history'].forEach(function(attr){
     document.querySelectorAll('[' + attr + ']').forEach(function(t){
       t.addEventListener('click', function(){
         document.querySelectorAll('[' + attr + ']').forEach(function(x){ x.classList.remove('on'); });
