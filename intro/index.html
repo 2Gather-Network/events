@@ -118,8 +118,8 @@
     { key:'introEnjoy',  need:true,  q:'What do you enjoy?',
       hint:'Write it all in one box, or select from topics below.',
       ph:'Pickleball, kayaking, singing badly in a group, anything on the water.' },
-    { key:'introSkills', need:true,  q:'What skills pay the bills and/or how do you like helping others?',
-      hint:'Name whatever you’re good at. You are multi-dimensional so please shine your light! ✨',
+    { key:'introSkills', need:true,  q:'What skills do you have?',
+      hint:'Write it all in one box, or select from topics below.',
       ph:'Facilitating a room full of people who disagree. Experience design. Cutting short hair, helping people move (I’m great at finding ways to make small spaces very functional!)' },
     { key:'introValues', need:false, q:'What do you care about?',
       hint:'What matters to you and what you\u2019d like to see in life. Leave it blank if you would rather not say.',
@@ -489,14 +489,15 @@
   var RECMAP = { 'sports':'Play', 'games & strategy':'Play', 'movement & performance':'Movement', 'outdoor & nature':'Outdoors', 'music':'Arts' };
   var SUBMAP = { 'visual art':'Arts', 'textile & fiber':'Arts', 'wood, metal & jewelry':'Building & Repurposing', 'paper & books':'Arts', 'photo, film & digital':'Arts', 'collecting':'Play' };
   var GP_TOPICS = [['Food & Drink', '\u{1F958}'], ['Movement', '\u{1F300}'], ['Play', '\u{1F3D3}'], ['Travel', '✈️'], ['Community & Culture', '\u{1F389}'], ['Arts', '\u{1F3AD}'], ['Outdoors', '\u{1F332}'], ['Home Life', '\u{1F3E1}'], ['Animals', '\u{1F436}'], ['Technology', '\u{1F4F1}'], ['Style', '\u{1F576}️'], ['Personal Care', '\u{1FAAE}'], ['Belief & Meaning', '\u{1F49B}'], ['Professional', '\u{1F4BC}'], ['Communications', '\u{1F4AC}'], ['Building & Repurposing', '\u{1F528}'], ['Transportation', '\u{1F686}'], ['Finance', '\u{1F4CA}'], ['Science', '\u{1F52C}'], ['Medical', '\u{1FA7A}']];
-  function gpTopicTree(rd, recOnly){
+  function gpTopicTree(rd, recOnly, skillsOnly, W){
     var tops = (Array.isArray(rd.topicCategories) && rd.topicCategories.length) ? rd.topicCategories.map(function(t){ return [t.label, t.emoji || '']; }) : GP_TOPICS;
     var byName = {}, out = tops.map(function(t){ var n = { name: t[0], emoji: t[1], kids: [] }; byName[t[0].toLowerCase()] = n; return n; });
     var seen = {};
     var put = function(word, cat){ word = String(word || '').trim(); var n = byName[String(cat || '').toLowerCase()]; if (!word || !n) return; var k = cat + '|' + word.toLowerCase(); if (seen[k]) return; seen[k] = 1; n.kids.push({ name: word, emoji: '', kids: [] }); };
-    (Array.isArray(rd.topicCategories) ? rd.topicCategories : []).forEach(function(t){ (t.examples || []).forEach(function(w){ w = String(w || '').trim(); if (w) put(w.charAt(0).toUpperCase() + w.slice(1), t.label); }); });
-    (rd.recreation || []).forEach(function(r){ var sb = String(r.category || '').toLowerCase(), t = String(r.recType || '').toLowerCase(), p = String(r.parent || '').toLowerCase(); if (String(r.item || '').toLowerCase() === 'arts & culture') return; put(r.item, SUBMAP[sb] || RECMAP[t] || (p === 'arts & culture' ? 'Arts' : 'Play')); });
-    if (!recOnly) (rd.skills || []).forEach(function(x){ put(x.item, SKILLMAP[String(x.category || '').toLowerCase()]); });
+    if (!skillsOnly) (Array.isArray(rd.topicCategories) ? rd.topicCategories : []).forEach(function(t){ (t.examples || []).forEach(function(w){ w = String(w || '').trim(); if (w) put(w.charAt(0).toUpperCase() + w.slice(1), t.label); }); });
+    if (!skillsOnly) (rd.recreation || []).forEach(function(r){ var sb = String(r.category || '').toLowerCase(), t = String(r.recType || '').toLowerCase(), p = String(r.parent || '').toLowerCase(); if (String(r.item || '').toLowerCase() === 'arts & culture') return; put(r.item, SUBMAP[sb] || RECMAP[t] || (p === 'arts & culture' ? 'Arts' : 'Play')); });
+    if (skillsOnly && W) { Object.keys(W.byId).forEach(function(id){ var w = W.byId[id]; if (w.kindOf || !/skill/.test(w.asked)) return; w.cats.forEach(function(c){ put(w.word, c); }); }); }
+    else if (!recOnly) (rd.skills || []).forEach(function(x){ put(x.item, SKILLMAP[String(x.category || '').toLowerCase()]); });
     return out;
   }
   var _gpTags = {};
@@ -624,7 +625,7 @@
 
     var lead = document.createElement('div');
     lead.style.cssText = 'font-size:13px;color:#4B5A6D;margin-bottom:8px;';
-    lead.textContent = key === 'introEnjoy' ? 'Search or add your own, tap one below, or browse the categories.' : 'Search or add your own, or tap one below.';
+    lead.textContent = (key === 'introEnjoy' || key === 'introSkills') ? 'Search or add your own, tap one below, or browse the categories.' : 'Search or add your own, or tap one below.';
     box.appendChild(lead);
 
     var search = document.createElement('input');
@@ -771,7 +772,7 @@
     other.style.cssText = 'font:inherit;font-size:13.5px;padding:7px 14px;border-radius:20px;cursor:pointer;'
       + 'background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;';
     var catLabel = function(open){ var c = document.documentElement.className; var e = ''; var s = key === 'introNeed' ? 'Show categories' : 'Show me categories'; return open ? e + 'Hide categories' : e + (/cats-b/.test(c) ? s + ' \u2014 browse all the topics' : s); };
-    if (key === 'introEnjoy' || key === 'introNeed') { other.textContent = catLabel(false); other.className = 'gp-catbtn'; row.appendChild(other); }
+    if (key === 'introEnjoy' || key === 'introNeed' || key === 'introSkills') { other.textContent = catLabel(false); other.className = 'gp-catbtn'; row.appendChild(other); }
 
     var otherBox = document.createElement('div');
     otherBox.style.cssText = 'display:none;margin-top:10px;';
@@ -848,7 +849,7 @@
     var addTyped = function(){ var v = String(search.value || '').trim(); if (v) openOther(v); };
     sadd.addEventListener('click', addTyped);
     search.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') { ev.preventDefault(); addTyped(); } });
-    if (key === 'introEnjoy' || key === 'introNeed') {
+    if (key === 'introEnjoy' || key === 'introNeed' || key === 'introSkills') {
       var drill = document.createElement('div');
       drill.style.cssText = 'display:none;margin-top:12px;';
       box.appendChild(drill);
@@ -903,7 +904,7 @@
       other.addEventListener('click', function(){
         if (drill.style.display !== 'none') { drill.style.display = 'none'; other.textContent = catLabel(false); return; }
         drill.style.display = 'block'; other.textContent = catLabel(true); drawDrill();
-        if (!roots) gpRefOnce().then(function(rd){ roots = gpTopicTree(rd || {}, key === 'introEnjoy'); drawDrill(); }).catch(function(){ roots = gpTopicTree({}, key === 'introEnjoy'); drawDrill(); });
+        if (!roots) Promise.all([gpRefOnce(), key === 'introSkills' ? gpJoinWords() : Promise.resolve(null)]).then(function(rs){ roots = gpTopicTree(rs[0] || {}, key === 'introEnjoy', key === 'introSkills', rs[1]); drawDrill(); }).catch(function(){ roots = gpTopicTree({}, key === 'introEnjoy', key === 'introSkills'); drawDrill(); });
       });
     }
 
@@ -1305,7 +1306,7 @@
         blocks.thanks = gpThanksBlock();
       }
     });
-    var ORDER = [['photo', 'Required'], ['loc', 'Required'], ['lang', 'Required'], ['groupInterests', 'Optional'], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Required'], ['introSkills', 'Required · at least one'], ['introOffer', 'Optional'], ['thanks', 'Required'], ['introNeed', 'Optional']];
+    var ORDER = [['photo', 'Required'], ['loc', 'Required'], ['lang', 'Required'], ['groupInterests', 'Optional'], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Optional'], ['introSkills', 'Required · at least one'], ['introOffer', 'Optional'], ['thanks', 'Required'], ['introNeed', 'Optional']];
     ORDER.forEach(function(o, i){
       var b = blocks[o[0]]; if (!b) return;
       b.setAttribute('data-k', o[0]);
@@ -1679,7 +1680,6 @@
     lang: ['a language', function(){ return Object.keys(window._gpLangPicked || {}).some(function(k){ return _gpLangPicked[k]; }); }],
     introEnjoy: ['one thing you enjoy', function(){ var t = document.getElementById('gp-intro-introEnjoy'); return !!(t && t.value.trim()); }],
     introValues: ['one thing you care about', function(){ var t = document.getElementById('gp-intro-introValues'); return !!(t && t.value.trim()); }],
-    methods: ['what comes most naturally', function(){ return Object.keys(window._gpMethodPicked || {}).some(function(k){ return _gpMethodPicked[k]; }); }],
     introSkills: ['one skill', function(){ var t = document.getElementById('gp-intro-introSkills'); return !!(t && t.value.trim()); }],
     thanks: ['how you like to be appreciated', function(){ return Object.keys(window._gpThanksPicked || {}).some(function(k){ return _gpThanksPicked[k]; }); }]
   };
