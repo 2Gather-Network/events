@@ -39,7 +39,6 @@
   }
   function save() {
     clearTimeout(saveT);
-    say('Saving…');
     saveT = setTimeout(function () {
       var qs = 'action=savePermissions&appearId=' + encodeURIComponent(ctx.meId) + '&editToken=' + encodeURIComponent(token())
         + '&audience=' + encodeURIComponent(ctx.groupId) + '&nameShown=' + encodeURIComponent(state.name) + '&placeShown=' + encodeURIComponent(state.where);
