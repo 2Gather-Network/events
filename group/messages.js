@@ -345,8 +345,12 @@
     back.onclick = drawList;
     head.appendChild(back);
     var curName = '', curDrawn = '', sharedLoaded = false;
-    var sub = el('div', 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:15px;color:#1A2E42;margin:-2px 0 12px;', '');
-    box.appendChild(sub);
+    var sub = el('div', 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:15px;color:#1A2E42;margin:0;', '');
+    if (head.firstChild) head.removeChild(head.firstChild);
+    head.insertBefore(sub, head.firstChild);
+    back.style.marginLeft = 'auto';
+    if (head.lastChild && head.lastChild !== back) head.lastChild.style.marginLeft = '0';
+    Array.prototype.forEach.call(head.children, function (c) { if (c !== sub && c !== back) c.style.marginLeft = '0'; });
     var groupsList = el('div', 'display:none;border:1.5px solid #C9DFF3;background:#F7FBFF;border-radius:12px;padding:10px 14px;margin-bottom:12px;');
     box.appendChild(groupsList);
     function drawSub(t) {
