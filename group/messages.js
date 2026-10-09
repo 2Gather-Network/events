@@ -7,7 +7,7 @@
   } catch (e) {}
 
   var ctx = null, box = null, session = '', me = '', poll = null, openId = '';
-  var enterSends = null;
+  var enterSends = true;
 
   function typing(ta, send) {
     ta.addEventListener('keydown', function (ev) {
@@ -17,7 +17,7 @@
     });
   }
   function choiceCard() {
-    if (enterSends !== null) return null;
+    return null;
     var c = el('div', 'border:1.5px solid #C9DFF3;background:#F7FBFF;border-radius:14px;padding:12px 14px;margin:0 0 12px;');
     c.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin-bottom:4px;', 'What should Enter do when you write a message?'));
     var row = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;');
@@ -556,7 +556,7 @@
       if (again(d)) return start().then(chatDraw);
       say(note, '');
       if (!d || d.status !== 'ok') { empty.textContent = (d && d.message) || 'The chat did not open. Reload the page to try again.'; return; }
-      if (!d.allowed) { empty.textContent = d.reason === 'chat-off' ? 'The host has turned the group chat off.' : 'The chat is for people in this group.'; bar.style.display = 'none'; muteBtn.style.display = 'none'; return; }
+      if (!d.allowed) { empty.textContent = d.reason === 'chat-off' ? 'The host has turned the group chat off.' : ''; bar.style.display = 'none'; muteBtn.style.display = 'none'; return; }
       chat.role = d.role || '';
       muted = !!d.muted; paintMute(); paintPin(d.pin); paintWelcome(d.welcome);
       if (!d.messages.length) empty.textContent = 'No messages yet. Say hello.';
@@ -648,7 +648,7 @@
       chat.box.appendChild(w);
       start().then(function (ok) {
         if (!ok) { say(w, 'Sign in again to see the chat.', true); return; }
-        return api('/prefs').then(function (d) { if (d && d.status === 'ok') enterSends = d.enterSends; }).catch(function () {}).then(chatDraw);
+        return api('/prefs').then(function (d) { if (d && d.status === 'ok') enterSends = d.enterSends === false ? false : true; }).catch(function () {}).then(chatDraw);
       }).catch(function () { say(w, 'The chat did not open. Reload the page to try again.', true); });
     },
     close: chatStop
@@ -672,7 +672,7 @@
       box.appendChild(w);
       start().then(function (ok) {
         if (!ok) { say(w, 'Sign in again to see your messages.', true); return; }
-        return api('/prefs').then(function (d) { if (d && d.status === 'ok') enterSends = d.enterSends; }).catch(function () {}).then(function () {
+        return api('/prefs').then(function (d) { if (d && d.status === 'ok') enterSends = d.enterSends === false ? false : true; }).catch(function () {}).then(function () {
           if (to) drawNew(to); else drawList();
         });
       }).catch(function () { say(w, 'Your messages did not load. Reload the page to try again.', true); });
