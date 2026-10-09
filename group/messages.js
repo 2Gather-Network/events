@@ -406,7 +406,7 @@
     var b = document.getElementById('gp-chat-badge');
     if (!b) return;
     b.textContent = (n && !muted) ? String(n > 99 ? '99+' : n) : '';
-    b.style.display = (n && !muted) ? '' : 'none';
+    b.style.display = (n && !muted) ? 'inline-flex' : 'none';
   }
   function chatDraw() {
     var box = chat.box;
@@ -590,17 +590,47 @@
     save: function (meId, tok, groupId, note) { return this.call(meId, tok, '/chat/welcome', { groupId: groupId, note: note, id: meId, token: devAs || tok }); }
   };
 
+  function railPeek(gid, tries) {
+    fetch(API + '/chat/peek?group=' + encodeURIComponent(gid), { headers: { 'x-msg-session': session } })
+      .then(function (r) { return r.json().then(function (x) { x._http = r.status; return x; }); })
+      .then(function (d) {
+        if (d && d._http === 409 && tries > 0) { setTimeout(function () { railPeek(gid, tries - 1); }, 4000); return; }
+        if (!d || d.status !== 'ok') return;
+        chatBadge(d.unread, d.muted);
+        var body = document.getElementById('gp-rs-chat-body');
+        if (!body) return;
+        body.innerHTML = '';
+        var line = function (m, pinned) {
+          var w = el('div', 'font-size:13.5px;line-height:1.4;color:#1A2E42;margin-bottom:8px;' + (pinned ? 'background:#FFF8E1;border-radius:8px;padding:6px 8px;' : ''));
+          var c2 = el('div', 'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;');
+          c2.appendChild(el('b', '', (pinned ? '\u{1F4CC} ' : '') + (m.mine ? 'You' : (m.name || 'Someone')) + ': '));
+          c2.appendChild(document.createTextNode(m.body || ''));
+          w.appendChild(c2);
+          body.appendChild(w);
+          if (c2.scrollHeight > c2.clientHeight + 2) {
+            var more = el('a', 'font-size:12.5px;font-weight:700;color:#1F699E;cursor:pointer;', 'Read more...');
+            more.setAttribute('role', 'link'); more.tabIndex = 0;
+            more.onclick = function () { if (window.gpShow) window.gpShow('chat'); };
+            w.appendChild(more);
+          }
+        };
+        if (d.pin) line({ name: d.pin.from, body: d.pin.body }, true);
+        (d.recent || []).forEach(function (m) { if (!d.pin || m.id !== d.pin.messageId) line(m, false); });
+        if (!body.children.length) body.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;', 'No messages yet.'));
+      }).catch(function () {});
+  }
   window.cwGroupChat = {
     init: function (c) {
       chat.ctx = c;
       if (!ctx) ctx = c;
+      var gid = String(c.groupId || '');
+      var warmAndPeek = function () {
+        api('/chat/warm', { body: { groupId: gid, id: c.meId, token: c.token ? c.token() : '' } }).catch(function () {});
+        railPeek(gid, 3);
+      };
       var k = keptSession();
-      if (k) {
-        session = session || k; me = me || k.split('.')[0];
-        api('/chat/warm', { body: { groupId: String(c.groupId || ''), id: c.meId, token: c.token ? c.token() : '' } }).catch(function () {});
-        fetch(API + '/chat/unread?group=' + encodeURIComponent(String(c.groupId || '')), { headers: { 'x-msg-session': session } })
-          .then(function (r) { return r.json(); }).then(function (d) { if (d && d.status === 'ok') chatBadge(d.unread, d.muted); }).catch(function () {});
-      }
+      if (k) { session = session || k; me = me || k.split('.')[0]; warmAndPeek(); }
+      else start().then(function (ok) { if (ok) warmAndPeek(); }).catch(function () {});
       if (window._gpView === 'chat' && !chat.box) this.open();
     },
     open: function () {
