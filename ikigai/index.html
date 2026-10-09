@@ -1074,6 +1074,14 @@
     if (typeof gpStepPaint === 'function') gpStepPaint();
     try { gpTagPaint(key); } catch (e) {}
     gpTouchSave();
+    if (key === 'introEnjoy') { gpJumpToInterests(word); }
+  }
+  function gpJumpToInterests(word){
+    try {
+      if (GP_INT < 0 || _gpStep === GP_INT || _gpStep !== gpStepFromSlug('joys') || gpSkipped(GP_INT) || gpViewingSomebodyElse() || document.documentElement.classList.contains('gp-new-norail')) { return; }
+      window._gpOpenWord = word;
+      setTimeout(function(){ try { gpShowStep(GP_INT); } catch (e) {} try { gpIntPost(true); } catch (e) {} }, 350);
+    } catch (e) {}
   }
   var _gpDel = [], _gpDelFailed = {};
   function gpDelStyle(){
@@ -1671,7 +1679,7 @@
       searchWrap.insertBefore(sBar, search);
       sBar.appendChild(search);
       search.style.flex = '1'; search.style.minWidth = '0'; search.style.width = 'auto';
-      search.placeholder = (key === 'introEnjoy') ? '\u{1F50D} Search or add a joy' : 'Add your own';
+      search.placeholder = (key === 'introEnjoy') ? '\u{1F50D} Search or add a joy' : (key === 'introValues') ? '\u{1F50D} Search or add a care' : 'Add your own';
       var sAdd = document.createElement('button');
       sAdd.type = 'button'; sAdd.textContent = 'Add';
       sAdd.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:9px 18px;border-radius:10px;border:0;background:#1F699E;color:#fff;cursor:pointer;';
@@ -2036,7 +2044,7 @@
     });
 
     var gpNewPills = function(swap){
-      if (!window._gpWords || (key !== 'introEnjoy' && key !== 'introSkills') || !other || !other.parentNode) { return; }
+      if (!window._gpWords || (key !== 'introEnjoy' && key !== 'introSkills' && key !== 'introValues') || !other || !other.parentNode) { return; }
       var host = other.parentNode, shown = [];
       if (window._gpLoaded && typeof gpReqAllDone === 'function' && gpReqAllDone()) {
         Array.prototype.slice.call(host.querySelectorAll('button[data-word]')).forEach(function(b){ host.removeChild(b); });
@@ -2045,6 +2053,7 @@
         if (typeof lead !== 'undefined' && lead) { lead.style.display = 'none'; }
         return;
       }
+      if (key === 'introValues') { return; }
       Array.prototype.slice.call(host.querySelectorAll('button[data-word]')).forEach(function(b){ if (b.style.display !== 'none') { shown.push(b.getAttribute('data-word')); } host.removeChild(b); });
       gpWordsSuggest(key, 5, swap ? shown : []).forEach(function(word){
         var b = gpPill(word, false);
@@ -2065,7 +2074,7 @@
       row.appendChild(other);
     } else 
       row.appendChild(other);
-    if ((key === 'introEnjoy' || key === 'introSkills')) { gpWordsLoad().then(function(){ try { gpNewPills(false); } catch (e) {} }); }
+    if ((key === 'introEnjoy' || key === 'introSkills' || key === 'introValues')) { gpWordsLoad().then(function(){ try { gpNewPills(false); } catch (e) {} }); }
     if (key === 'introValues') {
       var _cpTries = 0;
       var _cpHide = function(){
@@ -2081,7 +2090,7 @@
       browseWrap.classList.add('gp-shut');
       var catBtn = document.createElement('button');
       catBtn.type = 'button';
-      var _jz = key === 'introEnjoy';
+      var _jz = key === 'introEnjoy' || key === 'introValues';
       var catWord = _jz ? 'Show me ideas' : key === 'introNeed' ? 'Show categories' : 'Show me categories';
       catBtn.textContent = catWord;
       catBtn.setAttribute('aria-expanded', 'false');
@@ -2991,25 +3000,28 @@
     introValues: { multi:false, list:['Exploring','Engaged','Leading'],        head:'Cares added', across:true }
   };
   var _gpFoldShut = {};
-  function gpJoysLikeInts(wrap, title){
+  function gpJoysLikeInts(wrap, title, key){
+    key = key || 'introEnjoy';
+    var JL = key === 'introValues' ? { fold: 'caresq', head: 'What do you care about?', ph: 'Search or add a care' } : { fold: 'joysq', head: 'What do you enjoy?', ph: 'Search or add a joy' };
     if (!wrap || wrap.getAttribute('data-joys2')) { return; }
     wrap.setAttribute('data-joys2', '1');
-    var fold = gpFoldBar('joysq', 'What do you enjoy?');
+    var fold = gpFoldBar(JL.fold, JL.head);
     fold.box.style.margin = '0';
     var hint = document.createElement('div');
     hint.textContent = 'Only you see them until you want to be matched with compatible people, resources, and opportunities.';
     hint.style.cssText = 'font-size:14px;color:#4B5A6D;margin:0 0 12px;line-height:1.45;';
     fold.body.appendChild(hint);
-    var kids = Array.prototype.slice.call(wrap.childNodes), tag = document.getElementById('gp-tagbox-introEnjoy');
+    var kids = Array.prototype.slice.call(wrap.childNodes), tag = document.getElementById('gp-tagbox-' + key);
     var srch = null;
-    kids.forEach(function(k){ if (!srch && k.querySelector && k.querySelector('input[placeholder*="Search or add a joy"]')) { srch = k; } });
+    kids.forEach(function(k){ if (!srch && k.querySelector && k.querySelector('input[placeholder*="' + JL.ph + '"]')) { srch = k; } });
     if (srch) { fold.body.appendChild(srch); }
     kids.forEach(function(k){
       if (k === title || k === srch || k === tag) { return; }
+      if (key === 'introValues' && k.nodeType === 1 && /^What matters to you and what/.test(String(k.textContent || '').trim())) { k.style.display = 'none'; return; }
       if (k.nodeType === 1 && k.tagName === 'TEXTAREA' && k.style.display === 'none') { fold.body.appendChild(k); return; }
       fold.body.appendChild(k);
     });
-    var inp = fold.body.querySelector('input[placeholder*="Search or add a joy"]');
+    var inp = fold.body.querySelector('input[placeholder*="' + JL.ph + '"]');
     if (inp && srch && srch !== inp) { var n = inp; while (n.parentNode && n.parentNode !== srch) { n = n.parentNode; } if (n.parentNode === srch && n !== srch.firstChild) { srch.insertBefore(n, srch.firstChild); n.style.marginBottom = '12px'; } }
     if (title) { title.style.display = 'none'; }
     wrap.insertBefore(fold.box, wrap.firstChild);
@@ -3738,7 +3750,7 @@
       fr.className = 'gp-int'; fr.title = part === 'list' ? 'Your interests added' : 'Your interests';
       fr.style.cssText = (part === 'top' ? 'width:calc(100% + 8px);margin:-2px -4px 0;' : 'width:100%;') + 'height:' + (part === 'list' ? '120px' : '160px') + ';border:0;display:block;';
       fr.setAttribute('scrolling', 'no');
-      fr.src = '/design/interests/?inpane=1&v=820' + (part !== 'list' && /[?&]paste=1/.test(location.search) ? '&paste=1' : '') + (part ? '&part=' + part : '') + (params.get('iopen') ? '&iopen=' + encodeURIComponent(params.get('iopen')) : '') + (params.get('iq') ? '&iq=' + encodeURIComponent(params.get('iq')) : '') + (params.get('dym') === '1' ? '&dym=1' : '') + '' + (params.get('cards2') === '0' ? '&cards2=0' : '') + (params.get('tags') === '0' ? '&tags=0' : '') + (params.get('photo') === '0' ? '&photo=0' : '') + (params.get('sub') === '0' ? '&sub=0' : '') + (params.get('imore') ? '&imore=' + encodeURIComponent(params.get('imore')) : '') + (params.get('focus') ? '&focus=' + encodeURIComponent(params.get('focus')) : '') + GP_CQ + '&cb=' + Date.now();
+      fr.src = '/design/interests/?inpane=1&v=826' + (part !== 'list' && /[?&]paste=1/.test(location.search) ? '&paste=1' : '') + (part ? '&part=' + part : '') + (params.get('iopen') ? '&iopen=' + encodeURIComponent(params.get('iopen')) : '') + (params.get('iq') ? '&iq=' + encodeURIComponent(params.get('iq')) : '') + (params.get('dym') === '1' ? '&dym=1' : '') + '' + (params.get('cards2') === '0' ? '&cards2=0' : '') + (params.get('tags') === '0' ? '&tags=0' : '') + (params.get('photo') === '0' ? '&photo=0' : '') + (params.get('sub') === '0' ? '&sub=0' : '') + (params.get('imore') ? '&imore=' + encodeURIComponent(params.get('imore')) : '') + (params.get('focus') ? '&focus=' + encodeURIComponent(params.get('focus')) : '') + GP_CQ + '&cb=' + Date.now();
       h.appendChild(fr);
       return true;
     };
@@ -3784,6 +3796,7 @@
     var frs = Array.prototype.slice.call(document.querySelectorAll('iframe.gp-int')).filter(function(f){ return f.contentWindow; });
     if (!frs.length || !window._gpWords) { return; }
     var msg = { ao: 'ints', fits: gpIntFits() };
+    if (window._gpOpenWord) { msg.openWord = window._gpOpenWord; }
      try { msg.all = gpAllItems(); } catch (e) {} 
     if (only) { msg.fitsOnly = true; msg.mine = (window._gpInts || []).slice(); }
     else {
@@ -3808,6 +3821,7 @@
   }
   function gpIntMsg(d, src){
     if (d.ao === 'iready') { gpIntPost(); return; }
+    if (d.ao === 'openedword') { window._gpOpenWord = ''; return; }
     if (gpViewingSomebodyElse()) { return; }
     if (d.ao === 'ints') {
       window._gpInts = (d.list || []).map(function(x){ return String(x || '').trim(); }).filter(Boolean).slice(0, 300);
@@ -4633,7 +4647,7 @@
       var _map = { introEnjoy:'1', introExpression:'1', introSkills:'2', introValues:'3', introNeed:'4', introOffer:'4' };
       wrap.setAttribute('data-gp-step', _map[q.key] || '4');
       box.appendChild(wrap);
-      if (q.key === 'introEnjoy') { gpJoysLikeInts(wrap, t); }
+      if (q.key === 'introEnjoy' || q.key === 'introValues') { gpJoysLikeInts(wrap, t, q.key); }
       if (q.key === 'introSkills') {
         var _m = gpMethodsBlock();
         _m.id = 'gp-methods-block';
