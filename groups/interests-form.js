@@ -79,7 +79,7 @@
     host.appendChild(cats);
     var ownLabel = el('div', 'font-size:14px;color:var(--muted,#6B7A8D);margin:12px 0 6px;', sec.own);
     host.appendChild(ownLabel);
-    var otherOpen = false;
+    var otherOpen = false, otherPath = [];
     var row = el('div', 'display:flex;gap:8px;');
     var inp = document.createElement('input');
     inp.type = 'text'; inp.placeholder = 'Type one, then press Add'; inp.maxLength = 60; inp.style.flex = '1';
@@ -87,10 +87,11 @@
     add.type = 'button'; add.className = 'btn ghost'; add.textContent = 'Add';
     row.appendChild(inp); row.appendChild(add); host.appendChild(row);
     function syncOwn(){ ownLabel.style.display = otherOpen ? '' : 'none'; row.style.display = otherOpen ? 'flex' : 'none'; }
-    function otherPill(){
-      var c = document.createElement('div'); c.className = chip + ' cwpk cwpk-all' + (otherOpen ? ' on' : '');
+    function otherPill(path){
+      var here = path.join(SEP), mine = otherOpen && otherPath.join(SEP) === here;
+      var c = document.createElement('div'); c.className = chip + ' cwpk cwpk-all' + (mine ? ' on' : '');
       c.textContent = '+ Other';
-      c.addEventListener('click', function(){ otherOpen = !otherOpen; draw(); if (otherOpen) inp.focus(); });
+      c.addEventListener('click', function(){ otherOpen = !mine; otherPath = path.slice(); draw(); if (otherOpen) inp.focus(); });
       return c;
     }
     syncOwn();
@@ -143,7 +144,6 @@
         });
         draw(); onChange();
       }));
-      heads.appendChild(otherPill());
       cats.appendChild(heads);
       tree.forEach(function(n){
         if (!openN[n.name]) return;
@@ -161,6 +161,7 @@
             draw(); onChange();
           }));
         });
+        r.appendChild(otherPill([n.name]));
         cats.appendChild(r);
       });
     }
@@ -177,7 +178,7 @@
       var q = String(find.value || '').trim().toLowerCase();
       if (!q || !tree) return;
       var hits = allNodes(tree, [], []).filter(function(n){ return n.name.toLowerCase().indexOf(q) > -1; });
-      if (!hits.length) { found.appendChild(el('span', 'font-size:13px;color:var(--muted,#6B7A8D);', 'Nothing matches. Tap Other to add it.')); return; }
+      if (!hits.length) { found.appendChild(el('span', 'font-size:13px;color:var(--muted,#6B7A8D);', 'Nothing matches. Open a category and tap + Other to add it.')); return; }
       hits.slice(0, 30).forEach(function(n){
         var key = n.path.join(SEP);
         var c = document.createElement('div'); c.className = chip + (on[key] ? ' on' : '');
@@ -200,6 +201,7 @@
     find.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') ev.preventDefault(); });
     function draw(){
       if (!tree) return;
+      if (!sec.accordion && !at.length) otherOpen = false;
       syncOwn();
       drawFound();
       if (sec.accordion) { drawAcc(); return; }
@@ -256,15 +258,15 @@
         var dn = document.createElement('div'); dn.className = chip + ' cwpk cwpk-all';
         dn.textContent = 'Done';
         dn.addEventListener('click', function(){ at = []; draw(); });
-        r.appendChild(otherPill());
+        r.appendChild(otherPill(at));
         r.appendChild(dn);
-      } else r.appendChild(otherPill());
+      }
       cats.appendChild(r);
     }
     function addOwn(){
       String(inp.value || '').split(',').forEach(function(w){
         w = w.trim().replace(/[|;›]/g, '');
-        var full = at.length ? at.concat(w).join(SEP) : w;
+        var full = otherPath.length ? otherPath.concat(w).join(SEP) : w;
         if (w && !order.some(function(k){ return k.toLowerCase() === full.toLowerCase(); })) mark(full, true);
       });
       inp.value = ''; draw(); onChange();
