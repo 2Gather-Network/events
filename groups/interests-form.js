@@ -62,7 +62,7 @@
   function pickerStyle(){
     if (document.getElementById('cw-pk-style')) return;
     var st = document.createElement('style'); st.id = 'cw-pk-style';
-    st.textContent = '.cwpk-all{display:inline-flex;align-items:center;justify-content:center;min-height:40px;box-sizing:border-box;}'
+    st.textContent = '.cwpk-all{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;}'
       + '.cwpk:not(.on){background:#fff;}.cwpk:not(.on):hover{background:#EEF2F7;}'
       + '.cwpk.cwpk-all{border:2px solid #1F699E;color:#1F699E;font-weight:700;}.cwpk.cwpk-all.on{color:#fff;}';
     document.head.appendChild(st);
@@ -77,13 +77,23 @@
     var cats = el('div', 'margin:6px 0 4px;');
     cats.innerHTML = '<span style="font-size:13px;color:#1F699E;">Loading the list…</span>';
     host.appendChild(cats);
-    host.appendChild(el('div', 'font-size:14px;color:var(--muted,#6B7A8D);margin:12px 0 6px;', sec.own));
+    var ownLabel = el('div', 'font-size:14px;color:var(--muted,#6B7A8D);margin:12px 0 6px;', sec.own);
+    host.appendChild(ownLabel);
+    var otherOpen = false;
     var row = el('div', 'display:flex;gap:8px;');
     var inp = document.createElement('input');
     inp.type = 'text'; inp.placeholder = 'Type one, then press Add'; inp.maxLength = 60; inp.style.flex = '1';
     var add = document.createElement('button');
     add.type = 'button'; add.className = 'btn ghost'; add.textContent = 'Add';
     row.appendChild(inp); row.appendChild(add); host.appendChild(row);
+    function syncOwn(){ ownLabel.style.display = otherOpen ? '' : 'none'; row.style.display = otherOpen ? 'flex' : 'none'; }
+    function otherPill(){
+      var c = document.createElement('div'); c.className = chip + ' cwpk cwpk-all' + (otherOpen ? ' on' : '');
+      c.textContent = '+ Other';
+      c.addEventListener('click', function(){ otherOpen = !otherOpen; draw(); if (otherOpen) inp.focus(); });
+      return c;
+    }
+    syncOwn();
     function mark(k, isOwn){ if (!on[k]) { on[k] = true; order.push(k); } if (isOwn) own[k] = 1; }
     function unmark(k){ delete on[k]; delete own[k]; order = order.filter(function(x){ return x !== k; }); }
     function under(k){ return order.some(function(x){ return on[x] && x.indexOf(k + SEP) === 0; }); }
@@ -114,7 +124,7 @@
     var openN = {};
     function drawAcc(){
       cats.innerHTML = '';
-      var heads = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 10px;');
+      var heads = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0 10px;');
       tree.forEach(function(n){
         var h = document.createElement('div'); h.className = chip + ' cwpk' + (openN[n.name] ? ' on' : '');
         h.textContent = n.name;
@@ -133,11 +143,12 @@
         });
         draw(); onChange();
       }));
+      heads.appendChild(otherPill());
       cats.appendChild(heads);
       tree.forEach(function(n){
         if (!openN[n.name]) return;
         cats.appendChild(el('div', 'font-size:14px;font-weight:700;color:var(--ink,#1A2E42);margin:8px 0 6px;', n.name));
-        var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
+        var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;');
         r.appendChild(pill('All of ' + n.name, !!on[n.name], function(){
           if (on[n.name]) unmark(n.name); else { mark(n.name); order.slice().forEach(function(x){ if (x.indexOf(n.name + SEP) === 0) unmark(x); }); }
           draw(); onChange();
@@ -166,7 +177,7 @@
       var q = String(find.value || '').trim().toLowerCase();
       if (!q || !tree) return;
       var hits = allNodes(tree, [], []).filter(function(n){ return n.name.toLowerCase().indexOf(q) > -1; });
-      if (!hits.length) { found.appendChild(el('span', 'font-size:13px;color:var(--muted,#6B7A8D);', 'Nothing matches. Use Something else below to add it.')); return; }
+      if (!hits.length) { found.appendChild(el('span', 'font-size:13px;color:var(--muted,#6B7A8D);', 'Nothing matches. Tap Other to add it.')); return; }
       hits.slice(0, 30).forEach(function(n){
         var key = n.path.join(SEP);
         var c = document.createElement('div'); c.className = chip + (on[key] ? ' on' : '');
@@ -189,6 +200,7 @@
     find.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') ev.preventDefault(); });
     function draw(){
       if (!tree) return;
+      syncOwn();
       drawFound();
       if (sec.accordion) { drawAcc(); return; }
       cats.innerHTML = '';
@@ -210,7 +222,7 @@
         });
       } else if (!sec.tag) crumb.style.display = 'none';
       cats.appendChild(crumb);
-      var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
+      var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;');
       if (at.length) {
         var here = at.join(SEP);
         r.appendChild(pill('All of ' + at[at.length - 1], !!on[here], function(){ toggle(here); }));
@@ -244,14 +256,16 @@
         var dn = document.createElement('div'); dn.className = chip + ' cwpk cwpk-all';
         dn.textContent = 'Done';
         dn.addEventListener('click', function(){ at = []; draw(); });
+        r.appendChild(otherPill());
         r.appendChild(dn);
-      }
+      } else r.appendChild(otherPill());
       cats.appendChild(r);
     }
     function addOwn(){
       String(inp.value || '').split(',').forEach(function(w){
         w = w.trim().replace(/[|;›]/g, '');
-        if (w && !order.some(function(k){ return k.toLowerCase() === w.toLowerCase(); })) mark(w, true);
+        var full = at.length ? at.concat(w).join(SEP) : w;
+        if (w && !order.some(function(k){ return k.toLowerCase() === full.toLowerCase(); })) mark(full, true);
       });
       inp.value = ''; draw(); onChange();
     }
@@ -262,6 +276,11 @@
     return {
       picks: function(){ return order.filter(function(k){ return on[k]; }); },
       remove: function(k){ unmark(k); draw(); onChange(); },
+      emojiOf: function(k){
+        var list = tree || [], node = null;
+        String(k).split(SEP).forEach(function(seg){ node = null; (list || []).forEach(function(n){ if (n.name === seg) node = n; }); list = node ? node.kids : []; });
+        return (node && node.emoji) || '';
+      },
       redraw: function(){ draw(); },
       get: function(){ if (String(inp.value || '').trim()) addOwn(); return order.filter(function(k){ return on[k]; }).join(';'); },
       set: function(v){ on = {}; order = []; own = {}; splitList(v).forEach(function(k){ k = normalise(k); if (k) mark(k, k.indexOf(SEP) === -1); }); draw(); }
@@ -317,13 +336,14 @@
         if (!picks.length) return;
         any = true;
         prevBody.appendChild(el('div', 'font-size:13.5px;color:var(--ink,#1A2E42);margin:0 0 8px;', 'Select your interests below. Your answers are shared with ' + gname() + ' members and also help build your global profile.'));
-        var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
+        var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;');
         picks.forEach(function(k){
           var p = k.split(SEP);
           var c = document.createElement('div'); c.className = chip;
           c.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.2;cursor:pointer;';
           c.title = 'Remove';
-          c.appendChild(el('span', '', p[p.length - 1] + '  ×'));
+          var em = parts[s.key].emojiOf ? parts[s.key].emojiOf(k) : '';
+          c.appendChild(el('span', '', (em ? em + ' ' : '') + p[p.length - 1] + '  ×'));
           if (p.length > 1) c.appendChild(el('span', 'font-size:11px;font-weight:500;color:var(--muted,#6B7A8D);margin-top:2px;', p.slice(0, -1).join(SEP)));
           c.addEventListener('click', function(){ parts[s.key].remove(k); });
           r.appendChild(c);
