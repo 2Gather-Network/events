@@ -54,6 +54,11 @@
     b.type = 'button';
     return b;
   }
+  function gatherLink() {
+    var a = el('a', 'font:inherit;font-size:14px;font-weight:700;border-radius:22px;padding:8px 18px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;text-decoration:none;display:inline-block;', 'Gather');
+    a.href = '/commons/';
+    return a;
+  }
   function waitPill(text) {
     var p = document.createElement('span');
     p.className = 'cw-loading';
@@ -126,7 +131,12 @@
   function frame(title) {
     box.innerHTML = '';
     var head = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;');
-    head.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', title));
+    if (title === 'Messages') {
+      var lead = el('div', 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;');
+      lead.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', title));
+      lead.appendChild(gatherLink());
+      head.appendChild(lead);
+    } else head.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', title));
     box.appendChild(head);
     return head;
   }
@@ -238,11 +248,18 @@
     var exact = pick && ppl.filter(function (p) { return p.code === pick; })[0];
     if (exact) choose(exact);
     else if (pick) {
+      field.style.display = 'none'; lab.style.display = 'none';
+      var wp = el('div', 'margin:6px 0 12px;');
+      wp.appendChild(waitPill('Opening your conversation\u2026'));
+      box.insertBefore(wp, field);
       api('/who', { body: { id: ctx.meId, token: token(), to: pick } }).then(function (d) {
-        if (again(d)) return;
-        if (d && d.status === 'ok' && d.name && d.allowed) choose({ code: pick, name: d.name, host: d.role === 'host' || d.role === 'cohost' });
+        if (again(d)) return start().then(function () { drawNew(pick); });
+        wp.remove();
+        if (d && d.status === 'ok' && d.allowed && d.threadId) { drawThread(d.threadId); return; }
+        field.style.display = ''; lab.style.display = '';
+        if (d && d.status === 'ok' && d.allowed && d.name) { choose({ code: d.code || pick, name: d.name, host: d.role === 'host' || d.role === 'cohost' }); }
         else say(note, 'You can message people you share a group with who are taking messages.', true);
-      }).catch(function () { say(note, 'That did not load. Reload the page to try again.', true); });
+      }).catch(function () { wp.remove(); field.style.display = ''; lab.style.display = ''; say(note, 'That did not load. Reload the page to try again.', true); });
     }
     var ta = el('textarea', 'width:100%;box-sizing:border-box;margin-top:12px;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:12px;padding:10px 12px;min-height:110px;resize:vertical;');
     ta.placeholder = 'Say hello, and what you would like to talk about';
@@ -265,7 +282,7 @@
         if (one.length === 1) choose(one[0]); else { say(note, 'Pick who it is for first.', true); inp.focus(); return; }
       }
       if (!text) { say(note, 'Write something first.', true); return; }
-      send.disabled = true; say(note, 'Sending…');
+      send.disabled = true; say(note, '');
       var slow = setTimeout(function () { say(note, 'Still sending. The first message can take up to a minute.'); }, 12000);
       api('/start', { body: { id: ctx.meId, token: token(), to: chosen.code, body: text } }).then(function (d) {
         clearTimeout(slow);
@@ -410,7 +427,7 @@
       var text = ta.value.trim();
       if (!text) return;
       send.disabled = true; ta.readOnly = true;
-      say(note, 'Sending\u2026');
+      say(note, '');
       var slow = setTimeout(function () { say(note, 'Still sending. The first reply in a while can take up to a minute.'); }, 6000);
       api('/reply', { body: { threadId: id, body: text, id: ctx.meId, token: token() } }).then(function (d) {
         clearTimeout(slow); ta.readOnly = false;
@@ -500,7 +517,10 @@
     var gname = chat.ctx.groupName() || 'This group';
     var head = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;');
     var titleBox = el('div', '');
-    titleBox.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', gname + ' Group Chat'));
+    var titleRow = el('div', 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;');
+    titleRow.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', gname + ' Group Chat'));
+    titleRow.appendChild(gatherLink());
+    titleBox.appendChild(titleRow);
     head.appendChild(titleBox);
     var muteBtn = el('button', 'width:40px;height:40px;border-radius:50%;border:1.5px solid #DDE4EE;background:#fff;color:#4B5A6D;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;', '');
     muteBtn.type = 'button';
@@ -649,7 +669,7 @@
     send.onclick = function () {
       var text = ta.value.trim();
       if (!text) return;
-      send.disabled = true; ta.readOnly = true; say(note, 'Sending…');
+      send.disabled = true; ta.readOnly = true; say(note, '');
       api('/chat/send', { body: { groupId: chatGroupId(), body: text, id: chat.ctx.meId, token: token() } }).then(function (d) {
         send.disabled = false; ta.readOnly = false;
         if (!d || d.status !== 'ok' || !d.sent) { say(note, (d && d.message) || 'That did not go through.', true); return; }
