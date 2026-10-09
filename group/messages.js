@@ -54,13 +54,22 @@
     b.type = 'button';
     return b;
   }
+  function smallPill(b) {
+    b.style.fontSize = '12.5px';
+    b.style.padding = '3px 10px';
+    b.style.border = '1.5px solid ' + (b.style.borderColor || '#B5D3EA');
+    b.style.lineHeight = '1.4';
+    b.style.height = '26px'; b.style.boxSizing = 'border-box'; b.style.display = 'inline-flex'; b.style.alignItems = 'center';
+    return b;
+  }
   function gatherLink() {
     var a = el('a', 'display:inline-flex;align-items:center;gap:7px;background:#1F699E;color:#fff;font-size:14px;font-weight:700;padding:9px 18px;border-radius:22px;text-decoration:none;margin-left:auto;flex-shrink:0;white-space:nowrap;order:99;', '');
-    var ic = el('span', 'font-size:18px;line-height:1;', '\u2600\uFE0E');
+    var ic = el('span', 'font-size:14px;line-height:1;', '\u2600\uFE0E');
     ic.setAttribute('aria-hidden', 'true');
     a.appendChild(ic);
     a.appendChild(document.createTextNode(' Gather'));
     a.href = 'https://2gather.network/commons/';
+    a.style.fontSize = '12.5px'; a.style.padding = '3px 10px'; a.style.lineHeight = '1.4'; a.style.gap = '5px'; a.style.height = '26px'; a.style.boxSizing = 'border-box'; a.style.border = '1.5px solid #1F699E';
     return a;
   }
   var SCROLL_TEST = false;
@@ -190,6 +199,7 @@
     var ppl = people();
     if (ppl.length) {
       var nb = btn(ppl.length === 1 || ppl.every(function (p) { return p.host; }) ? 'Message the host' : 'New message');
+      smallPill(nb);
       nb.onclick = function () { drawNew(); };
       head.appendChild(nb);
     }
@@ -242,7 +252,7 @@
   function drawNew(pick) {
     stopPoll();
     var head = frame('New message');
-    var back = btn('All messages', 'quiet');
+    var back = smallPill(btn('All messages', 'quiet'));
     back.onclick = drawList;
     head.appendChild(back);
     var ppl = people();
@@ -341,16 +351,19 @@
     openId = id;
     try { api('/warm', { body: { threadId: id, id: ctx.meId, token: token() } }).catch(function () {}); } catch (e) {}
     var head = frame('Messages');
-    var back = btn('All messages', 'quiet');
+    var back = smallPill(btn('All messages', 'quiet'));
     back.onclick = drawList;
     head.appendChild(back);
     var curName = '', curDrawn = '', sharedLoaded = false;
     var sub = el('div', 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:15px;color:#1A2E42;margin:0;', '');
     if (head.firstChild) head.removeChild(head.firstChild);
     head.insertBefore(sub, head.firstChild);
-    back.style.marginLeft = 'auto';
-    if (head.lastChild && head.lastChild !== back) head.lastChild.style.marginLeft = '0';
-    Array.prototype.forEach.call(head.children, function (c) { if (c !== sub && c !== back) c.style.marginLeft = '0'; });
+    var rightSide = el('div', 'display:flex;align-items:center;gap:10px;flex:none;');
+    var gl = null;
+    Array.prototype.slice.call(head.children).forEach(function (c) { if (c !== sub && c !== back) gl = c; });
+    rightSide.appendChild(back);
+    if (gl) { gl.style.marginLeft = '0'; gl.style.order = '0'; rightSide.appendChild(gl); }
+    head.appendChild(rightSide);
     var groupsList = el('div', 'display:none;border:1.5px solid #C9DFF3;background:#F7FBFF;border-radius:12px;padding:10px 14px;margin-bottom:12px;');
     box.appendChild(groupsList);
     function drawSub(t) {
@@ -363,7 +376,7 @@
         sub.appendChild(a);
       } else sub.appendChild(el('b', 'font-size:12.5px;', nm));
       if (code) {
-        var gp = el('button', 'font:inherit;font-size:12.5px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #B5D3EA;border-radius:22px;padding:3px 10px;cursor:pointer;', 'Shared groups');
+        var gp = el('button', 'font:inherit;font-size:12.5px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #B5D3EA;border-radius:22px;padding:3px 10px;height:26px;box-sizing:border-box;display:inline-flex;align-items:center;line-height:1.4;cursor:pointer;', 'Shared groups');
         gp.type = 'button';
         gp.onclick = function () {
           if (groupsList.style.display !== 'none') { groupsList.style.display = 'none'; return; }
