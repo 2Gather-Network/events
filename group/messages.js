@@ -160,7 +160,7 @@
         if (t.other.role && t.other.role !== 'member') top.appendChild(el('span', 'font-size:12px;font-weight:700;color:#1F699E;background:#E6F1FB;border-radius:10px;padding:1px 8px;', t.other.role === 'cohost' ? 'Co-host' : 'Host'));
         if (t.last) top.appendChild(el('span', 'font-size:12.5px;color:#6B7A8D;margin-left:auto;', when(t.last.at)));
         txt.appendChild(top);
-        var line = asking ? 'Wants to message you' : (t.status === 'request' ? 'Waiting for them to accept' : (t.status === 'closed' ? 'Closed' : ''));
+        var line = asking ? 'Wants to message you' : (t.status === 'request' ? 'Waiting for them to accept' : (t.status === 'pending' ? 'Delivering\u2026' : (t.status === 'refused' ? 'Did not go through' : (t.status === 'closed' ? 'Closed' : ''))));
         var prev = t.last ? (t.last.mine ? 'You: ' : '') + t.last.body : '';
         txt.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;', line ? line + (prev && asking ? ': ' + prev : '') : prev));
         row.appendChild(txt);
@@ -196,6 +196,7 @@
       x.type = 'button';
       x.onclick = function () { chosen = null; chip.style.display = 'none'; inp.style.display = ''; inp.value = ''; inp.focus(); };
       chip.appendChild(x);
+      try { api('/precheck', { body: { id: ctx.meId, token: token(), to: p.code, groupId: ctx.groupId } }).catch(function () {}); } catch (e) {}
       setTimeout(function () { if (ta) ta.focus(); }, 0);
     }
     function suggest() {
@@ -256,6 +257,7 @@
 
   function drawThread(id) {
     openId = id;
+    try { api('/warm', { body: { threadId: id, id: ctx.meId, token: token() } }).catch(function () {}); } catch (e) {}
     var head = frame('Messages');
     var back = btn('All messages', 'quiet');
     back.onclick = drawList;
@@ -311,8 +313,12 @@
         }
         var waiting = t.status === 'request' && t.iStarted;
         var closed = t.status === 'closed';
-        bar.style.display = (waiting || closed) ? 'none' : 'flex';
+        var refused = t.status === 'refused';
+        var delivering = t.status === 'pending';
+        bar.style.display = (waiting || closed || refused) ? 'none' : 'flex';
         if (waiting) say(note, 'Sent. Waiting for ' + (t.other.name || 'them') + ' to accept.');
+        else if (delivering) say(note, 'Sent. Delivering\u2026');
+        else if (refused) say(note, 'This did not go through. Not taking messages through this group right now.', true);
         else if (closed) say(note, 'This conversation is closed.', true);
         else if (note.textContent.indexOf('Waiting') === 0) say(note, '');
         if (d.messages.length === seen) return;
@@ -331,18 +337,22 @@
     send.onclick = function () {
       var text = ta.value.trim();
       if (!text) return;
-      send.disabled = true;
+      send.disabled = true; ta.readOnly = true;
+      say(note, 'Sending\u2026');
+      var slow = setTimeout(function () { say(note, 'Still sending. The first reply in a while can take up to a minute.'); }, 6000);
       api('/reply', { body: { threadId: id, body: text, id: ctx.meId, token: token() } }).then(function (d) {
+        clearTimeout(slow); ta.readOnly = false;
         send.disabled = false;
         if (!d || d.status !== 'ok') { say(note, (d && d.message) || 'That did not go through.', true); return; }
         if (!d.sent) { say(note, d.message || 'That did not go through.', true); return; }
         ta.value = ''; say(note, '');
         load(false);
-      }).catch(function () { send.disabled = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
+      }).catch(function () { clearTimeout(slow); ta.readOnly = false; send.disabled = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
     };
     load(true);
     stopPoll();
     poll = setInterval(function () { if (!document.hidden && openId === id) load(false); }, 30000);
+    var quick = setInterval(function () { if (openId !== id) { clearInterval(quick); return; } if (note.textContent.indexOf('Delivering') > -1) load(false); else clearInterval(quick); }, 4000);
   }
   function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
 
