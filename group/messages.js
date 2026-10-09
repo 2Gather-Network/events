@@ -54,6 +54,12 @@
     b.type = 'button';
     return b;
   }
+  function waitPill(text) {
+    var p = document.createElement('span');
+    p.className = 'cw-loading';
+    p.textContent = text;
+    return p;
+  }
   function say(where, text, bad) {
     where.textContent = text || '';
     where.style.color = bad ? '#7A2410' : '#1E6B3A';
@@ -415,7 +421,6 @@
     var head = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;');
     var titleBox = el('div', '');
     titleBox.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', gname + ' Group Chat'));
-    titleBox.appendChild(el('div', 'font-size:13px;color:#4B5A6D;margin-top:2px;', 'All members can see chat messages here'));
     head.appendChild(titleBox);
     var muteBtn = el('button', 'width:40px;height:40px;border-radius:50%;border:1.5px solid #DDE4EE;background:#fff;color:#4B5A6D;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;', '');
     muteBtn.type = 'button';
@@ -432,7 +437,8 @@
     box.appendChild(older);
     var feed = el('div', 'display:flex;flex-direction:column;max-height:460px;overflow:auto;padding-right:4px;');
     box.appendChild(feed);
-    var empty = el('div', 'font-size:14px;color:#4B5A6D;padding:8px 0;', 'Looking for messages…');
+    var empty = el('div', 'font-size:14px;color:#4B5A6D;padding:8px 0;', '');
+    empty.appendChild(waitPill('Opening the chat…'));
     feed.appendChild(empty);
     var bar = el('div', 'display:flex;gap:8px;margin-top:12px;align-items:flex-end;');
     var ta = el('textarea', 'flex:1;min-width:0;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:18px;padding:9px 14px;min-height:42px;resize:vertical;');
@@ -551,7 +557,6 @@
         ta.value = ''; say(note, ''); add([d.message]); ta.focus();
       }).catch(function () { send.disabled = false; ta.readOnly = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
     };
-    say(note, 'Opening the chat…');
     api('/chat/open', { body: { groupId: chatGroupId(), id: chat.ctx.meId, token: token() } }).then(function (d) {
       if (again(d)) return start().then(chatDraw);
       say(note, '');
@@ -644,7 +649,8 @@
       chat.box = document.getElementById(chat.ctx.chatBoxId || 'gp-chat');
       if (!chat.box) return;
       chat.box.innerHTML = '';
-      var w = el('div', 'font-size:14px;color:#4B5A6D;', 'Opening the chat…');
+      var w = el('div', 'font-size:14px;color:#4B5A6D;', '');
+      w.appendChild(waitPill('Opening the chat…'));
       chat.box.appendChild(w);
       start().then(function (ok) {
         if (!ok) { say(w, 'Sign in again to see the chat.', true); return; }
