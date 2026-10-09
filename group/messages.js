@@ -414,7 +414,8 @@
     var gname = chat.ctx.groupName() || 'This group';
     var head = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;');
     head.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', gname + ' chat'));
-    var muteBtn = btn('Mute this chat', 'quiet');
+    var muteBtn = el('button', 'width:40px;height:40px;border-radius:50%;border:1.5px solid #DDE4EE;background:#fff;color:#4B5A6D;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;', '');
+    muteBtn.type = 'button';
     var headBtns = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
     var welBtn = btn('Welcome message', 'quiet');
     welBtn.style.display = 'none';
@@ -434,7 +435,7 @@
     feed.appendChild(empty);
     var bar = el('div', 'display:flex;gap:8px;margin-top:12px;align-items:flex-end;');
     var ta = el('textarea', 'flex:1;min-width:0;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:18px;padding:9px 14px;min-height:42px;resize:vertical;');
-    ta.placeholder = 'Write to ' + gname; ta.maxLength = 1500;
+    ta.placeholder = 'Write to members of ' + gname; ta.maxLength = 1500;
     var send = btn('Send');
     typing(ta, send);
     var pick = choiceCard();
@@ -444,13 +445,36 @@
     var note = el('div', 'font-size:14px;font-weight:700;margin-top:6px;');
     box.appendChild(note);
     var muted = false;
-    function paintMute() { muteBtn.textContent = muted ? 'Unmute this chat' : 'Mute this chat'; }
-    muteBtn.onclick = function () {
+    function paintMute() {
+      var label = muted ? 'Unmute this chat' : 'Mute this chat';
+      muteBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>' + (muted ? '<path d="M3 3l18 18"/>' : '') + '</svg>';
+      muteBtn.title = label; muteBtn.setAttribute('aria-label', label);
+      muteBtn.style.background = muted ? '#1A2E42' : '#fff';
+      muteBtn.style.borderColor = muted ? '#1A2E42' : '#DDE4EE';
+      muteBtn.style.color = muted ? '#fff' : '#4B5A6D';
+    }
+    paintMute();
+    var muteAsk = el('div', 'display:none;background:#F7FBFF;border:1.5px solid #C9DFF3;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;color:#1A2E42;margin-bottom:10px;');
+    head.parentNode.insertBefore(muteAsk, head.nextSibling);
+    function setMuted(want) {
       muteBtn.disabled = true;
-      api('/chat/prefs', { body: { groupId: chatGroupId(), muted: !muted, id: chat.ctx.meId, token: token() } }).then(function (d) {
+      api('/chat/prefs', { body: { groupId: chatGroupId(), muted: want, id: chat.ctx.meId, token: token() } }).then(function (d) {
         muteBtn.disabled = false;
-        if (d && d.status === 'ok') { muted = d.muted; paintMute(); say(note, muted ? 'Muted. The rail will not count new messages here. You can still read them.' : 'Unmuted.'); }
+        if (d && d.status === 'ok') { muted = d.muted; paintMute(); muteAsk.style.display = 'none'; }
       }).catch(function () { muteBtn.disabled = false; });
+    }
+    muteBtn.onclick = function () {
+      if (muted) { setMuted(false); return; }
+      if (muteAsk.style.display !== 'none') { muteAsk.style.display = 'none'; return; }
+      muteAsk.innerHTML = '';
+      muteAsk.appendChild(el('div', 'font-weight:800;margin-bottom:4px;', 'Mute this chat?'));
+      muteAsk.appendChild(el('div', '', 'The rail will stop notifying you of this group\u2019s chat messages by email. You can still open the chat and read everything. Tap the moon again any time to unmute.'));
+      var row = el('div', 'display:flex;gap:8px;margin-top:10px;');
+      var yes = btn('Yes, mute it'), no = btn('No', 'quiet');
+      yes.onclick = function () { yes.disabled = true; setMuted(true); };
+      no.onclick = function () { muteAsk.style.display = 'none'; };
+      row.appendChild(yes); row.appendChild(no); muteAsk.appendChild(row);
+      muteAsk.style.display = '';
     };
     var isHostNow = function () { return chat.role === 'host' || chat.role === 'cohost'; };
     function paintWelcome(w) {
