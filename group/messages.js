@@ -103,7 +103,7 @@
   }
   function searchBar(host, anchor, listEl, hint) {
     var wrap = el('div', 'margin:0 0 10px;');
-    var inp = el('input', 'width:100%;box-sizing:border-box;font:inherit;font-size:14.5px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:20px;padding:8px 14px;');
+    var inp = el('input', 'width:100%;box-sizing:border-box;font:inherit;font-size:14.5px;color:#1A2E42;background:#fff;-webkit-appearance:none;appearance:none;border:1.5px solid #DDE4EE;border-radius:20px;padding:8px 14px;');
     inp.type = 'search'; inp.placeholder = 'Search these messages'; inp.setAttribute('aria-label', 'Search these messages');
     inp.autocomplete = 'off';
     var cnt = el('div', 'font-size:12.5px;color:#4B5A6D;margin:5px 4px 0;min-height:16px;', '');
