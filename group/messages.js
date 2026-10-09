@@ -124,7 +124,6 @@
   }
 
   function frame(title) {
-    if (title === 'Messages') title = (ctx.groupName() ? ctx.groupName() + ' messages' : 'Messages');
     box.innerHTML = '';
     var head = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;');
     head.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', title));
@@ -146,14 +145,14 @@
     var wait = el('div', 'font-size:14px;color:#4B5A6D;', 'Looking for your messages…');
     box.appendChild(wait);
     box.appendChild(list);
-    api('/threads?group=' + encodeURIComponent(ctx.groupId)).then(function (d) {
+    api('/threads').then(function (d) {
       if (again(d)) return start().then(drawList);
       if (!d || d.status !== 'ok') { say(wait, 'Your messages did not load. Reload the page to try again.', true); return; }
       wait.remove();
       var ts = d.threads || [];
       tile(ts.reduce(function (n, t) { return n + (t.unread || 0); }, 0));
       if (!ts.length) {
-        list.appendChild(el('div', 'font-size:14px;color:#4B5A6D;line-height:1.5;', 'No messages in ' + (ctx.groupName() || 'this group') + ' yet.'
+        list.appendChild(el('div', 'font-size:14px;color:#4B5A6D;line-height:1.5;', 'No messages yet.'
           + (ppl.length ? ' Start one above.' : '')));
         return;
       }
@@ -202,7 +201,7 @@
       x.type = 'button';
       x.onclick = function () { chosen = null; chip.style.display = 'none'; inp.style.display = ''; inp.value = ''; inp.focus(); };
       chip.appendChild(x);
-      try { api('/precheck', { body: { id: ctx.meId, token: token(), to: p.code, groupId: ctx.groupId } }).catch(function () {}); } catch (e) {}
+      try { api('/precheck', { body: { id: ctx.meId, token: token(), to: p.code } }).catch(function () {}); } catch (e) {}
       setTimeout(function () { if (ta) ta.focus(); }, 0);
     }
     function suggest() {
@@ -226,6 +225,13 @@
     inp.addEventListener('blur', function () { setTimeout(function () { list.style.display = 'none'; }, 150); });
     var exact = pick && ppl.filter(function (p) { return p.code === pick; })[0];
     if (exact) choose(exact);
+    else if (pick) {
+      api('/who', { body: { id: ctx.meId, token: token(), to: pick } }).then(function (d) {
+        if (again(d)) return;
+        if (d && d.status === 'ok' && d.name && d.allowed) choose({ code: pick, name: d.name, host: d.role === 'host' || d.role === 'cohost' });
+        else say(note, 'You can message people you share a group with who are taking messages.', true);
+      }).catch(function () { say(note, 'That did not load. Reload the page to try again.', true); });
+    }
     var ta = el('textarea', 'width:100%;box-sizing:border-box;margin-top:12px;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:12px;padding:10px 12px;min-height:110px;resize:vertical;');
     ta.placeholder = 'Say hello, and what you would like to talk about';
     ta.maxLength = 2000;
@@ -249,7 +255,7 @@
       if (!text) { say(note, 'Write something first.', true); return; }
       send.disabled = true; say(note, 'Sending…');
       var slow = setTimeout(function () { say(note, 'Still sending. The first message can take up to a minute.'); }, 12000);
-      api('/start', { body: { id: ctx.meId, token: token(), to: chosen.code, groupId: ctx.groupId, body: text } }).then(function (d) {
+      api('/start', { body: { id: ctx.meId, token: token(), to: chosen.code, body: text } }).then(function (d) {
         clearTimeout(slow);
         send.disabled = false;
         if (again(d)) { return start().then(function () { send.onclick(); }); }
@@ -268,8 +274,46 @@
     var back = btn('All messages', 'quiet');
     back.onclick = drawList;
     head.appendChild(back);
-    var sub = el('div', 'font-size:14px;color:#4B5A6D;margin:-6px 0 12px;', '');
+    var curName = '', curDrawn = '', sharedLoaded = false;
+    var sub = el('div', 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:15px;color:#1A2E42;margin:-2px 0 12px;', '');
     box.appendChild(sub);
+    var groupsList = el('div', 'display:none;border:1.5px solid #C9DFF3;background:#F7FBFF;border-radius:12px;padding:10px 14px;margin-bottom:12px;');
+    box.appendChild(groupsList);
+    function drawSub(t) {
+      sub.innerHTML = '';
+      var nm = (t.other && t.other.name) || 'Someone';
+      var code = (t.other && t.other.code) || '';
+      if (code) {
+        var a = el('a', 'font-size:12.5px;font-weight:700;color:#1F699E;text-decoration:underline;cursor:pointer;', nm);
+        a.href = 'https://2gather.network/me/?v=' + encodeURIComponent(code);
+        sub.appendChild(a);
+      } else sub.appendChild(el('b', 'font-size:12.5px;', nm));
+      if (code) {
+        var gp = el('button', 'font:inherit;font-size:12.5px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #B5D3EA;border-radius:22px;padding:3px 10px;cursor:pointer;', 'Shared groups');
+        gp.type = 'button';
+        gp.onclick = function () {
+          if (groupsList.style.display !== 'none') { groupsList.style.display = 'none'; return; }
+          groupsList.style.display = '';
+          if (sharedLoaded) return;
+          groupsList.textContent = 'Looking for your shared groups…';
+          api('/shared', { body: { id: ctx.meId, token: token(), to: code } })
+            .then(function (d) {
+              if (again(d)) return start().then(function () { sharedLoaded = false; groupsList.style.display = 'none'; });
+              groupsList.innerHTML = '';
+              var gl = (d && d.groups) || [];
+              if (!gl.length) { groupsList.textContent = 'No shared groups to show.'; return; }
+              sharedLoaded = true;
+              groupsList.appendChild(el('div', 'font-size:12px;font-weight:800;color:#4B5A6D;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;', 'Groups you share with ' + nm));
+              gl.forEach(function (g) {
+                var ga = el('a', 'display:block;font-size:14.5px;font-weight:700;color:#1F699E;text-decoration:none;padding:4px 0;cursor:pointer;', g.name || 'Group');
+                ga.href = g.slug ? 'https://2gather.network/group/' + encodeURIComponent(String(g.slug).split(',')[0].trim()) : 'https://2gather.network/group/?id=' + encodeURIComponent(g.id || '');
+                groupsList.appendChild(ga);
+              });
+            }).catch(function () { groupsList.textContent = 'That did not load. Try again in a moment.'; });
+        };
+        sub.appendChild(gp);
+      }
+    }
     var asks = el('div', '');
     box.appendChild(asks);
     var msgs = el('div', 'display:flex;flex-direction:column;gap:8px;min-height:80px;');
@@ -293,9 +337,9 @@
         if (again(d)) return start().then(function () { return load(first); });
         if (!d || d.status !== 'ok') { if (first) say(sub, (d && d.message) || 'This conversation did not load.', true); return; }
         var t = d.thread;
-        sub.textContent = '';
-        sub.appendChild(el('b', 'color:#1A2E42;', t.other.name || 'Someone'));
-        sub.appendChild(document.createTextNode(' · ' + (t.groupName || ctx.groupName() || '')));
+        var drawKey = ((t.other && t.other.code) || '') + '|' + ((t.other && t.other.name) || '') + '|' + ((t.other && t.other.role) || '');
+        curName = (t.other && t.other.name) || '';
+        if (drawKey !== curDrawn) { curDrawn = drawKey; drawSub(t); }
         asks.innerHTML = '';
         var asking = t.status === 'request' && !t.iStarted;
         if (asking) {
@@ -368,7 +412,7 @@
   }
   function tileRefresh() {
     if (!session) return;
-    api('/unread?group=' + encodeURIComponent(ctx.groupId)).then(function (d) { if (d && d.status === 'ok') tile(d.unread); }).catch(function () {});
+    api('/unread').then(function (d) { if (d && d.status === 'ok') tile(d.unread); }).catch(function () {});
   }
 
   try {
@@ -390,6 +434,14 @@
     var row = el('div', 'display:flex;gap:10px;align-items:flex-start;padding:6px 0;');
     row.setAttribute('data-mid', String(m.id));
     var av = el('div', 'width:32px;height:32px;border-radius:50%;flex:none;background:' + (m.removed ? '#E7ECF2' : 'linear-gradient(135deg,#C9DFF3,#7FB6E2)') + ';');
+    if (!m.removed && m.photo && String(m.photo).indexOf('https://cw-photos.jessieupp.workers.dev/') === 0) {
+      var im = document.createElement('img');
+      im.alt = ''; im.width = 32; im.height = 32; im.loading = 'lazy';
+      im.setAttribute('style', 'width:32px;height:32px;border-radius:50%;object-fit:cover;display:block;');
+      im.onerror = function () { if (im.parentNode) im.parentNode.removeChild(im); };
+      av.appendChild(im); im.src = m.photo;
+      av.style.overflow = 'hidden';
+    }
     var mb = el('div', 'min-width:0;flex:1;');
     var who = el('div', 'font-size:13.5px;font-weight:800;color:' + (m.removed ? '#6B7A8D' : '#1A2E42') + ';');
     who.textContent = m.removed ? 'Removed by ' + (m.removedBy || 'a host') : (m.mine ? 'You' : (m.name || 'Someone'));
@@ -400,6 +452,12 @@
       pl.setAttribute('role', 'button'); pl.tabIndex = 0;
       pl.onclick = function () { chat.onPin(m); };
       who.appendChild(pl);
+    }
+    if (m.mine && !m.removed && chat.onDelete) {
+      var dl = el('a', 'font-weight:700;color:#6B7A8D;margin-left:8px;font-size:12.5px;cursor:pointer;', 'Delete');
+      dl.setAttribute('role', 'button'); dl.tabIndex = 0;
+      dl.onclick = function () { chat.onDelete(m, row); };
+      who.appendChild(dl);
     }
     mb.appendChild(who);
     var p = el('div', 'font-size:14.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;' + (m.removed ? 'color:#6B7A8D;font-style:italic;' : 'color:#1A2E42;'), m.removed ? 'This message was removed.' : m.body);
@@ -522,6 +580,25 @@
       }).catch(function () { say(note, 'That did not reach the server. Try again in a moment.', true); });
     }
     chat.onPin = function (m) { setPin(m.id); };
+    chat.onDelete = function (m, rowEl) {
+      var old = rowEl.querySelector('.gp-del-ask');
+      if (old) { old.remove(); return; }
+      var ask = el('div', 'margin-top:6px;');
+      ask.className = 'gp-del-ask';
+      ask.appendChild(el('div', 'font-size:13.5px;color:#1A2E42;margin-bottom:6px;', 'Delete this message? It disappears for everyone in the chat.'));
+      var r2 = el('div', 'display:flex;gap:8px;');
+      var yes = btn('Yes, delete'), no = btn('No', 'quiet');
+      yes.onclick = function () {
+        yes.disabled = true;
+        api('/chat/delete', { body: { groupId: chatGroupId(), messageId: m.id, id: chat.ctx.meId, token: token() } }).then(function (d) {
+          if (d && d.status === 'ok') { add([{ id: m.id, mine: true, name: '', role: '', body: '', at: m.at, removed: true, removedBy: 'the sender' }]); }
+          else { yes.disabled = false; say(note, (d && d.message) || 'That did not go through.', true); }
+        }).catch(function () { yes.disabled = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
+      };
+      no.onclick = function () { ask.remove(); };
+      r2.appendChild(yes); r2.appendChild(no); ask.appendChild(r2);
+      rowEl.querySelector('div > div:last-child').appendChild(ask);
+    };
     function add(list, atTop) {
       if (empty.parentNode) empty.remove();
       var nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
@@ -664,7 +741,7 @@
     init: function (c) {
       ctx = c;
       var s = document.getElementById('gp-tile-msg-sub');
-      if (s) s.textContent = 'Your conversations in this group';
+      if (s) s.textContent = 'Your conversations';
       session = keptSession();
       if (session) { me = session.split('.')[0]; tileRefresh(); }
       if (window._gpView === 'messages' && !box) { var t = ''; try { t = new URLSearchParams(location.search).get('to') || ''; } catch (e) {} this.open(t); }
