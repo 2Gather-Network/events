@@ -231,7 +231,7 @@
   <script src="/group/address.js?v=1"></script>
   <script src="/nav/firststop.js?v=3"></script>
   <script src="/group/offer-count.js?v=1"></script>
-  <script src="/group/messages.js?v=2"></script>
+  <script src="/group/messages.js?v=4"></script>
   <script src="/nav/event-match.js?v=1"></script>
 <script src="/nav/waiting-words.js?v=11"></script>
 </head>
@@ -339,6 +339,7 @@
           <div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:12px;">Messages</div>
           <div style="font-size:14px;color:#4B5A6D;">No new messages. When someone in the group messages you, it will appear here.</div>
         </div>
+        <div id="gp-chat" style="display:none;background:#fff;border-radius:14px;padding:24px 28px;"></div>
         <div id="gp-invites" style="display:none;background:#fff;border-radius:14px;padding:24px 28px;">
           <div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:12px;">Invitations</div>
           <div style="font-size:14px;color:#4B5A6D;">No pending invitations. When someone invites you to something, it will appear here.</div>
@@ -415,6 +416,11 @@
         <div id="gp-here-row" style="display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;"><div id="gp-here-strip" style="display:flex;flex-wrap:wrap;gap:6px;"></div><button class="btn" id="gp-viewall-btn" onclick="gpShow('members')" style="display:none;">View all</button><div id="gp-host-inline" style="font-size:15px;color:#1A2E42;line-height:1.4;"></div></div>
         <div id="gp-viewall-wrap" style="display:none;justify-content:flex-start;margin-top:10px;">
           <a role="link" tabindex="0" id="gp-board-link" style="display:inline-flex;align-items:center;background:#fff;color:#1F699E;border:1.5px solid #1F699E;padding:9px 16px;border-radius:22px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;">Bulletin board</a>
+          <a role="link" tabindex="0" id="gp-chat-link" onclick="gpShow('chat')" style="display:none;align-items:center;gap:6px;margin-left:8px;background:#fff;color:#1F699E;border:1.5px solid #1F699E;padding:9px 16px;border-radius:22px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;">Group chat<span id="gp-chat-badge" style="display:none;background:#1F699E;color:#fff;border-radius:10px;font-size:11.5px;padding:0 7px;min-width:18px;text-align:center;"></span></a>
+        </div>
+        <div id="gp-links-block" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid #f0f1f5;">
+          <div style="font-size:12px;font-weight:800;color:#4B5A6D;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">Links</div>
+          <div id="gp-links-list" style="display:flex;flex-direction:column;gap:8px;"></div>
         </div>
         <div id="gp-stats-line" style="font-size:13px;color:#4B5A6D;margin-top:14px;padding-top:12px;border-top:1px solid #f0f1f5;"></div>
         <div id="gp-manage-wrap" style="display:none;margin-top:12px;text-align:right;">
@@ -1041,7 +1047,7 @@ function pick(el, key){
     }
   })();
 
-  var GP_MEMBERS_ONLY = { concierge:1, feed:1, messages:1, invites:1, events:1, search:1, members:1, intro:1 };
+  var GP_MEMBERS_ONLY = { concierge:1, feed:1, messages:1, chat:1, invites:1, events:1, search:1, members:1, intro:1 };
 
   function gpSyncManage(view){
     var btn = document.getElementById('gp-viewall-btn');
@@ -1077,17 +1083,18 @@ function pick(el, key){
     _gpRememberView(view);
     try { document.body.classList.toggle('gp-on-members', view === 'members'); } catch (e) {}
     try { gpSyncManage(view); } catch (err) {}
-    var ids = ['gp-concierge','gp-onboard','gp-feed','gp-messages','gp-invites','gp-events','gp-search','gp-members','gp-intro'];
+    var ids = ['gp-concierge','gp-onboard','gp-feed','gp-messages','gp-chat','gp-invites','gp-events','gp-search','gp-members','gp-intro'];
     ids.forEach(function(i){ var el = document.getElementById(i); if (el) el.style.display = 'none'; });
-    var map = { concierge:'gp-concierge', onboard:'gp-onboard', feed:'gp-feed', messages:'gp-messages', invites:'gp-invites', events:'gp-events', search:'gp-search', members:'gp-members', intro:'gp-intro' };
+    var map = { concierge:'gp-concierge', onboard:'gp-onboard', feed:'gp-feed', messages:'gp-messages', chat:'gp-chat', invites:'gp-invites', events:'gp-events', search:'gp-search', members:'gp-members', intro:'gp-intro' };
     var target = map[view];
     if (target) { var t = document.getElementById(target); if (t) t.style.display = 'block'; }
     if (view === 'events') gpLoadEvents();
+    if (window.cwGroupChat) { if (view === 'chat') window.cwGroupChat.open(); else window.cwGroupChat.close(); }
     if (window.cwGroupMessages) { if (view === 'messages') { var _mto = ''; try { _mto = new URLSearchParams(location.search).get('to') || ''; } catch (e) {} window.cwGroupMessages.open(_mto); } else window.cwGroupMessages.close(); }
     if (view === 'intro') gpRenderIntro(null);
     var pageHdr = document.getElementById('gp-page-header');
     if (pageHdr) pageHdr.style.display = (view === 'onboard') ? 'none' : 'flex';
-    var labels = { feed:'Matches', messages:'Messages', invites:'Invitations', events:'Group events', members:'Members' };
+    var labels = { feed:'Matches', messages:'Messages', chat:'Group chat', invites:'Invitations', events:'Group events', members:'Members' };
     var sep = document.getElementById('gp-crumb-sep');
     var vw  = document.getElementById('gp-crumb-view');
     var nm = document.getElementById('gp-crumb-name');
@@ -2470,6 +2477,37 @@ var myPill = document.getElementById('gp-myprofile-pill');
         var _bl = document.getElementById('gp-board-link');
         if (_bl) { _bl.setAttribute('data-nav', window._gpSlug ? 'https://2gather.network/group/' + encodeURIComponent(window._gpSlug) + '/bulletin-board' : 'https://2gather.network/attendees/?group=' + encodeURIComponent(groupId)); _bl.setAttribute('onclick', 'return _safeNavGo(this)'); }
         if (_va) { _va.style.display = _viewerInGroup ? 'flex' : 'none'; }
+        (function(){
+          var _cl = document.getElementById('gp-chat-link');
+          var _chatOn = !!(d.group && (d.group.chat === true || String(d.group.chat).toLowerCase() === 'true'));
+          if (_cl) _cl.style.display = (_viewerInGroup && _chatOn) ? 'inline-flex' : 'none';
+          if (_viewerInGroup && _chatOn && window.cwGroupChat) {
+            try { window.cwGroupChat.init({ groupId: String(d.group.groupId || groupId), meId: meId, token: _gpPhotoToken, group: function(){ return d.group || {}; }, people: function(){ return attendees; }, iHost: function(){ return !!(d.meIsHost || d.meIsOperator); }, groupName: function(){ return (d.group && d.group.name) || ''; } }); } catch (e) {}
+          }
+        })();
+        (function(){
+          var _lb = document.getElementById('gp-links-block'), _ll = document.getElementById('gp-links-list');
+          if (!_lb || !_ll) return;
+          _ll.innerHTML = '';
+          var _items = [];
+          try { _items = JSON.parse((d.group && d.group.resources) || '[]'); } catch (e) { _items = []; }
+          if (!Array.isArray(_items)) _items = [];
+          _items.forEach(function(r){
+            var u = String((r && r.url) || '').trim();
+            if (!/^https?:\/\//i.test(u)) return;
+            var host = u.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0];
+            var a = document.createElement('a');
+            a.href = u; a.rel = 'noopener';
+            a.setAttribute('style', 'display:block;font-size:14px;line-height:1.35;color:#1F699E;font-weight:700;text-decoration:none;overflow-wrap:anywhere;');
+            a.textContent = host;
+            var t = document.createElement('div');
+            t.setAttribute('style', 'font-size:12.5px;font-weight:600;color:#6B7A8D;');
+            t.textContent = String((r && r.type) || 'Link');
+            var wrap = document.createElement('div'); wrap.appendChild(a); wrap.appendChild(t);
+            _ll.appendChild(wrap);
+          });
+          _lb.style.display = (_viewerInGroup && _ll.children.length) ? '' : 'none';
+        })();
         var _rb = document.getElementById('gp-role-badge');
         if (_rb) _rb.textContent = '';
         if (_viewerIsHost) {

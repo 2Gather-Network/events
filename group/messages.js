@@ -376,6 +376,251 @@
     }
   } catch (e) {}
 
+  var chat = { box: null, poll: null, last: 0, first: 0, role: '', ctx: null, open: false };
+  function chatGroupId() { return chat.ctx ? String(chat.ctx.groupId || '') : ''; }
+  function chatTime(at) { return when(at); }
+  function chatRow(m) {
+    var isHost = chat.role === 'host' || chat.role === 'cohost';
+    var row = el('div', 'display:flex;gap:10px;align-items:flex-start;padding:6px 0;');
+    row.setAttribute('data-mid', String(m.id));
+    var av = el('div', 'width:32px;height:32px;border-radius:50%;flex:none;background:' + (m.removed ? '#E7ECF2' : 'linear-gradient(135deg,#C9DFF3,#7FB6E2)') + ';');
+    var mb = el('div', 'min-width:0;flex:1;');
+    var who = el('div', 'font-size:13.5px;font-weight:800;color:' + (m.removed ? '#6B7A8D' : '#1A2E42') + ';');
+    who.textContent = m.removed ? 'Removed by ' + (m.removedBy || 'a host') : (m.mine ? 'You' : (m.name || 'Someone'));
+    if (!m.removed && (m.role === 'host' || m.role === 'cohost')) who.appendChild(el('span', 'font-size:11.5px;font-weight:800;color:#1F699E;background:#E6F1FB;border-radius:8px;padding:0 6px;margin-left:6px;', m.role === 'cohost' ? 'Co-host' : 'Host'));
+    who.appendChild(el('span', 'font-weight:600;color:#6B7A8D;margin-left:6px;font-size:12.5px;', chatTime(m.at)));
+    if (isHost && !m.removed && chat.onPin) {
+      var pl = el('a', 'font-weight:700;color:#1F699E;margin-left:8px;font-size:12.5px;cursor:pointer;', 'Pin');
+      pl.setAttribute('role', 'button'); pl.tabIndex = 0;
+      pl.onclick = function () { chat.onPin(m); };
+      who.appendChild(pl);
+    }
+    mb.appendChild(who);
+    var p = el('div', 'font-size:14.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;' + (m.removed ? 'color:#6B7A8D;font-style:italic;' : 'color:#1A2E42;'), m.removed ? 'This message was removed.' : m.body);
+    mb.appendChild(p);
+    row.appendChild(av); row.appendChild(mb);
+    return row;
+  }
+  function chatStop() { if (chat.poll) { clearInterval(chat.poll); chat.poll = null; } chat.open = false; }
+  function chatBadge(n, muted) {
+    var b = document.getElementById('gp-chat-badge');
+    if (!b) return;
+    b.textContent = (n && !muted) ? String(n > 99 ? '99+' : n) : '';
+    b.style.display = (n && !muted) ? '' : 'none';
+  }
+  function chatDraw() {
+    var box = chat.box;
+    box.innerHTML = '';
+    var gname = chat.ctx.groupName() || 'This group';
+    var head = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;');
+    head.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', gname + ' chat'));
+    var muteBtn = btn('Mute this chat', 'quiet');
+    var headBtns = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
+    var welBtn = btn('Welcome message', 'quiet');
+    welBtn.style.display = 'none';
+    headBtns.appendChild(welBtn); headBtns.appendChild(muteBtn);
+    head.appendChild(headBtns);
+    box.appendChild(head);
+    var welcomeBox = el('div', 'display:none;background:#E6F1FB;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;color:#1A2E42;margin-bottom:10px;');
+    box.appendChild(welcomeBox);
+    var pinBox = el('div', 'display:none;background:#FFF8E1;border-radius:12px;padding:10px 14px;font-size:13.5px;line-height:1.45;color:#1A2E42;margin-bottom:10px;');
+    box.appendChild(pinBox);
+    var older = el('button', 'display:none;align-self:center;margin:0 auto 6px;font:inherit;font-size:13px;color:#1F699E;font-weight:700;cursor:pointer;background:none;border:0;', 'Show earlier messages');
+    older.type = 'button';
+    box.appendChild(older);
+    var feed = el('div', 'display:flex;flex-direction:column;max-height:460px;overflow:auto;padding-right:4px;');
+    box.appendChild(feed);
+    var empty = el('div', 'font-size:14px;color:#4B5A6D;padding:8px 0;', 'Looking for messages…');
+    feed.appendChild(empty);
+    var bar = el('div', 'display:flex;gap:8px;margin-top:12px;align-items:flex-end;');
+    var ta = el('textarea', 'flex:1;min-width:0;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:18px;padding:9px 14px;min-height:42px;resize:vertical;');
+    ta.placeholder = 'Write to ' + gname; ta.maxLength = 1500;
+    var send = btn('Send');
+    typing(ta, send);
+    var pick = choiceCard();
+    if (pick) box.appendChild(pick);
+    bar.appendChild(ta); bar.appendChild(send);
+    box.appendChild(bar);
+    var note = el('div', 'font-size:14px;font-weight:700;margin-top:6px;');
+    box.appendChild(note);
+    var muted = false;
+    function paintMute() { muteBtn.textContent = muted ? 'Unmute this chat' : 'Mute this chat'; }
+    muteBtn.onclick = function () {
+      muteBtn.disabled = true;
+      api('/chat/prefs', { body: { groupId: chatGroupId(), muted: !muted, id: chat.ctx.meId, token: token() } }).then(function (d) {
+        muteBtn.disabled = false;
+        if (d && d.status === 'ok') { muted = d.muted; paintMute(); say(note, muted ? 'Muted. The rail will not count new messages here. You can still read them.' : 'Unmuted.'); }
+      }).catch(function () { muteBtn.disabled = false; });
+    };
+    var isHostNow = function () { return chat.role === 'host' || chat.role === 'cohost'; };
+    function paintWelcome(w) {
+      welcomeBox.innerHTML = '';
+      if (!w || !w.note) { welcomeBox.style.display = 'none'; return; }
+      welcomeBox.style.display = '';
+      welcomeBox.appendChild(el('div', 'font-size:12px;font-weight:800;color:#1F699E;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;', 'Welcome from ' + (w.by || 'the host')));
+      welcomeBox.appendChild(el('div', 'white-space:pre-wrap;overflow-wrap:anywhere;', w.note));
+      var got = btn('Got it');
+      got.style.marginTop = '10px';
+      got.onclick = function () {
+        got.disabled = true;
+        api('/chat/welcome/seen', { body: { groupId: chatGroupId(), id: chat.ctx.meId, token: token() } }).then(function (d) {
+          if (d && d.status === 'ok') { welcomeBox.style.display = 'none'; chat.welcomeGone = true; } else got.disabled = false;
+        }).catch(function () { got.disabled = false; });
+      };
+      welcomeBox.appendChild(got);
+    }
+    function paintPin(pin) {
+      pinBox.innerHTML = '';
+      if (!pin) { pinBox.style.display = 'none'; return; }
+      pinBox.style.display = '';
+      pinBox.appendChild(el('div', 'font-size:12px;font-weight:800;color:#8A6200;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;', '📌 Pinned by ' + (pin.by || 'a host')));
+      var line = el('div', 'white-space:pre-wrap;overflow-wrap:anywhere;');
+      if (pin.from) line.appendChild(el('b', '', pin.from + ': '));
+      line.appendChild(document.createTextNode(pin.body));
+      pinBox.appendChild(line);
+      if (isHostNow()) {
+        var un = el('a', 'display:inline-block;margin-top:6px;font-size:13px;font-weight:700;color:#1F699E;cursor:pointer;', 'Unpin');
+        un.setAttribute('role', 'button'); un.tabIndex = 0;
+        un.onclick = function () { setPin(0); };
+        pinBox.appendChild(un);
+      }
+    }
+    function setPin(mid) {
+      api('/chat/pin', { body: { groupId: chatGroupId(), messageId: mid, id: chat.ctx.meId, token: token() } }).then(function (d) {
+        if (d && d.status === 'ok') { say(note, ''); paintPin(d.pin); } else say(note, (d && d.message) || 'That did not save.', true);
+      }).catch(function () { say(note, 'That did not reach the server. Try again in a moment.', true); });
+    }
+    chat.onPin = function (m) { setPin(m.id); };
+    welBtn.onclick = function () {
+      welBtn.disabled = true;
+      api('/chat/welcome?group=' + encodeURIComponent(chatGroupId()), { method: 'GET' }).then(function (d) {
+        welBtn.disabled = false;
+        if (!d || d.status !== 'ok') { say(note, (d && d.message) || 'That did not open.', true); return; }
+        welcomeBox.innerHTML = ''; welcomeBox.style.display = '';
+        welcomeBox.appendChild(el('div', 'font-size:12px;font-weight:800;color:#1F699E;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;', 'Welcome message'));
+        welcomeBox.appendChild(el('div', 'font-size:13px;color:#4B5A6D;margin-bottom:6px;', 'Each person sees this once, when they first open the chat, then it goes away for them. If you change it, only people who have not seen it yet will see the new one.'));
+        var inp = el('textarea', 'width:100%;box-sizing:border-box;font:inherit;font-size:14px;border:1.5px solid #C9DFF3;border-radius:10px;padding:8px 10px;min-height:70px;');
+        inp.maxLength = 800; inp.value = d.note || '';
+        var row = el('div', 'display:flex;gap:8px;margin-top:8px;');
+        var sv = btn('Save'), cn = btn('Cancel', 'quiet');
+        sv.onclick = function () {
+          sv.disabled = true;
+          api('/chat/welcome', { body: { groupId: chatGroupId(), note: inp.value, id: chat.ctx.meId, token: token() } }).then(function (r) {
+            if (r && r.status === 'ok') { welcomeBox.style.display = 'none'; say(note, r.note ? 'Welcome message saved.' : 'Welcome message removed.'); } else { sv.disabled = false; say(note, (r && r.message) || 'That did not save.', true); }
+          }).catch(function () { sv.disabled = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
+        };
+        cn.onclick = function () { welcomeBox.style.display = 'none'; };
+        row.appendChild(sv); row.appendChild(cn);
+        welcomeBox.appendChild(inp); welcomeBox.appendChild(row); inp.focus();
+      }).catch(function () { welBtn.disabled = false; });
+    };
+    function add(list, atTop) {
+      if (empty.parentNode) empty.remove();
+      var nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
+      if (atTop) {
+        var h0 = feed.scrollHeight;
+        list.slice().reverse().forEach(function (m) { feed.insertBefore(chatRow(m), feed.firstChild); });
+        feed.scrollTop = feed.scrollHeight - h0;
+      } else {
+        list.forEach(function (m) {
+          var have = feed.querySelector('[data-mid="' + m.id + '"]');
+          if (have) have.replaceWith(chatRow(m)); else feed.appendChild(chatRow(m));
+        });
+        if (nearBottom || list.some(function (m) { return m.mine; })) feed.scrollTop = feed.scrollHeight;
+      }
+      list.forEach(function (m) { if (m.id > chat.last) chat.last = m.id; if (!chat.first || m.id < chat.first) chat.first = m.id; });
+    }
+    older.onclick = function () {
+      older.textContent = 'Loading…';
+      api('/chat/open', { body: { groupId: chatGroupId(), before: chat.first, id: chat.ctx.meId, token: token() } }).then(function (d) {
+        older.textContent = 'Show earlier messages';
+        if (!d || d.status !== 'ok' || !d.allowed) return;
+        add(d.messages, true);
+        older.style.display = d.more ? '' : 'none';
+      }).catch(function () { older.textContent = 'Show earlier messages'; });
+    };
+    send.onclick = function () {
+      var text = ta.value.trim();
+      if (!text) return;
+      send.disabled = true; ta.readOnly = true; say(note, 'Sending…');
+      api('/chat/send', { body: { groupId: chatGroupId(), body: text, id: chat.ctx.meId, token: token() } }).then(function (d) {
+        send.disabled = false; ta.readOnly = false;
+        if (!d || d.status !== 'ok' || !d.sent) { say(note, (d && d.message) || 'That did not go through.', true); return; }
+        ta.value = ''; say(note, ''); add([d.message]); ta.focus();
+      }).catch(function () { send.disabled = false; ta.readOnly = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
+    };
+    say(note, 'Opening the chat…');
+    api('/chat/open', { body: { groupId: chatGroupId(), id: chat.ctx.meId, token: token() } }).then(function (d) {
+      if (again(d)) return start().then(chatDraw);
+      say(note, '');
+      if (!d || d.status !== 'ok') { empty.textContent = (d && d.message) || 'The chat did not open. Reload the page to try again.'; return; }
+      if (!d.allowed) { empty.textContent = d.reason === 'chat-off' ? 'The host has turned the group chat off.' : 'The chat is for people in this group.'; bar.style.display = 'none'; muteBtn.style.display = 'none'; return; }
+      chat.role = d.role || '';
+      muted = !!d.muted; paintMute(); paintPin(d.pin); paintWelcome(d.welcome);
+      welBtn.style.display = isHostNow() ? '' : 'none';
+      if (!d.messages.length) empty.textContent = 'No messages yet. Say hello.';
+      else add(d.messages);
+      feed.scrollTop = feed.scrollHeight;
+      older.style.display = d.more ? '' : 'none';
+      chatBadge(0, true);
+      chatStop(); chat.open = true;
+      chat.poll = setInterval(function () {
+        if (document.hidden || !chat.open) return;
+        fetch(API + '/chat/new?group=' + encodeURIComponent(chatGroupId()) + '&after=' + chat.last, { headers: { 'x-msg-session': session } })
+          .then(function (r) { return r.json().then(function (x) { x._http = r.status; return x; }); })
+          .then(function (x) {
+            if (x && x._http === 409) { api('/chat/warm', { body: { groupId: chatGroupId(), id: chat.ctx.meId, token: token() } }).catch(function () {}); return; }
+            if (x && x.status === 'ok') { if (x.messages.length) add(x.messages); paintPin(x.pin); }
+          }).catch(function () {});
+      }, 20000);
+    }).catch(function () { say(note, ''); empty.textContent = 'The chat did not open. Reload the page to try again.'; });
+  }
+  window.cwGroupWelcome = {
+    call: function (meId, tok, path, body) {
+      var MSG = API, k = 'cw-msg-session-' + String(meId || '');
+      var sess = function () {
+        try { var kept = sessionStorage.getItem(k) || ''; if (kept && parseInt(kept.split('.')[1] || '0', 10) > Date.now() + 60000) return Promise.resolve(kept); } catch (e) {}
+        return fetch(MSG + '/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: meId, token: devAs || tok }) })
+          .then(function (x) { return x.json(); })
+          .then(function (d) { if (!d || d.status !== 'ok') throw new Error('no'); try { sessionStorage.setItem(k, d.session); } catch (e) {} return d.session; });
+      };
+      return sess().then(function (sk) {
+        return fetch(MSG + path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', 'x-msg-session': sk }, body: body ? JSON.stringify(body) : undefined }).then(function (x) { return x.json(); });
+      });
+    },
+    get: function (meId, tok, groupId) { return this.call(meId, tok, '/chat/welcome?group=' + encodeURIComponent(groupId)); },
+    save: function (meId, tok, groupId, note) { return this.call(meId, tok, '/chat/welcome', { groupId: groupId, note: note, id: meId, token: devAs || tok }); }
+  };
+
+  window.cwGroupChat = {
+    init: function (c) {
+      chat.ctx = c;
+      if (!ctx) ctx = c;
+      var k = keptSession();
+      if (k) {
+        session = session || k; me = me || k.split('.')[0];
+        api('/chat/warm', { body: { groupId: String(c.groupId || ''), id: c.meId, token: c.token ? c.token() : '' } }).catch(function () {});
+        fetch(API + '/chat/unread?group=' + encodeURIComponent(String(c.groupId || '')), { headers: { 'x-msg-session': session } })
+          .then(function (r) { return r.json(); }).then(function (d) { if (d && d.status === 'ok') chatBadge(d.unread, d.muted); }).catch(function () {});
+      }
+      if (window._gpView === 'chat' && !chat.box) this.open();
+    },
+    open: function () {
+      if (!chat.ctx) return;
+      if (!ctx) ctx = chat.ctx;
+      chat.box = document.getElementById(chat.ctx.chatBoxId || 'gp-chat');
+      if (!chat.box) return;
+      chat.box.innerHTML = '';
+      var w = el('div', 'font-size:14px;color:#4B5A6D;', 'Opening the chat…');
+      chat.box.appendChild(w);
+      start().then(function (ok) {
+        if (!ok) { say(w, 'Sign in again to see the chat.', true); return; }
+        return api('/prefs').then(function (d) { if (d && d.status === 'ok') enterSends = d.enterSends; }).catch(function () {}).then(chatDraw);
+      }).catch(function () { say(w, 'The chat did not open. Reload the page to try again.', true); });
+    },
+    close: chatStop
+  };
+
   window.cwGroupMessages = {
     init: function (c) {
       ctx = c;

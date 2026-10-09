@@ -109,6 +109,7 @@
   <script src="/nav/identity.js?v=29"></script>
   <script src="/nav/category-tree.js?v=7"></script>
   <script src="/groups/interests-form.js?v=25"></script>
+  <script src="/group/messages.js?v=4"></script>
 </head>
 <body>
 <div class="wrap">
@@ -195,6 +196,19 @@ We translate self-promotion to collaboration.</textarea>
       <div class="chip" data-caninvite="off">No</div>
     </div>
 
+    <div class="q">Group chat</div>
+    <p class="help">One shared conversation for everyone in the group, on its own screen. Members only. You can turn it on or off later.</p>
+    <div class="chip-row" id="f-groupchat">
+      <div class="chip" data-groupchat="on">Yes</div>
+      <div class="chip on" data-groupchat="off">No</div>
+    </div>
+
+    <div id="f-welcome-wrap" style="display:none;">
+      <div class="q">Welcome message (optional)</div>
+      <p class="help">Pinned at the top of the chat. Each person sees it once, when they first open the chat, and then it goes away for them. You can change it later from the chat.</p>
+      <textarea id="f-welcome" maxlength="800" rows="3" placeholder="Example: Welcome! Say hello, and keep it kind."></textarea>
+    </div>
+
     <div class="q">Can members message each other?</div>
     <p class="help">Members can always message you and your co-hosts. With Yes, members can also message each other, and each person can turn that off for themselves in their Group settings.</p>
     <div class="chip-row" id="f-membermsg">
@@ -225,6 +239,13 @@ We translate self-promotion to collaboration.</textarea>
     t.addEventListener('click', function(){
       document.querySelectorAll('#f-caninvite [data-caninvite]').forEach(function(x){ x.classList.remove('on'); });
       t.classList.add('on');
+    });
+  });
+  document.querySelectorAll('#f-groupchat [data-groupchat]').forEach(function(t){
+    t.addEventListener('click', function(){
+      document.querySelectorAll('#f-groupchat [data-groupchat]').forEach(function(x){ x.classList.remove('on'); });
+      t.classList.add('on');
+      document.getElementById('f-welcome-wrap').style.display = t.getAttribute('data-groupchat') === 'on' ? '' : 'none';
     });
   });
   document.querySelectorAll('#f-membermsg [data-membermsg]').forEach(function(t){
@@ -584,6 +605,8 @@ We translate self-promotion to collaboration.</textarea>
           ((document.querySelector('#f-caninvite [data-caninvite].on') || {}).getAttribute
             ? document.querySelector('#f-caninvite [data-caninvite].on').getAttribute('data-caninvite')
             : 'off') === 'on' ? 'true' : 'false')
+      + '&chat=' + (((document.querySelector('#f-groupchat [data-groupchat].on') || {}).getAttribute
+            ? document.querySelector('#f-groupchat [data-groupchat].on').getAttribute('data-groupchat') : 'off') === 'on' ? 'true' : '')
       + '&memberMessaging=' + (((document.querySelector('#f-membermsg [data-membermsg].on') || {}).getAttribute
             ? document.querySelector('#f-membermsg [data-membermsg].on').getAttribute('data-membermsg') : 'off') === 'on' ? 'true' : '')
       + '&joinNeedsApproval=' + ((document.getElementById('f-approve') || {}).checked ? 'true' : '')
@@ -605,6 +628,10 @@ We translate self-promotion to collaboration.</textarea>
       .then(function(d){
         if (d && d.status === 'ok' && d.groupId) {
           var nextUrl = 'https://2gather.network/groups/invite?id=' + encodeURIComponent(d.groupId);
+          var _welcomeText = (((document.querySelector('#f-groupchat [data-groupchat].on') || {}).getAttribute('data-groupchat') === 'on') ? (document.getElementById('f-welcome').value || '').trim() : '');
+          var _welcomeSave = _welcomeText && window.cwGroupWelcome
+            ? window.cwGroupWelcome.save(meId, _groupToken(), String(d.groupId), _welcomeText).catch(function(){})
+            : Promise.resolve();
           if (_groupPhotoBlob) {
             showStatus('ok', 'Group made. Sending the picture\u2026');
             var _cuDone = false;
@@ -628,10 +655,11 @@ We translate self-promotion to collaboration.</textarea>
                 }
               })
               .catch(function(){})
-              .then(function(){ _cuDone = true; window.location.href = nextUrl; });
+              .then(function(){ _cuDone = true; return _welcomeSave; })
+              .then(function(){ window.location.href = nextUrl; });
             return;
           }
-          window.location.href = nextUrl;
+          _welcomeSave.then(function(){ window.location.href = nextUrl; });
         } else {
           submitBtn.disabled = false; _cfSent = false;
           showStatus('err', (d && d.message) ? d.message : UNSURE_MADE);

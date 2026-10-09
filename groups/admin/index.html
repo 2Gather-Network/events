@@ -105,7 +105,7 @@
   <script src="/group/offer-count.js?v=1"></script>
   <script src="/nav/category-tree.js?v=7"></script>
   <script src="/groups/interests-form.js?v=25"></script>
-  <script src="/group/messages.js?v=2"></script>
+  <script src="/group/messages.js?v=4"></script>
 <script src="/nav/waiting-words.js?v=11"></script>
 </head>
 <body>
@@ -135,6 +135,10 @@
           <div class="q" style="margin-top:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Messages</div>
           <div id="mem-messages-off" class="lede" style="font-size:13.5px;margin:0 0 10px;display:none;">This group's host has not turned on messages between members yet. You can message the host and co-hosts from the Messages tab.</div>
           <div id="mem-messages" style="display:none;"></div>
+          <div id="mem-chat-wrap" style="display:none;">
+            <div class="q" style="margin-top:26px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Group chat</div>
+            <div id="mem-chat"></div>
+          </div>
           <div class="q" style="margin-top:26px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Writing</div>
           <div id="mem-typing" style="display:none;"></div>
           <div class="q" style="margin-top:26px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Email</div>
@@ -398,6 +402,19 @@
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <div class="tab" data-caninvite="on">Yes</div>
         <div class="tab" data-caninvite="off">No</div>
+      </div>
+
+      <div class="q">Group chat</div>
+      <p class="lede" style="font-size:13.5px;">One shared conversation for everyone in the group, on its own screen. Members only. Turning it off hides it and deletes nothing.</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <div class="tab" data-groupchat="on">Yes</div>
+        <div class="tab" data-groupchat="off">No</div>
+      </div>
+
+      <div id="e-welcome-wrap" style="display:none;">
+        <div class="q">Welcome message</div>
+        <p class="lede" style="font-size:13.5px;">Pinned at the top of the chat. Each person sees it once, when they first open the chat, and then it goes away for them. If you change it, only people who have not seen it yet will see the new one.</p>
+        <textarea id="e-welcome" maxlength="800" rows="3" placeholder="Example: Welcome! Say hello, and keep it kind."></textarea>
       </div>
 
       <div class="q">Can members message each other?</div>
@@ -828,6 +845,8 @@
         })();
         (function(){ var hv = String(g.hostVisibility || 'everyone').toLowerCase(); var r = document.querySelector('input[name="e-hostvis"][value="' + (hv === 'signedin' || hv === 'members' ? hv : 'everyone') + '"]'); if (r) r.checked = true; })();
         (function(){ var ap = document.getElementById('e-approve'); if (ap) ap.checked = (g.joinNeedsApproval === true || String(g.joinNeedsApproval).toLowerCase() === 'true'); })();
+        (function(){ var gc = (g.chat === true || String(g.chat).toLowerCase() === 'true') ? 'on' : 'off'; document.querySelectorAll('[data-groupchat]').forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-groupchat') === gc); }); })();
+        (function(){ _eWelcomeShow(); _eWelcomeLoad(String(g.groupId || groupId)); })();
         (function(){ var mm = (g.memberMessaging === true || String(g.memberMessaging).toLowerCase() === 'true') ? 'on' : 'off'; document.querySelectorAll('[data-membermsg]').forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-membermsg') === mm); }); })();
         var _ciRaw = String(g.membersCanInvite || '').trim().toLowerCase();
         var ci = (_ciRaw === 'true') ? 'on' : 'off';
@@ -1176,6 +1195,44 @@
         });
         bb.style.display = '';
       };
+      (function(){
+        var wrap = document.getElementById('mem-chat-wrap'), cb = document.getElementById('mem-chat');
+        var chatOn = (g.chat === true || String(g.chat).toLowerCase() === 'true');
+        if (!wrap || !cb || !chatOn) return;
+        var gidc = String(g.groupId || groupId);
+        var st2 = document.createElement('div'); st2.className = 'status';
+        var cur2 = { muted: false, summary: false };
+        var rows = {};
+        var mk = function(key, title, help, labels){
+          var q = document.createElement('div'); q.className = 'q'; q.style.marginTop = '6px'; q.textContent = title; cb.appendChild(q);
+          var h = document.createElement('p'); h.className = 'lede'; h.style.fontSize = '13.5px'; h.textContent = help; cb.appendChild(h);
+          var r = document.createElement('div'); r.setAttribute('style', 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;'); cb.appendChild(r);
+          rows[key] = { r: r, labels: labels };
+        };
+        var paint = function(){
+          Object.keys(rows).forEach(function(key){
+            var r = rows[key].r; r.innerHTML = '';
+            [[true, rows[key].labels[0]], [false, rows[key].labels[1]]].forEach(function(o){
+              var t = document.createElement('div'); t.className = 'tab' + (cur2[key] === o[0] ? ' on' : ''); t.textContent = o[1];
+              t.addEventListener('click', function(){
+                if (cur2[key] === o[0]) return;
+                var body = { groupId: gidc, id: meId, token: ptok() }; body[key] = o[0];
+                st2.className = 'status ok'; st2.textContent = 'Saving\u2026';
+                call('/chat/prefs', body).then(function(d){
+                  if (d && d.status === 'ok') { cur2.muted = d.muted; cur2.summary = d.summary; paint(); st2.className = 'status ok'; st2.textContent = 'Saved.'; return; }
+                  st2.className = 'status err'; st2.textContent = (d && d.message) || 'That did not save. Choose again to try once more.';
+                }).catch(function(){ st2.className = 'status err'; st2.textContent = 'That did not reach the server. Choose again to try once more.'; });
+              });
+              r.appendChild(t);
+            });
+          });
+        };
+        mk('muted', 'Mute ' + g.name + ' chat', 'Muted: the rail stops counting new chat messages. You can still open and read the chat.', ['Muted', 'Not muted']);
+        mk('summary', 'Email me a summary of the chat once a day', 'At most one email a day, only on days with messages you have not read. Never the messages themselves.', ['Yes', 'No']);
+        cb.appendChild(st2);
+        wrap.style.display = '';
+        call('/chat/prefs?group=' + encodeURIComponent(gidc)).then(function(d){ if (d && d.status === 'ok') { cur2.muted = d.muted; cur2.summary = d.summary; } paint(); }).catch(function(){ paint(); });
+      })();
       call('/blocks').then(function(d){ drawBlocks((d && d.status === 'ok' && d.blocks) || []); }).catch(function(){ if (bb) { bb.innerHTML = ''; var n = document.createElement('p'); n.className = 'lede'; n.style.cssText = 'font-size:13.5px;margin:0;'; n.textContent = 'Your muted list could not be read just now. Reload to try again.'; bb.appendChild(n); bb.style.display = ''; } });
       call('/prefs').then(function(d){
         if (!d || d.status !== 'ok') throw new Error('no');
@@ -1438,11 +1495,28 @@
     }
   } catch (e) {}
 
-  ['data-caninvite', 'data-succession', 'data-membermsg'].forEach(function(attr){
+  var _eWelcomeSaved = null;
+  function _eWelcomeOn(){ var t = document.querySelector('[data-groupchat].on'); return !!t && t.getAttribute('data-groupchat') === 'on'; }
+  function _eWelcomeShow(){ var w = document.getElementById('e-welcome-wrap'); if (w) w.style.display = _eWelcomeOn() ? '' : 'none'; }
+  function _eWelcomeLoad(gid){
+    if (!window.cwGroupWelcome || !_eWelcomeOn()) return;
+    window.cwGroupWelcome.get(meId, getToken() || '', gid).then(function(d){
+      if (d && d.status === 'ok') { _eWelcomeSaved = d.note || ''; document.getElementById('e-welcome').value = _eWelcomeSaved; }
+    }).catch(function(){});
+  }
+  function _eWelcomeSave(){
+    var el = document.getElementById('e-welcome');
+    if (!window.cwGroupWelcome || !el || !_eWelcomeOn() || _eWelcomeSaved === null) return;
+    var v = el.value.trim();
+    if (v === _eWelcomeSaved.trim()) return;
+    window.cwGroupWelcome.save(meId, getToken() || '', String(groupId), v).then(function(d){ if (d && d.status === 'ok') _eWelcomeSaved = d.note || ''; }).catch(function(){});
+  }
+  ['data-caninvite', 'data-succession', 'data-membermsg', 'data-groupchat'].forEach(function(attr){
     document.querySelectorAll('[' + attr + ']').forEach(function(t){
       t.addEventListener('click', function(){
         document.querySelectorAll('[' + attr + ']').forEach(function(x){ x.classList.remove('on'); });
         t.classList.add('on');
+        if (attr === 'data-groupchat') _eWelcomeShow();
       });
     });
   });
@@ -2305,7 +2379,9 @@
       membersCanInvite: ((document.querySelector('[data-caninvite].on') || {}).getAttribute
         ? document.querySelector('[data-caninvite].on').getAttribute('data-caninvite') : 'off') === 'on' ? 'true' : 'false',
       memberMessaging: ((document.querySelector('[data-membermsg].on') || {}).getAttribute
-        ? document.querySelector('[data-membermsg].on').getAttribute('data-membermsg') : 'off') === 'on' ? 'true' : ''
+        ? document.querySelector('[data-membermsg].on').getAttribute('data-membermsg') : 'off') === 'on' ? 'true' : '',
+      chat: ((document.querySelector('[data-groupchat].on') || {}).getAttribute
+        ? document.querySelector('[data-groupchat].on').getAttribute('data-groupchat') : 'off') === 'on' ? 'true' : ''
     };
   }
   var _infoWas = null, _infoReady = false;
@@ -2345,6 +2421,7 @@
       .then(function(d){
         btn.disabled = false;
         if (d && d.status === 'ok') {
+          _eWelcomeSave();
           _infoMark();
           try { localStorage.setItem('cw-gp-member-changed-' + groupId, String(Date.now())); } catch (e) {}
           try { localStorage.removeItem('cw-gadmin-' + String(groupId || '') + '-' + String(meId || '')); } catch (e) {}
