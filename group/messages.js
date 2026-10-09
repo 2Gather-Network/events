@@ -55,8 +55,12 @@
     return b;
   }
   function gatherLink() {
-    var a = el('a', 'font:inherit;font-size:14px;font-weight:700;border-radius:22px;padding:8px 18px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;text-decoration:none;display:inline-block;', 'Gather');
-    a.href = '/commons/';
+    var a = el('a', 'display:inline-flex;align-items:center;gap:7px;background:#1F699E;color:#fff;font-size:14px;font-weight:700;padding:9px 18px;border-radius:22px;text-decoration:none;margin-left:auto;flex-shrink:0;white-space:nowrap;order:99;', '');
+    var ic = el('span', 'font-size:18px;line-height:1;', '\u2600\uFE0E');
+    ic.setAttribute('aria-hidden', 'true');
+    a.appendChild(ic);
+    a.appendChild(document.createTextNode(' Gather'));
+    a.href = 'https://2gather.network/commons/';
     return a;
   }
   var SCROLL_TEST = false;
@@ -172,10 +176,8 @@
     box.innerHTML = '';
     var head = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;');
     if (title === 'Messages') {
-      var lead = el('div', 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;');
-      lead.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', title));
-      lead.appendChild(gatherLink());
-      head.appendChild(lead);
+      head.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', title));
+      head.appendChild(gatherLink());
     } else head.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', title));
     box.appendChild(head);
     return head;
@@ -564,16 +566,14 @@
     var gname = chat.ctx.groupName() || 'This group';
     var head = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;');
     var titleBox = el('div', '');
-    var titleRow = el('div', 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;');
-    titleRow.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', gname + ' Group Chat'));
-    titleRow.appendChild(gatherLink());
-    titleBox.appendChild(titleRow);
+    titleBox.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', gname + ' Group Chat'));
     head.appendChild(titleBox);
     var muteBtn = el('button', 'width:40px;height:40px;border-radius:50%;border:1.5px solid #DDE4EE;background:#fff;color:#4B5A6D;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;', '');
     muteBtn.type = 'button';
     var headBtns = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
     headBtns.appendChild(muteBtn);
     head.appendChild(headBtns);
+    head.appendChild(gatherLink());
     box.appendChild(head);
     var welcomeBox = el('div', 'display:none;background:#E6F1FB;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;color:#1A2E42;margin-bottom:10px;');
     box.appendChild(welcomeBox);
