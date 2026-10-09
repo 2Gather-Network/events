@@ -59,6 +59,46 @@
     a.href = '/commons/';
     return a;
   }
+  var SCROLL_TEST = false;
+  try { SCROLL_TEST = new URLSearchParams(location.search).get('scroll') === '1'; } catch (e) {}
+  function scrollKit(box) {
+    if (!SCROLL_TEST || !box.parentNode) return null;
+    box.style.maxHeight = 'none';
+    box.style.height = 'calc(100dvh - 340px)';
+    box.style.minHeight = '240px';
+    box.style.overscrollBehavior = 'contain';
+    box.style.overflowAnchor = 'none';
+    box.style.webkitOverflowScrolling = 'touch';
+    var wrap = el('div', 'position:relative;');
+    box.parentNode.insertBefore(wrap, box);
+    wrap.appendChild(box);
+    var pill = el('button', 'position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:none;font:inherit;font-size:13.5px;font-weight:700;background:#1F699E;color:#fff;border:0;border-radius:20px;padding:7px 16px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.22);', 'Latest messages');
+    pill.type = 'button';
+    wrap.appendChild(pill);
+    var kit = {
+      near: function () { return box.scrollHeight - box.scrollTop - box.clientHeight < 80; },
+      bottom: function () { box.scrollTop = box.scrollHeight; pill.style.display = 'none'; },
+      pill: function () { pill.style.display = 'block'; }
+    };
+    pill.onclick = function () { kit.bottom(); };
+    box.addEventListener('scroll', function () { if (kit.near()) pill.style.display = 'none'; }, { passive: true });
+    box.addEventListener('load', function () { if (box._stuck) kit.bottom(); }, true);
+    try {
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', function () { if (kit.near() || box._stuck) kit.bottom(); });
+    } catch (e) {}
+    return kit;
+  }
+  function photoCircle(src, size) {
+    var c = el('div', 'width:' + size + 'px;height:' + size + 'px;border-radius:50%;flex:none;overflow:hidden;background:linear-gradient(135deg,#C9DFF3,#7FB6E2);');
+    if (src && String(src).indexOf('https://cw-photos.jessieupp.workers.dev/') === 0) {
+      var im = document.createElement('img');
+      im.alt = ''; im.width = size; im.height = size; im.loading = 'lazy';
+      im.setAttribute('style', 'width:' + size + 'px;height:' + size + 'px;border-radius:50%;object-fit:cover;display:block;');
+      im.onerror = function () { if (im.parentNode) im.parentNode.removeChild(im); };
+      c.appendChild(im); im.src = src;
+    }
+    return c;
+  }
   function waitPill(text) {
     var p = document.createElement('span');
     p.className = 'cw-loading';
@@ -177,8 +217,7 @@
         row.addEventListener('mouseenter', on); row.addEventListener('mouseleave', off);
         row.addEventListener('focus', on); row.addEventListener('blur', off);
         var nm = t.other.name || 'Someone';
-        var initials = nm.split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('') || '?';
-        row.appendChild(el('div', 'width:44px;height:44px;border-radius:50%;flex:none;background:linear-gradient(135deg,#C9DFF3,#7FB6E2);color:#1A2E42;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;', initials));
+        row.appendChild(photoCircle(t.other.photo, 44));
         var txt = el('div', 'flex:1;min-width:0;');
         var top = el('div', 'display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;');
         top.appendChild(el('b', 'font-size:16px;color:#1A2E42;' + (t.unread ? '' : 'font-weight:700;'), nm));
@@ -347,6 +386,7 @@
     box.appendChild(asks);
     var msgs = el('div', 'display:flex;flex-direction:column;max-height:460px;overflow:auto;padding-right:4px;min-height:80px;');
     box.appendChild(msgs);
+    var sk = scrollKit(msgs);
     var bar = el('div', 'display:flex;gap:8px;margin-top:14px;align-items:flex-end;');
     var ta = el('textarea', 'flex:1;min-width:0;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:18px;padding:9px 14px;min-height:42px;resize:vertical;');
     ta.placeholder = 'Write a reply';
@@ -359,7 +399,7 @@
     box.appendChild(bar);
     var note = el('div', 'font-size:14px;font-weight:700;margin-top:6px;');
     box.appendChild(note);
-    var seen = -1;
+    var seen = '';
     function load(first) {
       return api('/thread?id=' + encodeURIComponent(id)).then(function (d) {
         if (openId !== id) return;
@@ -400,15 +440,19 @@
         else if (refused) say(note, 'This did not go through. Not taking messages through this group right now.', true);
         else if (closed) say(note, 'This conversation is closed.', true);
         else if (note.textContent.indexOf('Waiting') === 0) say(note, '');
-        if (d.messages.length === seen) return;
-        seen = d.messages.length;
+        var photoKey = d.messages.length + '|' + (t.myPhoto || '') + '|' + ((t.other && t.other.photo) || '');
+        if (photoKey === seen) return;
+        seen = photoKey;
+        var firstDraw = !msgs.firstChild;
+        var wasNear = sk ? sk.near() : true;
+        var lastMine = d.messages.length && d.messages[d.messages.length - 1].mine;
+        var keepTop = msgs.scrollTop;
         msgs.innerHTML = '';
         var otherName = (t.other && t.other.name) || 'Someone';
         d.messages.forEach(function (m) {
           var row = el('div', 'display:flex;gap:10px;align-items:flex-start;padding:6px 0;');
           var nameShown = m.mine ? 'You' : otherName;
-          var ini = nameShown.split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('') || '?';
-          row.appendChild(el('div', 'width:32px;height:32px;border-radius:50%;flex:none;background:linear-gradient(135deg,#C9DFF3,#7FB6E2);color:#1A2E42;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;', ini));
+          row.appendChild(photoCircle(m.mine ? t.myPhoto : (t.other && t.other.photo), 32));
           var mb = el('div', 'min-width:0;flex:1;');
           var who = el('div', 'font-size:13.5px;font-weight:800;color:#1A2E42;', nameShown);
           who.appendChild(el('span', 'font-weight:600;color:#6B7A8D;margin-left:6px;font-size:12.5px;', when(m.at)));
@@ -418,7 +462,10 @@
           row.title = new Date(m.at).toLocaleString();
           msgs.appendChild(row);
         });
-        msgs.scrollTop = msgs.scrollHeight;
+        if (sk) {
+          if (firstDraw || wasNear || lastMine) { sk.bottom(); msgs._stuck = true; }
+          else { msgs.scrollTop = keepTop; msgs._stuck = false; sk.pill(); }
+        } else msgs.scrollTop = msgs.scrollHeight;
         if (!first) return;
         tileRefresh();
       }).catch(function () { if (first) say(sub, 'This conversation did not load. Reload the page to try again.', true); });
@@ -537,6 +584,7 @@
     box.appendChild(older);
     var feed = el('div', 'display:flex;flex-direction:column;max-height:460px;overflow:auto;padding-right:4px;');
     box.appendChild(feed);
+    var fk = scrollKit(feed);
     var empty = el('div', 'font-size:14px;color:#4B5A6D;padding:8px 0;', '');
     empty.appendChild(waitPill('Opening the chat…'));
     feed.appendChild(empty);
@@ -653,7 +701,8 @@
           var have = feed.querySelector('[data-mid="' + m.id + '"]');
           if (have) have.replaceWith(chatRow(m)); else feed.appendChild(chatRow(m));
         });
-        if (nearBottom || list.some(function (m) { return m.mine; })) feed.scrollTop = feed.scrollHeight;
+        if (nearBottom || list.some(function (m) { return m.mine; })) { feed.scrollTop = feed.scrollHeight; if (fk) { feed._stuck = true; fk.bottom(); } }
+        else if (fk && list.length) { feed._stuck = false; fk.pill(); }
       }
       list.forEach(function (m) { if (m.id > chat.last) chat.last = m.id; if (!chat.first || m.id < chat.first) chat.first = m.id; });
     }
