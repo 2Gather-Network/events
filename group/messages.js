@@ -398,6 +398,11 @@
     var pick1 = choiceCard();
     if (pick1) box.appendChild(pick1);
     bar.appendChild(ta); bar.appendChild(send);
+    if (SCROLL_TEST) {
+      bar.style.flexDirection = 'column'; bar.style.alignItems = 'stretch';
+      ta.style.flex = 'none'; ta.style.width = '100%'; ta.style.boxSizing = 'border-box'; ta.style.minHeight = '112px'; ta.style.fontSize = '16px';
+      send.style.alignSelf = 'flex-end';
+    }
     box.appendChild(bar);
     var note = el('div', 'font-size:14px;font-weight:700;margin-top:6px;');
     box.appendChild(note);
@@ -596,6 +601,11 @@
     var pick = choiceCard();
     if (pick) box.appendChild(pick);
     bar.appendChild(ta); bar.appendChild(send);
+    if (SCROLL_TEST) {
+      bar.style.flexDirection = 'column'; bar.style.alignItems = 'stretch';
+      ta.style.flex = 'none'; ta.style.width = '100%'; ta.style.boxSizing = 'border-box'; ta.style.minHeight = '112px'; ta.style.fontSize = '16px';
+      send.style.alignSelf = 'flex-end';
+    }
     box.appendChild(bar);
     var note = el('div', 'font-size:14px;font-weight:700;margin-top:6px;');
     box.appendChild(note);
