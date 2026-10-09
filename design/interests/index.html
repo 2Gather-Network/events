@@ -1354,10 +1354,20 @@
       });
       c.appendChild(fb);
     }
+    var isPend = st.pend === lc(m.word);
+    var endPend = function(){ if (st.pend === lc(m.word)) { st.pend = ''; st.joyNote = ''; st.lastPicked = lc(m.word); } };
+    var pendCancel = function(row){
+      if (!isPend) { return; }
+      var cx = el('button', 'btn ghost', 'Cancel'); cx.type = 'button'; cx.style.marginLeft = '10px';
+      cx.addEventListener('click', function(){ st.pend = ''; st.joyNote = ''; var i = mineIx(m.word); if (i > -1) { dropMine(i); } toParent({ ao: 'dropword', word: m.word }); drawAll(); });
+      row.appendChild(cx);
+    };
     if (mCatEl && st.tagOpen && st.tagOpen[lc(m.word)]) {
-      c.appendChild(tagBox(m, function(){ st.tagOpen[lc(m.word)] = false; drawCards(); }, function(){
+      var tbx = tagBox(m, function(){ st.tagOpen[lc(m.word)] = false; endPend(); drawCards(); }, function(){
         var cl2 = catListOf(m.word); fillCats(mCatEl, cl2, 'Missing category'); mCatEl.className = cl2.length ? 'catlink' : 'misscat';
-      }));
+      });
+      var tdr = tbx.querySelector('.cwtp-done'); if (tdr) { pendCancel(tdr); }
+      c.appendChild(tbx);
       return c;
     }
     var sbm = subBox(m); if (sbm) { c.appendChild(sbm); }
@@ -1374,8 +1384,8 @@
     c.appendChild(pane);
     var mstrip = el('div', 'mstrip'); var mcs = csRows(mstrip, getA(m.word), m.word, function(a){ putA(m.word, a); }, el); if (window.parent !== window) { mcs.appendChild(csIcon(el)); } c.appendChild(mstrip);
     var row = el('div', 'cbtns'), dn = el('button', 'btn small', 'Done'); dn.type = 'button';
-    dn.addEventListener('click', function(){ st.more = ''; drawCards(); });
-    row.appendChild(dn); c.appendChild(row);
+    dn.addEventListener('click', function(){ st.more = ''; endPend(); drawCards(); });
+    row.appendChild(dn); pendCancel(row); c.appendChild(row);
     return c;
   }
   function wq(it){ return '\u201C' + String(it.word).replace(/^[^A-Za-z0-9]+/, '').trim().toLowerCase() + '\u201D'; }
@@ -1623,10 +1633,22 @@
     tools.appendChild(chips);
     return tools;
   }
+  function drawPend(){
+    var pb = els.pend; if (!pb) { return null; }
+    pb.innerHTML = '';
+    if (!st.pend) { return null; }
+    var pm = listItems().filter(function(m){ return lc(m.word) === st.pend; })[0];
+    if (!pm) { st.pend = ''; st.joyNote = ''; return null; }
+    if (st.joyNote) { var pn = el('p', 'addedmsg', st.joyNote); pn.setAttribute('role', 'status'); pb.appendChild(pn); }
+    pb.appendChild(moreView(pm));
+    return pm;
+  }
   function drawCards(){
      loadEmo(); 
     var box = els.cards; box.innerHTML = '';
-    if (!listItems().length) return;
+    var pendM = drawPend();
+    var allItems = function(){ return listItems().filter(function(m){ return m !== pendM; }); };
+    if (!allItems().length) return;
     var compact = isCompact();
     var vr = el('div', 'vrow'), vt = el('div', 'vtog');
     [[true, 'Compact cards'], [false, 'Full cards']].reverse().forEach(function(o){
@@ -1638,17 +1660,17 @@
     vr.appendChild(vt);
     var wrap = el('div', 'fold'), shut = !!st.cardsShut;
     var bar = el('button', 'foldbar'); bar.type = 'button'; bar.setAttribute('aria-expanded', shut ? 'false' : 'true');
-    bar.appendChild(el('span', '', 'Interests added (' + listItems().length + ')'));
+    bar.appendChild(el('span', '', 'Interests added (' + allItems().length + ')'));
     var ar = el('span', 'foldar', shut ? 'Expand \u25BC' : '\u25B2'); ar.setAttribute('aria-hidden', 'true'); bar.appendChild(ar);
     bar.addEventListener('click', function(){ st.cardsShut = !st.cardsShut; drawCards(); });
     wrap.appendChild(bar);
-    if (!shut && st.joyNote) { var jn = el('p', 'addedmsg', st.joyNote); jn.setAttribute('role', 'status'); wrap.appendChild(jn); }
+    if (!shut && st.joyNote && !pendM) { var jn = el('p', 'addedmsg', st.joyNote); jn.setAttribute('role', 'status'); wrap.appendChild(jn); }
     if (!shut) {
       var body = el('div', 'foldbody');
       if (!st.more) { body.appendChild(vr); }
       var g = el('div', compact ? 'cards cmlist' : 'cards');
       var open = st.openCard || {};
-      var list = listItems().slice(); 
+      var list = allItems(); 
         var lk = st.lkind || 'all', lq = lc(st.lq || '');
         if (lq) { list = list.filter(function(m){ return lc(m.word).indexOf(lq) > -1; }); }
          if (st.lsort === 'nocat') { list = list.filter(function(m){ return !catListOf(m.word).length; }); }
@@ -1667,7 +1689,7 @@
         return mb;
       };
       var topMore = st.more ? null : moreLink(); if (topMore) { body.insertBefore(topMore, body.children[1] || null); }
-      var moreM = st.more ? list.concat(listItems()).filter(function(m){ return lc(m.word) === st.more; })[0] : null;
+      var moreM = st.more ? list.concat(allItems()).filter(function(m){ return lc(m.word) === st.more; })[0] : null;
       if (moreM) { g.appendChild(moreView(moreM)); } else list.slice(0, cap).forEach(function(m){ g.appendChild(compact && !open[lc(m.word)] ? miniRow(m) : card(m)); });
       if (!st.more) { body.appendChild(listTools()); }
       body.appendChild(g);
@@ -1819,6 +1841,7 @@
     });
     els.search = s; app.appendChild(s);
      els.paste = el('div', ''); app.appendChild(els.paste); 
+    els.pend = el('div', 'pendwrap'); app.appendChild(els.pend);
     els.results = el('div', ''); els.browse = el('div', ''); els.cards = el('div', '');
     app.appendChild(els.results); app.appendChild(els.browse); app.appendChild(els.cards);
     if (PART) { document.body.classList.add('part-' + PART); }
@@ -1847,7 +1870,7 @@
     var k = lc(w);
     setCompact(false); st.openCard = {}; st.lkind = 'all'; st.lq = ''; st.lsort = 'new'; st.cardLimit = 12; st.cardsShut = false;
     st.lastPicked = k; try { sessionStorage.setItem('int-lastpick', k); } catch (x) {}
-    st.more = k; st.moreTab = 'enjoy';
+    st.more = ''; st.pend = k; st.moreTab = 'enjoy';
     st.joyNote = '\u201C' + w + '\u201D was added to your joys. Choose its category, then press Done.';
     if (!catListOf(w).length) { st.tagOpen = st.tagOpen || {}; st.tagOpen[k] = true; }
     toParent({ ao: 'openedword' });
