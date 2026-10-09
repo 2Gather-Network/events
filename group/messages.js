@@ -417,9 +417,7 @@
     var muteBtn = el('button', 'width:40px;height:40px;border-radius:50%;border:1.5px solid #DDE4EE;background:#fff;color:#4B5A6D;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;', '');
     muteBtn.type = 'button';
     var headBtns = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
-    var welBtn = btn('Welcome message', 'quiet');
-    welBtn.style.display = 'none';
-    headBtns.appendChild(welBtn); headBtns.appendChild(muteBtn);
+    headBtns.appendChild(muteBtn);
     head.appendChild(headBtns);
     box.appendChild(head);
     var welcomeBox = el('div', 'display:none;background:#E6F1FB;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;color:#1A2E42;margin-bottom:10px;');
@@ -515,29 +513,6 @@
       }).catch(function () { say(note, 'That did not reach the server. Try again in a moment.', true); });
     }
     chat.onPin = function (m) { setPin(m.id); };
-    welBtn.onclick = function () {
-      welBtn.disabled = true;
-      api('/chat/welcome?group=' + encodeURIComponent(chatGroupId()), { method: 'GET' }).then(function (d) {
-        welBtn.disabled = false;
-        if (!d || d.status !== 'ok') { say(note, (d && d.message) || 'That did not open.', true); return; }
-        welcomeBox.innerHTML = ''; welcomeBox.style.display = '';
-        welcomeBox.appendChild(el('div', 'font-size:12px;font-weight:800;color:#1F699E;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;', 'Welcome message'));
-        welcomeBox.appendChild(el('div', 'font-size:13px;color:#4B5A6D;margin-bottom:6px;', 'Each person sees this once, when they first open the chat, then it goes away for them. If you change it, only people who have not seen it yet will see the new one.'));
-        var inp = el('textarea', 'width:100%;box-sizing:border-box;font:inherit;font-size:14px;border:1.5px solid #C9DFF3;border-radius:10px;padding:8px 10px;min-height:70px;');
-        inp.maxLength = 800; inp.value = d.note || '';
-        var row = el('div', 'display:flex;gap:8px;margin-top:8px;');
-        var sv = btn('Save'), cn = btn('Cancel', 'quiet');
-        sv.onclick = function () {
-          sv.disabled = true;
-          api('/chat/welcome', { body: { groupId: chatGroupId(), note: inp.value, id: chat.ctx.meId, token: token() } }).then(function (r) {
-            if (r && r.status === 'ok') { welcomeBox.style.display = 'none'; say(note, r.note ? 'Welcome message saved.' : 'Welcome message removed.'); } else { sv.disabled = false; say(note, (r && r.message) || 'That did not save.', true); }
-          }).catch(function () { sv.disabled = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
-        };
-        cn.onclick = function () { welcomeBox.style.display = 'none'; };
-        row.appendChild(sv); row.appendChild(cn);
-        welcomeBox.appendChild(inp); welcomeBox.appendChild(row); inp.focus();
-      }).catch(function () { welBtn.disabled = false; });
-    };
     function add(list, atTop) {
       if (empty.parentNode) empty.remove();
       var nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
@@ -581,7 +556,6 @@
       if (!d.allowed) { empty.textContent = d.reason === 'chat-off' ? 'The host has turned the group chat off.' : 'The chat is for people in this group.'; bar.style.display = 'none'; muteBtn.style.display = 'none'; return; }
       chat.role = d.role || '';
       muted = !!d.muted; paintMute(); paintPin(d.pin); paintWelcome(d.welcome);
-      welBtn.style.display = isHostNow() ? '' : 'none';
       if (!d.messages.length) empty.textContent = 'No messages yet. Say hello.';
       else add(d.messages);
       feed.scrollTop = feed.scrollHeight;
