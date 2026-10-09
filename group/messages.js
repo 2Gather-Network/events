@@ -7,6 +7,40 @@
   } catch (e) {}
 
   var ctx = null, box = null, session = '', me = '', poll = null, openId = '';
+  var enterSends = null;
+
+  function typing(ta, send) {
+    ta.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Enter' || ev.shiftKey || ev.isComposing || enterSends !== true) return;
+      ev.preventDefault();
+      send.click();
+    });
+  }
+  function choiceCard() {
+    if (enterSends !== null) return null;
+    var c = el('div', 'border:1.5px solid #C9DFF3;background:#F7FBFF;border-radius:14px;padding:12px 14px;margin:0 0 12px;');
+    c.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin-bottom:4px;', 'What should Enter do when you write a message?'));
+    var row = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;');
+    var done = el('div', 'font-size:13px;color:#4B5A6D;line-height:1.45;');
+    [[true, 'Enter sends', 'Shift and Enter start a new line'], [false, 'Enter starts a new line', 'use the Send button to send']].forEach(function (o) {
+      var b = btn(o[1], o[0] ? '' : 'ghost');
+      b.title = o[2];
+      b.onclick = function () {
+        b.disabled = true;
+        api('/prefs', { body: { enterSends: o[0] } }).then(function (d) {
+          if (!d || d.status !== 'ok') { b.disabled = false; done.textContent = 'That did not save. Try again.'; return; }
+          enterSends = o[0];
+          c.innerHTML = '';
+          c.appendChild(el('div', 'font-size:14px;color:#1E6B3A;font-weight:700;', 'Saved. You can change this any time in your Group settings.'));
+          setTimeout(function () { if (c.parentNode) c.remove(); }, 6000);
+        }).catch(function () { b.disabled = false; done.textContent = 'That did not reach the server. Try again.'; });
+      };
+      row.appendChild(b);
+    });
+    done.textContent = 'Enter sends: Shift and Enter start a new line. Enter starts a new line: you use the Send button. You can change it later in Group settings.';
+    c.appendChild(row); c.appendChild(done);
+    return c;
+  }
 
   function el(tag, style, text) {
     var n = document.createElement(tag);
@@ -188,10 +222,13 @@
     var ta = el('textarea', 'width:100%;box-sizing:border-box;margin-top:12px;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:12px;padding:10px 12px;min-height:110px;resize:vertical;');
     ta.placeholder = 'Say hello, and what you would like to talk about';
     ta.maxLength = 2000;
+    var pick2 = choiceCard();
+    if (pick2) box.appendChild(pick2);
     box.appendChild(ta);
     box.appendChild(el('div', 'font-size:13px;color:#6B7A8D;margin-top:6px;line-height:1.45;', 'They see it as a request first and choose whether to reply. A host sees it straight away.'));
     var bar = el('div', 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;');
     var send = btn('Send');
+    typing(ta, send);
     var note = el('span', 'font-size:14px;font-weight:700;');
     bar.appendChild(send); bar.appendChild(note);
     box.appendChild(bar);
@@ -234,6 +271,9 @@
     ta.placeholder = 'Write a reply';
     ta.maxLength = 2000;
     var send = btn('Send');
+    typing(ta, send);
+    var pick1 = choiceCard();
+    if (pick1) box.appendChild(pick1);
     bar.appendChild(ta); bar.appendChild(send);
     box.appendChild(bar);
     var note = el('div', 'font-size:14px;font-weight:700;margin-top:6px;');
@@ -254,7 +294,7 @@
           var a = el('div', 'border:1.5px solid #C9DFF3;background:#F7FBFF;border-radius:14px;padding:12px 14px;margin-bottom:12px;');
           a.appendChild(el('div', 'font-size:14.5px;color:#1A2E42;margin-bottom:8px;', (t.other.name || 'Someone') + ' from ' + (t.groupName || 'this group') + ' wants to message you.'));
           var row = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
-          [['Accept', '', 'accept'], ['Decline', 'ghost', 'decline'], ['Block', 'quiet', 'block']].forEach(function (x) {
+          [['Accept', '', 'accept'], ['Decline', 'ghost', 'decline'], ['Mute', 'quiet', 'block']].forEach(function (x) {
             var b = btn(x[0], x[1]);
             b.onclick = function () {
               b.disabled = true;
@@ -266,7 +306,7 @@
             row.appendChild(b);
           });
           a.appendChild(row);
-          a.appendChild(el('div', 'font-size:12.5px;color:#6B7A8D;margin-top:8px;line-height:1.45;', 'Decline is quiet: they are not told why. Block stops them messaging you in every group.'));
+          a.appendChild(el('div', 'font-size:12.5px;color:#6B7A8D;margin-top:8px;line-height:1.45;', 'Decline is quiet: they are not told why. Mute stops them messaging you in any group. You can unmute them in your Settings.'));
           asks.appendChild(a);
         }
         var waiting = t.status === 'request' && t.iStarted;
@@ -337,14 +377,16 @@
     },
     open: function (to) {
       if (!ctx) return;
-      box = document.getElementById('gp-messages');
+      box = document.getElementById(ctx.boxId || 'gp-messages');
       if (!box) return;
       box.innerHTML = '';
       var w = el('div', 'font-size:14px;color:#4B5A6D;', 'Opening your messages…');
       box.appendChild(w);
       start().then(function (ok) {
         if (!ok) { say(w, 'Sign in again to see your messages.', true); return; }
-        if (to) drawNew(to); else drawList();
+        return api('/prefs').then(function (d) { if (d && d.status === 'ok') enterSends = d.enterSends; }).catch(function () {}).then(function () {
+          if (to) drawNew(to); else drawList();
+        });
       }).catch(function () { say(w, 'Your messages did not load. Reload the page to try again.', true); });
     },
     close: stopPoll

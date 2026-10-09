@@ -105,27 +105,51 @@
   <script src="/group/offer-count.js?v=1"></script>
   <script src="/nav/category-tree.js?v=7"></script>
   <script src="/groups/interests-form.js?v=21"></script>
+  <script src="/group/messages.js?v=2"></script>
 <script src="/nav/waiting-words.js?v=11"></script>
 </head>
 <body>
 <div class="wrap">
   <div class="breadcrumb"><a role="link" tabindex="0" id="crumb-mygroups" onclick="return _safeNavGo(this)" style="cursor:pointer;color:#fff;text-decoration:none;">My groups</a> / <a role="link" tabindex="0" id="crumb-back" onclick="return _safeNavGo(this)" style="cursor:pointer;color:#fff;text-decoration:none;">Group</a> / <span class="now">Manage</span></div>
 
-  <div id="stage-member" class="card hidden">
+  <div id="stage-member" class="hidden">
     <h1 id="mem-title" style="display:none;"></h1>
-
-    <div id="mem-hosts"></div>
-
-    <div id="mem-invite" style="margin-top:26px;padding-top:8px;display:none;"></div>
-
-    <div id="mem-messages" style="margin-top:26px;padding-top:8px;display:none;"></div>
-
-    <div style="margin-top:26px;padding-top:8px;">
-      <div class="q" id="mem-leave-q">Leave this group</div>
-      <p class="lede" style="font-size:13.5px;">Your profile, your answers, and your other groups
-         are untouched.</p>
-      <button class="btn danger sm" id="mem-leave">Leave this group</button>
-      <div id="mem-leave-status" class="status" style="margin-top:10px;"></div>
+    <div class="cw-rl">
+      <aside class="cw-rl-rail">
+        <div class="tabs" id="mtabs">
+          <div class="tab on" data-mtab="group">Group</div>
+          <div class="tab" data-mtab="settings">Settings</div>
+          <div class="tab" data-mtab="messages">Messages</div>
+        </div>
+      </aside>
+      <section class="cw-rl-main">
+        <div class="card" id="mtab-head" style="padding-bottom:4px;margin-bottom:12px;">
+          <h1 id="mtab-title" style="font-size:20px;font-weight:800;margin:0;color:var(--ink);"></h1>
+          <div id="mtab-sub" style="font-size:13.5px;color:var(--muted);margin-top:3px;"></div>
+        </div>
+        <div id="mtab-group" class="card">
+          <div id="mem-hosts"></div>
+          <div id="mem-invite" style="margin-top:26px;padding-top:8px;display:none;"></div>
+        </div>
+        <div id="mtab-settings" class="card hidden">
+          <div class="q" style="margin-top:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Messages</div>
+          <div id="mem-messages-off" class="lede" style="font-size:13.5px;margin:0 0 10px;display:none;">This group's host has not turned on messages between members yet. You can message the host and co-hosts from the Messages tab.</div>
+          <div id="mem-messages" style="display:none;"></div>
+          <div class="q" style="margin-top:26px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Writing</div>
+          <div id="mem-typing" style="display:none;"></div>
+          <div class="q" style="margin-top:26px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Email</div>
+          <div id="mem-email" style="display:none;"></div>
+          <div class="q" style="margin-top:26px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">People I have muted</div>
+          <div id="mem-blocks" style="display:none;"></div>
+          <div class="q" style="margin-top:26px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Leaving</div>
+          <div class="q" id="mem-leave-q" style="margin-top:6px;">Leave this group</div>
+          <p class="lede" style="font-size:13.5px;">Your profile, your answers, and your other groups
+             are untouched.</p>
+          <button class="btn danger sm" id="mem-leave">Leave this group</button>
+          <div id="mem-leave-status" class="status" style="margin-top:10px;"></div>
+        </div>
+        <div id="mtab-messages" class="card hidden"><div id="mgr-messages-m"></div></div>
+      </section>
     </div>
     <div id="mem-groupname" style="display:none;"></div>
   </div>
@@ -161,6 +185,7 @@
           <div class="tab" data-tab="requests">Requests<span id="tab-req-count"></span></div>
           <div class="tab" data-tab="invite">Invite</div>
           <div class="tab" data-tab="info">Group info</div>
+          <div class="tab" data-tab="messages">Messages</div>
           <div class="tab" data-tab="danger">Permanent changes</div>
         </div>
       </aside>
@@ -388,6 +413,8 @@
         <button class="btn" id="info-save">Save changes</button>
       </div>
     </div>
+
+    <div id="tab-messages" class="card hidden"><h2>Messages</h2><div id="mgr-messages-h"></div></div>
 
     <div id="tab-danger" class="card hidden">
       <h2 style="color:var(--danger);">Permanent changes</h2>
@@ -709,6 +736,17 @@
         _drawCoHosts();
         _drawResources(g.resources || '');
         _drawSuccession(g.succession, g.successorEmail);
+        try {
+          if (window.cwGroupMessages && !_cwViewing) {
+            var _mAtt = (d.attendees || []).slice();
+            window.cwGroupMessages.init({
+              groupId: String(g.groupId || groupId), meId: meId, boxId: (d.meIsHost === true || d.meIsOperator) ? 'mgr-messages-h' : 'mgr-messages-m',
+              token: function(){ try { var raw = localStorage.getItem('cw-edit-' + String(meId || '').split('.').join('').toLowerCase()); if (raw) { var o = JSON.parse(raw); if (o && o.t) return o.t; } return localStorage.getItem('cw-token') || ''; } catch (e) { return ''; } },
+              group: function(){ return g; }, people: function(){ return _mAtt; },
+              iHost: function(){ return !!(d.meIsHost === true || d.meIsOperator); }, groupName: function(){ return g.name || ''; }
+            });
+          }
+        } catch (e) {}
         try { if (window._handonShow) window._handonShow(d.meIsHost === true || !!d.meIsOperator, d.hostOffer || null); } catch (e) {}
         (function(){
           var want = (params.get('do') || '').trim();
@@ -961,6 +999,22 @@
     document.getElementById('stage-pin').classList.add('hidden');
     document.getElementById('stage-member').classList.remove('hidden');
     document.getElementById('mem-title').textContent = (g.name || 'This group') + ' · Manage';
+    (function(){
+      var T = { group: ['Group', 'The people who run this group'], settings: ['Settings', 'Your choices for this group'], messages: ['Messages', 'Your conversations in this group'] };
+      var title = document.getElementById('mtab-title'), sub = document.getElementById('mtab-sub');
+      var gname = g.name || 'This group';
+      var show = function(name){
+        document.querySelectorAll('#mtabs .tab').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-mtab') === name); });
+        ['group', 'settings', 'messages'].forEach(function(n){ var p = document.getElementById('mtab-' + n); if (p) p.classList.toggle('hidden', n !== name); });
+        if (title) title.textContent = gname + ' · ' + T[name][0];
+        if (sub) sub.textContent = T[name][1];
+        if (name === 'messages' && window.cwGroupMessages) { try { window.cwGroupMessages.open(''); } catch (e) {} }
+        try { history.replaceState(history.state, '', location.pathname + location.search + '#' + name); } catch (e) {}
+      };
+      document.querySelectorAll('#mtabs .tab').forEach(function(t){ t.addEventListener('click', function(){ show(t.getAttribute('data-mtab')); }); });
+      var h = String(location.hash || '').replace('#', '');
+      show(T[h] ? h : 'group');
+    })();
     document.getElementById('mem-groupname').textContent = g.name || 'This group';
     var _cbm = document.getElementById('crumb-back');
     if (_cbm && g.name) _cbm.textContent = g.name;
@@ -1031,8 +1085,112 @@
     })();
 
     (function(){
+      var box = document.getElementById('mem-typing');
+      if (!box || !g.name || !meId) return;
+      var MSG = 'https://cw-messages.jessieupp.workers.dev';
+      var skey = 'cw-msg-session-' + String(meId || '');
+      var ptok = function(){
+        try {
+          var raw = localStorage.getItem('cw-edit-' + String(meId || '').split('.').join('').toLowerCase());
+          if (raw) { var o = JSON.parse(raw); if (o && o.t) return o.t; }
+          return localStorage.getItem('cw-token') || '';
+        } catch (e) { return ''; }
+      };
+      var sess = function(){
+        try { var k = sessionStorage.getItem(skey) || ''; if (k && parseInt(k.split('.')[1] || '0', 10) > Date.now() + 60000) return Promise.resolve(k); } catch (e) {}
+        return fetch(MSG + '/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: meId, token: ptok() }) })
+          .then(function(x){ return x.json(); })
+          .then(function(d){ if (!d || d.status !== 'ok') throw new Error('no'); try { sessionStorage.setItem(skey, d.session); } catch (e) {} return d.session; });
+      };
+      var call = function(path, body){
+        return sess().then(function(k){
+          return fetch(MSG + path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', 'x-msg-session': k }, body: body ? JSON.stringify(body) : undefined }).then(function(x){ return x.json(); });
+        });
+      };
+      box.innerHTML = '';
+      var q = document.createElement('div'); q.className = 'q'; q.textContent = 'When I write a message'; box.appendChild(q);
+      var h = document.createElement('p'); h.className = 'lede'; h.style.fontSize = '13.5px';
+      h.textContent = 'This is for every group you are in. Messages are written on the group page, under Messages.'; box.appendChild(h);
+      var r = document.createElement('div'); r.setAttribute('style', 'display:flex;gap:6px;flex-wrap:wrap;');
+      var st = document.createElement('div'); st.className = 'status';
+      var cur = null;
+      var draw = function(){
+        r.innerHTML = '';
+        [[true, 'Enter sends'], [false, 'Enter starts a new line']].forEach(function(o){
+          var t = document.createElement('div'); t.className = 'tab' + (cur === o[0] ? ' on' : ''); t.textContent = o[1];
+          t.addEventListener('click', function(){
+            if (cur === o[0]) return;
+            st.className = 'status ok'; st.textContent = 'Saving\u2026';
+            call('/prefs', { enterSends: o[0] }).then(function(d){
+              if (d && d.status === 'ok') { cur = o[0]; draw(); st.className = 'status ok'; st.textContent = o[0] ? 'Saved. Enter sends; Shift and Enter start a new line.' : 'Saved. Use the Send button to send.'; return; }
+              st.className = 'status err'; st.textContent = (d && d.message) || 'That did not save. Choose again to try once more.';
+            }).catch(function(){ st.className = 'status err'; st.textContent = 'That did not reach the server. Choose again to try once more.'; });
+          });
+          r.appendChild(t);
+        });
+      };
+      box.appendChild(r); box.appendChild(st);
+      st.className = 'status ok'; st.textContent = 'Checking your choice\u2026';
+      box.style.display = '';
+      var eb = document.getElementById('mem-email'), eOn = true, est = document.createElement('div'), er = document.createElement('div');
+      var drawEmail = function(){
+        er.innerHTML = '';
+        [[true, 'Yes'], [false, 'No']].forEach(function(o){
+          var t = document.createElement('div'); t.className = 'tab' + (eOn === o[0] ? ' on' : ''); t.textContent = o[1];
+          t.addEventListener('click', function(){
+            if (eOn === o[0]) return;
+            est.className = 'status ok'; est.textContent = 'Saving\u2026';
+            call('/prefs', { emailOn: o[0] }).then(function(d){
+              if (d && d.status === 'ok') { eOn = o[0]; drawEmail(); est.className = 'status ok'; est.textContent = 'Saved.'; return; }
+              est.className = 'status err'; est.textContent = (d && d.message) || 'That did not save. Choose again to try once more.';
+            }).catch(function(){ est.className = 'status err'; est.textContent = 'That did not reach the server. Choose again to try once more.'; });
+          });
+          er.appendChild(t);
+        });
+      };
+      if (eb) {
+        var eq = document.createElement('div'); eq.className = 'q'; eq.style.marginTop = '6px'; eq.textContent = 'Email me when someone messages me'; eb.appendChild(eq);
+        var eh = document.createElement('p'); eh.className = 'lede'; eh.style.fontSize = '13.5px';
+        eh.textContent = 'One email for each new conversation, saying who wrote and in which group. It never includes the message. This is for every group you are in.'; eb.appendChild(eh);
+        er.setAttribute('style', 'display:flex;gap:6px;flex-wrap:wrap;'); eb.appendChild(er); est.className = 'status'; eb.appendChild(est);
+        eb.style.display = '';
+      }
+      var bb = document.getElementById('mem-blocks');
+      var drawBlocks = function(list){
+        if (!bb) return;
+        bb.innerHTML = '';
+        if (!list.length) { var n = document.createElement('p'); n.className = 'lede'; n.style.cssText = 'font-size:13.5px;margin:0;'; n.textContent = 'You have not muted anyone.'; bb.appendChild(n); bb.style.display = ''; return; }
+        var h2 = document.createElement('p'); h2.className = 'lede'; h2.style.fontSize = '13.5px'; h2.textContent = 'These people cannot message you in any group.'; bb.appendChild(h2);
+        list.forEach(function(b){
+          var row = document.createElement('div'); row.setAttribute('style', 'display:flex;align-items:center;gap:10px;padding:6px 0;flex-wrap:wrap;');
+          var nm = document.createElement('span'); nm.style.cssText = 'flex:1;min-width:140px;font-weight:700;color:var(--ink);'; nm.textContent = b.name;
+          var ub = document.createElement('button'); ub.className = 'btn ghost sm'; ub.type = 'button'; ub.textContent = 'Unmute';
+          ub.addEventListener('click', function(){
+            ub.disabled = true;
+            call('/unblock', { code: b.code }).then(function(d){
+              if (d && d.status === 'ok') { row.remove(); if (!bb.querySelector('.btn')) drawBlocks([]); return; }
+              ub.disabled = false;
+            }).catch(function(){ ub.disabled = false; });
+          });
+          row.appendChild(nm); row.appendChild(ub); bb.appendChild(row);
+        });
+        bb.style.display = '';
+      };
+      call('/blocks').then(function(d){ drawBlocks((d && d.status === 'ok' && d.blocks) || []); }).catch(function(){ if (bb) { bb.innerHTML = ''; var n = document.createElement('p'); n.className = 'lede'; n.style.cssText = 'font-size:13.5px;margin:0;'; n.textContent = 'Your muted list could not be read just now. Reload to try again.'; bb.appendChild(n); bb.style.display = ''; } });
+      call('/prefs').then(function(d){
+        if (!d || d.status !== 'ok') throw new Error('no');
+        eOn = d.emailOn !== false; drawEmail();
+        cur = d.enterSends; st.className = 'status'; st.textContent = '';
+        if (cur === null) { st.className = 'status ok'; st.textContent = 'You have not chosen yet. You will be asked the first time you open Messages.'; }
+        draw();
+      }).catch(function(){ st.className = 'status err'; st.textContent = 'Your choice could not be read just now. Reload to try again.'; });
+    })();
+
+    (function(){
       var box = document.getElementById('mem-messages');
-      if (!box || !g.name || !(g.memberMessaging === true || String(g.memberMessaging).toLowerCase() === 'true')) return;
+      if (!box || !g.name) return;
+      var hostOn = (g.memberMessaging === true || String(g.memberMessaging).toLowerCase() === 'true');
+      var offNote = document.getElementById('mem-messages-off'); if (offNote) offNote.style.display = hostOn ? 'none' : '';
       var gid = String(g.groupId || groupId);
       var ptok = function(){
         try {
@@ -1044,7 +1202,7 @@
       box.innerHTML = '';
       var q = document.createElement('div'); q.className = 'q'; q.textContent = 'Let people in ' + g.name + ' message me'; box.appendChild(q);
       var h = document.createElement('p'); h.className = 'lede'; h.style.fontSize = '13.5px';
-      h.textContent = 'The host and co-hosts can always message you. This choice is for ' + g.name + ' only.'; box.appendChild(h);
+      h.textContent = 'The host and co-hosts can always message you. This choice is for ' + g.name + ' only.' + (hostOn ? '' : ' It takes effect when the host turns on messages between members.'); box.appendChild(h);
       var r = document.createElement('div'); r.setAttribute('style', 'display:flex;gap:6px;flex-wrap:wrap;');
       var st = document.createElement('div'); st.className = 'status';
       var on = null;
@@ -1219,7 +1377,7 @@
     if (!title || !panel) return;
     var h = panel.querySelector('h2');
     var FALLBACK = { members:'Members', requests:'Request to join', invite:'Invite people',
-                     info:'Edit group info', danger:'Permanent changes' };
+                     info:'Edit group info', messages:'Messages', danger:'Permanent changes' };
     if (_panelTitle) title.textContent = _panelTitle;
     if (sub) sub.textContent = (h && h.textContent.trim()) || FALLBACK[name] || '';
     var head = document.getElementById('dash-head');
@@ -1247,6 +1405,7 @@
         if (location.hash !== _h && window.history && history.replaceState) history.replaceState(history.state, '', location.pathname + location.search + _h);
       } catch (e) {}
       _setPanelHeader(name);
+      if (name === 'messages' && window.cwGroupMessages) { try { window.cwGroupMessages.open(''); } catch (e) {} }
       document.querySelectorAll('#tabs .tab').forEach(function(x){
         var n = x.getAttribute('data-tab');
         var panel = document.getElementById('tab-' + n);
