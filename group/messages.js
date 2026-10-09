@@ -245,6 +245,15 @@
       wait.remove();
       var ts = d.threads || [];
       tile(ts.reduce(function (n, t) { return n + (t.unread || 0); }, 0));
+      var needPhoto = ts.filter(function (t) { return t.other && !t.other.photo && t.id; }).slice(0, 5);
+      if (needPhoto.length && !drawList._warmed) {
+        drawList._warmed = true;
+        needPhoto.reduce(function (p, t) {
+          return p.then(function () { return api('/warm', { body: { threadId: t.id, id: ctx.meId, token: token() } }).catch(function () {}); });
+        }, Promise.resolve()).then(function () {
+          setTimeout(function () { if (!openId) drawList(); }, 4000);
+        });
+      }
       if (!ts.length) {
         list.appendChild(el('div', 'font-size:14px;color:#4B5A6D;line-height:1.5;', 'No messages yet.'
           + (ppl.length ? ' Start one above.' : '')));
