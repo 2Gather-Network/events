@@ -100,22 +100,11 @@
       h.classList.remove('cw-waiting');
     }
   }
-  function groupName() {
-    try {
-      var q = new URLSearchParams(w.location.search);
-      var n = String(q.get('name') || q.get('groupName') || '').trim();
-      if (n) { return n; }
-      var m = String(w.location.pathname || '').match(/^\/group\/([^\/]+)/i);
-      if (m && m[1] && !/^index\.html$/i.test(m[1])) { return decodeURIComponent(m[1]).replace(/-/g, ' ').trim(); }
-    } catch (e) {}
-    return '';
-  }
   function chipLine(t) {
     var text = String(t || '').trim();
-    var named = groupName();
-    if (/^Looking up this group/i.test(text)) { return named ? 'Looking up ' + named + '\u2026' : 'Looking up this group\u2026'; }
+    if (/^Looking up this group/i.test(text)) { return shuffled()[0] + '\u2026'; }
     var o = text.match(/^Opening (.+?)\s*(\.\.\.|\u2026)?$/i);
-    if (o && o[1] && !/^(Manage|your |the )/i.test(o[1])) { return 'Looking up ' + o[1] + '\u2026'; }
+    if (o && o[1] && !/^(Manage|your |the )/i.test(o[1])) { return shuffled()[0] + '\u2026'; }
     return text;
   }
   function oneChip() {
