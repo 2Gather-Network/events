@@ -101,6 +101,32 @@
     } catch (e) {}
     return kit;
   }
+  function searchBar(host, anchor, listEl, hint) {
+    var wrap = el('div', 'margin:0 0 10px;');
+    var inp = el('input', 'width:100%;box-sizing:border-box;font:inherit;font-size:14.5px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:20px;padding:8px 14px;');
+    inp.type = 'search'; inp.placeholder = 'Search these messages'; inp.setAttribute('aria-label', 'Search these messages');
+    inp.autocomplete = 'off';
+    var cnt = el('div', 'font-size:12.5px;color:#4B5A6D;margin:5px 4px 0;min-height:16px;', '');
+    wrap.appendChild(inp); wrap.appendChild(cnt);
+    host.insertBefore(wrap, anchor);
+    var api2 = {
+      apply: function () {
+        var q = String(inp.value || '').trim().toLowerCase(), n = 0, shown = 0;
+        Array.prototype.forEach.call(listEl.children, function (r) {
+          var t = r.getAttribute && r.getAttribute('data-q');
+          if (t == null) return;
+          n += 1;
+          var hit = !q || t.indexOf(q) > -1;
+          r.style.display = hit ? '' : 'none';
+          if (hit) shown += 1;
+        });
+        cnt.textContent = q ? (shown ? shown + (shown === 1 ? ' message matches' : ' messages match') + (hint ? '. ' + hint : '') : 'No messages match' + (hint ? '. ' + hint : '')) : '';
+      },
+      q: function () { return String(inp.value || '').trim(); }
+    };
+    inp.addEventListener('input', api2.apply);
+    return api2;
+  }
   function photoCircle(src, size) {
     var c = el('div', 'width:' + size + 'px;height:' + size + 'px;border-radius:50%;flex:none;overflow:hidden;background:linear-gradient(135deg,#C9DFF3,#7FB6E2);');
     if (src && String(src).indexOf('https://cw-photos.jessieupp.workers.dev/') === 0) {
@@ -406,6 +432,7 @@
     var msgs = el('div', 'display:flex;flex-direction:column;max-height:460px;overflow:auto;padding-right:4px;min-height:80px;');
     box.appendChild(msgs);
     var sk = scrollKit(msgs);
+    var srch = searchBar(box, msgs.parentNode === box ? msgs : msgs.parentNode, msgs, '');
     var bar = el('div', 'display:flex;gap:8px;margin-top:14px;align-items:flex-end;');
     var ta = el('textarea', 'flex:1;min-width:0;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:18px;padding:9px 14px;min-height:42px;resize:vertical;');
     ta.placeholder = 'Write a reply';
@@ -484,8 +511,10 @@
           mb.appendChild(el('div', 'font-size:14.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;color:#1A2E42;', m.body));
           row.appendChild(mb);
           row.title = new Date(m.at).toLocaleString();
+          row.setAttribute('data-q', (nameShown + ' ' + (m.body || '')).toLowerCase());
           msgs.appendChild(row);
         });
+        srch.apply();
         if (sk) {
           if (firstDraw || wasNear || lastMine) { sk.bottom(); msgs._stuck = true; }
           else { msgs.scrollTop = keepTop; msgs._stuck = false; sk.pill(); }
@@ -543,6 +572,7 @@
     var isHost = chat.role === 'host' || chat.role === 'cohost';
     var row = el('div', 'display:flex;gap:10px;align-items:flex-start;padding:6px 0;');
     row.setAttribute('data-mid', String(m.id));
+    if (!m.removed) row.setAttribute('data-q', ((m.name || '') + ' ' + (m.body || '')).toLowerCase());
     var av = el('div', 'width:32px;height:32px;border-radius:50%;flex:none;background:' + (m.removed ? '#E7ECF2' : 'linear-gradient(135deg,#C9DFF3,#7FB6E2)') + ';');
     if (!m.removed && m.photo && String(m.photo).indexOf('https://cw-photos.jessieupp.workers.dev/') === 0) {
       var im = document.createElement('img');
@@ -607,6 +637,7 @@
     var feed = el('div', 'display:flex;flex-direction:column;max-height:460px;overflow:auto;padding-right:4px;');
     box.appendChild(feed);
     var fk = scrollKit(feed);
+    var fsrch = searchBar(box, feed.parentNode === box ? feed : feed.parentNode, feed, 'Show earlier messages to search further back');
     var empty = el('div', 'font-size:14px;color:#4B5A6D;padding:8px 0;', '');
     empty.appendChild(waitPill('Opening the chat…'));
     feed.appendChild(empty);
@@ -732,6 +763,7 @@
         else if (fk && list.length) { feed._stuck = false; fk.pill(); }
       }
       list.forEach(function (m) { if (m.id > chat.last) chat.last = m.id; if (!chat.first || m.id < chat.first) chat.first = m.id; });
+      fsrch.apply();
     }
     older.onclick = function () {
       older.textContent = 'Loading…';
