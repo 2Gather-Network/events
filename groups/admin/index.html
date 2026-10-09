@@ -118,6 +118,8 @@
 
     <div id="mem-invite" style="margin-top:26px;padding-top:8px;display:none;"></div>
 
+    <div id="mem-messages" style="margin-top:26px;padding-top:8px;display:none;"></div>
+
     <div style="margin-top:26px;padding-top:8px;">
       <div class="q" id="mem-leave-q">Leave this group</div>
       <p class="lede" style="font-size:13.5px;">Your profile, your answers, and your other groups
@@ -308,6 +310,27 @@
       </div>
 
       <div id="e-host-live" style="margin:18px 0 4px;"></div>
+      <div id="handon" style="margin:6px 0 4px;display:none;">
+        <button class="btn ghost sm" id="handon-open" type="button">Hand this group to someone else</button>
+        <div id="handon-pending" style="display:none;margin-top:8px;font-size:14px;color:var(--ink);line-height:1.5;"></div>
+        <div id="handon-box" style="display:none;margin-top:10px;padding:14px 16px;border:1.5px solid var(--line);border-radius:14px;background:#F7F9FC;">
+          <div class="q" style="margin-top:0;" id="handon-q">Who should host this group?</div>
+          <input type="text" id="handon-find" placeholder="Search members by name" autocomplete="off" style="width:100%;max-width:360px;box-sizing:border-box;border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;font:inherit;font-size:14px;color:var(--ink);">
+          <div id="handon-list" style="margin-top:8px;max-height:260px;overflow:auto;"></div>
+          <div class="q">After they accept</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <div class="tab on" data-handafter="cohost">I stay as co-host</div>
+            <div class="tab" data-handafter="member">I stay as a member</div>
+            <div class="tab" data-handafter="leave">I leave the group</div>
+          </div>
+          <p class="lede" style="font-size:13.5px;margin:10px 0 0;">Nothing changes until they accept. They get one email and see the offer at the top of the group.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+            <button class="btn" id="handon-send" type="button" disabled>Offer hosting</button>
+            <button class="btn ghost" id="handon-cancel" type="button">Cancel</button>
+          </div>
+          <div id="handon-status" class="status"></div>
+        </div>
+      </div>
 
 
       <div class="q">Co-host</div>
@@ -352,6 +375,13 @@
         <div class="tab" data-caninvite="off">No</div>
       </div>
 
+      <div class="q">Can members message each other?</div>
+      <p class="lede" style="font-size:13.5px;">Members can always message you and your co-hosts. With Yes, members can also message each other, and each person can turn that off for themselves in their Group settings.</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <div class="tab" data-membermsg="on">Yes</div>
+        <div class="tab" data-membermsg="off">No</div>
+      </div>
+
       <div id="save-info-status" class="status" style="margin-top:18px;"></div>
       <div style="display:flex;gap:10px;margin-top:28px;justify-content:flex-end;">
         <button class="btn ghost" id="info-cancel">Cancel</button>
@@ -369,19 +399,6 @@
           <div class="sub">Sends a new passcode to your email. Anyone with the old one can no longer join.</div>
         </div>
         <button class="btn danger sm" id="danger-reset">Reset passcode</button>
-      </div>
-      <div class="row" style="align-items:flex-start;flex-wrap:wrap;">
-        <div class="who">
-          <div class="name">Transfer host</div>
-          <div class="sub">Offer this group to another member. Nothing changes until they accept. You stay a member.</div>
-          <div id="transfer-ask" style="display:none;margin-top:12px;">
-            <input type="email" id="transfer-to" placeholder="their email address"
-                   style="max-width:280px;margin-bottom:10px;">
-            <div><button class="btn danger sm" id="transfer-send">Ask them</button></div>
-            <div id="transfer-status" class="status" style="margin-top:10px;"></div>
-          </div>
-        </div>
-        <button class="btn danger sm" id="danger-transfer">Transfer host</button>
       </div>
       <div class="row" style="align-items:flex-start;flex-wrap:wrap;">
         <div class="who">
@@ -692,14 +709,12 @@
         _drawCoHosts();
         _drawResources(g.resources || '');
         _drawSuccession(g.succession, g.successorEmail);
+        try { if (window._handonShow) window._handonShow(d.meIsHost === true || !!d.meIsOperator, d.hostOffer || null); } catch (e) {}
         (function(){
           var want = (params.get('do') || '').trim();
           if (!want || _cwViewing) return;
           if (want === 'handon') {
-            var box = document.getElementById('transfer-ask'), to = document.getElementById('transfer-to');
-            if (box) box.style.display = 'block';
-            if (to && !to.value && g.successorEmail) to.value = String(g.successorEmail).trim();
-            if (to) { try { to.scrollIntoView({ block: 'center' }); to.focus(); } catch (e) {} }
+            if (window._handonOpen) window._handonOpen();
           } else if (want === 'close') {
             var ar = document.getElementById('danger-archive');
             if (ar) { try { ar.scrollIntoView({ block: 'center' }); ar.focus(); } catch (e) {} }
@@ -775,6 +790,7 @@
         })();
         (function(){ var hv = String(g.hostVisibility || 'everyone').toLowerCase(); var r = document.querySelector('input[name="e-hostvis"][value="' + (hv === 'signedin' || hv === 'members' ? hv : 'everyone') + '"]'); if (r) r.checked = true; })();
         (function(){ var ap = document.getElementById('e-approve'); if (ap) ap.checked = (g.joinNeedsApproval === true || String(g.joinNeedsApproval).toLowerCase() === 'true'); })();
+        (function(){ var mm = (g.memberMessaging === true || String(g.memberMessaging).toLowerCase() === 'true') ? 'on' : 'off'; document.querySelectorAll('[data-membermsg]').forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-membermsg') === mm); }); })();
         var _ciRaw = String(g.membersCanInvite || '').trim().toLowerCase();
         var ci = (_ciRaw === 'true') ? 'on' : 'off';
         document.querySelectorAll('[data-caninvite]').forEach(function(t){
@@ -1014,6 +1030,57 @@
       box.style.display = '';
     })();
 
+    (function(){
+      var box = document.getElementById('mem-messages');
+      if (!box || !g.name || !(g.memberMessaging === true || String(g.memberMessaging).toLowerCase() === 'true')) return;
+      var gid = String(g.groupId || groupId);
+      var ptok = function(){
+        try {
+          var raw = localStorage.getItem('cw-edit-' + String(meId || '').split('.').join('').toLowerCase());
+          if (raw) { var o = JSON.parse(raw); if (o && o.t) return o.t; }
+          return localStorage.getItem('cw-token') || '';
+        } catch (e) { return ''; }
+      };
+      box.innerHTML = '';
+      var q = document.createElement('div'); q.className = 'q'; q.textContent = 'Let people in ' + g.name + ' message me'; box.appendChild(q);
+      var h = document.createElement('p'); h.className = 'lede'; h.style.fontSize = '13.5px';
+      h.textContent = 'The host and co-hosts can always message you. This choice is for ' + g.name + ' only.'; box.appendChild(h);
+      var r = document.createElement('div'); r.setAttribute('style', 'display:flex;gap:6px;flex-wrap:wrap;');
+      var st = document.createElement('div'); st.className = 'status';
+      var on = null;
+      var draw = function(){
+        r.innerHTML = '';
+        [['on', 'Yes'], ['off', 'No']].forEach(function(o){
+          var t = document.createElement('div'); t.className = 'tab' + (on === (o[0] === 'on') ? ' on' : ''); t.textContent = o[1];
+          t.addEventListener('click', function(){
+            var want = o[0] === 'on';
+            if (want === on) return;
+            st.className = 'status ok'; st.textContent = 'Saving\u2026';
+            fetch(GS_URL + '?action=savePermissions&appearId=' + encodeURIComponent(meId) + '&editToken=' + encodeURIComponent(ptok())
+              + '&audience=' + encodeURIComponent(gid) + '&messagesOn=' + (want ? 'true' : 'false'))
+              .then(function(x){ return x.json(); })
+              .then(function(d){
+                if (d && d.status === 'ok') { on = want; draw(); st.className = 'status ok'; st.textContent = 'Saved.'; return; }
+                st.className = 'status err'; st.textContent = (d && d.message) || 'That did not save. Choose again to try once more.';
+              })
+              .catch(function(){ st.className = 'status err'; st.textContent = 'That did not reach the server. Choose again to try once more.'; });
+          });
+          r.appendChild(t);
+        });
+      };
+      box.appendChild(r); box.appendChild(st);
+      st.className = 'status ok'; st.textContent = 'Checking your choice\u2026';
+      box.style.display = '';
+      fetch(GS_URL + '?action=getPermissions&appearId=' + encodeURIComponent(meId) + '&editToken=' + encodeURIComponent(ptok()))
+        .then(function(x){ return x.json(); })
+        .then(function(d){
+          on = true;
+          ((d && d.permissions) || []).forEach(function(p){ if (String(p.audience || '') === gid && String(p.messagesOn || '').toUpperCase() === 'FALSE') on = false; });
+          st.textContent = ''; draw();
+        })
+        .catch(function(){ st.className = 'status err'; st.textContent = 'Your choice could not be read just now. Reload to try again.'; });
+    })();
+
     var _lq = document.getElementById('mem-leave-q');
     var _lb = document.getElementById('mem-leave');
     if (g.name) {
@@ -1212,7 +1279,7 @@
     }
   } catch (e) {}
 
-  ['data-caninvite', 'data-succession'].forEach(function(attr){
+  ['data-caninvite', 'data-succession', 'data-membermsg'].forEach(function(attr){
     document.querySelectorAll('[' + attr + ']').forEach(function(t){
       t.addEventListener('click', function(){
         document.querySelectorAll('[' + attr + ']').forEach(function(x){ x.classList.remove('on'); });
@@ -2077,7 +2144,9 @@
       joinNeedsApproval: (document.getElementById('e-approve') || {}).checked ? 'true' : '',
       hostVisibility: ((document.querySelector('input[name="e-hostvis"]:checked') || {}).value || 'everyone').replace('everyone', ''),
       membersCanInvite: ((document.querySelector('[data-caninvite].on') || {}).getAttribute
-        ? document.querySelector('[data-caninvite].on').getAttribute('data-caninvite') : 'off') === 'on' ? 'true' : 'false'
+        ? document.querySelector('[data-caninvite].on').getAttribute('data-caninvite') : 'off') === 'on' ? 'true' : 'false',
+      memberMessaging: ((document.querySelector('[data-membermsg].on') || {}).getAttribute
+        ? document.querySelector('[data-membermsg].on').getAttribute('data-membermsg') : 'off') === 'on' ? 'true' : ''
     };
   }
   var _infoWas = null, _infoReady = false;
@@ -2169,11 +2238,6 @@
       })
       .catch(function(){ showStatus('danger-status', 'err', 'Could not reach the server.'); });
   });
-  document.getElementById('danger-transfer').addEventListener('click', function(){
-    var box = document.getElementById('transfer-ask');
-    if (box) { box.style.display = box.style.display === 'none' ? 'block' : 'none';
-               if (box.style.display === 'block') document.getElementById('transfer-to').focus(); }
-  });
   document.getElementById('invite-copy').addEventListener('click', function(){
     var box = document.getElementById('invite-text');
     box.select();
@@ -2227,27 +2291,89 @@
       .catch(function(){ showStatus('invite-status', 'err', 'Could not reach the server.'); });
   });
 
-  document.getElementById('transfer-send').addEventListener('click', function(){
-    var to = (document.getElementById('transfer-to').value || '').trim();
-    if (!to) { showStatus('transfer-status', 'err', 'Type the email address of the member you are handing it to.'); return; }
-    var tok = getToken() || '';
-    showStatus('transfer-status', 'ok', 'Asking them…');
-    fetch(GS_URL + '?action=offerHostTransfer&groupId=' + encodeURIComponent(groupId)
-          + '&hostAppearId=' + encodeURIComponent(meId)
-          + '&sessionToken=' + encodeURIComponent(tok)
-          + '&toEmail=' + encodeURIComponent(to) + '&toName=' + encodeURIComponent(((document.getElementById('invite-first') || {}).value || '').trim()))
-      .then(function(r){ return r.json(); }).then(keepFreshToken)
-      .then(function(d){
-        if (d && d.status === 'ok') {
-          showStatus('transfer-status', 'ok', (d.offeredTo || 'They') + ' has been asked. The group stays yours until they accept.');
-          document.getElementById('transfer-ask').style.display = 'none';
-          document.getElementById('transfer-to').value = '';
-        } else {
-          showStatus('transfer-status', 'err', (d && d.message) ? d.message : 'That did not go through.');
-        }
-      })
-      .catch(function(){ showStatus('transfer-status', 'err', 'Could not reach the server. Try again in a moment.'); });
-  });
+  (function(){
+    var wrap = document.getElementById('handon'), box = document.getElementById('handon-box'),
+        list = document.getElementById('handon-list'), find = document.getElementById('handon-find'),
+        send = document.getElementById('handon-send'), pend = document.getElementById('handon-pending');
+    if (!wrap) return;
+    var pick = null, after = 'cohost';
+    var nrm = function(v){ return String(v || '').split('.').join('').toLowerCase(); };
+    var hostIds = function(){ return [].concat(_eHostIds || [], _eCoHosts || []).map(nrm); };
+    function draw(){
+      var q = String(find.value || '').trim().toLowerCase();
+      var mine = nrm(meId), skip = hostIds();
+      var ppl = (_members || []).filter(function(m){
+        var id = nrm(m.appearId);
+        return id && id !== mine && skip.indexOf(id) === -1 && (!q || String(m.name || m.first || '').toLowerCase().indexOf(q) > -1);
+      });
+      list.innerHTML = '';
+      if (!ppl.length) {
+        var n = document.createElement('p'); n.className = 'lede'; n.style.cssText = 'font-size:13.5px;margin:6px 0;';
+        n.textContent = (_members || []).length ? 'No member matches that name.' : 'Members are still loading.';
+        list.appendChild(n); return;
+      }
+      ppl.slice(0, 50).forEach(function(m){
+        var r = document.createElement('label');
+        r.setAttribute('style', 'display:flex;gap:10px;align-items:center;padding:7px 4px;cursor:pointer;font-size:14.5px;color:var(--ink);');
+        var i = document.createElement('input'); i.type = 'radio'; i.name = 'handon-who'; i.style.cssText = 'width:auto;margin:0;';
+        i.checked = !!(pick && nrm(pick.appearId) === nrm(m.appearId));
+        i.addEventListener('change', function(){ pick = m; send.disabled = false; send.textContent = 'Offer hosting to ' + (m.first || String(m.name || '').split(' ')[0] || 'them'); });
+        var t = document.createElement('span'); t.textContent = m.name || m.first || 'Member';
+        r.appendChild(i); r.appendChild(t); list.appendChild(r);
+      });
+    }
+    function showPending(o){
+      if (!o || !o.toName) { pend.style.display = 'none'; document.getElementById('handon-open').style.display = ''; return; }
+      document.getElementById('handon-open').style.display = 'none';
+      box.style.display = 'none';
+      pend.innerHTML = '';
+      var t = document.createElement('span');
+      t.textContent = 'Offered to ' + o.toName + '. Nothing changes until they accept. ';
+      var w = document.createElement('button'); w.className = 'btn ghost sm'; w.type = 'button'; w.textContent = 'Withdraw offer';
+      w.addEventListener('click', function(){
+        w.disabled = true;
+        fetch(GS_URL + '?action=withdrawHostTransfer&groupId=' + encodeURIComponent(groupId) + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(getToken() || ''))
+          .then(function(r){ return r.json(); }).then(keepFreshToken)
+          .then(function(d){ if (d && d.status === 'ok') { showPending(null); return; } w.disabled = false; t.textContent = (d && d.message) || 'That did not go through. '; })
+          .catch(function(){ w.disabled = false; t.textContent = 'Could not reach the server. Try again in a moment. '; });
+      });
+      pend.appendChild(t); pend.appendChild(w);
+      pend.style.display = '';
+    }
+    window._handonShow = function(isHost, offer){ if (!isHost || _cwViewing) return; wrap.style.display = ''; showPending(offer); };
+    window._handonOpen = function(){
+      if (wrap.style.display === 'none') return;
+      box.style.display = ''; document.getElementById('handon-open').style.display = 'none';
+      var gn = (document.getElementById('e-name') || {}).value || 'this group';
+      document.getElementById('handon-q').textContent = 'Who should host ' + gn + '?';
+      draw(); try { find.focus(); box.scrollIntoView({ block: 'center' }); } catch (e) {}
+    };
+    document.getElementById('handon-open').addEventListener('click', window._handonOpen);
+    document.getElementById('handon-cancel').addEventListener('click', function(){ box.style.display = 'none'; document.getElementById('handon-open').style.display = ''; });
+    find.addEventListener('input', draw);
+    document.querySelectorAll('[data-handafter]').forEach(function(t){
+      t.addEventListener('click', function(){
+        after = t.getAttribute('data-handafter');
+        document.querySelectorAll('[data-handafter]').forEach(function(x){ x.classList.toggle('on', x === t); });
+      });
+    });
+    send.addEventListener('click', function(){
+      if (!pick) return;
+      send.disabled = true;
+      showStatus('handon-status', 'ok', 'Sending the offer\u2026');
+      fetch(GS_URL + '?action=offerHostTransfer&groupId=' + encodeURIComponent(groupId)
+            + '&hostAppearId=' + encodeURIComponent(meId)
+            + '&sessionToken=' + encodeURIComponent(getToken() || '')
+            + '&toAppearId=' + encodeURIComponent(pick.appearId) + '&after=' + encodeURIComponent(after))
+        .then(function(r){ return r.json(); }).then(keepFreshToken)
+        .then(function(d){
+          send.disabled = false;
+          if (d && d.status === 'ok') { showStatus('handon-status', 'ok', ''); showPending(d.hostOffer || { toName: d.offeredTo || pick.name }); return; }
+          showStatus('handon-status', 'err', (d && d.message) ? d.message : 'That did not go through.');
+        })
+        .catch(function(){ send.disabled = false; showStatus('handon-status', 'err', 'Could not reach the server. Try again in a moment.'); });
+    });
+  })();
   var _archiveTok = '', _archiveTokUntil = 0;
   function _keepArchiveTok(d){
     if (d && d.archiveToken) { _archiveTok = d.archiveToken; _archiveTokUntil = Date.now() + 14*60*1000; }
