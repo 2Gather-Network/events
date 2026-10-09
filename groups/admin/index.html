@@ -569,26 +569,36 @@
     if (superTok) stamp(SUPER_TOK_KEY, superTok);
   }
 
-  var _renewing = false;
-  function renewPass(){
-    if (_renewing) return;
-    _renewing = true;
-    var done = function(){ _renewing = false; };
-    try {
-      fetch(GS_URL + '?action=groupPassFromSignin&groupId=' + encodeURIComponent(groupId)
-            + '&hostAppearId=' + encodeURIComponent(meId) + '&editToken=' + encodeURIComponent(_signinToken()))
-        .then(function(r){ return r.json(); })
-        .then(function(d){ if (d && d.status === 'ok' && d.sessionToken) setToken(d.sessionToken, d.superToken); done(); })
-        .catch(done);
-    } catch (e) { done(); }
+  var _renewing = null, _passAt = Date.now();
+  function renewPassNow(){
+    if (_renewing) return _renewing;
+    _renewing = new Promise(function(resolve){
+      var done = function(ok){ _renewing = null; resolve(!!ok); };
+      try {
+        fetch(GS_URL + '?action=groupPassFromSignin&groupId=' + encodeURIComponent(groupId)
+              + '&hostAppearId=' + encodeURIComponent(meId) + '&editToken=' + encodeURIComponent(_signinToken()))
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            if (d && d.status === 'ok' && d.sessionToken) { setToken(d.sessionToken, d.superToken); _passAt = Date.now(); done(true); }
+            else done(false);
+          })
+          .catch(function(){ done(false); });
+      } catch (e) { done(false); }
+    });
+    return _renewing;
   }
+  function renewPass(){ renewPassNow(); }
+  setInterval(function(){ if (!document.hidden) renewPassNow(); }, 25 * 60 * 1000);
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden && Date.now() - _passAt > 20 * 60 * 1000) renewPassNow();
+  });
   function keepFreshToken(d){
     try {
       if (!d || typeof d !== 'object') return d;
       if (d.sessionToken || d.superToken) setToken(d.sessionToken, d.superToken);
       if (d.status === 'error' && /session expired/i.test(String(d.message || ''))) {
+        d._expired = true;
         d.message = 'Please press Save again, because it did not save.';
-        renewPass();
       }
     } catch (e) {}
     return d;
@@ -2425,36 +2435,49 @@
     if (!_infoReady) { showStatus('save-info-status', 'err', 'Still loading this group. Save once it has loaded, so nothing is saved blank.'); return; }
     btn.disabled = true;
     var payload = _infoPayload();
-    var tok = getToken() || '';
-    var url = GS_URL + '?action=updateGroup'
-      + '&groupId=' + encodeURIComponent(groupId)
-      + '&sessionToken=' + encodeURIComponent(tok)
-      + '&hostAppearId=' + encodeURIComponent(meId);
-    Object.keys(payload).forEach(function(k){
-      url += '&' + k + '=' + encodeURIComponent(payload[k]);
-    });
     showStatus('save-info-status', 'ok', 'Saving…');
-    fetch(url)
-      .then(function(r){ return r.json(); }).then(keepFreshToken)
-      .then(function(d){
-        btn.disabled = false;
-        if (d && d.status === 'ok') {
-          _eWelcomeSave();
-          _infoMark();
-          try { localStorage.setItem('cw-gp-member-changed-' + groupId, String(Date.now())); } catch (e) {}
-          try { localStorage.removeItem('cw-gadmin-' + String(groupId || '') + '-' + String(meId || '')); } catch (e) {}
-          showStatus('save-info-status', 'ok', '');
-          showStatus('save-info-status-top', 'ok', 'Saved.');
-          try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { try { window.scrollTo(0, 0); } catch (e2) {} }
-        } else {
-          showStatus('save-info-status-top', 'ok', '');
-          showStatus('save-info-status', 'err', (d && d.message) ? d.message : 'That did not go through.');
-        }
-      })
-      .catch(function(){
-        btn.disabled = false;
-        showStatus('save-info-status', 'err', 'Could not reach the server. Try again in a moment.');
+    function send(retried){
+      var tok = getToken() || '';
+      var url = GS_URL + '?action=updateGroup'
+        + '&groupId=' + encodeURIComponent(groupId)
+        + '&sessionToken=' + encodeURIComponent(tok)
+        + '&hostAppearId=' + encodeURIComponent(meId);
+      Object.keys(payload).forEach(function(k){
+        url += '&' + k + '=' + encodeURIComponent(payload[k]);
       });
+      fetch(url)
+        .then(function(r){ return r.json(); }).then(keepFreshToken)
+        .then(function(d){
+          if (d && d._expired && !retried) {
+            return renewPassNow().then(function(ok){ if (ok) { send(true); } else { finish(d); } });
+          }
+          finish(d);
+        })
+        .catch(function(){
+          btn.disabled = false;
+          showStatus('save-info-status', 'err', 'We could not reach the server. Nothing you typed is lost. Press Save changes again in a moment.');
+        });
+    }
+    function finish(d){
+      btn.disabled = false;
+      if (d && d.status === 'ok') {
+        _eWelcomeSave();
+        _infoMark();
+        try { localStorage.setItem('cw-gp-member-changed-' + groupId, String(Date.now())); } catch (e) {}
+        try { localStorage.removeItem('cw-gadmin-' + String(groupId || '') + '-' + String(meId || '')); } catch (e) {}
+        showStatus('save-info-status', 'ok', '');
+        showStatus('save-info-status-top', 'ok', 'Saved.');
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { try { window.scrollTo(0, 0); } catch (e2) {} }
+      } else {
+        showStatus('save-info-status-top', 'ok', '');
+        showStatus('save-info-status', 'err', (d && d.message) ? d.message : 'That did not go through. Nothing you typed is lost. Press Save changes again.');
+      }
+    }
+    if (!getToken() || Date.now() - _passAt > 40 * 60 * 1000) {
+      renewPassNow().then(function(){ send(false); });
+    } else {
+      send(false);
+    }
   });
 
   function dangerAction(actionName, label, warning){
