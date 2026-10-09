@@ -123,6 +123,7 @@
           <div class="tab on" data-mtab="group">Group</div>
           <div class="tab" data-mtab="settings">Settings</div>
           <div class="tab" data-mtab="messages">Messages</div>
+          <div class="tab" data-mtab="permissions">Permissions</div>
         </div>
       </aside>
       <section class="cw-rl-main">
@@ -155,6 +156,7 @@
           <div id="mem-leave-status" class="status" style="margin-top:10px;"></div>
         </div>
         <div id="mtab-messages" class="card hidden"><div id="mgr-messages-m"></div></div>
+        <div id="mtab-permissions" class="card hidden"><div id="gp-permissions"></div></div>
       </section>
     </div>
     <div id="mem-groupname" style="display:none;"></div>
@@ -192,6 +194,7 @@
           <div class="tab" data-tab="invite">Invite</div>
           <div class="tab" data-tab="info">Group info</div>
           <div class="tab" data-tab="messages">Messages</div>
+          <div class="tab" data-tab="permissions">Permissions</div>
           <div class="tab" data-tab="danger">Permanent changes</div>
         </div>
       </aside>
@@ -440,6 +443,7 @@
     </div>
 
     <div id="tab-messages" class="card hidden"><h2>Messages</h2><div id="mgr-messages-h"></div></div>
+    <div id="tab-permissions" class="card hidden"><h2>Permissions</h2><div id="gp-permissions"></div></div>
 
     <div id="tab-danger" class="card hidden">
       <h2 style="color:var(--danger);">Permanent changes</h2>
@@ -511,7 +515,7 @@
   var params = new URLSearchParams(window.location.search);
   var groupId = (params.get('id') || params.get('groupId') || window.CW_GROUP_ID || '').trim();
   (function(){
-    var gname = (params.get('name') || params.get('groupName') || '').trim();
+    var gname = (params.get('name') || params.get('groupName') || String(window.CW_GROUP_SLUG || '').replace(/-+/g, ' ')).trim();
     var t = document.getElementById('pin-title');
     if (t && gname) t.textContent = gname + ' Host';
     if (gname) document.title = gname + ' admin';
@@ -526,7 +530,7 @@
     var _cm = document.getElementById('crumb-mygroups');
     if (_cm) _cm.setAttribute('data-nav', 'https://2gather.network/mygroups');
     var _cb = document.getElementById('crumb-back');
-    var _gn = (params.get('name') || '').trim();
+    var _gn = (params.get('name') || String(window.CW_GROUP_SLUG || '').replace(/-+/g, ' ')).trim();
     if (_cb && _gn) _cb.textContent = _gn;
   })();
   document.getElementById('pin-cancel').setAttribute('data-nav', groupHref);
@@ -1041,15 +1045,16 @@
     document.getElementById('stage-member').classList.remove('hidden');
     document.getElementById('mem-title').textContent = (g.name || 'This group') + ' · Manage';
     (function(){
-      var T = { group: ['Group', 'The people who run this group'], settings: ['Settings', 'Your choices for this group'], messages: ['Messages', 'Your conversations in this group'] };
+      var T = { group: ['Group', 'The people who run this group'], settings: ['Settings', 'Your choices for this group'], messages: ['Messages', 'Your conversations in this group'], permissions: ['Permissions', 'What people in this group see about you'] };
       var title = document.getElementById('mtab-title'), sub = document.getElementById('mtab-sub');
       var gname = g.name || 'This group';
       var show = function(name){
         document.querySelectorAll('#mtabs .tab').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-mtab') === name); });
-        ['group', 'settings', 'messages'].forEach(function(n){ var p = document.getElementById('mtab-' + n); if (p) p.classList.toggle('hidden', n !== name); });
+        ['group', 'settings', 'messages', 'permissions'].forEach(function(n){ var p = document.getElementById('mtab-' + n); if (p) p.classList.toggle('hidden', n !== name); });
         if (title) title.textContent = gname + ' · ' + T[name][0];
         if (sub) sub.textContent = T[name][1];
         if (name === 'messages' && window.cwGroupMessages) { try { window.cwGroupMessages.open(''); } catch (e) {} }
+        if (name === 'permissions' && window.cwGroupPermissions) { try { window.cwGroupPermissions.init({ groupId: String(g.groupId || groupId), meId: meId, groupName: function(){ return g.name || ''; } }); window.cwGroupPermissions.open(); } catch (e) {} }
         try { history.replaceState(history.state, '', location.pathname + location.search + '#' + name); } catch (e) {}
       };
       document.querySelectorAll('#mtabs .tab').forEach(function(t){ t.addEventListener('click', function(){ show(t.getAttribute('data-mtab')); }); });
@@ -1116,7 +1121,7 @@
         var a = document.createElement('a');
         a.className = 'btn sm';
         a.setAttribute('role', 'link'); a.tabIndex = 0;
-        a.setAttribute('data-nav', 'https://2gather.network/groups/invite/?id=' + encodeURIComponent(g.groupId || groupId) + '&name=' + encodeURIComponent(g.name));
+        a.setAttribute('data-nav', 'https://2gather.network/groups/invite/?id=' + encodeURIComponent(g.groupId || groupId));
         a.setAttribute('onclick', 'return _safeNavGo(this)');
         a.style.cssText = 'cursor:pointer;display:inline-block;margin-top:8px;';
         a.textContent = 'Invite people';
@@ -1458,7 +1463,7 @@
     if (!title || !panel) return;
     var h = panel.querySelector('h2');
     var FALLBACK = { members:'Members', requests:'Request to join', invite:'Invite people',
-                     info:'Edit group info', messages:'Messages', danger:'Permanent changes' };
+                     info:'Edit group info', messages:'Messages', permissions:'Permissions', danger:'Permanent changes' };
     if (_panelTitle) title.textContent = _panelTitle;
     if (sub) sub.textContent = (h && h.textContent.trim()) || FALLBACK[name] || '';
     var head = document.getElementById('dash-head');
@@ -1487,6 +1492,7 @@
       } catch (e) {}
       _setPanelHeader(name);
       if (name === 'messages' && window.cwGroupMessages) { try { window.cwGroupMessages.open(''); } catch (e) {} }
+      if (name === 'permissions' && window.cwGroupPermissions) { try { window.cwGroupPermissions.init({ groupId: String(groupId), meId: meId, groupName: function(){ return (_roleGroupName || document.title.replace(/ admin$/, '') || ''); } }); window.cwGroupPermissions.open(); } catch (e) {} }
       document.querySelectorAll('#tabs .tab').forEach(function(x){
         var n = x.getAttribute('data-tab');
         var panel = document.getElementById('tab-' + n);
