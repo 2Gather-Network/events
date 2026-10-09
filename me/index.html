@@ -233,6 +233,10 @@
   .ic-key-dot.share{background:#5DCAA5;}
   .ic-key-dot.comp{background:#EE8B2C;}
   .ic-key-dot.coseek{background:#7F77DD;}
+  .ic-tabs{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0 8px;}
+  .ic-tab{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--panel-line);color:var(--ink);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;}
+  .ic-item[hidden]{display:none;}
+  .ic-tab.on{border-color:var(--brand);color:var(--brand);background:#EEF4FB;}
   .ic-card{margin:2px 0 8px;background:var(--panel);border:1px solid var(--panel-line);border-radius:14px;padding:14px 16px;}
   .ic-h{font-size:15px;font-weight:800;color:var(--ink);margin:0 0 8px;}
   .ic-list{display:flex;flex-direction:column;gap:8px;}
@@ -1681,7 +1685,7 @@
     return rows;
   }
   function icItemHtml(r){
-    return '<div class="ic-item"><span class="ic-dot ' + r.kind + '"></span>'
+    return '<div class="ic-item" data-k="' + r.kind + '"><span class="ic-dot ' + r.kind + '"></span>'
       + '<div class="ic-item-text"><span class="ic-item-name">' + esc(r.item) + '</span>'
       + '<span class="ic-note">' + esc(r.note) + '</span></div></div>';
   }
@@ -1722,12 +1726,26 @@
   }
   var _icHtml = '', _icOpen = false;
   function icSay(html){ var o = document.getElementById('pv-common-out'); if (o) o.innerHTML = html; }
-  function icKey(){
-    return '<div class="ic-key">'
-      + '<span class="ic-key-item"><span class="ic-key-dot comp"></span>Offer/need match</span>'
-      + '<span class="ic-key-item"><span class="ic-key-dot coseek"></span>You both need this</span>'
-      + '<span class="ic-key-item"><span class="ic-key-dot share"></span>In common</span>'
-      + '</div>';
+  var IC_KINDS = [['comp','Offer/need match'],['coseek','You both need this'],['share','In common']];
+  function icKey(rows){
+    var has = {}; rows.forEach(function(r){ has[r.kind] = 1; });
+    var kinds = IC_KINDS.filter(function(k){ return has[k[0]]; });
+    if (kinds.length < 2) {
+      return '<div class="ic-key">' + kinds.map(function(k){
+        return '<span class="ic-key-item"><span class="ic-key-dot ' + k[0] + '"></span>' + k[1] + '</span>';
+      }).join('') + '</div>';
+    }
+    return '<div class="ic-tabs" role="tablist">'
+      + '<button type="button" class="ic-tab on" data-k="" role="tab" aria-selected="true">All</button>'
+      + kinds.map(function(k){
+        return '<button type="button" class="ic-tab" data-k="' + k[0] + '" role="tab" aria-selected="false"><span class="ic-key-dot ' + k[0] + '"></span>' + k[1] + '</button>';
+      }).join('') + '</div>';
+  }
+  function icFilter(t){
+    var out = document.getElementById('pv-common-out'); if (!out) return;
+    var k = t.getAttribute('data-k') || '';
+    out.querySelectorAll('.ic-tab').forEach(function(b){ var on = b === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    out.querySelectorAll('.ic-item').forEach(function(i){ i.hidden = !!k && i.getAttribute('data-k') !== k; });
   }
   function icCard(inner){ return '<div class="ic-card">' + inner + '</div>'; }
   function icShut(btn){ _icOpen = false; icSay(''); if (btn) btn.textContent = 'Show our commonality'; }
@@ -1735,6 +1753,8 @@
   function wireInCommon(){
     var b = document.getElementById('pv-common');
     if (!b) return;
+    var out = document.getElementById('pv-common-out');
+    if (out) out.addEventListener('click', function(e){ var t = e.target.closest && e.target.closest('.ic-tab'); if (t) icFilter(t); });
     b.onclick = function(){
       if (_icOpen) { icShut(b); return; }
       if (_icHtml) { icOpen(b); return; }
@@ -1776,7 +1796,7 @@
             + '<div class="ic-none">Nothing the two of you have both written down yet. '
             + 'The more either of you fills in, the more there is to find.</div>');
         } else {
-          _icHtml = icKey() + icCard('<div class="ic-h">What we have in common</div>'
+          _icHtml = icKey(rows) + icCard('<div class="ic-h">What we have in common</div>'
             + '<div class="ic-list">' + rows.map(icItemHtml).join('') + '</div>');
         }
         icOpen(btn);
