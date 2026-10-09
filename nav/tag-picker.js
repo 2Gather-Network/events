@@ -1,6 +1,6 @@
 (function(){
   var CSS = '.cwtp{border:1.5px solid #C9DFF3;border-radius:12px;padding:10px;margin-top:10px;background:#fff;font-family:inherit;color:#1A2E42;}'
-    + '.cwtp .cwtp-h{font-weight:800;font-size:13px;margin-bottom:8px;}'
+    + '.cwtp .cwtp-h{font-weight:800;font-size:13px;margin-bottom:12px;color:#1A2E42;}'
     + '.cwtp .cwtp-q{width:100%;box-sizing:border-box;font:inherit;font-size:14.5px;border:1.5px solid #C9DFF3;border-radius:10px;padding:9px 12px;margin:0 0 8px;background:#F7FBFF;-webkit-appearance:none;appearance:none;}'
     + '.cwtp .cwtp-p{display:flex;flex-wrap:wrap;gap:6px;}'
     + '.cwtp .cwtp-sec{margin-top:14px;}'
