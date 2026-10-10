@@ -123,7 +123,7 @@
     function current() { return (state.edit || state.saved) ? state.v : state.host; }
     function drawLine() {
       var t = textFor(current(), state.level);
-      var z = state.edit && state.level === 'city' && state.v.zip ? ' ' + state.v.zip : '';
+      var z = '';
       shown.textContent = 'This group serves, at the ' + state.level + ' level';
       val.textContent = t ? t + z : 'Choose a place';
       ask.textContent = state.edit ? 'Everyone who can see this group will see: ' + (t ? t + z : 'a place') + '.' : 'Everyone who can see this group will see: ' + (t || 'a place') + '. Is that right?';
@@ -180,7 +180,7 @@
     draw();
     return {
       get: function () {
-        var out = { level: state.level, region: '', country: '', state: '', county: '', city: '', zip: '' };
+        var out = { level: state.level === 'neighborhood' ? 'city' : state.level, region: '', country: '', state: '', county: '', city: '', zip: '' };
         var v = state.edit || state.saved ? state.v : state.host;
         var idx = LEVELS.indexOf(state.level);
         ['region', 'country', 'state', 'county', 'city'].forEach(function (k) { out[k] = LEVELS.indexOf(k) <= idx ? String(v[k] || '') : ''; });
@@ -190,6 +190,7 @@
       set: function (level, vals) {
         if (LEVELS.indexOf(level) > -1) state.level = level;
         vals = vals || {};
+        if (level === 'city' && /^[0-9]{5}$/.test(String(vals.zip || ''))) state.level = 'neighborhood';
         var any = !!(vals.region || vals.country || vals.state || vals.county || vals.city);
         if (any) {
           state.saved = true;
