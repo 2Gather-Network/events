@@ -11,8 +11,16 @@
     try {
       var norm = String((ctx && ctx.meId) || '').split('.').join('').toLowerCase();
       var raw = localStorage.getItem('cw-edit-' + norm);
-      if (raw) { var o = JSON.parse(raw); if (o && o.t) return o.t; }
-      return localStorage.getItem('cw-token') || '';
+      if (raw) {
+        var o = JSON.parse(raw);
+        if (o && o.t && o.exp && Date.now() <= (o.exp - 60000)) return o.t;
+        localStorage.removeItem('cw-edit-' + norm);
+      }
+      var t2 = localStorage.getItem('cw-token') || '';
+      var who = String(localStorage.getItem('cw-id') || '').split('.').join('').toLowerCase();
+      var exp2 = parseInt(String(t2).split('.')[1], 10);
+      if (t2 && who && who === norm && exp2 && Date.now() <= (exp2 - 60000)) return t2;
+      return '';
     } catch (e) { return ''; }
   }
   function nameParts() {
@@ -109,7 +117,19 @@
     var pProf = fetch(GS + '?action=getProfile&appearId=' + encodeURIComponent(ctx.meId) + '&meToken=' + encodeURIComponent(tok)).then(function (r) { return r.json(); }).catch(function () { return {}; });
     Promise.all([pPerm, pProf]).then(function (res) {
       var d = res[0], pr = res[1] || {};
-      if (!d || d.status !== 'ok') { box.textContent = 'We could not read your permissions just now. Reload the page to try again.'; return; }
+      if (!d || d.status !== 'ok') {
+        box.innerHTML = '';
+        if (d && d.code === 'signin') {
+          var sm = el('div', 'font-size:14px;line-height:1.55;color:#1A2E42;', 'This device needs to prove who you are before your permissions can be shown. ');
+          var sa = el('a', 'color:#1F699E;font-weight:700;', 'Sign in again');
+          sa.href = 'https://2gather.network/signin/?next=' + encodeURIComponent(location.pathname + location.search + '#permissions');
+          sm.appendChild(sa);
+          box.appendChild(sm);
+        } else {
+          box.textContent = 'We could not read your permissions just now. Reload the page to try again.';
+        }
+        return;
+      }
       var rows = d.permissions || [], mine = null, gen = null;
       rows.forEach(function (r) {
         if (String(r.audience) === String(ctx.groupId)) mine = r;
