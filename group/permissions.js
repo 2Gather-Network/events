@@ -104,17 +104,30 @@
       });
       box.appendChild(r1);
     }
-    box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:14px 0 8px;', 'Who this group serves'));
-    var mine = placeFor(rl.place);
-    if (mine) {
-      box.appendChild(el('div', 'font-size:15px;font-weight:700;color:#1A2E42;', mine));
-      box.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;line-height:1.5;margin-top:4px;', 'This group serves people at the ' + rl.place + ' level, so your location shows as your ' + rl.place + '.'));
-    } else if (!state.loading) {
-      var miss = el('div', 'font-size:13.5px;color:#4B5A6D;line-height:1.5;', 'This group serves people at the ' + rl.place + ' level. Add your ' + rl.place + ' in your profile so it can show. ');
-      var ma = el('a', 'color:#1F699E;font-weight:700;', 'Open my profile');
-      ma.href = 'https://2gather.network/ikigai/';
-      miss.appendChild(ma);
-      box.appendChild(miss);
+    var lv = rl.place;
+    if (LADDER.indexOf(state.where) < LADDER.indexOf(lv)) state.where = lv;
+    var shownName = state.name === 'full' ? n.full : (state.name === 'short' ? n.short : n.initials);
+    var pr = (state && state.profile) || {};
+    var st2 = (function () { var b2 = String(pr.location || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean); return b2.length > 1 && b2[b2.length - 1] === 'United States' ? b2[0] : ''; })();
+    function placeText(level) {
+      if (level === 'city') return [pr.city, pr.county, st2].filter(Boolean).join(', ');
+      if (level === 'county') return [pr.county, st2].filter(Boolean).join(', ');
+      return placeFor(level);
+    }
+    box.appendChild(el('div', 'font-size:12px;font-weight:800;color:#4B5A6D;letter-spacing:.06em;text-transform:uppercase;margin:18px 0 8px;', 'What members in ' + gname + ' see'));
+    var pv = el('div', 'border:1.5px solid #DDE3EA;border-radius:12px;padding:14px;font-size:14.5px;line-height:1.5;');
+    pv.appendChild(el('div', 'font-weight:700;', shownName));
+    pv.appendChild(el('div', 'color:#4B5A6D;', placeText(state.where) || 'Location not set'));
+    box.appendChild(pv);
+    var finer = LADDER.filter(function (l) { return LADDER.indexOf(l) >= LADDER.indexOf(lv); });
+    if (finer.length > 1) {
+      box.appendChild(el('div', 'font-size:14px;color:#1A2E42;margin:16px 0 8px;', 'Select a smaller radius if you prefer more local matches:'));
+      var r3 = el('div', 'display:flex;flex-wrap:wrap;');
+      finer.forEach(function (l) {
+        if (l !== lv && !placeText(l)) return;
+        r3.appendChild(pill(LABELS[l], state.where === l, function () { state.where = l; draw(); save(); }));
+      });
+      box.appendChild(r3);
     }
     if (state.loading) box.appendChild(el('div', 'font-size:13px;color:#4B5A6D;margin:0 0 6px;', 'Looking up your places\u2026'));
     box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:14px 0 4px;', 'What shows'));
@@ -125,13 +138,6 @@
     m.appendChild(document.createElement('br'));
     m.appendChild(a);
     box.appendChild(m);
-    box.appendChild(el('div', 'font-size:12px;font-weight:800;color:#4B5A6D;letter-spacing:.06em;text-transform:uppercase;margin:18px 0 8px;', 'What members in ' + gname + ' see'));
-    var shownName = state.name === 'full' ? n.full : (state.name === 'short' ? n.short : n.initials);
-    var place = placeFor(rl.place);
-    var pv = el('div', 'border:1.5px solid #DDE3EA;border-radius:12px;padding:14px;font-size:14.5px;line-height:1.5;');
-    pv.appendChild(el('div', 'font-weight:700;', shownName));
-    pv.appendChild(el('div', 'color:#4B5A6D;', place || 'Location not set'));
-    box.appendChild(pv);
   }
   function open() {
     if (!ctx || !ctx.groupId) return;
@@ -171,7 +177,7 @@
       state = { name: src.nameShown || 'full', where: src.placeShown || 'state', profile: {}, loading: true };
       var rl0 = rule();
       if (rl0.name && NAME_LADDER.indexOf(state.name) < NAME_LADDER.indexOf(rl0.name)) state.name = rl0.name;
-      state.where = rl0.place;
+      if (LADDER.indexOf(state.where) < LADDER.indexOf(rl0.place)) state.where = rl0.place;
       draw();
       pProf.then(function (pr) {
         pr = pr || {};
