@@ -92,7 +92,7 @@
     if (rl.name === 'full') need.push('your full name');
     if (rl.name === 'short') need.push('at least your first name and last initial');
     need.push('your location at the ' + rl.place + ' level');
-    box.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;line-height:1.5;margin:0 0 10px;', 'This group asks members to show ' + need.join(' and ') + ' to its members.'));
+    if (!ctx.boxId) box.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;line-height:1.5;margin:0 0 10px;', 'This group asks members to show ' + need.join(' and ') + ' to its members.'));
     box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:8px 0;', 'Your visible name'));
     if (rl.name === 'full') {
       box.appendChild(el('div', 'font-size:15px;color:#1A2E42;', 'Your name: ' + n.full));
@@ -115,13 +115,6 @@
       if (level === 'county') return [pr.county, st2].filter(Boolean).join(', ');
       return placeFor(level);
     }
-    box.appendChild(el('div', 'font-size:12px;font-weight:800;color:#4B5A6D;letter-spacing:.06em;text-transform:uppercase;margin:18px 0 8px;', 'What members in ' + gname + ' see'));
-    var pv = el('div', 'border:1.5px solid #DDE3EA;border-radius:12px;padding:14px;font-size:14.5px;line-height:1.5;');
-    pv.appendChild(el('div', 'font-weight:700;', shownName));
-    var pvp = el('div', 'color:#4B5A6D;', placeText(state.where) || 'Location not set');
-    pvp.setAttribute('data-pv-place', '1');
-    pv.appendChild(pvp);
-    box.appendChild(pv);
     var finer = LADDER.filter(function (l) { return LADDER.indexOf(l) >= LADDER.indexOf(lv); });
     if (finer.length > 1) {
       box.appendChild(el('div', 'font-size:14px;color:#1A2E42;margin:16px 0 8px;', 'Select a smaller radius if you prefer more local:'));
@@ -132,6 +125,13 @@
       });
       box.appendChild(r3);
     }
+    box.appendChild(el('div', 'font-size:12px;font-weight:800;color:#4B5A6D;letter-spacing:.06em;text-transform:uppercase;margin:18px 0 8px;', 'What members in ' + gname + ' see'));
+    var pv = el('div', 'border:1.5px solid #DDE3EA;border-radius:12px;padding:14px;font-size:14.5px;line-height:1.5;');
+    pv.appendChild(el('div', 'font-weight:700;', shownName));
+    var pvp = el('div', 'color:#4B5A6D;', placeText(state.where) || 'Location not set');
+    pvp.setAttribute('data-pv-place', '1');
+    pv.appendChild(pvp);
+    box.appendChild(pv);
     if (state.loading) box.appendChild(el('div', 'font-size:13px;color:#4B5A6D;margin:0 0 6px;', 'Looking up your places\u2026'));
     box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:14px 0 4px;', 'What shows'));
     var m = el('div', 'font-size:14px;line-height:1.55;color:#1A2E42;background:#F7FBFF;border:1px solid #C9DFF3;border-radius:10px;padding:10px 12px;',
