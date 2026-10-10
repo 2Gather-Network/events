@@ -225,7 +225,6 @@
       var c = String(p.code || '');
       if (!c || c === me) return;
       var isHost = !!hosts[c];
-      if (!isHost && !g.memberMessaging && !ctx.iHost()) return;
       out.push({ code: c, name: p.name || p.first || 'Someone', host: isHost });
     });
     out.sort(function (a, b) { return (b.host - a.host) || a.name.localeCompare(b.name); });
