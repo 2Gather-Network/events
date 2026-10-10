@@ -33,7 +33,21 @@
       initials: p.map(function (w) { return w.charAt(0).toUpperCase(); }).join('') || 'Your initials'
     };
   }
-  var LEVELS = ['city', 'county', 'state', 'country'];
+  var LEVELS = ['city', 'county', 'state', 'country', 'region'];
+  var LADDER = ['region', 'country', 'state', 'county', 'city'];
+  var LABELS = { city: 'City', county: 'County', state: 'State', country: 'Country', region: 'Region' };
+  var NAME_LADDER = ['initials', 'short', 'full'];
+  function rule() {
+    var r = window._cwGroupRule || {};
+    return { name: NAME_LADDER.indexOf(r.name) > -1 ? r.name : '', place: LADDER.indexOf(r.place) > -1 ? r.place : 'region' };
+  }
+  function levelName(l) {
+    var pr = (state && state.profile) || {}, bits = String(pr.location || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+    var tail = bits.length ? bits[bits.length - 1] : '';
+    if (l === 'region') return ['United States', 'Canada', 'Mexico'].indexOf(tail) > -1 ? 'North America' : tail;
+    if (l === 'country') return tail;
+    return '';
+  }
   function placeFor(level) {
     var pr = (state && state.profile) || {}, loc = String(pr.location || '').trim();
     var bits = loc.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
@@ -42,6 +56,7 @@
     if (level === 'county' && pr.county) return [pr.county, st].filter(Boolean).join(', ');
     if (level === 'state' && loc) return loc;
     if (level === 'country' && loc) return bits[bits.length - 1] || '';
+    if (level === 'region' && loc) return levelName('region');
     return '';
   }
   function pill(label, on, fn) {
@@ -72,21 +87,35 @@
     var st = el('div', 'font-size:13.5px;min-height:0;margin-bottom:6px;', '');
     st.id = 'gp-permissions-status';
     box.appendChild(st);
+    var rl = rule();
+    var need = [];
+    if (rl.name === 'full') need.push('your full name');
+    if (rl.name === 'short') need.push('at least your first name and last initial');
+    need.push('your location at the ' + rl.place + ' level');
+    box.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;line-height:1.5;margin:0 0 10px;', 'This group asks members to show ' + need.join(' and ') + ' to its members.'));
     box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:8px 0;', 'Your visible name'));
-    var r1 = el('div', 'display:flex;flex-wrap:wrap;');
-    [['full', 'Full name (' + n.full + ')'], ['short', 'First name, last initial (' + n.short + ')'], ['initials', 'Initials (' + n.initials + ')']].forEach(function (o) {
-      r1.appendChild(pill(o[1], state.name === o[0], function () { state.name = o[0]; draw(); save(); }));
-    });
-    box.appendChild(r1);
-    box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:12px 0 8px;', 'Your visible location'));
-    var r2 = el('div', 'display:flex;flex-wrap:wrap;');
-    var offered = LEVELS.filter(function (l) { return !!placeFor(l); });
-    if (state.where !== 'hidden' && offered.indexOf(state.where) < 0 && LEVELS.indexOf(state.where) > -1) offered.push(state.where);
-    offered.forEach(function (l) {
-      r2.appendChild(pill(placeFor(l) || ({ city: 'City', county: 'County', state: 'State', country: 'Country' })[l], state.where === l, function () { state.where = l; draw(); save(); }));
-    });
-    r2.appendChild(pill('Hidden', state.where === 'hidden', function () { state.where = 'hidden'; draw(); save(); }));
-    box.appendChild(r2);
+    if (rl.name === 'full') {
+      box.appendChild(el('div', 'font-size:15px;color:#1A2E42;', 'Your name: ' + n.full));
+    } else {
+      var r1 = el('div', 'display:flex;flex-wrap:wrap;');
+      [['full', 'Full name (' + n.full + ')'], ['short', 'First name, last initial (' + n.short + ')'], ['initials', 'Initials (' + n.initials + ')']].forEach(function (o) {
+        if (rl.name && NAME_LADDER.indexOf(o[0]) < NAME_LADDER.indexOf(rl.name)) return;
+        r1.appendChild(pill(o[1], state.name === o[0], function () { state.name = o[0]; draw(); save(); }));
+      });
+      box.appendChild(r1);
+    }
+    box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:14px 0 8px;', 'Who this group serves'));
+    var mine = placeFor(rl.place);
+    if (mine) {
+      box.appendChild(el('div', 'font-size:15px;font-weight:700;color:#1A2E42;', mine));
+      box.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;line-height:1.5;margin-top:4px;', 'This group serves people at the ' + rl.place + ' level, so your location shows as your ' + rl.place + '.'));
+    } else if (!state.loading) {
+      var miss = el('div', 'font-size:13.5px;color:#4B5A6D;line-height:1.5;', 'This group serves people at the ' + rl.place + ' level. Add your ' + rl.place + ' in your profile so it can show. ');
+      var ma = el('a', 'color:#1F699E;font-weight:700;', 'Open my profile');
+      ma.href = 'https://2gather.network/ikigai/';
+      miss.appendChild(ma);
+      box.appendChild(miss);
+    }
     if (state.loading) box.appendChild(el('div', 'font-size:13px;color:#4B5A6D;margin:0 0 6px;', 'Looking up your places\u2026'));
     box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:14px 0 4px;', 'What shows'));
     var m = el('div', 'font-size:14px;line-height:1.55;color:#1A2E42;background:#F7FBFF;border:1px solid #C9DFF3;border-radius:10px;padding:10px 12px;',
@@ -98,10 +127,10 @@
     box.appendChild(m);
     box.appendChild(el('div', 'font-size:12px;font-weight:800;color:#4B5A6D;letter-spacing:.06em;text-transform:uppercase;margin:18px 0 8px;', 'What members in ' + gname + ' see'));
     var shownName = state.name === 'full' ? n.full : (state.name === 'short' ? n.short : n.initials);
-    var place = state.where === 'hidden' ? '' : placeFor(state.where);
+    var place = placeFor(rl.place);
     var pv = el('div', 'border:1.5px solid #DDE3EA;border-radius:12px;padding:14px;font-size:14.5px;line-height:1.5;');
     pv.appendChild(el('div', 'font-weight:700;', shownName));
-    pv.appendChild(el('div', 'color:#4B5A6D;', place || 'Location hidden'));
+    pv.appendChild(el('div', 'color:#4B5A6D;', place || 'Location not set'));
     box.appendChild(pv);
   }
   function open() {
@@ -140,6 +169,9 @@
       });
       var src = mine || gen || {};
       state = { name: src.nameShown || 'full', where: src.placeShown || 'state', profile: {}, loading: true };
+      var rl0 = rule();
+      if (rl0.name && NAME_LADDER.indexOf(state.name) < NAME_LADDER.indexOf(rl0.name)) state.name = rl0.name;
+      state.where = rl0.place;
       draw();
       pProf.then(function (pr) {
         pr = pr || {};
