@@ -35,7 +35,7 @@
   }
   var LEVELS = ['city', 'county', 'state', 'country', 'region'];
   var LADDER = ['region', 'country', 'state', 'county', 'city'];
-  var LABELS = { city: 'City', county: 'County', state: 'State', country: 'Country', region: 'Region', neighborhood: 'Neighborhood' };
+  var LABELS = { city: 'City', county: 'County', state: 'State', country: 'Country', region: 'Region' };
   var NAME_LADDER = ['initials', 'short', 'full'];
   function rule() {
     var r = window._cwGroupRule || {};
@@ -105,7 +105,7 @@
       box.appendChild(r1);
     }
     var lv = rl.place;
-    var wi = state.where === 'neighborhood' ? 5 : LADDER.indexOf(state.where);
+    var wi = LADDER.indexOf(state.where);
     if (wi < LADDER.indexOf(lv)) state.where = lv;
     var shownName = state.name === 'full' ? n.full : (state.name === 'short' ? n.short : n.initials);
     var pr = (state && state.profile) || {};
@@ -113,7 +113,6 @@
     function placeText(level) {
       if (level === 'city') return [pr.city, pr.county, st2].filter(Boolean).join(', ');
       if (level === 'county') return [pr.county, st2].filter(Boolean).join(', ');
-      if (level === 'neighborhood') return [state.zip ? String(state.zip) : '', pr.city, pr.county, st2].filter(Boolean).join(', ');
       return placeFor(level);
     }
     box.appendChild(el('div', 'font-size:12px;font-weight:800;color:#4B5A6D;letter-spacing:.06em;text-transform:uppercase;margin:18px 0 8px;', 'What members in ' + gname + ' see'));
@@ -123,32 +122,15 @@
     pvp.setAttribute('data-pv-place', '1');
     pv.appendChild(pvp);
     box.appendChild(pv);
-    var finer = LADDER.concat(['neighborhood']).filter(function (l) { return (l === 'neighborhood' ? 5 : LADDER.indexOf(l)) >= LADDER.indexOf(lv); });
+    var finer = LADDER.filter(function (l) { return LADDER.indexOf(l) >= LADDER.indexOf(lv); });
     if (finer.length > 1) {
       box.appendChild(el('div', 'font-size:14px;color:#1A2E42;margin:16px 0 8px;', 'Select a smaller radius if you prefer more local:'));
       var r3 = el('div', 'display:flex;flex-wrap:wrap;');
       finer.forEach(function (l) {
-        if (l !== lv && l !== 'neighborhood' && !placeText(l)) return;
+        if (l !== lv && !placeText(l)) return;
         r3.appendChild(pill(LABELS[l], state.where === l, function () { state.where = l; draw(); save(); }));
       });
       box.appendChild(r3);
-      if (state.where === 'neighborhood') {
-        var zr = el('div', 'margin-top:10px;');
-        var zi = el('input', 'font:inherit;font-size:15px;padding:11px 12px;border:1.5px solid #C9DFF3;border-radius:12px;background:#fff;color:#1A2E42;width:170px;');
-        zi.setAttribute('inputmode', 'numeric');
-        zi.setAttribute('maxlength', '5');
-        zi.placeholder = 'Zip code';
-        zi.value = state.zip || '';
-        zi.addEventListener('input', function () {
-          zi.value = zi.value.replace(/[^0-9]/g, '').slice(0, 5);
-          state.zip = zi.value;
-          var pvs = box.querySelectorAll('[data-pv-place]');
-          if (pvs.length) pvs[0].textContent = placeText('neighborhood') || 'Location not set';
-        });
-        zr.appendChild(zi);
-        zr.appendChild(el('div', 'font-size:12.5px;color:#4B5A6D;margin-top:6px;', 'Shown to members of this group only.'));
-        box.appendChild(zr);
-      }
     }
     if (state.loading) box.appendChild(el('div', 'font-size:13px;color:#4B5A6D;margin:0 0 6px;', 'Looking up your places\u2026'));
     box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:14px 0 4px;', 'What shows'));
