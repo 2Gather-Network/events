@@ -33,7 +33,18 @@
       initials: p.map(function (w) { return w.charAt(0).toUpperCase(); }).join('') || 'Your initials'
     };
   }
-  var LEVELS = ['city', 'county', 'state', 'country'];
+  var LEVELS = ['city', 'county', 'state', 'country', 'region'];
+  var LADDER = ['region', 'country', 'state', 'county', 'city'];
+  var LABELS = { city: 'City', county: 'County', state: 'State', country: 'Country', region: 'Region' };
+  var NAME_LADDER = ['initials', 'short', 'full'];
+  function rule() {
+    var r = window._cwGroupRule || {};
+    return { name: NAME_LADDER.indexOf(r.name) > -1 ? r.name : '', place: LADDER.indexOf(r.place) > -1 ? r.place : '' };
+  }
+  function atLeast(l) {
+    var m = rule().place;
+    return !m || LADDER.indexOf(l) >= LADDER.indexOf(m);
+  }
   function placeFor(level) {
     var pr = (state && state.profile) || {}, loc = String(pr.location || '').trim();
     var bits = loc.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
@@ -42,6 +53,17 @@
     if (level === 'county' && pr.county) return [pr.county, st].filter(Boolean).join(', ');
     if (level === 'state' && loc) return loc;
     if (level === 'country' && loc) return bits[bits.length - 1] || '';
+    if (level === 'region' && loc) return levelName('region');
+    return '';
+  }
+  function levelName(l) {
+    var pr = (state && state.profile) || {}, bits = String(pr.location || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+    var tail = bits.length ? bits[bits.length - 1] : '';
+    if (l === 'region') return ['United States', 'Canada', 'Mexico'].indexOf(tail) > -1 ? 'North America' : tail;
+    if (l === 'country') return tail;
+    if (l === 'state') return bits.length > 1 ? bits[0] : '';
+    if (l === 'county') return String(pr.county || '').trim();
+    if (l === 'city') return String(pr.city || '').trim();
     return '';
   }
   function pill(label, on, fn) {
@@ -72,21 +94,39 @@
     var st = el('div', 'font-size:13.5px;min-height:0;margin-bottom:6px;', '');
     st.id = 'gp-permissions-status';
     box.appendChild(st);
+    var rl = rule();
+    var need = [];
+    if (rl.name === 'full') need.push('your full name');
+    if (rl.name === 'short') need.push('at least your first name and last initial');
+    if (rl.place) need.push('at least your ' + LABELS[rl.place].toLowerCase());
+    if (need.length) box.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;line-height:1.5;margin:0 0 10px;', 'This group asks members to show ' + need.join(', and ') + ' to its members. Pick more detail for more localized matching.'));
     box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:8px 0;', 'Your visible name'));
-    var r1 = el('div', 'display:flex;flex-wrap:wrap;');
-    [['full', 'Full name (' + n.full + ')'], ['short', 'First name, last initial (' + n.short + ')'], ['initials', 'Initials (' + n.initials + ')']].forEach(function (o) {
-      r1.appendChild(pill(o[1], state.name === o[0], function () { state.name = o[0]; draw(); save(); }));
-    });
-    box.appendChild(r1);
+    if (rl.name === 'full') {
+      box.appendChild(el('div', 'font-size:15px;color:#1A2E42;', 'Your name: ' + n.full));
+    } else {
+      var r1 = el('div', 'display:flex;flex-wrap:wrap;');
+      [['full', 'Full name (' + n.full + ')'], ['short', 'First name, last initial (' + n.short + ')'], ['initials', 'Initials (' + n.initials + ')']].forEach(function (o) {
+        if (rl.name && NAME_LADDER.indexOf(o[0]) < NAME_LADDER.indexOf(rl.name)) return;
+        r1.appendChild(pill(o[1], state.name === o[0], function () { state.name = o[0]; draw(); save(); }));
+      });
+      box.appendChild(r1);
+    }
     box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:12px 0 8px;', 'Your visible location'));
     var r2 = el('div', 'display:flex;flex-wrap:wrap;');
-    var offered = LEVELS.filter(function (l) { return !!placeFor(l); });
-    if (state.where !== 'hidden' && offered.indexOf(state.where) < 0 && LEVELS.indexOf(state.where) > -1) offered.push(state.where);
-    offered.forEach(function (l) {
-      r2.appendChild(pill(placeFor(l) || ({ city: 'City', county: 'County', state: 'State', country: 'Country' })[l], state.where === l, function () { state.where = l; draw(); save(); }));
+    var deepest = LADDER.indexOf(state.where);
+    LADDER.forEach(function (l, i) {
+      var have = LEVELS.indexOf(l) > -1 && !!placeFor(l);
+      var locked = !!rl.place && i <= LADDER.indexOf(rl.place);
+      if (!have && !locked) return;
+      var on = deepest > -1 && i <= deepest;
+      var lab = levelName(l) || LABELS[l];
+      var b = pill(lab, on || locked, function () { if (locked) return; state.where = l; draw(); save(); });
+      if (locked) { b.style.cursor = 'default'; b.setAttribute('aria-disabled', 'true'); }
+      r2.appendChild(b);
     });
-    r2.appendChild(pill('Hidden', state.where === 'hidden', function () { state.where = 'hidden'; draw(); save(); }));
+    if (!rl.place) r2.appendChild(pill('Hidden', state.where === 'hidden', function () { state.where = 'hidden'; draw(); save(); }));
     box.appendChild(r2);
+    if (rl.place) box.appendChild(el('div', 'font-size:12.5px;color:#4B5A6D;margin:2px 0 6px;', 'Blue shows what is on. The ones up to the host’s minimum can’t be turned off.'));
     if (state.loading) box.appendChild(el('div', 'font-size:13px;color:#4B5A6D;margin:0 0 6px;', 'Looking up your places\u2026'));
     box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:14px 0 4px;', 'What shows'));
     var m = el('div', 'font-size:14px;line-height:1.55;color:#1A2E42;background:#F7FBFF;border:1px solid #C9DFF3;border-radius:10px;padding:10px 12px;',
@@ -139,11 +179,19 @@
         if (String(r.audience) === 'members') gen = r;
       });
       var src = mine || gen || {};
-      state = { name: src.nameShown || 'full', where: src.placeShown || 'state', profile: {}, loading: true };
+      state = { name: src.nameShown || 'full', where: src.placeShown || 'state', profile: {}, loading: true, dflt: !(mine && mine.placeShown) };
+      var rl0 = rule();
+      if (rl0.name && NAME_LADDER.indexOf(state.name) < NAME_LADDER.indexOf(rl0.name)) state.name = rl0.name;
+      if (rl0.place && LADDER.indexOf(state.where) < LADDER.indexOf(rl0.place)) state.where = rl0.place;
       draw();
       pProf.then(function (pr) {
         pr = pr || {};
         if (state) { state.profile = (pr.found && pr.data) ? pr.data : {}; state.loading = false; }
+        if (state && state.dflt && placeFor('county')) {
+          state.where = 'county';
+          var rlc = rule();
+          if (rlc.place && LADDER.indexOf('county') < LADDER.indexOf(rlc.place)) state.where = rlc.place;
+        }
         if (pr.found && pr.name) { try { localStorage.setItem('cw-name', String(pr.name)); } catch (e) {} }
         draw();
       });
