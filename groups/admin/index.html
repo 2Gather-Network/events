@@ -119,7 +119,7 @@
     <div class="cw-rl">
       <aside class="cw-rl-rail">
         <div class="tabs" id="mtabs">
-          <div class="tab on" data-mtab="group">Group</div>
+          <div class="tab on" data-mtab="group">Group info</div>
           <div class="tab" data-mtab="settings">Settings</div>
           <div class="tab" data-mtab="permissions">Permissions</div>
         </div>
@@ -1029,13 +1029,13 @@
     document.getElementById('stage-member').classList.remove('hidden');
     document.getElementById('mem-title').textContent = (g.name || 'This group') + ' · Manage';
     (function(){
-      var T = { group: ['Group', 'The people who run this group'], settings: ['Settings', 'All answers auto saved.'], permissions: ['Permissions', 'What people in this group see about you'] };
+      var T = { group: ['Group info', ''], settings: ['Settings', 'All answers auto saved.'], permissions: ['Permissions', 'What people in this group see about you'] };
       var title = document.getElementById('mtab-title'), sub = document.getElementById('mtab-sub');
       var gname = g.name || 'This group';
       var show = function(name){
         document.querySelectorAll('#mtabs .tab').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-mtab') === name); });
         ['group', 'settings', 'permissions'].forEach(function(n){ var p = document.getElementById('mtab-' + n); if (p) p.classList.toggle('hidden', n !== name); });
-        if (title) title.textContent = gname + ' · ' + T[name][0];
+        if (title) title.textContent = (name === 'group') ? 'Group info' : gname + ' \u00b7 ' + T[name][0];
         if (sub) sub.textContent = T[name][1];
         var mh = document.getElementById('mtab-head'); if (mh) mh.style.display = (name === 'permissions') ? 'none' : '';
         if (name === 'permissions' && window.cwGroupPermissions) { try { window.cwGroupPermissions.init({ groupId: String(g.groupId || groupId), meId: meId, groupName: function(){ return g.name || ''; } }); window.cwGroupPermissions.open(); } catch (e) {} }
@@ -1052,44 +1052,58 @@
     (function(){
       var box = document.getElementById('mem-hosts');
       if (!box) return;
-      var ids = ((g.hostIds || []).concat(g.coHostIds || []))
-                  .map(function(x){ return String(x || '').trim(); }).filter(Boolean);
+      var DEF_IMG = 'https://raw.githubusercontent.com/2Gather-Network/events/main/images/2gather_logo.png';
+      var img0 = String(g.image || '').trim() || DEF_IMG;
+      var pic = document.createElement('img');
+      pic.src = img0; pic.alt = '';
+      pic.setAttribute('style', 'width:100%;height:auto;max-height:240px;object-fit:cover;border-radius:12px;display:block;margin-bottom:14px;');
+      pic.onerror = function(){ if (pic.parentNode) pic.parentNode.removeChild(pic); };
+      box.appendChild(pic);
+      var nm = document.createElement('div');
+      nm.setAttribute('style', 'font-size:22px;font-weight:800;color:var(--ink);line-height:1.2;');
+      nm.textContent = g.name || 'This group';
+      box.appendChild(nm);
+      var pill = document.createElement('span');
+      pill.setAttribute('style', 'display:inline-block;margin:8px 0 10px;border:1px solid #C9DFF3;background:#F7FBFF;color:#4B5A6D;border-radius:14px;padding:3px 10px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;');
+      pill.textContent = 'Member';
+      box.appendChild(pill);
+      var desc = String(g.description || '').trim();
+      if (desc) {
+        var dp = document.createElement('p');
+        dp.className = 'lede'; dp.style.cssText = 'font-size:15px;margin:0 0 14px;';
+        dp.textContent = desc;
+        box.appendChild(dp);
+      }
+      var ids = (g.hostIds || []).map(function(x){ return String(x || '').trim(); });
+      var codes = (g.hostCodes || []).map(function(x){ return String(x || '').trim(); });
+      var cids = (g.coHostIds || []).map(function(x){ return String(x || '').trim(); });
+      var ccodes = (g.coHostCodes || []).map(function(x){ return String(x || '').trim(); });
       var byId = {};
       (d.attendees || []).forEach(function(a){
         byId[String(a.appearId || '').split('.').join('').toLowerCase()] = a;
       });
-      var made = 0;
-      ids.forEach(function(id){
-        var who = byId[String(id).split('.').join('').toLowerCase()];
-        var name = (who && (who.name || who.first)) || '';
-        if (!name) return;                                   
-        var row = document.createElement('div');
-        row.setAttribute('style', 'display:flex;align-items:center;gap:10px;margin-bottom:10px;');
-        if (who.photo) {
-          var img = document.createElement('img');
-          img.src = who.photo; img.alt = '';
-          img.setAttribute('style', 'width:34px;height:34px;border-radius:50%;object-fit:cover;flex:0 0 34px;');
-          row.appendChild(img);
-        }
-        var q = document.createElement('div');
-        q.className = 'q';
-        q.style.margin = '0';
-        q.textContent = 'Message ' + name;
-        row.appendChild(q);
-        box.appendChild(row);
+      var people = [];
+      ids.forEach(function(id, i){ people.push({ id: id, code: codes[i] || '' }); });
+      cids.forEach(function(id, i){ people.push({ id: id, code: ccodes[i] || '' }); });
+      var seen = {}, made = 0, row = document.createElement('div');
+      row.setAttribute('style', 'display:flex;flex-wrap:wrap;gap:8px;');
+      people.forEach(function(pn){
+        var who = byId[String(pn.id).split('.').join('').toLowerCase()] || {};
+        var code = /^[a-z0-9]{6}$/i.test(pn.code) ? pn.code : String(who.code || '').trim();
+        if (!/^[a-z0-9]{6}$/i.test(code) || seen[code]) return;
+        seen[code] = 1;
+        var a = document.createElement('a');
+        a.className = 'btn sm';
+        a.setAttribute('role', 'link'); a.tabIndex = 0;
+        a.setAttribute('data-nav', 'https://2gather.network/messages?to=' + code);
+        a.setAttribute('onclick', 'return _safeNavGo(this)');
+        a.style.cssText = 'cursor:pointer;display:inline-block;';
+        var first = String(who.first || who.name || '').split(/\s+/)[0];
+        a.textContent = people.length > 1 && first ? 'Message ' + first : 'Message the host';
+        row.appendChild(a);
         made++;
       });
-      if (!made) {
-        var none = document.createElement('div');
-        none.className = 'q';
-        none.textContent = 'Message the host';
-        box.appendChild(none);
-      }
-      var soon = document.createElement('p');
-      soon.className = 'lede';
-      soon.style.cssText = 'font-size:13.5px;';
-      soon.textContent = 'Coming soon!';
-      box.appendChild(soon);
+      if (made) box.appendChild(row);
     })();
 
     (function(){
@@ -1099,9 +1113,9 @@
       box.innerHTML = '';
       var q = document.createElement('div');
       q.className = 'q';
-      q.textContent = can ? 'You can invite people to ' + g.name : 'Only the host and co-hosts can invite people to ' + g.name;
-      box.appendChild(q);
+      q.textContent = 'You can invite people to ' + g.name;
       if (can) {
+        box.appendChild(q);
         var a = document.createElement('a');
         a.className = 'btn sm';
         a.setAttribute('role', 'link'); a.tabIndex = 0;
@@ -1110,8 +1124,8 @@
         a.style.cssText = 'cursor:pointer;display:inline-block;margin-top:8px;';
         a.textContent = 'Invite people';
         box.appendChild(a);
+        box.style.display = '';
       }
-      box.style.display = '';
     })();
 
     (function(){
