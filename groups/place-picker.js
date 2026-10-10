@@ -3,8 +3,8 @@
   var NA = ['United States', 'Canada', 'Mexico'];
   var US = ["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","District of Columbia","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"];
   var ABBR = {"Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA","Colorado":"CO","Connecticut":"CT","Delaware":"DE","District of Columbia":"DC","Florida":"FL","Georgia":"GA","Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA","Kansas":"KS","Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD","Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO","Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ","New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH","Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC","South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT","Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY"};
-  var LEVELS = ['region', 'country', 'state', 'county', 'city'];
-  var LABELS = { region: 'Region', country: 'Country', state: 'State', county: 'County', city: 'City' };
+  var LEVELS = ['region', 'country', 'state', 'county', 'city', 'neighborhood'];
+  var LABELS = { region: 'Region', country: 'Country', state: 'State', county: 'County', city: 'City', neighborhood: 'Neighborhood' };
   var GS = 'https://cw-api-gate.jessieupp.workers.dev';
   var placesP = null, places = null;
 
@@ -85,13 +85,22 @@
     city.placeholder = 'City (type or pick)';
     var cities = document.createElement('datalist');
     cities.id = o.root + '-cities';
-    city.addEventListener('input', function () { state.v.city = city.value.trim(); if (!state.v.city) state.v.zip = ''; drawLine(); });
+    city.addEventListener('input', function () {
+      state.v.city = city.value.trim();
+      if (state.v.city && LEVELS.indexOf(state.level) < LEVELS.indexOf('city')) { state.level = 'city'; draw(); city.focus(); return; }
+      drawLine();
+    });
     row.appendChild(city); row.appendChild(cities);
     var zip = el('input', fieldStyle);
     zip.setAttribute('inputmode', 'numeric');
     zip.setAttribute('maxlength', '5');
     zip.placeholder = 'Zip code (optional)';
-    zip.addEventListener('input', function () { zip.value = zip.value.replace(/[^0-9]/g, '').slice(0, 5); state.v.zip = zip.value; drawLine(); });
+    zip.addEventListener('input', function () {
+      zip.value = zip.value.replace(/[^0-9]/g, '').slice(0, 5);
+      state.v.zip = zip.value;
+      if (state.v.zip && LEVELS.indexOf(state.level) < LEVELS.indexOf('neighborhood')) { state.level = 'neighborhood'; draw(); zip.focus(); return; }
+      drawLine();
+    });
     row.appendChild(zip);
     box.appendChild(shown); box.appendChild(val); box.appendChild(ask); box.appendChild(yn); box.appendChild(pick);
     root.appendChild(pills); root.appendChild(box);
@@ -104,6 +113,7 @@
     }
     function textFor(v, level) {
       var st = v.state ? ', ' + v.state : '';
+      if (level === 'neighborhood') return v.city ? (v.zip ? v.zip + ', ' : '') + v.city + st : '';
       if (level === 'city') return v.city ? v.city + st + (v.state ? '' : '') : '';
       if (level === 'county') return v.county ? v.county + st : '';
       if (level === 'state') return v.state ? v.state + (v.country ? ', ' + v.country : '') : '';
@@ -141,7 +151,6 @@
       cl.forEach(function (c) { var op = document.createElement('option'); op.value = c; cities.appendChild(op); });
       city.value = state.v.city;
       zip.value = state.v.zip;
-      zip.style.display = state.level === 'city' ? '' : 'none';
       drawLine();
     }
     yes.addEventListener('click', function () {
@@ -174,8 +183,8 @@
         var out = { level: state.level, region: '', country: '', state: '', county: '', city: '', zip: '' };
         var v = state.edit || state.saved ? state.v : state.host;
         var idx = LEVELS.indexOf(state.level);
-        LEVELS.forEach(function (k, i) { out[k] = i <= idx ? String(v[k] || '') : ''; });
-        out.zip = state.level === 'city' ? String((state.edit || state.saved ? state.v.zip : '') || '') : '';
+        ['region', 'country', 'state', 'county', 'city'].forEach(function (k) { out[k] = LEVELS.indexOf(k) <= idx ? String(v[k] || '') : ''; });
+        out.zip = state.level === 'neighborhood' ? String((state.edit || state.saved ? state.v.zip : '') || '') : '';
         return out;
       },
       set: function (level, vals) {
