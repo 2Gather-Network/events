@@ -110,9 +110,11 @@
     if (!box) return;
     if (!ctx.meId) { box.textContent = 'Sign in to see your permissions in this group.'; return; }
     box.innerHTML = '';
-    var w = el('span', 'display:inline-flex;align-items:center;background:#1F699E;color:#fff;font-size:13px;font-weight:700;padding:8px 16px;border-radius:20px;', 'Opening your permissions…');
+    var mid = el('div', 'display:flex;justify-content:center;align-items:center;min-height:45vh;');
+    var w = el('span', 'display:inline-flex;align-items:center;background:#1F699E;color:#fff;font-size:15px;font-weight:700;padding:12px 24px;border-radius:24px;', 'Opening your permissions…');
     w.className = 'cw-loading';
-    box.appendChild(w);
+    mid.appendChild(w);
+    box.appendChild(mid);
     var tok = ''; try { tok = localStorage.getItem('cw-token') || ''; } catch (e) {}
     var pPerm = fetch(GS + '?action=getPermissions&appearId=' + encodeURIComponent(ctx.meId) + '&editToken=' + encodeURIComponent(token())).then(function (r) { return r.json(); });
     var pProf = fetch(GS + '?action=getProfile&appearId=' + encodeURIComponent(ctx.meId) + '&meToken=' + encodeURIComponent(tok)).then(function (r) { return r.json(); }).catch(function () { return {}; });
