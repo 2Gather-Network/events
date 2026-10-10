@@ -106,7 +106,7 @@
   }
   function open() {
     if (!ctx || !ctx.groupId) return;
-    box = document.getElementById('gp-permissions');
+    box = (ctx.boxId && document.getElementById(ctx.boxId)) || document.getElementById('gp-permissions');
     if (!box) return;
     if (!ctx.meId) { box.textContent = 'Sign in to see your permissions in this group.'; return; }
     box.innerHTML = '';
