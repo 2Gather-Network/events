@@ -127,6 +127,25 @@
     inp.addEventListener('input', api2.apply);
     return api2;
   }
+  function linkify(node, text) {
+    var t = String(text == null ? '' : text), re = /https?:\/\/[^\s<>"']+/g, last = 0, m;
+    while ((m = re.exec(t)) !== null) {
+      var url = m[0], trail = '';
+      var tm = url.match(/[.,;:!?)\]]+$/);
+      if (tm) { trail = tm[0]; url = url.slice(0, url.length - trail.length); }
+      if (m.index > last) node.appendChild(document.createTextNode(t.slice(last, m.index)));
+      if (url.length > 8) {
+        var a = document.createElement('a');
+        a.href = url; a.textContent = url; a.rel = 'noopener noreferrer';
+        a.setAttribute('style', 'color:#1F699E;text-decoration:underline;');
+        node.appendChild(a);
+      } else node.appendChild(document.createTextNode(url));
+      if (trail) node.appendChild(document.createTextNode(trail));
+      last = m.index + m[0].length;
+    }
+    if (last < t.length) node.appendChild(document.createTextNode(t.slice(last)));
+    return node;
+  }
   function photoOk(u) {
     var v = String(u || '');
     if (v.length >= 400) return false;
@@ -523,7 +542,7 @@
           var who = el('div', 'font-size:13.5px;font-weight:800;color:#1A2E42;', nameShown);
           who.appendChild(el('span', 'font-weight:600;color:#6B7A8D;margin-left:6px;font-size:12.5px;', when(m.at)));
           mb.appendChild(who);
-          mb.appendChild(el('div', 'font-size:14.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;color:#1A2E42;', m.body));
+          mb.appendChild(linkify(el('div', 'font-size:14.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;color:#1A2E42;'), m.body));
           row.appendChild(mb);
           row.title = new Date(m.at).toLocaleString();
           row.setAttribute('data-q', (nameShown + ' ' + (m.body || '')).toLowerCase());
@@ -615,7 +634,8 @@
       who.appendChild(dl);
     }
     mb.appendChild(who);
-    var p = el('div', 'font-size:14.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;' + (m.removed ? 'color:#6B7A8D;font-style:italic;' : 'color:#1A2E42;'), m.removed ? 'This message was removed.' : m.body);
+    var p = el('div', 'font-size:14.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;' + (m.removed ? 'color:#6B7A8D;font-style:italic;' : 'color:#1A2E42;'));
+    if (m.removed) p.textContent = 'This message was removed.'; else linkify(p, m.body);
     mb.appendChild(p);
     row.appendChild(av); row.appendChild(mb);
     return row;
