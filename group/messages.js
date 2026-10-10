@@ -696,7 +696,7 @@
       if (muteAsk.style.display !== 'none') { muteAsk.style.display = 'none'; return; }
       muteAsk.innerHTML = '';
       muteAsk.appendChild(el('div', 'font-weight:800;margin-bottom:4px;', 'Mute this chat?'));
-      muteAsk.appendChild(el('div', '', 'The rail will stop notifying you of this group\u2019s chat messages by email. You can still open the chat and read everything. Tap the moon again any time to unmute.'));
+      muteAsk.appendChild(el('div', '', 'You will stop receiving email notifications of this group\u2019s chat messages. You can still open the chat and read everything. Tap the moon again any time to unmute.'));
       var row = el('div', 'display:flex;gap:8px;margin-top:10px;');
       var yes = btn('Yes, mute it'), no = btn('No', 'quiet');
       yes.onclick = function () { yes.disabled = true; setMuted(true); };
