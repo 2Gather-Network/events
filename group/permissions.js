@@ -39,7 +39,7 @@
   var NAME_LADDER = ['initials', 'short', 'full'];
   function rule() {
     var r = window._cwGroupRule || {};
-    return { name: NAME_LADDER.indexOf(r.name) > -1 ? r.name : '', place: LADDER.indexOf(r.place) > -1 ? r.place : '' };
+    return { name: NAME_LADDER.indexOf(r.name) > -1 ? r.name : '', place: LADDER.indexOf(r.place) > -1 ? r.place : 'region' };
   }
   function atLeast(l) {
     var m = rule().place;
@@ -124,7 +124,6 @@
       if (locked) { b.style.cursor = 'default'; b.setAttribute('aria-disabled', 'true'); }
       r2.appendChild(b);
     });
-    if (!rl.place) r2.appendChild(pill('Hidden', state.where === 'hidden', function () { state.where = 'hidden'; draw(); save(); }));
     box.appendChild(r2);
     if (rl.place) box.appendChild(el('div', 'font-size:12.5px;color:#4B5A6D;margin:2px 0 6px;', 'Blue shows what is on. The ones up to the host’s minimum can’t be turned off.'));
     if (state.loading) box.appendChild(el('div', 'font-size:13px;color:#4B5A6D;margin:0 0 6px;', 'Looking up your places\u2026'));
