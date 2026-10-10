@@ -87,6 +87,7 @@
     });
     r2.appendChild(pill('Hidden', state.where === 'hidden', function () { state.where = 'hidden'; draw(); save(); }));
     box.appendChild(r2);
+    if (state.loading) box.appendChild(el('div', 'font-size:13px;color:#4B5A6D;margin:0 0 6px;', 'Looking up your places\u2026'));
     box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:14px 0 4px;', 'What shows'));
     var m = el('div', 'font-size:14px;line-height:1.55;color:#1A2E42;background:#F7FBFF;border:1px solid #C9DFF3;border-radius:10px;padding:10px 12px;',
       'Your info helps AI suggest resources, opportunities, people, and events that fit you - such as locally or abroad. You choose, card by card, what is shown and what is used, and you can change it any time.');
@@ -115,8 +116,8 @@
     var tok = ''; try { tok = localStorage.getItem('cw-token') || ''; } catch (e) {}
     var pPerm = fetch(GS + '?action=getPermissions&appearId=' + encodeURIComponent(ctx.meId) + '&editToken=' + encodeURIComponent(token())).then(function (r) { return r.json(); });
     var pProf = fetch(GS + '?action=getProfile&appearId=' + encodeURIComponent(ctx.meId) + '&meToken=' + encodeURIComponent(tok)).then(function (r) { return r.json(); }).catch(function () { return {}; });
-    Promise.all([pPerm, pProf]).then(function (res) {
-      var d = res[0], pr = res[1] || {};
+    var profilePending = true;
+    pPerm.then(function (d) {
       if (!d || d.status !== 'ok') {
         box.innerHTML = '';
         if (d && d.code === 'signin') {
@@ -136,9 +137,14 @@
         if (String(r.audience) === 'members') gen = r;
       });
       var src = mine || gen || {};
-      state = { name: src.nameShown || 'full', where: src.placeShown || 'state', profile: (pr.found && pr.data) ? pr.data : {} };
-      if (pr.found && pr.name) { try { localStorage.setItem('cw-name', String(pr.name)); } catch (e) {} }
+      state = { name: src.nameShown || 'full', where: src.placeShown || 'state', profile: {}, loading: true };
       draw();
+      pProf.then(function (pr) {
+        pr = pr || {};
+        if (state) { state.profile = (pr.found && pr.data) ? pr.data : {}; state.loading = false; }
+        if (pr.found && pr.name) { try { localStorage.setItem('cw-name', String(pr.name)); } catch (e) {} }
+        draw();
+      });
     }).catch(function () { box.textContent = 'We could not read your permissions just now. Reload the page to try again.'; });
   }
   window.cwGroupPermissions = {
