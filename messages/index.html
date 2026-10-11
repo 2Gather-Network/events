@@ -31,7 +31,7 @@
   .btn{font:inherit;font-size:14px;font-weight:700;border-radius:22px;padding:8px 18px;cursor:pointer;border:1.5px solid #1F699E;background:#1F699E;color:#fff;}
 </style>
 <script src="/nav/identity.js?v=29"></script>
-<script src="/group/messages.js?v=27"></script>
+<script src="/group/messages.js?v=28"></script>
 </head>
 <body>
 <div class="wrap">
@@ -65,8 +65,22 @@
   }
   var to = '';
   try { to = new URLSearchParams(location.search).get('to') || ''; } catch (e) {}
-  window.cwGroupMessages.init({ groupId: '', meId: meId, token: token, group: function(){ return {}; }, people: function(){ return []; }, iHost: function(){ return false; }, groupName: function(){ return ''; }, boxId: 'gp-messages' });
-  window.cwGroupMessages.open(to);
+  var gid = '';
+  try { gid = new URLSearchParams(location.search).get('group') || ''; } catch (e) {}
+  var grp = {}, folks = [];
+  function go(){
+    window.cwGroupMessages.init({ groupId: '', meId: meId, token: token, group: function(){ return grp; }, people: function(){ return folks; }, iHost: function(){ return false; }, groupName: function(){ return String(grp.name || ''); }, boxId: 'gp-messages' });
+    window.cwGroupMessages.open(to);
+  }
+  if (!gid) { go(); return; }
+  var done = false;
+  var once = function(){ if (done) return; done = true; go(); };
+  setTimeout(once, 4000);
+  fetch('https://cw-api-gate.jessieupp.workers.dev?action=getGroupBundle&groupId=' + encodeURIComponent(gid) + '&me=' + encodeURIComponent(meId))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d && d.group) { grp = d.group; folks = (d.attendees || []).filter(function(p){ return p && p.code; }); }
+    }).catch(function(){}).then(once);
 })();
 </script>
 <script>try{localStorage.removeItem('cw-super')}catch(e){}</script>
