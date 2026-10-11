@@ -914,6 +914,17 @@
         if (!body.children.length) body.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;', 'No messages yet.'));
       }).catch(function () {});
   }
+  function tilePeek(gid) {
+    fetch(API + '/threads?group=' + encodeURIComponent(gid), { headers: { 'x-msg-session': session } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var n = document.getElementById('gp-tile-gmsg-n');
+        if (!n || !d || d.status !== 'ok') return;
+        var ts = d.threads || [];
+        var un = ts.reduce(function (a, t) { return a + (t.unread || 0); }, 0);
+        n.textContent = ts.length ? (ts.length + (ts.length === 1 ? ' conversation' : ' conversations') + (un ? ', ' + un + ' unread' : '')) : 'None yet';
+      }).catch(function () {});
+  }
   window.cwGroupChat = {
     init: function (c) {
       chat.ctx = c;
@@ -922,6 +933,7 @@
       var warmAndPeek = function () {
         api('/chat/warm', { body: { groupId: gid, id: c.meId, token: c.token ? c.token() : '' } }).catch(function () {});
         railPeek(gid, 3);
+        tilePeek(gid);
       };
       var k = keptSession();
       if (k) { session = session || k; me = me || k.split('.')[0]; warmAndPeek(); }
