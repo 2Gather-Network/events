@@ -254,6 +254,12 @@
       allB.onclick = function () { window.location.href = 'https://2gather.network/messages/'; };
       head.appendChild(allB);
     }
+    if (ppl.length && gF && !drawList._asked && /[?&]new=1/.test(location.search)) { drawList._asked = true; drawNew(); return; }
+    if (!ppl.length && !gF && !ctx.groupId) {
+      var chooseB = smallPill(btn('New message'));
+      chooseB.onclick = function () { drawGroupChoose(); };
+      head.appendChild(chooseB);
+    }
     if (ppl.length) {
       var nb = btn(ppl.length === 1 || ppl.every(function (p) { return p.host; }) ? 'Message the host' : 'New message');
       smallPill(nb);
@@ -313,6 +319,34 @@
         list.appendChild(row);
       });
     }).catch(function () { say(wait, 'Your messages did not load. Reload the page to try again.', true); });
+  }
+
+  function drawGroupChoose() {
+    stopPoll();
+    var head = frame('Which group?');
+    var back = smallPill(btn('All messages', 'quiet'));
+    back.onclick = drawList;
+    head.appendChild(back);
+    var wait = el('div', 'font-size:14px;color:#4B5A6D;', 'Looking for your groups\u2026');
+    box.appendChild(wait);
+    var list = el('div', 'display:flex;flex-direction:column;gap:10px;margin-top:6px;');
+    box.appendChild(list);
+    fetch('https://cw-api-gate.jessieupp.workers.dev?action=getMyGroups&appearId=' + encodeURIComponent(ctx.meId))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        wait.remove();
+        var gs = (d && Array.isArray(d.groups)) ? d.groups : null;
+        if (!gs) { box.appendChild(el('div', 'font-size:14px;color:#7A2410;', 'Your groups did not load. Reload the page to try again.')); return; }
+        if (!gs.length) { box.appendChild(el('div', 'font-size:14px;color:#4B5A6D;', 'You are not in a group yet.')); return; }
+        gs.forEach(function (g) {
+          var r = el('div', 'padding:12px 16px;border:1.5px solid #DDE4EE;border-radius:14px;background:#fff;cursor:pointer;font-size:16px;font-weight:700;color:#1A2E42;', g.name || 'Group');
+          r.setAttribute('role', 'link'); r.tabIndex = 0;
+          var go = function () { window.location.href = 'https://2gather.network/messages/?group=' + encodeURIComponent(g.groupId || g.id || '') + '&new=1'; };
+          r.onclick = go;
+          r.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); go(); } });
+          list.appendChild(r);
+        });
+      }).catch(function () { wait.remove(); box.appendChild(el('div', 'font-size:14px;color:#7A2410;', 'Your groups did not load. Reload the page to try again.')); });
   }
 
   function drawNew(pick) {
