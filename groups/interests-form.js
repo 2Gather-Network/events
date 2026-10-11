@@ -302,10 +302,13 @@
     root.appendChild(help);
     var kinds = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;');
     root.appendChild(kinds);
+    var kindHint = el('div', 'font-size:13.5px;color:var(--soft,#4B5A6D);margin:-6px 0 14px;', 'For the people closest to you, like family, a health team or close friends.');
+    kindHint.style.display = 'none';
+    root.appendChild(kindHint);
     var holder = el('div', '');
     root.appendChild(holder);
     var prev = el('div', 'background:var(--panel,#F7FBFF);border:1.5px solid var(--panel-line,#C9DFF3);border-radius:12px;padding:14px 16px;margin:14px 0 6px;');
-    prev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 4px;', 'What someone joining sees'));
+    prev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 4px;', 'Questions people answer when they join'));
     var prevBody = el('div', '');
     prev.appendChild(prevBody);
     root.appendChild(prev);
@@ -314,6 +317,7 @@
     function gname(){ return (nm && String(nm.value || '').trim()) || 'this group'; }
     function paintKinds(){
       kinds.innerHTML = '';
+      kindHint.style.display = kindOn['Personal'] ? '' : 'none';
       KINDS.forEach(function(k){
         var c = document.createElement('div'); c.className = chip + (kindOn[k.label] ? ' on' : '');
         c.textContent = (kindOn[k.label] ? '\u2713 ' : '') + k.label;
@@ -337,7 +341,7 @@
         var picks = parts[s.key] ? parts[s.key].picks() : [];
         if (!picks.length) return;
         any = true;
-        prevBody.appendChild(el('div', 'font-size:13.5px;color:var(--ink,#1A2E42);margin:0 0 8px;', 'Select your interests below. Your answers are shared with ' + gname() + ' members and also help build your global profile.'));
+        prevBody.appendChild(el('div', 'font-size:13.5px;color:var(--ink,#1A2E42);margin:0 0 8px;', 'The tags you chose above become the choices a new member picks from, so you can see who is into what.'));
         var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;');
         picks.forEach(function(k){
           var p = k.split(SEP);
