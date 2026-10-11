@@ -297,7 +297,7 @@
         txt.appendChild(top);
         var line = asking ? 'Wants to message you' : (t.status === 'request' ? 'Waiting for them to accept' : (t.status === 'pending' ? 'Delivering\u2026' : (t.status === 'refused' ? 'Did not go through' : (t.status === 'closed' ? 'Closed' : ''))));
         var prev = t.last ? (t.last.mine ? 'You: ' : '') + t.last.body : '';
-        txt.appendChild(el('div', 'font-size:14px;margin-top:2px;color:' + (t.unread ? '#1A2E42' : '#4B5A6D') + ';font-weight:' + (t.unread ? '700' : '400') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;', line ? line + (prev && asking ? ': ' + prev : '') : prev));
+        txt.appendChild(el('div', 'font-size:14px;margin-top:2px;color:' + (t.unread ? '#1A2E42' : '#4B5A6D') + ';font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;', line ? line + (prev && asking ? ': ' + prev : '') : prev));
         row.appendChild(txt);
         if (t.unread) row.appendChild(el('span', 'min-width:22px;height:22px;border-radius:11px;background:#1F699E;color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;flex:none;', String(t.unread > 99 ? '99+' : t.unread)));
         row.appendChild(el('span', 'font-size:22px;line-height:1;color:#7FB6E2;flex:none;', '\u203a'));
