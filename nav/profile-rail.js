@@ -113,14 +113,14 @@
     if (opts.shape === 'account') {
       var GROUPS = [
         ['ACCOUNT', [
+          { key: 'account',     label: 'My account' },
           { key: 'myprofile',   label: 'My profile', url: 'https://2gather.network/ikigai/' },
-          { key: 'account',     label: 'My info' },
           { key: 'permissions', label: 'Global permissions' }
         ]],
         ['SOLUTIONS', [
-          { key: 'balance', label: 'Balance', dot: false },
-          { key: 'appear',  label: 'Appear',  dot: false },
-          { key: 'gather',  label: 'Gather',  dot: true  },
+          { key: 'gather',  label: '2Gather',  dot: true  },
+          { key: 'appear',  label: '2Appear',  dot: false },
+          { key: 'balance', label: '2Balance', dot: false },
           { key: 'license', label: 'License', dot: true  }
         ]]
       ];
