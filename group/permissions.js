@@ -39,7 +39,7 @@
   var NAME_LADDER = ['initials', 'short', 'full'];
   function rule() {
     var r = window._cwGroupRule || {};
-    return { name: NAME_LADDER.indexOf(r.name) > -1 ? r.name : '', place: LADDER.indexOf(r.place) > -1 ? r.place : 'region' };
+    return { name: NAME_LADDER.indexOf(r.name) > -1 ? r.name : 'full', place: LADDER.indexOf(r.place) > -1 ? r.place : 'county' };
   }
   function levelName(l) {
     var pr = (state && state.profile) || {}, bits = String(pr.location || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
@@ -177,8 +177,8 @@
         if (String(r.audience) === 'members') gen = r;
       });
       var src = mine || gen || {};
-      state = { name: src.nameShown || 'full', where: src.placeShown || 'state', profile: {}, loading: true };
       var rl0 = rule();
+      state = { name: src.nameShown || rl0.name, where: src.placeShown || rl0.place, profile: {}, loading: true };
       if (rl0.name && NAME_LADDER.indexOf(state.name) < NAME_LADDER.indexOf(rl0.name)) state.name = rl0.name;
       if (LADDER.indexOf(state.where) < LADDER.indexOf(rl0.place)) state.where = rl0.place;
       draw();
