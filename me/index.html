@@ -1438,8 +1438,9 @@
     img.src=URL.createObjectURL(file);
   }
   function sendPhoto(blob){
+    if(!_canWrite()){ photoStat('Sign in again to change your photo.'); return; }
     photoStat('Sending…');
-    fetch(PHOTO_URL+'/upload?id='+encodeURIComponent(_id), {
+    fetch(PHOTO_URL+'/upload?id='+encodeURIComponent(_writeId()), {
       method:'POST',
       headers:{ 'Content-Type':'image/jpeg', 'x-cw-token':_editToken },
       body:blob
@@ -2156,12 +2157,14 @@
     }catch(e){}
   }
   var _editToken=_tokenGet(), _saveTimer=null, _dirty=false, _saving=false;
+  function _writeId(){ try { return (window.CW && CW.realMe) ? String(CW.realMe().id || '') : ''; } catch (e) { return ''; } }
+  function _canWrite(){ var w = String(_writeId()).replace(/\./g,'').toLowerCase(), i = String(_id || '').replace(/\./g,'').toLowerCase(); return !!w && !!i && w === i; }
   function setSaveStat(txt){ var s=document.getElementById('da-savestat'); if(s) s.textContent=txt||''; }
   function saveUrl(){
     var d=serialize();
     _lastSaved = d;                    
     try { localStorage.setItem('cw-prof-fresh','1'); } catch (e) {}
-    var u=GS_URL+'?action=saveIntake&appearId='+encodeURIComponent(_id)+'&secure=1&editToken='+encodeURIComponent(_editToken)
+    var u=GS_URL+'?action=saveIntake&appearId='+encodeURIComponent(_writeId())+'&secure=1&editToken='+encodeURIComponent(_editToken)
 
       +'&needs='+encodeURIComponent(d.needs)+'&interests='+encodeURIComponent(d.interests)+'&skills='+encodeURIComponent(d.skills)
       +'&cares='+encodeURIComponent(d.values)+'&domains='+encodeURIComponent(d.domains)+'&workValues='+encodeURIComponent(d.workValues)+'&methods='+encodeURIComponent(d.methods)
@@ -2177,13 +2180,13 @@
     return fetch(u).then(function(r){ return r.json(); });
   }
   function saveOnTheWayOut(){
-    if(_viewing || !_id || !_dirty || !_editToken) return;
+    if(_viewing || !_id || !_dirty || !_editToken || !_canWrite()) return;
     try { fetch(saveUrl(), { keepalive: true }); _dirty = false; } catch (e) {}
   }
   function autoSave(){
     if(_viewing){ setSaveStat('Looking, not editing.'); return; }
     if(!window._profAnswered){ setSaveStat(window._profFetchFailed ? 'Your profile did not load, so nothing was saved. Reload the page.' : 'Saving once your profile has loaded…'); if(!window._profFetchFailed){ if(_saveTimer) clearTimeout(_saveTimer); _saveTimer=setTimeout(autoSave, 3000); } return; }
-    if(!_id || !_dirty || _saving) return;
+    if(!_id || !_dirty || _saving || !_canWrite()) return;
     if(!_editToken){ return; } 
     _saving=true; setSaveStat('');
     postSave().then(function(resp){
@@ -2234,8 +2237,8 @@
     var go=document.createElement('button'); go.style.cssText=send.style.cssText; go.textContent='Verify'; go.style.display='none';
     row.appendChild(send); row.appendChild(inp); row.appendChild(go); bar.appendChild(row);
     var st=document.createElement('div'); st.style.cssText='font-size:13px;color:var(--soft);margin-top:10px;min-height:16px;'; bar.appendChild(st);
-    send.onclick=function(){ st.textContent='Sending your code. This can take up to a minute.'; send.disabled=true; fetch(GS_URL+'?action=sendProfilePin&appearId='+encodeURIComponent(_id)).then(function(r){return r.json();}).then(function(resp){ send.disabled=false; if(resp&&resp.sent){ send.textContent='Resend'; var _to=_maskEmail(resp.sentTo||resp.email||''); st.textContent=_to?('Check '+_to+' for the code.'):'Check your email for the code.'; inp.style.display=''; go.style.display=''; inp.focus(); } else { st.textContent='No email on file for this profile.'; } }).catch(function(){ send.disabled=false; st.textContent='Could not send. Try again.'; }); };
-    go.onclick=function(){ var c=inp.value.trim(); if(!c) return; st.textContent='Checking…'; go.disabled=true; fetch(GS_URL+'?action=verifyProfilePin&appearId='+encodeURIComponent(_id)+'&code='+encodeURIComponent(c)).then(function(r){return r.json();}).then(function(resp){ if(resp&&resp.status==='ok'&&resp.editToken){ _editToken=resp.editToken; _tokenPut(_editToken); bar.remove(); if(onOk) onOk(); } else { go.disabled=false; st.textContent=(resp&&resp.message)||'Invalid code.'; } }).catch(function(){ go.disabled=false; st.textContent='Could not verify. Try again.'; }); };
+    send.onclick=function(){ st.textContent='Sending your code. This can take up to a minute.'; send.disabled=true; fetch(GS_URL+'?action=sendProfilePin&appearId='+encodeURIComponent(_writeId())).then(function(r){return r.json();}).then(function(resp){ send.disabled=false; if(resp&&resp.sent){ send.textContent='Resend'; var _to=_maskEmail(resp.sentTo||resp.email||''); st.textContent=_to?('Check '+_to+' for the code.'):'Check your email for the code.'; inp.style.display=''; go.style.display=''; inp.focus(); } else { st.textContent='No email on file for this profile.'; } }).catch(function(){ send.disabled=false; st.textContent='Could not send. Try again.'; }); };
+    go.onclick=function(){ var c=inp.value.trim(); if(!c) return; st.textContent='Checking…'; go.disabled=true; fetch(GS_URL+'?action=verifyProfilePin&appearId='+encodeURIComponent(_writeId())+'&code='+encodeURIComponent(c)).then(function(r){return r.json();}).then(function(resp){ if(resp&&resp.status==='ok'&&resp.editToken){ _editToken=resp.editToken; _tokenPut(_editToken); bar.remove(); if(onOk) onOk(); } else { go.disabled=false; st.textContent=(resp&&resp.message)||'Invalid code.'; } }).catch(function(){ go.disabled=false; st.textContent='Could not verify. Try again.'; }); };
     bar.scrollIntoView({behavior:'smooth',block:'center'});
   }
   (function(){ var em=document.getElementById('edit-mode'); if(em){ var s=document.createElement('div'); s.id='da-savestat'; s.style.cssText='font-size:13px;color:var(--muted);font-weight:600;text-align:right;min-height:16px;margin-bottom:6px;'; em.insertBefore(s, em.firstChild); } })();
