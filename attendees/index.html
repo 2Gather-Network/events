@@ -1189,6 +1189,25 @@ function _commonAndMatches(list, needsMode){
   out.common=Object.keys(g).length; out.match=Object.keys(o).length;
   return out;
 }
+var _bcTimer=0;
+function _cwSendBoardCounts(){
+  clearTimeout(_bcTimer);
+  _bcTimer=setTimeout(function(){
+    try{
+      var tok=localStorage.getItem('cw-token')||'';
+      if(!_groupId||!_myId||!tok) return;
+      var c=JSON.parse(localStorage.getItem('cw-board-counts-'+_groupId)||'null');
+      if(!c) return;
+      var ks=['skills','interests','values','needs'], q=[];
+      for(var i=0;i<ks.length;i++){ if(typeof c[ks[i]]==='number') q.push(ks[i]+'='+c[ks[i]]); }
+      if(q.length<4) return;
+      var sig=q.join('&'), sk='cw-bc-sent-'+_groupId;
+      if(sessionStorage.getItem(sk)===sig) return;
+      sessionStorage.setItem(sk,sig);
+      fetch(GS_URL+'?action=saveBoardCounts&appearId='+encodeURIComponent(_myId)+'&editToken='+encodeURIComponent(tok)+'&groupId='+encodeURIComponent(_groupId)+'&'+sig).catch(function(){});
+    }catch(e){}
+  },1500);
+}
 function renderSection(bodyId, countId, entries, needsMode, key){
   var body=document.getElementById(bodyId);
   var countEl=document.getElementById(countId);
@@ -1200,7 +1219,7 @@ function renderSection(bodyId, countId, entries, needsMode, key){
     var line=n+' '+(n===1?'person':'people');
     var ITEM_WORD={skills:'skill', interests:'interest', values:'value', needs:'request'};
     var _distinct=(function(){ var u={}; filtered.forEach(function(en){ u[String(en.item||'').toLowerCase()]=1; }); return Object.keys(u).length; })();
-    if(_groupId && !_searchQ && !_matchMode && !_bmOnly){ try{ var _ck='cw-board-counts-'+_groupId, _cv=JSON.parse(localStorage.getItem(_ck)||'{}')||{}; _cv[key]=_distinct; localStorage.setItem(_ck, JSON.stringify(_cv)); }catch(e){} }
+    if(_groupId && !_searchQ && !_matchMode && !_bmOnly){ try{ var _ck='cw-board-counts-'+_groupId, _cv=JSON.parse(localStorage.getItem(_ck)||'{}')||{}; _cv[key]=_distinct; localStorage.setItem(_ck, JSON.stringify(_cv)); _cwSendBoardCounts(); }catch(e){} }
     var w=ITEM_WORD[key];
     if(key==='values'){ var rv=_lookCounts?_distinct:filtered.length; line += ' \u00b7 ' + rv + ' ' + (_groupId?(rv===1?'thing we care about':'things we care about'):(rv===1?'thing they care about':'things they care about')); }
     else if(w){ var r=_lookCounts?_distinct:filtered.length; line += ' \u00b7 ' + r + ' ' + (r===1?w:w+'s'); }
