@@ -4,7 +4,7 @@
 
   var WHO   = ['CWid', 'memberCard', 'appearId', 'me'];
   var KEEP  = ['cw-id', 'appear-id'];           
-  var ANSWER_KEYS = ['cw-intro-answers:', 'cw-intro-pending:'];
+  var ANSWER_KEYS = ['cw-intro-answers:', 'cw-intro-pending:', 'cw-gadmin-'];
   function clearAnswerCopies() {
     try { Object.keys(w.localStorage).forEach(function (k) { for (var j = 0; j < ANSWER_KEYS.length; j++) { if (k.indexOf(ANSWER_KEYS[j]) === 0) { w.localStorage.removeItem(k); } } }); } catch (e) {}
   }
