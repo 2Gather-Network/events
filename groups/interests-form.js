@@ -359,7 +359,7 @@
       if (!any) prevBody.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);margin-top:6px;', 'Pick a kind of group above, then your suggestions, to see this.'));
     }
     SECTIONS.forEach(function(s){
-      var wrap = el('div', 'border-top:1px solid var(--panel-line,#E3EAF2);padding:12px 0 6px;');
+      var wrap = el('div', 'padding:2px 0 6px;');
       var head = el('div', 'display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;');
       var headEl = el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);', s.head);
       head.appendChild(headEl);
