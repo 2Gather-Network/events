@@ -248,7 +248,7 @@
     openId = '';
     var gF = '';
     try { gF = (!ctx.groupId && new URLSearchParams(location.search).get('group')) || ''; } catch (e) {}
-    var head = frame(gF ? 'Group messages' : 'Messages');
+    var head = frame(gF ? 'Direct messages' : 'Messages');
     var ppl = people();
     if (gF) {
       var allB = smallPill(btn('All messages', 'quiet'));
@@ -945,11 +945,21 @@
     fetch(API + '/threads?group=' + encodeURIComponent(gid), { headers: { 'x-msg-session': session } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        var n = document.getElementById('gp-tile-gmsg-n');
+        var n = document.getElementById('gp-tile-gmsg-n'), sub = document.getElementById('gp-tile-gmsg-sub');
         if (!n || !d || d.status !== 'ok') return;
         var ts = d.threads || [];
-        var un = ts.reduce(function (a, t) { return a + (t.unread || 0); }, 0);
-        n.textContent = ts.length ? (ts.length + (ts.length === 1 ? ' conversation' : ' conversations') + (un ? ', ' + un + ' unread' : '')) : 'None yet';
+        n.innerHTML = '';
+        if (!ts.length) { if (sub) sub.style.display = ''; return; }
+        if (sub) sub.style.display = 'none';
+        ts.slice(0, 2).forEach(function (t) {
+          var row = document.createElement('div');
+          row.style.cssText = 'font-size:14px;color:#1A2E42;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;';
+          var b = document.createElement('b'); b.textContent = ((t.other && t.other.name) || 'Someone') + (t.unread ? ' (' + t.unread + ')' : '') + ': ';
+          row.appendChild(b);
+          row.appendChild(document.createTextNode(t.last ? String(t.last.body || '') : ''));
+          n.appendChild(row);
+        });
+        if (ts.length > 2) { var m = document.createElement('div'); m.style.cssText = 'font-size:13px;color:#4B5A6D;margin-top:2px;'; m.textContent = '+' + (ts.length - 2) + ' more'; n.appendChild(m); }
       }).catch(function () {});
   }
   window.cwGroupChat = {
