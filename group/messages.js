@@ -438,17 +438,17 @@
       if (code) {
         var gp = el('button', 'font:inherit;font-size:12.5px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #B5D3EA;border-radius:22px;padding:3px 10px;height:26px;box-sizing:border-box;display:inline-flex;align-items:center;line-height:1.4;cursor:pointer;', 'Shared groups');
         gp.type = 'button';
-        gp.onclick = function () {
-          if (groupsList.style.display !== 'none') { groupsList.style.display = 'none'; return; }
-          groupsList.style.display = '';
-          if (sharedLoaded) return;
+        var sharedAsked = false;
+        function loadShared() {
+          if (sharedAsked || sharedLoaded) return;
+          sharedAsked = true;
           groupsList.textContent = 'Looking for your shared groups…';
           api('/shared', { body: { id: ctx.meId, token: token(), to: code } })
             .then(function (d) {
-              if (again(d)) return start().then(function () { sharedLoaded = false; groupsList.style.display = 'none'; });
+              if (again(d)) return start().then(function () { sharedLoaded = false; sharedAsked = false; groupsList.style.display = 'none'; });
               groupsList.innerHTML = '';
               var gl = (d && d.groups) || [];
-              if (!gl.length) { groupsList.textContent = 'No shared groups to show.'; return; }
+              if (!gl.length) { groupsList.textContent = 'No shared groups to show.'; sharedAsked = false; return; }
               sharedLoaded = true;
               groupsList.appendChild(el('div', 'font-size:12px;font-weight:800;color:#4B5A6D;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;', 'Groups you share with ' + nm));
               gl.forEach(function (g) {
@@ -456,8 +456,14 @@
                 ga.href = g.slug ? 'https://2gather.network/group/' + encodeURIComponent(String(g.slug).split(',')[0].trim()) : 'https://2gather.network/group/?id=' + encodeURIComponent(g.id || '');
                 groupsList.appendChild(ga);
               });
-            }).catch(function () { groupsList.textContent = 'That did not load. Try again in a moment.'; });
+            }).catch(function () { groupsList.textContent = 'That did not load. Try again in a moment.'; sharedAsked = false; });
+        }
+        gp.onclick = function () {
+          if (groupsList.style.display !== 'none') { groupsList.style.display = 'none'; return; }
+          groupsList.style.display = '';
+          loadShared();
         };
+        setTimeout(loadShared, 0);
         sub.appendChild(gp);
       }
     }
