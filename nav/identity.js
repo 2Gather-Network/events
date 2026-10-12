@@ -257,6 +257,19 @@
   if (signedOutView()) { w.CW_ID = ''; }
 
   w.CW = {
+    sentence: function (s) {
+      s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+      if (!s) { return s; }
+      var words = s.split(' '), alpha = words.filter(function (x) { return /[A-Za-z]/.test(x); });
+      var title = alpha.length > 1 && alpha.every(function (x) { return /^[A-Z]/.test(x); });
+      return words.map(function (x, i) {
+        if (i === 0) { return /^[a-z]+[A-Z]/.test(x) ? x : x.charAt(0).toUpperCase() + x.slice(1); }
+        if (!title) { return x; }
+        if (x.length > 1 && /^[A-Z0-9&.\-]+$/.test(x)) { return x; }
+        if (/[a-z][A-Z]/.test(x)) { return x; }
+        return x.charAt(0).toLowerCase() + x.slice(1);
+      }).join(' ');
+    },
     passParam: function () { try { var t = w.localStorage.getItem('cw-token') || ''; return t ? '&meToken=' + encodeURIComponent(t) : ''; } catch (e) { return ''; } },
     me: function () {
       if (signedOutView()) { return nobody(); }

@@ -266,6 +266,7 @@
     function addOwn(){
       String(inp.value || '').split(',').forEach(function(w){
         w = w.trim().replace(/[|;›]/g, '');
+        if (window.CW && CW.sentence) { w = CW.sentence(w); }
         var full = otherPath.length ? otherPath.concat(w).join(SEP) : w;
         if (w && !order.some(function(k){ return k.toLowerCase() === full.toLowerCase(); })) mark(full, true);
       });

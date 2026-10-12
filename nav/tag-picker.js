@@ -85,7 +85,7 @@
           oth.hidden = true;
           var line = el('div', 'cwtp-line'), inp = el('input', 'cwtp-inp'); inp.type = 'text'; inp.placeholder = 'Type your own'; inp.setAttribute('aria-label', 'Your own word under ' + (upName || main));
           var add = el('button', 'cwtp-btn', 'Add'); add.type = 'button';
-          var go = function(){ var v = String(inp.value || '').trim(); if (!v) { inp.focus(); return; } setSub(v.charAt(0).toUpperCase() + v.slice(1)); };
+          var go = function(){ var v = String(inp.value || '').trim(); if (!v) { inp.focus(); return; } setSub((window.CW && CW.sentence) ? CW.sentence(v) : v.charAt(0).toUpperCase() + v.slice(1)); };
           add.addEventListener('click', go); inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
           line.appendChild(inp); line.appendChild(add); box.appendChild(line); setTimeout(function(){ try { inp.focus(); } catch (x) {} }, 0);
         });
