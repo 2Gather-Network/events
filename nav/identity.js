@@ -257,6 +257,7 @@
   if (signedOutView()) { w.CW_ID = ''; }
 
   w.CW = {
+    passParam: function () { try { var t = w.localStorage.getItem('cw-token') || ''; return t ? '&meToken=' + encodeURIComponent(t) : ''; } catch (e) { return ''; } },
     me: function () {
       if (signedOutView()) { return nobody(); }
       var real = String(w.CW_ID || '').trim() || fromDevice();
