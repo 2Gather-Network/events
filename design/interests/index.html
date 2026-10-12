@@ -20,6 +20,8 @@
   body.focustag .search, body.focustag .ibar, body.focustag .ideasfold, body.focustag .pastew, body.focustag .resw, body.focustag .cardsw, body.focustag .addedmsg{display:none;}
   .catpick{margin:14px 0 10px;}
   .catpick .cwtp{margin-top:0;}
+  .gcount{display:inline-block;margin-left:8px;min-width:18px;padding:0 6px;border-radius:10px;background:#fff;color:var(--blue);font-size:12px;font-weight:800;text-align:center;}
+  .showmore{border:2px solid var(--ink);color:var(--ink);font-weight:800;}
   .gfull{display:flex;align-items:center;gap:10px;width:100%;background:#fff;border:1.5px solid var(--pale);border-radius:12px;padding:12px 14px;margin-top:8px;cursor:pointer;font:inherit;text-align:left;}
   .gfull:first-child{margin-top:0;}
   .gtx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
@@ -137,7 +139,7 @@
   .catx{display:inline-block;margin-right:14px;white-space:nowrap;}
   .catx:last-child{margin-right:0;}
   .catx.plain{margin-right:0;}
-  .catlink .catx:first-child{text-decoration:underline;}
+  .catlink .catx{text-decoration:underline;}
   .catemo{display:inline-block;text-decoration:none;margin-right:.45em;}
   .cmsy{margin-left:auto;display:inline-flex;gap:6px;flex:none;}
   .cms{cursor:pointer;width:26px;height:26px;border-radius:50%;background:#EEF1F4;color:#A9B4C0;display:inline-flex;align-items:center;justify-content:center;}
@@ -621,12 +623,15 @@
     if (typed && !st.byName[lc(typed)] && !careFor(typed) && !has(typed)) {
       var ap = el('button', 'pick other', (!hits.length && fuzzy && fuzzy.any ? 'None of these: + Add \u201C' : '+ Add \u201C') + typed + '\u201D'); ap.type = 'button';
       ap.style.marginTop = '10px';
+      var apc = el('button', 'btn ghost small', 'Cancel'); apc.type = 'button'; apc.style.marginTop = '10px'; apc.style.marginLeft = '8px';
+      apc.addEventListener('click', function(){ st.q = ''; els.search.value = ''; drawAll(); });
       ap.addEventListener('click', function(){
         st.q = ''; els.search.value = '';
         if (!has(typed)) { st.msg = ''; st.tagging = [{ word: typed, area: 'Other', root: '', teach: '' }]; }
         drawAll();
       });
       box.appendChild(ap);
+      box.appendChild(apc);
     }
   }
 
@@ -802,7 +807,7 @@
     st.gq = st.gq || {}; st.gord = st.gord || {}; st.goff = st.goff || {};
     var q = lc(st.gq[node.id] || '').trim(), kids = node.kids;
     var keep = function(k){ return has(k.word) || isSel(k.word) || st.drill[node.id] === k.id; };
-    if (q) { return kids.filter(function(k){ return lc(k.word).indexOf(q) > -1 || keep(k); }); }
+    if (q) { return kids.filter(function(k){ return lc(k.word).indexOf(q) > -1; }); }
     if (kids.length <= GPAGE) { return kids; }
     if (!st.gord[node.id]) { st.gord[node.id] = kids.map(function(k){ return k.id; }); st.goff[node.id] = 0; }
     var ord = st.gord[node.id], off = st.goff[node.id] || 0, byId = {}, pick = {};
@@ -819,8 +824,8 @@
       var again = els.browse.querySelector('input.gsearch[aria-label="Search ' + node.word + '"]'); if (again) { again.focus(); try { again.setSelectionRange(at, at); } catch (e) {} }
     });
     bar.appendChild(inp);
-    if (node.kids.length > GPAGE) {
-      var nb = el('button', 'btn ghost', 'Give me other ideas'); nb.type = 'button';
+    if (node.kids.length > GPAGE && !lc((st.gq || {})[node.id] || '').trim()) {
+      var nb = el('button', 'btn ghost showmore', 'Show more here'); nb.type = 'button';
       nb.addEventListener('click', function(){
         st.gq[node.id] = ''; st.gord = st.gord || {}; st.goff = st.goff || {};
         var off = (st.goff[node.id] || 0) + GPAGE;
@@ -861,6 +866,9 @@
         drawAll();
       });
       r.appendChild(tb);
+      var tcx = el('button', 'btn ghost small', 'Cancel'); tcx.type = 'button';
+      tcx.addEventListener('click', function(){ st.gq[node.id] = ''; drawBrowse(); });
+      r.appendChild(tcx);
     }
     var rw = el('div', 'rw'); rw.appendChild(r);
     box.appendChild(rw);
@@ -894,7 +902,7 @@
     ibarT.addEventListener('click', function(){ st.ideas = false; drawBrowse(); });
     ibox.appendChild(ibarT);
     var ibody = el('div', 'foldbody'); ibox.appendChild(ibody); box.appendChild(ibox); host = ibody;
-    if (st.msg && !(st.tagging || []).length) { var am2 = el('p', 'addedmsg', st.msg); am2.setAttribute('role', 'status'); ibody.appendChild(am2); }
+    if (st.msg && !st.group && !(st.tagging || []).length) { var am2 = el('p', 'addedmsg', st.msg); am2.setAttribute('role', 'status'); ibody.appendChild(am2); }
     var roots = st.roots.filter(function(root){ return root.kids && root.kids.length; });
     var cur = null;
     roots.forEach(function(root){ if (st.group === root.id) { cur = root; } });
@@ -905,20 +913,18 @@
       try { els.browse.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) {}
     };
     if (!cur) {
+      var grow = el('div', 'row');
       roots.forEach(function(root){
         var mine = areaPicks(root);
-        var rw = el('button', 'gfull'); rw.type = 'button';
-        var tx = el('span', 'gtx');
-        tx.appendChild(el('span', 'gname', root.word));
-        tx.appendChild(el('span', 'gsub', mine.length ? mine.length + ' picked' : 'Nothing picked'));
-        rw.appendChild(tx);
-        var ar = el('span', 'garr', '›'); ar.setAttribute('aria-hidden', 'true'); rw.appendChild(ar);
+        var rw = el('button', 'pick' + (mine.length ? ' on' : ''), root.word); rw.type = 'button';
+        if (mine.length) { rw.appendChild(el('span', 'gcount', String(mine.length))); }
         rw.addEventListener('click', function(){ st.group = root.id; st.open = {}; st.open[root.id] = true; drawBrowse(); try { els.browse.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) {} });
-        host.appendChild(rw);
+        grow.appendChild(rw);
       });
+      host.appendChild(grow);
       return;
     }
-    var back = el('button', 'gback', '‹ All ideas'); back.type = 'button';
+    var back = el('button', 'gback', 'Back to all ideas'); back.type = 'button';
     back.addEventListener('click', toList);
     host.appendChild(back);
     host.appendChild(el('div', 'gtitle', cur.word));
@@ -1033,6 +1039,7 @@
   }
   function catRow(m, catEl){
     var row = el('div', 'catrow'); row.appendChild(catEl);
+    return row;
     var sb = subOf(m); if (!sb || !sb.parent.word) { return row; }
     row.appendChild(el('span', 'catarr', '\u203A'));
     if (sb.sibs.length) {
