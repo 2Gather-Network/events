@@ -880,6 +880,11 @@
       ? (waiting + ' support ticket' + (waiting === 1 ? '' : 's') + ' waiting')
       : 'Support', _supportHere(), waiting > 0);
 
+    if (operatorOk) {
+      var pw = adminLink('Proposed words', '#', false);
+      pw.onclick = function (ev) { ev.preventDefault(); openWords(bar); };
+    }
+
     var fold = d.createElement('button');
     fold.type = 'button';
     fold.textContent = 'Hide';
@@ -925,11 +930,82 @@
   }
 
   var superOk = false;
+  var operatorOk = false;
   function drawAdminBar() { if (w.CW_ADMIN_HIDDEN || !superOk) { return; } if (folded()) { paintFolded(); } else { paint(); } }
 
   w.CW_REDRAW_ADMIN = function () { try { drawAdminBar(); } catch (e) {} };
 
+  function openWords(bar) {
+    var old = d.getElementById('cw-viewas-words'); if (old) { old.remove(); return; }
+    var other = d.getElementById('cw-viewas-pick'); if (other) { other.remove(); }
+    var panel = d.createElement('div');
+    panel.id = 'cw-viewas-words';
+    var top = 34; try { top = Math.round(bar.getBoundingClientRect().bottom) || 34; } catch (e) {}
+    panel.style.cssText = 'position:fixed;left:0;right:0;top:' + top + 'px;max-height:70vh;overflow:auto;'
+      + 'box-shadow:0 6px 18px rgba(26,46,66,.12);z-index:100000;background:#fff;color:#1A2E42;'
+      + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "DM Sans",system-ui,sans-serif;';
+    var head = d.createElement('div');
+    head.style.cssText = 'font-weight:800;margin-bottom:8px;';
+    head.textContent = 'Looking for proposed words…';
+    var list = d.createElement('div');
+    list.style.cssText = 'display:flex;flex-direction:column;gap:8px;max-width:640px;';
+    panel.appendChild(head); panel.appendChild(list);
+    d.body.appendChild(panel);
+    var auth = '&appearId=' + encodeURIComponent(realMeId)
+      + '&meToken=' + encodeURIComponent(String(ls(function () { return w.localStorage.getItem('cw-token'); }, '') || ''));
+    var left = 0;
+    function count() { head.textContent = left ? (left + ' proposed ' + (left === 1 ? 'word' : 'words') + ' to review') : 'No proposed words waiting.'; }
+    function say(t) { head.textContent = t; }
+    function line(it) {
+      var row = d.createElement('div');
+      row.style.cssText = 'border:1px solid #E3EAF0;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;';
+      var shown = it.kind === 'word' ? it.word : (it.word + ' › ' + it.value);
+      var what = it.kind === 'word'
+        ? [(it.categories && it.categories.length ? 'Categories: ' + it.categories.join(', ') : ''),
+           (it.kindOf && it.kindOf.length ? 'Kind of: ' + it.kindOf.join(', ') : '')].filter(String).join(' · ')
+        : ('Added ' + (it.added === 'otherName' ? 'another name' : it.added === 'kindOf' ? 'a kind of' : 'a category') + ' to ' + it.word);
+      var t = d.createElement('div');
+      t.style.cssText = 'font-weight:700;';
+      t.textContent = shown + (it.looksLikeName ? ' (may be a first name)' : '');
+      var m = d.createElement('div');
+      m.style.cssText = 'font-size:13px;color:#4B5A6D;';
+      m.textContent = what || 'No categories chosen';
+      var btns = d.createElement('div');
+      btns.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
+      var ok = d.createElement('button'), no = d.createElement('button'), msg = d.createElement('span');
+      ok.type = 'button'; no.type = 'button';
+      ok.textContent = 'Approve'; no.textContent = 'Reject';
+      ok.style.cssText = 'font:inherit;font-weight:800;padding:5px 14px;border-radius:14px;cursor:pointer;border:0;background:#1A2E42;color:#fff;';
+      no.style.cssText = 'font:inherit;padding:5px 14px;border-radius:14px;cursor:pointer;border:1px solid #C3D0DB;background:transparent;color:#1A2E42;';
+      msg.style.cssText = 'font-size:13px;color:#8A6220;';
+      function decide(dec) {
+        ok.disabled = no.disabled = true; msg.textContent = 'Saving…';
+        fetch(GS + '?action=reviewWord' + auth + '&ref=' + encodeURIComponent(it.ref) + '&decision=' + dec + '&t=' + Date.now())
+          .then(function (r) { return r.json(); })
+          .then(function (r) {
+            if (r && r.status === 'ok') { row.remove(); left--; count(); return; }
+            ok.disabled = no.disabled = false; msg.textContent = (r && r.message) || 'Could not save. Try again.';
+          })
+          .catch(function () { ok.disabled = no.disabled = false; msg.textContent = 'Could not reach the server. Try again.'; });
+      }
+      ok.onclick = function () { decide('keep'); };
+      no.onclick = function () { decide('remove'); };
+      btns.appendChild(ok); btns.appendChild(no); btns.appendChild(msg);
+      row.appendChild(t); row.appendChild(m); row.appendChild(btns);
+      return row;
+    }
+    fetch(GS + '?action=getWordReview' + auth + '&t=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r || r.status !== 'ok' || !Array.isArray(r.items)) { say((r && r.message) || 'The list did not come back. Try again.'); return; }
+        left = r.items.length; count();
+        r.items.forEach(function (it) { list.appendChild(line(it)); });
+      })
+      .catch(function () { say('Could not reach the server. Try again.'); });
+  }
+
   function open(bar) {
+    var oldW = d.getElementById('cw-viewas-words'); if (oldW) { oldW.remove(); }
     var old = d.getElementById('cw-viewas-pick'); if (old) { old.remove(); return; }
     var panel = d.createElement('div');
     panel.id = 'cw-viewas-pick';
@@ -1043,10 +1119,10 @@
   var whoKey = realMeId.split('.').join('').toLowerCase();
   var stamp = ls(function () { return JSON.parse(w.localStorage.getItem('cw-super-for') || 'null'); }, null);
   var mine = stamp && typeof stamp === 'object' && stamp.v === 3 && stamp.who === whoKey;
-  var fresh = mine && (Date.now() - (stamp.at || 0)) < 3600000;
+  var fresh = mine && (Date.now() - (stamp.at || 0)) < 3600000 && (stamp.yes !== true || typeof stamp.op === 'boolean');
   if (!mine) { ls(function () { w.localStorage.removeItem('cw-super'); w.localStorage.removeItem('cw-super-for'); }); }
   if (mine) { ls(function () { w.localStorage.setItem('cw-super', stamp.yes === true ? 'yes' : 'no'); }); }
-  if (mine && stamp.yes === true) { superOk = true; drawAdminBar(); }
+  if (mine && stamp.yes === true) { superOk = true; operatorOk = stamp.op === true; drawAdminBar(); }
   if (fresh) { return; }
   fetch(GS + '?action=amISuper&appearId=' + encodeURIComponent(realMeId)
         + '&meToken=' + encodeURIComponent(String(w.localStorage.getItem('cw-token') || '')))
@@ -1054,8 +1130,9 @@
     .then(function (dd) {
       if (!dd || dd.status !== 'ok') { return; }
       var yes = !!dd.isSuper;
-      ls(function () { w.localStorage.setItem('cw-super', yes ? 'yes' : 'no'); w.localStorage.setItem('cw-super-for', JSON.stringify({ v: 3, who: whoKey, yes: yes, at: Date.now() })); });
-      if (yes) { superOk = true; drawAdminBar(); }
+      var opYes = yes && dd.isOperator === true;
+      ls(function () { w.localStorage.setItem('cw-super', yes ? 'yes' : 'no'); w.localStorage.setItem('cw-super-for', JSON.stringify({ v: 3, who: whoKey, yes: yes, op: opYes, at: Date.now() })); });
+      if (yes) { superOk = true; operatorOk = opYes; drawAdminBar(); }
       else { superOk = false; var had = d.getElementById('cw-viewas'); if (had) { had.remove(); } var hadF = d.getElementById('cw-viewas-folded'); if (hadF) { hadF.remove(); } }
     })
     .catch(function () {});
