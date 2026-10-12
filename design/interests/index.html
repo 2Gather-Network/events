@@ -41,6 +41,10 @@
   .pick.addsel{background:var(--blue);color:#fff;border-color:var(--blue);}
   .pick.addsel[hidden]{display:none;}
   .tagask{background:#fff;border:1.5px solid var(--pale);border-radius:14px;padding:10px 12px;margin:0 0 10px;}
+  .tagask.compact .tagline{margin:0 0 8px;font-size:13.5px;font-weight:700;}
+  .tagask .tagrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .tagask .tagsel{flex:1 1 200px;min-width:0;}
+  .tagask .btn:disabled{opacity:.5;cursor:not-allowed;}
   .tagq{margin:0 0 8px;font-size:14px;font-weight:700;color:var(--ink);}
   .ideasbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px;}
   .gsearch{flex:1 1 180px;min-width:0;font:inherit;font-size:14px;padding:8px 14px;border:1.5px solid var(--pale);border-radius:20px;background:#fff;color:var(--ink);}
@@ -417,29 +421,47 @@
     b.addEventListener('click', function(){ if (has(n.word)) { askRemove(n.word); return; } setSel(n, !isSel(n.word)); drawAll(); });
     return b;
   }
-  function tagPanel(t){
-    var ask = el('div', 'tagask');
-    var closeAll = function(){
-      st.tagging = (st.tagging || []).filter(function(x){ return x !== t; });
-      st.msg = '';
-      if (t.root) { st.open[t.root] = false; } else { st.open = {}; }
-      drawAll(); try { els.browse.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) {}
-    };
-    var confirm = function(){
-      if (!has(t.word)) { addMine(t.word, t.area); if (t.teach) { teach({ text: t.word, kindOf: t.teach, askedIn: 'interest' }); } }
-      if (st.sel) { delete st.sel[lc(t.word)]; }
-      t.added = true; emit(); drawAll();
-    };
-    var ix2 = mineIx(t.word);
-    ask.appendChild(tagBox(t.added && ix2 > -1 ? st.mine[ix2] : { word: t.word, area: t.area }, t.added ? closeAll : confirm, function(){}, t.added ? { title: 'Tag \u201C' + t.word + '\u201D', noSubs: true, doneLabel: 'Done', doneNote: 'Interest added' } : { title: 'Tag \u201C' + t.word + '\u201D', noSubs: true, doneLabel: 'Looks good', doneNote: 'Do the tagged categories look good?' }));
-    if (!t.added) {
-      var dr = ask.querySelector('.cwtp-done');
-      if (dr) {
-        var cx = el('button', 'btn ghost', 'Cancel'); cx.type = 'button'; cx.style.marginLeft = '10px';
-        cx.addEventListener('click', function(){ st.tagging = (st.tagging || []).filter(function(x){ return x !== t; }); if (st.sel) { delete st.sel[lc(t.word)]; } st.msg = ''; drawAll(); });
-        dr.appendChild(cx);
-      }
+  function defaultCat(t){
+    var n = st.byName[lc(t.word)], g = 0;
+    while (n && g++ < 8) {
+      var c = (n.cats || []).filter(function(x){ return (st.mainCats || []).indexOf(x) > -1; })[0];
+      if (c) { return c; }
+      n = n.parents && n.parents[0];
     }
+    return (t.area && (st.mainCats || []).indexOf(t.area) > -1) ? t.area : '';
+  }
+  function tagPanel(t){
+    var ask = el('div', 'tagask compact');
+    var close = function(){
+      st.tagging = (st.tagging || []).filter(function(x){ return x !== t; });
+      if (st.sel) { delete st.sel[lc(t.word)]; }
+      st.msg = '';
+      drawAll();
+    };
+    var a0 = getA(t.word), cur = (a0.cats && a0.cats[0]) || defaultCat(t);
+    ask.appendChild(el('p', 'tagline', '“' + t.word + '” counts as:'));
+    var row = el('div', 'tagrow'), sel = el('select', 'ltsort tagsel'); sel.setAttribute('aria-label', 'Category for ' + t.word);
+    var o0 = el('option', '', 'Choose a category'); o0.value = ''; sel.appendChild(o0);
+    (st.mainCats || []).forEach(function(c){ var o = el('option', '', c); o.value = c; if (c === cur) { o.selected = true; } sel.appendChild(o); });
+    var done = el('button', 'btn small', 'Done'); done.type = 'button';
+    var cx = el('button', 'btn ghost small', 'Cancel'); cx.type = 'button';
+    var sync = function(){ done.disabled = !sel.value; };
+    sel.addEventListener('change', sync); sync();
+    done.addEventListener('click', function(){
+      if (!sel.value) { return; }
+      var a = getA(t.word); a.cats = [sel.value]; putA(t.word, a);
+      toParent({ ao: 'intcat', word: t.word, cats: [sel.value] });
+      if (!has(t.word)) { addMine(t.word, t.area); if (t.teach) { teach({ text: t.word, kindOf: t.teach, askedIn: 'interest' }); } }
+      emit();
+      st.msg = '“' + t.word + '” added to your interests';
+      st.tagging = (st.tagging || []).filter(function(x){ return x !== t; });
+      if (st.sel) { delete st.sel[lc(t.word)]; }
+      if (t.root) { st.open[t.root] = false; } else { st.open = {}; }
+      drawAll();
+    });
+    cx.addEventListener('click', close);
+    row.appendChild(sel); row.appendChild(done); row.appendChild(cx);
+    ask.appendChild(row);
     return ask;
   }
   function rmPanel(rw){
@@ -551,7 +573,7 @@
       ap.style.marginTop = '10px';
       ap.addEventListener('click', function(){
         st.q = ''; els.search.value = '';
-        if (!has(typed)) { addMine(typed, 'Other'); emit(); }
+        if (!has(typed)) { st.msg = ''; st.tagging = [{ word: typed, area: 'Other', root: '', teach: '' }]; }
         drawAll();
       });
       box.appendChild(ap);
@@ -779,7 +801,7 @@
       if (on) openKid = n;
     });
     oth = otherRow(node, '');
-    if (oth.className === 'pick other') r.appendChild(oth);
+    if (oth.className === 'pick other' && !openKid) r.appendChild(oth);
     r.appendChild(addBtn(node.kids));
     var typedQ = depth ? '' : cap(clean(((st.gq || {})[node.id]) || ''));
     if (typedQ.length > 1 && !has(typedQ) && !node.kids.some(function(k){ return lc(k.word) === lc(typedQ); })) {
@@ -1836,7 +1858,7 @@
       var w = cap(clean(st.q)); if (!w) { return; }
       var hit = st.byName[lc(w)], name = hit ? hit.word : w;
       st.q = ''; s.value = '';
-      if (!has(name)) { if (hit && !hit.extra) { pick(name, areaOf(hit)); return; } addMine(name, hit ? areaOf(hit) : 'Other'); emit(); }
+      if (!has(name)) { if (hit && !hit.extra) { pick(name, areaOf(hit)); return; } st.msg = ''; st.tagging = [{ word: name, area: hit ? areaOf(hit) : 'Other', root: '', teach: '' }]; }
       drawAll();
     });
     els.search = s; app.appendChild(s);
