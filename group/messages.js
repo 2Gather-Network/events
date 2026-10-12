@@ -550,6 +550,7 @@
           mb.appendChild(who);
           mb.appendChild(linkify(el('div', 'font-size:14.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;color:#1A2E42;'), m.body));
           row.appendChild(mb);
+          if (m.mine && m.id) row.appendChild(deleteX(function () { askDelete(m, mb, t); }));
           row.title = new Date(m.at).toLocaleString();
           row.setAttribute('data-q', (nameShown + ' ' + (m.body || '')).toLowerCase());
           msgs.appendChild(row);
@@ -562,6 +563,25 @@
         if (!first) return;
         tileRefresh();
       }).catch(function () { if (first) say(sub, 'This conversation did not load. Reload the page to try again.', true); });
+    }
+    function askDelete(m, mb, t) {
+      var old = mb.querySelector('.gp-del-ask');
+      if (old) { old.remove(); return; }
+      var ask = el('div', 'margin-top:6px;');
+      ask.className = 'gp-del-ask';
+      ask.appendChild(el('div', 'font-size:13.5px;color:#1A2E42;margin-bottom:6px;', 'Delete this message? It disappears for you and ' + ((t.other && t.other.name) || 'them') + '.'));
+      var r2 = el('div', 'display:flex;gap:8px;');
+      var yes = btn('Yes, delete'), no = btn('No', 'quiet');
+      yes.onclick = function () {
+        yes.disabled = true;
+        api('/thread/delete', { body: { threadId: id, messageId: m.id, id: ctx.meId, token: token() } }).then(function (d) {
+          if (d && d.status === 'ok') { seen = ''; load(false); }
+          else { yes.disabled = false; say(note, (d && d.message) || 'That did not go through.', true); }
+        }).catch(function () { yes.disabled = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
+      };
+      no.onclick = function () { ask.remove(); };
+      r2.appendChild(yes); r2.appendChild(no); ask.appendChild(r2);
+      mb.appendChild(ask);
     }
     send.onclick = function () {
       var text = ta.value.trim();
@@ -608,6 +628,12 @@
   var chat = { box: null, poll: null, last: 0, first: 0, role: '', ctx: null, open: false };
   function chatGroupId() { return chat.ctx ? String(chat.ctx.groupId || '') : ''; }
   function chatTime(at) { return when(at); }
+  function deleteX(onTap) {
+    var b = el('button', 'flex:none;width:32px;height:32px;border:0;background:transparent;border-radius:50%;color:#6B7A8D;font:inherit;font-size:20px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;', '\u00D7');
+    b.type = 'button'; b.title = 'Delete this message'; b.setAttribute('aria-label', 'Delete this message');
+    b.onclick = onTap;
+    return b;
+  }
   function chatRow(m) {
     var isHost = chat.role === 'host' || chat.role === 'cohost';
     var row = el('div', 'display:flex;gap:10px;align-items:flex-start;padding:6px 0;');
@@ -633,17 +659,13 @@
       pl.onclick = function () { chat.onPin(m); };
       who.appendChild(pl);
     }
-    if (m.mine && !m.removed && chat.onDelete) {
-      var dl = el('a', 'font-weight:700;color:#6B7A8D;margin-left:8px;font-size:12.5px;cursor:pointer;', 'Delete');
-      dl.setAttribute('role', 'button'); dl.tabIndex = 0;
-      dl.onclick = function () { chat.onDelete(m, row); };
-      who.appendChild(dl);
-    }
     mb.appendChild(who);
     var p = el('div', 'font-size:14.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;' + (m.removed ? 'color:#6B7A8D;font-style:italic;' : 'color:#1A2E42;'));
     if (m.removed) p.textContent = 'This message was removed.'; else linkify(p, m.body);
     mb.appendChild(p);
     row.appendChild(av); row.appendChild(mb);
+    row._mb = mb;
+    if (m.mine && !m.removed && chat.onDelete) row.appendChild(deleteX(function () { chat.onDelete(m, row); }));
     return row;
   }
   function chatStop() { if (chat.poll) { clearInterval(chat.poll); chat.poll = null; } chat.open = false; }
@@ -786,7 +808,7 @@
       };
       no.onclick = function () { ask.remove(); };
       r2.appendChild(yes); r2.appendChild(no); ask.appendChild(r2);
-      rowEl.querySelector('div > div:last-child').appendChild(ask);
+      (rowEl._mb || rowEl).appendChild(ask);
     };
     function add(list, atTop) {
       if (empty.parentNode) empty.remove();
