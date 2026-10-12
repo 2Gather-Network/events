@@ -3104,43 +3104,83 @@
     var h = card.firstElementChild;
     return h ? h.textContent : '';
   }
-  var GP_SHEET_ICONS = [
-    'M12 2l2.4 7.1L22 12l-7.6 2.9L12 22l-2.4-7.1L2 12l7.6-2.9z',
-    'M12 21s-8-5.3-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.7-8 11-8 11z',
-    'M12 3a6 6 0 0 0-3.5 10.9V17h7v-3.1A6 6 0 0 0 12 3zM9.5 19h5v2h-5z',
-    'M12 2l3 6.5 7 .8-5.2 4.8 1.4 7-6.2-3.5L5.8 21l1.4-7L2 9.3l7-.8z'
-  ];
+  var GP_SHEET_ICONS = {
+    welcome: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+    interests: '<circle cx="12" cy="12" r="9"/><path d="M16 8l-2.5 5.5L8 16l2.5-5.5z"/>',
+    joys: '<circle cx="12" cy="12" r="9"/><path d="M8 14c1 1.6 2.4 2.4 4 2.4s3-.8 4-2.4M9 10h.01M15 10h.01"/>',
+    skills: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+    cares: '<path d="M5 19c0-8 5-14 15-14 0 10-6 15-14 15M5 19l8-8"/>',
+    needs: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+    offerings: '<rect x="4" y="11" width="16" height="9" rx="1"/><rect x="3" y="7" width="18" height="4" rx="1"/><path d="M12 7v13M12 7c-1-4-5-4-5-2s3 2 5 2zM12 7c1-4 5-4 5-2s-3 2-5 2z"/>',
+    open: '<path d="M3 11l18-8-8 18-2-7z"/>',
+    appreciation: '<circle cx="12" cy="9" r="5"/><path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5"/>',
+    purpose: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+    other: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/>'
+  };
+  function gpSheetIcon(label){
+    var k = String(label || '').toLowerCase();
+    var key = GP_SHEET_ICONS[k] ? k : (/^open/.test(k) ? 'open' : 'other');
+    return '<svg viewBox="0 0 24 24" aria-hidden="true">' + GP_SHEET_ICONS[key] + '</svg>';
+  }
   function gpSheetArrange(){
     if (!gpSheetsOn()) { return; }
     if (!document.getElementById('gp-sheet-css')) {
       var css = document.createElement('style'); css.id = 'gp-sheet-css';
       css.textContent = '#gp-bnav{display:none !important;}'
-        + '#gp-dock{position:fixed;left:0;right:0;bottom:0;z-index:60;max-height:176px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-top:8px;padding-bottom:env(safe-area-inset-bottom,0px);}'
+        + '#gp-dock{position:fixed;left:0;right:0;bottom:0;z-index:60;max-height:330px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-top:8px;padding-bottom:env(safe-area-inset-bottom,0px);}'
         + '#gp-dock::-webkit-scrollbar{display:none;}'
         + '#gp-dock button{position:relative;display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;margin:-14px 0 0;border:0;font:inherit;font-size:17px;font-weight:700;color:#1A2E42;text-align:left;cursor:pointer;'
         + 'background:linear-gradient(180deg,#EEF6FF,#E3F0FD);padding:16px 24px 28px;border-radius:30px 30px 0 0;box-shadow:0 -5px 14px rgba(31,105,158,.2);}'
         + '#gp-dock button:first-child{margin-top:0;}'
         + '#gp-dock button.on{background:#fff;color:#1F699E;}'
-        + '#gp-dock svg{width:20px;height:20px;flex:0 0 20px;fill:currentColor;}';
+        + '#gp-dock.shut button{padding-bottom:18px;}'
+        + '#gp-dock svg{width:22px;height:22px;flex:0 0 22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}'
+        + '#gp-dock .gp-grip{margin-left:auto;width:36px;height:5px;border-radius:3px;background:#C9DFF3;}'
+        + '#gp-dockback{position:fixed;left:0;top:0;right:0;bottom:0;z-index:59;background:rgba(26,46,66,.25);}';
       document.head.appendChild(css);
     }
     var dock = document.getElementById('gp-dock');
     if (!dock) { dock = document.createElement('div'); dock.id = 'gp-dock'; document.body.appendChild(dock); }
+    var back = document.getElementById('gp-dockback');
+    if (back) { back.parentNode.removeChild(back); }
     dock.innerHTML = '';
-    var i = 0, act = null;
+    var open = !!window._gpDockOpen;
+    var tabs = [];
     Array.prototype.forEach.call(document.querySelectorAll('#gp-rail .gp-tab'), function(tab){
       if (tab.hasAttribute('data-door') || tab.getAttribute('data-rail') === String(GP_LAST)) { return; }
       var lab = ''; tab.childNodes.forEach(function(n){ if (n.nodeType === 3) { lab += n.textContent; } });
       lab = lab.trim(); if (!lab) { return; }
-      var b = document.createElement('button'); b.type = 'button';
-      b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + GP_SHEET_ICONS[i % GP_SHEET_ICONS.length] + '"/></svg>';
-      b.appendChild(document.createTextNode(gpSheetLabel(lab)));
-      if (tab.classList.contains('on')) { b.className = 'on'; act = b; }
-      b.onclick = function(){ tab.click(); };
-      dock.appendChild(b); i++;
+      tabs.push({ tab: tab, label: gpSheetLabel(lab), on: tab.classList.contains('on') });
     });
-    document.body.style.paddingBottom = 'calc(190px + env(safe-area-inset-bottom,0px))';
-    if (act) { try { dock.scrollTop = Math.max(0, act.offsetTop - 40); } catch (e) {} }
+    var act = null;
+    if (!open) {
+      dock.className = 'shut';
+      var cur = tabs.filter(function(t){ return t.on; })[0] || tabs[0];
+      if (cur) {
+        var b0 = document.createElement('button'); b0.type = 'button'; b0.className = 'on';
+        b0.innerHTML = gpSheetIcon(cur.label);
+        b0.appendChild(document.createTextNode(cur.label));
+        var g = document.createElement('span'); g.className = 'gp-grip'; b0.appendChild(g);
+        b0.onclick = function(){ window._gpDockOpen = true; gpSheetArrange(); };
+        dock.appendChild(b0);
+      }
+      document.body.style.paddingBottom = 'calc(84px + env(safe-area-inset-bottom,0px))';
+      return;
+    }
+    dock.className = '';
+    back = document.createElement('div'); back.id = 'gp-dockback';
+    back.onclick = function(){ window._gpDockOpen = false; gpSheetArrange(); };
+    document.body.appendChild(back);
+    tabs.forEach(function(t){
+      var b = document.createElement('button'); b.type = 'button';
+      b.innerHTML = gpSheetIcon(t.label);
+      b.appendChild(document.createTextNode(t.label));
+      if (t.on) { b.className = 'on'; act = b; }
+      b.onclick = function(){ window._gpDockOpen = false; if (t.on) { gpSheetArrange(); } else { t.tab.click(); setTimeout(gpSheetArrange, 50); } };
+      dock.appendChild(b);
+    });
+    document.body.appendChild(dock);
+    if (act) { try { dock.scrollTop = Math.max(0, act.offsetTop - 80); } catch (e) {} }
   }
   function gpOrigFor(key, word){
     var o = _gpOrig[key] || {};
