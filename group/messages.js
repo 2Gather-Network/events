@@ -918,19 +918,22 @@
           }
         };
         if (d.welcome && d.welcome.note) {
-          var wb = el('div', 'background:#E6F1FB;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:13.5px;line-height:1.4;color:#1A2E42;');
+          var wb = el('div', 'background:#E6F1FB;border-radius:8px;padding:8px 10px;margin-top:12px;margin-bottom:8px;font-size:13.5px;line-height:1.4;color:#1A2E42;');
           var wt = el('div', 'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;white-space:pre-wrap;');
           wt.appendChild(el('b', '', 'Welcome from ' + (d.welcome.by || 'the host') + ': '));
           wt.appendChild(document.createTextNode(d.welcome.note));
           wb.appendChild(wt);
-          var got = el('a', 'display:inline-block;margin-top:4px;font-size:12.5px;font-weight:700;color:#1F699E;cursor:pointer;', 'Got it');
+          var gotRow = el('div', 'text-align:right;margin-top:4px;');
+          var got = el('a', 'display:inline-block;font-size:12.5px;font-weight:700;color:#1F699E;cursor:pointer;', 'View');
           got.setAttribute('role', 'link'); got.tabIndex = 0;
           got.onclick = function () {
+            if (window.gpShow) window.gpShow('chat');
             api('/chat/welcome/seen', { body: { groupId: gid, id: chat.ctx.meId, token: token() } }).then(function (r) {
               if (r && r.status === 'ok') { wb.remove(); if (!body.children.length) body.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;', 'No messages yet.')); }
             }).catch(function () {});
           };
-          wb.appendChild(got);
+          gotRow.appendChild(got);
+          wb.appendChild(gotRow);
           body.appendChild(wb);
         }
         if (d.pin) line({ name: d.pin.from, body: d.pin.body }, true);
