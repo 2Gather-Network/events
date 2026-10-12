@@ -569,7 +569,7 @@
       if (old) { old.remove(); return; }
       var ask = el('div', 'margin-top:6px;');
       ask.className = 'gp-del-ask';
-      ask.appendChild(el('div', 'font-size:13.5px;color:#1A2E42;margin-bottom:6px;', 'Delete this message? It disappears for you and ' + ((t.other && t.other.name) || 'them') + '.'));
+      ask.appendChild(el('div', 'font-size:13.5px;color:#1A2E42;margin-bottom:6px;', 'Delete this message? This removes it for both of you: you and ' + ((t.other && t.other.name) || 'them') + '.'));
       var r2 = el('div', 'display:flex;gap:8px;');
       var yes = btn('Yes, delete'), no = btn('No', 'quiet');
       yes.onclick = function () {
