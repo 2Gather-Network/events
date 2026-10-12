@@ -170,6 +170,15 @@
         .catch(function () { _tbHush('getBookmarks', 5); });
     } catch (e) {}
   }
+  function myProfileUrl() {
+    try {
+      var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
+      var real = (window.CW && window.CW.realMe) ? window.CW.realMe().id : me();
+      var v = localStorage.getItem('cw-vanity') || '', f = localStorage.getItem('cw-vanity-for') || '';
+      if (v && norm(f) && norm(f) === norm(real)) { return 'https://2gather.network/hi/' + encodeURIComponent(v); }
+    } catch (e) {}
+    return 'https://2gather.network/me/';
+  }
   function hasAGroup() {
     try { return !!me(); } catch (e) { return false; }
   }
@@ -296,7 +305,7 @@
 
     function fillMine() {
       var mine = '';
-      mine += anchor('My profile', 'https://2gather.network/ikigai/', 'cwtb-item');
+      mine += anchor('My profile', myProfileUrl(), 'cwtb-item');
       mine += anchor('My messages', 'https://2gather.network/messages', 'cwtb-item');
       if (hasEvents()) { mine += anchor('My events', link(MYEVENTS, 'memberCard'), 'cwtb-item'); }
       if (hasAGroup()) { mine += anchor('My groups', link(MYGROUPS, 'memberCard'), 'cwtb-item'); }
