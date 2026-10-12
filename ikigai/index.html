@@ -301,6 +301,7 @@
   function gpBlock(title, hint, body){
     var w = document.createElement('div');
     w.style.cssText = 'padding:16px 18px;margin:0 0 14px;border:1.5px solid #C9DFF3;border-radius:14px;background:#fff;';
+    w.setAttribute('data-gp-card','1');
     var t = document.createElement('div'); t.className = 'gp-qtitle';
     t.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;';
     t.textContent = title;
@@ -2403,6 +2404,7 @@
     var wrap = document.createElement('div');
     wrap.setAttribute('data-gp-loc','1');
     wrap.style.cssText = 'padding:16px 18px;margin:0 0 14px;border:1.5px solid #C9DFF3;border-radius:14px;background:#fff;';
+    wrap.setAttribute('data-gp-card','1');
     var t = document.createElement('div');
     t.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;';
     t.textContent = 'Where are you?';
@@ -2998,6 +3000,7 @@
     if (_gpStep === GP_STEP_TITLES.indexOf('Offerings')) { try { var _ofb = document.getElementById('gp-offers'); if (_ofb) { gpPaintOffers(_ofb); } } catch (e) {} }
     if (_gpStep === GP_LAST) { try { gpBuildPreview(); } catch (e) {}  try { gpNewAnswers(); } catch (e) {}  }
     if ((_gpStep === GP_STEP_TITLES.indexOf('Purpose') || (_gpStep === GP_STEP_TITLES.indexOf('Cares')))) { try { gpPaintPurposePicks(); } catch (e) {} }
+    try { gpSheetArrange(); setTimeout(gpSheetArrange, 300); } catch (e) {}
     gpStepToUrl(_gpStep);
     try { window.scrollTo(0, 0); } catch (e) {}
   }
@@ -3075,8 +3078,8 @@
     bar.appendChild(barText); bar.appendChild(arrow);
     box.appendChild(bar); box.appendChild(body);
     if (gpSheetsOn()) {
-      box.className = 'gp-sheet';
-      box._gpBar = bar; box._gpBody = body; box._gpText = barText; box._gpKey = key;
+      arrow.style.display = 'none'; bar.style.pointerEvents = 'none'; bar.style.borderRadius = '10px 10px 0 0';
+      body.style.display = ''; _gpFoldShut[key] = false;
       setTimeout(gpSheetArrange, 0); setTimeout(gpSheetArrange, 700);
     }
     return { box: box, body: body, text: barText };
@@ -3085,51 +3088,56 @@
     try { return /[?&]folders=1\b/.test(location.search) && window.matchMedia('(max-width:860px)').matches; } catch (e) { return false; }
   }
   function gpSheetLabel(t){
-    var m = String(t || '').match(/\((\d+)\)\s*$/);
-    if (/added/i.test(t)) { return 'Added' + (m ? ' ' + m[1] : ''); }
-    var w = String(t || '').replace(/[?]/g, '').split(/\s+/);
-    return /^(what|which)$/i.test(w[0]) ? 'Add' : (w[0] || 'Add');
+    var w = String(t || '').replace(/[?!.,]/g, '').split(/\s+/).filter(Boolean);
+    var stop = /^(what|which|how|where|who|do|does|are|is|you|your|in|the|a|an|of|to|my|most|thing|things|would|like|have|can|about)$/i;
+    var k = w.filter(function(x){ return !stop.test(x); });
+    var one = k.length ? k[0] : (w[0] || 'More');
+    return one.charAt(0).toUpperCase() + one.slice(1).toLowerCase();
+  }
+  function gpSheetTitleOf(card){
+    var f = card.querySelector('[id^="gp-tagbar-"]');
+    if (f && f.textContent) { return f.textContent; }
+    var q = card.querySelector('.gp-qtitle');
+    if (q && q.textContent) { return q.textContent; }
+    var h = card.firstElementChild;
+    return h ? h.textContent : '';
   }
   function gpSheetArrange(){
+    if (!gpSheetsOn()) { return; }
     if (!document.getElementById('gp-sheet-css')) {
       var css = document.createElement('style'); css.id = 'gp-sheet-css';
-      css.textContent = '.gp-sheetstrip{position:fixed;left:0;right:0;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:49;display:flex;justify-content:center;padding:0 12px;pointer-events:none;}'
-        + '.gp-sheettab{pointer-events:auto;flex:1;max-width:190px;margin-left:-14px;padding:11px 16px 12px;border:0;border-radius:16px 16px 0 0;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;background:#1F699E;color:#fff;box-shadow:0 -2px 8px rgba(0,0,0,.12);text-align:center;}'
-        + '.gp-sheettab:first-child{margin-left:0;}'
-        + '.gp-sheettab.on{background:#fff;color:#1F699E;box-shadow:0 -3px 10px rgba(31,105,158,.28);}';
+      css.textContent = '.gp-sheetstack{position:fixed;left:0;right:0;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:49;display:flex;flex-direction:column;pointer-events:none;}'
+        + '.gp-sheettab{pointer-events:auto;display:block;width:100%;margin:-12px 0 0;padding:9px 20px 20px;border:0;border-radius:20px 20px 0 0;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;background:#EAF4FD;color:#1A2E42;box-shadow:0 -3px 8px rgba(31,105,158,.14);text-align:left;position:relative;}'
+        + '.gp-sheettab:first-child{margin-top:0;}'
+        + '.gp-sheettab.on{background:#fff;color:#1F699E;box-shadow:0 -4px 12px rgba(31,105,158,.28);}';
       document.head.appendChild(css);
     }
-    var groups = [];
-    Array.prototype.forEach.call(document.querySelectorAll('.gp-sheet'), function(b){
-      var p = b.parentNode; if (!p) { return; }
-      if (groups.indexOf(p) < 0) { groups.push(p); }
-    });
-    groups.forEach(function(p){
-      var boxes = Array.prototype.filter.call(p.children, function(c){ return c.className === 'gp-sheet'; });
-      var sig = boxes.map(function(b){ return b._gpKey; }).join('|');
-      if (p._gpSig === sig && p._gpStrip && p._gpStrip.parentNode) { return; }
-      if (p._gpStrip && p._gpStrip.parentNode) { p._gpStrip.parentNode.removeChild(p._gpStrip); }
-      p._gpSig = sig; p._gpStrip = null;
-      boxes.forEach(function(b){ b._gpBar.style.display = 'none'; b._gpBody.style.display = ''; b._gpBody.style.borderTop = ''; b._gpBody.style.borderRadius = '12px'; b._gpBody.style.borderTop = '1.5px solid #C9DFF3'; _gpFoldShut[b._gpKey] = false; });
-      if (boxes.length < 2) {
-        if (boxes[0]) { boxes[0]._gpBar.style.display = 'flex'; boxes[0]._gpBar.style.pointerEvents = 'none'; boxes[0]._gpBar.lastChild.style.display = 'none'; boxes[0]._gpBody.style.borderRadius = '0 0 12px 12px'; boxes[0]._gpBody.style.borderTop = '0'; }
-        return;
-      }
-      var strip = document.createElement('div'); strip.className = 'gp-sheetstrip';
-      var tabs = boxes.map(function(b, i){
+    var steps = document.querySelectorAll('[data-gp-step]');
+    Array.prototype.forEach.call(steps, function(st){
+      if (st.getAttribute('data-gp-step') === String(typeof GP_LAST === 'number' ? GP_LAST : -1)) { return; }
+      var cards = Array.prototype.slice.call(st.querySelectorAll('[data-gp-card]')).filter(function(c){
+        var p = c.parentNode, nested = false;
+        while (p && p !== st) { if (p.getAttribute && p.getAttribute('data-gp-card')) { nested = true; break; } p = p.parentNode; }
+        return !nested;
+      });
+      var sig = cards.map(function(c){ return gpSheetLabel(gpSheetTitleOf(c)); }).join('|');
+      if (st._gpSig === sig && st._gpStack && st._gpStack.parentNode) { return; }
+      if (st._gpStack && st._gpStack.parentNode) { st._gpStack.parentNode.removeChild(st._gpStack); }
+      st._gpSig = sig; st._gpStack = null;
+      if (cards.length < 2) { return; }
+      var stack = document.createElement('div'); stack.className = 'gp-sheetstack';
+      var tabs = cards.map(function(c, i){
         var t = document.createElement('button'); t.type = 'button'; t.className = 'gp-sheettab';
-        t.style.zIndex = String(i + 1);
-        t.textContent = gpSheetLabel(b._gpText.textContent);
-        t.onclick = function(){ show(i); };
-        strip.appendChild(t);
-        try { new MutationObserver(function(){ t.textContent = gpSheetLabel(b._gpText.textContent); }).observe(b._gpText, { childList: true, characterData: true, subtree: true }); } catch (e) {}
+        t.textContent = gpSheetLabel(gpSheetTitleOf(c));
+        t.onclick = function(){ show(i); try { window.scrollTo(0, 0); } catch (e) {} };
+        stack.appendChild(t);
         return t;
       });
       function show(n){
-        boxes.forEach(function(b, i){ b.style.display = i === n ? '' : 'none'; tabs[i].className = 'gp-sheettab' + (i === n ? ' on' : ''); tabs[i].style.zIndex = String(i === n ? 20 : i + 1); });
+        cards.forEach(function(c, i){ c.style.display = i === n ? '' : 'none'; tabs[i].className = 'gp-sheettab' + (i === n ? ' on' : ''); });
       }
       show(0);
-      p.appendChild(strip); p.style.paddingBottom = '64px'; p._gpStrip = strip;
+      st.appendChild(stack); st.style.paddingBottom = (cards.length * 38 + 24) + 'px'; st._gpStack = stack;
     });
   }
   function gpOrigFor(key, word){
@@ -4666,6 +4674,7 @@
     GP_INTRO_Q.forEach(function(q, i){
       var wrap = document.createElement('div');
       wrap.style.cssText = 'padding:16px 18px;margin:0 0 14px;border:1.5px solid #C9DFF3;border-radius:14px;background:#fff;';
+      wrap.setAttribute('data-gp-card','1');
       var t = document.createElement('div'); t.className = 'gp-qtitle';
       t.style.cssText = 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;';
       t.textContent = q.q;
