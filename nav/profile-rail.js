@@ -121,7 +121,7 @@
           { key: 'gather',  label: '2Gather',  dot: true  },
           { key: 'appear',  label: '2Appear',  dot: false },
           { key: 'balance', label: '2Balance', dot: false },
-          { key: 'license', label: 'License', dot: true  }
+          { key: 'license', label: 'License', dot: false }
         ]]
       ];
       GROUPS.forEach(function (g) {
