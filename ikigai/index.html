@@ -3090,6 +3090,8 @@
   function gpSheetLabel(t){
     var w = String(t || '').replace(/[?!.,]/g, '').split(/\s+/).filter(Boolean);
     var stop = /^(what|which|how|where|who|do|does|are|is|you|your|in|the|a|an|of|to|my|most|thing|things|would|like|have|can|about)$/i;
+    var ex = String(t || '').match(/\\bexpress\\w*/i);
+    if (ex) { return 'Expresses'; }
     var k = w.filter(function(x){ return !stop.test(x); });
     var one = k.length ? k[0] : (w[0] || 'More');
     return one.charAt(0).toUpperCase() + one.slice(1).toLowerCase();
@@ -3112,32 +3114,40 @@
         + '.gp-sheettab.on{background:#fff;color:#1F699E;box-shadow:0 -4px 12px rgba(31,105,158,.28);}';
       document.head.appendChild(css);
     }
-    var steps = document.querySelectorAll('[data-gp-step]');
-    Array.prototype.forEach.call(steps, function(st){
-      if (st.getAttribute('data-gp-step') === String(typeof GP_LAST === 'number' ? GP_LAST : -1)) { return; }
-      var cards = Array.prototype.slice.call(st.querySelectorAll('[data-gp-card]')).filter(function(c){
-        var p = c.parentNode, nested = false;
-        while (p && p !== st) { if (p.getAttribute && p.getAttribute('data-gp-card')) { nested = true; break; } p = p.parentNode; }
-        return !nested;
-      });
+    var cur = String(_gpStep);
+    var groups = {};
+    Array.prototype.forEach.call(document.querySelectorAll('[data-gp-card][data-gp-step]'), function(c){
+      var k = c.getAttribute('data-gp-step');
+      if (k === '-1' || k === String(GP_LAST)) { return; }
+      (groups[k] = groups[k] || []).push(c);
+    });
+    window._gpSheetPick = window._gpSheetPick || {};
+    Object.keys(groups).forEach(function(k){
+      var cards = groups[k];
+      var old = document.getElementById('gp-sheetstack-' + k);
       var sig = cards.map(function(c){ return gpSheetLabel(gpSheetTitleOf(c)); }).join('|');
-      if (st._gpSig === sig && st._gpStack && st._gpStack.parentNode) { return; }
-      if (st._gpStack && st._gpStack.parentNode) { st._gpStack.parentNode.removeChild(st._gpStack); }
-      st._gpSig = sig; st._gpStack = null;
+      if (old && old._gpSig !== sig) { old.parentNode.removeChild(old); old = null; }
       if (cards.length < 2) { return; }
-      var stack = document.createElement('div'); stack.className = 'gp-sheetstack';
-      var tabs = cards.map(function(c, i){
-        var t = document.createElement('button'); t.type = 'button'; t.className = 'gp-sheettab';
-        t.textContent = gpSheetLabel(gpSheetTitleOf(c));
-        t.onclick = function(){ show(i); try { window.scrollTo(0, 0); } catch (e) {} };
-        stack.appendChild(t);
-        return t;
-      });
+      var stack = old;
+      var pick = Math.min(window._gpSheetPick[k] || 0, cards.length - 1);
+      var tabs;
       function show(n){
-        cards.forEach(function(c, i){ c.style.display = i === n ? '' : 'none'; tabs[i].className = 'gp-sheettab' + (i === n ? ' on' : ''); });
+        window._gpSheetPick[k] = n;
+        cards.forEach(function(c, i){ c.style.display = (k === cur && i !== n) ? 'none' : (k === cur ? '' : c.style.display); });
+        Array.prototype.forEach.call(stack.children, function(t, i){ t.className = 'gp-sheettab' + (i === n ? ' on' : ''); });
       }
-      show(0);
-      st.appendChild(stack); st.style.paddingBottom = (cards.length * 38 + 24) + 'px'; st._gpStack = stack;
+      if (!stack) {
+        stack = document.createElement('div'); stack.id = 'gp-sheetstack-' + k; stack.className = 'gp-sheetstack'; stack._gpSig = sig;
+        cards.forEach(function(c, i){
+          var t = document.createElement('button'); t.type = 'button'; t.className = 'gp-sheettab';
+          t.textContent = gpSheetLabel(gpSheetTitleOf(c));
+          t.onclick = function(){ show(i); try { window.scrollTo(0, 0); } catch (e) {} };
+          stack.appendChild(t);
+        });
+        document.body.appendChild(stack);
+      }
+      stack.style.display = (k === cur) ? '' : 'none';
+      if (k === cur) { show(pick); document.body.style.paddingBottom = 'calc(' + (cards.length * 38 + 100) + 'px + env(safe-area-inset-bottom,0px))'; }
     });
   }
   function gpOrigFor(key, word){
