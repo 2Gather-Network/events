@@ -109,6 +109,10 @@
     var cnt = el('div', 'font-size:12.5px;color:#4B5A6D;margin:5px 4px 0;min-height:16px;', '');
     wrap.appendChild(inp); wrap.appendChild(cnt);
     host.insertBefore(wrap, anchor);
+    var hasRows = function () { return Array.prototype.some.call(listEl.children, function (r) { return r.getAttribute && r.getAttribute('data-q') != null; }); };
+    var syncShow = function () { wrap.style.display = hasRows() ? '' : 'none'; };
+    syncShow();
+    try { new MutationObserver(syncShow).observe(listEl, { childList: true }); } catch (e) {}
     var api2 = {
       apply: function () {
         var q = String(inp.value || '').trim().toLowerCase(), n = 0, shown = 0;
@@ -330,8 +334,15 @@
     head.appendChild(back);
     var wait = el('div', 'font-size:14px;color:#4B5A6D;', 'Looking for your groups\u2026');
     box.appendChild(wait);
+    var find = el('input', 'width:100%;box-sizing:border-box;font:inherit;font-size:15px;color:#1A2E42;background:#fff;border:1.5px solid #DDE4EE;border-radius:12px;padding:10px 14px;margin:2px 0 10px;');
+    find.type = 'search'; find.placeholder = 'Find your group'; find.setAttribute('aria-label', 'Find your group'); find.autocomplete = 'off';
+    box.appendChild(find);
     var list = el('div', 'display:flex;flex-direction:column;gap:10px;margin-top:6px;');
     box.appendChild(list);
+    find.addEventListener('input', function () {
+      var q = find.value.trim().toLowerCase();
+      Array.prototype.forEach.call(list.children, function (r) { r.style.display = (!q || (r.textContent || '').toLowerCase().indexOf(q) > -1) ? '' : 'none'; });
+    });
     fetch('https://cw-api-gate.jessieupp.workers.dev?action=getMyGroups&appearId=' + encodeURIComponent(ctx.meId))
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -783,7 +794,7 @@
       muteAsk.appendChild(el('div', 'font-weight:800;margin-bottom:4px;', 'Mute this chat?'));
       muteAsk.appendChild(el('div', '', 'You will stop receiving email notifications of this group\u2019s chat messages. You can still open the chat and read everything. Tap the moon again any time to unmute.'));
       var row = el('div', 'display:flex;gap:8px;margin-top:10px;');
-      var yes = btn('Yes, mute it'), no = btn('No', 'quiet');
+      var yes = btn('Yes, mute it'), no = btn('Keep listening', 'quiet');
       yes.onclick = function () { yes.disabled = true; setMuted(true); };
       no.onclick = function () { muteAsk.style.display = 'none'; };
       row.appendChild(yes); row.appendChild(no); muteAsk.appendChild(row);
@@ -982,18 +993,10 @@
         var n = document.getElementById('gp-tile-gmsg-n'), sub = document.getElementById('gp-tile-gmsg-sub');
         if (!n || !d || d.status !== 'ok') return;
         var ts = d.threads || [];
-        n.innerHTML = '';
-        if (!ts.length) { if (sub) sub.style.display = ''; return; }
+        var un = ts.reduce(function (a, t) { return a + (t.unread || 0); }, 0);
+        if (!ts.length) { n.textContent = ''; if (sub) sub.style.display = ''; return; }
         if (sub) sub.style.display = 'none';
-        ts.slice(0, 2).forEach(function (t) {
-          var row = document.createElement('div');
-          row.style.cssText = 'font-size:14px;color:#1A2E42;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;';
-          var b = document.createElement('b'); b.textContent = ((t.other && t.other.name) || 'Someone') + (t.unread ? ' (' + t.unread + ')' : '') + ': ';
-          row.appendChild(b);
-          row.appendChild(document.createTextNode(t.last ? String(t.last.body || '') : ''));
-          n.appendChild(row);
-        });
-        if (ts.length > 2) { var m = document.createElement('div'); m.style.cssText = 'font-size:13px;color:#4B5A6D;margin-top:2px;'; m.textContent = '+' + (ts.length - 2) + ' more'; n.appendChild(m); }
+        n.textContent = un ? (un + (un === 1 ? ' unread message' : ' unread messages')) : 'No unread messages';
       }).catch(function () {});
   }
   window.cwGroupChat = {
