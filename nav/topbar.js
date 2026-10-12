@@ -140,20 +140,34 @@
       return !!(v && v.yes === true && norm(v.who) === norm(me()));
     } catch (e) { return false; }
   }
+  function _tbProved() {
+    try {
+      if (!localStorage.getItem('cw-token')) { return false; }
+      if (window.CW && window.CW.realMe) { return !!String(window.CW.realMe().id || ''); }
+      return !!me();
+    } catch (e) { return false; }
+  }
+  function _tbQuiet(k) {
+    try { var t = parseInt(sessionStorage.getItem('cw-tb-quiet:' + k) || '0', 10); return !!t && Date.now() < t; } catch (e) { return false; }
+  }
+  function _tbHush(k, mins) {
+    try { sessionStorage.setItem('cw-tb-quiet:' + k, String(Date.now() + mins * 60000)); } catch (e) {}
+  }
   function checkBookmarks() {
     try {
       var who = me();
       if (!who) return;
+      if (!_tbProved() || _tbQuiet('getBookmarks')) return;
       var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
       var v = JSON.parse(localStorage.getItem('cw-havebookmarks') || 'null');
       if (v && norm(v.who) === norm(who) && v.at && (Date.now() - v.at) < 6 * 60 * 60 * 1000) return;
       fetch('https://cw-api-gate.jessieupp.workers.dev/?action=getBookmarks&appearId=' + encodeURIComponent(who))
         .then(function (r) { return r.json(); })
         .then(function (d) {
-          if (!d || d.status === 'error' || !Array.isArray(d.bookmarks)) return;
+          if (!d || d.status === 'error' || !Array.isArray(d.bookmarks)) { _tbHush('getBookmarks', 5); return; }
           localStorage.setItem('cw-havebookmarks', JSON.stringify({ who: who, yes: d.bookmarks.length > 0, at: Date.now() }));
         })
-        .catch(function () {});
+        .catch(function () { _tbHush('getBookmarks', 5); });
     } catch (e) {}
   }
   function hasAGroup() {
@@ -532,12 +546,13 @@
       }
     } catch (e) {}
     if (fresh) return;
+    if (!_tbProved() || _tbQuiet('lookupProfile')) return;
     try {
       fetch('https://cw-api-gate.jessieupp.workers.dev/?action=lookupProfile&appearId=' +
             encodeURIComponent(who))
         .then(function (r) { return r.json(); })
         .then(function (d) {
-          if (!d) return;
+          if (!d || d.status === 'error') { _tbHush('lookupProfile', 5); return; }
           try {
             if (d.name) {
               window.CW_NAME = d.name;
@@ -545,7 +560,7 @@
               localStorage.setItem('cw-name-for', who);
             }
           } catch (e) {}
-          if (!d.photo) { if (d.name) { adoptName(d.name); } return; }
+          if (!d.photo) { _tbHush('lookupProfile', 60); if (d.name) { adoptName(d.name); } return; }
           window.CW_TOPBAR_PHOTO = d.photo;
           try { if (window.CW_REDRAW_ADMIN) { window.CW_REDRAW_ADMIN(); } } catch (e) {}
           try {
@@ -555,7 +570,7 @@
           } catch (e) {}
           adopt();
         })
-        .catch(function () {});
+        .catch(function () { _tbHush('lookupProfile', 5); });
     } catch (e) {}
   }
 
