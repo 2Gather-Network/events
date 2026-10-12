@@ -629,8 +629,10 @@
   function chatGroupId() { return chat.ctx ? String(chat.ctx.groupId || '') : ''; }
   function chatTime(at) { return when(at); }
   function deleteX(onTap) {
-    var b = el('button', 'flex:none;width:32px;height:32px;border:0;background:transparent;border-radius:50%;color:#6B7A8D;font:inherit;font-size:20px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;', '\u00D7');
+    var b = el('button', 'flex:none;margin-left:auto;width:28px;height:28px;border:0;background:transparent;border-radius:50%;color:#C2CBD5;font:inherit;font-size:20px;font-weight:300;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;', '\u00D7');
     b.type = 'button'; b.title = 'Delete this message'; b.setAttribute('aria-label', 'Delete this message');
+    b.onmouseover = b.onfocus = function () { b.style.color = '#6B7A8D'; };
+    b.onmouseout = b.onblur = function () { b.style.color = '#C2CBD5'; };
     b.onclick = onTap;
     return b;
   }
