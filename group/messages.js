@@ -117,7 +117,8 @@
           if (t == null) return;
           n += 1;
           var hit = !q || t.indexOf(q) > -1;
-          r.style.display = hit ? '' : 'none';
+          if (r._shown === undefined) r._shown = r.style.display;
+          r.style.display = hit ? r._shown : 'none';
           if (hit) shown += 1;
         });
         cnt.textContent = q ? (shown ? shown + (shown === 1 ? ' message matches' : ' messages match') + (hint ? '. ' + hint : '') : 'No messages match' + (hint ? '. ' + hint : '')) : '';
