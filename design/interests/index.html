@@ -17,6 +17,17 @@
   .crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:14px 0 8px;font-size:13px;font-weight:700;color:var(--muted);}
   .crumbs button{font:inherit;font-weight:700;color:var(--blue);background:none;border:0;padding:2px 3px;cursor:pointer;text-decoration:underline;}
   .crumbs .now{color:var(--ink);padding:2px 3px;}
+  body.focustag .search, body.focustag .ibar, body.focustag .ideasfold, body.focustag .pastew, body.focustag .resw, body.focustag .cardsw, body.focustag .addedmsg{display:none;}
+  .catpick{margin:14px 0 10px;}
+  .catpick .cwtp{margin-top:0;}
+  .gfull{display:flex;align-items:center;gap:10px;width:100%;background:#fff;border:1.5px solid var(--pale);border-radius:12px;padding:12px 14px;margin-top:8px;cursor:pointer;font:inherit;text-align:left;}
+  .gfull:first-child{margin-top:0;}
+  .gtx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+  .gname{font-size:13.5px;font-weight:800;color:var(--ink);}
+  .gsub{font-size:13.5px;color:var(--grey);}
+  .garr{font-size:22px;line-height:1;color:var(--blue);}
+  .gback{background:none;border:0;color:var(--blue);font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;padding:0 0 8px;}
+  .gtitle{font-size:13.5px;font-weight:800;color:var(--ink);margin:0 0 10px;}
   .fg{border:1px solid var(--line);border-radius:10px;margin-top:8px;background:#fff;}
   .fgh{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:9px 12px;cursor:pointer;font:inherit;text-align:left;}
   .fgh .ch{color:var(--blue);font-size:20px;width:18px;line-height:0;text-align:center;position:relative;top:-1px;}
@@ -41,6 +52,7 @@
   .pick.addsel{background:var(--blue);color:#fff;border-color:var(--blue);}
   .pick.addsel[hidden]{display:none;}
   .tagask{background:#fff;border:1.5px solid var(--pale);border-radius:14px;padding:10px 12px;margin:0 0 10px;}
+  .tagask .btn:disabled{opacity:.5;cursor:not-allowed;}
   .tagq{margin:0 0 8px;font-size:14px;font-weight:700;color:var(--ink);}
   .ideasbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px;}
   .gsearch{flex:1 1 180px;min-width:0;font:inherit;font-size:14px;padding:8px 14px;border:1.5px solid var(--pale);border-radius:20px;background:#fff;color:var(--ink);}
@@ -311,7 +323,11 @@
   function el(tag, cls, text){ var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = text; return e; }
   function toParent(m){ try { window.parent.postMessage(m, location.origin); } catch (e) {} }
   function clean(s){ return String(s || '').replace(/[:|,]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60); }
-  function cap(s){ return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+  function cap(s){
+    var cw = window.CW; if (!cw) { try { cw = window.parent.CW; } catch (e) {} }
+    if (cw && cw.sentence) { return cw.sentence(s); }
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  }
 
   function build(rows){
     st.byId = {}; st.byName = {}; st.roots = [];
@@ -392,6 +408,7 @@
       above(node).forEach(function(p){ dropQuiet(p.word); });
     }
     addMine(word, area);
+    st.msg = '\u201C' + word + '\u201D was added.';
     emit(); drawAll();
   }
   function addMine(word, area){
@@ -417,30 +434,82 @@
     b.addEventListener('click', function(){ if (has(n.word)) { askRemove(n.word); return; } setSel(n, !isSel(n.word)); drawAll(); });
     return b;
   }
-  function tagPanel(t){
-    var ask = el('div', 'tagask');
-    var closeAll = function(){
-      st.tagging = (st.tagging || []).filter(function(x){ return x !== t; });
-      st.msg = '';
-      if (t.root) { st.open[t.root] = false; } else { st.open = {}; }
-      drawAll(); try { els.browse.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) {}
-    };
-    var confirm = function(){
-      if (!has(t.word)) { addMine(t.word, t.area); if (t.teach) { teach({ text: t.word, kindOf: t.teach, askedIn: 'interest' }); } }
-      if (st.sel) { delete st.sel[lc(t.word)]; }
-      t.added = true; emit(); drawAll();
-    };
-    var ix2 = mineIx(t.word);
-    ask.appendChild(tagBox(t.added && ix2 > -1 ? st.mine[ix2] : { word: t.word, area: t.area }, t.added ? closeAll : confirm, function(){}, t.added ? { title: 'Tag \u201C' + t.word + '\u201D', noSubs: true, doneLabel: 'Done', doneNote: 'Interest added' } : { title: 'Tag \u201C' + t.word + '\u201D', noSubs: true, doneLabel: 'Looks good', doneNote: 'Do the tagged categories look good?' }));
-    if (!t.added) {
-      var dr = ask.querySelector('.cwtp-done');
-      if (dr) {
-        var cx = el('button', 'btn ghost', 'Cancel'); cx.type = 'button'; cx.style.marginLeft = '10px';
-        cx.addEventListener('click', function(){ st.tagging = (st.tagging || []).filter(function(x){ return x !== t; }); if (st.sel) { delete st.sel[lc(t.word)]; } st.msg = ''; drawAll(); });
-        dr.appendChild(cx);
-      }
+  function defaultCat(t){
+    var n = st.byName[lc(t.word)], g = 0;
+    while (n && g++ < 8) {
+      var c = (n.cats || []).filter(function(x){ return (st.mainCats || []).indexOf(x) > -1; })[0];
+      if (c) { return c; }
+      n = n.parents && n.parents[0];
     }
-    return ask;
+    return (t.area && (st.mainCats || []).indexOf(t.area) > -1) ? t.area : '';
+  }
+  function suggestCats(word, area){
+    var out = [], dc = defaultCat({ word: word, area: area });
+    if (dc) { return [dc]; }
+    var toks = lc(word).split(/[^a-z0-9]+/).filter(function(x){ return x.length > 2; }), score = {};
+    if (!toks.length) { return out; }
+    Object.keys(st.byId || {}).forEach(function(id){
+      var n = st.byId[id], nm = lc(n.word), hit = toks.some(function(t){ return nm.split(/[^a-z0-9]+/).indexOf(t) > -1 || (t.length > 3 && nm.indexOf(t) > -1); });
+      if (hit) { (n.cats || []).forEach(function(c){ if ((st.mainCats || []).indexOf(c) > -1) { score[c] = (score[c] || 0) + 1; } }); }
+    });
+    return Object.keys(score).sort(function(a, b){ return score[b] - score[a]; }).slice(0, 2);
+  }
+  function catPick(word, area, apply, cancel){
+    loadEmo();
+    var tmp = suggestCats(word, area);
+    var tp = window.cwTagPicker({
+      title: 'Tag “' + word + '”',
+      mainCats: function(){ return st.mainCats || []; },
+      emoji: function(c){ return EMO[c] || EMO_FB[c] || ''; },
+      getA: function(){ return { cats: tmp }; },
+      putA: function(a){ tmp = (a.cats || []).slice(); },
+      catList: function(){ return tmp; },
+      rowByName: function(n){ return st.rowByName && st.rowByName[n]; },
+      rowById: function(i){ return st.rowById && st.rowById[i]; },
+      kids: function(){ return []; },
+      roots: function(){ return []; },
+      ownSub: function(){ return ''; },
+      subPick: false,
+      multi: true,
+      onChange: function(){ syncDone(); },
+      redraw: function(){},
+      doneLabel: 'Done',
+      doneNote: '',
+      onClose: function(){ if (!tmp.length) { return; } apply(tmp.slice()); }
+    });
+    emoPaint = tp.repaint;
+    var dr = tp.el.querySelector('.cwtp-done');
+    var doneBtn = dr && dr.querySelector('.cwtp-btn');
+    var syncDone = function(){ if (doneBtn) { doneBtn.disabled = !tmp.length; doneBtn.style.opacity = tmp.length ? '' : '.5'; } };
+    syncDone();
+    if (dr && cancel) {
+      var cx = el('button', 'cwtp-btn', 'Cancel'); cx.type = 'button'; cx.style.marginLeft = '10px';
+      cx.style.background = '#fff'; cx.style.color = '#1F699E'; cx.style.border = '1.5px solid #1F699E';
+      cx.style.minWidth = '88px';
+      if (doneBtn) { doneBtn.style.border = '1.5px solid #1F699E'; doneBtn.style.minWidth = '88px'; }
+      cx.addEventListener('click', cancel);
+      dr.appendChild(cx);
+    }
+    var holder = el('div', 'catpick'); holder.appendChild(tp.el);
+    return holder;
+  }
+  function tagPanel(t){
+    return catPick(t.word, t.area, function(cats){
+      var a = getA(t.word); a.cats = cats.slice(); putA(t.word, a);
+      toParent({ ao: 'intcat', word: t.word, cats: cats.slice() });
+      if (!has(t.word)) { addMine(t.word, t.area); if (t.teach) { teach({ text: t.word, kindOf: t.teach, askedIn: 'interest' }); } }
+      emit();
+      st.msg = '“' + t.word + '” was added.';
+      st.tagging = (st.tagging || []).filter(function(x){ return x !== t; });
+      if (st.sel) { delete st.sel[lc(t.word)]; }
+      if (t.root) { st.open[t.root] = false; } else { st.open = {}; }
+      drawAll();
+    }, function(){
+      st.tagging = (st.tagging || []).filter(function(x){ return x !== t; });
+      if (st.sel) { delete st.sel[lc(t.word)]; }
+      st.msg = '';
+      drawAll();
+    });
   }
   function rmPanel(rw){
     var rq = el('div', 'tagask'), rt = el('p', 'tagq', 'Are you sure you want to remove the ' + rw + ' card?'), rr = el('div', 'cbtns');
@@ -461,7 +530,18 @@
     if (!ready.length) { b.hidden = true; return b; }
     b.addEventListener('click', function(){
       st.msg = '';
-      st.tagging = ready.map(function(n){ var rp = pathOf(n)[0]; return { word: n.word, area: areaOf(n), root: rp ? rp.id : '' }; });
+      var ask = [], done = [];
+      ready.forEach(function(n){
+        var rp = pathOf(n)[0], cat = defaultCat({ word: n.word, area: areaOf(n) });
+        if (!cat) { ask.push({ word: n.word, area: areaOf(n), root: rp ? rp.id : '' }); return; }
+        if (!has(n.word)) { addMine(n.word, areaOf(n)); }
+        var ax = getA(n.word); ax.cats = [cat]; putA(n.word, ax);
+        toParent({ ao: 'intcat', word: n.word, cats: [cat] });
+        if (st.sel) { delete st.sel[lc(n.word)]; }
+        done.push(n.word);
+      });
+      if (done.length) { emit(); st.msg = done.length === 1 ? '\u201C' + done[0] + '\u201D was added.' : done.length + ' interests were added.'; }
+      st.tagging = ask;
       st.q = ''; if (els.search) { els.search.value = ''; }
       drawAll();
     });
@@ -525,33 +605,25 @@
         var b = pillFor(n); shownIds[n.id] = 1;
         g.appendChild(b);
       });
-      var tl = lc(clean(st.q));
-      var target = hits.filter(function(n){ return lc(n.word) === tl; })[0] || hits.filter(function(n){ return n.kids && n.kids.length; })[0] || hits[0];
       careHits.slice(0, 12).forEach(function(c){ g.appendChild(carePill(c)); });
-      var om = otherRow(target, '', 'm');
-      if (om.className === 'pick other') g.appendChild(om);
       g.appendChild(addBtn(hits.slice(0, 40)));
       box.appendChild(g);
-      if (om.className !== 'pick other') box.appendChild(om);
       hits.filter(function(n){ return n.kids && n.kids.length; }).slice(0, 3).forEach(function(n){
         var sub = el('div', 'sub'), r = el('div', 'row');
         sub.appendChild(el('div', 'subh', n.word));
         below(n).forEach(function(k){ if (shownIds[k.id]) return; shownIds[k.id] = 1; r.appendChild(pillFor(k)); });
-        var os = otherRow(n, '', 's');
-        if (os.className === 'pick other') r.appendChild(os);
         r.appendChild(addBtn(below(n)));
         sub.appendChild(r);
-        if (os.className !== 'pick other') sub.appendChild(os);
         box.appendChild(sub);
       });
     }
     var typed = cap(clean(st.q));
-    if (typed && !hits.length && !st.byName[lc(typed)] && !careFor(typed)) {
-      var ap = el('button', 'pick other', (fuzzy && fuzzy.any ? 'None of these: + Add \u201C' : '+ Add \u201C') + typed + '\u201D'); ap.type = 'button';
+    if (typed && !st.byName[lc(typed)] && !careFor(typed) && !has(typed)) {
+      var ap = el('button', 'pick other', (!hits.length && fuzzy && fuzzy.any ? 'None of these: + Add \u201C' : '+ Add \u201C') + typed + '\u201D'); ap.type = 'button';
       ap.style.marginTop = '10px';
       ap.addEventListener('click', function(){
         st.q = ''; els.search.value = '';
-        if (!has(typed)) { addMine(typed, 'Other'); emit(); }
+        if (!has(typed)) { st.msg = ''; st.tagging = [{ word: typed, area: 'Other', root: '', teach: '' }]; }
         drawAll();
       });
       box.appendChild(ap);
@@ -761,7 +833,7 @@
   }
   function kidsInto(box, node, depth){
     st.drill = st.drill || {};
-    var r = el('div', 'row'), openKid = null, oth = null;
+    var r = el('div', 'row'), openKid = null;
     var kidList = depth ? node.kids : pageKids(node);
     kidList.forEach(function(n){
       if (!n.kids.length) { r.appendChild(pillFor(n)); return; }
@@ -778,8 +850,6 @@
       r.appendChild(b);
       if (on) openKid = n;
     });
-    oth = otherRow(node, '');
-    if (oth.className === 'pick other') r.appendChild(oth);
     r.appendChild(addBtn(node.kids));
     var typedQ = depth ? '' : cap(clean(((st.gq || {})[node.id]) || ''));
     if (typedQ.length > 1 && !has(typedQ) && !node.kids.some(function(k){ return lc(k.word) === lc(typedQ); })) {
@@ -794,7 +864,6 @@
     }
     var rw = el('div', 'rw'); rw.appendChild(r);
     box.appendChild(rw);
-    if (oth.className !== 'pick other') box.appendChild(oth);
     if (openKid) { var sub = el('div', 'sub deep'); kidsInto(sub, openKid, depth + 1); box.appendChild(sub); }
   }
   function drawBrowse(){
@@ -804,42 +873,63 @@
     var ib = el('button', 'btn ideas', st.ideas ? 'Hide ideas' : 'Show me ideas'); ib.type = 'button'; ib.setAttribute('aria-expanded', st.ideas ? 'true' : 'false');
     ib.addEventListener('click', function(){ st.ideas = !st.ideas; drawBrowse(); });
     var ibar = el('div', 'ibar'); ibar.appendChild(ib);
-    if (!st.pasteOpen) {
+    if (els.search) { els.search.hidden = !!st.ideas; }
+    if (!st.pasteOpen && !st.ideas) {
       var nb = el('button', 'btn ghost notes', ''); nb.type = 'button'; nb.setAttribute('aria-expanded', 'false');
       nb.appendChild(document.createTextNode('Add notes instead'));
       nb.addEventListener('click', function(){ st.pasteOpen = true; drawPaste(); drawBrowse(); var a = els.paste && els.paste.querySelector('textarea'); if (a) a.focus(); });
       ibar.appendChild(nb);
     }
     box.appendChild(ibar);
-    if (st.msg && !(st.tagging || []).length) { var am = el('p', 'addedmsg', st.msg); am.setAttribute('role', 'status'); box.appendChild(am); }
+    if (st.msg && !st.ideas && !(st.tagging || []).length) { var am = el('p', 'addedmsg', st.msg); am.setAttribute('role', 'status'); box.appendChild(am); }
     var rmRoot = '';
     if (st.rmAsk && has(st.rmAsk)) { var rn = st.byName[lc(st.rmAsk)], rp0 = rn && !rn.extra ? pathOf(rn)[0] : null; if (rp0 && st.open && st.open[rp0.id]) { rmRoot = rp0.id; } }
     if (st.rmAsk && has(st.rmAsk) && !rmRoot) { box.appendChild(rmPanel(st.rmAsk)); }
-    (st.tagging || []).forEach(function(t){ if (!(st.ideas && t.root && st.open && st.open[t.root])) { box.appendChild(tagPanel(t)); } });
+    (st.tagging || []).forEach(function(t){ box.appendChild(tagPanel(t)); });
     if (!st.ideas) return;
-    st.roots.filter(function(root){ return root.kids && root.kids.length; }).forEach(function(root){
-      var on = !!st.open[root.id], mine = areaPicks(root);
-      var g = el('div', 'fg' + (on ? ' open' : ''));
-      var h = el('button', 'fgh'); h.type = 'button'; h.setAttribute('aria-expanded', on ? 'true' : 'false');
-      h.appendChild(el('span', 'ch', on ? '\u25BE' : '\u25B8'));
-      h.appendChild(el('span', 'fgn', root.word));
-      h.appendChild(el('span', 'fgs', on ? '' : (mine.length ? mine.join(', ') : 'Nothing picked')));
-      if (mine.length) h.appendChild(el('span', 'fgc', String(mine.length)));
-      h.addEventListener('click', function(){ st.open[root.id] = !st.open[root.id]; drawBrowse(); });
-      g.appendChild(h);
-      if (on) {
-        var inner = el('div', 'fgb');
-        (st.tagging || []).forEach(function(t){ if (t.root === root.id) { inner.appendChild(tagPanel(t)); } });
-        if (rmRoot === root.id) { inner.appendChild(rmPanel(st.rmAsk)); }
-        inner.appendChild(ideasBar(root));
-        kidsInto(inner, root, 0);
-        var dnr = el('div', 'cbtns'), dnb = el('button', 'btn small', 'Done'); dnb.type = 'button';
-        dnb.addEventListener('click', function(){ st.open[root.id] = false; drawBrowse(); try { els.cards.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) {} });
-        dnr.appendChild(dnb); inner.appendChild(dnr);
-        g.appendChild(inner);
-      }
-      box.appendChild(g);
-    });
+    var host = box;
+    var ibox = el('div', 'fold ideasfold'), ibarT = el('button', 'foldbar'); ibarT.type = 'button'; ibarT.setAttribute('aria-expanded', 'true');
+    ibarT.appendChild(el('span', '', 'Interests'));
+    var iar = el('span', 'foldar', '\u25B2'); iar.setAttribute('aria-hidden', 'true'); ibarT.appendChild(iar);
+    ibarT.addEventListener('click', function(){ st.ideas = false; drawBrowse(); });
+    ibox.appendChild(ibarT);
+    var ibody = el('div', 'foldbody'); ibox.appendChild(ibody); box.appendChild(ibox); host = ibody;
+    if (st.msg && !(st.tagging || []).length) { var am2 = el('p', 'addedmsg', st.msg); am2.setAttribute('role', 'status'); ibody.appendChild(am2); }
+    var roots = st.roots.filter(function(root){ return root.kids && root.kids.length; });
+    var cur = null;
+    roots.forEach(function(root){ if (st.group === root.id) { cur = root; } });
+    if (!cur) { st.group = null; }
+    var toList = function(){
+      if (cur) { st.open[cur.id] = false; }
+      st.group = null; drawBrowse();
+      try { els.browse.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) {}
+    };
+    if (!cur) {
+      roots.forEach(function(root){
+        var mine = areaPicks(root);
+        var rw = el('button', 'gfull'); rw.type = 'button';
+        var tx = el('span', 'gtx');
+        tx.appendChild(el('span', 'gname', root.word));
+        tx.appendChild(el('span', 'gsub', mine.length ? mine.length + ' picked' : 'Nothing picked'));
+        rw.appendChild(tx);
+        var ar = el('span', 'garr', '›'); ar.setAttribute('aria-hidden', 'true'); rw.appendChild(ar);
+        rw.addEventListener('click', function(){ st.group = root.id; st.open = {}; st.open[root.id] = true; drawBrowse(); try { els.browse.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) {} });
+        host.appendChild(rw);
+      });
+      return;
+    }
+    var back = el('button', 'gback', '‹ All ideas'); back.type = 'button';
+    back.addEventListener('click', toList);
+    host.appendChild(back);
+    host.appendChild(el('div', 'gtitle', cur.word));
+    var inner = el('div', 'gview');
+    if (rmRoot === cur.id) { inner.appendChild(rmPanel(st.rmAsk)); }
+    inner.appendChild(ideasBar(cur));
+    kidsInto(inner, cur, 0);
+    var dnr = el('div', 'cbtns'), dnb = el('button', 'btn small', 'Done'); dnb.type = 'button';
+    dnb.addEventListener('click', toList);
+    dnr.appendChild(dnb); inner.appendChild(dnr);
+    host.appendChild(inner);
   }
 
   function setFit(word, tag, on){
@@ -913,6 +1003,7 @@
     return '';
   }
   var EMO = {};
+  var EMO_FB = { 'Play': '\u{1F3D3}', 'Outdoors': '\u{1F332}', 'Movement': '\u{1F300}', 'Arts & Expression': '\u{1F3AD}', 'Building & Repurposing': '\u{1F528}', 'Food & Drink': '\u{1F37D}\uFE0F', 'Travel': '\u2708\uFE0F', 'Community & Culture': '\u{1F389}', 'Home Life': '\u{1F3E1}', 'Animals': '\u{1F436}', 'Technology': '\u{1F4F1}', 'Rest & Recovery': '\u{1F49B}', 'Belief & Meaning': '\u{1F33F}', 'Personal Care': '\u{1F9F4}', 'Professional': '\u{1F4BC}', 'Communications': '\u{1F4AC}', 'Transportation': '\u{1F686}', 'Finance': '\u{1F4CA}', 'Science': '\u{1F52C}', 'Medical': '\u{1FA7A}' };
   function subKids(){
     if (st.subKidsFor !== st.rowById) {
       st.subKidsFor = st.rowById; st.subKids = {};
@@ -966,7 +1057,7 @@
       ob.hidden = true;
       var line = el('div', 'oline'), inp = el('input', 'oinp'); inp.type = 'text'; inp.placeholder = 'Type your own'; inp.setAttribute('aria-label', 'Your own topic in ' + sb.parent.word);
       var add = el('button', 'btn small', 'Add'); add.type = 'button';
-      var go = function(){ var v = String(inp.value || '').trim(); if (!v) { inp.focus(); return; } pick(v.charAt(0).toUpperCase() + v.slice(1), mainCatOf(m.word) || sb.parent.word); };
+      var go = function(){ var v = String(inp.value || '').trim(); if (!v) { inp.focus(); return; } pick(cap(v), mainCatOf(m.word) || sb.parent.word); };
       add.addEventListener('click', go); inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
       line.appendChild(inp); line.appendChild(add); b.appendChild(line); setTimeout(function(){ try { inp.focus(); } catch (x) {} }, 0);
     });
@@ -975,7 +1066,7 @@
     cr.appendChild(cl); b.appendChild(cr);
     return b;
   }
-  function fillCats(host, list, missing, plain){ host.textContent = ''; if (!list.length) { host.textContent = missing; return; } list.forEach(function(c, ci){ if (plain && ci > 0) { host.appendChild(document.createTextNode(', ')); } var sp = el('span', plain ? 'catx plain' : 'catx', ''); if (!plain && EMO[c]) { sp.appendChild(el('span', 'catemo', EMO[c])); } sp.appendChild(document.createTextNode(c)); host.appendChild(sp); }); }
+  function fillCats(host, list, missing, plain){ host.textContent = ''; if (!list.length) { host.textContent = missing; return; } list.forEach(function(c, ci){ if (plain && ci > 0) { host.appendChild(document.createTextNode(', ')); } var sp = el('span', plain ? 'catx plain' : 'catx', ''); if (!plain && (EMO[c] || EMO_FB[c])) { sp.appendChild(el('span', 'catemo', EMO[c] || EMO_FB[c])); } sp.appendChild(document.createTextNode(c)); host.appendChild(sp); }); }
   var emoAsked = false, emoPaint = null;
   function loadEmo(){
     if (emoAsked) { return; }
@@ -1362,6 +1453,15 @@
       cx.addEventListener('click', function(){ st.pend = ''; st.joyNote = ''; var i = mineIx(m.word); if (i > -1) { dropMine(i); } toParent({ ao: 'dropword', word: m.word }); drawAll(); });
       row.appendChild(cx);
     };
+    if (mCatEl && st.tagOpen && st.tagOpen[lc(m.word)] && isPend) {
+      st.pendCat = true;
+      c.appendChild(catPick(m.word, m.area, function(cats){
+        var pa = getA(m.word); pa.cats = cats.slice(); putA(m.word, pa);
+        toParent({ ao: 'intcat', word: m.word, cats: cats.slice() });
+        st.tagOpen[lc(m.word)] = false; endPend(); st.msg = '\u201C' + m.word + '\u201D was added.'; drawAll();
+      }, function(){ st.pend = ''; st.joyNote = ''; var pi = mineIx(m.word); if (pi > -1) { dropMine(pi); } toParent({ ao: 'dropword', word: m.word }); drawAll(); }));
+      return c;
+    }
     if (mCatEl && st.tagOpen && st.tagOpen[lc(m.word)]) {
       var tbx = tagBox(m, function(){ st.tagOpen[lc(m.word)] = false; endPend(); drawCards(); }, function(){
         var cl2 = catListOf(m.word); fillCats(mCatEl, cl2, 'Missing category'); mCatEl.className = cl2.length ? 'catlink' : 'misscat';
@@ -1646,6 +1746,7 @@
   function drawCards(){
      loadEmo(); 
     var box = els.cards; box.innerHTML = '';
+    st.pendCat = false;
     var pendM = drawPend();
     var allItems = function(){ return listItems().filter(function(m){ return m !== pendM; }); };
     if (!allItems().length) return;
@@ -1824,7 +1925,8 @@
     }
     box.appendChild(w);
   }
-  function drawAll(){ drawSearch(); drawPaste(); drawBrowse(); drawCards(); }
+  function syncFocus(){ try { document.body.classList.toggle('focustag', !!((st.tagging || []).length || st.pendCat)); } catch (e) {} }
+  function drawAll(){ drawSearch(); drawPaste(); drawBrowse(); drawCards(); syncFocus(); }
 
   function skeleton(){
     app.innerHTML = '';
@@ -1836,13 +1938,13 @@
       var w = cap(clean(st.q)); if (!w) { return; }
       var hit = st.byName[lc(w)], name = hit ? hit.word : w;
       st.q = ''; s.value = '';
-      if (!has(name)) { if (hit && !hit.extra) { pick(name, areaOf(hit)); return; } addMine(name, hit ? areaOf(hit) : 'Other'); emit(); }
+      if (!has(name)) { if (hit && !hit.extra) { pick(name, areaOf(hit)); return; } st.msg = ''; st.tagging = [{ word: name, area: hit ? areaOf(hit) : 'Other', root: '', teach: '' }]; }
       drawAll();
     });
     els.search = s; app.appendChild(s);
-     els.paste = el('div', ''); app.appendChild(els.paste); 
+     els.paste = el('div', 'pastew'); app.appendChild(els.paste); 
     els.pend = el('div', 'pendwrap'); app.appendChild(els.pend);
-    els.results = el('div', ''); els.browse = el('div', ''); els.cards = el('div', '');
+    els.results = el('div', 'resw'); els.browse = el('div', 'browsew'); els.cards = el('div', 'cardsw');
     app.appendChild(els.results); app.appendChild(els.browse); app.appendChild(els.cards);
     if (PART) { document.body.classList.add('part-' + PART); }
   }
@@ -1871,7 +1973,7 @@
     setCompact(false); st.openCard = {}; st.lkind = 'all'; st.lq = ''; st.lsort = 'new'; st.cardLimit = 12; st.cardsShut = false;
     st.lastPicked = k; try { sessionStorage.setItem('int-lastpick', k); } catch (x) {}
     st.more = ''; st.pend = k; st.moreTab = 'enjoy';
-    st.joyNote = '\u201C' + w + '\u201D was added to your joys. Choose its category, then press Done.';
+    st.joyNote = '';
     if (!catListOf(w).length) { st.tagOpen = st.tagOpen || {}; st.tagOpen[k] = true; }
     toParent({ ao: 'openedword' });
   }
