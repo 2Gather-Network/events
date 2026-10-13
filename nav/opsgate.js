@@ -44,7 +44,7 @@
     var box = d.createElement('div');
     box.id = 'cw-opsgate';
     box.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:#1F699E;overflow:auto;'
-      + "font-family:'DM Sans','Inter',system-ui,-apple-system,sans-serif;display:flex;"
+      + "font-family:'Nunito Sans','DM Sans','Inter',system-ui,-apple-system,sans-serif;display:flex;"
       + 'align-items:center;justify-content:center;padding:24px;';
     box.innerHTML =
       '<div style="background:#fff;border-radius:16px;max-width:430px;width:100%;padding:26px 26px 24px;">'

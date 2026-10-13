@@ -421,9 +421,20 @@
     } catch (e) {}
   }
 
+  function loadFont() {
+    try {
+      if (document.querySelector('link[href*="Nunito+Sans"]')) { return; }
+      var l = document.createElement('link');
+      l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap';
+      document.head.appendChild(l);
+    } catch (e) {}
+  }
+
   function style() {
+    loadFont();
     var css =
-      '#cw-topbar{font-family:"DM Sans","Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;' +
+      '#cw-topbar{font-family:"Nunito Sans","DM Sans","Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;' +
         'position:relative;z-index:5;}' +
       '@media (max-width:700px){#cw-viewas{font-size:11.5px !important;gap:6px 8px !important;' +
         'padding:calc(5px + env(safe-area-inset-top, 0px)) 8px 5px !important;}' +
@@ -788,7 +799,7 @@
     bar.id = 'cw-viewas';
     bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;display:flex;align-items:center;gap:10px;'
       + 'flex-wrap:wrap;gap:10px 16px;padding:calc(7px + env(safe-area-inset-top, 0px)) 14px 7px;'
-      + 'font:600 13px/1.4 "DM Sans",system-ui,sans-serif;'
+      + 'font:600 13px/1.4 "Nunito Sans","DM Sans",system-ui,sans-serif;'
       + 'background:#fff;color:#1A2E42;border-bottom:1px solid #E3EAF0;'
       + ((seen || out) ? 'box-shadow:inset 4px 0 0 #B8862F;' : '');
 
@@ -924,7 +935,7 @@
     var b = d.createElement('button');
     b.type = 'button';
     b.textContent = 'Admin';
-    b.style.cssText = 'font:700 11.5px/1 "DM Sans",system-ui,sans-serif;padding:4px 9px;'
+    b.style.cssText = 'font:700 11.5px/1 "Nunito Sans","DM Sans",system-ui,sans-serif;padding:4px 9px;'
       + 'border-radius:0 0 8px 8px;cursor:pointer;border:1px solid #E3EAF0;border-top:0;'
       + 'background:#fff;color:#4B5A6D;pointer-events:auto;';
     b.onclick = function () { setFolded(false); };
@@ -969,7 +980,7 @@
     var top = 34; try { top = Math.round(bar.getBoundingClientRect().bottom) || 34; } catch (e) {}
     panel.style.cssText = 'position:fixed;left:0;right:0;top:' + top + 'px;max-height:70vh;overflow:auto;'
       + 'box-shadow:0 6px 18px rgba(26,46,66,.12);z-index:100000;background:#fff;color:#1A2E42;'
-      + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "DM Sans",system-ui,sans-serif;';
+      + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "Nunito Sans","DM Sans",system-ui,sans-serif;';
     var head = d.createElement('div');
     head.style.cssText = 'font-weight:800;margin-bottom:8px;';
     head.textContent = 'Looking for proposed words…';
@@ -1037,7 +1048,7 @@
     panel.id = 'cw-viewas-pick';
     var _pTop = 34; try { _pTop = Math.round(bar.getBoundingClientRect().bottom) || 34; } catch (e) {}
     panel.style.cssText = 'position:fixed;left:0;right:0;top:' + _pTop + 'px;max-height:70vh;overflow:auto;box-shadow:0 6px 18px rgba(26,46,66,.12);z-index:100000;background:#fff;color:#1A2E42;'
-      + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "DM Sans",system-ui,sans-serif;';
+      + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "Nunito Sans","DM Sans",system-ui,sans-serif;';
 
     var _faSeq = 0;   
     var inp = d.createElement('input');
