@@ -238,7 +238,12 @@
   .ltools{margin:0 0 12px;}
   .lrow1{display:flex;gap:10px;align-items:center;margin-bottom:10px;}
   .ltsearch{flex:1 1 auto;min-width:0;box-sizing:border-box;font:inherit;font-size:14.5px;border:1.5px solid var(--pale);border-radius:10px;padding:9px 12px;background:var(--soft);}
-  .ltsort{flex:0 0 auto;font:inherit;font-size:13.5px;font-weight:700;color:var(--blue);border:1.5px solid var(--pale);border-radius:10px;padding:9px 10px;background:#fff;}
+  .ltsort{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:13.5px;font-weight:700;color:var(--blue);border:1.5px solid var(--pale);border-radius:10px;padding:9px 40px 9px 12px;background:#fff;cursor:pointer;background-repeat:no-repeat;background-position:right 17px center;background-size:12px 8px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%231A2E42' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");}
+  .sic{width:18px;height:18px;flex:0 0 18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
+  .sortmenu{margin:8px 0 0;border:1.5px solid var(--pale);border-radius:14px;background:#fff;padding:6px;}
+  .sortmenu[hidden]{display:none;}
+  .sortopt{display:flex;align-items:center;gap:12px;width:100%;font:inherit;font-size:14px;font-weight:600;color:var(--ink);background:none;border:0;border-radius:10px;padding:10px 12px;cursor:pointer;text-align:left;}
+  .sortopt.on{background:#EAF4FD;color:var(--blue);}
   .lchips{display:flex;flex-wrap:wrap;gap:8px;}
   .lchip{font:inherit;font-size:13px;font-weight:700;color:var(--blue);background:#fff;border:1.5px solid var(--pale);border-radius:18px;padding:6px 14px;cursor:pointer;}
   .lchip.on{background:var(--blue);color:#fff;border-color:var(--blue);}
@@ -1731,10 +1736,28 @@
     var tools = el('div', 'ltools'), r1 = el('div', 'lrow1');
     var q = el('input', 'ltsearch'); q.type = 'search'; q.placeholder = '\u{1F50D} Search'; q.value = st.lq || ''; q.setAttribute('aria-label', 'Search your cards');
     q.addEventListener('input', function(){ st.lq = q.value; st.lfocus = true; st.cardLimit = 12; drawCards(); });
-    var sel = el('select', 'ltsort'); sel.setAttribute('aria-label', 'Sort');
-    [['new', 'Newest added'], ['edited', 'Last edited'], ['old', 'Oldest added'], ['nocat', 'Missing category'], ['profile', '\u{1F441}\uFE0F On my profile'], ['matches', '\u21C4 Creating matches']].forEach(function(o){ var op = el('option', '', o[1]); op.value = o[0]; if ((st.lsort || 'new') === o[0]) { op.selected = true; } sel.appendChild(op); });
-    sel.addEventListener('change', function(){ st.lsort = sel.value; drawCards(); });
-    r1.appendChild(q); r1.appendChild(sel); tools.appendChild(r1);
+    var SORTS = [['new', 'Newest added'], ['edited', 'Last edited'], ['old', 'Oldest added'], ['nocat', 'Missing category'], ['profile', 'On my profile'], ['matches', 'Creating matches']];
+    var SIC = {
+      'new': '<path d="M12 3v6M12 15v6M3 12h6M15 12h6"/>',
+      edited: '<path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/>',
+      old: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+      nocat: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1"/>',
+      profile: '<rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="11" r="2"/><path d="M14 10h4M14 14h4M6 16c.6-1.6 1.7-2 3-2s2.4.4 3 2"/>',
+      matches: '<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>'
+    };
+    var sic = function(k){ return '<svg class="sic" viewBox="0 0 24 24" aria-hidden="true">' + SIC[k] + '</svg>'; };
+    var cur = st.lsort || 'new', curLab = (SORTS.filter(function(o){ return o[0] === cur; })[0] || SORTS[0])[1];
+    var sel = el('button', 'ltsort'); sel.type = 'button'; sel.setAttribute('aria-label', 'Sort'); sel.setAttribute('aria-haspopup', 'listbox'); sel.setAttribute('aria-expanded', 'false');
+    sel.innerHTML = sic(cur) + '<span class="sl">' + curLab + '</span>';
+    var menu = el('div', 'sortmenu'); menu.setAttribute('role', 'listbox'); menu.hidden = true;
+    SORTS.forEach(function(o){
+      var ob = el('button', 'sortopt' + (o[0] === cur ? ' on' : '')); ob.type = 'button'; ob.setAttribute('role', 'option');
+      ob.innerHTML = sic(o[0]) + '<span>' + o[1] + '</span>';
+      ob.addEventListener('click', function(){ st.lsort = o[0]; drawCards(); });
+      menu.appendChild(ob);
+    });
+    sel.addEventListener('click', function(){ menu.hidden = !menu.hidden; sel.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true'); });
+    r1.appendChild(q); r1.appendChild(sel); tools.appendChild(r1); tools.appendChild(menu);
     var chips = el('div', 'lchips');
     ([['all', 'All interests'], ['enjoy', 'Joy'], ['skill', 'Skill'], ['care', 'Care'], ['seek', 'Seek'], ['offer', 'Offer']]).forEach(function(f){
       var b = el('button', 'lchip' + ((st.lkind || 'all') === f[0] ? ' on' : ''), f[1]); b.type = 'button';
