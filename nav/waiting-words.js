@@ -7,9 +7,9 @@
     'Putting the kettle on', 'Setting the table', 'Pulling up a chair', 'Making room', 'Opening the door', 'Lighting the lanterns',
     'Gathering', 'Weaving', 'Mending', 'Sowing', 'Watering', 'Harvesting', 'Composting',
     'Making introductions', 'Finding common ground', 'Passing the note along', 'Circling back',
-    'Sketching', 'Tinkering', 'Stitching', 'Kneading',
-    'Ambling over', 'Wandering the commons', 'Carrying it across',
-    'Noodling', 'Doodling', 'Humming along',
+    'Pressing flowers', 'Setting out cushions', 'Stitching', 'Waving from the porch',
+    'Ambling over', 'Sweeping the steps', 'Carrying it across',
+    'Stirring the pot', 'Tending the fire', 'Humming along',
     'Pausing', 'Taking a breath', 'Settling in'
   ];
   w.CW_WAITING_WORDS = WORDS.slice();
