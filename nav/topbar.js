@@ -881,8 +881,10 @@
       : 'Support', _supportHere(), waiting > 0);
 
     if (operatorOk) {
-      var pw = adminLink('Proposed words', '#', false);
+      var pw = adminLink(wordsLabel(), '#', false);
+      pw.id = 'cw-words-link';
       pw.onclick = function (ev) { ev.preventDefault(); openWords(bar); };
+      wordCountLoad();
     }
 
     var fold = d.createElement('button');
@@ -931,6 +933,28 @@
 
   var superOk = false;
   var operatorOk = false;
+  var wordsLeft = null;
+  var WORDS_KEY = 'cw-wordcount';
+  function wordsLabel() { return (wordsLeft === null ? '' : '(' + wordsLeft + ') ') + 'Proposed words'; }
+  function wordsSet(n) {
+    wordsLeft = n;
+    ls(function () { w.localStorage.setItem(WORDS_KEY, JSON.stringify({ n: n, at: Date.now(), who: realMeId })); });
+    var a = d.getElementById('cw-words-link'); if (a) { a.textContent = wordsLabel(); }
+  }
+  function wordCountLoad() {
+    var c = ls(function () { return JSON.parse(w.localStorage.getItem(WORDS_KEY) || 'null'); }, null);
+    if (c && c.who === realMeId && typeof c.n === 'number') {
+      wordsLeft = c.n;
+      var a0 = d.getElementById('cw-words-link'); if (a0) { a0.textContent = wordsLabel(); }
+      if (Date.now() - (c.at || 0) < 300000) { return; }
+    }
+    var auth = '&appearId=' + encodeURIComponent(realMeId)
+      + '&meToken=' + encodeURIComponent(String(ls(function () { return w.localStorage.getItem('cw-token'); }, '') || ''));
+    fetch(GS + '?action=getWordReview' + auth + '&t=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (r) { if (r && r.status === 'ok' && Array.isArray(r.items)) { wordsSet(r.items.length); } })
+      .catch(function () {});
+  }
   function drawAdminBar() { if (w.CW_ADMIN_HIDDEN || !superOk) { return; } if (folded()) { paintFolded(); } else { paint(); } }
 
   w.CW_REDRAW_ADMIN = function () { try { drawAdminBar(); } catch (e) {} };
@@ -983,7 +1007,7 @@
         fetch(GS + '?action=reviewWord' + auth + '&ref=' + encodeURIComponent(it.ref) + '&decision=' + dec + '&t=' + Date.now())
           .then(function (r) { return r.json(); })
           .then(function (r) {
-            if (r && r.status === 'ok') { row.remove(); left--; count(); return; }
+            if (r && r.status === 'ok') { row.remove(); left--; count(); wordsSet(left); return; }
             ok.disabled = no.disabled = false; msg.textContent = (r && r.message) || 'Could not save. Try again.';
           })
           .catch(function () { ok.disabled = no.disabled = false; msg.textContent = 'Could not reach the server. Try again.'; });
@@ -998,7 +1022,7 @@
       .then(function (r) { return r.json(); })
       .then(function (r) {
         if (!r || r.status !== 'ok' || !Array.isArray(r.items)) { say((r && r.message) || 'The list did not come back. Try again.'); return; }
-        left = r.items.length; count();
+        left = r.items.length; count(); wordsSet(left);
         r.items.forEach(function (it) { list.appendChild(line(it)); });
       })
       .catch(function () { say('Could not reach the server. Try again.'); });
