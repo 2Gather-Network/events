@@ -5012,6 +5012,14 @@ function _findHost() {
 function _fillPosterName() {
   var hn = document.getElementById("f-host");
   if (!hn) return;
+  if (window._isSharing) {
+    try {
+      var _me = String(_myAppearName || "").trim().toLowerCase();
+      if (!editingId && _me && hn.value.trim().toLowerCase() === _me) { hn.value = ""; }
+    } catch (e) {}
+    try { _hpPaint(); } catch (e) {}
+    return;
+  }
   var known = _knownPosterName();
   if (known && !hn.value.trim()) { hn.value = known; try { _hpPaint(); } catch (e) {} return; }
   try { _hpPaint(); } catch (e) {}
@@ -5148,7 +5156,8 @@ function _hpPick(i) {
 
 function _knownPosterName() {
   var k = _nameKey();
-  try { return k ? (localStorage.getItem(k) || "") : ""; } catch (e) { return ""; }
+  try { if (k) localStorage.removeItem(k); } catch (e) {}
+  return "";
 }
 
 function toggleLinkFields() {
@@ -5672,7 +5681,7 @@ async function submitEvent() {
   if (!time && date !== "TBD") { missing.push("start time"); missIds.push("f-time"); }
   const _series = !!(recurFreq && document.getElementById("f-recurring")?.checked);
   if (_series && date === "TBD") { missing.push("a real start date, because a repeating event counts forward from one"); missIds.push("f-date"); }
-  if (!host) { missing.push("host name"); missIds.push("f-host"); }
+  if (!host && !window._isSharing) { missing.push("host name"); missIds.push("f-host"); }
   if (missing.length > 0) { _markMissing(missIds); errEl.textContent = "Please add: " + missing.join(", ") + "."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   if (document.getElementById("f-recur-end")?.value && date && date !== "TBD" && document.getElementById("f-recur-end").value < date) { errEl.textContent = "The last day must be on or after the start date."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   if (time && endtime && endtime <= time) { errEl.textContent = "End time must be after start time."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
@@ -5871,7 +5880,6 @@ async function submitEvent() {
     }
     const newId = Array.from({length:8}, () => Math.floor(Math.random()*36).toString(36)).join('');
     const newEv = { id:newId, ...eventData, passcode, going:0, hostType: window._isSharing ? "socializer" : "host" };
-    if (window._isSharing) _rememberPosterName(eventData.host);
     const RL_KEY = "db-post-log";
     let log = []; try { log = JSON.parse(localStorage.getItem(RL_KEY)||"[]"); } catch {}
     log.push(Date.now()); localStorage.setItem(RL_KEY, JSON.stringify(log));
