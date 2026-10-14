@@ -1902,18 +1902,25 @@
     var mine = '';
     try { mine = (window.CW && CW.realMe) ? String(CW.realMe().id || '') : ''; } catch(e){}
     if (!mine) { _bmSay('Sign in to bookmark.'); return; }
-    var them = _bmWho();
-    if (!them) { _bmSay('Still loading. Try again.'); return; }
+    var them = _bmWho(), toCode = '';
+    try { toCode = String(_viewCode || '').trim().toLowerCase(); } catch(e){}
+    if (!them && !toCode) { _bmSay('Still loading. Try again.'); return; }
+    var tok = '';
+    try { tok = localStorage.getItem('cw-token') || ''; } catch(e){}
     var want = !_bmOnHere;
     _bmBusy = true;
     b.disabled = true;
     _bmSay(want ? 'Bookmarking\u2026' : 'Removing\u2026');
-    fetch(GS_URL + '?action=saveBookmark&from=' + encodeURIComponent(mine)
-          + '&to=' + encodeURIComponent(them) + (want ? '' : '&remove=true'))
+    var failed = false;
+    fetch(GS_URL + '?action=saveBookmark&from=' + encodeURIComponent(mine) + (tok ? '&meToken=' + encodeURIComponent(tok) : '')
+          + (them ? '&to=' + encodeURIComponent(them) : '&toCode=' + encodeURIComponent(toCode)) + (want ? '' : '&remove=true'))
       .then(function(r){ return r.json(); })
-      .then(function(){ _bmOnHere = want; if (want) { try { localStorage.setItem('cw-havebookmarks', JSON.stringify({ who: mine, yes: true, at: Date.now() })); } catch (e) {} } })
-      .catch(function(){  })
-      .then(function(){ _bmBusy = false; b.disabled = false; _bmPaint(b); });
+      .then(function(d){
+        if (d && d.status === 'ok') { _bmOnHere = want; if (want) { try { localStorage.setItem('cw-havebookmarks', JSON.stringify({ who: mine, yes: true, at: Date.now() })); } catch (e) {} } }
+        else { failed = true; }
+      })
+      .catch(function(){ failed = true; })
+      .then(function(){ _bmBusy = false; b.disabled = false; _bmPaint(b); if (failed) { _bmSay('That did not save. Try again.'); } });
   }
   var _icHtml = '', _icOpen = false;
   function icSay(html){ var o = document.getElementById('pv-common-out'); if (o) o.innerHTML = html; }
