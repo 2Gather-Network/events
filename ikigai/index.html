@@ -1520,7 +1520,7 @@
             };
             btns.appendChild(save); btns.appendChild(cancel);
             fName.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save.onclick(); } });
-            panel.appendChild(fTitle); panel.appendChild(fKind); panel.appendChild(fCat); panel.appendChild(gpTopicPicker(cur.name)); panel.appendChild(fName); panel.appendChild(locLine); panel.appendChild(btns);
+            panel.appendChild(fTitle); panel.appendChild(gpTitleSuggest(fTitle)); panel.appendChild(fKind); panel.appendChild(fCat); panel.appendChild(gpTopicPicker(cur.name)); panel.appendChild(fName); panel.appendChild(locLine); panel.appendChild(btns);
             try { fName.focus(); } catch (e) {}
           };
           card.appendChild(panel);
@@ -3845,6 +3845,58 @@
     });
   }
   var _gpWordsP = null;
+  function gpTitleSuggest(inp){
+    var host = document.createElement('div');
+    host.style.cssText = 'margin:-4px 0 8px;';
+    var said = '';
+    var paint = function(){
+      host.innerHTML = '';
+      var q = String(inp.value || '').trim(), lq = q.toLowerCase();
+      if (lq.length < 2 || !window._gpWords || !window._gpWords.list) { return; }
+      var hits = [], seen = {};
+      window._gpWords.list.forEach(function(w){
+        if (hits.length >= 6 || seen[w.id]) { return; }
+        var all = (w.names || [w.word]).concat([w.word]);
+        var starts = all.some(function(n){ return String(n).toLowerCase().indexOf(lq) === 0; });
+        var has = all.some(function(n){ return String(n).toLowerCase().indexOf(lq) > -1; });
+        if (starts || has) { seen[w.id] = 1; hits.push({ w: w, s: starts ? 0 : 1 }); }
+      });
+      hits.sort(function(a, b){ return a.s - b.s; });
+      var exact = !!window._gpWords.byName[lq];
+      var box = document.createElement('div');
+      box.style.cssText = 'border:1px solid #DDE4EE;border-radius:10px;overflow:hidden;background:#fff;';
+      var row = function(label, sub, strong, fn){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.style.cssText = 'display:block;width:100%;text-align:left;font:inherit;font-size:13.5px;padding:9px 10px;border:0;border-bottom:1px solid #EEF2F7;background:#fff;cursor:pointer;color:' + (strong ? '#1F699E' : '#1A2E42') + ';' + (strong ? 'font-weight:700;' : '');
+        b.textContent = label;
+        if (sub) { var s = document.createElement('span'); s.style.cssText = 'color:#6B7A8D;font-size:12px;margin-left:6px;'; s.textContent = sub; b.appendChild(s); }
+        b.addEventListener('click', fn);
+        box.appendChild(b);
+      };
+      hits.forEach(function(h){
+        var cats = [];
+        try { cats = window._gpWords.catsOf(h.w) || []; } catch (e) {}
+        row(h.w.word, cats.length ? 'in ' + cats[0] : '', false, function(){ inp.value = h.w.word; host.innerHTML = ''; try { inp.dispatchEvent(new Event('input')); } catch (e) {} });
+      });
+      if (!exact && lq.length > 1) {
+        row('+ Add “' + q + '” as a new word', '', true, function(){
+          host.innerHTML = '';
+          var note = document.createElement('div');
+          note.style.cssText = 'font-size:12.5px;color:#4B5A6D;padding:4px 2px;';
+          note.textContent = 'Adding “' + q + '”…';
+          host.appendChild(note);
+          fetch(GS_URL + '?action=addWord&appearId=' + encodeURIComponent(meId) + '&text=' + encodeURIComponent(q.slice(0, 60)))
+            .then(function(r){ return r.json(); })
+            .then(function(res){ try { if (window.CW_WORDS_REFRESH) { window.CW_WORDS_REFRESH(); } } catch (e) {} note.textContent = (res && res.status === 'error') ? 'That word could not be added. The title still saves.' : '“' + q + '” is added as a new word.'; })
+            .catch(function(){ note.textContent = 'That word could not be added. The title still saves.'; });
+        });
+      }
+      if (box.lastChild) { box.lastChild.style.borderBottom = '0'; host.appendChild(box); }
+    };
+    inp.addEventListener('input', paint);
+    return host;
+  }
   function gpWordsBuild(rows){
     var W = { list: [], byId: {}, kids: {}, byName: {}, rows: rows || [] };
     (rows || []).forEach(function(r){
@@ -5934,7 +5986,7 @@
           };
           fName.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sv.onclick(); } });
           btns.appendChild(sv); btns.appendChild(cn);
-          panel.appendChild(fTitle); panel.appendChild(fCat); panel.appendChild(gpTopicPicker(cur.name)); panel.appendChild(fName); panel.appendChild(locLine); panel.appendChild(btns);
+          panel.appendChild(fTitle); panel.appendChild(gpTitleSuggest(fTitle)); panel.appendChild(fCat); panel.appendChild(gpTopicPicker(cur.name)); panel.appendChild(fName); panel.appendChild(locLine); panel.appendChild(btns);
           try { fName.focus(); } catch (e) {}
         };
         card.appendChild(panel);
