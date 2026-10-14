@@ -318,6 +318,12 @@
   .aoq .fg.open .fgh .fgn,.aoq .fg.open .fgh .ch{color:#fff;}
   .aoq .fg.open .fgc{background:#fff;}
   .aoq .qbox{margin-top:8px;}
+.lflt{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0;}
+.fb{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:13.5px;font-weight:700;padding:8px 14px;border-radius:999px;border:1.5px solid #C9DFF3;background:#fff;color:#356899;cursor:pointer;}
+.fb svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.fb.on{background:#356899;border-color:#356899;color:#fff;}
+.fb.off{background:#EEF2F6;border-color:#C3D0DB;color:#4B5A6D;}
+.fb:focus,.fb:focus-visible,.fb:active{outline:none;box-shadow:none;}
 </style>
 </head>
 <body>
@@ -1754,7 +1760,7 @@
     var tools = el('div', 'ltools'), r1 = el('div', 'lrow1');
     var q = el('input', 'ltsearch'); q.type = 'search'; q.placeholder = '\u{1F50D} Search my interests'; q.value = st.lq || ''; q.setAttribute('aria-label', 'Search your cards');
     q.addEventListener('input', function(){ st.lq = q.value; st.lfocus = true; st.cardLimit = 12; drawCards(); });
-    var SORTS = [['new', 'Newest added'], ['edited', 'Last edited'], ['old', 'Oldest added'], ['nocat', 'Missing category'], ['profile', 'On my profile'], ['matches', 'Creating matches']];
+    var SORTS = [['new', 'Newest added'], ['edited', 'Last edited'], ['old', 'Oldest added'], ['nocat', 'Missing category']];
     var SIC = {
       'new': '<path d="M12 3v6M12 15v6M3 12h6M15 12h6"/>',
       edited: '<path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/>',
@@ -1783,6 +1789,25 @@
       chips.appendChild(b);
     });
     tools.appendChild(chips);
+    var fl = el('div', 'lflt');
+    var EYE_P = '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>';
+    var MT_P = '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>';
+    var fp = st.lall ? 0 : (st.lp === undefined ? 1 : st.lp), fm = st.lall ? 0 : (st.lm === undefined ? 1 : st.lm);
+    var fbtn = function(path, cls, label, aria, on){
+      var b = el('button', 'fb' + cls); b.type = 'button'; b.setAttribute('aria-label', aria);
+      b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + path + '</svg>' + (label ? '<span>' + label + '</span>' : '');
+      b.addEventListener('click', on); return b;
+    };
+    fl.appendChild(fbtn(EYE_P, fp === 1 ? ' on' : fp === 2 ? ' off' : '', fp === 1 ? 'On profile' : fp === 2 ? 'Off profile' : '', 'Cards on or off my profile', function(){
+      if (st.lall) { st.lall = false; st.lp = 1; st.lm = 1; } else { st.lp = (st.lp === undefined ? 1 : st.lp) === 1 ? 2 : 1; }
+      st.cardLimit = 12; drawCards();
+    }));
+    fl.appendChild(fbtn(MT_P, fm === 1 ? ' on' : fm === 2 ? ' off' : '', fm === 1 ? 'Matching' : fm === 2 ? 'Not matching' : '', 'Cards used or not used for matching', function(){
+      if (st.lall) { st.lall = false; st.lp = 1; st.lm = 1; } else { st.lm = (st.lm === undefined ? 1 : st.lm) === 1 ? 2 : 1; }
+      st.cardLimit = 12; drawCards();
+    }));
+    fl.appendChild(fbtn('', ' all' + (st.lall ? ' on' : ''), 'All', 'Show all cards', function(){ st.lall = true; st.cardLimit = 12; drawCards(); }));
+    r1.appendChild(fl);
     return tools;
   }
   function drawPend(){
@@ -1827,8 +1852,10 @@
         var lk = st.lkind || 'all', lq = lc(st.lq || '');
         if (lq) { list = list.filter(function(m){ return lc(m.word).indexOf(lq) > -1; }); }
          if (st.lsort === 'nocat') { list = list.filter(function(m){ return !catListOf(m.word).length; }); }
-         if (st.lsort === 'profile') { list = list.filter(function(m){ return csShow(getA(m.word), m.word); }); }
-         if (st.lsort === 'matches') { list = list.filter(function(m){ return csMatch(getA(m.word), m.word); }); }
+         if (!st.lall) {
+           var fP = st.lp === undefined ? 1 : st.lp, fM = st.lm === undefined ? 1 : st.lm;
+           list = list.filter(function(m){ var a = getA(m.word), sh = csShow(a, m.word), mt = csMatch(a, m.word); return (fP === 1 ? sh : !sh) && (fM === 1 ? mt : !mt); });
+         }
          if (lk !== 'all') { list = list.filter(function(m){ return (m.tags || []).indexOf(lk) > -1; }); } 
         if (st.lsort === 'old') { list.reverse(); }
         else if (st.lsort === 'edited') { var ed = function(m){ return String(getA(m.word).editedDate || ''); }; list = list.map(function(m, i){ return [m, i]; }).sort(function(x, y){ return ed(y[0]) < ed(x[0]) ? -1 : ed(y[0]) > ed(x[0]) ? 1 : x[1] - y[1]; }).map(function(x){ return x[0]; }); }
