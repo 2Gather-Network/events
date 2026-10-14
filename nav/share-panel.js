@@ -1,6 +1,17 @@
 (function(){
   function el(tag, css, text){ var e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; }
-  var BTN = 'flex:1 1 0;min-width:0;font:inherit;font-size:15px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #1F699E;border-radius:10px;padding:10px 8px;cursor:pointer;';
+  var BTN = 'flex:1 1 0;min-width:0;font:inherit;font-size:15px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #1F699E;border-radius:10px;padding:10px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;';
+  var ICON = {
+    copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>',
+    share: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>',
+    qr: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h3v3h-3zM20 14v6h-6M17 20v0"/>'
+  };
+  function icon(name){
+    var w = document.createElement('span');
+    w.style.cssText = 'display:inline-flex;line-height:0;';
+    w.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[name] + '</svg>';
+    return w;
+  }
   function loadQrLib(done, fail){
     if (window.QRious) return done();
     var s = document.createElement('script');
@@ -40,13 +51,13 @@
     say.setAttribute('role', 'status');
     var qrSlot = el('div', '');
     function tell(t){ say.textContent = t; if (t) setTimeout(function(){ if (say.textContent === t) say.textContent = ''; }, 2500); }
-    function mk(label, fn){ var b = el('button', BTN, label); b.type = 'button'; b.addEventListener('click', fn); row.appendChild(b); return b; }
-    mk('Copy link', function(){
+    function mk(label, fn, ic){ var b = el('button', BTN); b.type = 'button'; if (ic) b.appendChild(icon(ic)); b.appendChild(el('span', '', label)); b.setAttribute('aria-label', label === 'Copy' ? 'Copy link' : label === 'QR' ? 'Show QR code' : label); b.addEventListener('click', fn); row.appendChild(b); return b; }
+    mk('Copy', function(){
       try { navigator.clipboard.writeText(o.url).then(function(){ tell('Link copied'); }, function(){ window.prompt('Copy this link', o.url); }); }
       catch (e) { window.prompt('Copy this link', o.url); }
-    });
+    }, 'copy');
     if (navigator.share) {
-      mk('Share', function(){ navigator.share({ title: o.title || document.title, text: o.text || '', url: o.url }).catch(function(){}); });
+      mk('Share', function(){ navigator.share({ title: o.title || document.title, text: o.text || '', url: o.url }).catch(function(){}); }, 'share');
     }
     mk('QR', function(){
       if (qrSlot.firstChild) { qrSlot.innerHTML = ''; return; }
@@ -67,7 +78,7 @@
         dl.href = c.toDataURL('image/png'); dl.download = (o.fileName || 'qr-code') + '.png';
         wrap.appendChild(dl);
       }, function(){ wait.textContent = 'The QR code did not load. Try again in a moment.'; });
-    });
+    }, 'qr');
     box.appendChild(row);
     box.appendChild(say);
     box.appendChild(qrSlot);
