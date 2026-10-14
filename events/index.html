@@ -8257,5 +8257,150 @@ function _railKeepInView(key) {
 </script>
 <script>try{localStorage.removeItem('cw-super')}catch(e){}</script>
 <script src="/nav/topbar.js?v=6.45" defer></script>
+<script>
+(function () {
+  var on = false;
+  try { on = new URLSearchParams(location.search).get("alerts") === "1"; } catch (e) {}
+  if (!on) return;
+  var ea = { list: null, failed: false, form: null, ask: "", msg: "" };
+  function me() { try { return (typeof getRealMemberId === "function" ? getRealMemberId() : "") || ""; } catch (e) { return ""; } }
+  function esc(t) { return String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function cur() {
+    var w = false; try { w = !!_whereApplied; } catch (e) {}
+    var val = function (id) { return ((document.getElementById(id) || {}).value || "").trim(); };
+    var place = ""; try { place = w ? (_wherePlaceName() || "") : ""; } catch (e) {}
+    return {
+      cats: (function () { try { return Array.from(activeCats); } catch (e) { return []; } })(),
+      q: val("search-input"),
+      format: (function () { try { return _activeFormat || "all"; } catch (e) { return "all"; } })(),
+      state: w ? val("where-state") : "", county: w ? val("where-county") : "", place: place,
+      moods: (function () { try { return Array.from(_selectedMoods); } catch (e) { return []; } })()
+    };
+  }
+  function words(f) {
+    var p = [];
+    if (f.cats && f.cats.length) p.push(f.cats.join(", "));
+    if (f.q) p.push("“" + f.q + "”");
+    var fm = { inperson: "In person", virtual: "Online", hybrid: "In person and online" }[f.format];
+    if (fm) p.push(fm);
+    var where = [f.place, f.county, f.state].filter(Boolean).join(", ");
+    if (where) p.push(where);
+    if (f.moods && f.moods.length) p.push("Feeling " + f.moods.join(", "));
+    return p.length ? p.join(" · ") : "Every public event";
+  }
+  function box() {
+    var b = document.getElementById("ea-box");
+    if (b) return b;
+    var fbar = document.getElementById("fbar");
+    if (!fbar || !fbar.parentNode) return null;
+    b = document.createElement("div");
+    b.id = "ea-box";
+    b.style.cssText = "background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px;";
+    fbar.parentNode.insertBefore(b, fbar.nextSibling);
+    return b;
+  }
+  var btn = "font:inherit;font-size:13px;font-weight:700;border-radius:20px;padding:6px 14px;cursor:pointer;";
+  var solid = btn + "background:var(--primary);color:#fff;border:1.5px solid var(--primary);";
+  var line = btn + "background:#fff;color:var(--primary);border:1.5px solid var(--primary);";
+  function paint() {
+    var b = box(); if (!b) return;
+    var h = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">'
+      + '<p style="margin:0;font-size:15px;font-weight:700;color:var(--dark);">My email alerts</p>';
+    if (me() && !ea.form) h += '<button type="button" id="ea-new" style="' + solid + '">Email me these</button>';
+    h += '</div>';
+    if (!me()) {
+      b.innerHTML = h + '<p style="margin:8px 0 0;font-size:14px;color:var(--muted);">Sign in to save email alerts.</p>';
+      return;
+    }
+    if (ea.form) {
+      var f = ea.form;
+      var shown = (f.id && !f.useNow) ? f.filter : cur();
+      h += '<div style="margin-top:10px;border:1.5px solid var(--primary);border-radius:12px;padding:12px;">'
+        + '<label for="ea-title" style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">Title</label>'
+        + '<input id="ea-title" class="input" maxlength="80" placeholder="Example: Edmonds art nights" value="' + esc(f.title) + '" style="margin:0 0 10px;">'
+        + '<p style="margin:0 0 4px;font-size:13px;font-weight:700;">Sends events that match</p>'
+        + '<p style="margin:0 0 10px;font-size:14px;color:var(--muted);">' + esc(words(shown)) + '</p>'
+        + (f.id ? '<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:0 0 10px;"><input type="checkbox" id="ea-usenow"' + (f.useNow ? " checked" : "") + '> Use the filter on the calendar now instead</label>' : '')
+        + '<p style="margin:0 0 4px;font-size:13px;font-weight:700;">How often</p>'
+        + '<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:0 0 4px;"><input type="radio" name="ea-freq" value="each"' + (f.frequency === "each" ? " checked" : "") + '> Every new event, in its own email</label>'
+        + '<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:0 0 10px;"><input type="radio" name="ea-freq" value="daily"' + (f.frequency !== "each" ? " checked" : "") + '> A daily digest, one email a day</label>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"><button type="button" id="ea-save" style="' + solid + '">Save alert</button>'
+        + '<button type="button" id="ea-cancel" style="' + line + '">Cancel</button>'
+        + '<span id="ea-msg" style="font-size:13px;color:var(--muted);">' + esc(ea.msg) + '</span></div></div>';
+    }
+    if (ea.list === null) {
+      h += '<p style="margin:8px 0 0;font-size:14px;color:var(--muted);">' + (ea.failed ? 'Your alerts did not load. <a href="" id="ea-retry">Try again</a>' : 'Looking for your alerts…') + '</p>';
+    } else if (!ea.list.length) {
+      if (!ea.form) h += '<p style="margin:8px 0 0;font-size:14px;color:var(--muted);">Set the filter above, then press Email me these to get new matching events by email.</p>';
+    } else {
+      ea.list.forEach(function (a) {
+        h += '<div style="border-top:1px solid var(--border);padding:10px 0 2px;margin-top:10px;">'
+          + '<p style="margin:0;font-size:14px;font-weight:700;">' + esc(a.title) + '</p>'
+          + '<p style="margin:2px 0 0;font-size:13px;color:var(--muted);">' + (a.frequency === "each" ? "Every new event" : "Daily digest") + ' · ' + esc(words(a.filter)) + '</p>';
+        if (ea.ask === a.alertID) {
+          h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;"><span style="font-size:14px;">Delete this alert?</span>'
+            + '<button type="button" data-ea-yes="' + esc(a.alertID) + '" style="' + solid + '">Delete</button>'
+            + '<button type="button" data-ea-no="1" style="' + line + '">Keep it</button></div>';
+        } else {
+          h += '<div style="display:flex;gap:8px;margin-top:6px;"><button type="button" data-ea-edit="' + esc(a.alertID) + '" style="' + line + '">Edit</button>'
+            + '<button type="button" data-ea-del="' + esc(a.alertID) + '" style="' + line + '">Delete</button></div>';
+        }
+        h += '</div>';
+      });
+    }
+    b.innerHTML = h;
+  }
+  function ask(qs) {
+    return fetch(GS_URL + "?" + qs + "&appearId=" + encodeURIComponent(me()) + "&t=" + Date.now()).then(function (r) { return r.json(); });
+  }
+  function load() {
+    if (!me()) { paint(); return; }
+    ea.failed = false; paint();
+    ask("action=getEmailAlerts").then(function (d) {
+      if (d && d.status === "ok" && Array.isArray(d.alerts)) { ea.list = d.alerts; } else { ea.failed = true; }
+      paint();
+    }).catch(function () { ea.failed = true; paint(); });
+  }
+  function save() {
+    var f = ea.form, t = ((document.getElementById("ea-title") || {}).value || "").trim();
+    var fr = (document.querySelector('input[name="ea-freq"]:checked') || {}).value || "daily";
+    if (!t) { ea.msg = "Give this alert a title."; f.frequency = fr; paint(); return; }
+    var filter = (f.id && !f.useNow) ? f.filter : cur();
+    f.title = t; f.frequency = fr; ea.msg = "Saving…"; paint();
+    ask("action=saveEmailAlert&title=" + encodeURIComponent(t) + "&frequency=" + fr
+        + "&filter=" + encodeURIComponent(JSON.stringify(filter)) + (f.id ? "&alertID=" + encodeURIComponent(f.id) : ""))
+      .then(function (d) {
+        if (d && d.status === "ok") { ea.list = d.alerts || ea.list; ea.form = null; ea.msg = ""; }
+        else { ea.msg = (d && d.message) || "That did not save. Try again."; }
+        paint();
+      }).catch(function () { ea.msg = "That did not save. Try again."; paint(); });
+  }
+  function del(id) {
+    ask("action=deleteEmailAlert&alertID=" + encodeURIComponent(id)).then(function (d) {
+      if (d && d.status === "ok") { ea.list = d.alerts || []; }
+      ea.ask = ""; paint();
+    }).catch(function () { ea.ask = ""; paint(); });
+  }
+  document.addEventListener("click", function (ev) {
+    var t = ev.target; if (!t || !t.closest || !t.closest("#ea-box")) return;
+    if (t.id === "ea-new") { ea.form = { id: "", title: "", frequency: "daily", filter: null, useNow: true }; ea.msg = ""; paint(); var i = document.getElementById("ea-title"); if (i) i.focus(); return; }
+    if (t.id === "ea-cancel") { ea.form = null; ea.msg = ""; paint(); return; }
+    if (t.id === "ea-save") { save(); return; }
+    if (t.id === "ea-retry") { ev.preventDefault(); load(); return; }
+    if (t.id === "ea-usenow") { if (ea.form) { ea.form.useNow = t.checked; ea.form.title = ((document.getElementById("ea-title") || {}).value || ""); var r0 = document.querySelector('input[name="ea-freq"]:checked'); if (r0) ea.form.frequency = r0.value; paint(); } return; }
+    var e1 = t.getAttribute("data-ea-edit");
+    if (e1) { var a = (ea.list || []).filter(function (x) { return x.alertID === e1; })[0]; if (a) { ea.form = { id: a.alertID, title: a.title, frequency: a.frequency, filter: a.filter, useNow: false }; ea.msg = ""; paint(); } return; }
+    var d1 = t.getAttribute("data-ea-del"); if (d1) { ea.ask = d1; paint(); return; }
+    var y1 = t.getAttribute("data-ea-yes"); if (y1) { del(y1); return; }
+    if (t.getAttribute("data-ea-no")) { ea.ask = ""; paint(); return; }
+  });
+  document.addEventListener("click", function (ev) {
+    if (!ea.form || (ev.target.closest && ev.target.closest("#ea-box"))) return;
+    setTimeout(function () { if (ea.form && (!ea.form.id || ea.form.useNow)) { var t = document.getElementById("ea-title"); if (t) ea.form.title = t.value; var r = document.querySelector('input[name="ea-freq"]:checked'); if (r) ea.form.frequency = r.value; paint(); } }, 50);
+  });
+  function start() { paint(); load(); var b = box(); if (b) { try { b.scrollIntoView({ block: "start" }); } catch (e) {} } }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+})();
+</script>
 </body>
 </html>
