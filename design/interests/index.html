@@ -112,6 +112,7 @@
   .cm{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:12px;background:var(--soft);min-height:52px;}
   .cmb{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px;font:inherit;background:none;border:0;padding:8px 26px 8px 12px;text-align:left;cursor:pointer;}
   .catlnk{color:var(--blue) !important;font-weight:700;text-decoration:underline;cursor:pointer;}
+  .misslv{color:#C4501A;font-weight:700;font-size:13px;margin:0 0 8px;}
   .misslnk{color:#C4501A !important;font-weight:700;text-decoration:underline;cursor:pointer;}
   .cmwrap{margin-bottom:8px;}
   .cm.emo .cmb{flex-direction:row;align-items:center;gap:10px;padding:8px 12px;}
@@ -1283,10 +1284,15 @@
   }
   var KNOW_DEFAULT = [['selftaught', 'Self-taught'], ['volunteered', 'Volunteered'], ['studied', 'Officially studied'], ['trained', 'Trained'], ['credentialed', 'Credentialed'], ['guide', 'Responsible for others'], ['titled', 'Held the title']];
   var USE_OPTS = ['Volunteer', 'Service provider', 'Performer', 'Creator', 'Maker', 'Competitor', 'Practitioner'];
+  function lvMissing(word){
+    return (st.fits[lc(word)] || []).indexOf('skill') > -1 && curVal(word, 'level').length === 0;
+  }
   function skillPane(pane, word){
     var q = '\u201C' + word + '\u201D', opts = (st.howList && st.howList.length) ? st.howList : KNOW_DEFAULT;
     var lvBox = el('div', 'qbox'); lvBox.appendChild(el('div', 'qq', 'What is your level?'));
+    var missLv = el('div', 'misslv', 'Missing level. Pick one to finish.'); missLv.hidden = !lvMissing(word); lvBox.appendChild(missLv);
     pillRow(lvBox, '', ['Beginner', 'Experienced', 'Guide'], 'level', true, word); pane.appendChild(lvBox);
+    lvBox.addEventListener('click', function(){ missLv.hidden = !lvMissing(word); Array.prototype.forEach.call(document.querySelectorAll('.mtab'), function(t){ if (/^Skill/.test(t.textContent)) { t.textContent = lvMissing(word) ? 'Skill \u00B7 Missing level' : 'Skill'; } }); });
     var know = el('div', 'qbox'), kq = el('div', 'qq', 'How do you know ' + q + '? '); pane.appendChild(know);
     var work = el('div', 'qbox'); work.appendChild(el('div', 'qq', 'Are you open to work for ' + q + '?'));
     var wr = el('div', 'row'); work.appendChild(wr); pane.appendChild(work);
@@ -1504,7 +1510,7 @@
     mtools.appendChild(tg); mtools.appendChild(removeIcon(m));
     mh.appendChild(ml); mh.appendChild(mtools); c.appendChild(mh);
     if (st.fitShut) {
-      var picked = ['Interest'].concat(FITS.filter(function(f){ return (st.fits[lc(m.word)] || []).indexOf(f[0]) > -1; }).map(function(f){ return ({ enjoy: 'Joy', skill: 'Skill', care: 'Care', seek: 'Seek', offer: 'Offer' })[f[0]]; })), sm = el('div', 'fitsum');
+      var picked = ['Interest'].concat(FITS.filter(function(f){ return (st.fits[lc(m.word)] || []).indexOf(f[0]) > -1; }).map(function(f){ return ({ enjoy: 'Joy', skill: (lvMissing(m.word) ? 'Skill \u00B7 Missing level' : 'Skill'), care: 'Care', seek: 'Seek', offer: 'Offer' })[f[0]]; })), sm = el('div', 'fitsum');
       picked.forEach(function(t){ sm.appendChild(el('span', 'fitchip', t)); });
       c.appendChild(sm);
     }
@@ -1513,7 +1519,7 @@
       var fr = el('div', 'row'); fb.appendChild(fr); fr.appendChild(el('span', 'pill on fixed', 'I\u2019m interested in it'));
       FITS.forEach(function(f){
         var on = (st.fits[lc(m.word)] || []).indexOf(f[0]) > -1, b = el('button', 'pill' + (on ? ' on' : ''), f[1]); b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false');
-        b.addEventListener('click', function(){ setFit(m.word, f[0], !b.classList.contains('on')); drawCards(); });
+        b.addEventListener('click', function(){ var wasOn = b.classList.contains('on'); setFit(m.word, f[0], !wasOn); if (f[0] === 'skill' && !wasOn) { st.moreTab = 'skill'; } drawCards(); });
         fr.appendChild(b);
       });
       c.appendChild(fb);
@@ -1549,6 +1555,7 @@
     st.moreTab = st.moreTab && names.some(function(t){ return t[0] === st.moreTab; }) ? st.moreTab : names[0][0];
     names.forEach(function(t){
       var tb = el('button', 'mtab' + (t[0] === st.moreTab ? ' on' : ''), ({ interest: 'Interest', match: 'Show & Match', enjoy: 'Joy', skill: 'Skill', care: 'Care', seek: 'Seek', offer: 'Offer' })[t[0]] || t[1]); tb.type = 'button';
+      if (t[0] === 'skill' && lvMissing(m.word)) { tb.textContent = 'Skill \u00B7 Missing level'; }
       tb.addEventListener('click', function(){ st.moreTab = t[0]; drawCards(); });
       tabs.appendChild(tb);
     });
@@ -1557,7 +1564,7 @@
     c.appendChild(pane);
     var mstrip = el('div', 'mstrip'); var mcs = csRows(mstrip, getA(m.word), m.word, function(a){ putA(m.word, a); }, el); if (window.parent !== window) { mcs.appendChild(csIcon(el)); } c.appendChild(mstrip);
     var row = el('div', 'cbtns'), dn = el('button', 'btn small', 'Done'); dn.type = 'button';
-    dn.addEventListener('click', function(){ st.more = ''; endPend(); drawCards(); });
+    dn.addEventListener('click', function(){ if (lvMissing(m.word)) { st.moreTab = 'skill'; drawCards(); return; } st.more = ''; endPend(); drawCards(); });
     row.appendChild(dn); pendCancel(row); c.appendChild(row);
     return c;
   }
