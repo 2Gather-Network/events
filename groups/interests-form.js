@@ -298,6 +298,36 @@
     root.innerHTML = '';
     var q = el('div', '', 'What kind of group is this?'); q.className = 'q';
     root.appendChild(q);
+    var qi = el('button', 'font:inherit;font-size:11px;font-weight:800;width:18px;height:18px;line-height:15px;padding:0;margin-left:6px;border-radius:50%;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;vertical-align:middle;', 'i');
+    qi.type = 'button'; qi.setAttribute('aria-label', 'About these categories'); qi.setAttribute('aria-expanded', 'false');
+    var qb = el('div', 'font-size:12.5px;color:#4B5A6D;background:#F7FBFF;border:1px solid #DDE6EF;border-radius:10px;padding:8px 12px;margin:6px 0 8px;line-height:1.5;font-weight:500;');
+    qb.hidden = true;
+    var qh = el('div', 'font-weight:700;color:#1A2E42;', 'About these categories');
+    var qp = el('p', 'margin:4px 0 8px;', 'This is where you apply your time, care, and skill in life. Pick the ones that sound like you, whether you enjoy them, are good at them, or care about them. How you want to feel (like calmer or healthier) grows out of these, so they aren\u2019t listed as a parent category.');
+    var qt = el('table', 'width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:1px solid #DDE6EF;border-radius:8px;overflow:hidden;');
+    var qrows = [
+      ['Part of life', 'Categories'],
+      ['Things you do for the joy of it', 'Play, Outdoors, Movement, Arts & Expression, Food & Drink, Travel'],
+      ['Things you build, tend, and take care of', 'Building & Repurposing, Home Life, Animals, Technology, Transportation, Communications, Community & Culture'],
+      ['Looking after yourself', 'Rest & Recovery, Personal Care, Medical'],
+      ['What you believe, know, and how you work', 'Belief & Meaning, Science, Professional, Finance']
+    ];
+    qrows.forEach(function(r, ri){
+      var tr = document.createElement('tr');
+      r.forEach(function(c, ci){
+        var cell = el(ri === 0 ? 'th' : 'td', 'text-align:left;vertical-align:top;padding:6px 10px;' + (ri ? 'border-top:1px solid #E6EDF4;color:' + (ci ? '#4B5A6D' : '#1A2E42') + ';' + (ci ? '' : 'width:38%;') : 'background:#F1F4F7;color:#1A2E42;font-weight:700;'), c);
+        tr.appendChild(cell);
+      });
+      qt.appendChild(tr);
+    });
+    qb.appendChild(qh); qb.appendChild(qp); qb.appendChild(qt);
+    qi.addEventListener('click', function(){
+      qb.hidden = !qb.hidden;
+      qi.style.background = qb.hidden ? '#fff' : '#1F699E'; qi.style.color = qb.hidden ? '#1F699E' : '#fff';
+      qi.setAttribute('aria-expanded', qb.hidden ? 'false' : 'true');
+    });
+    q.appendChild(qi);
+    root.appendChild(qb);
     var help = el('div', 'margin:0 0 8px;', 'Select any group category that represents your group. Drill down as far as you\u2019d like. People who join see your suggested picks, in addition to their own picks.');
     help.className = 'help';
     root.appendChild(help);
