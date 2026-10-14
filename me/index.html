@@ -1454,16 +1454,17 @@
     if(old && _wcEmo[old]!==undefined) return [old];
     return [];
   }
+  var _PVQ=/[?&]quad=1(&|$)/.test(String(location.search||''));
   function pvTag(name, opts){
     opts=opts||{};
     name=_capFirst(name);   
     var lv=(opts.level && !new RegExp('^'+_TAG_TYPES+'$','i').test(String(opts.level).trim()))?'<span class="lv">'+esc(opts.level)+'</span>':'';
     var cats=opts.cats||[];
-    var em=cats.length?(_wcEmo[cats[0]]||''):'';
+    var em=_PVQ?cats.map(function(c){ return _wcEmo[c]||''; }).filter(Boolean).join(''):(cats.length?(_wcEmo[cats[0]]||''):'');
     var sub=opts.sub?String(opts.sub):cats.join(', ');
     if(opts.pin){ sub=(sub?sub+' ':'')+'\u{1F4CD}'; }
     var sb=sub?'<span class="sub">'+esc(sub)+'</span>':'';
-    return '<div class="pv-tag'+(opts.cls?' '+opts.cls:'')+(em?' has-e':'')+'">'+(em?'<span class="pv-e">'+em+'</span>':'')+'<span class="pv-t"><b>'+esc(name)+'</b>'+sb+lv+'</span></div>';
+    return '<div class="pv-tag'+(opts.cls?' '+opts.cls:'')+(_PVQ?'':(em?' has-e':''))+'">'+((!_PVQ&&em)?'<span class="pv-e">'+em+'</span>':'')+'<span class="pv-t"><b>'+esc(name)+((_PVQ&&em)?'<span class="pv-e2">'+em+'</span>':'')+'</b>'+sb+lv+'</span></div>';
   }
   var PHOTO_URL = 'https://cw-photos.jessieupp.workers.dev';
   function photoStat(msg){ var el=document.getElementById('pv-photo-stat'); if(el) el.textContent=msg||''; }
@@ -1514,10 +1515,64 @@
   function pvSection(label, step, tagsHtml, extra){
     var canEdit = !(_viewingSomeoneElse || _param('edit') !== '1');
     if(!tagsHtml && !extra && !canEdit) return '';
-    return '<div class="pv-section'+(label==="What I'm seeking"?' pv-seek':'')+'"><div class="pv-section-header"><div class="pv-section-label">'+label+'</div>'
+    var _n=(String(tagsHtml||'')+String(extra||'')).split(/class="pv-tag[" ]/).length-1;
+    var _u=({0:'interests',1:'interests',2:'skills',3:'values'})[step]||'items';
+    var _lnk=String(tagsHtml||'')+String(extra||'');
+    var _cw=_n+' '+(_n===1?_u.replace(/s$/,''):_u);
+    var _cnt=(_PVQ&&_n)?(_lnk.indexOf('class="pv-line"')>-1?'<button type="button" class="pv-count pv-countlink" aria-expanded="false">'+_cw+'</button>':'<div class="pv-count">'+_cw+'</div>'):'';
+    return '<div class="pv-section'+(label==="What I'm seeking"?' pv-seek':'')+'"><div class="pv-section-header"><div class="pv-section-label">'+label+'</div>'+_cnt
       +(canEdit?'<button class="pv-edit" data-step="'+step+'">✏️ Edit</button>':'')+'</div>'
       +(tagsHtml?'<div class="pv-tags">'+tagsHtml+'</div>':'')+(extra||'')+'</div>';
   }
+  function pvOffer(name, emoji, kind){
+    return '<div class="pv-off"><span class="pv-off-e">'+emoji+'</span><b>'+esc(_capFirst(name))+'</b><span>'+esc(kind)+'</span></div>';
+  }
+  window.cwOfferStrip=function(arr){
+    arr=(arr||[]).filter(Boolean);
+    if(!arr.length) return '';
+    var first=arr.slice(0,3).join(''), rest=arr.slice(3);
+    return '<div class="pv-ribbon"><div class="pv-ribbon-t"><span>\u{1F381}</span><div><div class="pv-ribbon-hl"><div class="pv-ribbon-h">Spaces and things I offer</div>'+(rest.length?'<button type="button" class="pv-more" data-n="'+rest.length+'">More ('+rest.length+')</button>':'')+'</div><div class="pv-ribbon-s">Not my skills. Things you can use or have.</div></div></div>'
+      +'<div class="pv-off-grid">'+first+(rest.length?'<span class="pv-off-more" hidden>'+rest.join('')+'</span>':'')+'</div></div>';
+  };
+  if(!window._cwOfferMore){
+    window._cwOfferMore=true;
+    document.addEventListener('click',function(e){
+      var b=e.target&&e.target.closest?e.target.closest('.pv-more'):null;
+      if(!b) return;
+      var m=b.closest('.pv-ribbon').querySelector('.pv-off-more');
+      if(!m) return;
+      var open=m.hasAttribute('hidden');
+      if(open){ m.removeAttribute('hidden'); } else { m.setAttribute('hidden',''); }
+      b.textContent=open?'Show fewer':'More ('+b.getAttribute('data-n')+')';
+    });
+  }
+  function pvWrapLine(inner, subHead){
+    if(!inner) return '';
+    return (subHead?'<div class="pv-sub-h">'+subHead+'</div>':'')+'<div class="pv-line"><div class="pv-tags">'+inner+'</div></div>';
+  }
+  function pvLineCheck(){
+    document.querySelectorAll('.pv-line').forEach(function(l){
+      var t=l.querySelector('.pv-tags'), b=l.querySelector('.pv-linemore');
+      if(!t||!b||l.classList.contains('open')) return;
+      b.hidden = !(t.scrollHeight > t.clientHeight + 2);
+    });
+  }
+  if(!window._cwLineMore){
+    window._cwLineMore=true;
+    document.addEventListener('click',function(e){
+      var b=e.target&&e.target.closest?e.target.closest('.pv-linemore'):null;
+      if(!b) return;
+      var l=b.parentNode, open=l.classList.toggle('open');
+      b.textContent=open?'Fewer':'More';
+    });
+    document.addEventListener('click',function(e){
+      var c=e.target&&e.target.closest?e.target.closest('.pv-countlink'):null;
+      if(!c) return;
+      var sec=c.closest('.pv-section'), on=sec.classList.toggle('pv-open');
+      c.setAttribute('aria-expanded',on?'true':'false');
+    });
+  }
+  window.pvLineCheck=pvLineCheck;
   function pvWrap(inner, subHead, style){
     if(!inner) return '';
     return (subHead?'<div class="pv-sub-h">'+subHead+'</div>':'')
@@ -1538,12 +1593,13 @@
     var enjoy=_noCats(ENJOY_ADDED,function(x){return x.t;}).map(function(it){ return pvTag(it.t, {level:(it.sel||[]).join(', '), cats:pvCats(it.t)}); }).join('');
     var _ex=EXPRESSION_ADDED.filter(Boolean);
     var expr=pvWrap(_ex.map(function(x){ return pvTag(x); }).join(''), 'What expresses me');
-    var methods=pvWrap(SKILL_METHODS_ON.map(function(m){ return pvTag(m); }).join(''), '', 'margin-bottom:10px;');
+    var methods=pvWrapLine(SKILL_METHODS_ON.map(function(m){ return pvTag(m); }).join(''), '');
     var _langs=String((_loaded&&_loaded.languages)||'').split(/[|,]/).map(function(x){ return x.trim(); }).filter(Boolean);
-    var skills=pvWrap(_noCats(SKILLS_ADDED,function(x){return x.t;}).map(function(s){ return pvTag(s.t, {level:s.level, cats:pvCats(s.t)}); }).join('')
-      +_langs.map(function(l){ return pvTag(l); }).join(''), '');
+    var _skHtml=pvWrap(_noCats(SKILLS_ADDED,function(x){return x.t;}).map(function(s){ return pvTag(s.t, {level:s.level}); }).join(''), '');
+    var skills=_skHtml?'<div class="pv-skills">'+_skHtml+'</div>':'';
+    var langsHtml=pvWrap(_langs.map(function(l){ return pvTag(l); }).join(''), '');
     var vals=pvWrap(_noCats(VALUES_ADDED,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl, cats:pvCats(v.t)}); }).join(''), '');
-    var doms=pvWrap(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl}); }).join(''), 'Sectors');
+    var doms=pvWrapLine(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl}); }).join(''), 'Sectors');
     var _haves = SECTIONS[4].data.map(function(h){
       var cat = String((h.cats && h.cats[0]) || '');
       var last = cat.split(':').pop().trim().toLowerCase();
@@ -1558,6 +1614,43 @@
     var _pillsNeeds=NEEDS_ADDED.map(function(n){ return n.item; });
     var _purpose=String((_loaded&&_loaded.purpose)||'').trim();
     var purposeHtml=_purpose ? '<div class="pv-sub-h">My purpose</div><div class="pv-said" style="font-style:normal;">'+esc(_purpose).split('\n').join('<br>')+'</div>' : '';
+    var _offerCards=_haves.map(function(h){ return pvOffer(h.t, h.kind==='space'?'\u{1F3E0}':'\u{1F381}', h.kind==='space'?"A space I'm offering":"Something I'm offering"); });
+    var skillsO=pvWrap(_noCats(SKILLS_ADDED,function(x){return x.t;}).map(function(s){ return pvTag(s.t, {level:s.level, cats:pvCats(s.t)}); }).join('')
+      +_langs.map(function(l){ return pvTag(l); }).join(''), '');
+    var methodsO=pvWrap(SKILL_METHODS_ON.map(function(m){ return pvTag(m); }).join(''), '', 'margin-bottom:10px;');
+    var domsO=pvWrap(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl}); }).join(''), 'Sectors');
+    if(_PVQ){
+    pv.innerHTML='<div class="pv-card">'
+      +'<div class="pv-head"><h2 class="pv-title">'+(function(){
+          var nm=String(_profileName||'').trim();
+          if(nm && nm===nm.toLowerCase()) nm=nm.replace(/(^|\s)(\S)/g,function(m,a,b){ return a+b.toUpperCase(); });
+          if(!nm) return _viewingSomeoneElse ? '' : 'This is me';
+          return (!_viewing && _viewingSomeoneElse) ? 'This is '+esc(nm) : esc(nm);
+        })()+' 🌱</h2>'
+      +'<div class="pv-head-right">'
+      +(_viewingSomeoneElse?'':'<a id="pv-edit-profile" class="pv-pill" href="https://2gather.network/ikigai/" style="text-decoration:none;display:inline-flex;align-items:center;">Edit profile</a>')
+      +(_viewingSomeoneElse?'':'<div id="pv-share" class="pv-share"></div>')
+      +(_viewingSomeoneElse ? pvFace() : '')
+      +'</div>'
+      +'</div>'
+      +(_viewingSomeoneElse
+        ? '<div class="pv-acts">'
+          + '<button class="pv-pill" id="pv-common">Show our commonality</button>'
+          + '<button class="pv-ico" id="pv-message" type="button" aria-label="Message" title="Message" hidden></button>'
+          + '<button class="pv-ico" id="pv-bookmark" type="button" aria-label="Bookmark" title="Bookmark"></button>'
+          + '<span class="pv-bm-say" id="pv-bm-say"></span>'
+          + '</div><div id="pv-common-out"></div>'
+        : '')
+
+      +window.cwOfferStrip(_offerCards)
+      +'<div class="pv-q4">'
+      +pvSection("What I'm seeking",0,seeking,pvSaid('need',_pillsNeeds))
+      +pvSection('What I can do',2,'',(function(){ var f=pvWrap(WORK_SKILLS.map(function(w){ return pvTag(w); }).join(''), ''); return f?'<div class="pv-focus">'+f+'</div>':''; })()+methods+skills+pvSaid('skills',_pillsSkills)+pvWrap(GIG_WORK.map(function(w){ return pvTag(w); }).join(''), '')+langsHtml+pvWrap(OPPORTUNITIES.map(function(w){ return pvTag(w); }).join(''), 'Open to opportunities'))
+      +pvSection('What I enjoy',1,enjoy,pvSaid('enjoy',_pillsEnjoy)+expr)
+      +pvSection('What I care about',3,'',vals+doms+pvWrap((WAYS_OF_BEING||[]).map(function(t){ return pvTag(t); }).join(''), 'What people can count on from me')+pvWrap((WORK_VALUES_ADDED||[]).map(function(t){ return pvTag(t); }).join(''), 'Work values')+purposeHtml+pvSaid('values',_noCats(VALUES_ADDED,function(x){return x.t;}).map(function(x){return x.t;}).concat(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(x){return x.t;}),WORK_VALUES_ADDED||[])))
+      +'</div>'
+      +'</div>';
+    } else {
     pv.innerHTML='<div class="pv-card">'
       +'<div class="pv-head"><h2 class="pv-title">'+(function(){
           var nm=String(_profileName||'').trim();
@@ -1582,13 +1675,15 @@
 
       +pvSection("What I'm seeking",0,seeking,pvSaid('need',_pillsNeeds))
       +pvSection('What I enjoy',1,enjoy,pvSaid('enjoy',_pillsEnjoy)+expr)
-      +pvSection('My offerings',2,'',methods+skills+pvSaid('skills',_pillsSkills)+pvWrap(WORK_SKILLS.map(function(w){ return pvTag(w); }).join(''), 'My focus for work')+pvWrap(GIG_WORK.map(function(w){ return pvTag(w); }).join(''))+pvWrap(OPPORTUNITIES.map(function(w){ return pvTag(w); }).join(''), 'Open to opportunities')+pvWrap(_hTags('space'),"A space I'm offering")+pvWrap(_hTags('thing'),"Something I'm offering"))
+      +pvSection('My offerings',2,'',methodsO+skillsO+pvSaid('skills',_pillsSkills)+pvWrap(WORK_SKILLS.map(function(w){ return pvTag(w); }).join(''), 'My focus for work')+pvWrap(GIG_WORK.map(function(w){ return pvTag(w); }).join(''))+pvWrap(OPPORTUNITIES.map(function(w){ return pvTag(w); }).join(''), 'Open to opportunities')+pvWrap(_hTags('space'),"A space I'm offering")+pvWrap(_hTags('thing'),"Something I'm offering"))
       +pvSection('What I care about',3,'',vals+doms+pvWrap((WAYS_OF_BEING||[]).map(function(t){ return pvTag(t); }).join(''), 'What people can count on from me')+pvWrap((WORK_VALUES_ADDED||[]).map(function(t){ return pvTag(t); }).join(''), 'Work values')+purposeHtml+pvSaid('values',_noCats(VALUES_ADDED,function(x){return x.t;}).map(function(x){return x.t;}).concat(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(x){return x.t;}),WORK_VALUES_ADDED||[])))
       +'</div>';
+    }
     pv.querySelectorAll('.pv-edit').forEach(function(b){ if(b.id==='pv-photo-btn') return; b.onclick=function(){ requestEdit(parseInt(b.getAttribute('data-step'),10)); }; });
     var _bm=document.getElementById('pv-bookmark');
     if(_bm){ _bmPaint(_bm); _bm.onclick=function(){ _bmToggle(_bm); }; }
     try { pvMessageInit(); } catch(e){}
+    try { pvLineCheck(); setTimeout(pvLineCheck,300); } catch(e){}
     drawShare();
     try { wireInCommon(); } catch(e){}
     try { setBreadcrumb('view'); } catch(e){}
@@ -2391,6 +2486,56 @@
   html.cw-prail-on .cw-prail-main .breadcrumb:empty{display:none;}
   html.cw-prail-on #pe-shell{display:none;}
   html.cw-prail-on.cw-own .pv-face{display:none;}
+
+  body:has(.pv-q4){background:#1F699E;}
+  .pv-card:has(.pv-q4){background:transparent;padding:0;border-radius:0;}
+  .pv-card:has(.pv-q4) .pv-head{background:#fff;border-radius:20px;padding:16px;margin:0 0 12px;align-items:center;}
+  .pv-q4{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch;}
+  @media(max-width:640px){.pv-q4{grid-template-columns:1fr;}}
+  .pv-q4 .pv-section,.pv-q4 .pv-section:last-child{background:#fff;border-radius:20px;padding:16px;margin:0;min-width:0;border:0;}
+  .pv-q4 .pv-section-header{margin-bottom:12px;}
+  .pv-q4 .pv-section-label{font-size:19px;font-weight:700;color:#000;}
+  .pv-q4 .pv-count{margin-left:auto;font-size:13px;font-weight:600;color:#6B7A8D;}
+  .pv-q4 .pv-seek .pv-tags{background:none;padding:0;}
+  .pv-q4 .pv-tag{display:flex;align-items:center;background:#fff;border:1px solid #DDE4EE;border-radius:12px;padding:6px 14px;min-height:36px;box-sizing:border-box;}
+  .pv-q4 .pv-tag .pv-t b{display:block;font-size:13.5px;font-weight:700;color:#000;}
+  .pv-q4 .pv-tag .pv-t .sub,.pv-q4 .pv-tag .pv-t .lv{display:block;font-size:12px;font-weight:400;color:#1A2E42;margin-top:1px;}
+  .pv-q4 .pv-e2{margin-left:6px;font-weight:400;}
+  html .wrap:has(.pv-q4){max-width:1200px;}
+  .pv-off-grid{grid-template-columns:repeat(3,1fr);align-items:stretch;}
+  .pv-off-more{display:contents;}
+  .pv-off-more[hidden]{display:none;}
+  .pv-more{display:inline-block;background:none;border:0;padding:0;color:#1F699E;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;}
+  .pv-line{display:flex;align-items:flex-start;gap:10px;}
+  .pv-line .pv-tags{flex:1;min-width:0;max-height:36px;overflow:hidden;align-content:flex-start;}
+  .pv-section.pv-open{grid-column:1 / -1;}
+  .pv-section.pv-open .pv-line .pv-tags{max-height:none;}
+  .pv-countlink{background:none;border:0;padding:0;font-family:inherit;cursor:pointer;text-decoration:underline;color:#1F699E !important;}
+  .pv-linemore{display:none !important;}
+  .pv-ribbon-hl{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
+  .pv-line.open .pv-tags{max-height:none;}
+  .pv-skills .pv-tag{background:#F7FBFF;}
+  .pv-q4 .pv-section > *:not(.pv-section-header){margin:0 0 8px;}
+  .pv-q4 .pv-section > .pv-sub-h{margin:4px 0 8px;}
+  .pv-q4 .pv-section > *:last-child{margin-bottom:0;}
+  .pv-focus .pv-tag{border-color:#F28C28;border-width:1.5px;}
+  .pv-focus{margin-bottom:10px;}
+  .pv-linemore{flex:0 0 auto;white-space:nowrap;background:none;border:0;padding:8px 0 0;color:#1F699E;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;}
+  .pv-linemore[hidden]{display:none;}
+  .pv-q4 .pv-sub-h{font-size:11px;letter-spacing:.06em;margin:10px 0 6px;}
+  .pv-q4 .pv-sub-h:first-child{margin-top:0;}
+  .pv-q4 .pv-tags{gap:8px;}
+  .pv-ribbon{background:#fff;border-radius:20px;padding:10px 14px;margin:0 0 12px;display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:center;border-left:10px solid #F2B84B;}
+  .pv-ribbon-t{display:flex;gap:10px;align-items:center;}
+  .pv-ribbon-t>span{font-size:32px;line-height:1;}
+  .pv-ribbon-h{font-size:17px;font-weight:700;color:#000;line-height:1.2;}
+  .pv-ribbon-s{font-size:12.5px;color:#1A2E42;margin-top:2px;}
+  .pv-off-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .pv-off{display:flex;flex-direction:column;gap:2px;background:#fff;border:2px solid #F2B84B;border-radius:14px;padding:10px 12px;}
+  .pv-off-e{font-size:24px;line-height:1;}
+  .pv-off b{font-size:13.5px;font-weight:700;color:#000;}
+  .pv-off span:last-child{font-size:12px;color:#1A2E42;}
+  @media(max-width:640px){.pv-ribbon{grid-template-columns:1fr;}.pv-off-grid{grid-template-columns:1fr;}}
   .pe-loading{display:inline-flex;align-items:center;gap:8px;background:#1F699E;color:#fff;font-size:13px;font-weight:700;
     padding:8px 16px;border-radius:20px;white-space:nowrap;animation:pe-breathe 1.6s ease-in-out infinite;}
   @keyframes pe-breathe{0%,100%{opacity:1}50%{opacity:.62}}
@@ -2440,7 +2585,10 @@
   }
   function section(label,inner){
     if(!inner) return '';
-    return '<div class="pv-section"><div class="pv-section-header"><div class="pv-section-label">'+esc(label)+'</div></div>'+inner+'</div>';
+    var _n=String(inner).split(/class="pv-tag[" ]/).length-1;
+    var _u=({"What I'm seeking":'interest','What I enjoy':'interest','What I can do':'skill','What I care about':'value'})[label]||'item';
+    var _cnt=(_n&&/[?&]quad=1(&|$)/.test(String(location.search||'')))?'<div class="pv-count">'+_n+' '+_u+(_n===1?'':'s')+'</div>':'';
+    return '<div class="pv-section"><div class="pv-section-header"><div class="pv-section-label">'+esc(label)+'</div>'+_cnt+'</div>'+inner+'</div>';
   }
   function face(d){
     if(d.photo) return '<div class="pv-face"><img src="'+esc(String(d.photo))+'" alt=""></div>';
@@ -2454,25 +2602,45 @@
     var nm=String(d.name||'').trim();
     if(nm && nm===nm.toLowerCase()) nm=nm.replace(/(^|\s)(\S)/g,function(m,a,b){ return a+b.toUpperCase(); });
     document.title=(nm||'A profile')+' · 2Gather';
-    var skills=tags((d.skills||[]).concat(d.languages||[]));
+    function _capFirstV(x){ x=String(x||''); return x.charAt(0).toUpperCase()+x.slice(1); }
     var care=tags(d.careAbout);
     var sectors=tags(d.sectors);
     var work=tags(d.workExperience);
     var purpose=String(d.purpose||'').trim();
     var careInner=wrap(care,'')+wrap(sectors,'Sectors')+wrap(work,'Work values')
       +(purpose?'<div class="pv-sub-h">My purpose</div><div class="pv-said" style="font-style:normal;">'+esc(purpose).split('\n').join('<br>')+'</div>':'');
-    var haves=tags(d.offerings);
+    var _PVQ=/[?&]quad=1(&|$)/.test(String(location.search||''));
     var openTo=tags(d.openToWork);
-    var havesInner=wrap(tags(d.workFocus),'My focus for work')+wrap(haves,'')+wrap(openTo,'Open to opportunities');
+    var focusHtml=d.workFocus&&d.workFocus.length?'<div class="pv-focus">'+wrap(tags(d.workFocus),'')+'</div>':'';
+    var havesInner=wrap(openTo,'Open to opportunities');
+    var offerStrip=window.cwOfferStrip((d.offerings||[]).map(function(o){ var t=(o&&typeof o==='object')?(o.text||o.t||o.name||''):o; return t?'<div class="pv-off"><span class="pv-off-e">\u{1F381}</span><b>'+esc(_capFirstV(t))+'</b><span>Something I\'m offering</span></div>':''; }));
+    var skillsO=tags((d.skills||[]).concat(d.languages||[]));
+    var havesO=tags(d.offerings);
+    var havesInnerO=wrap(tags(d.workFocus),'My focus for work')+wrap(havesO,'')+wrap(openTo,'Open to opportunities');
+    if(_PVQ){
+    pv.innerHTML=_trailHTML(nm)+'<div class="pv-card">'
+      +'<div class="pv-head"><div><h2 class="pv-title">'+(nm?esc(nm):'A profile')+' 🌱</h2>'
+      +(d.place?'<p class="cw-pub-place">'+esc(d.place)+'</p>':'')+'</div>'
+      +'<div class="pv-head-right">'+face(d)+'</div></div>'
+      +offerStrip
+      +'<div class="pv-q4">'
+      +section("What I'm seeking",wrap(tags(d.needs),''))
+      +section('What I can do',focusHtml+(d.skills&&d.skills.length?'<div class="pv-skills">'+wrap(tags(d.skills||[]),'')+'</div>':'')+wrap(tags(d.languages||[]),'')+havesInner)
+      +section('What I enjoy',wrap(tags(d.enjoy),''))
+      +section('What I care about',careInner)
+      +'</div>'
+      +'</div>';
+    } else {
     pv.innerHTML=_trailHTML(nm)+'<div class="pv-card">'
       +'<div class="pv-head"><div><h2 class="pv-title">'+(nm?esc(nm):'A profile')+' 🌱</h2>'
       +(d.place?'<p class="cw-pub-place">'+esc(d.place)+'</p>':'')+'</div>'
       +'<div class="pv-head-right">'+face(d)+'</div></div>'
       +section("What I'm seeking",wrap(tags(d.needs),''))
       +section('What I enjoy',wrap(tags(d.enjoy),''))
-      +section('My offerings',wrap(skills,'')+havesInner)
+      +section('My offerings',wrap(skillsO,'')+havesInnerO)
       +section('What I care about',careInner)
       +'</div>';
+    }
   }
 
   function _trailPrev(){
