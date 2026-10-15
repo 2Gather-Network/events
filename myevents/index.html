@@ -631,6 +631,11 @@
         <span class="cancel-track"><span class="cancel-knob"></span></span>
         <span id="mine-show-cancelled-label">Show cancelled</span>
       </label>
+      <label id="mine-show-archived-wrap" class="cancel-toggle" style="display:none;">
+        <input type="checkbox" id="mine-show-archived-box" onchange="toggleShowArchivedMine()">
+        <span class="cancel-track"><span class="cancel-knob"></span></span>
+        <span>Show archived</span>
+      </label>
       </div>
     </aside>
     <section class="manage-main">
@@ -6475,7 +6480,7 @@ async function _askRepeatingDelete(ev) {
   if (!_OCC_DATED.test(String(editingId || "")) && !(cbOne && cbOne.checked)) {
     var all = prompt('Type "archive" to archive every date of "' + title + '". This removes the whole series from the calendar but keeps it in your records.');
     if (!(all && all.trim().toLowerCase() === "archive")) return false;
-    try { sessionStorage.setItem("cw-me-said", '"' + title + '" is archived, every date of it. It is kept in your records.'); } catch (e) {}
+    try { sessionStorage.setItem("cw-me-said", '"' + title + '" is archived, every date of it. Find it under Show archived on My events.'); } catch (e) {}
     return true;
   }
   var occId = _occChosenId();
@@ -6532,7 +6537,7 @@ async function deleteEvent() {
   } else {
     const input = prompt(`Type "delete" to archive "${ev.title}". This removes it from the calendar but keeps it in your records.`);
     if (!input || input.trim().toLowerCase() !== "delete") return;
-    try { sessionStorage.setItem("cw-me-said", '"' + (ev.title || "The event") + '" is archived. It is kept in your records.'); } catch (e) {}
+    try { sessionStorage.setItem("cw-me-said", '"' + (ev.title || "The event") + '" is archived. Find it under Show archived on My events.'); } catch (e) {}
   }
   const goneEv = ev;
   const _delBtn = document.getElementById("delete-btn");
@@ -8553,6 +8558,7 @@ function selectInterestSuggestion(val) {
          + '</div>';
   }
   function rowHtml(r) {
+    if (r && r._archived) { return _archivedHtml(r); }
     var when = railDate(r);
     var door = (r._bmPublic || r.socializedByMe === true) ? 'https://2gather.network/event/?id=' : 'https://2gather.network/myevents/?id=';
     var _m2 = document.documentElement.classList.contains('cw-me2');
@@ -8582,6 +8588,53 @@ function selectInterestSuggestion(val) {
     try { localStorage.setItem('db-show-cancelled-mine', _showCancelled ? '1' : '0'); } catch (e) {}
     _paintCancelBtn();
     paintRail(allRows, selId);
+  }
+  var _archivedRows = [];
+  var _showArchived = false;
+  try { _showArchived = sessionStorage.getItem('cw-me-archived') === '1'; } catch (e) {}
+  window.toggleShowArchivedMine = function () {
+    _showArchived = !_showArchived;
+    try { sessionStorage.setItem('cw-me-archived', _showArchived ? '1' : '0'); } catch (e) {}
+    paintRail(allRows, selId);
+  };
+  function _paintArchivedBtn() {
+    var wrap = document.getElementById('mine-show-archived-wrap'), box = document.getElementById('mine-show-archived-box');
+    if (!wrap) return;
+    if (box) box.checked = !!_showArchived;
+    wrap.classList.toggle('on', !!_showArchived);
+    wrap.style.display = (pane === 'hosting' && _archivedRows.length) ? 'flex' : 'none';
+  }
+  var _restoring = {};
+  window._restoreArchived = function (id) {
+    var r = _archivedRows.filter(function (x) { return String(x.id) === String(id); })[0];
+    if (!r || _restoring[id]) return;
+    _restoring[id] = 'busy'; paintRail(allRows, selId);
+    var by = ''; try { by = getRealMemberId() || ''; } catch (e) {}
+    jsonp({ action: 'update', event: { id: String(r.id), archived: 'false' }, appearId: by, actingAs: by })
+      .then(function (d) {
+        if (d && d.status === 'ok') {
+          delete _restoring[id];
+          _archivedRows = _archivedRows.filter(function (x) { return String(x.id) !== String(id); });
+          r.archived = ''; delete r._archived;
+          allRows = (allRows || []).concat([r]);
+          try { _cwWrote(); } catch (e) {}
+          try { say('"' + (r.title || 'The event') + '" is back in your events.'); } catch (e) {}
+        } else { _restoring[id] = 'failed'; }
+        paintRail(allRows, selId);
+      })
+      .catch(function () { _restoring[id] = 'failed'; paintRail(allRows, selId); });
+  };
+  function _archivedHtml(r) {
+    var e = window.esc || function (x) { return String(x); };
+    var st = _restoring[r.id];
+    return '<div class="manage-row" style="opacity:.75;cursor:default;">'
+         + '<div class="mrow-img">' + (r.imageUrl ? '<img src="' + e(String(r.imageUrl)) + '" alt="" loading="lazy" onerror="this.remove()">' : '') + '</div>'
+         + '<div class="mrow-text"><b>' + e(r.title || 'Untitled') + '</b><span>' + railDate(r) + '</span>'
+         + (st === 'failed' ? '<span style="color:#C4501A;">That did not restore. Try again.</span>' : '') + '</div>'
+         + '<span class="mrow-chip">Archived</span>'
+         + '<button type="button" class="me-card-btn on" style="flex:0 0 auto;margin-left:8px;"' + (st === 'busy' ? ' disabled' : '')
+         + ' onclick="_restoreArchived(\'' + e(String(r.id)).replace(/'/g, '') + '\')">' + (st === 'busy' ? 'Restoring\u2026' : 'Restore') + '</button>'
+         + '</div>';
   }
   var _showPast = false, _pastHidden = 0;
   try { _showPast = sessionStorage.getItem('cw-me-past') === '1'; } catch (e) {}
@@ -8764,6 +8817,10 @@ function selectInterestSuggestion(val) {
       rows = rows.concat(_cancelledRows);
     }
     _paintCancelBtn();
+    if (_showArchived && pane === 'hosting' && _archivedRows.length) {
+      rows = rows.concat(_archivedRows);
+    }
+    _paintArchivedBtn();
     var _bmNow = _bookmarkedRows();
     _paintBookmarkBtn(_bmNow.length);
     if (pane === 'attending' && _showBookmarked && _bmNow.length) {
@@ -9062,6 +9119,7 @@ function selectInterestSuggestion(val) {
     var d = await railJob;   
     _mineIn = true;
     if (d && d.status === 'ok' && Array.isArray(d.events)) { rows = d.events; _mineRows = d.events; } else { failed = true; }
+    _archivedRows = (d && Array.isArray(d.archived)) ? d.archived.map(function (r) { r._archived = true; return r; }) : [];
     _cancelledRows = (d && Array.isArray(d.cancelled)) ? d.cancelled.map(function (r) {
       r.cancelled = true; return r;
     }) : [];
