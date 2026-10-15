@@ -6,7 +6,7 @@
     + '.cwtp .cwtp-sec{margin-top:14px;}'
     + '.cwtp .cwtp-sec:first-child{margin-top:0;}'
     + '.cwtp .cwtp-sub{margin-top:14px;}'
-    + '.cwtp .cwtp-n{flex:0 0 100%;font-size:13px;font-weight:700;color:#1A2E42;margin:2px 0 4px;}'
+    + '.cwtp .cwtp-n{flex:0 0 100%;font-size:13px;font-weight:700;color:#C4261D;margin:2px 0 4px;}'
     + '.cwtp .cwtp-pill{font:inherit;font-size:13px;font-weight:700;background:#fff;color:#1F699E;border:1.5px solid #DDE4EE;border-radius:18px;padding:5px 11px;cursor:pointer;white-space:nowrap;}'
     + '.cwtp .cwtp-pill.on{background:#1F699E;color:#fff;border-color:#1F699E;}'
     + '.cwtp .cwtp-pill.other{border:1.5px solid #1F699E;}'
@@ -111,7 +111,8 @@
     var paintSubs = function(){
       subs.innerHTML = '';
       if (ctx.subPick === false) { return; }
-      ctx.catList().forEach(function(main, idx){
+      var _now = ctx.mainCats() || [];
+      ctx.catList().filter(function(c){ return !_now.length || _now.indexOf(c) > -1; }).forEach(function(main, idx){
         if (!ctx.multi && idx > 0) { return; }
         if (!ctx.multi && !ctx.roots(main).length) { return; }
         var sec = el('div', 'cwtp-sec'); subs.appendChild(sec);
