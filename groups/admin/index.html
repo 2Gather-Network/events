@@ -682,7 +682,7 @@
           name: g.name || '', description: g.description || g.intro || '', image: g.image || '',
           agreements: g.agreements || '', offeringCategories: g.offeringCategories || '',
           interestKinds: g.interestKinds || '', joinChoices: g.joinChoices || '', joys: g.joys || '', skills: g.skills || '', cares: g.cares || '',
-          membersCanInvite: g.membersCanInvite || ''
+          membersCanInvite: g.membersCanInvite || '', role: _role === 'host' ? 'host' : ''
         } }));
       } catch (e) {}
     }
@@ -709,16 +709,37 @@
         if (ti) ti.classList.remove('waiting');
       } catch (e) {}
     })();
+    var _shownFromCache = false;
+    (function(){
+      var k = _readGroupCache();
+      if (!k || k.role !== 'host' || _cwViewing || !(getToken() || _signinToken())) return;
+      try {
+        var lk0 = document.getElementById('stage-looking'); if (lk0) lk0.style.display = 'none';
+        document.getElementById('stage-pin').classList.add('hidden');
+        document.getElementById('stage-dashboard').classList.remove('hidden');
+        var dh0 = document.getElementById('dash-head'); if (dh0) dh0.style.display = 'block';
+        _shownFromCache = true;
+      } catch (e) {}
+    })();
     var _ask = function(){
       return fetch(_url + '&t=' + Date.now()).then(function(r){ return r.json(); });
     };
-    return _ask()
-      .catch(function(){ return new Promise(function(res){ setTimeout(res, 1200); }).then(_ask); })
-      .then(function(d){ if (!d || typeof d !== 'object' || !('group' in d)) { return _ask(); } return d; })
+    var _tries = 0;
+    var _okAnswer = function(d){ return !!(d && typeof d === 'object' && ('group' in d)); };
+    var _askUntil = function(){
+      _tries++;
+      return _ask().catch(function(){ return null; }).then(function(d){
+        if (_okAnswer(d)) return d;
+        if (d && typeof d === 'object' && (d.code === 'signin' || d.signinNeeded === true)) return d;
+        if (_tries >= 4 || document.visibilityState === 'hidden') return d;
+        return new Promise(function(res){ setTimeout(res, 20000); }).then(_askUntil);
+      });
+    };
+    return _askUntil()
       .then(keepFreshToken)
       .then(function(d){
         if (!d || typeof d !== 'object' || !('group' in d)) { throw new Error('no answer'); }
-        if (!d.group) { _groupFailed('We could not find this group.'); return; }
+        if (!d.group) { try { document.getElementById('stage-dashboard').classList.add('hidden'); } catch (e) {} _groupFailed('We could not find this group.'); return; }
         var _sf = document.getElementById('stage-failed');
         if (_sf && !_sf.classList.contains('hidden')) {
           _sf.classList.add('hidden');
@@ -745,6 +766,7 @@
             })) || d.meRegistered === true;
             if (!_meInG && !d.meIsOperator && !_fresh) { window.location.replace(location.pathname + location.search + (location.search ? '&' : '?') + 'fresh=1' + location.hash); return; }
             if (!_meInG && !d.meIsOperator) { window.location.replace(window.CW_GROUP_SLUG ? 'https://2gather.network/group/' + encodeURIComponent(window.CW_GROUP_SLUG) : 'https://2gather.network/group/?id=' + encodeURIComponent(groupId)); return; }
+            try { document.getElementById('stage-dashboard').classList.add('hidden'); } catch (e) {}
             showMemberScreen(d, !!d.meIsOperator);
             return;
           }
@@ -939,7 +961,15 @@
 
   function _groupFailed(msg){
     var lk = document.getElementById('stage-looking');
-    if (!lk || lk.style.display === 'none') return;
+    if (!lk || lk.style.display === 'none') {
+      var dw = document.getElementById('dash-waiting');
+      var sd = document.getElementById('stage-dashboard');
+      if (dw && sd && !sd.classList.contains('hidden')) {
+        dw.style.display = 'flex';
+        dw.textContent = 'Could not check for changes yet. Reload in a minute to see the latest.';
+      }
+      return;
+    }
     lk.style.display = 'none';
     var card = document.getElementById('stage-failed');
     var m = document.getElementById('stage-failed-msg');
