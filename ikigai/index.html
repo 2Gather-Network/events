@@ -1191,7 +1191,7 @@
     t.addEventListener('input', function(){ if (String(t.value || '').trim()) { err.style.display = 'none'; t.style.borderColor = '#DDE3EA'; } });
     t.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
     row.appendChild(sv); row.appendChild(cn);
-    card.appendChild(ty); card.appendChild(t); card.appendChild(err); card.appendChild(d); card.appendChild(lab); card.appendChild(row);
+    card.appendChild(ty); card.appendChild(t); card.appendChild(gpTitleSuggest(t, undefined, { noEnter: true })); card.appendChild(err); card.appendChild(d); card.appendChild(lab); card.appendChild(row);
     setTimeout(function(){ gpAutoFocus(t); }, 0);
     return card;
   }
@@ -1527,7 +1527,7 @@
             };
             btns.appendChild(save); btns.appendChild(cancel);
             fName.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save.onclick(); } });
-            panel.appendChild(fTitle); panel.appendChild(gpTitleSuggest(fTitle)); panel.appendChild(fKind); panel.appendChild(gpTopicPicker(cur.name)); panel.appendChild(fName); panel.appendChild(locLine); panel.appendChild(btns);
+            panel.appendChild(fTitle); panel.appendChild(gpTitleSuggest(fTitle, cur.name)); panel.appendChild(fKind); panel.appendChild(gpTopicPicker(cur.name)); panel.appendChild(fName); panel.appendChild(locLine); panel.appendChild(btns);
             gpAutoFocus(fName);
           };
           card.appendChild(panel);
@@ -3860,15 +3860,44 @@
     });
   }
   var _gpWordsP = null;
+  function gpChipCats(name){ try { var m = JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}, a = m[String(name || '').trim().toLowerCase()]; return (a && a.cats ? a.cats : []).map(String); } catch (e) { return []; } }
   function gpChipCat(name, fallback){ try { var m = JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}, a = m[String(name || '').trim().toLowerCase()], c = a && a.cats && a.cats[0]; return c ? String(c) : fallback; } catch (e) { return fallback; } }
   function gpAutoFocus(el){ try { if (el && !(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)) { el.focus(); } } catch (e) {} }
-  function gpTitleSuggest(inp){
+  function gpTitleSuggest(inp, catsName, topts){
+    var cardMode = typeof catsName === 'string';
     var host = document.createElement('div');
     host.style.cssText = 'margin:-4px 0 8px;';
     var said = '', addQ = '';
+    var saveNew = function(q, picked, note){
+      note.textContent = 'Adding “' + q + '”…';
+      var sa = ''; try { sa = String((window.CW && CW.realMe && CW.realMe().id) || meId || ''); } catch (x) { sa = String(meId || ''); }
+      fetch(GS_URL + '?action=saveWord&appearId=' + encodeURIComponent(sa) + '&word=' + encodeURIComponent(q.slice(0, 60)) + '&kindOf=&otherNames=&categories=' + encodeURIComponent(picked.join('|')) + '&askedIn=choice')
+        .then(function(r){ return r.json(); })
+        .then(function(a){
+          if (!a || a.status !== 'ok' || !a.row) { note.textContent = 'That word could not be added. The title still saves.'; return; }
+          try {
+            var W = window._gpWords, rows = W ? W.rows.slice() : [], at = -1;
+            rows.forEach(function(r, k){ if (r[0] === a.row[0]) { at = k; } });
+            if (at > -1) { rows[at] = a.row; } else { rows.push(a.row); }
+            window._gpWords = gpWordsBuild(rows); _gpWordsTrees = {};
+            try { window.localStorage.setItem('cw-words-v3', JSON.stringify({ t: Date.now(), rows: rows })); } catch (x) {}
+          } catch (x) {}
+          try { if (window.CW_WORDS_REFRESH) { window.CW_WORDS_REFRESH(); } } catch (x) {}
+          note.textContent = '“' + q + '” was added.';
+        })
+        .catch(function(){ note.textContent = 'That word could not be added. The title still saves.'; });
+    };
     var startAdd = function(q){
       host.innerHTML = '';
       addQ = '';
+      if (cardMode) {
+        var have = gpChipCats(catsName), n0 = document.createElement('div');
+        n0.style.cssText = 'font-size:12.5px;color:#4B5A6D;padding:4px 2px;';
+        host.appendChild(n0);
+        if (!have.length) { n0.textContent = 'Choose a category below first, then press Add again.'; addQ = q; return; }
+        saveNew(q, have, n0);
+        return;
+      }
       var picked = [];
       var wrapA = document.createElement('div');
       wrapA.style.cssText = 'border:1px solid #DDE4EE;border-radius:10px;padding:10px 12px;background:#fff;';
@@ -3922,28 +3951,12 @@
         host.innerHTML = '';
         var note = document.createElement('div');
         note.style.cssText = 'font-size:12.5px;color:#4B5A6D;padding:4px 2px;';
-        note.textContent = 'Adding “' + q + '”…';
         host.appendChild(note);
-        var sa = ''; try { sa = String((window.CW && CW.realMe && CW.realMe().id) || meId || ''); } catch (x) { sa = String(meId || ''); }
-        fetch(GS_URL + '?action=saveWord&appearId=' + encodeURIComponent(sa) + '&word=' + encodeURIComponent(q.slice(0, 60)) + '&kindOf=&otherNames=&categories=' + encodeURIComponent(picked.join('|')) + '&askedIn=choice')
-          .then(function(r){ return r.json(); })
-          .then(function(a){
-            if (!a || a.status !== 'ok' || !a.row) { note.textContent = 'That word could not be added. The title still saves.'; return; }
-            try {
-              var W = window._gpWords, rows = W ? W.rows.slice() : [], at = -1;
-              rows.forEach(function(r, k){ if (r[0] === a.row[0]) { at = k; } });
-              if (at > -1) { rows[at] = a.row; } else { rows.push(a.row); }
-              window._gpWords = gpWordsBuild(rows); _gpWordsTrees = {};
-              try { window.localStorage.setItem('cw-words-v3', JSON.stringify({ t: Date.now(), rows: rows })); } catch (x) {}
-            } catch (x) {}
-            try { if (window.CW_WORDS_REFRESH) { window.CW_WORDS_REFRESH(); } } catch (x) {}
-            note.textContent = '“' + q + '” was added.';
-          })
-          .catch(function(){ note.textContent = 'That word could not be added. The title still saves.'; });
+        saveNew(q, picked, note);
       };
     };
     inp.addEventListener('keydown', function(e){
-      if (e.key === 'Enter' && addQ) { e.preventDefault(); e.stopPropagation(); startAdd(addQ); }
+      if (e.key === 'Enter' && addQ && !(topts && topts.noEnter)) { e.preventDefault(); e.stopPropagation(); startAdd(addQ); }
     });
     var paint = function(){
       host.innerHTML = '';
@@ -6081,7 +6094,7 @@
           };
           fName.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sv.onclick(); } });
           btns.appendChild(sv); btns.appendChild(cn);
-          panel.appendChild(fTitle); panel.appendChild(gpTitleSuggest(fTitle)); panel.appendChild(gpTopicPicker(cur.name)); panel.appendChild(fName); panel.appendChild(locLine); panel.appendChild(btns);
+          panel.appendChild(fTitle); panel.appendChild(gpTitleSuggest(fTitle, cur.name)); panel.appendChild(gpTopicPicker(cur.name)); panel.appendChild(fName); panel.appendChild(locLine); panel.appendChild(btns);
           gpAutoFocus(fName);
         };
         card.appendChild(panel);
