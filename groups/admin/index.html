@@ -275,6 +275,11 @@
         <div style="margin-top:12px;"><button class="btn sm" id="invite-send">Send the invitation</button></div>
         <div id="invite-status" class="status" style="margin-top:10px;"></div>
       </div>
+      <div id="invite-sent-wrap" class="hidden" style="margin:2px 0 26px;">
+        <div class="q">Invitations sent</div>
+        <p class="lede" id="invite-sent-lede" style="font-size:13.5px;"></p>
+        <div id="invite-sent-list"></div>
+      </div>
       <div id="invite-quick" class="hidden" style="margin:2px 0 22px;display:flex;flex-direction:column;gap:14px;">
         <div id="invite-code-wrap" class="hidden">
           <div class="q">The code</div>
@@ -772,6 +777,7 @@
         if (d.meIsOperator || d.meIsHost === true || _role === 'host') {
           var _isw = document.getElementById('invite-send-wrap');
           if (_isw) _isw.classList.remove('hidden');
+          var _isn = document.getElementById('invite-sent-wrap'); if (_isn) { _isn.classList.remove('hidden'); try { loadInvitesSent(); } catch (e) {} }
         }
         document.getElementById('e-name').value = g.name || '';
         (function(){ var sl = document.getElementById('e-slug'); if (sl) { sl.value = String(g.slug || '').split(',')[0].trim(); sl.setAttribute('data-was', sl.value); } })();
@@ -2592,6 +2598,59 @@
     _copyPlain(el ? (el.textContent || '') : '', 'invite-code-copied');
   });
 
+  function loadInvitesSent(){
+    var wrap = document.getElementById('invite-sent-wrap'), list = document.getElementById('invite-sent-list'), lede = document.getElementById('invite-sent-lede');
+    if (!wrap || !list) return;
+    var pt = '';
+    try {
+      var raw = localStorage.getItem('cw-edit-' + String(meId || '').split('.').join('').toLowerCase());
+      if (raw) { var o = JSON.parse(raw); if (o && o.t) pt = o.t; }
+      if (!pt) pt = localStorage.getItem('cw-token') || '';
+    } catch (e) {}
+    list.textContent = '';
+    var wait = document.createElement('div'); wait.className = 'status ok'; wait.textContent = 'Looking up your invitations…'; list.appendChild(wait);
+    fetch(GS_URL + '?action=getInvitesSent&groupId=' + encodeURIComponent(groupId) + '&hostAppearId=' + encodeURIComponent(meId)
+          + '&editToken=' + encodeURIComponent(pt) + '&nocache=1')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        list.textContent = '';
+        var rows = (d && d.invites) || [];
+        if (!rows.length) { lede.textContent = 'Nobody yet. Invitations you send from here are listed with Pending, then Joined once they come in.'; return; }
+        lede.textContent = rows.length + (rows.length === 1 ? ' invitation' : ' invitations') + (d.canSeeAll ? ' sent from this group.' : ' sent by you.');
+        rows.forEach(function(r){
+          var row = document.createElement('div');
+          row.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:9px 0;border-top:1px solid #EEF1F5;';
+          var who = document.createElement('div'); who.style.cssText = 'flex:1 1 220px;min-width:0;';
+          var nm = document.createElement('div'); nm.style.cssText = 'font-weight:700;color:#1A2E42;overflow-wrap:anywhere;';
+          nm.textContent = r.toFirst || r.email || 'Someone you invited';
+          who.appendChild(nm);
+          var meta = [];
+          if (r.email && r.toFirst) meta.push(r.email);
+          var when = String(r.status === 'joined' ? r.joinedAt : r.sentAt).slice(0, 10);
+          meta.push((r.status === 'joined' ? 'Joined ' : 'Sent ') + when);
+          if (r.by) meta.push('by ' + r.by);
+          var sub = document.createElement('div'); sub.style.cssText = 'font-size:13px;color:#4B5A6D;overflow-wrap:anywhere;'; sub.textContent = meta.join(' · ');
+          who.appendChild(sub);
+          var pill = document.createElement('span');
+          pill.textContent = r.status === 'joined' ? 'Joined' : 'Pending';
+          pill.style.cssText = 'font-size:13px;font-weight:700;padding:3px 12px;border-radius:20px;border:1.5px solid ' + (r.status === 'joined' ? '#1E6B3A' : '#DDE4EE') + ';color:' + (r.status === 'joined' ? '#1E6B3A' : '#1A2E42') + ';';
+          var rm = document.createElement('button'); rm.type = 'button'; rm.textContent = 'Remove';
+          rm.style.cssText = 'font:inherit;font-size:13px;background:none;border:0;color:#1F699E;text-decoration:underline;cursor:pointer;padding:0;';
+          rm.addEventListener('click', function(){
+            rm.textContent = 'Removing…';
+            fetch(GS_URL + '?action=deleteInviteSent&groupId=' + encodeURIComponent(groupId) + '&hostAppearId=' + encodeURIComponent(meId)
+                  + '&sessionToken=' + encodeURIComponent(getToken() || '') + '&inviteId=' + encodeURIComponent(r.inviteId))
+              .then(function(x){ return x.json(); }).then(keepFreshToken)
+              .then(function(){ loadInvitesSent(); })
+              .catch(function(){ rm.textContent = 'Try again'; });
+          });
+          row.appendChild(who); row.appendChild(pill); row.appendChild(rm);
+          list.appendChild(row);
+        });
+      })
+      .catch(function(){ list.textContent = ''; lede.textContent = 'The list could not load. Try again in a moment.'; });
+  }
+
   document.getElementById('invite-send').addEventListener('click', function(){
     var to = (document.getElementById('invite-to').value || '').trim();
     if (!to) { showStatus('invite-status', 'err', 'Type the address to send it to.'); return; }
@@ -2606,6 +2665,7 @@
         if (d && d.status === 'ok') {
           showStatus('invite-status', 'ok', 'Sent to ' + (d.sentTo || to) + '.');
           document.getElementById('invite-to').value = '';
+          try { loadInvitesSent(); } catch (e) {}
         } else {
           showStatus('invite-status', 'err', (d && d.message) ? d.message : 'That did not go through.');
         }
