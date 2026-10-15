@@ -8967,9 +8967,24 @@ function selectInterestSuggestion(val) {
     var _wroteAt = 0;
     try { _wroteAt = Number(sessionStorage.getItem('cw-wrote-at')) || 0; } catch (e) {}
     var _pastGate = (Date.now() - _wroteAt) < 10 * 60 * 1000;
-    var railJob = fetch(GS_URL + '?action=getMyEvents&appearId=' + encodeURIComponent(me) + (_pastGate ? '&nocache=1' : '') + '&t=' + Date.now())
+    var _askMine = function () {
+      return fetch(GS_URL + '?action=getMyEvents&appearId=' + encodeURIComponent(me) + (_pastGate ? '&nocache=1' : '') + '&t=' + Date.now())
                     .then(function (r) { return r.json(); })
                     .catch(function () { return null; });
+    };
+    var railJob = (async function () {
+      var started = Date.now();
+      var got = await _askMine();
+      for (var tries = 0; tries < 4; tries++) {
+        var ok = got && got.status === 'ok' && Array.isArray(got.events);
+        if (ok || (got && got.code === 'signin')) { break; }
+        var spent = Date.now() - started;
+        var wait = Math.max(0, (tries + 1) * 20000 - spent);
+        await new Promise(function (done) { setTimeout(done, wait); });
+        got = await _askMine();
+      }
+      return got;
+    })();
 
     var _askBm = function () {
       return fetch(GS_URL + '?action=getBookmarks&type=Event&appearId=' + encodeURIComponent(me))
