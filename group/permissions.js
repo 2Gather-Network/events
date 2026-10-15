@@ -60,7 +60,7 @@
     return '';
   }
   function pill(label, on, fn) {
-    var b = el('button', 'font:inherit;font-size:13px;padding:6px 14px;border-radius:20px;cursor:pointer;margin:0 6px 6px 0;font-weight:700;'
+    var b = el('button', 'font:inherit;font-size:13.5px;padding:6px 14px;border-radius:20px;cursor:pointer;margin:0 6px 6px 0;font-weight:700;'
       + (on ? 'background:#1F699E;border:1.5px solid #1F699E;color:#fff;' : 'background:#fff;border:1.5px solid #DDE4EE;color:#1A2E42;'), label);
     b.type = 'button';
     b.onclick = fn;
