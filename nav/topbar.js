@@ -972,6 +972,17 @@
 
   w.CW_REDRAW_ADMIN = function () { try { drawAdminBar(); } catch (e) {} };
 
+  var KINDOF_READY = true;
+  var _wordRows = null;
+  function wordRows(done) {
+    if (_wordRows) { done(_wordRows); return; }
+    var kept = ls(function () { return JSON.parse(w.localStorage.getItem('cw-words-v3') || 'null'); }, null);
+    if (kept && kept.rows && kept.rows.length) { _wordRows = kept.rows; done(_wordRows); return; }
+    fetch(GS + '?action=getCategories&words=1')
+      .then(function (r) { return r.json(); })
+      .then(function (r) { _wordRows = (r && r.words) || []; done(_wordRows); })
+      .catch(function () { _wordRows = []; done(_wordRows); });
+  }
   function openWords(bar) {
     var old = d.getElementById('cw-viewas-words'); if (old) { old.remove(); return; }
     var other = d.getElementById('cw-viewas-pick'); if (other) { other.remove(); }
@@ -1016,6 +1027,37 @@
       var m = d.createElement('div');
       m.style.cssText = 'font-size:13px;color:#4B5A6D;';
       m.textContent = what || 'No categories chosen';
+      var kindId = '';
+      var kindBox = null;
+      if (KINDOF_READY && !/^a\d+$/.test(String(it.ref))) {
+        kindBox = d.createElement('div');
+        kindBox.style.cssText = 'display:flex;flex-direction:column;gap:4px;max-width:420px;';
+        var kl = d.createElement('div');
+        kl.style.cssText = 'font-size:13px;font-weight:700;';
+        kl.textContent = 'Is a kind of (optional)';
+        var kin = d.createElement('input');
+        kin.type = 'text'; kin.placeholder = 'Search the words, for example Endurance sports';
+        kin.setAttribute('aria-label', 'Is a kind of');
+        kin.style.cssText = 'font:inherit;border:1.5px solid #DDE3EA;border-radius:10px;padding:7px 10px;outline:none;';
+        var kres = d.createElement('div');
+        kres.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+        var kchip = d.createElement('div');
+        kchip.style.cssText = 'font-size:13px;color:#1A2E42;';
+        kin.addEventListener('input', function () {
+          var q = kin.value.trim().toLowerCase(); kres.textContent = '';
+          if (q.length < 2) { return; }
+          wordRows(function (rows) {
+            var hits = rows.filter(function (r) { return String(r[1] || '').toLowerCase().indexOf(q) > -1 && String(r[0]) !== String(it.ref); }).slice(0, 8);
+            hits.forEach(function (r) {
+              var b = d.createElement('button'); b.type = 'button'; b.textContent = r[1];
+              b.style.cssText = 'font:inherit;font-size:13px;padding:4px 10px;border-radius:14px;cursor:pointer;border:1px solid #C3D0DB;background:#F7FBFF;color:#1A2E42;';
+              b.onclick = function () { kindId = String(r[0]); kin.value = ''; kres.textContent = ''; kchip.textContent = 'Will be a kind of: ' + r[1]; };
+              kres.appendChild(b);
+            });
+          });
+        });
+        kindBox.appendChild(kl); kindBox.appendChild(kin); kindBox.appendChild(kres); kindBox.appendChild(kchip);
+      }
       var btns = d.createElement('div');
       btns.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
       var ok = d.createElement('button'), no = d.createElement('button'), msg = d.createElement('span');
@@ -1026,7 +1068,7 @@
       msg.style.cssText = 'font-size:13px;color:#8A6220;';
       function decide(dec) {
         ok.disabled = no.disabled = true; msg.textContent = 'Saving…';
-        fetch(GS + '?action=reviewWord' + auth + '&ref=' + encodeURIComponent(it.ref) + '&decision=' + dec + '&t=' + Date.now())
+        fetch(GS + '?action=reviewWord' + auth + '&ref=' + encodeURIComponent(it.ref) + '&decision=' + dec + (dec === 'keep' && kindId ? '&kindOf=' + encodeURIComponent(kindId) : '') + '&t=' + Date.now())
           .then(function (r) { return r.json(); })
           .then(function (r) {
             if (r && r.status === 'ok') { row.remove(); left--; count(); wordsSet(left); return; }
@@ -1037,7 +1079,7 @@
       ok.onclick = function () { decide('keep'); };
       no.onclick = function () { decide('remove'); };
       btns.appendChild(ok); btns.appendChild(no); btns.appendChild(msg);
-      row.appendChild(t); row.appendChild(m); row.appendChild(btns);
+      row.appendChild(t); row.appendChild(m); if (kindBox) { row.appendChild(kindBox); } row.appendChild(btns);
       return row;
     }
     fetch(GS + '?action=getWordReview' + auth + '&t=' + Date.now())
