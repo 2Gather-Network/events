@@ -92,6 +92,22 @@
   new MutationObserver(function (list) {
     list.forEach(function (m) { for (var i = 0; i < m.addedNodes.length; i++) { watchScript(m.addedNodes[i]); } });
   }).observe(d.documentElement, { childList: true, subtree: true });
+  function passMarker() {
+    if (typeof w.PerformanceObserver !== 'function') { return; }
+    try {
+      new w.PerformanceObserver(function (list) {
+        list.getEntries().forEach(function (e) {
+          var u = String(e.name || '');
+          if (u.indexOf('cw-api-gate') === -1 || (e.initiatorType !== 'fetch' && e.initiatorType !== 'script' && e.initiatorType !== 'xmlhttprequest')) { return; }
+          var a = /[?&]action=([A-Za-z0-9_]+)/.exec(u);
+          if (!a) { return; }
+          var has = /[?&](meToken|editToken)=[^&]/.test(u);
+          add('pass   ' + a[1] + '  pass: ' + (has ? 'yes' : 'NO'));
+        });
+      }).observe({ type: 'resource', buffered: true });
+    } catch (e) {}
+  }
+  passMarker();
   var chipOn = false;
   setInterval(function () {
     var c = d.querySelector('.cw-onechip');
@@ -107,4 +123,6 @@
   d.addEventListener('DOMContentLoaded', function () { add('page   structure loaded'); draw(); });
   w.addEventListener('load', function () { add('page   everything loaded'); });
   add('start  Load log on. Add ?loadlog=0 to switch off.');
+  add('page   ' + (w.location.pathname || '/'));
+  add('note   pass: yes means a sign-in was sent with the request, not that the server accepted it.');
 })(window, document);
