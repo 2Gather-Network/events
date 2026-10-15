@@ -10,6 +10,7 @@
     + '.cwtp .cwtp-pill{font:inherit;font-size:13px;font-weight:700;background:#fff;color:#1F699E;border:1.5px solid #DDE4EE;border-radius:18px;padding:5px 11px;cursor:pointer;white-space:nowrap;}'
     + '.cwtp .cwtp-pill.on{background:#1F699E;color:#fff;border-color:#1F699E;}'
     + '.cwtp .cwtp-pill.other{border:1.5px solid #1F699E;}'
+    + '.cwtp .cwtp-link{background:none;border:0;padding:0;margin:4px 0 2px;color:#1F699E;font:inherit;font-size:14px;font-weight:700;text-decoration:underline;cursor:pointer;}'
     + '.cwtp .cwtp-emo{display:inline-block;margin-right:.45em;}'
     + '.cwtp .cwtp-line{display:flex;gap:8px;margin-top:8px;max-width:420px;}'
     + '.cwtp .cwtp-inp{flex:1;min-width:0;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:8px 12px;font:inherit;font-size:14px;color:#1A2E42;}'
@@ -80,15 +81,23 @@
           b.addEventListener('click', function(){ setSub(on ? upName : o); });
           sp.appendChild(b);
         });
-        var oth = el('button', 'cwtp-pill other', '+ Other'); oth.type = 'button'; sp.appendChild(oth);
-        oth.addEventListener('click', function(){
-          oth.hidden = true;
+        var openOwn = function(hideEl){
+          hideEl.hidden = true;
           var line = el('div', 'cwtp-line'), inp = el('input', 'cwtp-inp'); inp.type = 'text'; inp.placeholder = 'Type your own'; inp.setAttribute('aria-label', 'Your own word under ' + (upName || main));
           var add = el('button', 'cwtp-btn', 'Add'); add.type = 'button';
           var go = function(){ var v = String(inp.value || '').trim(); if (!v) { inp.focus(); return; } setSub((window.CW && CW.sentence) ? CW.sentence(v) : v.charAt(0).toUpperCase() + v.slice(1)); };
           add.addEventListener('click', go); inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
           line.appendChild(inp); line.appendChild(add); box.appendChild(line); setTimeout(function(){ try { inp.focus(); } catch (x) {} }, 0);
-        });
+        };
+        if (!shown.length) {
+          box.innerHTML = '';
+          var lk = el('button', 'cwtp-link', 'Add a subcategory of ' + (upName || main) + '?'); lk.type = 'button';
+          box.appendChild(lk);
+          lk.addEventListener('click', function(){ openOwn(lk); });
+          return;
+        }
+        var oth = el('button', 'cwtp-pill other', '+ Other'); oth.type = 'button'; sp.appendChild(oth);
+        oth.addEventListener('click', function(){ openOwn(oth); });
       };
       var known = path.length && lc(nm(path[path.length - 1])) === lc(cur || '');
       level('Subcategory of ' + main + ':', ctx.roots(main), known ? nm(path[0]) : (own && !(idx === 0 && ctx.getA().subOff) ? own : ''), '');
