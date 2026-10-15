@@ -275,19 +275,25 @@
     function esc2(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
 
+    var _tkExpired = false;
+    try {
+      var _tk = String(window.localStorage.getItem('cw-token') || '');
+      if (_tk) { var _tx = parseInt(_tk.split('.')[1], 10); _tkExpired = !!_tx && Date.now() > (_tx - 60000); }
+    } catch (e) { _tkExpired = false; }
     var photo;
-    if (!atDoor && me() && window.CW_TOPBAR_PHOTO) {
+    if (!atDoor && me() && !_tkExpired && window.CW_TOPBAR_PHOTO) {
       var nm = myName();
       photo = '<span role="button" tabindex="0" class="cwtb-me" title="Yours" aria-expanded="false" data-menu="me">' +
               (nm ? '<span class="cwtb-me-name">' + esc2(nm) + ' \u{1F331}</span>' : '') +
               '<span class="cwtb-face"><img src="' + window.CW_TOPBAR_PHOTO + '" alt=""></span></span>';
-    } else if (!atDoor && me() && myName()) {
+    } else if (!atDoor && me() && !_tkExpired && myName()) {
       photo = '<span role="button" tabindex="0" class="cwtb-me" title="Yours" aria-expanded="false" data-menu="me">' +
               '<span class="cwtb-me-name">' + esc2(myName()) + ' \u{1F331}</span>' +
               '<span class="cwtb-face" style="' + INITIALS_CSS + '">' + esc2(initialsOf(myName())) + '</span></span>';
-    } else if (!atDoor && me()) {
-      photo = '<span role="button" tabindex="0" class="cwtb-signin cwtb-ghost cwtb-mine" ' +
-              'aria-expanded="false" data-menu="me">Name</span>';
+    } else if (!atDoor && me() && !_tkExpired) {
+      photo = '<span role="button" tabindex="0" class="cwtb-me cwtb-mine" title="Yours" ' +
+              'aria-label="Your menu" aria-expanded="false" data-menu="me">' +
+              '<span class="cwtb-face" style="' + INITIALS_CSS + '"></span></span>';
     } else if (onCreatingWorks()) {
       photo = '';
     } else {
