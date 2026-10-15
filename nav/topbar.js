@@ -990,9 +990,18 @@
     d.body.appendChild(panel);
     var auth = '&appearId=' + encodeURIComponent(realMeId)
       + '&meToken=' + encodeURIComponent(String(ls(function () { return w.localStorage.getItem('cw-token'); }, '') || ''));
-    var left = 0;
-    function count() { head.textContent = left ? (left + ' proposed ' + (left === 1 ? 'word' : 'words') + ' to review') : 'No proposed words waiting.'; }
-    function say(t) { head.textContent = t; }
+    var left = 0, stampAt = 0, cachedN = null;
+    var c0 = ls(function () { return JSON.parse(w.localStorage.getItem(WORDS_KEY) || 'null'); }, null);
+    if (c0 && c0.who === realMeId && typeof c0.n === 'number') { cachedN = c0.n; stampAt = Number(c0.at) || 0; }
+    function when(t) {
+      try { return new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; }
+    }
+    function countLine(n) {
+      return (n ? n + ' proposed ' + (n === 1 ? 'word' : 'words') + ' to review' : 'No proposed words waiting') + (stampAt ? ' \u00B7 Last updated ' + when(stampAt) : '');
+    }
+    function count() { head.textContent = countLine(left); }
+    function say(t) { head.textContent = cachedN !== null ? countLine(cachedN) + ' \u00B7 ' + t : t; }
+    if (cachedN !== null) { head.textContent = countLine(cachedN) + ' \u00B7 Checking again\u2026'; }
     function line(it) {
       var row = d.createElement('div');
       row.style.cssText = 'border:1px solid #E3EAF0;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;';
@@ -1035,7 +1044,7 @@
       .then(function (r) { return r.json(); })
       .then(function (r) {
         if (!r || r.status !== 'ok' || !Array.isArray(r.items)) { say((r && r.message) || 'The list did not come back. Try again.'); return; }
-        left = r.items.length; count(); wordsSet(left);
+        left = r.items.length; stampAt = Date.now(); count(); wordsSet(left);
         r.items.forEach(function (it) { list.appendChild(line(it)); });
       })
       .catch(function () { say('Could not reach the server. Try again.'); });
