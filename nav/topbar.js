@@ -930,8 +930,8 @@
     } catch (e) {}
     var tab = d.createElement('div');
     tab.id = 'cw-viewas';
-    tab.style.cssText = 'position:fixed;top:env(safe-area-inset-top, 0px);left:0;right:0;z-index:99999;display:flex;justify-content:flex-end;'
-      + 'padding:0 10px;background:transparent;pointer-events:none;';
+    tab.style.cssText = 'position:sticky;top:0;z-index:99999;display:flex;justify-content:flex-end;'
+      + 'padding:2px 10px;background:transparent;pointer-events:none;';
     var b = d.createElement('button');
     b.type = 'button';
     b.textContent = 'Admin';
