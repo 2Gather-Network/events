@@ -947,6 +947,17 @@
     b.onclick = function () { setFolded(false); };
     tab.appendChild(b);
     d.body.insertBefore(tab, d.body.firstChild);
+    var place = function () {
+      try {
+        if (!tab.isConnected) { return; }
+        var me = d.querySelector('.cwtb-me, .cwtb-signin');
+        var r = me && me.getBoundingClientRect();
+        tab.style.paddingRight = ((r && r.width) ? Math.max(10, Math.round(w.innerWidth - r.left + 8)) : 10) + 'px';
+      } catch (e) {}
+    };
+    w._cwTabPlace = place;
+    if (!w._cwTabPlaceOn) { w._cwTabPlaceOn = true; w.addEventListener('resize', function () { if (w._cwTabPlace) { w._cwTabPlace(); } }); }
+    place(); setTimeout(place, 300); setTimeout(place, 1500);
   }
 
   var superOk = false;
