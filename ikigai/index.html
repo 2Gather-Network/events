@@ -5091,7 +5091,7 @@
     stat.textContent = 'Loading your answers…';
     var _su = gpSaveUrl();
     gpPendSet(_su);
-    fetch(_su)
+    gpSaveFetch(_su)
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (d && d.status === 'ok') { _gpLastSaved = _su; gpPendDone(_su); }
@@ -5323,13 +5323,39 @@
     gpWhy('a save from before the reload never said Saved, so it is sent again before reading');
     var say = function(t, bad){ var st = document.getElementById('gp-intro-status'); if (!bad && /^(Saving|Saved)/.test(t)) { return; } if (st) { st.style.color = bad ? '#7A2410' : '#4B5A6D'; st.textContent = t; } };
     say('Finishing the save you started\u2026');
-    return fetch(gpPendSend(p.u), { keepalive: true })
+    return gpSaveFetch(gpPendSend(p.u), { keepalive: true })
       .then(function(r){ return r.json(); })
       .then(function(j){
         if (j && j.status === 'ok') { _gpLastSaved = p.u; gpPendDone(p.u); var st0 = document.getElementById('gp-intro-status'); if (st0 && /^Finishing the save/.test(st0.textContent)) { st0.textContent = ''; } return; }
         say(String((j && j.message) || '') || 'Your last change did not save. It saves again when you change anything.', true);
       })
       .catch(function(){ say('Your last change did not save. It saves again when you change anything.', true); });
+  }
+  function gpSaveFetch(u, o){
+    var s = String(u), LIMIT = 2800;
+    if (s.length <= LIMIT) { return fetch(s, o); }
+    var qi = s.indexOf('?'), base = s.slice(0, qi + 1), parts = s.slice(qi + 1).split('&');
+    var keep = /^(action|appearId|meToken|tagsMode)=/;
+    var head = parts.filter(function(k){ return keep.test(k); }), rest = parts.filter(function(k){ return !keep.test(k); });
+    var hl = base.length + head.join('&').length, chunks = [], cur = [], len = hl;
+    rest.forEach(function(p){
+      if (cur.length && len + p.length + 1 > LIMIT) { chunks.push(cur); cur = []; len = hl; }
+      cur.push(p); len += p.length + 1;
+    });
+    if (cur.length) { chunks.push(cur); }
+    var i = 0, last = null;
+    var next = function(){
+      if (i >= chunks.length) { return Promise.resolve(last); }
+      var url = base + head.concat(chunks[i]).join('&'); i++;
+      gpWhy('sending part ' + i + ' of ' + chunks.length + ', ' + url.length + ' characters');
+      return fetch(url, o).then(function(r){
+        return r.clone().json().then(function(j){
+          if (j && (j.status === 'ok' || j.ok === true)) { last = r; return next(); }
+          return r;
+        }, function(){ return r; });
+      });
+    };
+    return next();
   }
   function gpSaveUrl(){
     var val = function(k){ var el = document.getElementById('gp-intro-' + k); return el ? String(el.value || '').trim() : ''; };
@@ -5409,7 +5435,7 @@
     gpPendSet(_u);
     _gpSaving = _u;
     var _bt = Date.now();
-    _gpSavingP = fetch(_u, { keepalive: true })
+    _gpSavingP = gpSaveFetch(_u, { keepalive: true })
       .then(function(r){ gpWhy('came back ' + r.status + ' ' + r.statusText); return r.text(); })
       .then(function(t){
         gpWhy('answer: ' + String(t).slice(0, 300));
