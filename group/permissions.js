@@ -88,6 +88,7 @@
     st.id = 'gp-permissions-status';
     box.appendChild(st);
     var rl = rule();
+    rl.name = 'full';
     var need = [];
     if (rl.name === 'full') need.push('your full name');
     if (rl.name === 'short') need.push('at least your first name and last initial');
@@ -178,7 +179,7 @@
       });
       var src = mine || gen || {};
       var rl0 = rule();
-      state = { name: src.nameShown || rl0.name || 'full', where: src.placeShown || (rl0.placeSet ? rl0.place : 'state'), profile: {}, loading: true };
+      state = { name: 'full', where: src.placeShown || (rl0.placeSet ? rl0.place : 'state'), profile: {}, loading: true };
       if (rl0.name && NAME_LADDER.indexOf(state.name) < NAME_LADDER.indexOf(rl0.name)) state.name = rl0.name;
       if (LADDER.indexOf(state.where) < LADDER.indexOf(rl0.place)) state.where = rl0.place;
       draw();

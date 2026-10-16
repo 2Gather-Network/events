@@ -2705,8 +2705,7 @@ var myPill = document.getElementById('gp-myprofile-pill');
 function gpRuleLine(gr){
           var nm = String((gr && gr.memberNameMin) || ''), pl = String((gr && gr.memberPlaceMin) || '');
           var bits = [];
-          if (nm === 'full') bits.push('your full name');
-          if (nm === 'short') bits.push('at least your first name and last initial');
+          bits.push('your full name');
           if (['region', 'country', 'state', 'county', 'city'].indexOf(pl) > -1) bits.push('your location at the ' + pl + ' level');
           if (!bits.length) return null;
           var rn = document.createElement('div');
@@ -2723,6 +2722,32 @@ function gpRuleLine(gr){
             if (bad) { var _lp = document.getElementById('gp-lost-pass'); if (_lp) _lp.style.display = ''; }
           }
 
+          function gpFullNameBox(after){
+            var b = document.createElement('div');
+            b.id = 'gp-fullname-box';
+            b.style.cssText = 'margin:0 0 12px;padding:12px 14px;border:1.5px solid #C9DFF3;border-radius:12px;background:#F7FBFF;font-size:14px;color:#1A2E42;line-height:1.5;';
+            var t = document.createElement('div');
+            t.style.cssText = 'font-weight:700;margin-bottom:8px;';
+            t.textContent = 'This group requires a full name. Your name shows as an initial right now.';
+            var btn = document.createElement('button');
+            btn.type = 'button'; btn.className = 'btn';
+            btn.style.cssText = 'font-size:13px;padding:8px 16px;';
+            btn.textContent = 'Show my full name';
+            var m = document.createElement('div'); m.style.cssText = 'font-size:13px;color:#4B5A6D;margin-top:6px;';
+            btn.addEventListener('click', function(){
+              btn.disabled = true; m.textContent = 'Saving...';
+              fetch(GS_URL + '?action=saveAccount&appearId=' + encodeURIComponent(meId) + '&secure=1&editToken=' + encodeURIComponent(_gpPhotoToken()) + '&lastInitialOnly=false')
+                .then(function(r){ return r.json(); })
+                .then(function(d){
+                  if (d && d.status === 'ok') { t.textContent = 'Your full name is on.'; btn.style.display = 'none'; m.textContent = ''; if (after) after(); }
+                  else { btn.disabled = false; m.textContent = (d && d.message) ? d.message : 'That did not save. Try again.'; }
+                })
+                .catch(function(){ btn.disabled = false; m.textContent = 'Could not reach the server. Try again.'; });
+            });
+            b.appendChild(t); b.appendChild(btn); b.appendChild(m);
+            return b;
+          }
+
           function askPasscode(){
             box.innerHTML = '';
             var q = document.createElement('div');
@@ -2731,6 +2756,10 @@ function gpRuleLine(gr){
             box.appendChild(q);
             var _rl1 = gpRuleLine((d && d.group) || {});
             if (_rl1) box.appendChild(_rl1);
+            fetch(GS_URL + '?action=getPermissions&appearId=' + encodeURIComponent(meId) + '&editToken=' + encodeURIComponent(_gpPhotoToken()))
+              .then(function(r){ return r.json(); })
+              .then(function(d){ if (d && d.lastInitialOnly === true && !document.getElementById('gp-fullname-box')) box.insertBefore(gpFullNameBox(), box.children[1] || null); })
+              .catch(function(){});
 
             var row = document.createElement('div');
             row.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:flex-start;';
@@ -2960,6 +2989,12 @@ function gpRuleLine(gr){
                   say('That passcode does not match. It may have been changed since your invitation. Ask the host for the new one.', true);
                   var _ll = document.querySelector('#gp-lost-pass a');
                   if (_ll) { _ll.textContent = 'Message the host'; _ll.className = 'btn'; _ll.style.cssText = 'font-size:13px;padding:8px 16px;cursor:pointer;'; }
+                  return;
+                }
+                if (res && res.code === 'full-name-needed') {
+                  go.disabled = false;
+                  if (stat) { stat.textContent = ''; stat.style.display = 'none'; }
+                  if (!document.getElementById('gp-fullname-box')) box.insertBefore(gpFullNameBox(function(){ tryJoin(code, go, interests); }), box.children[1] || null);
                   return;
                 }
                 if (res && res.code === 'interests-needed') {
