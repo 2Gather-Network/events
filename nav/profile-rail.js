@@ -45,9 +45,9 @@
       '/groups/admin': 'Manage', '/commons': 'the Commons', '/events': 'Events',
       '/event': 'the event', '/welcome': 'Welcome', '/account': 'My account',
       '/profile-edit': 'Edit my profile', '/ikigai': 'Edit profile',
-      '/network': 'My network'
+      '/network': 'My bookmarks', '/network/bookmarks': 'My bookmarks'
     };
-    var TRAIL = { '/network': 1 };
+    var TRAIL = { '/network': 1, '/network/bookmarks': 1 };
     if (!Object.prototype.hasOwnProperty.call(NAMES, path)) return null;
     return { label: NAMES[path], url: r, trail: !!TRAIL[path] };
   };
@@ -100,7 +100,7 @@
 
     if (opts.shape === 'network') {
       var nbox = document.createElement('div'); nbox.className = 'cw-prail-list';
-      [{ key: 'bookmarks', label: 'People I want to meet', url: 'https://2gather.network/network/' }].forEach(function (it) {
+      [{ key: 'bookmarks', label: 'My bookmarks', url: 'https://2gather.network/network/bookmarks' }].forEach(function (it) {
         var nb = document.createElement('button'); nb.type = 'button'; nb.textContent = it.label;
         if (it.key === opts.active) { nb.className = 'on'; nb.setAttribute('aria-current', 'page'); }
         nb.onclick = function () { if (it.key === opts.active) { return; } go(it.url); };
