@@ -950,9 +950,9 @@
     var place = function () {
       try {
         if (!tab.isConnected) { return; }
-        var me = d.querySelector('.cwtb-me, .cwtb-signin');
-        var r = me && me.getBoundingClientRect();
-        tab.style.paddingRight = ((r && r.width) ? Math.max(10, Math.round(w.innerWidth - r.left + 8)) : 10) + 'px';
+        var all = d.querySelectorAll('.cwtb-me, .cwtb-signin'), r = null, i, q;
+        for (i = 0; i < all.length; i++) { q = all[i].getBoundingClientRect(); if (q.width > 0 && q.height > 0 && q.right > 0) { r = q; break; } }
+        tab.style.setProperty('padding-right', (r ? Math.max(10, Math.round(w.innerWidth - r.left + 8)) : (w.innerWidth <= 700 ? 56 : 10)) + 'px', 'important');
       } catch (e) {}
     };
     w._cwTabPlace = place;
