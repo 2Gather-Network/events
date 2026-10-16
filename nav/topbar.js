@@ -957,7 +957,8 @@
     };
     w._cwTabPlace = place;
     if (!w._cwTabPlaceOn) { w._cwTabPlaceOn = true; w.addEventListener('resize', function () { if (w._cwTabPlace) { w._cwTabPlace(); } }); }
-    place(); setTimeout(place, 300); setTimeout(place, 1500);
+    place();
+    var tries = 0, tick = setInterval(function () { place(); if (++tries > 120 || !tab.isConnected) { clearInterval(tick); } }, 500);
   }
 
   var superOk = false;
