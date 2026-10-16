@@ -1668,10 +1668,78 @@ window.verifyRegistrationState = verifyRegistrationState;
 let _currentEv = null; 
 
 function addToCalendarById(id) {
-  if (_currentEv && _currentEv.id === id) addToCalendar(_currentEv);
+  if (_currentEv && _currentEv.id === id) cwCalAsk(_currentEv);
 }
 
-function addToCalendar(ev) {
+function _calRepeats(ev) {
+  var f = String((ev && ev.recurFreq) || "").toLowerCase();
+  return f === "weekly" || f === "monthly" ? f : "";
+}
+
+function cwCalAsk(ev) {
+  if (!ev || !ev.date || ev.date === "TBD") return;
+  var rep = _calRepeats(ev);
+  var o = document.getElementById("cw-cal-ask");
+  if (o) o.remove();
+  o = document.createElement("div");
+  o.id = "cw-cal-ask";
+  o.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:80;";
+  var dateLabel = "";
+  try { dateLabel = new Date(ev.date + "T12:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); } catch (e) {}
+  var every = rep === "monthly" ? "Every month" : "Every week";
+  var btn = "background:#fff;border:1.5px solid var(--border);color:var(--dark);font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;cursor:pointer;font-family:inherit;";
+  o.innerHTML = '<div role="dialog" aria-modal="true" aria-labelledby="cw-cal-ask-q" style="background:#fff;border-radius:14px;padding:22px 22px 18px;width:calc(100% - 32px);max-width:360px;font-family:inherit;">'
+    + '<p id="cw-cal-ask-q" style="font-size:16px;font-weight:700;color:var(--dark);margin:0 0 14px;">Add to your calendar</p>'
+    + (rep ? '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">'
+      + '<label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;"><input type="radio" name="cw-cal-mode" value="one" checked> Just this one' + (dateLabel ? ' (' + dateLabel + ')' : '') + '</label>'
+      + '<label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;"><input type="radio" name="cw-cal-mode" value="series"> ' + every + '</label></div>' : '')
+    + '<div style="display:flex;flex-direction:column;gap:8px;">'
+    + '<button type="button" id="cw-cal-google" style="' + btn + '">Google Calendar</button>'
+    + '<button type="button" id="cw-cal-file" style="' + btn + '">Apple or Outlook (calendar file)</button>'
+    + '<button type="button" id="cw-cal-no" style="background:none;border:none;color:var(--muted);font-weight:700;font-size:13px;padding:8px;cursor:pointer;font-family:inherit;">No thanks</button>'
+    + '</div></div>';
+  document.body.appendChild(o);
+  var mode = function () { var r = o.querySelector('input[name="cw-cal-mode"]:checked'); return r ? r.value : "one"; };
+  o.addEventListener("click", function (e) { if (e.target === o) o.remove(); });
+  document.getElementById("cw-cal-no").onclick = function () { o.remove(); };
+  document.getElementById("cw-cal-google").onclick = function () { var m = mode(); o.remove(); addToCalendar(ev, m); };
+  document.getElementById("cw-cal-file").onclick = function () { var m = mode(); o.remove(); downloadCalendarFile(ev, m); };
+}
+window.cwCalAsk = cwCalAsk;
+
+function downloadCalendarFile(ev, mode) {
+  var pad = function (n) { return String(n).padStart(2, "0"); };
+  var stamp = function (d, tm) { var dt = new Date(d + "T" + (tm || "00:00")); return dt.getFullYear() + pad(dt.getMonth() + 1) + pad(dt.getDate()) + "T" + pad(dt.getHours()) + pad(dt.getMinutes()) + "00"; };
+  var esc = function (s) { return String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n"); };
+  var online = (ev.format === "virtual" || ev.format === "both") ? (ev.meetinglink || ROOMS[ev.room] || "") : "";
+  var rawDesc = ev.description || "";
+  var desc = online ? (rawDesc ? rawDesc + "\n\n" : "") + "Join online" + (ev.room ? " (" + ev.room + ")" : "") + ": " + online : rawDesc;
+  var rrule = "";
+  if (mode === "series") {
+    var rep = _calRepeats(ev);
+    if (rep === "weekly") { rrule = "RRULE:FREQ=WEEKLY;BYDAY=" + ["SU","MO","TU","WE","TH","FR","SA"][new Date(ev.date + "T12:00").getDay()]; }
+    else if (rep === "monthly") { rrule = "RRULE:FREQ=MONTHLY"; }
+  }
+  var lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//2Gather//Events//EN", "BEGIN:VEVENT",
+    "UID:" + String(ev.id || "event") + "-" + ev.date + "@2gather.network",
+    "DTSTAMP:" + new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z",
+    "DTSTART:" + stamp(ev.date, ev.time),
+    "DTEND:" + stamp(ev.date, ev.endtime || ev.time),
+    "SUMMARY:" + esc(ev.title),
+    "DESCRIPTION:" + esc(desc),
+    "LOCATION:" + esc(ev.location || online || ev.meetinglink || ""),
+    "URL:https://2gather.network/event/?id=" + encodeURIComponent(ev.id || "")];
+  if (rrule) lines.push(rrule);
+  lines.push("END:VEVENT", "END:VCALENDAR");
+  var blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = (String(ev.title || "event").replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "event") + ".ics";
+  document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+function addToCalendar(ev, mode) {
   if (!ev.date || ev.date === "TBD") return;
   const pad = n => String(n).padStart(2,"0");
   const toGCal = (d,t) => { const dt = new Date(d+"T"+(t||"00:00")); return dt.getFullYear()+pad(dt.getMonth()+1)+pad(dt.getDate())+"T"+pad(dt.getHours())+pad(dt.getMinutes())+"00"; };
@@ -1689,7 +1757,7 @@ function addToCalendar(ev) {
     location: loc,
   });
   const isOccurrence = ev.id && ev.id.startsWith("recurring-");
-  if (!isOccurrence) {
+  if (mode === "series" || (mode === undefined && !isOccurrence)) {
     if (ev.recurFreq === "weekly") {
       const day = ["SU","MO","TU","WE","TH","FR","SA"][new Date(ev.date+"T12:00").getDay()];
       params.append("recur", "RRULE:FREQ=WEEKLY;BYDAY="+day);
@@ -1918,6 +1986,7 @@ function finishRsvp() {
   closeRsvpModal();
   applyRegisteredUI();
   showToast("✓ You're registered!");
+  try { cwCalAsk(_currentEv); } catch (err) {}
 }
 
 var _viewerIntake = null;
