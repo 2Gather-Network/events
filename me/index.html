@@ -1529,11 +1529,11 @@
     var _u=({0:'needs',1:'joys',2:'skills',3:'cares'})[step]||'items';
     var _lnk=String(tagsHtml||'')+String(extra||'');
     var _cw=_n+' '+(_n===1?_u.replace(/s$/,''):_u);
-    var _cnt=(_PVQ&&_n)?(_lnk.indexOf('class="pv-line"')>-1?'<button type="button" class="pv-count pv-countlink" aria-expanded="false">'+_cw+'</button>':'<div class="pv-count">'+_cw+'</div>'):'';
+    var _cnt=(_PVQ&&_n)?(_lnk.indexOf('class="pv-line"')>-1?'<button type="button" class="pv-count pv-countlink" aria-expanded="false" aria-label="More: '+_cw+'">More</button>':'<div class="pv-count">'+_cw+'</div>'):'';
     return '<div class="pv-section'+(label==="What I'm seeking"?' pv-seek':'')+(label==='What I care about'?' pv-care':'')+'"><div class="pv-section-header"><div class="pv-section-label">'+label+'</div>'+_cnt
       +(canEdit?'<button class="pv-edit" data-step="'+step+'">✏️ Edit</button>':'')+'</div>'
       +(tagsHtml?'<div class="pv-tags">'+tagsHtml+'</div>':'')+(extra||'')
-      +(_cnt.indexOf('pv-countlink')>-1?'<div class="pv-solo-back"><button type="button" class="pv-backbtn">Back to profile</button></div>':'')+'</div>';
+      +'</div>';
   }
   function pvOffer(name, emoji, kind, extra){
     extra=extra||{};
@@ -1591,21 +1591,27 @@
       var l=b.parentNode, open=l.classList.toggle('open');
       b.textContent=open?'Fewer':'More';
     });
+    var _soloBar=function(cls){ var d=document.createElement('div'); d.className='pv-solo-bar '+cls; d.innerHTML='<button type="button" class="pv-backbtn">Back to profile</button>'; return d; };
+    var _soloOff=function(cardEl){ if(!cardEl) return; cardEl.classList.remove('pv-solo'); cardEl.querySelectorAll('.pv-solo-bar').forEach(function(x){ x.remove(); }); var o=cardEl.querySelector('.pv-section.pv-open'); if(o){ o.classList.remove('pv-open'); var cl=o.querySelector('.pv-countlink'); if(cl){ cl.setAttribute('aria-expanded','false'); } } };
     document.addEventListener('click',function(e){
       var c=e.target&&e.target.closest?e.target.closest('.pv-countlink'):null;
       if(!c) return;
-      var sec=c.closest('.pv-section'), on=sec.classList.toggle('pv-open');
-      c.setAttribute('aria-expanded',on?'true':'false');
-      var cardEl=sec.closest('.pv-card'); if(cardEl){ cardEl.classList.toggle('pv-solo',on); }
-      if(on){ try{ window.scrollTo(0,0); }catch(x){} }
+      var sec=c.closest('.pv-section'), cardEl=sec.closest('.pv-card'), on=!sec.classList.contains('pv-open');
+      if(!on){ _soloOff(cardEl); return; }
+      sec.classList.add('pv-open');
+      c.setAttribute('aria-expanded','true');
+      if(cardEl){
+        cardEl.classList.add('pv-solo');
+        var q4=cardEl.querySelector('.pv-q4');
+        if(q4){ cardEl.insertBefore(_soloBar('pv-solo-top'),q4); cardEl.appendChild(_soloBar('pv-solo-bot')); }
+      }
+      try{ window.scrollTo(0,0); }catch(x){}
     });
     document.addEventListener('click',function(e){
       var bb=e.target&&e.target.closest?e.target.closest('.pv-backbtn'):null;
       if(!bb) return;
-      var sec2=bb.closest('.pv-section'); if(!sec2) return;
-      sec2.classList.remove('pv-open');
-      var cl=sec2.querySelector('.pv-countlink'); if(cl){ cl.setAttribute('aria-expanded','false'); }
-      var c2=sec2.closest('.pv-card'); if(c2){ c2.classList.remove('pv-solo'); }
+      var c2=bb.closest('.pv-card'); if(!c2) return;
+      _soloOff(c2);
       try{ window.scrollTo(0,0); }catch(x){}
     });
   }
@@ -1632,7 +1638,8 @@
     var expr=pvWrap(_ex.map(function(x){ return pvTag(x); }).join(''), 'What expresses me');
     var methods=pvWrapLine(SKILL_METHODS_ON.map(function(m){ return pvTag(m,{cats:pvCats(m),noSub:true}); }).join(''), '');
     var _langs=String((_loaded&&_loaded.languages)||'').split(/[|,]/).map(function(x){ return x.trim(); }).filter(Boolean);
-    var _skHtml=pvWrap(_noCats(SKILLS_ADDED,function(x){return x.t;}).filter(function(s){ return !!String(s.level||'').trim(); }).map(function(s){ return pvTag(s.t, {level:s.level, cats:pvCats(s.t), noSub:true}); }).join(''), '');
+    var _enjSet={}, _wkSet={}; ENJOY_ADDED.forEach(function(e){ _enjSet[String(e.t||'').trim().toLowerCase()]=1; }); WORK_SKILLS.forEach(function(w){ _wkSet[String(w).split(':')[0].trim().toLowerCase()]=1; });
+    var _skHtml=pvWrap(_noCats(SKILLS_ADDED,function(x){return x.t;}).filter(function(s){ var k=String(s.t||'').trim().toLowerCase(); return !!String(s.level||'').trim() && !(_enjSet[k] && !_wkSet[k]); }).map(function(s){ return pvTag(s.t, {level:s.level, cats:pvCats(s.t), noSub:true}); }).join(''), '');
     var skills=_skHtml?'<div class="pv-skills">'+_skHtml+'</div>':'';
     var langsHtml=pvWrap(_langs.map(function(l){ return pvTag(l); }).join(''), '');
     var vals=pvWrap(_noCats(VALUES_ADDED,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl, cats:pvCats(v.t)}); }).join(''), '');
@@ -1710,7 +1717,7 @@
       +window.cwOfferStrip(_offerCards)
       +'<div class="pv-q4">'
       +pvSection("What I'm seeking",0,seeking,pvSaid('need',_pillsNeeds))
-      +pvSection('What I can do',2,'',(function(){ var f=pvWrap(WORK_SKILLS.map(function(w){ return pvTag(w,{cats:pvCats(w),noSub:true}); }).join(''), ''); return f?'<div class="pv-focus"><div class="pv-grp-h">Focus of work</div>'+f+'</div>':''; })()+pvGrp('Working methods',methods)+pvGrp('Skills',skills)+pvSaid('skills',_pillsSkills)+pvGrp('Gig work',pvWrap(GIG_WORK.map(function(w){ return pvTag(w,{cats:pvCats(w),noSub:true}); }).join(''), ''))+pvGrp('Languages',langsHtml)+pvWrap(OPPORTUNITIES.map(function(w){ return pvTag(w,{cats:pvCats(w),noSub:true}); }).join(''), 'Open to opportunities'))
+      +pvSection('What I can do',2,'',(function(){ var f=pvWrap(WORK_SKILLS.map(function(w){ return pvTag(w,{cats:pvCats(w),noSub:true}); }).join(''), ''); return f?'<div class="pv-focus"><div class="pv-grp-h">Focus of work</div>'+f+'</div>':''; })()+pvGrp('Working methods',methods)+pvGrp('Skills',skills)+pvSaid('skills',_pillsSkills)+pvWrap(OPPORTUNITIES.concat(GIG_WORK).map(function(w){ return pvTag(w,{cats:pvCats(w),noSub:true}); }).join(''), 'Open to opportunities')+pvGrp('Languages',langsHtml))
       +pvSection('What I enjoy',1,enjoy,pvSaid('enjoy',_pillsEnjoy)+expr)
       +pvSection('What I care about',3,'',vals+doms+pvWrap((WAYS_OF_BEING||[]).map(function(t){ return pvTag(t); }).join(''), 'What people can count on from me')+pvWrap((WORK_VALUES_ADDED||[]).map(function(t){ return pvTag(t); }).join(''), 'Work values')+purposeHtml+pvSaid('values',_noCats(VALUES_ADDED,function(x){return x.t;}).map(function(x){return x.t;}).concat(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(x){return x.t;}),WORK_VALUES_ADDED||[])))
       +'</div>'
@@ -2621,8 +2628,9 @@
   .pv-focus{margin-bottom:10px;}
   .pv-grp-h{display:none;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6B7A8D;margin:0 0 6px;}
   .pv-section.pv-open .pv-grp-h{display:block;}
-  .pv-solo-back{display:none;margin-top:14px;}
-  .pv-section.pv-open .pv-solo-back{display:block;}
+  .pv-section.pv-open .pv-countlink{display:none;}
+  .pv-solo-bar{margin:0 0 12px;}
+  .pv-solo-bar.pv-solo-bot{margin:12px 0 0;}
   .pv-backbtn{font:inherit;font-size:14px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #C9DFF3;border-radius:20px;padding:8px 18px;cursor:pointer;}
   .pv-card.pv-solo .pv-head,.pv-card.pv-solo .pv-ribbon,.pv-card.pv-solo .pv-offer-btnrow,.pv-card.pv-solo .pv-section:not(.pv-open),.pv-card.pv-solo #pv-common-out{display:none;}
   .pv-card.pv-solo .pv-q4{grid-template-columns:1fr;}
