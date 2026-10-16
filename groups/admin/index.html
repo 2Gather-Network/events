@@ -204,10 +204,10 @@
         <div class="tabs" id="tabs">
           <div class="tabs-label">Manage this group</div>
           <div class="tab on" data-tab="members">Members<span id="tab-mem-count"></span></div>
-          <div class="tab" data-tab="requests">Requests<span id="tab-req-count"></span></div>
+          <div class="tab" data-tab="requests" id="tab-requests-btn" style="display:none;">Requests<span id="tab-req-count"></span></div>
           <div class="tab" data-tab="invite">Invite</div>
           <div class="tab" data-tab="info">Group info</div>
-          <div class="tab" data-tab="danger">Permanent changes</div>
+          <div class="tab" data-tab="danger">Permanent change</div>
           <div class="tabs-label tabs-label-mine">Only you see this</div>
           <div class="tab tab-mine" data-tab="permissions">My settings in this group</div>
         </div>
@@ -268,7 +268,7 @@
     </div>
 
     <div id="tab-invite" class="card hidden waiting">
-      <h2>Invite people</h2>
+      <h2 id="invite-title">Invite people</h2>
       <div id="invite-waiting" style="display:flex;justify-content:flex-start;margin:2px 0 12px;">
         <span class="cw-loading" style="background:var(--brand);color:#fff;">Loading information...</span>
       </div>
@@ -328,7 +328,7 @@
     </div>
 
     <div id="tab-info" class="card hidden waiting">
-      <h2>Edit group info</h2>
+      <h2 id="info-title">Edit group info</h2>
       <div id="info-waiting" style="display:flex;justify-content:flex-start;margin:2px 0 12px;">
         <span class="cw-loading" style="background:var(--brand);color:#fff;">Loading information...</span>
       </div>
@@ -475,16 +475,9 @@
     <div id="tab-permissions" class="card hidden"><h2>My settings in this group</h2><div class="help" style="margin:0 0 12px;">These are your own choices as a member of this group. They do not change the group for anyone else.</div><div id="gp-permissions-host"></div></div>
 
     <div id="tab-danger" class="card hidden">
-      <h2 style="color:var(--danger);">Permanent changes</h2>
-      <p class="lede">Each of these re-checks your admin PIN before it runs. Transferring the group and archiving it cannot be undone.</p>
+      <h2 style="color:var(--danger);">Permanent change</h2>
+      <p class="lede">Archiving a group cannot be undone. To change the group passcode, open Group info.</p>
 
-      <div class="row" style="align-items:flex-start;flex-wrap:wrap;">
-        <div class="who">
-          <div class="name">Reset passcode</div>
-          <div class="sub">Sends a new passcode to your email. Anyone with the old one can no longer join.</div>
-        </div>
-        <button class="btn danger sm" id="danger-reset">Reset passcode</button>
-      </div>
       <div class="row" style="align-items:flex-start;flex-wrap:wrap;">
         <div class="who">
           <div class="name">Archive group</div>
@@ -807,6 +800,7 @@
           var _isn = document.getElementById('invite-sent-wrap'); if (_isn) { _isn.classList.remove('hidden'); try { loadInvitesSent(); } catch (e) {} }
         }
         document.getElementById('e-name').value = g.name || '';
+        (function(){ var n = String(g.name || '').trim(); if (!n) return; var it = document.getElementById('info-title'); if (it) it.textContent = 'Edit ' + n + ' info'; var iv = document.getElementById('invite-title'); if (iv) iv.textContent = 'Invite people to ' + n; })();
         (function(){ var sl = document.getElementById('e-slug'); if (sl) { sl.value = String(g.slug || '').split(',')[0].trim(); sl.setAttribute('data-was', sl.value); } })();
         document.getElementById('e-description').value = g.description || g.intro || '';
         document.getElementById('e-image').value = g.image || '';
@@ -1525,7 +1519,7 @@
     if (!title || !panel) return;
     var h = panel.querySelector('h2');
     var FALLBACK = { members:'Members', requests:'Request to join', invite:'Invite people',
-                     info:'Edit group info', permissions:'My settings in this group', danger:'Permanent changes' };
+                     info:'Edit group info', permissions:'My settings in this group', danger:'Permanent change' };
     if (_panelTitle) title.textContent = _panelTitle;
     if (sub) sub.textContent = (h && h.textContent.trim()) || FALLBACK[name] || '';
     var head = document.getElementById('dash-head');
@@ -1751,6 +1745,7 @@
         var reqs = (d && d.requests) || [];
         var asks = (d && d.joinRequests) || [];
         document.getElementById('tab-req-count').textContent = ' (' + (reqs.length + asks.length) + ')';
+        (function(){ var tb = document.getElementById('tab-requests-btn'); var ap = document.getElementById('e-approve'); if (tb) tb.style.display = ((reqs.length + asks.length) > 0 || (ap && ap.checked)) ? '' : 'none'; })();
         document.getElementById('req-heading').textContent = reqs.length
           ? (reqs.length + (reqs.length === 1 ? ' person needs the passcode' : ' people need the passcode'))
           : 'There are no requests to join this group at this time.';
@@ -2599,24 +2594,6 @@
         showStatus('danger-status', 'err', 'That is not built yet.');
       });
   }
-  document.getElementById('danger-reset').addEventListener('click', function(){
-    if (!confirm('Reset the passcode? Anybody holding the old one can no longer join. The new one is emailed to you.')) return;
-    var tok = getToken() || '';
-    showStatus('danger-status', 'ok', 'Making a new passcode…');
-    fetch(GS_URL + '?action=resetGroupPasscode&groupId=' + encodeURIComponent(groupId)
-          + '&hostAppearId=' + encodeURIComponent(meId) + '&sessionToken=' + encodeURIComponent(tok))
-      .then(function(r){ return r.json(); }).then(keepFreshToken)
-      .then(function(d){
-        if (d && d.status === 'ok') {
-          showStatus('danger-status', 'ok', d.emailed
-            ? ('Done. The new passcode is on its way to ' + (d.sentTo || 'your email') + '.')
-            : 'Done, but we have no address to send it to. Ask for it another way.');
-        } else {
-          showStatus('danger-status', 'err', (d && d.message) ? d.message : 'That did not go through.');
-        }
-      })
-      .catch(function(){ showStatus('danger-status', 'err', 'Could not reach the server.'); });
-  });
   document.getElementById('invite-copy').addEventListener('click', function(){
     var box = document.getElementById('invite-text');
     box.select();
