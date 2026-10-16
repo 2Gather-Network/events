@@ -74,7 +74,7 @@
     clearTimeout(saveT);
     saveT = setTimeout(function () {
       var qs = 'action=savePermissions&appearId=' + encodeURIComponent(ctx.meId) + '&editToken=' + encodeURIComponent(token())
-        + '&audience=' + encodeURIComponent(ctx.groupId) + '&nameShown=' + encodeURIComponent(state.name) + '&placeShown=' + encodeURIComponent(state.where);
+        + '&audience=' + encodeURIComponent(ctx.groupId) + '&placeShown=' + encodeURIComponent(state.where);
       fetch(GS + '?' + qs).then(function (r) { return r.json(); }).then(function (d) {
         say(d && d.status === 'ok' ? '' : 'Please press a choice again, because it did not save.', !(d && d.status === 'ok'));
       }).catch(function () { say('Please press a choice again, because it did not save.', true); });
