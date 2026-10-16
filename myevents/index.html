@@ -1354,15 +1354,18 @@ A weekly conversation about money, values, and what abundance looks like. Bring 
         <button type="button" class="format-chip selected" id="snotes-off" onclick="setSharedNotesEnabled(false)" style="flex:1;">Off</button>
         <button type="button" class="format-chip" id="snotes-on" onclick="setSharedNotesEnabled(true)" style="flex:1;">On</button>
       </div>
+      <p id="snotes-state" style="font-size:12.5px;color:var(--primary);font-weight:700;margin:6px 0 0;"></p>
     </div>
 
     <div class="field" id="occurrence-note-field" style="display:none;">
-      <label class="field-label">Note for this occurrence</label>
-      <textarea class="textarea" id="f-occurrence-note" oninput="_occShowDate()" placeholder="Example: Location change this week only..." style="min-height:80px;"></textarea>
+      <a role="button" tabindex="0" id="occ-link" onclick="_occOpen()" onkeydown="if(event.key==='Enter'||event.key===' '){_occOpen();event.preventDefault();}" style="color:var(--primary);font-weight:700;font-size:14px;cursor:pointer;text-decoration:underline;">Add a note for one date only</a>
+      <p class="field-help" style="font-size:12px;color:var(--muted);margin:4px 0 0;">Example: Location change this week only. It shows above the description on that date, then clears.</p>
+      <textarea class="textarea" id="f-occurrence-note" oninput="_occShowDate()" style="min-height:80px;display:none;margin-top:8px;"></textarea>
     </div>
 
     <div class="field" id="field-host-note" style="display:none;">
       <a role="button" tabindex="0" id="hn-link" onclick="_hnOpen()" onkeydown="if(event.key==='Enter'||event.key===' '){_hnOpen();event.preventDefault();}" style="color:var(--primary);font-weight:700;font-size:14px;cursor:pointer;text-decoration:underline;">Leave updated note for people who register</a>
+      <p class="field-help" style="font-size:12px;color:var(--muted);margin:4px 0 0;">Stays on the event for people who register.</p>
       <textarea class="textarea" id="f-host-note" style="min-height:80px;display:none;margin-top:8px;"></textarea>
     </div>
 
@@ -3859,7 +3862,7 @@ function openModal(skipDraft = false) {
   const hlErr = document.getElementById("hostlink-error"); if(hlErr) hlErr.style.display = "none";
   const cancelReset = document.getElementById("f-cancelled"); if(cancelReset) cancelReset.checked = false;
   const cancelLblReset = document.getElementById("cancel-all-label"); if(cancelLblReset) cancelLblReset.textContent = "Mark as cancelled";
-  const occNoteReset = document.getElementById("f-occurrence-note"); if(occNoteReset) occNoteReset.value = "";
+  const occNoteReset = document.getElementById("f-occurrence-note"); if(occNoteReset) occNoteReset.value = ""; _occSync();
   const occNoteFieldReset2 = document.getElementById("occurrence-note-field"); if(occNoteFieldReset2) occNoteFieldReset2.style.display = "none";
   const cancelOccFieldReset = document.getElementById("cancel-occurrence-field"); if(cancelOccFieldReset) cancelOccFieldReset.style.display = "none";
   const cancelOccReset = document.getElementById("f-cancel-occurrence"); if(cancelOccReset) cancelOccReset.checked = false;
@@ -4240,7 +4243,7 @@ function loadEditForm(id) {
   const occNoteField = document.getElementById("occurrence-note-field");
   const occNoteEl = document.getElementById("f-occurrence-note");
   if (occNoteField) occNoteField.style.display = (found.isRecurring && _signedInSuper()) ? "block" : "none";
-  if (occNoteEl) { const _occN = _occChosenId(); const noteRow = _occN ? events.find(e => e.id === "occ-note-" + _occN) : null; occNoteEl.value = noteRow ? (noteRow.description || "") : ""; }
+  if (occNoteEl) { const _occN = _occChosenId(); const noteRow = _occN ? events.find(e => e.id === "occ-note-" + _occN) : null; occNoteEl.value = noteRow ? (noteRow.description || "") : ""; _occSync(); }
   try { _occShowDate(); } catch (e) {}
   recurFreq = ev.recurFreq || (found.isRecurring ? "weekly" : null);
   _seriesFreqOnLoad = recurFreq;   
@@ -4760,6 +4763,18 @@ function toggleContribEnabled(cb){
   if (pp) pp.style.display = (cb.checked && editingId) ? "block" : "none";
 }
 
+function _occOpen() {
+  var t = document.getElementById("f-occurrence-note"), l = document.getElementById("occ-link");
+  if (!t) return;
+  t.style.display = "block"; if (l) l.style.display = "none";
+  try { t.focus(); } catch (e) {}
+}
+function _occSync() {
+  var t = document.getElementById("f-occurrence-note"), l = document.getElementById("occ-link");
+  if (!t) return;
+  var has = !!t.value.trim();
+  t.style.display = has ? "block" : "none"; if (l) l.style.display = has ? "none" : "";
+}
 function _hnOpen() {
   var t = document.getElementById("f-host-note"), l = document.getElementById("hn-link");
   if (!t) return;
@@ -4774,6 +4789,8 @@ function _hnSync() {
 }
 function setSharedNotesEnabled(val) {
   sharedNotesEnabled = val;
+  var _sn = document.getElementById("snotes-state");
+  if (_sn) { _sn.textContent = val ? "Shared notes are on. A shared text area shows on the event page." : ""; }
   document.getElementById("snotes-off")?.classList.toggle("selected", !val);
   document.getElementById("snotes-on")?.classList.toggle("selected", !!val);
 }
@@ -6485,7 +6502,7 @@ function _occShowDate() {
 }
 function _occDateChanged() {
   var id = _occChosenId(), note = document.getElementById("f-occurrence-note");
-  if (note && !note.value.trim() && id) { var nr = events.find(function (e) { return e.id === "occ-note-" + id; }); if (nr) note.value = nr.description || ""; }
+  if (note && !note.value.trim() && id) { var nr = events.find(function (e) { return e.id === "occ-note-" + id; }); if (nr) { note.value = nr.description || ""; _occSync(); } }
 }
 async function _askRepeatingDelete(ev) {
   var title = (ev && ev.title) || "";
