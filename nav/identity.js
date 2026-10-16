@@ -184,7 +184,7 @@
 
     var OPEN = onCW
       ? ['/', '/terms-of-service', '/privacy-policy', '/code-of-conduct', '/ops', '/vision', '/license']
-      : ['/signin', '/signup', '/signin-google'];
+      : ['/signin', '/signup', '/signin-google', '/event'];
 
     var asked = ls(function () { return new URLSearchParams(w.location.search).get('lock'); }, null);
     if (asked !== null) {
