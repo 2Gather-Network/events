@@ -130,6 +130,7 @@
                   font-size:13px; font-weight:700; padding:8px 16px; border-radius:20px;
                   white-space:nowrap; animation:cw-breathe 1.6s ease-in-out infinite; }
     @keyframes cw-breathe { 0%,100% { opacity:1 } 50% { opacity:.62 } }
+    .toast.busy { animation:cw-breathe 1.6s ease-in-out infinite; }
     #ev-wait-copy { margin:14px auto 0; max-width:34ch; font-size:12.5px; line-height:1.5;
                     color:var(--muted); text-align:center; }
     .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:100; align-items:center; justify-content:center; padding:20px; }
@@ -1688,15 +1689,15 @@ function cwCalAsk(ev) {
   try { dateLabel = new Date(ev.date + "T12:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); } catch (e) {}
   var every = rep === "monthly" ? "Every month" : "Every week";
   var btn = "background:#fff;border:1.5px solid var(--border);color:var(--dark);font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;cursor:pointer;font-family:inherit;";
-  o.innerHTML = '<div role="dialog" aria-modal="true" aria-labelledby="cw-cal-ask-q" style="background:#fff;border-radius:14px;padding:22px 22px 18px;width:calc(100% - 32px);max-width:360px;font-family:inherit;">'
-    + '<p id="cw-cal-ask-q" style="font-size:16px;font-weight:700;color:var(--dark);margin:0 0 14px;">Add to your calendar</p>'
+  o.innerHTML = '<div role="dialog" aria-modal="true" aria-labelledby="cw-cal-ask-q" style="position:relative;background:#fff;border-radius:14px;padding:22px 22px 18px;width:calc(100% - 32px);max-width:360px;font-family:inherit;">'
+    + '<button type="button" id="cw-cal-no" aria-label="Close" style="position:absolute;top:6px;right:6px;width:44px;height:44px;background:none;border:none;color:var(--muted);font-size:26px;line-height:1;cursor:pointer;font-family:inherit;">&times;</button>'
+    + '<p id="cw-cal-ask-q" style="font-size:16px;font-weight:700;color:var(--dark);margin:0 36px 14px 0;">Add to your calendar</p>'
     + (rep ? '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">'
       + '<label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;"><input type="radio" name="cw-cal-mode" value="one" checked> Just this one' + (dateLabel ? ' (' + dateLabel + ')' : '') + '</label>'
       + '<label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;"><input type="radio" name="cw-cal-mode" value="series"> ' + every + '</label></div>' : '')
     + '<div style="display:flex;flex-direction:column;gap:8px;">'
     + '<button type="button" id="cw-cal-google" style="' + btn + '">Google Calendar</button>'
     + '<button type="button" id="cw-cal-file" style="' + btn + '">Apple or Outlook (calendar file)</button>'
-    + '<button type="button" id="cw-cal-no" style="background:none;border:none;color:var(--muted);font-weight:700;font-size:13px;padding:8px;cursor:pointer;font-family:inherit;">No thanks</button>'
     + '</div></div>';
   document.body.appendChild(o);
   var mode = function () { var r = o.querySelector('input[name="cw-cal-mode"]:checked'); return r ? r.value : "one"; };
@@ -1882,11 +1883,26 @@ function showError(msg) {
   document.getElementById("card").innerHTML = `<div class="error">${esc(msg)}</div>`;
 }
 
+let _toastTimer = null;
 function showToast(msg) {
   const t = document.getElementById("toast");
   if (!t) return;
+  clearTimeout(_toastTimer);
+  t.classList.remove("busy");
   t.textContent = msg; t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 2500);
+  _toastTimer = setTimeout(() => t.classList.remove("show"), 2500);
+}
+function showToastBusy(msg) {
+  const t = document.getElementById("toast");
+  if (!t) return;
+  clearTimeout(_toastTimer);
+  t.textContent = msg; t.classList.add("show", "busy");
+}
+function hideToast() {
+  const t = document.getElementById("toast");
+  if (!t) return;
+  clearTimeout(_toastTimer);
+  t.classList.remove("show", "busy");
 }
 function showSignInToast() {
   const t = document.getElementById("toast");
@@ -2073,11 +2089,14 @@ async function loadWhoIsGoing() {
   try {
     const _viewer = getMemberId() || "";
     const _sess = (window.CW && CW.passParam) ? CW.passParam() : "";
+    const _wl = document.getElementById("who-is-going-list"), _ws = document.getElementById("who-is-going");
+    if (_wl && _ws && !_wl.innerHTML.trim()) { _wl.innerHTML = '<span class="cw-loading">Loading who is going</span>'; _ws.style.display = "block"; }
     const res = await fetch(`${GS_URL}?action=getAttendees&eventId=${encodeURIComponent(_currentEv.id)}` + (_viewer ? "&appearId=" + encodeURIComponent(_viewer) : "") + _sess);
     const data = await res.json();
     const list = document.getElementById("who-is-going-list");
     const section = document.getElementById("who-is-going");
     if (!data.attendees || data.attendees.length === 0) {
+      if (!(Number(data.count) > 0) && section) { section.style.display = "none"; list.innerHTML = ""; }
       const _n = Number(data.count) || 0;
       if (_n > 0 && list && section) {
         list.innerHTML = '<span style="font-size:13px;color:var(--muted);">' + _n + ' going</span>';
@@ -2107,7 +2126,9 @@ async function loadWhoIsGoing() {
     const _hubUrl = "https://2gather.network/attendees?id=" + encodeURIComponent(_currentEv.id);
     list.innerHTML = '<div style="display:flex;align-items:center;">' + avatars + '<a href="' + _hubUrl + '" target="_top" aria-label="See everyone going - open the event hub" style="display:flex;align-items:center;text-decoration:none;color:inherit;cursor:pointer;">' + overflowBadge + count + '</a></div>';
     section.style.display = "block";
-  } catch(e) {}
+  } catch(e) {
+    try { var _wl2 = document.getElementById("who-is-going-list"), _ws2 = document.getElementById("who-is-going"); if (_wl2 && /cw-loading/.test(_wl2.innerHTML)) { _wl2.innerHTML = ""; if (_ws2) _ws2.style.display = "none"; } } catch (e2) {}
+  }
 }
 
 function _askCancelRsvp() {
@@ -2148,9 +2169,11 @@ async function cancelRsvp(asked) {
   if (!_currentEv) return;
   if (asked !== true) { _askCancelRsvp(); return; }
   const appearId = _rsvpAppearId || getMemberId() || "";
+  showToastBusy("Cancelling RSVP...");
   try {
     await fetch(`${GS_URL}?action=cancelRsvp&appearId=${encodeURIComponent(appearId)}&eventId=${encodeURIComponent(_currentEv.id)}`);
   } catch(e) {  }
+  hideToast();
   applyUnregisteredUI();
   const cancelledMsg = document.getElementById("rsvp-cancelled-msg");
   if (cancelledMsg) cancelledMsg.style.display = "block";

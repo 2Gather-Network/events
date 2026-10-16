@@ -509,6 +509,7 @@
     <div id="rec-head" style="display:none;align-items:center;flex-wrap:wrap;column-gap:8px;row-gap:2px;margin-bottom:2px;">
       <span style="font-size:15px;font-weight:800;color:var(--dark);white-space:nowrap;">Recommended matches</span>
       <button class="fbar-i" onclick="toggleRecWhy()" aria-label="Why these are here">i</button>
+      <span id="rec-count" style="margin-left:auto;font-size:13px;color:var(--primary);font-weight:700;"></span>
     </div>
     <div id="rec-why" style="display:none;font-size:13px;color:var(--muted);background:#F7FBFF;border:1px solid #C9DFF3;border-radius:8px;padding:8px 10px;margin-bottom:8px;">
       These are recommended based on your interests and filters such as location and event format.
@@ -3219,13 +3220,13 @@ function _applyChipDims(baseListForCat, baseListForMood, everything) {
   var catCounts = {};
   baseListForCat.forEach(function(e) {
     var cats = Array.isArray(e.categories) ? e.categories : [e.category].filter(Boolean);
-    cats.map(function(c) { var cat = resolveCategory(c); return cat ? cat.label : c; })
+    (CATEGORIES.length ? cwEventCats.map(cats, CATEGORIES) : cats)
         .forEach(function(lbl) { catCounts[lbl] = (catCounts[lbl] || 0) + 1; });
   });
   var catTotals = {};
   (everything || []).forEach(function (e) {
     var cs = Array.isArray(e.categories) ? e.categories : [e.category].filter(Boolean);
-    cs.map(function (c) { var cat = resolveCategory(c); return cat ? cat.label : c; })
+    (CATEGORIES.length ? cwEventCats.map(cs, CATEGORIES) : cs)
       .forEach(function (lbl) { catTotals[lbl] = (catTotals[lbl] || 0) + 1; });
   });
   document.querySelectorAll("#cat-pills .cat-pill").forEach(function(btn) {
@@ -3249,6 +3250,18 @@ function _applyChipDims(baseListForCat, baseListForMood, everything) {
       btn.textContent = base + "  " + txt;
     }
   });
+  try {
+    var _pc = document.getElementById("cat-pills");
+    var _rows = [].slice.call(_pc.querySelectorAll(".cat-row")).filter(function (r) { return !r.querySelector("[data-cat-all]"); });
+    _rows.sort(function (ra, rb) {
+      var la = ra.querySelector("[data-cat-label]").getAttribute("data-cat-label"), lb = rb.querySelector("[data-cat-label]").getAttribute("data-cat-label");
+      var d = (catCounts[lb] || 0) - (catCounts[la] || 0);
+      if (d) return d;
+      d = (catTotals[lb] || 0) - (catTotals[la] || 0);
+      return d || String(la).localeCompare(String(lb));
+    });
+    _rows.forEach(function (r) { _pc.appendChild(r); });
+  } catch (e) {}
   var moodCounts = { connected:0, expressed:0, nourished:0, energized:0, playful:0, rested:0 };
   baseListForMood.forEach(function(e) {
     var expList = String(e.experience || "").toLowerCase().split(",").map(function(s){return s.trim();});
@@ -7513,6 +7526,7 @@ function _fyInviteAdd() {
 }
 
 function renderForYou() {
+  try { var _rc0 = document.getElementById("rec-count"); if (_rc0) _rc0.textContent = ""; } catch (e) {}
   const interests = loadInterests();
   const activeEl = document.getElementById("for-you-active");
   if (!activeEl) return;
@@ -7642,7 +7656,7 @@ function renderForYou() {
       return;
     }
     resultsEl.innerHTML = (_fyHidden > 0)
-      ? `<div style="font-size:13px;color:var(--primary);font-weight:700;padding:2px 0;">(0)</div>`
+      ? (function () { var _rc = document.getElementById("rec-count"); if (_rc) { _rc.textContent = "(0)"; return ""; } return `<div style="text-align:right;font-size:13px;color:var(--primary);font-weight:700;padding:2px 0;">(0)</div>`; })()
       : `<div style="padding:6px 0 2px;">
            <div style="font-size:13px;color:var(--muted);margin-bottom:10px;">No upcoming events match your interests yet. Add them here (or in Filters &gt; Interests) and matching events will appear here over time.</div>
            <div style="display:flex;gap:8px;flex-wrap:wrap;">
