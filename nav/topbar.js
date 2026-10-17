@@ -30,12 +30,12 @@
   var HIDE_INSIDE_GLIDE = true;   
 
   var LOGO     = 'https://2gather.network/images/2gather_logo.png';
-  var SEED_SVG = '<svg class="cwtb-seed" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M12 22v-9" fill="none" stroke="#6FA83A" stroke-width="2" stroke-linecap="round"/><path d="M12 13C12 8 8 5 3 5c0 5 3 8 9 8z" fill="#58A03C"/><path transform="rotate(-5 12 14)" d="M12 14c0-5 4-9 10-9 0 6-4 9-10 9z" fill="#7FC241"/></svg>';
+  var SEED_SVG = '<svg class="cwtb-seed" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M14 22.5Q10.5 18.5 12 13" fill="none" stroke="#6FA83A" stroke-width="2.2" stroke-linecap="round"/><path transform="rotate(-30 12 13)" d="M12 13C12 8 8 5 3 5c0 5 3 8 9 8z" fill="#58A03C"/><path transform="rotate(-5 12 14)" d="M12 14c0-5 4-9 10-9 0 6-4 9-10 9z" fill="#7FC241"/></svg>';
   var CW_LOGO  = 'data:image/svg+xml,' + encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
     '<stop offset="0" stop-color="#10B981"/><stop offset="1" stop-color="#3B82F6"/></linearGradient></defs>' +
     '<circle cx="18" cy="18" r="16" fill="none" stroke="url(#g)" stroke-width="2.5"/>' +
-    '<g transform="translate(9 9) scale(.75)"><path d="M12 22v-9" fill="none" stroke="#6FA83A" stroke-width="2" stroke-linecap="round"/><path d="M12 13C12 8 8 5 3 5c0 5 3 8 9 8z" fill="#58A03C"/><path transform="rotate(-5 12 14)" d="M12 14c0-5 4-9 10-9 0 6-4 9-10 9z" fill="#7FC241"/></g></svg>');
+    '<g transform="translate(9 9) scale(.75)"><path d="M14 22.5Q10.5 18.5 12 13" fill="none" stroke="#6FA83A" stroke-width="2.2" stroke-linecap="round"/><path transform="rotate(-30 12 13)" d="M12 13C12 8 8 5 3 5c0 5 3 8 9 8z" fill="#58A03C"/><path transform="rotate(-5 12 14)" d="M12 14c0-5 4-9 10-9 0 6-4 9-10 9z" fill="#7FC241"/></g></svg>');
   function onCreatingWorks() { try { return (window.location.hostname || '').toLowerCase().indexOf('creating.works') > -1; } catch (e) { return false; } }
   var EVENTS   = 'https://2gather.network/events';
   var MYEVENTS = 'https://2gather.network/myevents/';
