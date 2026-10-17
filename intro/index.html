@@ -575,6 +575,7 @@
     var parts = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
     ta.value = parts.filter(function(p){ return p.toLowerCase() !== String(word).toLowerCase(); }).join(', ');
   }
+  function gpJoinNote(key, word){ if (gpIntMode()) { window._gpJoinAdded = window._gpJoinAdded || {}; (window._gpJoinAdded[key] = window._gpJoinAdded[key] || {})[String(word || '').trim()] = 1; } }
   function gpHasWord(key, word){
     return !!(_gpTags[key] && _gpTags[key][word] !== undefined);
   }
@@ -697,7 +698,19 @@
           rel.appendChild(line);
         });
       };
-      var paintG = function(){ btns.forEach(function(x){ x.b.style.cssText = pillCss(gpHasWord(key, x.w)); }); paintRel(); };
+      var xrow = document.createElement('div'); xrow.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;';
+      var paintG = function(){
+        btns.forEach(function(x){ x.b.style.cssText = pillCss(gpHasWord(key, x.w)); });
+        var listed = {}; btns.forEach(function(x){ listed[x.w.toLowerCase()] = 1; });
+        xrow.innerHTML = '';
+        Object.keys((window._gpJoinAdded && window._gpJoinAdded[key]) || {}).forEach(function(wd){
+          if (listed[wd.toLowerCase()] || !gpHasWord(key, wd)) return;
+          var xb = document.createElement('button'); xb.type = 'button'; xb.textContent = wd; xb.style.cssText = pillCss(true);
+          xb.addEventListener('click', function(){ gpDropWord(key, wd, ta); try { repaint(); } catch (e) {} paintG(); gpJoinKeep(g); });
+          xrow.appendChild(xb);
+        });
+        paintRel();
+      };
       list.forEach(function(pth){
         var parts = String(pth).split('\u203A').map(function(x){ return x.trim(); }), w = parts.pop();
         var b = document.createElement('button'); b.type = 'button'; var tn = document.createTextNode(w); b.appendChild(tn);
@@ -706,9 +719,10 @@
       });
       if (inInt) { var ob2 = document.createElement('button'); ob2.type = 'button'; ob2.textContent = '+ Other'; ob2.style.cssText = 'font:inherit;font-size:14px;font-weight:700;padding:8px 16px;border-radius:20px;cursor:pointer;line-height:1.25;background:#fff;color:#1F699E;border:1.5px solid #1F699E;'; ob2.addEventListener('click', function(){ sline.style.display = 'flex'; try { search.focus(); } catch (e) {} }); grow.appendChild(ob2); }
       gpRefOnce().then(function(rd){ var em = {}; ((rd && rd.topicCategories) || []).forEach(function(t){ if (t && t.label && t.emoji) { em[String(t.label).trim().toLowerCase()] = t.emoji; } }); btns.forEach(function(x){ var e = em[String(x.w).trim().toLowerCase()]; if (e && x.tn) { x.tn.nodeValue = e + ' ' + x.w; } }); }).catch(function(){});
-      gbox.appendChild(gl); gbox.appendChild(grow); gbox.appendChild(rel); gbox.style.display = '';
+      gbox.appendChild(gl); gbox.appendChild(grow); gbox.appendChild(xrow); gbox.appendChild(rel); gbox.style.display = '';
       if (!inInt) moreLab.style.display = '';
       box.addEventListener('click', function(){ setTimeout(function(){ paintG(); gpJoinKeep(g); }, 0); });
+      if (inInt) { gpIntHost(key).addEventListener('click', function(){ setTimeout(function(){ paintG(); gpJoinKeep(g); }, 0); }); }
       paintG(); gpJoinKeep(g);
       if (gsec !== 'cares') gpJoinWords().then(function(w){ W = w; paintRel(); });
     });
@@ -740,6 +754,7 @@
           for (var ci = 0; ci < corpus.length; ci++) {
             if (corpus[ci].word.toLowerCase() === word.toLowerCase()) { cat = corpus[ci].cat; break; }
           }
+          gpJoinNote(key, word);
           gpAddWord(key, word, cat, ta);
         }
         repaint();
@@ -819,11 +834,13 @@
           if (corpus[i].word.toLowerCase() === word.toLowerCase()) { hit = corpus[i]; break; }
         }
         if (hit) {
+          gpJoinNote(key, hit.word);
           gpAddWord(key, hit.word, hit.cat, ta);
           openOther();
           return;
         }
         if (!cfg.tagQ) {
+          gpJoinNote(key, word);
           gpAddWord(key, word, '', ta);
           openOther();
           return;
@@ -844,6 +861,7 @@
         opts.forEach(function(o){
           var ob = gpPill(o, false);
           ob.addEventListener('click', function(){
+            gpJoinNote(key, word);
             gpAddWord(key, word, o.replace(/^[^A-Za-z0-9]+/, '').trim(), ta);
             openOther();
           });
@@ -955,6 +973,7 @@
         r.innerHTML = '<div style="font-size:14.5px;font-weight:700;color:#1A2E42;">' + h.word + '</div>'
           + (h.cat ? '<div style="font-size:13px;color:#4B5A6D;">' + h.cat + '</div>' : '');
         r.addEventListener('click', function(){
+          gpJoinNote(key, h.word);
           gpAddWord(key, h.word, h.cat, ta);
           search.value = ''; results.innerHTML = ''; repaint();
         });
@@ -1337,7 +1356,7 @@
         blocks.thanks = gpThanksBlock();
       }
     });
-    var ORDER = [['photo', 'Required'], ['loc', 'Required'], ['lang', 'Required'], ['groupInterests', ''], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Optional'], ['introSkills', 'Required · at least one'], ['introOffer', 'Optional'], ['thanks', 'Required'], ['introNeed', 'Optional']];
+    var ORDER = [['photo', 'Required'], ['loc', 'Required'], ['lang', 'Required'], ['groupInterests', 'Required · at least one'], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Optional'], ['introSkills', 'Required · at least one'], ['introOffer', 'Optional'], ['thanks', 'Required'], ['introNeed', 'Optional']];
     ORDER.forEach(function(o, i){
       var b = blocks[o[0]]; if (!b) return;
       b.setAttribute('data-k', o[0]);
@@ -1379,18 +1398,18 @@
     var html = sel('gp-loc-region', GP_REGIONS, l.region, 'Select your region');
     if (l.region === 'North America') html += sel('gp-loc-country', GP_NA, l.country, 'Select country…');
     if (l.region === 'North America' && l.country === 'United States') html += sel('gp-loc-state', GP_US, l.state, 'Select state…');
-    var ab = l.state ? GP_US_ABBR[l.state] : '', waitCounty = !!(ab && !_gpPlaces);
+    var ab = l.state ? GP_US_ABBR[l.state] : '';
     if (ab) {
+      var cs = [], ci = [];
       if (_gpPlaces) {
-        var cs = (_gpPlaces.counties[ab] || []).slice().sort();
-        var ci = (_gpPlaces.cities[ab] || []).slice().filter(function(x, i, a){ return a.indexOf(x) === i; }).sort();
-        if (cs.length) html += sel('gp-loc-county', cs, _gpPlace.county, 'County (optional)');
-        if (cs.length && !_gpPlace.county) waitCounty = true;
-        else html += '<input id="gp-loc-city" list="gp-loc-cities" placeholder="City (optional)" value="' + gpEscL(_gpPlace.city) + '" style="' + ss + 'min-width:180px;">'
-          + '<datalist id="gp-loc-cities">' + ci.map(function(c){ return '<option value="' + gpEscL(c) + '">'; }).join('') + '</datalist>';
+        cs = (_gpPlaces.counties[ab] || []).slice().sort();
+        ci = (_gpPlaces.cities[ab] || []).slice().filter(function(x, i, a){ return a.indexOf(x) === i; }).sort();
       } else gpPlacesOnce();
+      if (cs.length) html += sel('gp-loc-county', cs, _gpPlace.county, 'County (optional)');
+      html += '<input id="gp-loc-city" list="gp-loc-cities" placeholder="City (optional)" value="' + gpEscL(_gpPlace.city) + '" style="' + ss + 'min-width:180px;">'
+          + '<datalist id="gp-loc-cities">' + ci.map(function(c){ return '<option value="' + gpEscL(c) + '">'; }).join('') + '</datalist>';
     }
-    if (l.region && !waitCounty) html += '<input id="gp-loc-postal" autocomplete="postal-code" placeholder="Postal code (optional)" value="' + gpEscL(_gpPlace.postal) + '" style="' + ss + 'min-width:150px;max-width:180px;">';
+    if (l.region && (l.country !== 'United States' || l.state)) html += '<input id="gp-loc-postal" autocomplete="postal-code" placeholder="Postal code (optional)" value="' + gpEscL(_gpPlace.postal) + '" style="' + ss + 'min-width:150px;max-width:180px;">';
     box.innerHTML = html;
     var on = function(id, fn){ var e = box.querySelector('#' + id); if (e) e.onchange = function(){ fn(e); }; };
     on('gp-loc-region', function(e){ _gpLoc = { region: e.value, country: e.value === 'North America' ? 'United States' : '', state: '' }; gpRenderLoc(); });
@@ -1704,7 +1723,8 @@
   var NEED = {
     photo: ['your photo', function(){ return !!document.querySelector('#gp-photo-face img'); }],
     postal: ['your postal code', function(){ return !!String((window._gpPlace && _gpPlace.postal) || '').trim(); }],
-    loc: ['where you are', function(){ return !!((window._gpLoc && (_gpLoc.country || _gpLoc.region)) || window._ioLocText); }],
+    loc: ['where you are', function(){ var L = window._gpLoc; if (L && L.country === 'United States' && !L.state && !window._ioLocText) { return false; } return !!((L && (L.country || L.region)) || window._ioLocText); }],
+    groupInterests: ['at least one interest', function(){ return ['introEnjoy', 'introValues', 'introSkills'].some(function(k){ var t = document.getElementById('gp-intro-' + k); return !!(t && t.value.trim()); }); }],
     lang: ['a language', function(){ return Object.keys(window._gpLangPicked || {}).some(function(k){ return _gpLangPicked[k]; }); }],
     introEnjoy: ['one thing you enjoy', function(){ var t = document.getElementById('gp-intro-introEnjoy'); return !!(t && t.value.trim()); }],
     introValues: ['one thing you care about', function(){ var t = document.getElementById('gp-intro-introValues'); return !!(t && t.value.trim()); }],
