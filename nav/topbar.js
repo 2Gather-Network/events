@@ -943,7 +943,7 @@
     star.textContent = '\u2B50';
     star.setAttribute('aria-label', 'Show the admin bar');
     star.title = 'Show the admin bar';
-    star.style.cssText = 'flex:0 0 auto;font-size:20px;line-height:1;background:none;border:0;padding:4px 8px;cursor:pointer;';
+    star.style.cssText = 'flex:0 0 auto;font-size:20px;line-height:1;background:none;border:0;padding:4px 8px;cursor:pointer;position:relative;left:5px;';
     star.onclick = function () { setFolded(false); };
     _starEl = star;
     var place = function () {
