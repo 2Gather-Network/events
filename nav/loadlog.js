@@ -111,11 +111,20 @@
   var chipOn = false;
   setInterval(function () {
     var c = d.querySelector('.cw-onechip');
-    var shown = !!(c && c.offsetParent !== null);
+    var shown = !!(c && c.getClientRects().length > 0);
     if (shown !== chipOn) {
       chipOn = shown;
       var pageVisible = !!d.querySelector('#searchInput, .cw-loading-shown, input[type=search]');
       add(shown ? 'chip  shows "' + c.textContent.trim() + '"' + (pageVisible ? '  (page is visible too)' : '') : 'chip  gone');
+      if (shown) {
+        var from = [].slice.call(d.querySelectorAll('.cw-loading')).filter(function (x) { return x !== c && x.offsetParent !== null; }).map(function (x) {
+          var p = x, path = [];
+          for (var i = 0; i < 3 && p && p.nodeType === 1; i++) { path.unshift(p.id ? '#' + p.id : p.tagName.toLowerCase()); p = p.parentNode; }
+          return path.join('>') + ' "' + x.textContent.trim().slice(0, 40) + '"';
+        });
+        var fm = d.getElementById('post-modal');
+        add('chip  from ' + (from.join(' | ') || 'nothing visible') + '  form ' + (fm ? ((fm.classList.contains('cw-mounted') ? 'mounted' : 'not mounted') + (fm.style.visibility === 'hidden' ? ', hidden' : ', visible')) : 'none'));
+      }
     }
   }, 500);
   w.addEventListener('error', function (e) { add('error  ' + (e.message || 'script error')); });

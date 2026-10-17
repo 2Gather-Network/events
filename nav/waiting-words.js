@@ -62,13 +62,17 @@
   var chip = null;
   var COPY = ['backgroundColor', 'color', 'fontFamily', 'fontSize', 'fontWeight', 'padding', 'borderRadius',
     'animationName', 'animationDuration', 'animationTimingFunction', 'animationIterationCount', 'boxShadow', 'border'];
+  function formOpen() {
+    var m = d.getElementById('post-modal');
+    return !!(m && m.classList.contains('cw-mounted') && m.style.visibility !== 'hidden' && m.style.display !== 'none');
+  }
   function sources() {
     var out = [], list = d.querySelectorAll('.cw-loading');
     for (var k = 0; k < list.length; k++) {
       var el = list[k];
       if (el === chip || (el.classList && el.classList.contains('cw-onechip'))) { continue; }
       if (released && released.has(el)) { continue; }
-      if (el.closest && el.closest('#manage-list') && d.querySelector('#post-modal.cw-mounted')) {
+      if (formOpen()) {
         el.classList.add('cw-loading-shown');
         el.style.visibility = '';
         continue;
