@@ -90,8 +90,6 @@
     var rl = rule();
     rl.name = 'full';
     var need = [];
-    if (rl.name === 'full') need.push('your full name');
-    if (rl.name === 'short') need.push('at least your first name and last initial');
     need.push('your location at the ' + rl.place + ' level');
     if (!ctx.boxId) box.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;line-height:1.5;margin:0 0 10px;', 'This group asks members to show ' + need.join(' and ') + ' to its members.'));
     box.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin:8px 0;', 'Your visible name'));
