@@ -30,11 +30,12 @@
   var HIDE_INSIDE_GLIDE = true;   
 
   var LOGO     = 'https://2gather.network/images/2gather_logo.png';
+  var SEED_SVG = '<svg class="cwtb-seed" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M12 22v-9" fill="none" stroke="#6FA83A" stroke-width="2" stroke-linecap="round"/><path d="M12 13C12 8 8 5 3 5c0 5 3 8 9 8z" fill="#58A03C"/><path transform="rotate(-5 12 14)" d="M12 14c0-5 4-9 10-9 0 6-4 9-10 9z" fill="#7FC241"/></svg>';
   var CW_LOGO  = 'data:image/svg+xml,' + encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
     '<stop offset="0" stop-color="#10B981"/><stop offset="1" stop-color="#3B82F6"/></linearGradient></defs>' +
     '<circle cx="18" cy="18" r="16" fill="none" stroke="url(#g)" stroke-width="2.5"/>' +
-    '<text x="18" y="24.5" text-anchor="middle" font-size="17">\u{1F331}</text></svg>');
+    '<g transform="translate(9 9) scale(.75)"><path d="M12 22v-9" fill="none" stroke="#6FA83A" stroke-width="2" stroke-linecap="round"/><path d="M12 13C12 8 8 5 3 5c0 5 3 8 9 8z" fill="#58A03C"/><path transform="rotate(-5 12 14)" d="M12 14c0-5 4-9 10-9 0 6-4 9-10 9z" fill="#7FC241"/></g></svg>');
   function onCreatingWorks() { try { return (window.location.hostname || '').toLowerCase().indexOf('creating.works') > -1; } catch (e) { return false; } }
   var EVENTS   = 'https://2gather.network/events';
   var MYEVENTS = 'https://2gather.network/myevents/';
@@ -129,7 +130,7 @@
         return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
       el.className = 'cwtb-me';
       el.setAttribute('title', 'Yours');
-      el.innerHTML = '<span class="cwtb-me-name">' + e3(n) + ' \u{1F331}</span>'
+      el.innerHTML = '<span class="cwtb-me-name">' + e3(n) + ' ' + SEED_SVG + '</span>'
         + '<span class="cwtb-face" style="' + INITIALS_CSS + '">' + e3(initialsOf(n)) + '</span>';
     } catch (e) {}
   }
@@ -284,11 +285,11 @@
     if (!atDoor && me() && !_tkExpired && window.CW_TOPBAR_PHOTO) {
       var nm = myName();
       photo = '<span role="button" tabindex="0" class="cwtb-me" title="Yours" aria-expanded="false" data-menu="me">' +
-              (nm ? '<span class="cwtb-me-name">' + esc2(nm) + ' \u{1F331}</span>' : '') +
+              (nm ? '<span class="cwtb-me-name">' + esc2(nm) + ' ' + SEED_SVG + '</span>' : '') +
               '<span class="cwtb-face"><img src="' + window.CW_TOPBAR_PHOTO + '" alt=""></span></span>';
     } else if (!atDoor && me() && !_tkExpired && myName()) {
       photo = '<span role="button" tabindex="0" class="cwtb-me" title="Yours" aria-expanded="false" data-menu="me">' +
-              '<span class="cwtb-me-name">' + esc2(myName()) + ' \u{1F331}</span>' +
+              '<span class="cwtb-me-name">' + esc2(myName()) + ' ' + SEED_SVG + '</span>' +
               '<span class="cwtb-face" style="' + INITIALS_CSS + '">' + esc2(initialsOf(myName())) + '</span></span>';
     } else if (!atDoor && me() && !_tkExpired) {
       photo = '<span role="button" tabindex="0" class="cwtb-me cwtb-mine" title="Yours" ' +
@@ -468,6 +469,7 @@
         'padding:3px 4px 3px 15px;text-decoration:none;flex-shrink:0;cursor:pointer;}' +
       '.cwtb-me .cwtb-face{width:32px;height:32px;box-shadow:none;}' +
       '.cwtb-me-name{color:#1F699E;font-size:14px;font-weight:700;white-space:nowrap;line-height:1;}' +
+      '.cwtb-seed{display:inline-block;vertical-align:-3px;}' +
       '@media(max-width:700px){.cwtb-me{background:none;padding:0;gap:0;}' +
         '.cwtb-me-name{display:none;}' +
         '.cwtb-me .cwtb-face{width:36px;height:36px;box-shadow:0 0 0 2px rgba(255,255,255,.55);}}' +
@@ -552,7 +554,7 @@
         return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
       face.className = 'cwtb-me';
       face.setAttribute('title', 'My profile');
-      face.innerHTML = (nm2 ? '<span class="cwtb-me-name">' + esc3(nm2) + ' \u{1F331}</span>' : '')
+      face.innerHTML = (nm2 ? '<span class="cwtb-me-name">' + esc3(nm2) + ' ' + SEED_SVG + '</span>' : '')
                      + '<span class="cwtb-face"><img src="' + src + '" alt=""></span>';
       return true;
     }
