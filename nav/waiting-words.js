@@ -68,6 +68,11 @@
       var el = list[k];
       if (el === chip || (el.classList && el.classList.contains('cw-onechip'))) { continue; }
       if (released && released.has(el)) { continue; }
+      if (el.closest && el.closest('#manage-list') && d.querySelector('#post-modal.cw-mounted')) {
+        el.classList.add('cw-loading-shown');
+        el.style.visibility = '';
+        continue;
+      }
       if (firstText && !firstText.has(el)) { firstText.set(el, el.textContent); }
       if (firstText && el.textContent !== firstText.get(el)) {
         if (/(\.\.\.|\u2026)\s*$/.test(el.textContent) || /^\s*(Loading|Looking|Opening|Finding|Checking|Getting|Fetching|Gathering|Searching|Joining|Saving|Sending|Preparing|Waking|Starting)\b/i.test(el.textContent)) {
