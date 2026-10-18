@@ -1,6 +1,6 @@
 (function () {
   var GS = 'https://cw-api-gate.jessieupp.workers.dev';
-  var ctx = null, box = null, state = null, saveT = 0;
+  var ctx = null, box = null, state = null, saveT = 0, loadedKey = '';
   function el(tag, style, text) {
     var n = document.createElement(tag);
     if (style) n.setAttribute('style', style);
@@ -146,6 +146,8 @@
     box = (ctx.boxId && document.getElementById(ctx.boxId)) || document.getElementById('gp-permissions');
     if (!box) return;
     if (!ctx.meId) { box.textContent = 'Sign in to see your permissions in this group.'; return; }
+    var _key = String(ctx.groupId) + '|' + String(ctx.meId) + '|' + (ctx.boxId || '');
+    if (state && state.loading === false && loadedKey === _key) { draw(); return; }
     box.innerHTML = '';
     var mid = el('div', 'display:flex;justify-content:center;align-items:center;min-height:45vh;');
     var w = el('span', 'display:inline-flex;align-items:center;background:#1F699E;color:#fff;font-size:15px;font-weight:700;padding:12px 24px;border-radius:24px;', 'Opening your permissions…');
@@ -180,6 +182,7 @@
       state = { name: 'full', where: src.placeShown || (rl0.placeSet ? rl0.place : 'state'), profile: {}, loading: true };
       if (rl0.name && NAME_LADDER.indexOf(state.name) < NAME_LADDER.indexOf(rl0.name)) state.name = rl0.name;
       if (LADDER.indexOf(state.where) < LADDER.indexOf(rl0.place)) state.where = rl0.place;
+      loadedKey = _key;
       draw();
       pProf.then(function (pr) {
         pr = pr || {};
