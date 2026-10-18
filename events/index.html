@@ -1368,6 +1368,26 @@ function servingFormOptions() {
 var AGE_OPTIONS = [{key:"age-20s",label:"20's"},{key:"age-30s",label:"30's"},{key:"age-40s",label:"40's"},{key:"age-50s",label:"50's"},{key:"age-60s",label:"60's"},{key:"age-70s",label:"70's+"}];
 var servingMode = "";
 
+function addOtherServing() {
+  var inp = document.getElementById("serving-other-input");
+  var t = inp ? inp.value.replace(/[,|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40) : "";
+  if (!t) return;
+  _evTouch('lifeStage');
+  selectedLifeStages.delete("community");
+  selectedLifeStages.add("other:" + t);
+  renderServingForm();
+  var again = document.getElementById("serving-other-input");
+  if (again) again.focus();
+}
+
+function removeOtherServing(i) {
+  var customs = Array.from(selectedLifeStages).filter(function(k){ return /^other:/.test(k); });
+  if (customs[i] === undefined) return;
+  _evTouch('lifeStage');
+  selectedLifeStages.delete(customs[i]);
+  renderServingForm();
+}
+
 function setServingMode(m) {
   servingMode = servingMode === m ? "" : m;
   renderServingForm();
@@ -1384,6 +1404,7 @@ function renderServingForm() {
   var picked = Array.from(selectedLifeStages);
   if (!servingMode) {
     if (picked.some(isAge)) servingMode = "age";
+    else if (picked.some(function(k){ return /^other:/.test(k); }) && !picked.some(function(k){ return k !== "community" && !/^other:/.test(k); })) servingMode = "other";
     else if (picked.some(function(k){ return k !== "community"; })) servingMode = "career";
   }
   function chip(o, on, click, id) {
@@ -1392,9 +1413,17 @@ function renderServingForm() {
   var html = comm.map(function(o){ return chip(o, selectedLifeStages.has(o.key), "toggleLifeStage('" + o.key + "')", "ls-" + o.key); }).join("");
   html += chip({label:"Age"}, servingMode === "age", "setServingMode('age')", "ls-mode-age");
   html += chip({label:"Career stage"}, servingMode === "career", "setServingMode('career')", "ls-mode-career");
+  html += chip({label:"Other"}, servingMode === "other" || picked.some(function(k){ return /^other:/.test(k); }), "setServingMode('other')", "ls-mode-other");
   var list = servingMode === "age" ? AGE_OPTIONS : (servingMode === "career" ? career : []);
   if (list.length) {
     html += '<div style="flex-basis:100%;height:0;"></div>' + list.map(function(o){ return chip(o, selectedLifeStages.has(o.key), "toggleLifeStage('" + o.key + "')", "ls-" + o.key); }).join("");
+  }
+  var customs = picked.filter(function(k){ return /^other:/.test(k); });
+  if (servingMode === "other" || customs.length) {
+    html += '<div style="flex-basis:100%;height:0;"></div>' + customs.map(function(k, i){ return '<button type="button" class="format-chip selected" onclick="removeOtherServing(' + i + ')">' + k.slice(6).replace(/&/g,"&amp;").replace(/</g,"&lt;") + ' \u2715</button>'; }).join("");
+  }
+  if (servingMode === "other") {
+    html += '<div style="flex-basis:100%;display:flex;gap:8px;"><input type="text" id="serving-other-input" maxlength="40" placeholder="Who else is this for?" style="flex:1;min-width:0;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addOtherServing();}"><button type="button" class="format-chip" onclick="addOtherServing()">Add</button></div>';
   }
   wrap.innerHTML = html;
 }
