@@ -178,7 +178,7 @@
       var v = localStorage.getItem('cw-vanity') || '', f = localStorage.getItem('cw-vanity-for') || '';
       if (v && norm(f) && norm(f) === norm(real)) { return 'https://2gather.network/hi/' + encodeURIComponent(v); }
     } catch (e) {}
-    return 'https://2gather.network/me/';
+    return 'https://2gather.network/me/?mine=1';
   }
   function hasAGroup() {
     try { return !!me(); } catch (e) { return false; }
