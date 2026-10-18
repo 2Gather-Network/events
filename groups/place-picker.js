@@ -129,6 +129,12 @@
       ask.textContent = state.edit ? 'Everyone who can see this group will see: ' + (t ? t + z : 'a place') + '.' : 'Everyone who can see this group will see: ' + (t || 'a place') + '. Is that right?';
     }
     function draw() {
+      if (state.hostLoaded && !state.edit && !state.saved && !textFor(state.host, state.level)) {
+        state.edit = true;
+        var h0 = state.host;
+        state.v = { region: h0.region || '', country: h0.country || '', state: h0.state || '', county: h0.county || '', city: h0.city || '', zip: '' };
+        loadPlaces(draw);
+      }
       pills.innerHTML = '';
       LEVELS.forEach(function (k) {
         var p = el('div', '', LABELS[k]);
@@ -172,6 +178,7 @@
     });
     hostPlace(o.meId, function (h) {
       state.host = h;
+      state.hostLoaded = true;
       if (!state.saved) {
         state.v = { region: h.region || '', country: h.country || '', state: h.state || '', county: h.county || '', city: h.city || '', zip: '' };
       }

@@ -341,7 +341,7 @@
     root.innerHTML = '';
     var q = el('div', '', 'What kind of group is this?'); q.className = 'q';
     root.appendChild(q);
-    var help = el('div', 'margin:0 0 8px;', 'Select any group category that represents your group. Drill down as far as you\u2019d like. People who join see your suggested picks, in addition to their own picks.');
+    var help = el('div', 'margin:0 0 8px;', 'Pick every kind that fits your group, as many as you like. Tap a kind to open its choices and pick the ones that fit. What you pick becomes the questions new members answer when they join, so you learn what each person is into.');
     help.className = 'help';
     root.appendChild(help);
     var kinds = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;');
