@@ -1,5 +1,5 @@
 (function () {
-  var REGIONS = ['North America', 'South America', 'Europe', 'Asia', 'Africa', 'Oceania', 'Antarctica'];
+  var REGIONS = ['Global', 'North America', 'South America', 'Europe', 'Asia', 'Africa', 'Oceania', 'Antarctica'];
   var NA = ['United States', 'Canada', 'Mexico'];
   var US = ["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","District of Columbia","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"];
   var ABBR = {"Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA","Colorado":"CO","Connecticut":"CT","Delaware":"DE","District of Columbia":"DC","Florida":"FL","Georgia":"GA","Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA","Kansas":"KS","Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD","Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO","Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ","New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH","Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC","South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT","Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY"};
@@ -124,7 +124,7 @@
     function drawLine() {
       var t = textFor(current(), state.level);
       var z = '';
-      shown.textContent = 'This group serves, at the ' + state.level + ' level';
+      shown.textContent = (state.level === 'region' && current().region === 'Global') ? 'This group serves everywhere' : 'This group serves, at the ' + state.level + ' level';
       val.textContent = t ? t + z : 'Choose a place';
       ask.textContent = state.edit ? 'Everyone who can see this group will see: ' + (t ? t + z : 'a place') + '.' : 'Everyone who can see this group will see: ' + (t || 'a place') + '. Is that right?';
     }
@@ -136,9 +136,18 @@
         loadPlaces(draw);
       }
       pills.innerHTML = '';
+      var isGlobal = state.level === 'region' && (state.edit || state.saved) && state.v.region === 'Global';
+      var gp = el('div', '', 'Global');
+      gp.className = chip + (isGlobal ? ' on' : '');
+      gp.addEventListener('click', function () {
+        state.level = 'region'; state.saved = true; state.edit = false;
+        state.v = { region: 'Global', country: '', state: '', county: '', city: '', zip: '' };
+        draw();
+      });
+      pills.appendChild(gp);
       LEVELS.forEach(function (k) {
         var p = el('div', '', LABELS[k]);
-        p.className = chip + (state.level === k ? ' on' : '');
+        p.className = chip + (state.level === k && !isGlobal ? ' on' : '');
         p.addEventListener('click', function () { state.level = k; draw(); });
         pills.appendChild(p);
       });
