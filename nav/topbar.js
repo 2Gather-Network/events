@@ -442,7 +442,7 @@
     loadFont();
     var css =
       '#cw-topbar{font-family:"Nunito Sans","DM Sans","Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;' +
-        'position:relative;z-index:5;}' +
+        'position:sticky;top:var(--cw-adminbar,0px);z-index:1000;}' +
       '@media (max-width:700px){#cw-viewas{font-size:11.5px !important;gap:6px 8px !important;' +
         'padding:calc(5px + env(safe-area-inset-top, 0px)) 8px 5px !important;}' +
         '#cw-viewas button{padding:3px 8px !important;font-size:11.5px !important;}' +
