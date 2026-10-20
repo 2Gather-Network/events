@@ -259,10 +259,23 @@
 
   if (signedOutView()) { w.CW_ID = ''; }
 
+  var _spellT = -1, _spellMap = null;
+  function spellOf(s) {
+    var raw = w.localStorage.getItem('cw-words-v3'); if (!raw) { return ''; }
+    var k = JSON.parse(raw); if (!k || !k.rows) { return ''; }
+    if (_spellMap === null || _spellT !== k.t) {
+      _spellMap = {}; _spellT = k.t;
+      k.rows.forEach(function (r) { var n = String((r && r[1]) || '').trim(); if (n && !_spellMap[n.toLowerCase()]) { _spellMap[n.toLowerCase()] = n; } });
+    }
+    return _spellMap[s.toLowerCase()] || '';
+  }
+
   w.CW = {
     sentence: function (s) {
       s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
       if (!s) { return s; }
+      var kept = ls(function () { return spellOf(s); }, '');
+      if (kept) { return kept; }
       var words = s.split(' '), alpha = words.filter(function (x) { return /[A-Za-z]/.test(x); });
       var title = alpha.length > 1 && alpha.every(function (x) { return /^[A-Z]/.test(x); });
       return words.map(function (x, i) {
