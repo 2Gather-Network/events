@@ -103,6 +103,8 @@
     
     .ev-head-acts { display: contents; }
     #join-btn-wrap { display:none; }
+    #getknow-btn { display:none !important; }
+    html.cw-people-on.cw-registered #getknow-btn, html.cw-people-on.cw-is-host #getknow-btn { display:inline-flex !important; }
     html.cw-registered #join-btn-wrap, html.cw-is-host #join-btn-wrap { display:block; }
     
     .ev-head-slot { display: contents; }
@@ -981,6 +983,7 @@ function render(ev) {
       ${ev.occurrenceNote ? `<div style="background:#FFF8E7;border:1.5px solid #F0B429;border-radius:10px;padding:14px 16px;margin-bottom:16px;"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7B5800;margin-bottom:6px;">Note from the host - this event only</p><p style="font-size:14px;color:#374151;line-height:1.6;white-space:pre-wrap;">${esc(ev.occurrenceNote)}</p></div>` : ""}
       <div class="actions" style="margin-bottom:16px;">
         ${ev.date && ev.date !== "TBD" && !ev.cancelled ? `<button class="btn btn-outline" onclick="addToCalendarById('${ev.id}')" style="gap:6px;">📅 Add to calendar</button>` : ""}
+        <a class="btn btn-outline" id="getknow-btn" href="https://2gather.network/event/people/?id=${encodeURIComponent(ev.id)}" style="gap:6px;">👥 Get to know</a>
         <button type="button" class="btn btn-outline cw-soc-btn" id="cw-soc-btn" onclick="cwSocOpen()" style="display:none;"><span class="cw-ico">📣</span><span class="cw-soc-label">Socialize this event</span></button>
         <button class="btn btn-outline copy-btn-el cw-share-old" onclick="copyLink()">🔗 Copy link</button>
         ${!ev.cancelled ? `<button class="btn btn-outline cw-share-old" onclick="share()" ontouchstart="share()" style="touch-action:manipulation;-webkit-tap-highlight-color:transparent;padding:10px 14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>` : ""}
@@ -2011,8 +2014,57 @@ function finishRsvp() {
   closeRsvpModal();
   applyRegisteredUI();
   showToast("✓ You're registered!");
+  if (CW_PEOPLE_ON) { try { cwShareAsk(_currentEv, false); return; } catch (err) {} }
   try { cwCalAsk(_currentEv); } catch (err) {}
 }
+var CW_PEOPLE_ON = /[?&]people=1\b/.test(location.search);
+if (CW_PEOPLE_ON) { try { document.documentElement.classList.add("cw-people-on"); } catch (e) {} }
+function cwShareAsk(ev, preview) {
+  if (!ev) return;
+  var old = document.getElementById("cw-share-ask");
+  if (old) old.remove();
+  var o = document.createElement("div");
+  o.id = "cw-share-ask";
+  o.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:90;";
+  var btn = "font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;cursor:pointer;font-family:inherit;";
+  var row = "display:flex;align-items:center;gap:10px;font-size:14px;color:var(--dark);padding:6px 0;";
+  o.innerHTML = '<div role="dialog" aria-modal="true" aria-labelledby="cw-share-q" style="background:#fff;border-radius:14px;padding:22px 22px 18px;width:calc(100% - 32px);max-width:380px;font-family:inherit;">'
+    + '<p id="cw-share-q" style="font-size:16px;font-weight:700;color:var(--dark);margin:0 0 8px;">Would you like to let other people at this event know more about you?</p>'
+    + '<p style="font-size:13px;color:var(--muted);margin:0 0 8px;">Choose what to show to the other people registered for this event. This applies to this event only, and you can change it later.</p>'
+    + '<label style="' + row + '"><input type="checkbox" class="cw-share-f" value="photo"> My photo</label>'
+    + '<label style="' + row + '"><input type="checkbox" class="cw-share-f" value="city"> My city</label>'
+    + '<label style="' + row + '"><input type="checkbox" class="cw-share-f" value="languages"> The languages I speak</label>'
+    + '<p id="cw-share-msg" style="font-size:13px;color:#7A2410;margin:8px 0 0;min-height:18px;"></p>'
+    + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;"><button type="button" id="cw-share-yes" style="' + btn + 'background:#1F699E;border:1.5px solid #1F699E;color:#fff;">Yes</button>'
+    + '<button type="button" id="cw-share-no" style="' + btn + 'background:#fff;border:1.5px solid var(--border);color:var(--dark);">Not at this time</button></div></div>';
+  document.body.appendChild(o);
+  var done = function () { o.remove(); if (!preview) { try { cwCalAsk(ev); } catch (e) {} } };
+  document.getElementById("cw-share-no").onclick = done;
+  document.getElementById("cw-share-yes").onclick = function () {
+    var msg = document.getElementById("cw-share-msg");
+    var picked = Array.prototype.map.call(o.querySelectorAll(".cw-share-f:checked"), function (c) { return c.value; });
+    if (!picked.length) { msg.textContent = "Tick at least one, or choose Not at this time."; return; }
+    if (preview) { msg.textContent = "This is a preview. Nothing was saved."; return; }
+    var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
+    var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
+    msg.style.color = "#1F699E"; msg.textContent = "Saving…";
+    fetch(GS_URL + "?action=saveEventShare&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id) + "&fields=" + encodeURIComponent(picked.join("|")))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.status !== "ok") { throw new Error("no"); }
+        location.href = "https://2gather.network/intro/?event=" + encodeURIComponent(ev.id) + "&from=register";
+      })
+      .catch(function () { msg.style.color = "#7A2410"; msg.textContent = "That did not save. Try again in a moment."; });
+  };
+}
+(function () {
+  if (!CW_PEOPLE_ON || !/[?&]offer=1\b/.test(location.search)) return;
+  var n = 0, t = setInterval(function () {
+    n++;
+    if (typeof _currentEv !== "undefined" && _currentEv && document.getElementById("ev-meta")) { clearInterval(t); cwShareAsk(_currentEv, true); }
+    else if (n > 40) { clearInterval(t); }
+  }, 500);
+})();
 
 var _viewerIntake = null;
 const _introTry = /[?&]onepage=1/.test(location.search);

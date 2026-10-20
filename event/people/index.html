@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>People at this event · 2Gather</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--brand:#1F699E;--ink:#1A2E42;--soft:#4B5A6D;--line:#DDE4EE;--tint:#E6F1FB;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--brand);color:var(--ink);font-family:'Nunito Sans',system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.55;padding:0 16px 60px;}
+  .wrap{max-width:760px;margin:0 auto;padding-top:26px;}
+  .crumb{color:#fff;font-size:14px;font-weight:600;margin:6px 0 18px;display:inline-block;text-decoration:none;}
+  .card{background:#fff;border-radius:14px;padding:22px 24px;}
+  h1{margin:0 0 4px;font-size:20px;font-weight:800;}
+  .evt{margin:0 0 6px;color:var(--soft);font-size:14px;}
+  .count{margin:0 0 16px;color:var(--soft);font-size:13px;}
+  .msg{margin:12px 0 0;font-size:14px;color:var(--ink);}
+  .list{display:flex;flex-direction:column;gap:10px;}
+  .p{display:flex;align-items:center;gap:12px;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;}
+  .av{width:48px;height:48px;border-radius:50%;object-fit:cover;background:var(--tint);flex:0 0 48px;display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--brand);}
+  .nm{font-weight:800;font-size:15px;color:var(--brand);text-decoration:none;}
+  .nm:hover{text-decoration:underline;}
+  .meta{font-size:13px;color:var(--soft);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .chip{background:var(--tint);color:var(--ink);border-radius:999px;padding:1px 9px;font-size:12px;font-weight:600;}
+  .go{display:inline-block;margin-top:14px;background:var(--brand);color:#fff;border-radius:24px;padding:10px 20px;font-weight:700;font-size:14px;text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="crumb" id="back" href="https://2gather.network/events/">Back to the event</a>
+  <div class="card">
+    <h1>People at this event who shared their info</h1>
+    <p class="evt" id="evt"></p>
+    <p class="count" id="count"></p>
+    <div class="list" id="list"></div>
+    <p class="msg" id="msg">Looking for the people at this event…</p>
+  </div>
+</div>
+<script src="https://2gather.network/nav/identity.js?v=33"></script>
+<script>
+(function () {
+  var GS = "https://cw-api-gate.jessieupp.workers.dev";
+  var q = new URLSearchParams(location.search);
+  var id = String(q.get("id") || "").trim();
+  var $ = function (i) { return document.getElementById(i); };
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function me() {
+    var m = "";
+    try { if (window.CW && typeof window.CW.me === "function") { m = String(window.CW.me().id || "").trim(); } } catch (e) {}
+    if (!m) { try { m = localStorage.getItem("appear-id") || ""; } catch (e) {} }
+    return m;
+  }
+  function token() { try { return localStorage.getItem("cw-token") || ""; } catch (e) { return ""; } }
+  function say(t) { $("msg").innerHTML = t; $("msg").style.display = t ? "block" : "none"; }
+  if (!id) { say("This page needs an event. Go back to the event and tap Get to know."); return; }
+  $("back").href = "https://2gather.network/event/?id=" + encodeURIComponent(id);
+  fetch(GS + "?action=getEventById&id=" + encodeURIComponent(id))
+    .then(function (r) { return r.json(); })
+    .then(function (d) { var t = d && d.event && d.event.title; if (t) { $("evt").textContent = t; } })
+    .catch(function () {});
+  function run(tries) {
+    var who = me();
+    if (!who) {
+      if (tries < 12) { setTimeout(function () { run(tries + 1); }, 500); return; }
+      say("Sign in and register for this event to see who shared their info.<br><a class=\"go\" href=\"https://2gather.network/event/?id=" + encodeURIComponent(id) + "\">Back to the event</a>");
+      return;
+    }
+    fetch(GS + "?action=getEventPeople&appearId=" + encodeURIComponent(who) + "&meToken=" + encodeURIComponent(token()) + "&eventId=" + encodeURIComponent(id))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !Array.isArray(d.people)) { say("This page is not open yet. Check back soon."); return; }
+        var ppl = d.people;
+        if (!ppl.length) {
+          say("No one at this event has shared their info yet. Register for the event and choose what to share to be the first.<br><a class=\"go\" href=\"https://2gather.network/event/?id=" + encodeURIComponent(id) + "\">Back to the event</a>");
+          return;
+        }
+        $("count").textContent = ppl.length + (ppl.length === 1 ? " person has" : " people have") + " shared their info with people registered for this event.";
+        $("list").innerHTML = ppl.map(function (p) {
+          var name = esc(p.name || "Someone");
+          var av = p.photo ? '<img class="av" src="' + esc(p.photo) + '" alt="" onerror="this.outerHTML=\'<span class=&quot;av&quot;>' + esc((p.name || "?").charAt(0)) + '</span>\'">' : '<span class="av">' + esc((p.name || "?").charAt(0)) + '</span>';
+          var link = p.code ? '<a class="nm" href="https://2gather.network/me/?v=' + encodeURIComponent(p.code) + '" target="_top">' + name + '</a>' : '<span class="nm" style="color:var(--ink)">' + name + '</span>';
+          var langs = String(p.languages || "").split(/[|,]/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) { return '<span class="chip">' + esc(x) + '</span>'; }).join("");
+          var meta = (p.city ? '<span>' + esc(p.city) + '</span>' : "") + langs;
+          return '<div class="p">' + av + '<div>' + link + (meta ? '<div class="meta">' + meta + '</div>' : "") + '</div></div>';
+        }).join("");
+        say("");
+      })
+      .catch(function () { say("This page is not open yet. Check back soon."); });
+  }
+  run(0);
+})();
+</script>
+</body>
+</html>
