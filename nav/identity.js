@@ -181,10 +181,13 @@
   (function wall() {
     var here = String(w.location.pathname || '/');
     var onCW = String(w.location.hostname || '').indexOf('creating.works') >= 0;
+    var onAppear = String(w.location.hostname || '').toLowerCase().indexOf('appear.network') >= 0;
 
     var OPEN = onCW
       ? ['/', '/terms-of-service', '/privacy-policy', '/code-of-conduct', '/ops', '/vision', '/license']
-      : ['/signin', '/signup', '/signin-google', '/event', '/events'];
+      : onAppear
+        ? ['/', '/signin', '/signup', '/signin-google']
+        : ['/signin', '/signup', '/signin-google', '/event', '/events'];
 
     var asked = ls(function () { return new URLSearchParams(w.location.search).get('lock'); }, null);
     if (asked !== null) {

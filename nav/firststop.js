@@ -60,7 +60,8 @@
         clearTimeout(timer);
         var row = (d && d.data) || {};
         var spoken = SAID.some(function (k) { return !blank(row[k]); });
-        finish((spoken || _asked(next)) ? next : 'https://2gather.network/welcome/');
+        var onAppear = String(window.location.hostname || '').toLowerCase().indexOf('appear.network') > -1;
+        finish((spoken || _asked(next) || onAppear) ? next : 'https://2gather.network/welcome/');
       })
       .catch(function () { clearTimeout(timer); finish(next); });
   };
