@@ -83,7 +83,7 @@
     var find = document.createElement('input');
     find.type = 'text'; find.placeholder = 'Search a topic to tag'; find.maxLength = 60; find.style.cssText = 'width:100%;box-sizing:border-box;margin:6px 0 8px;';
     var found = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px;');
-    host.appendChild(find); host.appendChild(found);
+    if (!sec.noFind) { host.appendChild(find); host.appendChild(found); }
     var cats = el('div', 'margin:6px 0 4px;');
     cats.innerHTML = '<span style="font-size:13px;color:#1F699E;">Loading the list…</span>';
     host.appendChild(cats);
@@ -183,6 +183,16 @@
       });
       return out;
     }
+    function pickHit(n){
+      var key = n.path.join(SEP);
+      if (on[key]) unmark(key);
+      else {
+        mark(key);
+        for (var i = 1; i < n.path.length; i++) unmark(n.path.slice(0, i).join(SEP));
+        order.slice().forEach(function(x){ if (x.indexOf(key + SEP) === 0) unmark(x); });
+      }
+      draw(); onChange();
+    }
     function drawFound(){
       found.innerHTML = '';
       var q = String(find.value || '').trim().toLowerCase();
@@ -195,15 +205,7 @@
         c.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.2;';
         c.appendChild(el('span', '', (on[key] ? '✓ ' : '') + n.name));
         if (n.path.length > 1) c.appendChild(el('span', 'font-size:11px;font-weight:500;color:var(--muted,#6B7A8D);margin-top:2px;', n.path.slice(0, -1).join(SEP)));
-        c.addEventListener('click', function(){
-          if (on[key]) unmark(key);
-          else {
-            mark(key);
-            for (var i = 1; i < n.path.length; i++) unmark(n.path.slice(0, i).join(SEP));
-            order.slice().forEach(function(x){ if (x.indexOf(key + SEP) === 0) unmark(x); });
-          }
-          draw(); onChange();
-        });
+        c.addEventListener('click', function(){ pickHit(n); });
         found.appendChild(c);
       });
     }
@@ -305,6 +307,13 @@
         return (node && node.emoji) || '';
       },
       redraw: function(){ draw(); },
+      search: function(q){
+        q = String(q || '').trim().toLowerCase();
+        if (!q || !tree) return [];
+        return allNodes(tree, [], []).filter(function(n){ return n.name.toLowerCase().indexOf(q) > -1; }).map(function(n){
+          return { name: n.name, path: n.path, on: !!on[n.path.join(SEP)], toggle: function(){ pickHit(n); } };
+        });
+      },
       home: function(){ at = []; otherOpen = false; draw(); },
       get: function(){ if (String(inp.value || '').trim()) addOwn(); return order.filter(function(k){ return on[k]; }).join(';'); },
       set: function(v){ on = {}; order = []; own = {}; splitList(v).forEach(function(k){ k = normalise(k); if (k) mark(k, k.indexOf(SEP) === -1); }); draw(); }
@@ -356,10 +365,15 @@
     root.innerHTML = '';
     var q = el('div', '', 'What kind of group is this?'); q.className = 'q';
     root.appendChild(q);
-    var help = el('div', 'margin:0 0 8px;', 'Pick every kind that fits your group, as many as you like. Tap a kind to open its choices and pick the ones that fit. What you pick becomes the questions new members answer when they join, so you learn what each person is into.');
+    var help = el('div', 'margin:0 0 8px;', 'Pick every tag that fits your group, from any kind. Tap a kind to switch which ideas you are looking at. What you pick becomes the questions new members answer when they join, so you learn what each person is into.');
     help.className = 'help';
     root.appendChild(help);
-    var kinds = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;');
+    var find = document.createElement('input');
+    find.type = 'text'; find.placeholder = 'Search every kind for a topic to tag'; find.maxLength = 60; find.style.cssText = 'width:100%;box-sizing:border-box;margin:0 0 10px;';
+    root.appendChild(find);
+    var found = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px;');
+    root.appendChild(found);
+    var kinds = el('div', 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border:1.5px solid #C9DFF3;border-radius:12px;overflow:hidden;margin:0 0 14px;');
     root.appendChild(kinds);
     function joyKind(){ var f = null; KINDS.forEach(function(o){ if (o.key === 'joys' && kindOn[o.label]) f = o.label; }); return f; }
     var kindHint = el('div', 'font-size:13.5px;color:var(--soft,#4B5A6D);margin:-6px 0 14px;', 'For the people closest to you, like family, a health team or close friends.');
@@ -368,35 +382,56 @@
     var holder = el('div', '');
     root.appendChild(holder);
     var prev = el('div', 'background:var(--panel,#F7FBFF);border:1.5px solid var(--panel-line,#C9DFF3);border-radius:12px;padding:14px 16px;margin:14px 0 6px;');
-    prev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 4px;', 'Questions people answer when they join'));
+    prev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 8px;', 'Your tags'));
     var prevBody = el('div', '');
     prev.appendChild(prevBody);
     root.appendChild(prev);
     var parts = {}, boxes = {}, open = {}, kindOn = {};
     function boxOpen(key){ return KINDS.some(function(k){ return k.key === key && kindOn[k.label]; }); }
     function gname(){ return (nm && String(nm.value || '').trim()) || 'this group'; }
+    function kindCount(k){
+      return k.key === 'joys'
+        ? (parts.joys ? parts.joys.picks().filter(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; }).length : 0)
+        : (parts.cares ? parts.cares.picks().length : 0);
+    }
     function paintKinds(){
       kinds.innerHTML = '';
       kindHint.style.display = kindOn['Personal'] ? '' : 'none';
-      KINDS.forEach(function(k){
-        var c = document.createElement('div'); c.className = chip + (kindOn[k.label] ? ' on' : '');
-        var cnt = k.key === 'joys' ? (parts.joys ? parts.joys.picks().filter(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; }).length : 0) : (parts.cares ? parts.cares.picks().length : 0);
-        c.textContent = k.label + (cnt ? ' (' + cnt + ')' : '');
+      KINDS.forEach(function(k, i){
+        var on = !!kindOn[k.label], cnt = kindCount(k);
+        var c = el('button', 'font:inherit;font-size:14.5px;font-weight:700;border:0;border-radius:0;padding:11px 8px;cursor:pointer;' + (i ? 'border-left:1.5px solid #C9DFF3;' : '') + 'background:' + (on ? '#1F699E' : '#fff') + ';color:' + (on ? '#fff' : '#1A2E42') + ';', k.label + (cnt ? ' (' + cnt + ')' : ''));
+        c.type = 'button';
         c.addEventListener('click', function(){
-          if (k.key === 'joys') {
-            var was = !!kindOn[k.label];
-            KINDS.forEach(function(o){ if (o.key === 'joys') kindOn[o.label] = false; });
-            kindOn[k.label] = !was;
-          } else {
-            if (kindOn[k.label] && parts[k.key].picks().length) return;
-            kindOn[k.label] = !kindOn[k.label];
-          }
+          if (kindOn[k.label]) return;
+          KINDS.forEach(function(o){ kindOn[o.label] = false; });
+          kindOn[k.label] = true;
           if (k.key === 'joys' && parts.joys) parts.joys.home();
           paintKinds(); layout();
         });
         kinds.appendChild(c);
       });
     }
+    function drawFound(){
+      found.innerHTML = '';
+      var q = String(find.value || '').trim();
+      if (!q) return;
+      var hits = [];
+      ['joys', 'cares'].forEach(function(key){
+        if (!parts[key]) return;
+        parts[key].search(q).forEach(function(h){ h.kind = key === 'cares' ? 'Eco/social cause' : kindOfTop(h.path[0]); hits.push(h); });
+      });
+      if (!hits.length) { found.appendChild(el('span', 'font-size:13px;color:var(--muted,#6B7A8D);', 'Nothing matches. Open a kind and tap + Other to add it.')); return; }
+      hits.slice(0, 30).forEach(function(h){
+        var c = document.createElement('div'); c.className = chip + (h.on ? ' on' : '');
+        c.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.2;cursor:pointer;';
+        c.appendChild(el('span', '', (h.on ? '\u2713 ' : '') + h.name));
+        c.appendChild(el('span', 'font-size:11px;font-weight:500;color:var(--muted,#6B7A8D);margin-top:2px;', h.kind + (h.path.length > 1 ? ' \u203a ' + h.path.slice(0, -1).join(SEP) : '')));
+        c.addEventListener('click', function(){ h.toggle(); });
+        found.appendChild(c);
+      });
+    }
+    find.addEventListener('input', drawFound);
+    find.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') ev.preventDefault(); });
     function layout(){
       SECTIONS.forEach(function(s){ open[s.key] = boxOpen(s.key); boxes[s.key].wrap.style.display = open[s.key] ? '' : 'none'; });
       var names = KINDS.filter(function(k){ return k.key === 'joys' && kindOn[k.label]; }).map(function(k){ return k.label; });
@@ -405,33 +440,35 @@
     }
     function preview(){
       paintKinds();
+      drawFound();
       prevBody.innerHTML = '';
       var any = false;
-      SECTIONS.forEach(function(s){
-        var picks = parts[s.key] ? parts[s.key].picks() : [];
+      KINDS.forEach(function(k){
+        var sec = k.key, all = parts[sec] ? parts[sec].picks() : [];
+        var picks = sec === 'joys' ? all.filter(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; }) : all;
         if (!picks.length) return;
         any = true;
-        prevBody.appendChild(el('div', 'font-size:13.5px;color:var(--ink,#1A2E42);margin:0 0 8px;', 'The tags you chose above become the choices a new member picks from, so you can see who is into what.'));
-        var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;');
-        picks.forEach(function(k){
-          var p = k.split(SEP);
+        var row = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 8px;');
+        row.appendChild(el('span', 'font-size:13px;color:var(--muted,#6B7A8D);min-width:120px;', k.label));
+        picks.forEach(function(key){
+          var p = key.split(SEP);
           var c = document.createElement('div'); c.className = chip;
           c.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.2;cursor:pointer;';
           c.title = 'Remove';
-          var em = parts[s.key].emojiOf ? parts[s.key].emojiOf(k) : '';
-          c.appendChild(el('span', '', (em ? em + ' ' : '') + p[p.length - 1] + '  ×'));
+          var em = parts[sec].emojiOf ? parts[sec].emojiOf(key) : '';
+          c.appendChild(el('span', '', (em ? em + ' ' : '') + p[p.length - 1] + '  \u00d7'));
           if (p.length > 1) c.appendChild(el('span', 'font-size:11px;font-weight:500;color:var(--muted,#6B7A8D);margin-top:2px;', p.slice(0, -1).join(SEP)));
-          c.addEventListener('click', function(){ parts[s.key].remove(k); });
-          r.appendChild(c);
+          c.addEventListener('click', function(){ parts[sec].remove(key); });
+          row.appendChild(c);
         });
-        prevBody.appendChild(r);
+        prevBody.appendChild(row);
       });
-      if (!any) prevBody.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);margin-top:6px;', 'Pick a kind of group above, then your suggestions, to see this.'));
+      if (!any) prevBody.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);margin-top:6px;', 'Nothing picked yet. Pick a kind above, then your ideas.'));
     }
     SECTIONS.forEach(function(s){
       var wrap = el('div', 'padding:2px 0 6px;');
       var head = el('div', 'display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;');
-      var headEl = el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);', s.head);
+      var headEl = el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);', s.key === 'cares' ? 'Ideas for eco and social cause groups' : s.head);
       head.appendChild(headEl);
       boxes[s.key] = { head: headEl };
       if (s.sub) head.appendChild(el('div', 'font-size:13.5px;color:var(--muted,#6B7A8D);', s.sub));
@@ -443,15 +480,20 @@
       s.selectAll = true;
       if (s.key === 'joys') { s.tag = true; s.visible = function(n){ return !!joyKind() && kindOfTop(n) === joyKind(); }; s.heading = function(){ return 'Ideas for ' + String(joyKind() || '').toLowerCase() + ' groups'; }; }
       if (s.key === 'cares') s.accordion = true;
+      s.noFind = true;
       parts[s.key] = makePicker(body, s, chip, preview);
     });
     if (nm) nm.addEventListener('input', preview);
+    kindOn.Recreational = true;
     paintKinds(); layout(); preview();
     return {
       get: function(){ return { joys: parts.joys.get(), skills: '', cares: parts.cares.get() }; },
       set: function(joys, skills, cares){
         parts.joys.set([joys, skills].filter(Boolean).join(';')); parts.cares.set(cares);
-        if (parts.cares.picks().length) kindOn['Eco/social cause'] = true;
+        var jp = parts.joys.picks(), first = null;
+        KINDS.forEach(function(k){ if (!first && k.key === 'joys' && jp.some(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; })) first = k.label; });
+        if (!first && parts.cares.picks().length) first = 'Eco/social cause';
+        if (first) { KINDS.forEach(function(k){ kindOn[k.label] = false; }); kindOn[first] = true; if (parts.joys) parts.joys.home(); }
         paintKinds(); layout(); preview();
       }
     };
