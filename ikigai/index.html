@@ -3925,10 +3925,14 @@
     var said = '', addQ = '';
     var saveNew = function(q, picked, note){
       note.textContent = 'Adding “' + q + '”…';
+      var _slowT = setTimeout(function(){ if (note.textContent.indexOf('Adding') === 0) { note.textContent = 'Still adding “' + q + '”. The server is slow right now. The title still saves.'; } }, 12000);
+      var _ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var _giveT = setTimeout(function(){ try { if (_ac) { _ac.abort(); } } catch (x) {} }, 45000);
       var sa = ''; try { sa = String((window.CW && CW.realMe && CW.realMe().id) || meId || ''); } catch (x) { sa = String(meId || ''); }
-      fetch(GS_URL + '?action=saveWord&appearId=' + encodeURIComponent(sa) + '&word=' + encodeURIComponent(q.slice(0, 60)) + '&kindOf=&otherNames=&categories=' + encodeURIComponent(picked.join('|')) + '&askedIn=choice')
+      fetch(GS_URL + '?action=saveWord&appearId=' + encodeURIComponent(sa) + '&word=' + encodeURIComponent(q.slice(0, 60)) + '&kindOf=&otherNames=&categories=' + encodeURIComponent(picked.join('|')) + '&askedIn=choice', _ac ? { signal: _ac.signal } : undefined)
         .then(function(r){ return r.json(); })
         .then(function(a){
+          clearTimeout(_slowT); clearTimeout(_giveT);
           if (!a || a.status !== 'ok' || !a.row) { note.textContent = 'That word could not be added. The title still saves.'; return; }
           try {
             var W = window._gpWords, rows = W ? W.rows.slice() : [], at = -1;
@@ -3940,7 +3944,7 @@
           try { if (window.CW_WORDS_REFRESH) { window.CW_WORDS_REFRESH(); } } catch (x) {}
           note.textContent = '“' + q + '” was added.';
         })
-        .catch(function(){ note.textContent = 'That word could not be added. The title still saves.'; });
+        .catch(function(){ clearTimeout(_slowT); clearTimeout(_giveT); note.textContent = 'That word could not be added. The title still saves.'; });
     };
     var startAdd = function(q){
       host.innerHTML = '';
