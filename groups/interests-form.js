@@ -376,13 +376,20 @@
     var kinds = el('div', 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border:1.5px solid #C9DFF3;border-radius:12px;overflow:hidden;margin:0 0 14px;');
     root.appendChild(kinds);
     function joyKind(){ var f = null; KINDS.forEach(function(o){ if (o.key === 'joys' && kindOn[o.label]) f = o.label; }); return f; }
-    var kindHint = el('div', 'font-size:13.5px;color:var(--soft,#4B5A6D);margin:-6px 0 14px;', 'For the people closest to you, like family, a health team or close friends.');
+    var KIND_HINTS = {
+      'Recreational': 'For the things you do for the joy of it, like games, hiking, art or cooking together.',
+      'Personal': 'For the people closest to you, like family, a health team or close friends.',
+      'Professional': 'For people who work, learn or build together, like a trade, a business or a field of study.',
+      'Eco/social cause': 'For people working on a cause, like clean water, housing or caring for the neighborhood.'
+    };
+    var kindHint = el('div', 'font-size:13.5px;color:var(--soft,#4B5A6D);margin:-6px 0 14px;', '');
     kindHint.style.display = 'none';
     root.appendChild(kindHint);
     var holder = el('div', '');
     root.appendChild(holder);
     var prev = el('div', 'background:var(--panel,#F7FBFF);border:1.5px solid var(--panel-line,#C9DFF3);border-radius:12px;padding:14px 16px;margin:14px 0 6px;');
-    prev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 8px;', 'Your tags'));
+    prev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 4px;letter-spacing:.03em;', 'YOUR TAGS'));
+    prev.appendChild(el('div', 'font-size:12.5px;color:var(--muted,#6B7A8D);margin:0 0 10px;padding-bottom:10px;border-bottom:1px solid #DDE6EF;', 'When new members join, they will select which tags you offer below.'));
     var prevBody = el('div', '');
     prev.appendChild(prevBody);
     root.appendChild(prev);
@@ -396,7 +403,9 @@
     }
     function paintKinds(){
       kinds.innerHTML = '';
-      kindHint.style.display = kindOn['Personal'] ? '' : 'none';
+      var hk = null; KINDS.forEach(function(k){ if (kindOn[k.label]) hk = k.label; });
+      kindHint.textContent = hk ? KIND_HINTS[hk] : '';
+      kindHint.style.display = hk ? '' : 'none';
       KINDS.forEach(function(k, i){
         var on = !!kindOn[k.label], cnt = kindCount(k);
         var c = el('button', 'font:inherit;font-size:14.5px;font-weight:700;border:0;border-radius:0;padding:11px 8px;cursor:pointer;' + (i ? 'border-left:1.5px solid #C9DFF3;' : '') + 'background:' + (on ? '#1F699E' : '#fff') + ';color:' + (on ? '#fff' : '#1A2E42') + ';', k.label + (cnt ? ' (' + cnt + ')' : ''));
@@ -469,8 +478,7 @@
             var c = document.createElement('div'); c.className = chip;
             c.style.cssText = 'padding:2px 10px;font-size:12.5px;line-height:1.5;cursor:pointer;max-width:100%;';
             c.title = 'Remove';
-            var em = parts[sec].emojiOf ? parts[sec].emojiOf(key) : '';
-            c.textContent = (em ? em + ' ' : '') + p[p.length - 1] + ' \u00d7';
+            c.textContent = p[p.length - 1] + ' \u00d7';
             c.addEventListener('click', function(){ parts[sec].remove(key); });
             row.appendChild(c);
           });
