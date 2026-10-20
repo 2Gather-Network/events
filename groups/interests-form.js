@@ -37,6 +37,16 @@
     { label: 'Professional', key: 'joys' },
     { label: 'Eco/social cause', key: 'cares' }
   ];
+  var KIND_TOPS = {
+    Recreational: ['Play', 'Outdoors', 'Movement', 'Arts & Expression', 'Food & Drink', 'Travel'],
+    Personal: ['Home Life', 'Animals', 'Rest & Recovery', 'Personal Care', 'Medical']
+  };
+  function kindOfTop(name){
+    name = String(name || '').trim();
+    if (KIND_TOPS.Recreational.indexOf(name) > -1) return 'Recreational';
+    if (KIND_TOPS.Personal.indexOf(name) > -1) return 'Personal';
+    return 'Professional';
+  }
   function normalise(key){
     key = String(key || '').trim();
     if (!key) return '';
@@ -177,7 +187,7 @@
       found.innerHTML = '';
       var q = String(find.value || '').trim().toLowerCase();
       if (!q || !tree) return;
-      var hits = allNodes(tree, [], []).filter(function(n){ return n.name.toLowerCase().indexOf(q) > -1; });
+      var hits = allNodes(tree, [], []).filter(function(n){ return n.name.toLowerCase().indexOf(q) > -1 && (!sec.visible || sec.visible(n.path[0])); });
       if (!hits.length) { found.appendChild(el('span', 'font-size:13px;color:var(--muted,#6B7A8D);', 'Nothing matches. Open a category and tap + Other to add it.')); return; }
       hits.slice(0, 30).forEach(function(n){
         var key = n.path.join(SEP);
@@ -208,11 +218,12 @@
       cats.innerHTML = '';
       var list = nodeAt(at);
       if (!list) { at = []; list = tree; }
+      if (!at.length && sec.visible) list = list.filter(function(n){ return sec.visible(n.name); });
       var crumb = el('div', 'font-size:14px;font-weight:700;color:var(--ink,#1A2E42);margin:4px 0 10px;');
       var help = null;
       if (sec.tag) {
         help = catHelp(helpState);
-        crumb.appendChild(el('span', 'margin-right:6px;', 'Tag this group'));
+        crumb.appendChild(el('span', 'margin-right:6px;', sec.heading ? sec.heading() : 'Tag this group'));
         crumb.appendChild(help.btn);
       }
       if (at.length) {
@@ -346,6 +357,7 @@
     root.appendChild(help);
     var kinds = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;');
     root.appendChild(kinds);
+    function joyKind(){ var f = null; KINDS.forEach(function(o){ if (o.key === 'joys' && kindOn[o.label]) f = o.label; }); return f; }
     var kindHint = el('div', 'font-size:13.5px;color:var(--soft,#4B5A6D);margin:-6px 0 14px;', 'For the people closest to you, like family, a health team or close friends.');
     kindHint.style.display = 'none';
     root.appendChild(kindHint);
@@ -364,10 +376,18 @@
       kindHint.style.display = kindOn['Personal'] ? '' : 'none';
       KINDS.forEach(function(k){
         var c = document.createElement('div'); c.className = chip + (kindOn[k.label] ? ' on' : '');
-        c.textContent = (kindOn[k.label] ? '\u2713 ' : '') + k.label;
+        var cnt = k.key === 'joys' ? (parts.joys ? parts.joys.picks().filter(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; }).length : 0) : (parts.cares ? parts.cares.picks().length : 0);
+        c.textContent = k.label + (cnt ? ' (' + cnt + ')' : '');
         c.addEventListener('click', function(){
-          if (kindOn[k.label] && parts[k.key].picks().length && KINDS.filter(function(o){ return o.key === k.key && kindOn[o.label]; }).length === 1) return;
-          kindOn[k.label] = !kindOn[k.label]; paintKinds(); layout();
+          if (k.key === 'joys') {
+            var was = !!kindOn[k.label];
+            KINDS.forEach(function(o){ if (o.key === 'joys') kindOn[o.label] = false; });
+            kindOn[k.label] = !was;
+          } else {
+            if (kindOn[k.label] && parts[k.key].picks().length) return;
+            kindOn[k.label] = !kindOn[k.label];
+          }
+          paintKinds(); layout();
         });
         kinds.appendChild(c);
       });
@@ -379,6 +399,7 @@
       if (parts.joys) parts.joys.redraw();
     }
     function preview(){
+      paintKinds();
       prevBody.innerHTML = '';
       var any = false;
       SECTIONS.forEach(function(s){
@@ -415,7 +436,7 @@
       holder.appendChild(wrap);
       boxes[s.key].wrap = wrap; boxes[s.key].body = body;
       s.selectAll = true;
-      if (s.key === 'joys') s.tag = true;
+      if (s.key === 'joys') { s.tag = true; s.visible = function(n){ return !!joyKind() && kindOfTop(n) === joyKind(); }; s.heading = function(){ return 'Ideas for ' + String(joyKind() || '').toLowerCase() + ' groups'; }; }
       if (s.key === 'cares') s.accordion = true;
       parts[s.key] = makePicker(body, s, chip, preview);
     });
@@ -425,8 +446,7 @@
       get: function(){ return { joys: parts.joys.get(), skills: '', cares: parts.cares.get() }; },
       set: function(joys, skills, cares){
         parts.joys.set([joys, skills].filter(Boolean).join(';')); parts.cares.set(cares);
-        if (String(skills || '').trim()) kindOn.Professional = true;
-        KINDS.forEach(function(k){ if (parts[k.key].picks().length && !KINDS.some(function(o){ return o.key === k.key && kindOn[o.label]; })) kindOn[k.label] = true; });
+        if (parts.cares.picks().length) kindOn['Eco/social cause'] = true;
         paintKinds(); layout(); preview();
       }
     };
