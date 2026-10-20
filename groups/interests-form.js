@@ -443,14 +443,14 @@
       drawFound();
       prevBody.innerHTML = '';
       var any = false;
-      var grid = el('div', 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 14px;');
+      var grid = el('div', 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 0;');
       KINDS.forEach(function(k){
         var sec = k.key, all = parts[sec] ? parts[sec].picks() : [];
         var picks = sec === 'joys' ? all.filter(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; }) : all;
         if (picks.length) any = true;
-        var col = el('div', 'display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0;');
+        var col = el('div', 'display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0;padding:0 14px;' + (k !== KINDS[0] ? 'border-left:1px solid #DDE6EF;' : 'padding-left:0;'));
         col.appendChild(el('div', 'font-size:13px;font-weight:700;color:var(--muted,#6B7A8D);', k.label));
-        if (!picks.length) col.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);', 'None yet'));
+        if (!picks.length) col.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);', 'None'));
         picks.forEach(function(key){
           var p = key.split(SEP);
           var c = document.createElement('div'); c.className = chip;
