@@ -762,8 +762,10 @@
     <div class="rc-row3">
       <span class="tw" id="grp-tw" style="display:none;"><span class="tw-l">My groups</span><span class="rc-seg tw-seg" role="group" aria-label="My groups"><button type="button" class="rc-seg-b" data-tw="grp" data-v="only" onclick="setTri('grp','only')">Only</button><button type="button" class="rc-seg-b" data-tw="grp" data-v="none" onclick="setTri('grp','none')">None</button><button type="button" class="rc-seg-b" data-tw="grp" data-v="all" onclick="setTri('grp','all')">All</button></span></span>
       <span class="tw" id="mat-tw" style="display:none;"><span class="tw-l">Matches</span><span class="rc-seg tw-seg" role="group" aria-label="Matches"><button type="button" class="rc-seg-b" data-tw="mat" data-v="only" onclick="setTri('mat','only')">Only</button><button type="button" class="rc-seg-b" data-tw="mat" data-v="none" onclick="setTri('mat','none')">None</button><button type="button" class="rc-seg-b" data-tw="mat" data-v="all" onclick="setTri('mat','all')">All</button></span></span>
+      <span class="tw" id="host-tw" style="display:none;"><span class="tw-l">Hosting</span><span class="rc-seg tw-seg" role="group" aria-label="Hosting"><button type="button" class="rc-seg-b" data-tw="host" data-v="only" onclick="setTri('host','only')">Only</button><button type="button" class="rc-seg-b" data-tw="host" data-v="none" onclick="setTri('host','none')">None</button><button type="button" class="rc-seg-b" data-tw="host" data-v="all" onclick="setTri('host','all')">All</button></span></span>
       <button type="button" class="tw-chip" id="grp-chip" onclick="cycleTri('grp')" style="display:none;">My groups: All</button>
       <button type="button" class="tw-chip" id="mat-chip" onclick="cycleTri('mat')" style="display:none;">Matches: All</button>
+      <button type="button" class="tw-chip" id="host-chip" onclick="cycleTri('host')" style="display:none;">Hosting: All</button>
     </div>
   </div>
   <div id="cal-loading" style="display:none;text-align:center;margin:22px 0 8px;"><span class="cw-loading">Loading events</span></div>
@@ -3234,6 +3236,32 @@ function renderGroupEvents() {
 
 var _intCache = null;
 var _matchMode = "all";
+var _hostMode = "all";
+var _hostedIds = null;
+var _hostedAsked = "";
+function _loadHosted() {
+  var me = "";
+  try { me = (typeof getMemberId === "function") ? (getMemberId() || "") : ""; } catch (e) {}
+  if (!me || _hostedAsked === me) { return; }
+  _hostedAsked = me;
+  var ask = function () {
+    return fetch(GS_URL + "?action=getMyEvents&appearId=" + encodeURIComponent(me))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (!d || d.status !== "ok" || !Array.isArray(d.events)) { throw new Error("no answer"); } return d.events; });
+  };
+  ask().catch(function () { return new Promise(function (ok) { setTimeout(ok, 4000); }).then(ask); })
+    .then(function (list) {
+      var set = {};
+      list.forEach(function (x) { var id = String((x && (x.id || x.eventId)) || "").trim(); if (id) { set[id] = 1; } });
+      _hostedIds = set;
+      try { renderEvents(); } catch (e) {}
+    })
+    .catch(function () { _hostedAsked = ""; });
+}
+function _evHosted(e) {
+  if (!_hostedIds) { return false; }
+  return !!(_hostedIds[String(e.id)] || (e.seriesId && _hostedIds[String(e.seriesId)]));
+}
 var _matchCache = new WeakMap();
 var _matchSig = "";
 function _interestsNow() {
@@ -3266,11 +3294,11 @@ function _evMatchPills(ev) {
   } catch (e) { return ""; }
 }
 function cycleTri(which) {
-  var cur = which === "grp" ? _grpMode : _matchMode;
+  var cur = which === "grp" ? _grpMode : (which === "host" ? _hostMode : _matchMode);
   setTri(which, cur === "all" ? "only" : (cur === "only" ? "none" : "all"));
 }
 function setTri(which, v) {
-  if (which === "grp") { _grpMode = v; } else { _matchMode = v; }
+  if (which === "grp") { _grpMode = v; } else if (which === "host") { _hostMode = v; } else { _matchMode = v; }
   renderEvents();
 }
 function _evWhereLine(ev) {
@@ -3340,21 +3368,23 @@ function _paintRangeChips() {
   [].forEach.call(document.querySelectorAll("#range-chips [data-view]"), function (c) {
     c.classList.toggle("on", c.getAttribute("data-view") === activeView);
   });
-  var _gtw = document.getElementById("grp-tw"), _mtw = document.getElementById("mat-tw");
+  try { _loadHosted(); } catch (e) {}
+  var _gtw = document.getElementById("grp-tw"), _mtw = document.getElementById("mat-tw"), _htw = document.getElementById("host-tw");
+  if (_htw) { _htw.style.display = (_hostMode !== "all" || _hasHostEvents()) ? "inline-flex" : "none"; }
   if (_gtw) { _gtw.style.display = (_grpMode !== "all" || _hasGroupEvents()) ? "inline-flex" : "none"; }
   if (_mtw) { _mtw.style.display = (_matchMode !== "all" || _hasMatchEvents()) ? "inline-flex" : "none"; }
   [].forEach.call(document.querySelectorAll("#range-chips [data-tw]"), function (b) {
-    var cur = b.getAttribute("data-tw") === "grp" ? _grpMode : _matchMode;
+    var cur = b.getAttribute("data-tw") === "grp" ? _grpMode : (b.getAttribute("data-tw") === "host" ? _hostMode : _matchMode);
     b.classList.toggle("on", b.getAttribute("data-v") === cur);
   });
-  [["grp-chip", "My groups", _grpMode, _gtw], ["mat-chip", "Matches", _matchMode, _mtw]].forEach(function (c) {
+  [["grp-chip", "My groups", _grpMode, _gtw], ["mat-chip", "Matches", _matchMode, _mtw], ["host-chip", "Hosting", _hostMode, _htw]].forEach(function (c) {
     var el = document.getElementById(c[0]);
     if (!el) { return; }
     el.textContent = c[1] + ": " + (c[2] === "only" ? "Only" : (c[2] === "none" ? "None" : "All"));
     el.className = "tw-chip tw-" + c[2] + ((c[3] && c[3].style.display !== "none") ? " tw-show" : "");
   });
   var _r3 = document.querySelector(".rc-row3");
-  if (_r3) { _r3.style.display = ((_gtw && _gtw.style.display !== "none") || (_mtw && _mtw.style.display !== "none")) ? "flex" : "none"; }
+  if (_r3) { _r3.style.display = ((_gtw && _gtw.style.display !== "none") || (_mtw && _mtw.style.display !== "none") || (_htw && _htw.style.display !== "none")) ? "flex" : "none"; }
   _paintPhotos();
   var _ls = document.getElementById("list-search"), _rs = document.getElementById("search-input");
   if (_ls && _rs && document.activeElement !== _ls && _ls.value !== _rs.value) { _ls.value = _rs.value; }
@@ -3414,6 +3444,17 @@ function _evIsGroup(ev) {
     return String((ev && ev.groupId) || "").split("|").some(function (v) {
       var k = String(v || "").trim().split(".").join("").toLowerCase();
       return !!(k && _gKeys[k]);
+    });
+  } catch (e) { return false; }
+}
+function _hasHostEvents() {
+  try {
+    if (!_hostedIds) { return false; }
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var t = today.getTime();
+    return (window._calAll || events || []).some(function (e) {
+      if (!e || !e.date || e.cancelled) { return false; }
+      return new Date(e.date + "T00:00:00").getTime() >= t && _evHosted(e);
     });
   } catch (e) { return false; }
 }
@@ -3520,6 +3561,9 @@ function matchesQuery(e, q) {
 function _passesEventFilters(e, opts) {
   opts = opts || {};
   var _isM = _evMatches(e).any, _isG = _evIsGroup(e);
+  var _isH = _evHosted(e);
+  if (_hostMode === "only" && !_isH) return false;
+  if (_hostMode === "none" && _isH) return false;
   if (_matchMode === "only" && !_isM) return false;
   if (_matchMode === "none" && _isM) return false;
   if (!(_myGroupPick && Object.keys(_myGroupPick).length)) {
