@@ -3920,7 +3920,7 @@
     host.style.cssText = 'margin:-4px 0 8px;';
     var said = '', addQ = '';
     var saveNew = function(q, picked, note){
-      note.textContent = 'Adding “' + q + '”…';
+      note.textContent = 'Adding “' + q + '”…'; gpWhy('adding word "' + q + '": request sent');
       var _slowT = setTimeout(function(){ if (note.textContent.indexOf('Adding') === 0) { note.textContent = 'Still adding “' + q + '”. The server is slow right now. The title still saves.'; } }, 12000);
       var _ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       var _giveT = setTimeout(function(){ try { if (_ac) { _ac.abort(); } } catch (x) {} }, 45000);
@@ -3928,7 +3928,7 @@
       fetch(GS_URL + '?action=saveWord&appearId=' + encodeURIComponent(sa) + '&word=' + encodeURIComponent(q.slice(0, 60)) + '&kindOf=&otherNames=&categories=' + encodeURIComponent(picked.join('|')) + '&askedIn=choice', _ac ? { signal: _ac.signal } : undefined)
         .then(function(r){ return r.json(); })
         .then(function(a){
-          clearTimeout(_slowT); clearTimeout(_giveT);
+          clearTimeout(_slowT); clearTimeout(_giveT); gpWhy('adding word: answer ' + (a && a.status ? a.status : 'none') + (a && a.row ? ', row ' + a.row[0] : ''));
           if (!a || a.status !== 'ok' || !a.row) { note.textContent = 'That word could not be added. The title still saves.'; return; }
           try {
             var W = window._gpWords, rows = W ? W.rows.slice() : [], at = -1;
@@ -3940,7 +3940,7 @@
           try { if (window.CW_WORDS_REFRESH) { window.CW_WORDS_REFRESH(); } } catch (x) {}
           note.textContent = '“' + q + '” was added.';
         })
-        .catch(function(){ clearTimeout(_slowT); clearTimeout(_giveT); note.textContent = 'That word could not be added. The title still saves.'; });
+        .catch(function(){ clearTimeout(_slowT); clearTimeout(_giveT); gpWhy('adding word: no answer or cancelled'); note.textContent = 'That word could not be added. The title still saves.'; });
     };
     var startAdd = function(q){
       host.innerHTML = '';
@@ -5287,6 +5287,8 @@
   var GP_SAVE_WHY = /[?&]savewhy=1\b/.test(location.search);
   function gpWhy(msg){
     if (!GP_SAVE_WHY) return;
+    var t0 = new Date().toTimeString().slice(0, 8);
+    try { var kept = JSON.parse(window.sessionStorage.getItem('cw-savewhy') || '[]'); kept.unshift(t0 + '  ' + msg); window.sessionStorage.setItem('cw-savewhy', JSON.stringify(kept.slice(0, 160))); } catch (e1) {}
     var box = document.getElementById('gp-savewhy');
     if (!box) {
       box = document.createElement('div');
@@ -5298,13 +5300,29 @@
       hb.type = 'button'; hb.textContent = 'Hide this log';
       hb.style.cssText = 'position:sticky;top:0;display:block;margin:0 0 6px auto;padding:4px 10px;border:0;border-radius:8px;background:#fff;color:#1A2E42;font:600 12px/1.2 system-ui,sans-serif;cursor:pointer;';
       hb.onclick = function(){ box.style.display = 'none'; };
+      var cb = document.createElement('button');
+      cb.type = 'button'; cb.textContent = 'Copy log';
+      cb.style.cssText = hb.style.cssText.replace('margin:0 0 6px auto', 'margin:0 8px 6px auto').replace('position:sticky;top:0;display:block', 'position:sticky;top:0;float:right');
+      cb.onclick = function(){
+        var txt = document.getElementById('gp-savewhy-log').textContent;
+        var done = function(){ cb.textContent = 'Copied'; setTimeout(function(){ cb.textContent = 'Copy log'; }, 1500); };
+        try { navigator.clipboard.writeText(txt).then(done, function(){ var r = document.createRange(); r.selectNodeContents(document.getElementById('gp-savewhy-log')); var sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(r); cb.textContent = 'Selected, press Copy'; }); }
+        catch (e) { var r2 = document.createRange(); r2.selectNodeContents(document.getElementById('gp-savewhy-log')); var s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(r2); cb.textContent = 'Selected, press Copy'; }
+      };
       var lg = document.createElement('div'); lg.id = 'gp-savewhy-log';
-      box.appendChild(hb); box.appendChild(lg);
+      box.appendChild(hb); box.appendChild(cb); box.appendChild(lg);
       document.body.appendChild(box);
+      try { var kept0 = JSON.parse(window.sessionStorage.getItem('cw-savewhy') || '[]'); lg.textContent = kept0.join('\n') + (kept0.length ? '\n' : ''); } catch (e0) {}
+      return;
     }
-    var t = new Date().toTimeString().slice(0, 8);
     var lgEl = document.getElementById('gp-savewhy-log');
-    lgEl.textContent = t + '  ' + msg + '\n' + lgEl.textContent;
+    lgEl.textContent = t0 + '  ' + msg + '\n' + lgEl.textContent;
+  }
+  if (GP_SAVE_WHY) {
+    var _gpWhyStart = function(){ gpWhy('page loaded'); };
+    if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', _gpWhyStart); } else { _gpWhyStart(); }
+    window.addEventListener('pagehide', function(){ gpWhy('page is leaving (reload or another page)'); });
+    document.addEventListener('visibilitychange', function(){ gpWhy('page is ' + document.visibilityState); });
   }
 
   var _gpLastSaved = '', _gpSaving = '', _gpSavingP = null, _gpSaveSaid = '';
