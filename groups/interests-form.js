@@ -219,24 +219,27 @@
       var list = nodeAt(at);
       if (!list) { at = []; list = tree; }
       if (!at.length && sec.visible) list = list.filter(function(n){ return sec.visible(n.name); });
-      var crumb = el('div', 'font-size:14px;font-weight:700;color:var(--ink,#1A2E42);margin:4px 0 10px;');
+      var crumb = el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:4px 0 10px;');
       var help = null;
       if (sec.tag) {
         help = catHelp(helpState);
         crumb.appendChild(el('span', 'margin-right:6px;', sec.heading ? sec.heading() : 'Tag this group'));
         crumb.appendChild(help.btn);
       }
+      var trail = crumb;
       if (at.length) {
+        trail = el('div', 'font-size:14px;font-weight:700;color:var(--ink,#1A2E42);margin:6px 0 0;');
+        crumb.appendChild(trail);
         var link = function(text, to){
           var a = el('a', 'color:#1F699E;text-decoration:underline;cursor:pointer;', text); a.href = '#';
           a.addEventListener('click', function(e){ e.preventDefault(); at = to; draw(); });
           return a;
         };
-        crumb.appendChild(link('Main categories', []));
+        trail.appendChild(link('Main categories', []));
         at.forEach(function(seg, i){
-          crumb.appendChild(el('span', 'color:var(--muted,#6B7A8D);font-weight:400;margin:0 4px;', '\u203a'));
-          if (i === at.length - 1) crumb.appendChild(el('span', '', seg));
-          else crumb.appendChild(link(seg, at.slice(0, i + 1)));
+          trail.appendChild(el('span', 'color:var(--muted,#6B7A8D);font-weight:400;margin:0 4px;', '\u203a'));
+          if (i === at.length - 1) trail.appendChild(el('span', '', seg));
+          else trail.appendChild(link(seg, at.slice(0, i + 1)));
         });
       } else if (!sec.tag) crumb.style.display = 'none';
       cats.appendChild(crumb);
@@ -302,6 +305,7 @@
         return (node && node.emoji) || '';
       },
       redraw: function(){ draw(); },
+      home: function(){ at = []; otherOpen = false; draw(); },
       get: function(){ if (String(inp.value || '').trim()) addOwn(); return order.filter(function(k){ return on[k]; }).join(';'); },
       set: function(v){ on = {}; order = []; own = {}; splitList(v).forEach(function(k){ k = normalise(k); if (k) mark(k, k.indexOf(SEP) === -1); }); draw(); }
     };
@@ -387,6 +391,7 @@
             if (kindOn[k.label] && parts[k.key].picks().length) return;
             kindOn[k.label] = !kindOn[k.label];
           }
+          if (k.key === 'joys' && parts.joys) parts.joys.home();
           paintKinds(); layout();
         });
         kinds.appendChild(c);
