@@ -443,26 +443,28 @@
       drawFound();
       prevBody.innerHTML = '';
       var any = false;
+      var grid = el('div', 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 14px;');
       KINDS.forEach(function(k){
         var sec = k.key, all = parts[sec] ? parts[sec].picks() : [];
         var picks = sec === 'joys' ? all.filter(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; }) : all;
-        if (!picks.length) return;
-        any = true;
-        var row = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 8px;');
-        row.appendChild(el('span', 'font-size:13px;color:var(--muted,#6B7A8D);min-width:120px;', k.label));
+        if (picks.length) any = true;
+        var col = el('div', 'display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0;');
+        col.appendChild(el('div', 'font-size:13px;font-weight:700;color:var(--muted,#6B7A8D);', k.label));
+        if (!picks.length) col.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);', 'None yet'));
         picks.forEach(function(key){
           var p = key.split(SEP);
           var c = document.createElement('div'); c.className = chip;
-          c.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.2;cursor:pointer;';
+          c.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.2;cursor:pointer;max-width:100%;';
           c.title = 'Remove';
           var em = parts[sec].emojiOf ? parts[sec].emojiOf(key) : '';
           c.appendChild(el('span', '', (em ? em + ' ' : '') + p[p.length - 1] + '  \u00d7'));
           if (p.length > 1) c.appendChild(el('span', 'font-size:11px;font-weight:500;color:var(--muted,#6B7A8D);margin-top:2px;', p.slice(0, -1).join(SEP)));
           c.addEventListener('click', function(){ parts[sec].remove(key); });
-          row.appendChild(c);
+          col.appendChild(c);
         });
-        prevBody.appendChild(row);
+        grid.appendChild(col);
       });
+      if (any) prevBody.appendChild(grid);
       if (!any) prevBody.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);margin-top:6px;', 'Nothing picked yet. Pick a kind above, then your ideas.'));
     }
     SECTIONS.forEach(function(s){
