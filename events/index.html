@@ -105,6 +105,7 @@
   .range-chips .rc-seg { display:flex; flex:0 0 auto; border:1.5px solid var(--primary); border-radius:20px; overflow:hidden; }
   .range-chips .rc-seg-b { font:inherit; font-size:13px; font-weight:700; padding:7px 14px; border:0; background:var(--white); color:var(--primary); cursor:pointer; white-space:nowrap; }
   .range-chips .rc-seg-b.on { background:var(--primary); color:#fff; }
+  @media (max-width:480px) { .range-chips .rc-seg-b { padding:7px 10px; } .range-chips .rc-top { gap:8px; } }
   .range-chips .rc-row2 { flex:1 1 100%; display:flex; flex-wrap:wrap; align-items:center; gap:8px 18px; }
   .range-chips .when-dd { display:inline-flex !important; width:auto !important; position:relative; }
   .range-chips .when-dd .fbar-btn { width:auto !important; }
@@ -729,7 +730,7 @@
     <div class="rc-top">
       <input class="filter-search list-search" id="list-search" type="search" placeholder="🔍  Search events" aria-label="Search events" oninput="syncListSearch(this.value)" autocomplete="off">
       <div class="rc-seg" role="group" aria-label="View">
-        <button type="button" class="rc-seg-b" data-view="list" onclick="setEventView('list')">List</button>
+        <button type="button" class="rc-seg-b" data-view="list" onclick="setEventView('list')">Cards</button>
         <button type="button" class="rc-seg-b" data-view="week" onclick="setEventView('week')">Week</button>
       </div>
     </div>
@@ -3305,7 +3306,7 @@ function _paintRangeChips() {
   if (evm) {
     evm.classList.toggle("on", _matchOnly);
     evm.setAttribute("aria-checked", _matchOnly ? "true" : "false");
-    evm.style.display = _interestsNow().length ? "inline-flex" : "none";
+    evm.style.display = (_matchOnly || _hasMatchEvents()) ? "inline-flex" : "none";
   }
   var ogm = document.getElementById("only-my-groups");
   if (ogm) {
@@ -3372,6 +3373,17 @@ function _evIsGroup(ev) {
     return String((ev && ev.groupId) || "").split("|").some(function (v) {
       var k = String(v || "").trim().split(".").join("").toLowerCase();
       return !!(k && _gKeys[k]);
+    });
+  } catch (e) { return false; }
+}
+function _hasMatchEvents() {
+  try {
+    if (!_interestsNow().length) { return false; }
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var t = today.getTime();
+    return (events || []).some(function (e) {
+      if (!e || !e.date || e.isPrivate || e.cancelled) { return false; }
+      return new Date(e.date + "T00:00:00").getTime() >= t && _evMatches(e).any;
     });
   } catch (e) { return false; }
 }
@@ -3470,8 +3482,11 @@ function matchesQuery(e, q) {
 
 function _passesEventFilters(e, opts) {
   opts = opts || {};
-  if (_matchOnly && !_evMatches(e).any) return false;
-  if (!_groupEventsOn && !(_myGroupPick && Object.keys(_myGroupPick).length) && _evIsGroup(e)) return false;
+  var _isM = _evMatches(e).any, _isG = _evIsGroup(e);
+  if (_isM || _isG) {
+    var _pickOn = !!(_myGroupPick && Object.keys(_myGroupPick).length);
+    if (!((_isM && _matchOnly) || (_isG && (_groupEventsOn || _pickOn)))) return false;
+  }
   if (_bmFilterOn() && !_bmHasEv(e)) return false;
   if (_myGroupPick && Object.keys(_myGroupPick).length) {
     var _egs = String(e.groupId || "").split("|").map(function (x) { return x.trim(); }).filter(Boolean);
@@ -8580,6 +8595,13 @@ function _railKeepInView(key) {
   #cw-sheet-btn, #cw-sheet-dim, #cw-sheet-head, #cw-sheet-foot { display:none; }
   @media (max-width:768px) {
     html.cw-sheet #fbar-controls > .fbar-fold { display:none !important; }
+    html.cw-sheet #fbar-search { display:contents !important; }
+    html.cw-sheet #fbar-search #search-input { display:none !important; }
+    html.cw-sheet #cw-sheet-btn { flex:1 1 0 !important; width:auto !important; min-width:0 !important; }
+    html.cw-sheet #fbar-row > #post-event-btn, html.cw-sheet #fbar-row #fbar-search #post-event-btn { order:2; }
+    html.cw-sheet #fbar-row #fbar-help-btn { order:3; }
+    html.cw-sheet #fbar-row { flex-direction:row !important; flex-wrap:nowrap !important; align-items:center; }
+    html.cw-sheet #fbar-row #fbar-help-btn { width:22px !important; min-width:22px !important; height:22px; flex:0 0 22px !important; }
     html.cw-sheet #cw-sheet-btn { display:block; order:1; width:100%; background:#fff; border:2px solid #154F74; color:#1F699E;
       font:inherit; font-size:14px; font-weight:800; padding:9px 12px; border-radius:9px; cursor:pointer; text-align:center; line-height:1.3; }
     html.cw-sheet-open body { overflow:hidden; }
