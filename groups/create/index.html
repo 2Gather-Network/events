@@ -112,6 +112,9 @@
   .status.err{display:block;background:#FBE9E7;border:1px solid #E8B0A5;color:#7A2410;}
   .status.ok{display:block;background:#E7F5EA;border:1px solid #A5D5B0;color:#1A5A2C;}
   .warn-note{background:#FFF4CC;border:1px solid #E8C766;border-radius:10px;padding:10px 12px;font-size:13px;color:#5A3A00;margin-top:12px;line-height:1.55;}
+.cw-miss{border-left:5px solid #c0392b !important;padding-left:12px !important;border-radius:4px;}
+  .cw-miss > .q:first-child,.q.cw-miss{color:#c0392b;}
+  input.cw-miss,textarea.cw-miss{border-color:#c0392b !important;}
 </style>
   <script src="/nav/identity.js?v=31"></script>
   <script src="/nav/category-tree.js?v=7"></script>
@@ -579,6 +582,26 @@ We translate self-promotion to collaboration.</textarea>
   var statusEl = document.getElementById('save-status');
   var submitBtn = document.getElementById('submit-btn');
   var UNSURE_MADE = 'We could not tell whether your group was made. Look in <a href="https://2gather.network/mygroups/">My groups</a> before trying again.';
+
+  var _missList = [];
+  function _missClear(){ document.querySelectorAll('.cw-miss').forEach(function(x){ x.classList.remove('cw-miss'); }); }
+  function _missRun(items, out){
+    _missClear();
+    var bad = items.filter(function(i){ return !i.ok; });
+    if (!bad.length) return false;
+    bad.forEach(function(i){ i.mark.classList.add('cw-miss'); });
+    out('err', 'Still needed: ' + bad.map(function(i){ return i.label; }).join(', ') + '.');
+    var f = bad[0].mark;
+    try { f.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+    try { var inp = (f.matches('input,textarea') ? f : f.querySelector('input:not([type=hidden]):not([type=checkbox]),textarea')); if (inp) inp.focus({ preventScroll: true }); } catch (e) {}
+    return true;
+  }
+  ['input','change','click'].forEach(function(t){
+    document.addEventListener(t, function(e){
+      var n = e.target && e.target.closest ? e.target.closest('.cw-miss') : null;
+      if (n) n.classList.remove('cw-miss');
+    });
+  });
   function showStatus(kind, msg){
     statusEl.className = 'status ' + kind;
     statusEl.innerHTML = msg;
@@ -590,12 +613,14 @@ We translate self-promotion to collaboration.</textarea>
     var passcode = document.getElementById('f-passcode').value.trim();
     var agreements = document.getElementById('f-agreements').value.trim();
 
-    if (!name) { showStatus('err', 'Group name is required.'); return; }
     var _pl = _fPlace.get();
-    if (!String(_pl[_pl.level] || '').trim()) { showStatus('err', 'Choose where this group serves. Pick a place at the level you selected, so people joining know what the group is for.'); return; }
-    if (!passcode) { showStatus('err', 'A passcode is required. Every group has one.'); return; }
     var _kq = _interests.get();
-    if (!String(_kq.joys || '').trim() && !String(_kq.cares || '').trim() && !String(_kq.skills || '').trim()) { showStatus('err', 'Pick at least one kind of group. What you pick becomes the questions people answer when they join.'); return; }
+    if (_missRun([
+      {ok: !!name, label: 'Group name', mark: document.getElementById('f-name')},
+      {ok: !!String(_pl[_pl.level] || '').trim(), label: 'where this group serves', mark: document.getElementById('f-locbox')},
+      {ok: !!passcode, label: 'Group passcode', mark: document.getElementById('f-passbox')},
+      {ok: !!(String(_kq.joys || '').trim() || String(_kq.cares || '').trim() || String(_kq.skills || '').trim()), label: 'at least one kind of group', mark: document.getElementById('v2-sections')}
+    ], showStatus)) return;
 
     var resources = [];
     resList.querySelectorAll('.row').forEach(function(row){
