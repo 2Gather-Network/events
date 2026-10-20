@@ -117,18 +117,7 @@
   .tg-track { position:relative; width:38px; height:22px; border-radius:11px; background:#C9D6E2; transition:background .15s; flex-shrink:0; }
   .tg-knob { position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:left .15s; }
   html.cw-nophotos #event-grid .event-card-img { display:none; }
-  @media (min-width:769px) {
-    html.cw-nophotos #event-grid { grid-template-columns:1fr !important; gap:8px !important; }
-    html.cw-nophotos #event-grid .event-card { flex-direction:row; align-items:center; gap:12px; padding:10px 14px; }
-    html.cw-nophotos #event-grid .event-card-top { flex:1 1 auto; min-width:0; display:flex; flex-wrap:wrap; align-items:baseline; column-gap:14px; row-gap:1px; padding:0 !important; }
-    html.cw-nophotos #event-grid .event-card-top > .event-title { flex:1 1 100%; margin:0; }
-    html.cw-nophotos #event-grid .event-card-top > .ev-when, html.cw-nophotos #event-grid .event-card-top > .ev-where { margin:0; }
-    html.cw-nophotos #event-grid .event-card-top > .ev-pills { flex:1 1 100%; }
-    html.cw-nophotos #event-grid .event-card-body { display:none; }
-    html.cw-nophotos #event-grid .event-card > .ev-groups { border-top:0; padding:0; margin:0 !important; flex:0 0 auto; max-width:30%; min-width:0; }
-    html.cw-nophotos #event-grid .event-card-footer:not(:has(a, button)) { display:none; }
-  }
-  @media (max-width:768px) {
+  @media (min-width:1px) {
     html.cw-nophotos.cw-cal2 .cw-c2-row { grid-template-columns:minmax(0,1fr); }
     html.cw-nophotos.cw-cal2 .cw-c2-row > *, html.cw-nophotos.cw-cal2 .cw-c2-row > * > * { grid-column:1; }
     html.cw-nophotos.cw-cal2 .cw-c2-row .cw-c2-thumb, html.cw-nophotos.cw-cal2 .cw-c2-row img.cw-c2-thumb { display:none !important; }
@@ -3276,6 +3265,7 @@ var activeView = "list";
 function _dayStart(offset) { var d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + offset); return d.getTime(); }
 function _rangeBounds(f) {
   var dow = new Date().getDay();
+  if (f === "today") return [_dayStart(0), _dayStart(1)];
   if (f === "tomorrow") return [_dayStart(1), _dayStart(2)];
   if (f === "weekend") {
     var toSat = (6 - dow + 7) % 7;
@@ -3331,7 +3321,7 @@ function togglePhotos() {
   try { localStorage.setItem("cw-cal-photos", _photosOn() ? "0" : "1"); } catch (e) { document.documentElement.classList.toggle("cw-nophotos"); }
   _paintPhotos();
 }
-var _WHEN = [["upcoming", "Any date"], ["tomorrow", "Tomorrow"], ["weekend", "This weekend"], ["week", "This week"], ["nextweek", "Next week"]];
+var _WHEN = [["upcoming", "Any date"], ["4hours", "Next 4 hours"], ["today", "Today"], ["tomorrow", "Tomorrow"], ["weekend", "This weekend"], ["week", "This week"], ["nextweek", "Next week"]];
 function _paintWhen() {
   var btn = document.getElementById("when-btn"), menu = document.getElementById("when-menu");
   if (!btn || !menu) { return; }
@@ -3381,7 +3371,7 @@ function _hasMatchEvents() {
     if (!_interestsNow().length) { return false; }
     var today = new Date(); today.setHours(0, 0, 0, 0);
     var t = today.getTime();
-    return (events || []).some(function (e) {
+    return (window._calAll || events || []).some(function (e) {
       if (!e || !e.date || e.isPrivate || e.cancelled) { return false; }
       return new Date(e.date + "T00:00:00").getTime() >= t && _evMatches(e).any;
     });
@@ -3391,7 +3381,7 @@ function _hasGroupEvents() {
   try {
     var today = new Date(); today.setHours(0, 0, 0, 0);
     var t = today.getTime();
-    return (events || []).some(function (e) {
+    return (window._calAll || events || []).some(function (e) {
       if (!e || !e.date || e.isPrivate || e.cancelled) { return false; }
       var d = new Date(e.date + "T00:00:00").getTime();
       return d >= t && _evIsGroup(e);
@@ -3505,10 +3495,11 @@ function _passesEventFilters(e, opts) {
   const evEndMs   = e.endtime ? new Date(e.date + "T" + e.endtime).getTime() : new Date(e.date + "T" + (e.time||"00:00")).getTime() + 60*60*1000;
   const evStartMs = new Date(e.date + "T" + (e.time||"00:00")).getTime();
   const isPast    = evEndMs < now;
-  const matchTab  = activeTab === "past" ? isPast : !isPast;
+  const matchTab  = activeDateFilter === "today" ? true : (activeTab === "past" ? isPast : !isPast);
   let matchDate = true;
   var _rb = _rangeBounds(activeDateFilter);
-  if (_rb)                                 matchDate = evStartMs >= _rb[0] && evStartMs < _rb[1] && evEndMs >= now;
+  if (_rb)                                 matchDate = evStartMs >= _rb[0] && evStartMs < _rb[1] && (activeDateFilter === "today" || evEndMs >= now);
+  else if (activeDateFilter === "4hours")  matchDate = evStartMs <= now + 4 * 60 * 60 * 1000 && evEndMs >= now;
   else if (activeDateFilter === "week")    matchDate = evStartMs >= now && evStartMs <= now + MS_WEEK;
   else if (activeDateFilter === "month")   matchDate = evStartMs >= now && evStartMs <= now + MS_MONTH;
   else if (activeDateFilter === "past-week")   matchDate = evEndMs >= now - MS_WEEK && evEndMs < now;
@@ -3832,6 +3823,7 @@ function renderEvents() {
 
   const publicRec = getPublicRecurring(2);
   const allEvents = [...events, ...publicRec];
+  window._calAll = allEvents;
 
   const _templateTitles = new Set(RECURRING_EVENTS.map(r => r.title.toLowerCase()));
   const _prefiltered = allEvents.filter(e => {
@@ -8474,6 +8466,7 @@ function _railKeepInView(key) {
     
     html.cw-cal2 #post-event-btn { width:40px !important; height:40px; border-radius:50% !important; flex:0 0 40px !important; }
     
+  }
     html.cw-cal2 #for-you-results { grid-template-columns:minmax(0,1fr) !important; }
     html.cw-cal2 .cw-c2-row { display:grid !important; grid-template-columns:64px minmax(0,1fr); column-gap:12px;
       padding:12px !important; align-items:start; overflow:hidden; }
@@ -8501,13 +8494,13 @@ function _railKeepInView(key) {
     html.cw-cal2 .cw-c2-where.cw-c2-online { --c2-mark:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%225%22%20y%3D%225%22%20width%3D%2214%22%20height%3D%2210%22%20rx%3D%221%22%2F%3E%3Cpath%20d%3D%22M3%2019h18%22%2F%3E%3C%2Fsvg%3E"); }
     html.cw-cal2 .cw-c2-chip { display:inline-block; margin-left:6px; font-size:11.5px; font-weight:700; background:#E8F1FA; color:#1F699E;
       padding:1px 8px; border-radius:20px; white-space:nowrap; vertical-align:1px; }
-  }
+  html.cw-cal2 .cw-c2-row > .ev-groups { grid-column:1 / -1 !important; }
+  html.cw-cal2 #event-grid .cw-c2-row .cw-c2-thumb img, html.cw-cal2 #event-grid .cw-c2-row img.cw-c2-thumb { width:64px !important; height:64px !important; }
+  html.cw-cal2.cw-railview .cw-rl-main #event-grid { grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr)); }
+  html.cw-cal2 #event-grid .event-card { border-radius:10px; }
 </style>
 <script>
 (function () {
-  var on = false;
-  on = window.innerWidth <= 768;
-  if (!on) return;
   document.documentElement.className += ' cw-cal2';
   var DAY = { weekday: 'short', month: 'short', day: 'numeric' };
   function dayStr(offset) { var d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('en-US', DAY); }
@@ -8577,9 +8570,11 @@ function _railKeepInView(key) {
   function sweep(box) { if (box) { Array.prototype.forEach.call(box.children, row); } }
   function start() {
     var seg = document.getElementById('cw-rl-seg');
-    var foot = document.getElementById('cw-c2-foot');
-    if (!foot) { foot = document.createElement('div'); foot.id = 'cw-c2-foot'; document.body.appendChild(foot); }
-    if (seg && seg.parentNode !== foot) { foot.appendChild(seg); }
+    if (window.innerWidth <= 768) {
+      var foot = document.getElementById('cw-c2-foot');
+      if (!foot) { foot = document.createElement('div'); foot.id = 'cw-c2-foot'; document.body.appendChild(foot); }
+      if (seg && seg.parentNode !== foot) { foot.appendChild(seg); }
+    }
     ['event-grid', 'group-events-grid', 'for-you-results'].forEach(function (id) {
       var box = document.getElementById(id);
       if (!box) return;
