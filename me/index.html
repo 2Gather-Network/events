@@ -1772,7 +1772,7 @@
     }
     pv.querySelectorAll('.pv-edit').forEach(function(b){ if(b.id==='pv-photo-btn') return; b.onclick=function(){ requestEdit(parseInt(b.getAttribute('data-step'),10)); }; });
     var _bm=document.getElementById('pv-bookmark');
-    if(_bm){ _bmPaint(_bm); _bm.onclick=function(){ _bmToggle(_bm); }; }
+    if(_bm){ _bmPaint(_bm); _bm.onclick=function(){ _bmToggle(_bm); }; try { _bmLoad(); } catch(e){} }
     try { pvMessageInit(); } catch(e){}
     try { pvLineCheck(); setTimeout(pvLineCheck,300); } catch(e){}
     try { if(_HDR1) pvHdrPlace(); } catch(e){}
@@ -1955,6 +1955,26 @@
     b.setAttribute('aria-pressed', _bmOnHere ? 'true' : 'false');
     b.classList.toggle('bm-on', !!_bmOnHere);
     _bmSay('');
+  }
+  var _bmLoaded = false;
+  function _bmLoad(){
+    if (_bmLoaded || !_viewingSomeoneElse) return;
+    var mine = '', tok = '';
+    try { mine = (window.CW && CW.realMe) ? String(CW.realMe().id || '') : ''; tok = localStorage.getItem('cw-token') || ''; } catch(e){}
+    if (!mine || !tok) return;
+    _bmLoaded = true;
+    var nrm = function(x){ return String(x || '').split('.').join('').toLowerCase(); };
+    fetch(GS_URL + '?action=getBookmarks&appearId=' + encodeURIComponent(mine) + '&meToken=' + encodeURIComponent(tok))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || !Array.isArray(d.bookmarks) || _bmBusy) return;
+        var ids = {}, raw = window._profRaw || {};
+        [raw.appearId, raw.guestID, _bmWho()].forEach(function(x){ if (x) ids[nrm(x)] = 1; });
+        var van = String(window._profVanity || '').toLowerCase();
+        var hit = d.bookmarks.some(function(t){ return ids[nrm(t.appearId)] || (van && String(t.vanity || '').toLowerCase() === van); });
+        if (hit) { _bmOnHere = true; _bmPaint(document.getElementById('pv-bookmark')); }
+      })
+      .catch(function(){ _bmLoaded = false; });
   }
   function _bmWho(){
     var them = '';
