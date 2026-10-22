@@ -314,12 +314,13 @@
     function fillMine() {
       var mine = '';
       mine += anchor('My profile', myProfileUrl(), 'cwtb-item');
-      mine += anchor('My messages', 'https://2gather.network/messages', 'cwtb-item');
+      var ap = onAppear();
+      mine += anchor('My messages', ap ? '/messages/' : 'https://2gather.network/messages', 'cwtb-item');
       if (hasEvents()) { mine += anchor('My events', link(MYEVENTS, 'memberCard'), 'cwtb-item'); }
-      if (hasAGroup()) { mine += anchor('My groups', link(MYGROUPS, 'memberCard'), 'cwtb-item'); }
-      if (hasBookmarks()) { mine += anchor('My network', 'https://2gather.network/network/', 'cwtb-item'); }
-      mine += anchor('My account', link(ACCOUNT,  'CWid'),       'cwtb-item');
-      mine += anchor('Support',    link(SUPPORT,  'memberCard'), 'cwtb-item');
+      if (hasAGroup()) { mine += anchor('My groups', ap ? '/mygroups/' : link(MYGROUPS, 'memberCard'), 'cwtb-item'); }
+      if (hasBookmarks()) { mine += anchor('My network', ap ? '/network/' : 'https://2gather.network/network/', 'cwtb-item'); }
+      mine += anchor('My account', ap ? '/account/' : link(ACCOUNT,  'CWid'),       'cwtb-item');
+      mine += anchor('Support',    ap ? '/support/' : link(SUPPORT,  'memberCard'), 'cwtb-item');
       mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
       return mine;
     }
