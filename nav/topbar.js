@@ -38,6 +38,25 @@
     '<g transform="translate(9 9) scale(.75)"><path d="M14 22.5Q10.5 18.5 12 13" fill="none" stroke="#6FA83A" stroke-width="2.2" stroke-linecap="round"/><path transform="rotate(-30 12 13)" d="M12 13C12 8 8 5 3 5c0 5 3 8 9 8z" fill="#58A03C"/><path transform="rotate(-5 12 14)" d="M12 14c0-5 4-9 10-9 0 6-4 9-10 9z" fill="#7FC241"/></g></svg>');
   function onCreatingWorks() { try { return (window.location.hostname || '').toLowerCase().indexOf('creating.works') > -1; } catch (e) { return false; } }
   function onAppear() { try { return (window.location.hostname || '').toLowerCase().indexOf('appear.network') > -1; } catch (e) { return false; } }
+  window.CW_CARRY_ON = false;
+  var SITE_HOSTS = { gather: '2gather.network', appear: '2appear.network', balance: '2balance.network', creatingworks: 'creating.works' };
+  var SITE_SOL = { gather: 'Gather', appear: 'Appear', balance: 'Balance', creatingworks: 'Creating' };
+  function siteOf(host) {
+    host = String(host || '').toLowerCase();
+    for (var k in SITE_HOSTS) { if (host === SITE_HOSTS[k] || host.slice(-(SITE_HOSTS[k].length + 1)) === '.' + SITE_HOSTS[k]) { return k; } }
+    return '';
+  }
+  function carryLink(url) {
+    if (!window.CW_CARRY_ON) { return url; }
+    try {
+      var u = new URL(url, window.location.href);
+      var dest = siteOf(u.hostname), src = siteOf(window.location.hostname);
+      if (!dest || !src || dest === src || !me()) { return url; }
+      var on = String(localStorage.getItem('cw-enabled') || '').split('|').map(function (x) { return x.trim(); });
+      if (on.indexOf(SITE_SOL[dest]) < 0) { return url; }
+      return 'https://' + SITE_HOSTS[dest] + '/carry/#from=' + src + '&next=' + encodeURIComponent(u.pathname + u.search + u.hash);
+    } catch (e) { return url; }
+  }
   var EVENTS   = 'https://2gather.network/events';
   var MYEVENTS = 'https://2gather.network/myevents/';
   var POST     = 'https://2gather.network/myevents/#new';
@@ -316,8 +335,8 @@
       mine += anchor('My profile', myProfileUrl(), 'cwtb-item');
       var ap = onAppear();
       mine += anchor('My messages', ap ? '/messages/' : 'https://2gather.network/messages', 'cwtb-item');
-      if (hasEvents()) { mine += anchor('My events', link(MYEVENTS, 'memberCard'), 'cwtb-item'); }
-      if (hasAGroup()) { mine += anchor('My groups', ap ? '/mygroups/' : 'https://2appear.network/mygroups/', 'cwtb-item'); }
+      if (hasEvents()) { mine += anchor('My events', carryLink(link(MYEVENTS, 'memberCard')), 'cwtb-item'); }
+      if (hasAGroup()) { mine += anchor('My groups', ap ? '/mygroups/' : carryLink('https://2appear.network/mygroups/'), 'cwtb-item'); }
       if (hasBookmarks()) { mine += anchor('My network', ap ? '/network/' : 'https://2gather.network/network/', 'cwtb-item'); }
       mine += anchor('My account', ap ? '/account/' : link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    ap ? '/support/' : link(SUPPORT,  'memberCard'), 'cwtb-item');
