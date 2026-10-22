@@ -9,7 +9,7 @@
     try { Object.keys(w.localStorage).forEach(function (k) { for (var j = 0; j < ANSWER_KEYS.length; j++) { if (k.indexOf(ANSWER_KEYS[j]) === 0) { w.localStorage.removeItem(k); } } }); } catch (e) {}
   }
   var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-photo-at', 'cw-token', 'cw-first',
-               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-super-for', 'cw-lastEmail'];
+               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-super-for', 'cw-lastEmail', 'cw-enabled'];
   var VIEW_KEY = 'cw-view-as';
   var OUT_KEY = 'cw-view-out';
 
@@ -184,10 +184,10 @@
     var onAppear = String(w.location.hostname || '').toLowerCase().indexOf('appear.network') >= 0;
 
     var OPEN = onCW
-      ? ['/', '/terms-of-service', '/privacy-policy', '/code-of-conduct', '/ops', '/vision', '/license']
+      ? ['/', '/terms-of-service', '/privacy-policy', '/code-of-conduct', '/ops', '/vision', '/license', '/signout']
       : onAppear
-        ? ['/', '/signin', '/signup', '/signin-google']
-        : ['/signin', '/signup', '/signin-google', '/event', '/events'];
+        ? ['/', '/signin', '/signup', '/signin-google', '/signout']
+        : ['/signin', '/signup', '/signin-google', '/signout', '/event', '/events'];
 
     var asked = ls(function () { return new URLSearchParams(w.location.search).get('lock'); }, null);
     if (asked !== null) {
