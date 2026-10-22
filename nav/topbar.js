@@ -317,7 +317,7 @@
       var ap = onAppear();
       mine += anchor('My messages', ap ? '/messages/' : 'https://2gather.network/messages', 'cwtb-item');
       if (hasEvents()) { mine += anchor('My events', link(MYEVENTS, 'memberCard'), 'cwtb-item'); }
-      if (hasAGroup()) { mine += anchor('My groups', ap ? '/mygroups/' : link(MYGROUPS, 'memberCard'), 'cwtb-item'); }
+      if (hasAGroup()) { mine += anchor('My groups', ap ? '/mygroups/' : 'https://2appear.network/mygroups/', 'cwtb-item'); }
       if (hasBookmarks()) { mine += anchor('My network', ap ? '/network/' : 'https://2gather.network/network/', 'cwtb-item'); }
       mine += anchor('My account', ap ? '/account/' : link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    ap ? '/support/' : link(SUPPORT,  'memberCard'), 'cwtb-item');
