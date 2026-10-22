@@ -394,6 +394,12 @@
       for (var o = 0; o < outs.length; o++) {
         outs[o].addEventListener('click', function () {
           if (window.CW && window.CW.forget) { window.CW.forget(); }
+          var cur = siteOf(window.location.hostname);
+          if (cur === 'gather' || cur === 'appear') {
+            var hops = ['gather', 'appear'].filter(function (n) { return n !== cur; });
+            window.location.href = 'https://' + SITE_HOSTS[hops[0]] + '/signout/#then=' + encodeURIComponent(hops.slice(1).join(',')) + '&end=' + cur;
+            return;
+          }
           window.location.href = 'https://2gather.network/signin/?out=1';
         });
       }
