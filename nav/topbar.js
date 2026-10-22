@@ -575,7 +575,9 @@
         fresh = !!when && (Date.now() - when) < 86400000;
       }
     } catch (e) {}
-    if (fresh) return;
+    var nameFresh = false;
+    try { nameFresh = (Date.now() - parseInt(localStorage.getItem('cw-name-at') || '0', 10)) < 600000; } catch (e) {}
+    if (fresh && nameFresh) return;
     if (!_tbProved() || _tbQuiet('lookupProfile')) return;
     try {
       fetch('https://cw-api-gate.jessieupp.workers.dev/?action=lookupProfile&appearId=' +
@@ -588,6 +590,9 @@
               window.CW_NAME = d.name;
               localStorage.setItem('cw-name', d.name);
               localStorage.setItem('cw-name-for', who);
+              localStorage.setItem('cw-name-at', String(Date.now()));
+              var _ne = document.querySelector('#cw-topbar .cwtb-me-name');
+              if (_ne && _ne.firstChild && _ne.firstChild.nodeType === 3) { _ne.firstChild.nodeValue = d.name + ' '; }
             }
           } catch (e) {}
           if (!d.photo) { _tbHush('lookupProfile', 60); if (d.name) { adoptName(d.name); } return; }
