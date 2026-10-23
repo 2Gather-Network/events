@@ -37,6 +37,7 @@
     '<circle cx="18" cy="18" r="16" fill="none" stroke="url(#g)" stroke-width="2.5"/>' +
     '<g transform="translate(9 9) scale(.75)"><path d="M14 22.5Q10.5 18.5 12 13" fill="none" stroke="#6FA83A" stroke-width="2.2" stroke-linecap="round"/><path transform="rotate(-30 12 13)" d="M12 13C12 8 8 5 3 5c0 5 3 8 9 8z" fill="#58A03C"/><path transform="rotate(-5 12 14)" d="M12 14c0-5 4-9 10-9 0 6-4 9-10 9z" fill="#7FC241"/></g></svg>');
   function onCreatingWorks() { try { return (window.location.hostname || '').toLowerCase().indexOf('creating.works') > -1; } catch (e) { return false; } }
+  function onBalance() { try { return (window.location.hostname || '').toLowerCase().indexOf('balance.network') > -1; } catch (e) { return false; } }
   function onAppear() { try { return (window.location.hostname || '').toLowerCase().indexOf('appear.network') > -1; } catch (e) { return false; } }
   window.CW_CARRY_ON = false;
   var SITE_HOSTS = { gather: '2gather.network', appear: '2appear.network', balance: '2balance.network', creatingworks: 'creating.works' };
@@ -351,8 +352,8 @@
       '<div class="cwtb-bar">' +
         '<a role="link" tabindex="0" class="cwtb-mark" href="' + _home + '" data-nav="' + _home +
           '" onclick="return _safeNavGo(this)">' +
-          '<span class="cwtb-glyph"><img src="' + (onCreatingWorks() ? CW_LOGO : onAppear() ? '/logo.png' : LOGO) + '" alt=""></span>' +
-          '<span class="cwtb-word">' + (onCreatingWorks() ? 'Because creating works.' : onAppear() ? 'Appear and be seen.' : 'Gathering for the common good.') + '</span></a>' +
+          '<span class="cwtb-glyph"><img src="' + (onCreatingWorks() ? CW_LOGO : (onAppear() || onBalance()) ? '/logo.png' : LOGO) + '" alt=""></span>' +
+          '<span class="cwtb-word">' + (onCreatingWorks() ? 'Because creating works.' : onAppear() ? 'Appear and be seen.' : onBalance() ? 'Meeting needs through balance.' : 'Gathering for the common good.') + '</span></a>' +
         '<div class="cwtb-tabs">' + tabs + '</div>' +
         photo +
       '</div>' + rows;
@@ -768,7 +769,7 @@
       var host = (window.location.hostname || '').toLowerCase();
       var href = '';
       if (host.indexOf('creating.works') > -1) { href = emoji('🌱'); }
-      else if (host.indexOf('appear') > -1) { href = '/logo.png'; }
+      else if (host.indexOf('appear') > -1 || host.indexOf('balance.network') > -1) { href = '/logo.png'; }
       else if (host.indexOf('2gather') > -1) { href = LOGO; }
       if (!href) return;
       var links = document.querySelectorAll('link[rel~="icon"]');

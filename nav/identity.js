@@ -182,10 +182,11 @@
     var here = String(w.location.pathname || '/');
     var onCW = String(w.location.hostname || '').indexOf('creating.works') >= 0;
     var onAppear = String(w.location.hostname || '').toLowerCase().indexOf('appear.network') >= 0;
+    var onBalance = String(w.location.hostname || '').toLowerCase().indexOf('balance.network') >= 0;
 
     var OPEN = onCW
       ? ['/', '/terms-of-service', '/privacy-policy', '/code-of-conduct', '/ops', '/vision', '/license', '/signout']
-      : onAppear
+      : (onAppear || onBalance)
         ? ['/', '/signin', '/signup', '/signin-google', '/signout']
         : ['/signin', '/signup', '/signin-google', '/signout', '/event', '/events'];
 
