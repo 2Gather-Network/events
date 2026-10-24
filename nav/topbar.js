@@ -333,6 +333,13 @@
 
     function fillMine() {
       var mine = '';
+      if (onBalance()) {
+        mine += anchor('My profile', '/ikigai/', 'cwtb-item');
+        mine += anchor('My account', '/account/', 'cwtb-item');
+        mine += anchor('Support', '/support/', 'cwtb-item');
+        mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
+        return mine;
+      }
       mine += anchor('My profile', myProfileUrl(), 'cwtb-item');
       var ap = onAppear();
       mine += anchor('My messages', ap ? '/messages/' : 'https://2gather.network/messages', 'cwtb-item');
@@ -401,6 +408,7 @@
             window.location.href = 'https://' + SITE_HOSTS[hops[0]] + '/signout/#then=' + encodeURIComponent(hops.slice(1).join(',')) + '&end=' + cur;
             return;
           }
+          if (onBalance()) { window.location.href = '/signin/?out=1'; return; }
           window.location.href = 'https://2gather.network/signin/?out=1';
         });
       }

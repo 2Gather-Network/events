@@ -1,4 +1,6 @@
 (function () {
+  var _onBal = false;
+  try { _onBal = String(window.location.hostname || '').toLowerCase().indexOf('balance.network') > -1; } catch (e) {}
   function styles() {
     if (document.getElementById('cw-prail-css')) return;
     var st = document.createElement('style');
@@ -114,7 +116,7 @@
       var GROUPS = [
         ['ACCOUNT', [
           { key: 'account',     label: 'My account' },
-          { key: 'myprofile',   label: 'My profile', url: 'https://2gather.network/ikigai/' },
+          { key: 'myprofile',   label: 'My profile', url: _onBal ? '/ikigai/' : 'https://2gather.network/ikigai/' },
           { key: 'permissions', label: 'Global permissions' }
         ]],
         ['SOLUTIONS', [
@@ -173,10 +175,10 @@
 
     var list = document.createElement('div'); list.className = 'cw-prail-list';
     var items = [
-      { key: 'profile', label: 'My profile', url: 'https://2gather.network/me/' },
+      { key: 'profile', label: 'My profile', url: _onBal ? '/ikigai/' : 'https://2gather.network/me/' },
       { key: 'permissions', label: 'My permissions', url: 'https://2gather.network/account/#permissions', superOnly: true },
-      { key: 'account', label: 'My account', url: 'https://2gather.network/account/' },
-      { key: 'support', label: 'Support', url: 'https://2gather.network/support?from=' + encodeURIComponent(location.pathname) },
+      { key: 'account', label: 'My account', url: _onBal ? '/account/' : 'https://2gather.network/account/' },
+      { key: 'support', label: 'Support', url: (_onBal ? '/support?from=' : 'https://2gather.network/support?from=') + encodeURIComponent(location.pathname) },
       { key: 'signout', label: 'Sign out', out: true }
     ];
     items.forEach(function (it) {
@@ -188,7 +190,7 @@
         if (it.key === opts.active) return;
         if (it.out) {
           try { if (window.CW && window.CW.forget) { window.CW.forget(); } } catch (e) {}
-          go('https://2gather.network/signin/?out=1');
+          go(_onBal ? '/signin/?out=1' : 'https://2gather.network/signin/?out=1');
           return;
         }
         go(it.url);
