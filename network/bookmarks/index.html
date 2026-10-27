@@ -123,11 +123,23 @@
     return (n > 0 ? n : 50);
   }
 
+  var ON_APPEAR = false;
+  try { ON_APPEAR = String(window.location.hostname || '').toLowerCase().indexOf('appear') > -1; } catch (e) {}
+
+  function metAt(p){
+    var t = String((p && p.sourceTitle) || '').trim();
+    return (p && p.sourceKind && t) ? 'Met at ' + t : '';
+  }
+
+  function fromEvent(p){ return !!(p && p.sourceKind); }
+
   function sub(p){
     var g = (p && p.groups) || [];
-    if (!g.length) { return ''; }
-    if (g.length <= 3) { return g.join(' / '); }
-    return g.slice(0, 3).join(' / ') + ' and ' + (g.length - 3) + ' more';
+    var line = '';
+    if (g.length) { line = g.length <= 3 ? g.join(' / ') : g.slice(0, 3).join(' / ') + ' and ' + (g.length - 3) + ' more'; }
+    var m = metAt(p);
+    if (m) { line = line ? m + ' / ' + line : m; }
+    return line;
   }
 
   function paint(list){
@@ -177,6 +189,7 @@
     var matching = ALL.filter(function(p){
       if (q && String(p.name||'').toLowerCase().indexOf(q) === -1) { return false; }
       if (mode === 'all') { return true; }
+      if (mode === '__event') { return fromEvent(p); }
       if (mode === '__none') { return !((p.groups||[]).length); }
       return (p.groups||[]).some(function(g){ return g === mode; });
     });
@@ -219,6 +232,11 @@
       var o = document.createElement('option'); o.value = n; o.textContent = n;
       sel.appendChild(o);
     });
+    if (ALL.some(fromEvent)) {
+      var o1 = document.createElement('option');
+      o1.value = '__event'; o1.textContent = 'Event attendees';
+      sel.insertBefore(o1, sel.options[1] || null);
+    }
     if (anyWithout && names.length) {
       var o2 = document.createElement('option');
       o2.value = '__none'; o2.textContent = 'No group with you';
@@ -261,6 +279,7 @@
       .then(function(r){ return r.json(); })
       .then(function(resp){
         var list = (resp && resp.bookmarks) || [];
+        if (ON_APPEAR) { list = list.filter(function(p){ return !fromEvent(p) || p.sourceHasGroup === true; }); }
         try { if (resp && Array.isArray(resp.bookmarks)) { localStorage.setItem('cw-havebookmarks', JSON.stringify({ who: myId, yes: list.length > 0, at: Date.now() })); } } catch (e) {}
         if (!list.length) {
           say('You have not bookmarked anyone yet. Open somebody’s profile and press <b>Bookmark</b>, and they will show up here.');
