@@ -427,13 +427,14 @@ window._safeNavGo = window._safeNavGo || function (el) {
 
   function load(fresh) {
     var startedAt = Date.now();
-    fetch(GS_URL + '?action=getPresence&groupId=' + encodeURIComponent(ROOM)
+    return fetch(GS_URL + '?action=getPresence&groupId=' + encodeURIComponent(ROOM)
           + '&me=' + encodeURIComponent(realMe() || '')
           + (fresh ? '&nocache=1&t=' + Date.now() : ''))
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var list = (d && d.people) || [];
         known = list.length;
+        pollGap = (Date.now() - startedAt > 15000) ? Math.min(pollGap * 2, 480000) : 120000;
         say(known);
         var html = '', viewer = realMe();
 
@@ -475,6 +476,7 @@ window._safeNavGo = window._safeNavGo || function (el) {
         paintNote();
       })
       .catch(function () {
+        pollGap = Math.min(pollGap * 2, 480000);
         count.textContent = 'Who is here cannot load yet. The presence actions are not in the script.';
       });
   }
@@ -549,12 +551,18 @@ window._safeNavGo = window._safeNavGo || function (el) {
   } catch (e) {}
 
   var poll = null;
+  var pollGap = 120000;
+  function schedulePoll() {
+    poll = setTimeout(function () {
+      Promise.resolve(load()).then(function () { if (poll) { schedulePoll(); } });
+    }, pollGap);
+  }
   function startPolling() {
     if (poll) return;
-    poll = setInterval(load, 60000);
+    schedulePoll();
   }
   function stopPolling() {
-    if (poll) { clearInterval(poll); poll = null; }
+    if (poll) { clearTimeout(poll); poll = null; }
   }
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) { stopPolling(); return; }   
