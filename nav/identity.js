@@ -209,6 +209,8 @@
       if (here === OPEN[i] || here.indexOf(OPEN[i] + '/') === 0 || here.indexOf(OPEN[i] + '.') === 0) { return; }
     }
     if (!onCW && /^\/support\/?(index\.html)?$/.test(here)) { return; }
+    if (!onCW && !onBalance && /^\/group\/[A-Za-z0-9][A-Za-z0-9-]{1,59}\/?$/.test(here) && here !== '/group/index.html' && !/[?&]view=/.test(w.location.search)) { return; }
+    if (!onCW && !onBalance && /^\/group\/?(index\.html)?$/.test(here) && !/[?&]view=/.test(w.location.search)) { return; }
 
     if (found) { return; }
 
