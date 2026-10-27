@@ -2,15 +2,19 @@
   var GS = "https://cw-api-gate.jessieupp.workers.dev";
   var on = /[?&]star=1\b/.test(location.search);
   var starred = null, loading = false;
+  var PTS = '12,3 14.8,9 21.3,9.7 16.4,14.1 17.8,20.6 12,17.3 6.2,20.6 7.6,14.1 2.7,9.7 9.2,9';
   function me(){
     var id = '';
     try { id = (window.getRealMemberId && getRealMemberId()) || (window.getMemberId && getMemberId()) || ''; } catch (e) {}
     return String(id || '').trim();
   }
+  function icon(s){
+    return '<svg width="16" height="16" viewBox="0 0 24 24" fill="' + (s ? '#1F699E' : 'none') + '" stroke="' + (s ? '#1F699E' : '#6B7A8D') + '" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><polygon points="' + PTS + '"/></svg>';
+  }
   function paint(btn){
     var s = !!(starred && starred[btn.getAttribute('data-ev')]);
     btn.classList.toggle('on', s);
-    btn.textContent = s ? '★' : '☆';
+    btn.innerHTML = icon(s);
     btn.setAttribute('aria-pressed', s ? 'true' : 'false');
     btn.title = s ? 'Starred' : 'Star this event';
   }
@@ -45,9 +49,11 @@
         paintAll();
       });
   }
-  var css = document.createElement('style');
-  css.textContent = '.ev-star-on #card,.ev-star-on .event-card-img{position:relative;}.ev-star{position:absolute;top:10px;right:10px;width:30px;height:30px;box-sizing:border-box;border:1.5px solid #B9D3EA;border-radius:50%;background:#fff;color:#6B7A8D;font-size:18px;line-height:26px;text-align:center;cursor:pointer;padding:0;z-index:3;}.ev-star.on{color:#D99A00;}.ev-star:focus-visible{outline:2px solid #1F699E;outline-offset:2px;}';
-  if (on) { document.head.appendChild(css); document.documentElement.classList.add('ev-star-on'); }
+  if (on) {
+    var css = document.createElement('style');
+    css.textContent = '.ev-star{margin-left:auto;width:30px;height:30px;box-sizing:border-box;border:1px solid #D5E1EC;border-radius:50%;background:transparent;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex:0 0 30px;}.ev-star.on{border-color:#1F699E;}.ev-star:focus-visible{outline:2px solid #1F699E;outline-offset:2px;}';
+    document.head.appendChild(css);
+  }
   document.addEventListener('click', function(e){
     var b = e.target.closest && e.target.closest('.ev-star');
     if (!b) return;
@@ -58,6 +64,6 @@
     if (!on || !eventId || !me()) return '';
     setTimeout(load, 0);
     var s = !!(starred && starred[eventId]);
-    return '<button type="button" class="ev-star' + (s ? ' on' : '') + '" data-ev="' + String(eventId).replace(/"/g, '&quot;') + '" aria-pressed="' + (s ? 'true' : 'false') + '" title="' + (s ? 'Starred' : 'Star this event') + '">' + (s ? '★' : '☆') + '</button>';
+    return '<button type="button" class="ev-star' + (s ? ' on' : '') + '" data-ev="' + String(eventId).replace(/"/g, '&quot;') + '" aria-pressed="' + (s ? 'true' : 'false') + '" title="' + (s ? 'Starred' : 'Star this event') + '">' + icon(s) + '</button>';
   };
 })();
