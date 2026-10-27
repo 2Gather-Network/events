@@ -116,7 +116,7 @@
       var GROUPS = [
         ['ACCOUNT', [
           { key: 'account',     label: 'My account' },
-          { key: 'myprofile',   label: 'My profile', url: _onBal ? '/ikigai/' : 'https://2gather.network/ikigai/' },
+          { key: 'myprofile',   label: 'My profile', url: _onBal ? '/ikigai/?step=joys' : 'https://2gather.network/ikigai/' },
           { key: 'permissions', label: 'Global permissions' }
         ]],
         ['SOLUTIONS', [
@@ -175,7 +175,7 @@
 
     var list = document.createElement('div'); list.className = 'cw-prail-list';
     var items = [
-      { key: 'profile', label: 'My profile', url: _onBal ? '/ikigai/' : 'https://2gather.network/me/' },
+      { key: 'profile', label: 'My profile', url: _onBal ? '/ikigai/?step=joys' : 'https://2gather.network/me/' },
       { key: 'permissions', label: 'My permissions', url: 'https://2gather.network/account/#permissions', superOnly: true },
       { key: 'account', label: 'My account', url: _onBal ? '/account/' : 'https://2gather.network/account/' },
       { key: 'support', label: 'Support', url: (_onBal ? '/support?from=' : 'https://2gather.network/support?from=') + encodeURIComponent(location.pathname) },
