@@ -1,6 +1,6 @@
 (function(){
   var GS = "https://cw-api-gate.jessieupp.workers.dev";
-  var on = /[?&]star=1\b/.test(location.search);
+  var on = true;
   var starred = null, loading = false;
   var PTS = '12,3 14.8,9 21.3,9.7 16.4,14.1 17.8,20.6 12,17.3 6.2,20.6 7.6,14.1 2.7,9.7 9.2,9';
   function me(){
