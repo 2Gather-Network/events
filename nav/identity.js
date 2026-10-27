@@ -189,7 +189,7 @@
       : onAppear
         ? ['/', '/signin', '/signup', '/signin-google', '/signout']
       : onBalance
-        ? ['/signin', '/signup', '/signin-google', '/signout']
+        ? ['/', '/signin', '/signup', '/signin-google', '/signout']
         : ['/signin', '/signup', '/signin-google', '/signout', '/event', '/events'];
 
     var asked = ls(function () { return new URLSearchParams(w.location.search).get('lock'); }, null);
