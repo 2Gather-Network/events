@@ -15,7 +15,7 @@
   window.cwGroupSectionOfView = function(v){ return SECTION_OF_VIEW[String(v || '')] || ''; };
   window.cwGroupLink = function(slug, groupId, section){
     slug = String(slug || '').split(',')[0].trim();
-    if (slug) return 'https://2gather.network/group/' + encodeURIComponent(slug) + (section ? '/' + section : '');
-    return 'https://2gather.network/group/?id=' + encodeURIComponent(groupId || '');
+    if (slug) return 'https://2appear.network/group/' + encodeURIComponent(slug) + (section ? '/' + section : '');
+    return 'https://2appear.network/group/?id=' + encodeURIComponent(groupId || '');
   };
 })();
