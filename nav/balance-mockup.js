@@ -180,5 +180,13 @@
     });
     return Object.keys(hosts).length === Object.keys(STEPS).length;
   }
+  var HINT = 'Only you see them until you want to be matched with compatible people, resources, and opportunities.';
+  function hideHint() {
+    document.querySelectorAll('div,p,span').forEach(function (e) {
+      if (e.children.length === 0 && String(e.textContent || '').trim() === HINT) { e.style.display = 'none'; }
+    });
+  }
+  setInterval(hideHint, 400);
+  hideHint();
   var tries = 0, t = setInterval(function () { tries++; if (mount() || tries > 120) { clearInterval(t); } }, 250);
 })();
