@@ -197,9 +197,9 @@
       var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
       var real = (window.CW && window.CW.realMe) ? window.CW.realMe().id : me();
       var v = localStorage.getItem('cw-vanity') || '', f = localStorage.getItem('cw-vanity-for') || '';
-      if (v && norm(f) && norm(f) === norm(real)) { return 'https://2gather.network/hi/' + encodeURIComponent(v); }
+      if (v && norm(f) && norm(f) === norm(real)) { return (onAppear() ? '' : 'https://2gather.network') + '/hi/' + encodeURIComponent(v); }
     } catch (e) {}
-    return 'https://2gather.network/me/?mine=1';
+    return (onAppear() ? '' : 'https://2gather.network') + '/me/?mine=1';
   }
   function hasAGroup() {
     try { return !!me(); } catch (e) { return false; }
