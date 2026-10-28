@@ -191,8 +191,7 @@
       e.setAttribute('data-bal-done', '1');
       var q = document.createElement('div');
       q.className = 'balm';
-      q.innerHTML = '<div class="qb" style="margin:0 0 12px;"><h2>' + esc(LOSE) + '</h2><div class="own" style="margin-top:0;"><input type="text" class="jt" maxlength="120" aria-label="Your answer" value="' + esc((S.lose && S.lose[0]) || '') + '"></div></div>';
-      q.querySelector('.jt').addEventListener('input', function (ev) { S.lose = [ev.target.value.trim()]; });
+      q.innerHTML = '<div class="qb" style="margin:0 0 12px;"><h2 style="margin:0;">' + esc(LOSE) + '</h2></div>';
       e.parentNode.insertBefore(q, e);
     });
   }
