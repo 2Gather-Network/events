@@ -1,0 +1,168 @@
+<!doctype html>
+<!--
+  Copyright 2026 DayBalancer LLC. All rights reserved.
+
+  The code and the content here power Creating.Works, DayBalancer, Appear Network,
+  and 2Gather. They are published so they can be read, audited, and dated.
+
+  Running either as a separate offering requires a license, whether you brand it as
+  ours or as your own, and whether or not money changes hands.
+
+  hello@creating.works
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Database read test · 2Gather</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--brand:#1F699E;--ink:#1A2E42;--soft:#4B5A6D;--panel:#F7FBFF;--panel-line:#C9DFF3;--ok:#2E9E6B;--work:#B36A0F;--bad:#B3261E;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--brand);color:var(--ink);font-family:'DM Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;}
+  .wrap{max-width:720px;margin:0 auto;padding:24px 16px 60px;}
+  .card{background:#fff;border-radius:16px;padding:24px 22px;}
+  h1{font-size:26px;font-weight:800;margin:0 0 8px;}
+  .lede{font-size:15.5px;line-height:1.6;color:var(--soft);margin:0 0 18px;}
+  .step{display:flex;gap:14px;align-items:flex-start;margin:12px 0;padding:16px 18px;border-radius:13px;background:var(--panel);border:1px solid var(--panel-line);}
+  .step .n{font-weight:800;font-size:15px;min-width:22px;}
+  .step .body{flex:1;}
+  .step .t{font-size:16px;font-weight:700;line-height:1.35;}
+  .step .s{font-size:14px;color:var(--soft);margin-top:4px;line-height:1.5;}
+  .step .time{font-size:24px;font-weight:800;white-space:nowrap;}
+  .step.ok .time{color:var(--ok);}
+  .step.slow .time{color:var(--work);}
+  .step.bad .time{color:var(--bad);}
+  .result{margin:20px 0 6px;font-size:16px;line-height:1.6;}
+  .result b{font-weight:800;}
+  button{font:inherit;font-weight:700;font-size:15px;color:#fff;background:var(--ink);border:0;border-radius:10px;padding:12px 18px;cursor:pointer;margin-top:14px;}
+  button[disabled]{opacity:.5;cursor:default;}
+  a{color:var(--brand);font-weight:700;}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+  <h1>Database read test</h1>
+  <p class="lede">This page reads your own answers twice, once from the new database and once from the Google Sheet, and times each one. Nothing is saved or changed.</p>
+  <div id="steps"></div>
+  <div class="result" id="result"></div>
+  <button id="again" hidden>Read from the database again</button>
+</div></div>
+<script src="https://2gather.network/nav/identity.js?v=38"></script>
+<script>
+(function () {
+  var GATE = 'https://cw-api-gate.jessieupp.workers.dev';
+  var FIELDS = ['interests', 'skills', 'values', 'needs', 'domains', 'hobbies', 'languages', 'answerDetails'];
+  var stepsEl = document.getElementById('steps');
+  var resultEl = document.getElementById('result');
+  var again = document.getElementById('again');
+
+  function secs(ms) { return (ms / 1000).toFixed(ms < 10000 ? 2 : 1) + ' s'; }
+  function step(n, title, note) {
+    var el = document.createElement('div');
+    el.className = 'step';
+    el.innerHTML = '<div class="n"></div><div class="body"><div class="t"></div><div class="s"></div></div><div class="time">…</div>';
+    el.querySelector('.n').textContent = n;
+    el.querySelector('.t').textContent = title;
+    el.querySelector('.s').textContent = note;
+    stepsEl.appendChild(el);
+    return {
+      done: function (ms, note2, kind) {
+        el.className = 'step ' + (kind || (ms < 1000 ? 'ok' : 'slow'));
+        el.querySelector('.time').textContent = ms == null ? '' : secs(ms);
+        if (note2) el.querySelector('.s').textContent = note2;
+      }
+    };
+  }
+  function timed(url) {
+    var t0 = performance.now();
+    return fetch(url, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      return { ms: performance.now() - t0, j: j };
+    }, function () { return { ms: performance.now() - t0, j: null }; });
+  }
+  function show(msg) { resultEl.innerHTML = ''; resultEl.appendChild(document.createTextNode(msg)); }
+  function canon(v) {
+    if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
+    if (v && typeof v === 'object') return '{' + Object.keys(v).sort().map(function (k) { return JSON.stringify(k) + ':' + canon(v[k]); }).join(',') + '}';
+    return JSON.stringify(v);
+  }
+  function val(d, k) {
+    var v = d && d[k];
+    if (v == null) return '';
+    if (typeof v === 'string') {
+      var s = v.trim();
+      if (s.charAt(0) === '{' || s.charAt(0) === '[') { try { return canon(JSON.parse(s)); } catch (e) {} }
+      return s;
+    }
+    return canon(v);
+  }
+
+  var me = (window.CW && CW.me) ? CW.me() : { known: false };
+  var pass = (window.CW && CW.passParam) ? CW.passParam() : '';
+  if (!me.known || !pass) {
+    resultEl.innerHTML = 'You need to be signed in for this test. <a href="https://2gather.network/signin/">Sign in</a>, then open this page again.';
+    return;
+  }
+  if (me.viewing) {
+    show('You are viewing as somebody else. This test only reads your own answers, so stop viewing as them and open this page again.');
+    return;
+  }
+  var id = encodeURIComponent(me.id);
+  var base = GATE + '/?appearId=' + id + pass;
+  var dbRow, sheetRow;
+
+  function readDatabase(s) {
+    return timed(base + '&action=getIntake&source=database&t=' + Date.now()).then(function (r) {
+      var j = r.j || {};
+      if (j.code === 'notProved') { s.done(r.ms, 'The gate has not proved your sign-in yet, so the database was not asked.', 'bad'); return null; }
+      if (!r.j || j.status === 'error') { s.done(r.ms, 'The database did not answer.', 'bad'); return null; }
+      s.done(r.ms, 'Answered by the database. The gate and the database took ' + secs(j.gateMs || 0) + ' of this; the rest is the trip to your screen.');
+      return j;
+    });
+  }
+
+  var s1 = step(1, 'Proving your sign-in', 'Apps Script checks your sign-in once. The gate then remembers it for up to an hour.');
+  timed(base + '&action=lookupProfile&nocache=1').then(function (r) {
+    if (!r.j) { s1.done(r.ms, 'Apps Script did not answer. Open this page again in a minute.', 'bad'); return; }
+    s1.done(r.ms, 'Done. Your sign-in is remembered for up to an hour, so a page would wait for this only once.', r.ms < 1000 ? 'ok' : 'slow');
+    var s2 = step(2, 'Reading your answers from the database', '');
+    return readDatabase(s2).then(function (d) {
+      dbRow = d;
+      var s3 = step(3, 'Reading the same answers from the Google Sheet', 'This is how every page reads them today.');
+      return timed(base + '&action=getIntake&nocache=1').then(function (r3) {
+        var j3 = r3.j || {};
+        if (!r3.j || j3.status === 'error') { s3.done(r3.ms, 'The Google Sheet did not answer.', 'bad'); }
+        else { s3.done(r3.ms, 'Answered by Apps Script from the Google Sheet.'); sheetRow = j3; }
+        compare();
+        again.hidden = false;
+      });
+    });
+  });
+
+  function compare() {
+    if (!dbRow || !sheetRow) { show('One of the reads did not answer, so there is nothing to compare.'); return; }
+    var a = dbRow.data || {}, b = sheetRow.data || {};
+    var differ = FIELDS.filter(function (k) { return val(a, k) !== val(b, k); });
+    if (!differ.length) {
+      resultEl.innerHTML = '<b>Your answers match.</b> The database and the Google Sheet hold the same ' + FIELDS.length + ' answer fields for you.';
+    } else {
+      resultEl.innerHTML = '';
+      var bEl = document.createElement('b');
+      bEl.textContent = differ.length + ' of ' + FIELDS.length + ' answer fields differ: ';
+      resultEl.appendChild(bEl);
+      resultEl.appendChild(document.createTextNode(differ.join(', ') + '. The database copy is from the last load, so an answer you changed since then shows up here.'));
+    }
+  }
+
+  again.addEventListener('click', function () {
+    again.disabled = true;
+    var s = step(stepsEl.children.length + 1, 'Reading your answers from the database again', '');
+    readDatabase(s).then(function () { again.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>
