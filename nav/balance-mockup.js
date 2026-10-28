@@ -52,7 +52,7 @@
 
   function toggleHtml() {
     return '<div class="balbox"><div class="qb"><h2>Do you work or want to work right now?</h2><div class="opts">' +
-      ['Yes', 'No'].map(function (v) { return '<button type="button" class="opt swbtn' + (ans('works').indexOf(v) > -1 ? ' on' : '') + '" data-v="' + v + '">' + v + (ans('works').indexOf(v) > -1 ? '<span class="x" aria-hidden="true">\u00D7</span>' : '') + '</button>'; }).join('') +
+      ['Yes', 'No'].map(function (v) { return '<button type="button" class="opt swbtn' + (ans('works').indexOf(v) > -1 ? ' on' : '') + '" data-v="' + v + '">' + v + '</button>'; }).join('') +
       '</div>' + (isNo() ? '<p class="msg">' + esc(MSG) + '</p>' : '') + '</div></div>';
   }
 
@@ -81,7 +81,7 @@
     } else {
       var shorts = all.concat(st.noOther ? [] : ['+ Other']);
       h += '<div class="opts' + (st.pair ? ' pair' : '') + '">' + shorts.map(function (x, i) {
-        return '<button type="button" class="opt' + (x === '+ Other' ? ' other' : '') + (mine.indexOf(x) > -1 ? ' on' : '') + '" data-i="' + i + '">' + emo(x) + esc(x) + (mine.indexOf(x) > -1 ? '<span class="x" aria-hidden="true">\u00D7</span>' : '') + '</button>';
+        return '<button type="button" class="opt' + (x === '+ Other' ? ' other' : '') + (mine.indexOf(x) > -1 ? ' on' : '') + '" data-i="' + i + '">' + emo(x) + esc(x) + (mine.indexOf(x) > -1 && !st.one ? '<span class="x" aria-hidden="true">\u00D7</span>' : '') + '</button>';
       }).join('') + '</div>';
     }
     return h + '<div class="ownhost"></div></div>';
