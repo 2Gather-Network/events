@@ -237,7 +237,7 @@
   function mount() {
     var titles = window._gpTitles || [];
     Object.keys(STEPS).forEach(function (name) {
-      if (hosts[name]) { return; }
+      if (hosts[name] && hosts[name].isConnected) { return; }
       var n = titles.indexOf(name);
       if (n < 0) { return; }
       var nodes = document.querySelectorAll('[data-gp-step="' + n + '"]');
@@ -270,10 +270,8 @@
   }
   setInterval(hideHint, 400);
   hideHint();
-  var tries = 0, t = setInterval(function () {
-    tries++;
-    var m = mount();
+  setInterval(function () {
+    mount();
     if (load()) { paintAll(); }
-    if ((m && loaded) || tries > 240) { clearInterval(t); }
-  }, 250);
+  }, 300);
 })();
