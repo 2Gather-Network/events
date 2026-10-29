@@ -345,7 +345,7 @@
       mine += anchor('My messages', ap ? '/messages/' : 'https://2gather.network/messages', 'cwtb-item');
       if (hasEvents()) { mine += anchor('My events', carryLink(link(MYEVENTS, 'memberCard')), 'cwtb-item'); }
       if (hasAGroup()) { mine += anchor('My groups', ap ? '/mygroups/' : carryLink('https://2appear.network/mygroups/'), 'cwtb-item'); }
-      if (hasBookmarks()) { mine += anchor('My network', ap ? '/network/' : carryLink('https://2appear.network/network/'), 'cwtb-item'); }
+      if (hasBookmarks() && (ap || onCreatingWorks())) { mine += anchor('My network', ap ? '/network/' : carryLink('https://2appear.network/network/'), 'cwtb-item'); }
       mine += anchor('My account', ap ? '/account/' : link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    ap ? '/support/' : link(SUPPORT,  'memberCard'), 'cwtb-item');
       mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
