@@ -531,7 +531,7 @@
       '.cwtb-row.cwtb-open{display:block;}' +
       '.cwtb-me{cursor:pointer;}' +
       '.cwtb-tab[data-menu="thisgroup"]{font-weight:800;}' +
-      '.cwtb-item{display:block;padding:13px 22px;font-size:16px;font-weight:500;color:#1A2E42;' +
+      '.cwtb-item,a.cwtb-item:link,a.cwtb-item:visited{display:block;padding:13px 22px;font-size:16px;font-weight:500;color:#1F699E;' +
         'text-decoration:none;cursor:pointer;white-space:nowrap;}' +
       '.cwtb-item:hover{background:#F7FBFF;}' +
       '.cwtb-drawn .cw-dupe-brand{display:none !important;}' +
