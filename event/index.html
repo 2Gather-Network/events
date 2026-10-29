@@ -2017,6 +2017,7 @@ function finishRsvp() {
   closeRsvpModal();
   applyRegisteredUI();
   showToast("✓ You're registered!");
+  if (CW_ALUMNI_ON) { try { cwSeenAsk(_currentEv, false); return; } catch (err) {} }
   if (CW_PEOPLE_ON) { try { cwShareAsk(_currentEv, false); return; } catch (err) {} }
   try { cwCalAsk(_currentEv); } catch (err) {}
 }
@@ -2061,6 +2062,131 @@ function cwShareAsk(ev, preview) {
       .catch(function () { msg.style.color = "#7A2410"; msg.textContent = "That did not save. Try again in a moment."; });
   };
 }
+var CW_ALUMNI_ON = /[?&]alumni=1\b/.test(location.search);
+function cwSeenAsk(ev, preview) {
+  if (!ev) return;
+  var old = document.getElementById("cw-seen-ask");
+  if (old) old.remove();
+  var LV = ["Not shared", "Global", "Region", "Country", "State", "County", "City", "Neighborhood"];
+  var st = { seen: true, invite: true, level: "Not shared", text: "", postal: "", ok: false, photo: "", prof: {} };
+  var o = document.createElement("div");
+  o.id = "cw-seen-ask";
+  o.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:flex-start;justify-content:center;z-index:90;overflow:auto;padding:16px 0;";
+  var btn = "font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;cursor:pointer;font-family:inherit;";
+  var row = "display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--dark);padding:6px 0;";
+  var sub = "font-size:13px;color:var(--muted);margin:2px 0 0;";
+  var pill = "font-size:13px;padding:5px 12px;border-radius:999px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;font-family:inherit;";
+  o.innerHTML = '<div role="dialog" aria-modal="true" aria-labelledby="cw-seen-q" style="background:#fff;border-radius:14px;padding:22px 22px 18px;width:calc(100% - 32px);max-width:420px;font-family:inherit;margin:auto 0;">'
+    + '<p id="cw-seen-q" style="font-size:16px;font-weight:700;color:var(--dark);margin:0 0 4px;">You’re registered for ' + esc(ev.title || "this event") + '</p>'
+    + '<p style="font-size:13px;color:var(--muted);margin:0 0 10px;">The host sees your name and email address.</p>'
+    + '<label style="' + row + '"><input type="checkbox" id="cw-seen-on" checked style="margin-top:3px;"><span>Let other people at this event see me<span style="display:block;' + sub + '">Your name, photo and a link to your profile show to the others who chose this. The host can’t change it.</span></span></label>'
+    + '<div id="cw-seen-more" style="margin:0 0 4px 26px;">'
+    + '<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin:4px 0 12px;"><img id="cw-seen-ph" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;display:none;"><span id="cw-seen-pt" style="font-size:13px;color:var(--dark);">Looking for your photo…</span></div>'
+    + '<p style="font-size:14px;font-weight:700;color:var(--dark);margin:0;">Share your location?</p>'
+    + '<p style="' + sub + '">At what level do others at this event see where you are?</p>'
+    + '<div id="cw-seen-lv" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;"></div>'
+    + '<div id="cw-seen-cf" style="display:none;background:#E6F1FB;border-radius:10px;padding:10px 12px;margin:0 0 8px;">'
+    + '<p style="font-size:13px;color:var(--muted);margin:0;">Others at this event will see</p>'
+    + '<input id="cw-seen-tx" type="text" maxlength="80" aria-label="The place others will see" style="width:100%;font:inherit;font-size:14px;font-weight:700;color:var(--dark);border:1px solid var(--border);border-radius:8px;padding:6px 8px;margin:4px 0 6px;">'
+    + '<div id="cw-seen-pz" style="display:none;"><p style="font-size:13px;color:var(--muted);margin:0;">Postal code (needed for neighborhood)</p><input id="cw-seen-pc" type="text" maxlength="12" aria-label="Postal code" style="width:100%;font:inherit;font-size:14px;color:var(--dark);border:1px solid var(--border);border-radius:8px;padding:6px 8px;margin:4px 0 6px;"></div>'
+    + '<p style="font-size:13px;color:var(--muted);margin:0 0 8px;">Is that right?</p>'
+    + '<div style="display:flex;gap:8px;"><button type="button" id="cw-seen-y" style="' + pill + '">Yes</button><button type="button" id="cw-seen-n" style="' + pill + '">No</button></div></div>'
+    + '</div>'
+    + '<label style="' + row + '"><input type="checkbox" id="cw-seen-inv" checked style="margin-top:3px;"><span>Invite me to groups people start from this event<span style="display:block;' + sub + '">Only people who chose to be seen can invite you. This will be created under 2appear.network, your digital space with your people and on your terms.</span></span></label>'
+    + '<p id="cw-seen-msg" style="font-size:13px;color:#7A2410;margin:8px 0 0;min-height:18px;"></p>'
+    + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;"><button type="button" id="cw-seen-yes" style="' + btn + 'background:#1F699E;border:1.5px solid #1F699E;color:#fff;">Yes please</button>'
+    + '<button type="button" id="cw-seen-no" style="' + btn + 'background:#fff;border:1.5px solid var(--border);color:var(--dark);">Not at this time</button></div></div>';
+  document.body.appendChild(o);
+  var $ = function (id) { return document.getElementById(id); };
+  var msg = $("cw-seen-msg");
+  var finish = function () { o.remove(); if (!preview) { try { cwCalAsk(ev); } catch (e) {} } };
+  var guess = function (lv) {
+    var loc = String(st.prof.location || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+    if (lv === "State") return loc.length ? loc[0] : "";
+    if (lv === "Country") return loc.length > 1 ? loc[loc.length - 1] : "";
+    if (lv === "Neighborhood") return String(st.prof.postal || "").trim();
+    return "";
+  };
+  var paintLevels = function () {
+    var box = $("cw-seen-lv"); box.innerHTML = "";
+    LV.forEach(function (lv) {
+      var b = document.createElement("button"); b.type = "button"; b.textContent = lv; b.style.cssText = pill;
+      if (lv === st.level) { b.style.background = "#1F699E"; b.style.borderColor = "#1F699E"; b.style.color = "#fff"; }
+      b.onclick = function () {
+        st.level = lv; st.ok = false; msg.textContent = "";
+        st.text = lv === "Not shared" ? "" : guess(lv);
+        st.postal = lv === "Neighborhood" ? String(st.prof.postal || "").trim() : "";
+        $("cw-seen-tx").value = st.text; $("cw-seen-pc").value = st.postal;
+        $("cw-seen-cf").style.display = lv === "Not shared" ? "none" : "block";
+        $("cw-seen-pz").style.display = lv === "Neighborhood" ? "block" : "none";
+        paintLevels(); paintOk();
+      };
+      box.appendChild(b);
+    });
+  };
+  var paintOk = function () {
+    var y = $("cw-seen-y"), n = $("cw-seen-n");
+    y.style.background = st.ok ? "#1F699E" : "#fff"; y.style.color = st.ok ? "#fff" : "var(--dark)"; y.style.borderColor = st.ok ? "#1F699E" : "var(--border)";
+    n.style.background = "#fff"; n.style.color = "var(--dark)";
+  };
+  paintLevels();
+  $("cw-seen-on").onchange = function () { st.seen = this.checked; $("cw-seen-more").style.display = st.seen ? "block" : "none"; if (!st.seen) { $("cw-seen-inv").checked = false; $("cw-seen-inv").disabled = true; } else { $("cw-seen-inv").disabled = false; $("cw-seen-inv").checked = true; } };
+  $("cw-seen-tx").oninput = function () { st.text = this.value; st.ok = false; paintOk(); };
+  $("cw-seen-pc").oninput = function () { st.postal = this.value; st.ok = false; paintOk(); };
+  $("cw-seen-y").onclick = function () { if (!String($("cw-seen-tx").value).trim()) { msg.textContent = "Type the place to show first."; return; } st.ok = true; msg.textContent = ""; paintOk(); };
+  $("cw-seen-n").onclick = function () { st.ok = false; paintOk(); $("cw-seen-tx").focus(); $("cw-seen-tx").select(); };
+  $("cw-seen-no").onclick = function () {
+    if (preview) { finish(); return; }
+    var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
+    var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
+    fetch(GS_URL + "?action=saveEventShare&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id) + "&seen=false&invite=false").catch(function () {});
+    finish();
+  };
+  var me0 = ""; try { me0 = getRealMemberId() || getMemberId() || ""; } catch (e) {}
+  var setPhoto = function (u) {
+    st.photo = u || "";
+    var im = $("cw-seen-ph"), pt = $("cw-seen-pt");
+    if (u) { im.src = u; im.style.display = "block"; pt.textContent = "Your photo from your profile"; }
+    else { im.style.display = "none"; pt.innerHTML = 'A photo is needed to be seen. <a href="https://2gather.network/account/" target="_blank" rel="noopener" style="color:#1F699E;font-weight:700;">Add a photo</a>'; }
+  };
+  if (preview && !me0) { st.prof = { location: "Washington, United States", postal: "98201" }; setPhoto("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23D6E6F5'/%3E%3C/svg%3E"); }
+  else if (me0) {
+    _viewerIntakeData(me0).then(function (d) {
+      st.prof = d || {};
+      if (d && d.photoURL) { setPhoto(String(d.photoURL)); return; }
+      return fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(me0)).then(function (r) { return r.json(); }).then(function (x) { setPhoto(x && x.found && x.photo ? x.photo : ""); });
+    }).catch(function () { setPhoto(""); });
+  }
+  $("cw-seen-yes").onclick = function () {
+    if (st.seen && !st.photo) { msg.textContent = "Add a photo to your profile to be seen, or choose Not at this time."; return; }
+    if (st.seen && st.level !== "Not shared") {
+      if (!String(st.text).trim()) { msg.textContent = "Type the place to show, or choose Not shared."; return; }
+      if (!st.ok) { msg.textContent = "Answer Is that right? with Yes first."; return; }
+      if (st.level === "Neighborhood" && !String(st.postal).trim()) { msg.textContent = "Add your postal code to show your neighborhood."; return; }
+    }
+    if (preview) { msg.textContent = "This is a preview. Nothing was saved."; return; }
+    var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
+    var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
+    msg.style.color = "#1F699E"; msg.textContent = "Saving…";
+    fetch(GS_URL + "?action=saveEventShare&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id)
+      + "&seen=" + (st.seen ? "true" : "false") + "&invite=" + (st.seen && $("cw-seen-inv").checked ? "true" : "false")
+      + "&placeLevel=" + encodeURIComponent(st.seen ? st.level : "") + "&placeText=" + encodeURIComponent(st.seen ? st.text : "") + "&placePostal=" + encodeURIComponent(st.seen ? st.postal : ""))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.status !== "ok") { var e2 = new Error(d && d.message || "no"); throw e2; }
+        finish();
+      })
+      .catch(function (e) { msg.style.color = "#7A2410"; msg.textContent = (e && e.message && e.message !== "no") ? e.message : "That did not save. Try again in a moment."; });
+  };
+}
+(function () {
+  if (!CW_ALUMNI_ON || !/[?&]offer=1\b/.test(location.search)) return;
+  var n = 0, t = setInterval(function () {
+    n++;
+    if (typeof _currentEv !== "undefined" && _currentEv && document.getElementById("ev-meta")) { clearInterval(t); cwSeenAsk(_currentEv, true); }
+    else if (n > 40) { clearInterval(t); }
+  }, 500);
+})();
 (function () {
   if (!CW_PEOPLE_ON || !/[?&]offer=1\b/.test(location.search)) return;
   var n = 0, t = setInterval(function () {
