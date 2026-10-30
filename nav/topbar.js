@@ -139,6 +139,12 @@
       return !!(v && v.yes === true && norm(v.who) === norm(me()));
     } catch (e) { return false; }
   }
+  function gatherOn() {
+    try {
+      var on = String(localStorage.getItem('cw-enabled') || '').split('|').map(function (x) { return x.trim(); });
+      return on.indexOf('Gather') > -1 || hasEvents();
+    } catch (e) { return hasEvents(); }
+  }
   var INITIALS_CSS = 'display:flex;align-items:center;justify-content:center;background:#EEF4FA;color:#1F699E;font-weight:800;font-size:13px;';
   function initialsOf(n) {
     return String(n || '').trim().split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('');
@@ -343,9 +349,16 @@
       mine += anchor('My profile', myProfileUrl(), 'cwtb-item');
       var ap = onAppear();
       mine += anchor('My messages', ap ? '/messages/' : 'https://2gather.network/messages', 'cwtb-item');
-      if (hasEvents()) { mine += anchor('My events', carryLink(link(MYEVENTS, 'memberCard')), 'cwtb-item'); }
       if (hasAGroup() && (ap || onCreatingWorks())) { mine += anchor('My groups', ap ? '/mygroups/' : carryLink('https://2appear.network/mygroups/'), 'cwtb-item'); }
       if (hasBookmarks() && (ap || onCreatingWorks())) { mine += anchor('My network', ap ? '/network/' : carryLink('https://2appear.network/network/'), 'cwtb-item'); }
+      if (ap) {
+        if (gatherOn()) {
+          mine += '<a role="button" tabindex="0" class="cwtb-item" data-sub="gather" aria-expanded="false">2Gather' + CARET + '</a>' +
+                  '<div class="cwtb-sub" data-subof="gather" hidden>' +
+                  anchor('Calendar', carryLink(EVENTS + '/'), 'cwtb-item') +
+                  anchor('My events', carryLink(link(MYEVENTS, 'memberCard')), 'cwtb-item') + '</div>';
+        }
+      } else if (hasEvents()) { mine += anchor('My events', carryLink(link(MYEVENTS, 'memberCard')), 'cwtb-item'); }
       mine += anchor('My account', ap ? '/account/' : link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    ap ? '/support/' : link(SUPPORT,  'memberCard'), 'cwtb-item');
       mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
@@ -391,10 +404,26 @@
         t.setAttribute('aria-expanded', on ? 'true' : 'false');
         t.className = t.className.replace(/ ?cwtb-lit/, '') + (on ? ' cwtb-lit' : '');
         if (r) {
-          if (on && k === 'me') { r.innerHTML = fillMine(); wireSignOut(r); }
+          if (on && k === 'me') { r.innerHTML = fillMine(); wireSignOut(r); wireSub(r); }
           r.className = 'cwtb-row' + (k === 'me' ? ' cwtb-row-me' : '') + (on ? ' cwtb-open' : '');
           if (on) { place(t, r); }
         }
+      }
+    }
+    function wireSub(root) {
+      var subs = root.querySelectorAll('[data-sub]');
+      for (var q = 0; q < subs.length; q++) {
+        (function (b) {
+          var box = root.querySelector('[data-subof="' + b.getAttribute('data-sub') + '"]');
+          var flip = function (ev) {
+            ev.preventDefault();
+            if (!box) { return; }
+            box.hidden = !box.hidden;
+            b.setAttribute('aria-expanded', box.hidden ? 'false' : 'true');
+          };
+          b.addEventListener('click', flip);
+          b.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { flip(ev); } });
+        })(subs[q]);
       }
     }
     function wireSignOut(root) {
@@ -534,6 +563,7 @@
       '.cwtb-item,a.cwtb-item:link,a.cwtb-item:visited{display:block;padding:13px 22px;font-size:16px;font-weight:500;color:#1F699E;' +
         'text-decoration:none;cursor:pointer;white-space:nowrap;}' +
       '.cwtb-item:hover{background:#F7FBFF;}' +
+      '.cwtb-sub .cwtb-item,.cwtb-sub a.cwtb-item:link,.cwtb-sub a.cwtb-item:visited{padding-left:42px;font-size:15px;}' +
       '.cwtb-drawn .cw-dupe-brand{display:none !important;}' +
       '.cwtb-lit:not(.cwtb-me){background:rgba(255,255,255,.20);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);}' +
       '#cw-topbar.cwtb-menuing .cwtb-tab.cwtb-on:not(.cwtb-lit){background:transparent;box-shadow:none;}' +
