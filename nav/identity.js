@@ -173,7 +173,7 @@
       w._cwSignInAgain = true;
       try { if (w.CW && w.CW.forget) { w.CW.forget(); } } catch (e) {}
       var onCW = String(w.location.hostname || '').indexOf('creating.works') >= 0;
-      var back = path + String(w.location.search || '') + String(w.location.hash || '');
+      var back = path + String(w.location.search || '') + String(w.location.hash || '').replace(/^#cwview=.*$/, '');
       w.location.replace(onCW ? '/' : '/signin/?next=' + encodeURIComponent(back));
     }
   })();
@@ -219,7 +219,7 @@
       var u = new URL(w.location.href);
       u.searchParams.delete('lock');
       var q = u.searchParams.toString();
-      back = u.pathname + (q ? '?' + q : '') + u.hash;
+      back = u.pathname + (q ? '?' + q : '') + String(u.hash || '').replace(/^#cwview=.*$/, '');
     });
     w.location.replace(onCW ? '/' : '/signin/?next=' + encodeURIComponent(back));
   })();

@@ -64,7 +64,7 @@
       if (!m) { return; }
       var clean = window.location.href.split('#')[0];
       var fromUs = false;
-      try { fromUs = !!document.referrer && !!siteOf(new URL(document.referrer).hostname); } catch (e) { fromUs = false; }
+      try { var rs = document.referrer ? siteOf(new URL(document.referrer).hostname) : ''; fromUs = !!rs && rs !== siteOf(window.location.hostname); } catch (e) { fromUs = false; }
       if (fromUs && localStorage.getItem('cw-super') === 'yes') {
         sessionStorage.setItem('cw-view-as', decodeURIComponent(m[1]));
         sessionStorage.setItem('cw-view-as-name', decodeURIComponent(m[2] || ''));
