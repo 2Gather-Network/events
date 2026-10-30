@@ -347,7 +347,7 @@
     function fillMine() {
       var mine = '';
       if (onBalance()) {
-        mine += firstMinDone() ? anchor('My profile', '/ikigai/?step=joys', 'cwtb-item') : anchor('First minute', '/', 'cwtb-item');
+        if (firstMinDone()) { mine += anchor('My profile', '/ikigai/?step=joys', 'cwtb-item'); }
         mine += anchor('My account', '/account/', 'cwtb-item');
         mine += anchor('Support', '/support/', 'cwtb-item');
         mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
