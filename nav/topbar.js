@@ -139,6 +139,13 @@
       return !!(v && v.yes === true && norm(v.who) === norm(me()));
     } catch (e) { return false; }
   }
+  function firstMinDone() {
+    try {
+      var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
+      var v = JSON.parse(localStorage.getItem('cw-firstmin') || 'null');
+      return !!(v && v.yes === true && norm(v.who) === norm(me()));
+    } catch (e) { return false; }
+  }
   function gatherOn() {
     try {
       var on = String(localStorage.getItem('cw-enabled') || '').split('|').map(function (x) { return x.trim(); });
@@ -340,7 +347,7 @@
     function fillMine() {
       var mine = '';
       if (onBalance()) {
-        mine += anchor('My profile', '/ikigai/?step=joys', 'cwtb-item');
+        mine += firstMinDone() ? anchor('My profile', '/ikigai/?step=joys', 'cwtb-item') : anchor('First minute', '/', 'cwtb-item');
         mine += anchor('My account', '/account/', 'cwtb-item');
         mine += anchor('Support', '/support/', 'cwtb-item');
         mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
