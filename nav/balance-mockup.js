@@ -13,7 +13,7 @@
     var d = window._gpIntakeBase;
     if (!d) { return; }
     clearInterval(fmT);
-    var done = ['Body', 'Feelings', 'Energy', 'Mind', 'Imagination'].some(function (k) { return String(d['lastThoughtAbout' + k] || '').trim(); });
+    var done = ['Body', 'Feelings', 'Energy', 'Mind', 'Imagination'].every(function (k) { return String(d['lastThoughtAbout' + k] || '').trim(); });
     if (done) {
       try { localStorage.setItem(FMK, JSON.stringify({ who: fmId(), yes: true })); } catch (e) {}
       document.documentElement.classList.remove('cw-fm-wait');
