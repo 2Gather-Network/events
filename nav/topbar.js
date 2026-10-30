@@ -47,6 +47,40 @@
     for (var k in SITE_HOSTS) { if (host === SITE_HOSTS[k] || host.slice(-(SITE_HOSTS[k].length + 1)) === '.' + SITE_HOSTS[k]) { return k; } }
     return '';
   }
+  function viewCarry(url) {
+    try {
+      var v = String(sessionStorage.getItem('cw-view-as') || '').trim();
+      if (!v) { return url; }
+      var u = new URL(url, window.location.href);
+      var dest = siteOf(u.hostname), src = siteOf(window.location.hostname);
+      if (!dest || dest === src || u.hash) { return url; }
+      u.hash = 'cwview=' + encodeURIComponent(v) + '&cwviewname=' + encodeURIComponent(String(sessionStorage.getItem('cw-view-as-name') || ''));
+      return u.toString();
+    } catch (e) { return url; }
+  }
+  (function () {
+    try {
+      var m = /^#cwview=([^&]+)(?:&cwviewname=(.*))?$/.exec(String(window.location.hash || ''));
+      if (!m) { return; }
+      var clean = window.location.href.split('#')[0];
+      if (localStorage.getItem('cw-super') === 'yes') {
+        sessionStorage.setItem('cw-view-as', decodeURIComponent(m[1]));
+        sessionStorage.setItem('cw-view-as-name', decodeURIComponent(m[2] || ''));
+        sessionStorage.removeItem('cw-view-out');
+        window.location.replace(clean);
+        return;
+      }
+      history.replaceState(null, '', clean);
+    } catch (e) {}
+  })();
+  document.addEventListener('click', function (ev) {
+    try {
+      var a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+      if (!a) { return; }
+      var to = viewCarry(a.href);
+      if (to !== a.href) { a.href = to; if (a.getAttribute('data-nav')) { a.setAttribute('data-nav', to); } }
+    } catch (e) {}
+  }, true);
   function carryLink(url) {
     if (!window.CW_CARRY_ON) { return url; }
     try {
@@ -209,6 +243,7 @@
     try {
       var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
       var real = (window.CW && window.CW.realMe) ? window.CW.realMe().id : me();
+      if (norm(real) !== norm(me())) { return (onAppear() ? '' : 'https://2gather.network') + '/me/?mine=1'; }
       var v = localStorage.getItem('cw-vanity') || '', f = localStorage.getItem('cw-vanity-for') || '';
       if (v && norm(f) && norm(f) === norm(real)) { return (onAppear() ? '' : 'https://2gather.network') + '/hi/' + encodeURIComponent(v); }
     } catch (e) {}
@@ -254,7 +289,7 @@
     window._safeNavGo = function (el) {
       try {
         var u = el && el.getAttribute && el.getAttribute('data-nav');
-        if (u) { window.location.href = u; }
+        if (u) { window.location.href = viewCarry(u); }
       } catch (e) {}
       return false;
     };
