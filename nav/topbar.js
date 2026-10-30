@@ -63,7 +63,9 @@
       var m = /^#cwview=([^&]+)(?:&cwviewname=(.*))?$/.exec(String(window.location.hash || ''));
       if (!m) { return; }
       var clean = window.location.href.split('#')[0];
-      if (localStorage.getItem('cw-super') === 'yes') {
+      var fromUs = false;
+      try { fromUs = !!document.referrer && !!siteOf(new URL(document.referrer).hostname); } catch (e) { fromUs = false; }
+      if (fromUs && localStorage.getItem('cw-super') === 'yes') {
         sessionStorage.setItem('cw-view-as', decodeURIComponent(m[1]));
         sessionStorage.setItem('cw-view-as-name', decodeURIComponent(m[2] || ''));
         sessionStorage.removeItem('cw-view-out');
