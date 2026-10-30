@@ -2004,7 +2004,7 @@ async function confirmRsvp() {
   if (!_rsvpAppearId || !_currentEv) return;
   showStep("loading");
   document.getElementById("rsvp-loading-msg").textContent = "Registering you...";
-  const isPublic = true;
+  const isPublic = !CW_ALUMNI_ON;
   try {
     await fetch(`${GS_URL}?action=rsvp&appearId=${encodeURIComponent(_rsvpAppearId)}&eventId=${encodeURIComponent(_currentEv.id)}&public=${isPublic}`);
   } catch(e) {  }
@@ -2092,10 +2092,13 @@ function cwSeenAsk(ev, preview) {
     + '<p style="font-size:13px;color:var(--muted);margin:0 0 8px;">Is that right?</p>'
     + '<div style="display:flex;gap:8px;"><button type="button" id="cw-seen-y" style="' + pill + '">Yes</button><button type="button" id="cw-seen-n" style="' + pill + '">No</button></div></div>'
     + '</div>'
-    + '<label style="' + row + '"><input type="checkbox" id="cw-seen-inv" checked style="margin-top:3px;"><span>Invite me to groups people start from this event<span style="display:block;' + sub + '">Only people who chose to be seen can invite you. This will be created under 2appear.network, your digital space with your people and on your terms.</span></span></label>'
+    + '<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:12px;">'
+    + '<p style="font-size:16px;font-weight:700;color:var(--dark);margin:0 0 2px;">2Appear</p>'
+    + '<p style="font-size:12px;color:var(--muted);margin:0 0 10px;">These features are a part of 2appear.network: your digital space with your people and on your terms.</p>'
+    + '<label style="' + row + '"><input type="checkbox" id="cw-seen-mk" checked style="margin-top:3px;"><span>Let me create a group from this event - with people I want to meet<span style="display:block;' + sub + '">Only people who you choose to invite will be offered an opportunity to join your group.</span></span></label>'
+    + '<label style="' + row + '"><input type="checkbox" id="cw-seen-inv" checked style="margin-top:3px;"><span>Invite me to groups people start from this event<span style="display:block;' + sub + '">Only people who chose to be seen can invite you.</span></span></label></div>'
     + '<p id="cw-seen-msg" style="font-size:13px;color:#7A2410;margin:8px 0 0;min-height:18px;"></p>'
-    + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;"><button type="button" id="cw-seen-yes" style="' + btn + 'background:#1F699E;border:1.5px solid #1F699E;color:#fff;">Yes please</button>'
-    + '<button type="button" id="cw-seen-no" style="' + btn + 'background:#fff;border:1.5px solid var(--border);color:var(--dark);">Not at this time</button></div></div>';
+    + '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px;"><button type="button" id="cw-seen-yes" style="' + btn + 'background:#1F699E;border:1.5px solid #1F699E;color:#fff;">Done</button></div></div>';
   document.body.appendChild(o);
   var $ = function (id) { return document.getElementById(id); };
   var msg = $("cw-seen-msg");
@@ -2136,13 +2139,6 @@ function cwSeenAsk(ev, preview) {
   $("cw-seen-pc").oninput = function () { st.postal = this.value; st.ok = false; paintOk(); };
   $("cw-seen-y").onclick = function () { if (!String($("cw-seen-tx").value).trim()) { msg.textContent = "Type the place to show first."; return; } st.ok = true; msg.textContent = ""; paintOk(); };
   $("cw-seen-n").onclick = function () { st.ok = false; paintOk(); $("cw-seen-tx").focus(); $("cw-seen-tx").select(); };
-  $("cw-seen-no").onclick = function () {
-    if (preview) { finish(); return; }
-    var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
-    var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
-    fetch(GS_URL + "?action=saveEventShare&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id) + "&seen=false&invite=false").catch(function () {});
-    finish();
-  };
   var me0 = ""; try { me0 = getRealMemberId() || getMemberId() || ""; } catch (e) {}
   var setPhoto = function (u) {
     st.photo = u || "";
@@ -2158,7 +2154,7 @@ function cwSeenAsk(ev, preview) {
     }).catch(function () { setPhoto(""); });
   }
   $("cw-seen-yes").onclick = function () {
-    if (st.seen && !st.photo) { msg.textContent = "Add a photo to your profile to be seen, or choose Not at this time."; return; }
+    if (st.seen && !st.photo) { msg.textContent = "Add a photo to your profile to be seen, or untick Let other people at this event see me."; return; }
     if (st.seen && st.level !== "Not shared") {
       if (!String(st.text).trim()) { msg.textContent = st.level === "Neighborhood" ? "Type your neighborhood name." : "Type the place to show, or choose Not shared."; return; }
       if (!st.ok) { msg.textContent = "Answer Is that right? with Yes first."; return; }
@@ -2169,7 +2165,7 @@ function cwSeenAsk(ev, preview) {
     var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
     msg.style.color = "#1F699E"; msg.textContent = "Saving…";
     fetch(GS_URL + "?action=saveEventShare&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id)
-      + "&seen=" + (st.seen ? "true" : "false") + "&invite=" + (st.seen && $("cw-seen-inv").checked ? "true" : "false")
+      + "&seen=" + (st.seen ? "true" : "false") + "&invite=" + (st.seen && $("cw-seen-inv").checked ? "true" : "false") + "&startGroup=" + ($("cw-seen-mk").checked ? "true" : "false")
       + "&placeLevel=" + encodeURIComponent(st.seen ? st.level : "") + "&placeText=" + encodeURIComponent(st.seen ? st.text : "") + "&placePostal=" + encodeURIComponent(st.seen ? st.postal : ""))
       .then(function (r) { return r.json(); })
       .then(function (d) {
