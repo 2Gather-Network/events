@@ -994,6 +994,7 @@ function render(ev) {
         <button class="btn btn-outline cw-share-old" onclick="openQrModal()" title="Get QR code" style="padding:10px 14px;">⊞ QR</button>
         ${!ev.cancelled ? `<button class="btn btn-primary cw-edit-btn" onclick="openEditDirect()" title="Edit this event" style="padding:10px 14px;display:none;">✏️ Edit</button>` : ""}
       </div>
+      <div id="cw-seen-slot"></div>
       ${ev.description ? `<hr id="ev-desc-rule" style="border:none;margin:16px 0 0;"><p class="description" id="ev-description">${_descHTML(ev.description)}</p>` : ""}
       <hr style="border:none;margin:18px 0 0;">
       ${(ev.categories && ev.categories.length) ? `<div id="ev-categories"><p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">${ev.categories.length === 1 ? "Event category" : "Event categories"}</p><div style="display:flex;flex-wrap:wrap;gap:6px;">${ev.categories.slice().sort((a,b)=>String(a).length-String(b).length).map(c=>{const catObj=resolveCategory(c); return catObj ? `<span style="font-size:12px;font-weight:600;padding:4px 10px;background:#fff;border:1.5px solid var(--border);border-radius:20px;color:var(--dark);">${catObj.emoji} ${catObj.label}</span>` : '';}).filter(Boolean).join("")}${window.cwEventStar && ev.imageUrl ? cwEventStar(ev.id) : ""}</div></div>` : (window.cwEventStar && ev.imageUrl && cwEventStar(ev.id) ? `<div id="ev-categories"><div style="display:flex;flex-wrap:wrap;gap:6px;">${cwEventStar(ev.id)}</div></div>` : "")}
@@ -1069,6 +1070,7 @@ function applyRegisteredUI() {
     btn.textContent = "You\u2019re going";
   }
   _paintHostingBtn();
+  try { cwSeenLinkPaint(); } catch (err) {}
   const cancelArea = document.getElementById("cancel-rsvp-area");
   if (cancelArea) cancelArea.style.display = "block";
   const confirmed = document.getElementById("interest-confirmed");
@@ -2018,7 +2020,7 @@ function finishRsvp() {
   closeRsvpModal();
   applyRegisteredUI();
   showToast("✓ You're registered!");
-  if (CW_ALUMNI_ON) { try { cwSeenAsk(_currentEv, false); return; } catch (err) {} }
+  if (CW_ALUMNI_ON) { try { cwSeenOpen(_currentEv, false, true); return; } catch (err) {} }
   if (CW_PEOPLE_ON) { try { cwShareAsk(_currentEv, false); return; } catch (err) {} }
   try { cwCalAsk(_currentEv); } catch (err) {}
 }
@@ -2064,7 +2066,38 @@ function cwShareAsk(ev, preview) {
   };
 }
 var CW_ALUMNI_ON = /[?&]alumni=1\b/.test(location.search);
-function cwSeenAsk(ev, preview) {
+function cwSeenOpen(ev, preview, fromRegister) {
+  var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
+  var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
+  if (!me || preview) { cwSeenAsk(ev, preview, null, fromRegister); return; }
+  fetch(GS_URL + "?action=getEventSeen&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id))
+    .then(function (r) { return r.json(); })
+    .then(function (d) { cwSeenAsk(ev, false, d && d.status === "ok" ? d : null, fromRegister); })
+    .catch(function () { cwSeenAsk(ev, false, null, fromRegister); });
+  try { var sl = document.getElementById("cw-seen-slot"); if (sl && fromRegister) sl.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
+}
+function cwSeenLinkShow(on, saved) {
+  var slot = document.getElementById("cw-seen-slot");
+  if (!slot) return;
+  var a = document.getElementById("cw-seen-link");
+  if (!on) { if (a) a.style.display = "none"; return; }
+  if (!a) {
+    a = document.createElement("button");
+    a.type = "button"; a.id = "cw-seen-link";
+    a.style.cssText = "display:inline-block;background:none;border:0;padding:6px 0;margin:8px 0;font:inherit;font-size:14px;font-weight:700;color:#1F699E;text-decoration:underline;cursor:pointer;";
+    a.onclick = function () { if (typeof _currentEv !== "undefined" && _currentEv) { cwSeenOpen(_currentEv, false, false); } };
+    slot.appendChild(a);
+  }
+  a.textContent = saved ? "Saved. Change your choices for this event" : "Your choices for this event";
+  a.style.display = "inline-block";
+}
+function cwSeenLinkPaint() {
+  if (!CW_ALUMNI_ON) return;
+  if (document.documentElement.classList.contains("cw-is-host")) return;
+  if (document.getElementById("cw-seen-ask")) return;
+  cwSeenLinkShow(true, false);
+}
+function cwSeenAsk(ev, preview, saved, fromRegister) {
   if (!ev) return;
   var old = document.getElementById("cw-seen-ask");
   if (old) old.remove();
@@ -2072,13 +2105,13 @@ function cwSeenAsk(ev, preview) {
   var st = { seen: true, invite: true, level: "Not shared", text: "", postal: "", ok: false, photo: "", prof: {} };
   var o = document.createElement("div");
   o.id = "cw-seen-ask";
-  o.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:flex-start;justify-content:center;z-index:5000;overflow-y:auto;overscroll-behavior:contain;padding:16px 8px;box-sizing:border-box;";
+  o.style.cssText = "margin:16px 0;";
   var btn = "font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;cursor:pointer;font-family:inherit;";
   var row = "display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--dark);padding:6px 0;";
   var sub = "font-size:13px;color:var(--muted);margin:2px 0 0;";
   var pill = "font-size:13px;padding:5px 12px;border-radius:999px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;font-family:inherit;";
-  o.innerHTML = '<div role="dialog" aria-modal="true" aria-labelledby="cw-seen-q" style="background:#fff;border-radius:14px;padding:22px 22px 18px;width:100%;max-width:600px;box-sizing:border-box;font-family:inherit;margin:auto 0;">'
-    + '<p id="cw-seen-q" style="font-size:16px;font-weight:700;color:var(--dark);margin:0 0 4px;">You’re registered for ' + esc(ev.title || "this event") + '</p>'
+  o.innerHTML = '<div role="group" aria-labelledby="cw-seen-q" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:18px 18px 14px;width:100%;box-sizing:border-box;font-family:inherit;">'
+    + '<p id="cw-seen-q" style="font-size:16px;font-weight:700;color:var(--dark);margin:0 0 4px;">' + (fromRegister ? "You\u2019re registered for " + esc(ev.title || "this event") : "Your choices for this event") + '</p>'
     + '<p style="font-size:13px;color:var(--muted);margin:0 0 10px;">The host sees your name and email address.</p>'
     + '<label style="' + row + '"><input type="checkbox" id="cw-seen-on" checked style="margin-top:3px;"><span>Let other people at this event see me<span style="display:block;' + sub + '">Your name, photo and a link to your profile show to the others who chose this. The host can’t change it.</span></span></label>'
     + '<div id="cw-seen-more" style="margin:0 0 4px 26px;">'
@@ -2100,10 +2133,13 @@ function cwSeenAsk(ev, preview) {
     + '<label style="' + row + '"><input type="checkbox" id="cw-seen-inv" checked style="margin-top:3px;"><span>Invite me to groups people start from this event<span style="display:block;' + sub + '">Only people who chose to be seen can invite you.</span></span></label></div>'
     + '<p id="cw-seen-msg" style="font-size:13px;color:#7A2410;margin:8px 0 0;min-height:18px;"></p>'
     + '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px;"><button type="button" id="cw-seen-yes" style="' + btn + 'background:#1F699E;border:1.5px solid #1F699E;color:#fff;">Done</button></div></div>';
-  document.body.appendChild(o);
+  var slot = document.getElementById("cw-seen-slot");
+  if (!slot) return;
+  slot.appendChild(o);
   var $ = function (id) { return document.getElementById(id); };
+  try { cwSeenLinkShow(false); } catch (e) {}
   var msg = $("cw-seen-msg");
-  var finish = function () { o.remove(); if (!preview) { try { cwCalAsk(ev); } catch (e) {} } };
+  var finish = function (didSave) { o.remove(); try { cwSeenLinkShow(true, didSave === true); } catch (e) {} if (!preview && fromRegister) { try { cwCalAsk(ev); } catch (e) {} } };
   var guess = function (lv) {
     var loc = String(st.prof.location || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
     if (lv === "Global") return "Global";
@@ -2135,7 +2171,14 @@ function cwSeenAsk(ev, preview) {
     y.style.background = st.ok ? "#1F699E" : "#fff"; y.style.color = st.ok ? "#fff" : "var(--dark)"; y.style.borderColor = st.ok ? "#1F699E" : "var(--border)";
     n.style.background = "#fff"; n.style.color = "var(--dark)";
   };
-  paintLevels();
+  if (saved && (saved.seen || saved.invite || saved.startGroup || saved.level)) {
+    st.seen = saved.seen === true; st.level = LV.indexOf(saved.level) > -1 ? saved.level : "Not shared"; st.text = String(saved.place || ""); st.postal = String(saved.postal || ""); st.ok = !!st.text;
+    $("cw-seen-on").checked = st.seen; $("cw-seen-more").style.display = st.seen ? "block" : "none";
+    $("cw-seen-inv").checked = saved.invite === true; $("cw-seen-inv").disabled = !st.seen; $("cw-seen-mk").checked = saved.startGroup === true;
+    $("cw-seen-cf").style.display = st.level === "Not shared" ? "none" : "block"; $("cw-seen-pz").style.display = st.level === "Neighborhood" ? "block" : "none";
+    $("cw-seen-tx").value = st.text; $("cw-seen-pc").value = st.postal;
+  }
+  paintLevels(); paintOk();
   $("cw-seen-on").onchange = function () { st.seen = this.checked; $("cw-seen-more").style.display = st.seen ? "block" : "none"; if (!st.seen) { $("cw-seen-inv").checked = false; $("cw-seen-inv").disabled = true; } else { $("cw-seen-inv").disabled = false; $("cw-seen-inv").checked = true; } };
   $("cw-seen-tx").oninput = function () { st.text = this.value; st.ok = false; paintOk(); };
   $("cw-seen-pc").oninput = function () { st.postal = this.value; st.ok = false; paintOk(); };
@@ -2178,7 +2221,7 @@ function cwSeenAsk(ev, preview) {
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || d.status !== "ok") { var e2 = new Error(d && d.message || "no"); throw e2; }
-        finish();
+        finish(true);
       })
       .catch(function (e) { msg.style.color = "#7A2410"; msg.textContent = (e && e.message && e.message !== "no") ? e.message : "That did not save. Try again in a moment."; });
   };
@@ -2187,7 +2230,7 @@ function cwSeenAsk(ev, preview) {
   if (!CW_ALUMNI_ON || !/[?&]offer=1\b/.test(location.search)) return;
   var n = 0, t = setInterval(function () {
     n++;
-    if (typeof _currentEv !== "undefined" && _currentEv && document.getElementById("ev-meta")) { clearInterval(t); cwSeenAsk(_currentEv, true); }
+    if (typeof _currentEv !== "undefined" && _currentEv && document.getElementById("ev-meta")) { clearInterval(t); cwSeenAsk(_currentEv, true, null, true); }
     else if (n > 40) { clearInterval(t); }
   }, 500);
 })();
@@ -2789,7 +2832,7 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
   html.cw-tplview #cw-soc { max-width:560px; margin:0 0 14px; }   
   
   .cw-m2-by, #cw-m2-bar, #cw-m2-foot { display:none; }
-  html.cw-is-host #cancel-rsvp-area { display:none !important; }
+  html.cw-is-host #cancel-rsvp-area, html.cw-is-host #cw-seen-slot { display:none !important; }
   @media (max-width:768px) {
     html.cw-look2 .cw-rl { display:flex !important; flex-direction:column; background:#fff; border-radius:16px;
                            padding:14px 16px 20px; gap:0; }
