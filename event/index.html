@@ -2106,6 +2106,7 @@ function cwSeenAsk(ev, preview) {
   var finish = function () { o.remove(); if (!preview) { try { cwCalAsk(ev); } catch (e) {} } };
   var guess = function (lv) {
     var loc = String(st.prof.location || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+    if (lv === "Global") return "Global";
     if (lv === "State") return loc.length ? loc[0] : "";
     if (lv === "Country") return loc.length > 1 ? loc[loc.length - 1] : "";
     if (lv === "County") return String(st.prof.county || "").trim() ? [String(st.prof.county).trim(), loc[0] || ""].filter(Boolean).join(", ") : "";
@@ -2149,10 +2150,16 @@ function cwSeenAsk(ev, preview) {
   };
   if (preview && !me0) { st.prof = { location: "Washington, United States", postal: "98201" }; setPhoto("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23D6E6F5'/%3E%3C/svg%3E"); }
   else if (me0) {
+    fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(me0)).then(function (r) { return r.json(); }).then(function (x) { if (x && x.found && x.photo) { setPhoto(x.photo); } }).catch(function () {}).then(function () { if (!st.photo) { var pt = $("cw-seen-pt"); if (pt && /Looking/.test(pt.textContent)) { setPhoto(""); } } });
     _viewerIntakeData(me0).then(function (d) {
       st.prof = d || {};
-      return fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(me0)).then(function (r) { return r.json(); }).then(function (x) { setPhoto(x && x.found && x.photo ? x.photo : (d && d.photoURL ? String(d.photoURL) : "")); });
-    }).catch(function () { setPhoto(""); });
+      if (!st.photo && d && d.photoURL) { setPhoto(String(d.photoURL)); }
+      if (st.level !== "Not shared" && !String(st.text).trim()) {
+        var g = guess(st.level);
+        if (g) { st.text = g; $("cw-seen-tx").value = g; }
+      }
+      if (st.level === "Neighborhood" && !String(st.postal).trim()) { st.postal = String(st.prof.postal || "").trim(); $("cw-seen-pc").value = st.postal; }
+    }).catch(function () {});
   }
   $("cw-seen-yes").onclick = function () {
     if (st.seen && !st.photo) { msg.textContent = "Add a photo to your profile to be seen, or untick Let other people at this event see me."; return; }
