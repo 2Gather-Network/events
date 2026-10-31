@@ -66,7 +66,15 @@
       var clean = window.location.href.split('#')[0];
       var fromUs = false;
       try { var rs = document.referrer ? siteOf(new URL(document.referrer).hostname) : ''; fromUs = !!rs && rs !== siteOf(window.location.hostname); } catch (e) { fromUs = false; }
-      if (fromUs && localStorage.getItem('cw-super') === 'yes') {
+      var isAdmin = localStorage.getItem('cw-super') === 'yes';
+      if (!isAdmin) {
+        try {
+          var st = JSON.parse(localStorage.getItem('cw-super-for') || 'null');
+          var rid = String((window.CW && CW.realMe && CW.realMe().id) || '').split('.').join('').toLowerCase();
+          isAdmin = !!(st && st.v === 3 && st.yes === true && rid && st.who === rid);
+        } catch (e) { isAdmin = false; }
+      }
+      if (fromUs && isAdmin) {
         sessionStorage.setItem('cw-view-as', decodeURIComponent(m[1]));
         sessionStorage.setItem('cw-view-as-name', decodeURIComponent(m[2] || ''));
         sessionStorage.removeItem('cw-view-out');
