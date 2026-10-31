@@ -55,13 +55,13 @@
       var dest = siteOf(u.hostname), src = siteOf(window.location.hostname);
       if (dest === 'gather' && /^\/(ikigai|group|groups|mygroups)(\/|$)/i.test(u.pathname)) { u.hostname = '2appear.network'; dest = 'appear'; }
       if (!dest || dest === src || u.hash) { return url; }
-      u.hash = 'cwview=' + encodeURIComponent(v) + '&cwviewname=' + encodeURIComponent(String(sessionStorage.getItem('cw-view-as-name') || ''));
+      u.hash = 'cwview=' + encodeURIComponent(v);
       return u.toString();
     } catch (e) { return url; }
   }
   (function () {
     try {
-      var m = /^#cwview=([^&]+)(?:&cwviewname=(.*))?$/.exec(String(window.location.hash || ''));
+      var m = /^#cwview=([^&]+)(?:&.*)?$/.exec(String(window.location.hash || ''));
       if (!m) { return; }
       var clean = window.location.href.split('#')[0];
       var fromUs = false;
@@ -74,22 +74,24 @@
           isAdmin = !!(st && st.v === 3 && st.yes === true && rid && st.who === rid);
         } catch (e) { isAdmin = false; }
       }
+      var vid = '';
+      try { vid = decodeURIComponent(m[1]); } catch (e) { vid = ''; }
+      if (!/^[A-Za-z0-9.\-]{3,80}$/.test(vid)) { isAdmin = false; }
       if (fromUs && isAdmin) {
-        sessionStorage.setItem('cw-view-as', decodeURIComponent(m[1]));
-        sessionStorage.setItem('cw-view-as-name', decodeURIComponent(m[2] || ''));
+        sessionStorage.setItem('cw-view-as', vid);
+        sessionStorage.removeItem('cw-view-as-name');
         sessionStorage.removeItem('cw-view-out');
         window.location.replace(clean);
         return;
       }
       history.replaceState(null, '', clean);
       if (isAdmin && !document.referrer) {
-        var vid = decodeURIComponent(m[1]), vnm = decodeURIComponent(m[2] || '') || 'this person';
         var ask = function () {
           var box = document.createElement('div');
           box.id = 'cw-view-ask';
-          box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:100001;background:#fff;color:#1A2E42;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #DDE3EA;box-shadow:0 6px 18px rgba(26,46,66,.12);font:400 14px/1.4 "Nunito Sans","DM Sans",system-ui,sans-serif;';
+          box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:100001;background:#fff;color:#1A2E42;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 14px;box-shadow:0 6px 18px rgba(26,46,66,.12);font:400 14px/1.4 "Nunito Sans","DM Sans",system-ui,sans-serif;';
           var say = document.createElement('span');
-          say.textContent = 'Keep viewing as ' + vnm + '?';
+          say.textContent = 'Keep viewing as the person you were viewing?';
           var yes = document.createElement('button');
           yes.type = 'button'; yes.textContent = 'Yes, keep viewing';
           yes.style.cssText = 'font:inherit;font-weight:800;padding:5px 14px;border-radius:14px;cursor:pointer;border:0;background:#1A2E42;color:#fff;';
@@ -98,7 +100,7 @@
           no.style.cssText = 'font:inherit;padding:5px 14px;border-radius:14px;cursor:pointer;border:1px solid #C3D0DB;background:#fff;color:#1A2E42;';
           yes.onclick = function () {
             sessionStorage.setItem('cw-view-as', vid);
-            sessionStorage.setItem('cw-view-as-name', vnm);
+            sessionStorage.removeItem('cw-view-as-name');
             sessionStorage.removeItem('cw-view-out');
             window.location.replace(clean);
           };
@@ -711,6 +713,14 @@
   function fetchPhotoOnce() {
     var who = me();
     if (!who) return;
+    var keepViewName = function (nm) {
+      try {
+        if (!nm || String(sessionStorage.getItem('cw-view-as') || '').trim() !== String(who).trim() || sessionStorage.getItem('cw-view-as-name')) { return; }
+        sessionStorage.setItem('cw-view-as-name', nm);
+        if (window.CW_REDRAW_ADMIN) { var old = document.getElementById('cw-viewas'); if (old) { old.remove(); } window.CW_REDRAW_ADMIN(); }
+      } catch (e) {}
+    };
+    try { if (localStorage.getItem('cw-name-for') === who) { keepViewName(String(localStorage.getItem('cw-name') || '').trim()); } } catch (e) {}
     var fresh = false;
     try {
       if (localStorage.getItem('cw-photo-for') === who && localStorage.getItem('cw-photo')) {
@@ -733,6 +743,7 @@
           try {
             if (d.name) {
               window.CW_NAME = d.name;
+              keepViewName(d.name);
               localStorage.setItem('cw-name', d.name);
               localStorage.setItem('cw-name-for', who);
               localStorage.setItem('cw-name-at', String(Date.now()));
@@ -999,7 +1010,7 @@
       says.style.color = '#8A6220';
     } else if (seen) {
       says = d.createElement('span');
-      says.textContent = 'Viewing as ' + (name || seen);
+      says.textContent = 'Viewing as ' + (name || 'this person');
       says.style.color = '#8A6220';
     } else {
       var mine = '';
