@@ -85,7 +85,7 @@
         return;
       }
       history.replaceState(null, '', clean);
-      if (isAdmin && !document.referrer) {
+      if (!document.referrer && /^[A-Za-z0-9.\-]{3,80}$/.test(vid)) {
         var ask = function () {
           var box = document.createElement('div');
           box.id = 'cw-view-ask';
@@ -108,7 +108,8 @@
           box.appendChild(say); box.appendChild(yes); box.appendChild(no);
           document.body.appendChild(box);
         };
-        if (document.body) { ask(); } else { document.addEventListener('DOMContentLoaded', ask); }
+        var askWhenReady = function () { if (document.body) { ask(); } else { document.addEventListener('DOMContentLoaded', ask); } };
+        if (isAdmin) { askWhenReady(); } else { window._cwViewPending = askWhenReady; }
       }
     } catch (e) {}
   })();
@@ -698,6 +699,8 @@
         var forWho2 = String(window.localStorage.getItem('cw-name-for') || '').trim();
         var meNow = String((window.CW && window.CW.me) ? (window.CW.me().id || '') : '').trim();
         if (forWho2 && meNow && forWho2 !== meNow) { nm2 = ''; }
+        var vn2 = String(window.sessionStorage.getItem('cw-view-as-name') || '').trim();
+        if (vn2 && String(window.sessionStorage.getItem('cw-view-as') || '').trim()) { nm2 = vn2; }
       } catch (e) { nm2 = ''; }
       var esc3 = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
         return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
@@ -1404,7 +1407,7 @@
       var yes = !!dd.isSuper;
       var opYes = yes && dd.isOperator === true;
       ls(function () { w.localStorage.setItem('cw-super', yes ? 'yes' : 'no'); w.localStorage.setItem('cw-super-for', JSON.stringify({ v: 3, who: whoKey, yes: yes, op: opYes, at: Date.now() })); });
-      if (yes) { superOk = true; operatorOk = opYes; drawAdminBar(); }
+      if (yes) { superOk = true; operatorOk = opYes; drawAdminBar(); if (w._cwViewPending) { var _vp = w._cwViewPending; w._cwViewPending = null; _vp(); } }
       else { superOk = false; var had = d.getElementById('cw-viewas'); if (had) { had.remove(); } var hadF = d.getElementById('cw-viewas-folded'); if (hadF) { hadF.remove(); } }
     })
     .catch(function () {});
