@@ -687,7 +687,7 @@
       }
     } catch (e) {}
     var nameFresh = false;
-    try { nameFresh = (Date.now() - parseInt(localStorage.getItem('cw-name-at') || '0', 10)) < 600000; } catch (e) {}
+    try { nameFresh = localStorage.getItem('cw-name-for') === who && (Date.now() - parseInt(localStorage.getItem('cw-name-at') || '0', 10)) < 600000; } catch (e) {}
     if (fresh && nameFresh) return;
     if (!_tbProved() || _tbQuiet('lookupProfile')) return;
     try {
@@ -703,7 +703,7 @@
               localStorage.setItem('cw-name-for', who);
               localStorage.setItem('cw-name-at', String(Date.now()));
               var _ne = document.querySelector('#cw-topbar .cwtb-me-name');
-              if (_ne && _ne.firstChild && _ne.firstChild.nodeType === 3) { _ne.firstChild.nodeValue = d.name + ' '; }
+              if (_ne && _ne.firstChild && _ne.firstChild.nodeType === 3) { _ne.firstChild.nodeValue = d.name + ' '; } else if (!_ne) { adoptName(d.name); }
             }
           } catch (e) {}
           if (!d.photo) { _tbHush('lookupProfile', 60); if (d.name) { adoptName(d.name); } return; }
