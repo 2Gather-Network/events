@@ -82,6 +82,32 @@
         return;
       }
       history.replaceState(null, '', clean);
+      if (isAdmin && !document.referrer) {
+        var vid = decodeURIComponent(m[1]), vnm = decodeURIComponent(m[2] || '') || 'this person';
+        var ask = function () {
+          var box = document.createElement('div');
+          box.id = 'cw-view-ask';
+          box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:100001;background:#fff;color:#1A2E42;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #DDE3EA;box-shadow:0 6px 18px rgba(26,46,66,.12);font:400 14px/1.4 "Nunito Sans","DM Sans",system-ui,sans-serif;';
+          var say = document.createElement('span');
+          say.textContent = 'Keep viewing as ' + vnm + '?';
+          var yes = document.createElement('button');
+          yes.type = 'button'; yes.textContent = 'Yes, keep viewing';
+          yes.style.cssText = 'font:inherit;font-weight:800;padding:5px 14px;border-radius:14px;cursor:pointer;border:0;background:#1A2E42;color:#fff;';
+          var no = document.createElement('button');
+          no.type = 'button'; no.textContent = 'No, stay as me';
+          no.style.cssText = 'font:inherit;padding:5px 14px;border-radius:14px;cursor:pointer;border:1px solid #C3D0DB;background:#fff;color:#1A2E42;';
+          yes.onclick = function () {
+            sessionStorage.setItem('cw-view-as', vid);
+            sessionStorage.setItem('cw-view-as-name', vnm);
+            sessionStorage.removeItem('cw-view-out');
+            window.location.replace(clean);
+          };
+          no.onclick = function () { box.remove(); };
+          box.appendChild(say); box.appendChild(yes); box.appendChild(no);
+          document.body.appendChild(box);
+        };
+        if (document.body) { ask(); } else { document.addEventListener('DOMContentLoaded', ask); }
+      }
     } catch (e) {}
   })();
   document.addEventListener('click', function (ev) {
@@ -711,7 +737,7 @@
               localStorage.setItem('cw-name-for', who);
               localStorage.setItem('cw-name-at', String(Date.now()));
               var _ne = document.querySelector('#cw-topbar .cwtb-me-name');
-              if (_ne && _ne.firstChild && _ne.firstChild.nodeType === 3) { _ne.firstChild.nodeValue = d.name + ' '; } else if (!_ne) { adoptName(d.name); }
+              if (_ne && _ne.firstChild && _ne.firstChild.nodeType === 3) { _ne.firstChild.nodeValue = d.name + ' '; } else if (!_ne) { var _pill = document.querySelector('#cw-topbar .cwtb-me'), _fc = _pill && _pill.querySelector('.cwtb-face'); if (_fc) { var _sp = document.createElement('span'); _sp.className = 'cwtb-me-name'; _sp.textContent = d.name + ' '; _sp.insertAdjacentHTML('beforeend', SEED_SVG); _pill.insertBefore(_sp, _fc); } else { adoptName(d.name); } }
             }
           } catch (e) {}
           if (!d.photo) { _tbHush('lookupProfile', 60); if (d.name) { adoptName(d.name); } return; }
