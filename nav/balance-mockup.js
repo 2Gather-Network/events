@@ -7,8 +7,11 @@
   var fmCss = document.createElement('style');
   fmCss.textContent = 'html.cw-fm-wait .cw-prail-rail,html.cw-fm-wait #cw-prail{visibility:hidden;}';
   document.head.appendChild(fmCss);
-  if (!fmKnown()) { document.documentElement.classList.add('cw-fm-wait'); }
+  var fmViewing = false;
+  try { fmViewing = !!(window.CW && CW.me && CW.me().viewing); } catch (e) {}
+  if (!fmKnown() && !fmViewing) { document.documentElement.classList.add('cw-fm-wait'); }
   var fmT = setInterval(function () {
+    if (fmViewing) { clearInterval(fmT); return; }
     if (fmKnown()) { document.documentElement.classList.remove('cw-fm-wait'); clearInterval(fmT); return; }
     var d = window._gpIntakeBase;
     if (!d) { return; }

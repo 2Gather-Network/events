@@ -215,6 +215,7 @@
   }
   function firstMinDone() {
     try {
+      if (String(sessionStorage.getItem('cw-view-as') || '').trim()) { return true; }
       var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
       var v = JSON.parse(localStorage.getItem('cw-firstmin') || 'null');
       return !!(v && v.yes === true && norm(v.who) === norm(me()));
