@@ -337,6 +337,8 @@
 
     function myName() {
       try {
+        var vn = String(window.sessionStorage.getItem('cw-view-as-name') || '').trim();
+        if (vn && String(window.sessionStorage.getItem('cw-view-as') || '').trim()) { return vn; }
         var n = String(window.CW_NAME || window.localStorage.getItem('cw-name') || '').trim();
         var forWho = String(window.localStorage.getItem('cw-name-for') || '').trim();
         if (!n) return '';
@@ -997,7 +999,7 @@
       stop.textContent = 'Back to me';
       stop.style.cssText = 'font:inherit;padding:4px 12px;border-radius:14px;cursor:pointer;'
         + 'border:0;background:#1A2E42;color:#fff;font-weight:800;';
-      stop.onclick = function () { w.CW.stopViewing(); w.location.reload(); };
+      stop.onclick = function () { w.CW.stopViewing(); afterViewChange(); };
       left.appendChild(stop);
     }
 
@@ -1113,6 +1115,11 @@
       .then(function (r) { return r.json(); })
       .then(function (r) { _wordRows = (r && r.words) || []; done(_wordRows); })
       .catch(function () { _wordRows = []; done(_wordRows); });
+  }
+  function afterViewChange() {
+    var own = false;
+    try { own = /^\/(me|hi)(\/|$)/.test(w.location.pathname) && (d.documentElement.classList.contains('cw-own') || !!d.getElementById('pv-edit-profile')); } catch (e) { own = false; }
+    if (own) { w.location.href = '/me/?mine=1'; } else { w.location.reload(); }
   }
   function openWords(bar) {
     var old = d.getElementById('cw-viewas-words'); if (old) { old.remove(); return; }
@@ -1276,7 +1283,7 @@
         +   (email ? '<span style="display:block;font-size:12px;color:#4B5A6D;overflow:hidden;'
               + 'text-overflow:ellipsis;">' + esc(email) + '</span>' : '')
         + '</span>';
-      b.onclick = function () { w.CW.viewAs(id, label); w.location.reload(); };
+      b.onclick = function () { w.CW.viewAs(id, label); afterViewChange(); };
       return b;
     }
 
