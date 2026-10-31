@@ -53,6 +53,7 @@
       if (!v) { return url; }
       var u = new URL(url, window.location.href);
       var dest = siteOf(u.hostname), src = siteOf(window.location.hostname);
+      if (dest === 'gather' && /^\/(ikigai|group|groups|mygroups)(\/|$)/i.test(u.pathname)) { u.hostname = '2appear.network'; dest = 'appear'; }
       if (!dest || dest === src || u.hash) { return url; }
       u.hash = 'cwview=' + encodeURIComponent(v) + '&cwviewname=' + encodeURIComponent(String(sessionStorage.getItem('cw-view-as-name') || ''));
       return u.toString();
