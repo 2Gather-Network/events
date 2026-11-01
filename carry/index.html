@@ -113,7 +113,6 @@
   function keep(d) {
     localStorage.setItem('cw-id', d.appearId);
     localStorage.setItem('appear-id', d.appearId);
-    if (d.firstName) { localStorage.setItem('cw-first', d.firstName); }
     localStorage.setItem('cw-token', d.editToken);
     var norm = String(d.appearId).split('.').join('').toLowerCase();
     var exp = parseInt(String(d.editToken).split('.')[1], 10) || Date.parse(d.expiresAt) || 0;
@@ -146,9 +145,14 @@
       say('Please sign in here', 'We could not bring your sign-in across this time, so ' + NAMES[here] + ' needs you to sign in once.', next);
       return;
     }
+    if (jumpNext && signedInHere()) { location.replace(next); return; }
     post('/redeem', { code: f.code, state: f.state }).then(function (d) {
       if (!d || d.status !== 'ok' || !d.editToken || !d.appearId) { throw new Error('refused'); }
       keep(d);
+      if (jumpNext) {
+        localStorage.setItem('cw-jump-arrived', String(Date.now()));
+        fetch(GATE + '?action=carryArrived&appearId=' + encodeURIComponent(d.appearId) + '&site=' + here + '&meToken=' + encodeURIComponent(d.editToken), { keepalive: true, referrerPolicy: 'no-referrer' }).catch(function () {});
+      }
       localStorage.removeItem('cw-jump-known');
       if (connect && connect === here && TURN_ON[here]) {
         return fetch(GATE + '?action=saveAccount&appearId=' + encodeURIComponent(d.appearId) + '&secure=1&editToken=' + encodeURIComponent(d.editToken) +

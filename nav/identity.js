@@ -174,6 +174,16 @@
       try { if (w.CW && w.CW.forget) { w.CW.forget(); } } catch (e) {}
       var onCW = String(w.location.hostname || '').indexOf('creating.works') >= 0;
       var back = path + String(w.location.search || '') + String(w.location.hash || '').replace(/^#cwview=.*$/, '');
+      if (jumpOn()) {
+        var arrived = parseInt(ls(function () { return w.localStorage.getItem('cw-jump-arrived'); }, '') || '0', 10) || 0;
+        ls(function () { w.localStorage.removeItem('cw-jump-known'); });
+        if (Date.now() - arrived > 2 * 60 * 1000) {
+          ls(function () { w.localStorage.removeItem('cw-jump-wait'); });
+          w.location.replace(back);
+          return;
+        }
+        ls(function () { w.localStorage.setItem('cw-jump-wait', String(Date.now() + 30 * 60 * 1000)); });
+      }
       w.location.replace(onCW ? '/' : '/signin/?next=' + encodeURIComponent(back));
     }
   })();
@@ -191,9 +201,33 @@
     return JUMP_ON || ls(function () { return w.localStorage.getItem('cw-jump-test'); }, '') === '1';
   }
 
+  function prepareSession(id, token) {
+    var got = null, a = new Uint8Array(16), key = normalise(id), exp = parseInt(String(token).split('.')[1], 10) || 0;
+    w.crypto.getRandomValues(a);
+    var st = Array.prototype.map.call(a, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+    return w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=carryReadyAll&appearId=' + encodeURIComponent(id) + '&meToken=' + encodeURIComponent(token), { referrerPolicy: 'no-referrer' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.status !== 'ok' || !d.passes) { throw new Error('refused'); }
+        got = d;
+        return w.fetch('https://cw-carry.jessieupp.workers.dev/prepare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          referrerPolicy: 'no-referrer',
+          body: JSON.stringify({ appearId: d.appearId, firstName: d.firstName || '', passes: d.passes, state: st })
+        });
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.status !== 'ok' || !d.code) { throw new Error('refused'); }
+        var list = String(got.enabledSolution || '');
+        ls(function () { w.localStorage.setItem('cw-enabled', list); });
+        ss(function () { w.sessionStorage.setItem('cw-jump-pending', JSON.stringify({ id: key, exp: exp, enabled: list, code: d.code, state: st, at: Date.now() })); });
+      });
+  }
+
   (function jumpOrRemember() {
     var SERVICE = 'https://cw-carry.jessieupp.workers.dev';
-    var GATE_URL = 'https://cw-api-gate.jessieupp.workers.dev';
     var WAIT_MS = 30 * 60 * 1000, PENDING_MS = 9 * 60 * 1000, RETRY_MS = 10 * 60 * 1000;
     if (!jumpOn()) { return; }
     var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
@@ -262,29 +296,7 @@
 
     if (num('cw-jump-retry') > now) { return; }
     ls(function () { w.localStorage.setItem('cw-jump-retry', String(now + RETRY_MS)); });
-    w.setTimeout(function () {
-      var got = null, st = newState();
-      w.fetch(GATE_URL + '?action=carryReadyAll&appearId=' + encodeURIComponent(found) + '&meToken=' + encodeURIComponent(token), { referrerPolicy: 'no-referrer' })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (!d || d.status !== 'ok' || !d.passes) { throw new Error('refused'); }
-          got = d;
-          return w.fetch(SERVICE + '/prepare', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            referrerPolicy: 'no-referrer',
-            body: JSON.stringify({ appearId: d.appearId, firstName: d.firstName || '', passes: d.passes, state: st })
-          });
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (!d || d.status !== 'ok' || !d.code) { throw new Error('refused'); }
-          var list = String(got.enabledSolution || '');
-          ls(function () { w.localStorage.setItem('cw-enabled', list); });
-          ss(function () { w.sessionStorage.setItem('cw-jump-pending', JSON.stringify({ id: key, exp: exp, enabled: list, code: d.code, state: st, at: Date.now() })); });
-        })
-        .catch(function () {});
-    }, 1500);
+    w.setTimeout(function () { prepareSession(found, token).catch(function () {}); }, 1500);
   })();
 
   (function wall() {
@@ -460,6 +472,7 @@
     },
     normalise: normalise,
     jumpOn: jumpOn,
+    prepareSession: prepareSession,
     connectKnown: function () {
       var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
       if (!jumpOn() || (site !== 'appear' && site !== 'balance') || fromDevice()) { return false; }
