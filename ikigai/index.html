@@ -3651,13 +3651,67 @@
     var sq = document.createElement('input'); sq.type = 'search'; sq.placeholder = 'Search your cards'; sq.setAttribute('aria-label', 'Search your cards');
     sq.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;font-size:14.5px;border:1.5px solid #C9DFF3;border-radius:10px;padding:9px 12px;margin:0 0 12px;';
     box.appendChild(sq);
+    var shown = [];
+    var bulkRow = document.createElement('div'); bulkRow.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:0 0 6px;';
+    var bulkNote = document.createElement('div'); bulkNote.setAttribute('role', 'status'); bulkNote.style.cssText = 'font-size:13px;line-height:1.5;color:#2F3D4F;min-height:18px;margin:0 0 6px;';
+    var bulkMode = '', bulkWas = {}, bulkBtns = {};
+    var bulkPaint = function(){
+      Object.keys(bulkBtns).forEach(function(m){
+        var on = m === bulkMode, b = bulkBtns[m];
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.style.background = on ? '#1F699E' : '#fff'; b.style.color = on ? '#fff' : '#1F699E';
+      });
+    };
+    var bulkClear = function(){ bulkMode = ''; bulkWas = {}; bulkNote.textContent = ''; bulkPaint(); };
+    var bulkSave = function(fresh, it, cur){
+      fresh[it.k] = cur;
+      var slim = {}; KEEP.forEach(function(f){ if (cur[f] !== undefined) { slim[f] = cur[f]; } });
+      gpDetailQueue(it.w, slim);
+    };
+    var bulkGo = function(mode){
+      if (!CWSENS || !shown.length) { return; }
+      var fresh = {}; try { fresh = JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}; } catch (e) {}
+      var cardOf = function(it){ return fresh[it.k] && typeof fresh[it.k] === 'object' ? fresh[it.k] : {}; };
+      Object.keys(bulkWas).forEach(function(k){
+        var it = { k: k, w: bulkWas[k].w }, cur = cardOf(it);
+        csSet(cur, it.w, 'show', bulkWas[k].show); csSet(cur, it.w, 'match', bulkWas[k].match);
+        bulkSave(fresh, it, cur);
+      });
+      var back = mode === bulkMode;
+      bulkWas = {};
+      var n = 0, held = 0;
+      if (!back) {
+        var v = mode === 'on';
+        shown.forEach(function(it){
+          var cur = cardOf(it);
+          bulkWas[it.k] = { w: it.w, show: csShow(cur, it.w), match: csMatch(cur, it.w) };
+          if ((v || mode === 'offx') && cwIsSens(it.w)) { held++; return; }
+          csSet(cur, it.w, 'show', v); csSet(cur, it.w, 'match', v);
+          bulkSave(fresh, it, cur); n++;
+        });
+      }
+      try { sessionStorage.setItem('ao-details', JSON.stringify(fresh)); } catch (e) {}
+      changed = true;
+      bulkMode = back ? '' : mode;
+      draw();
+      bulkNote.textContent = back ? 'Back to how they were before.' : (v ? 'Turned on ' : 'Turned off ') + n + (n === 1 ? ' card.' : ' cards.') + (held ? ' ' + held + ' sensitive ' + (held === 1 ? 'card was' : 'cards were') + (v ? ' left off for you to choose one by one.' : ' left as they were.') : '') + ' Press the same button again to go back.';
+      bulkPaint();
+    };
+    [['on', 'Turn all on'], ['off', 'Turn all off'], ['offx', 'Turn all off except sensitive']].forEach(function(o){
+      var bb = document.createElement('button'); bb.type = 'button'; bb.textContent = o[1];
+      bb.style.cssText = 'font:inherit;font-size:13px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #1F699E;border-radius:18px;padding:6px 14px;cursor:pointer;';
+      bb.setAttribute('aria-pressed', 'false');
+      bb.addEventListener('click', function(){ bulkGo(o[0]); });
+      bulkBtns[o[0]] = bb; bulkRow.appendChild(bb);
+    });
+    box.appendChild(bulkRow); box.appendChild(bulkNote);
     var list = document.createElement('div'); box.appendChild(list);
     var bot = document.createElement('div'); bot.style.cssText = 'display:flex;justify-content:flex-end;margin-top:14px;';
     var close2 = document.createElement('button'); close2.type = 'button'; close2.textContent = 'Done'; close2.style.cssText = close.style.cssText; close2.addEventListener('click', function(){ close.click(); });
     bot.appendChild(close2); box.appendChild(bot);
     ov.appendChild(box); document.body.appendChild(ov);
     var draw = function(){
-      list.innerHTML = '';
+      list.innerHTML = ''; shown = [];
       if (CWSENS_FAIL) { list.textContent = 'We could not check your cards just now, so nothing is shown here. Try again in a moment.'; list.style.cssText = 'font-size:14px;color:#7A2410;'; return; }
       if (!CWSENS) { list.textContent = 'Looking at your cards…'; list.style.cssText = 'font-size:14px;color:#2F3D4F;'; return; }
       var all = {}; try { all = JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}; } catch (e) {}
@@ -3670,6 +3724,7 @@
       (window._gpInts || []).forEach(function(x){ var at = String(x).lastIndexOf(':'), l = (at > -1 ? String(x).slice(0, at) : String(x)).trim().toLowerCase(); if (l) { tagsOf[l] = tagsOf[l] || []; if (tagsOf[l].indexOf('Interest') < 0) { tagsOf[l].push('Interest'); } } });
       var keys = Object.keys(names).sort(), sqv = String(sq.value || '').trim().toLowerCase();
       if (sqv) { keys = keys.filter(function(k){ return k.indexOf(sqv) > -1 || (tagsOf[k] || []).join(' ').toLowerCase().indexOf(sqv) > -1; }); }
+      shown = keys.map(function(k){ return { k: k, w: names[k] }; });
       if (!keys.length && sqv) { list.textContent = 'No card matches that.'; list.style.cssText = 'font-size:14px;color:#2F3D4F;'; return; }
       if (!keys.length) { list.textContent = 'You have no cards yet. Each card you add gets these two switches.'; list.style.cssText = 'font-size:14px;color:#2F3D4F;'; return; }
       var hd = document.createElement('div'); hd.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-end;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#2F3D4F;padding:6px 0;border-bottom:1px solid #DDE4EE;';
@@ -3677,11 +3732,12 @@
       list.appendChild(hd);
       keys.forEach(function(k){
         var w = names[k], a = all[k] && typeof all[k] === 'object' ? all[k] : {};
+        var t1 = null, t2 = null, tl = null;
         var row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #EEF2F6;font-size:14.5px;';
         var nm = document.createElement('span'); nm.style.cssText = 'min-width:0;flex:1 1 auto;overflow-wrap:anywhere;';
         if ((tagsOf[k] || []).indexOf('Interest') > -1) {
           var nl = document.createElement('a'); nl.textContent = w; nl.href = '/ikigai/interests?focus=' + encodeURIComponent(w);
-          nl.style.cssText = 'color:#1F699E;font-weight:700;text-decoration:underline;cursor:pointer;';
+          nl.style.cssText = 'color:#1F699E;font-weight:400;text-decoration:underline;cursor:pointer;';
           nl.addEventListener('click', function(ev){
             var fr = document.querySelector('#gp-ints-list-host iframe.gp-int') || document.querySelector('iframe.gp-int');
             if (!fr || !fr.contentWindow) { return; }
@@ -3692,9 +3748,9 @@
             try { fr.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
           });
           nm.appendChild(nl);
-        } else { nm.appendChild(document.createTextNode(w)); }
-        if (!csShow(a, w)) { var t1 = document.createElement('span'); t1.textContent = 'Not public'; t1.style.cssText = TAG + 'margin-left:8px;'; nm.appendChild(t1); }
-        if (!csMatch(a, w)) { var t2 = document.createElement('span'); t2.textContent = 'Not matching'; t2.style.cssText = TAG + 'margin-left:6px;'; nm.appendChild(t2); }
+        } else { var wn = document.createElement('span'); wn.textContent = w; nm.appendChild(wn); }
+        if (!csShow(a, w)) { t1 = document.createElement('span'); t1.textContent = 'Not public'; t1.style.cssText = TAG + 'margin-left:8px;'; nm.appendChild(t1); }
+        if (!csMatch(a, w)) { t2 = document.createElement('span'); t2.textContent = 'Not matching'; t2.style.cssText = TAG + 'margin-left:6px;'; nm.appendChild(t2); }
         var sws = document.createElement('span'); sws.style.cssText = 'display:flex;gap:10px;flex:0 0 auto;';
         ['show', 'match'].forEach(function(key){
           var on = key === 'show' ? csShow(a, w) : csMatch(a, w);
@@ -3710,12 +3766,17 @@
             fresh[k] = cur; try { sessionStorage.setItem('ao-details', JSON.stringify(fresh)); } catch (e) {}
             var slim = {}; KEEP.forEach(function(f){ if (cur[f] !== undefined) { slim[f] = cur[f]; } });
             gpDetailQueue(w, slim); changed = true;
+            bulkClear();
             draw();
           });
           cell.appendChild(b); sws.appendChild(cell);
         });
-        if ((tagsOf[k] || []).length) { var tl = document.createElement('div'); tl.textContent = tagsOf[k].join(' | '); tl.style.cssText = 'font-size:12px;font-weight:600;color:#2F3D4F;margin-top:2px;'; nm.appendChild(tl); }
+        if ((tagsOf[k] || []).length) { tl = document.createElement('div'); tl.textContent = tagsOf[k].join(' | '); tl.style.cssText = 'font-size:12px;font-weight:600;color:#2F3D4F;margin-top:2px;'; nm.appendChild(tl); }
         row.appendChild(nm); row.appendChild(sws); list.appendChild(row);
+        var pillsOf = [t1, t2].filter(Boolean);
+        if (pillsOf.length && tl && pillsOf.some(function(x){ return x.offsetTop > nm.firstChild.offsetTop + 8; })) {
+          pillsOf.forEach(function(x){ x.style.marginLeft = '8px'; tl.appendChild(x); });
+        }
       });
     };
     sq.addEventListener('input', draw);
