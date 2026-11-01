@@ -178,15 +178,19 @@
     }
   })();
 
+  var JUMP_SITE = { '2gather.network': 'gather', '2appear.network': 'appear', '2balance.network': 'balance', 'creating.works': 'creatingworks' };
+  var JUMP_ON = false;
+  function jumpOn() {
+    if (!JUMP_SITE[String(w.location.hostname || '').toLowerCase()]) { return false; }
+    return JUMP_ON || ls(function () { return w.localStorage.getItem('cw-jump-test'); }, '') === '1';
+  }
+
   (function jumpOrRemember() {
     var SERVICE = 'https://cw-carry.jessieupp.workers.dev';
     var GATE_URL = 'https://cw-api-gate.jessieupp.workers.dev';
-    var ON = false;
-    var SITE = { '2gather.network': 'gather', '2appear.network': 'appear', '2balance.network': 'balance', 'creating.works': 'creatingworks' };
     var WAIT_MS = 30 * 60 * 1000, PENDING_MS = 9 * 60 * 1000, RETRY_MS = 10 * 60 * 1000;
-    var site = SITE[String(w.location.hostname || '').toLowerCase()];
-    if (!site) { return; }
-    if (!ON && ls(function () { return w.localStorage.getItem('cw-jump-test'); }, '') !== '1') { return; }
+    if (!jumpOn()) { return; }
+    var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
     if (ls(function () { return w.top !== w.self; }, true)) { return; }
     var nav = w.navigator || {};
     if (nav.webdriver || /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|slack|discord|telegram|lighthouse|headless/i.test(String(nav.userAgent || ''))) { return; }
@@ -449,6 +453,13 @@
       } catch (e) { return String(url || ''); }
     },
     normalise: normalise,
+    jumpOn: jumpOn,
+    signOutAll: function () {
+      if (!jumpOn()) { return false; }
+      w.CW.forget();
+      w.location.href = '/signout/#all=1';
+      return true;
+    },
     forget: function () {
       ls(function () {
         for (var i = 0; i < CLEAR.length; i++) { w.localStorage.removeItem(CLEAR[i]); }
@@ -456,7 +467,11 @@
           w.sessionStorage.removeItem('cw-view-as');
           w.sessionStorage.removeItem('cw-view-as-name');
           w.sessionStorage.removeItem(OUT_KEY);
+          w.sessionStorage.removeItem('cw-jump-pending');
+          w.sessionStorage.removeItem('cw-jump-next');
+          w.sessionStorage.removeItem('cw-carry-state');
         });
+        w.localStorage.removeItem('cw-jump-retry');
         Object.keys(w.localStorage).forEach(function (k) {
           if (k.indexOf('cw-edit-') === 0) { w.localStorage.removeItem(k); }
         });

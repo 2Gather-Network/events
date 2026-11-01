@@ -515,6 +515,7 @@
       var outs = root.querySelectorAll('[data-signout]');
       for (var o = 0; o < outs.length; o++) {
         outs[o].addEventListener('click', function () {
+          if (window.CW && window.CW.signOutAll && window.CW.signOutAll()) { return; }
           if (window.CW && window.CW.forget) { window.CW.forget(); }
           var cur = siteOf(window.location.hostname);
           if (cur === 'gather' || cur === 'appear') {

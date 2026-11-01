@@ -144,6 +144,7 @@
           b.setAttribute('data-prail', it.key);
           b.onclick = function () {
             if (it.out) {
+              if (window.CW && window.CW.signOutAll && window.CW.signOutAll()) { return; }
               try { if (window.CW && window.CW.forget) { window.CW.forget(); } } catch (e) {}
               go('https://2gather.network/signin/?out=1');
               return;
@@ -189,6 +190,7 @@
       b.onclick = function () {
         if (it.key === opts.active) return;
         if (it.out) {
+          if (window.CW && window.CW.signOutAll && window.CW.signOutAll()) { return; }
           try { if (window.CW && window.CW.forget) { window.CW.forget(); } } catch (e) {}
           go(_onBal ? '/signin/?out=1' : 'https://2gather.network/signin/?out=1');
           return;
