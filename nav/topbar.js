@@ -416,6 +416,11 @@
               '" onclick="return _safeNavGo(this)">Sign in</a>' +
               '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost" href="' + _su + '" data-nav="' + _su +
               '" onclick="return _safeNavGo(this)">Sign up</a>';
+      if (window.CW && window.CW.connectKnown && window.CW.connectKnown()) {
+        photo = '<a role="link" tabindex="0" class="cwtb-signin" href="#" onclick="window.CW.connectNow();return false;">Connect now</a>' +
+                '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost" href="' + _si + '" data-nav="' + _si +
+                '" onclick="return _safeNavGo(this)">Sign in</a>';
+      }
     }
 
     if (!atDoor && me()) {

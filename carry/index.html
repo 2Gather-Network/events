@@ -53,6 +53,7 @@
   var SITES = { gather: 'https://2gather.network', appear: 'https://2appear.network', balance: 'https://2balance.network', creatingworks: 'https://creating.works' };
   var NAMES = { gather: '2Gather', appear: '2Appear', balance: '2Balance', creatingworks: 'Creating.Works' };
   var STATE_KEY = 'cw-carry-state';
+  var TURN_ON = { appear: 'Appear', balance: 'Balance' };
 
   function $(id) { return document.getElementById(id); }
   function hereSite() {
@@ -126,7 +127,14 @@
   var next = safeNext(jumpNext || f.next);
   wipeHash();
 
-  if (f.guest) { ss(function () { sessionStorage.removeItem(STATE_KEY); }); location.replace(next); return; }
+  if (f.guest) {
+    ss(function () { sessionStorage.removeItem(STATE_KEY); sessionStorage.removeItem('cw-jump-connect'); });
+    if (f.member) { try { localStorage.setItem('cw-jump-known', String(Date.now() + 30 * 60 * 1000)); } catch (e) {} }
+    location.replace(next);
+    return;
+  }
+  var connect = ss(function () { return sessionStorage.getItem('cw-jump-connect'); });
+  ss(function () { sessionStorage.removeItem('cw-jump-connect'); });
 
   if (!here) { say('This page only works on our sites', 'Open the link again from the page you were on.'); return; }
 
@@ -141,6 +149,15 @@
     post('/redeem', { code: f.code, state: f.state }).then(function (d) {
       if (!d || d.status !== 'ok' || !d.editToken || !d.appearId) { throw new Error('refused'); }
       keep(d);
+      localStorage.removeItem('cw-jump-known');
+      if (connect && connect === here && TURN_ON[here]) {
+        return fetch(GATE + '?action=saveAccount&appearId=' + encodeURIComponent(d.appearId) + '&secure=1&editToken=' + encodeURIComponent(d.editToken) +
+            '&enabledSolution=' + TURN_ON[here], { referrerPolicy: 'no-referrer' })
+          .then(function (r) { return r.json(); })
+          .then(function (s) { if (s && s.enabledSolution) { localStorage.setItem('cw-enabled', s.enabledSolution); } })
+          .catch(function () {})
+          .then(function () { location.replace(next); });
+      }
       if (jumpNext) {
         var markExp = parseInt(String(d.editToken).split('.')[1], 10) || 0;
         localStorage.setItem('cw-jump-mark', JSON.stringify({ id: String(d.appearId).split('.').join('').toLowerCase(), exp: markExp, enabled: localStorage.getItem('cw-enabled') || '' }));

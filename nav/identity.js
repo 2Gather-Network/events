@@ -9,7 +9,7 @@
     try { Object.keys(w.localStorage).forEach(function (k) { for (var j = 0; j < ANSWER_KEYS.length; j++) { if (k.indexOf(ANSWER_KEYS[j]) === 0) { w.localStorage.removeItem(k); } } }); } catch (e) {}
   }
   var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-photo-at', 'cw-token', 'cw-first',
-               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-super-for', 'cw-lastEmail', 'cw-enabled', 'cw-jump-mark'];
+               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-super-for', 'cw-lastEmail', 'cw-enabled', 'cw-jump-mark', 'cw-jump-known'];
   var VIEW_KEY = 'cw-view-as';
   var OUT_KEY = 'cw-view-out';
 
@@ -454,6 +454,36 @@
     },
     normalise: normalise,
     jumpOn: jumpOn,
+    connectKnown: function () {
+      var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
+      if (!jumpOn() || (site !== 'appear' && site !== 'balance') || fromDevice()) { return false; }
+      return (parseInt(ls(function () { return w.localStorage.getItem('cw-jump-known'); }, '') || '0', 10) || 0) > Date.now();
+    },
+    connectNow: function (next) {
+      var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
+      var a = new Uint8Array(16);
+      w.crypto.getRandomValues(a);
+      var st = Array.prototype.map.call(a, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+      var ok = ss(function () {
+        w.sessionStorage.setItem('cw-carry-state', st);
+        w.sessionStorage.setItem('cw-jump-next', next || (w.location.pathname + w.location.search + w.location.hash));
+        w.sessionStorage.setItem('cw-jump-connect', site);
+        return true;
+      }, false);
+      if (ok) { w.location.href = 'https://cw-carry.jessieupp.workers.dev/jump?to=' + site + '&state=' + st + '&connect=1'; }
+    },
+    offerConnect: function (box, next) {
+      if (!box || !w.CW.connectKnown()) { return; }
+      var d = w.document, p = d.createElement('p'), b = d.createElement('button');
+      p.textContent = 'You are already signed in on another of our sites.';
+      p.style.margin = '0 0 10px';
+      b.type = 'button';
+      b.textContent = 'Connect now';
+      b.style.marginBottom = '22px';
+      b.onclick = function () { w.CW.connectNow(next); };
+      box.insertBefore(b, box.firstChild);
+      box.insertBefore(p, b);
+    },
     signOutAll: function () {
       if (!jumpOn()) { return false; }
       ls(function () {
