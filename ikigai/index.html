@@ -3654,21 +3654,22 @@
     var shown = [];
     var bulkRow = document.createElement('div'); bulkRow.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:0 0 6px;';
     var bulkNote = document.createElement('div'); bulkNote.setAttribute('role', 'status'); bulkNote.style.cssText = 'font-size:13px;line-height:1.5;color:#2F3D4F;min-height:18px;margin:0 0 6px;';
-    var bulkMode = '', bulkWas = {}, bulkBtns = {}, sensOnly = false;
+    var activeKey = '', bulkWas = {}, bulkBtns = {}, sensOnly = false;
     var bulkPaint = function(){
       Object.keys(bulkBtns).forEach(function(m){
-        var on = m === bulkMode, b = bulkBtns[m];
+        var on = m === activeKey, b = bulkBtns[m];
         b.setAttribute('aria-pressed', on ? 'true' : 'false');
         b.style.background = on ? '#1F699E' : '#fff'; b.style.color = on ? '#fff' : '#1F699E';
       });
     };
-    var bulkClear = function(){ bulkMode = ''; bulkWas = {}; bulkNote.textContent = ''; bulkPaint(); };
+    var bulkClear = function(){ activeKey = ''; bulkWas = {}; bulkNote.textContent = ''; bulkPaint(); };
     var bulkSave = function(fresh, it, cur){
       fresh[it.k] = cur;
       var slim = {}; KEEP.forEach(function(f){ if (cur[f] !== undefined) { slim[f] = cur[f]; } });
       gpDetailQueue(it.w, slim);
     };
-    var bulkGo = function(mode){
+    var FIELD_SAY = { show: 'on your profile', match: 'used to find matches' };
+    var bulkGo = function(mode, field){
       if (!CWSENS || !shown.length) { return; }
       var fresh = {}; try { fresh = JSON.parse(sessionStorage.getItem('ao-details') || '{}') || {}; } catch (e) {}
       var cardOf = function(it){ return fresh[it.k] && typeof fresh[it.k] === 'object' ? fresh[it.k] : {}; };
@@ -3677,43 +3678,68 @@
         csSet(cur, it.w, 'show', bulkWas[k].show); csSet(cur, it.w, 'match', bulkWas[k].match);
         bulkSave(fresh, it, cur);
       });
-      var back = mode === bulkMode;
+      var thisKey = field ? field + ':' + mode : mode;
+      var back = thisKey === activeKey;
       bulkWas = {};
-      var n = 0, held = 0;
+      var n = 0, held = 0, v = mode !== 'off';
       if (!back) {
-        var v = mode !== 'off';
         shown.forEach(function(it){
           var cur = cardOf(it);
           bulkWas[it.k] = { w: it.w, show: csShow(cur, it.w), match: csMatch(cur, it.w) };
-          if (mode === 'onx' && cwIsSens(it.w)) { held++; return; }
-          csSet(cur, it.w, 'show', v); csSet(cur, it.w, 'match', v);
+          if (!field && mode === 'onx' && cwIsSens(it.w)) { held++; return; }
+          if (field) { csSet(cur, it.w, field, v); } else { csSet(cur, it.w, 'show', v); csSet(cur, it.w, 'match', v); }
           bulkSave(fresh, it, cur); n++;
         });
       }
       try { sessionStorage.setItem('ao-details', JSON.stringify(fresh)); } catch (e) {}
       changed = true;
-      bulkMode = back ? '' : mode;
+      activeKey = back ? '' : thisKey;
       draw();
-      bulkNote.textContent = back ? 'Back to how they were before.' : (v ? 'Turned on ' : 'Turned off ') + n + (n === 1 ? ' card.' : ' cards.') + (held ? ' ' + held + ' sensitive ' + (held === 1 ? 'card was' : 'cards were') + ' left as they were.' : '') + ' Press the same button again to go back.';
+      var say = field ? ' ' + FIELD_SAY[field] : '';
+      bulkNote.textContent = back ? 'Back to how they were before.' : (v ? 'Turned on ' : 'Turned off ') + n + (n === 1 ? ' card' : ' cards') + say + '.' + (held ? ' ' + held + ' sensitive ' + (held === 1 ? 'card was' : 'cards were') + ' left as they were.' : '') + ' Press the same button again to go back.';
       bulkPaint();
     };
-    [['on', 'Turn on all'], ['off', 'Turn off all'], ['onx', 'Turn on all except sensitive']].forEach(function(o){
-      var bb = document.createElement('button'); bb.type = 'button'; bb.textContent = o[1];
-      bb.style.cssText = 'font:inherit;font-size:13px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #1F699E;border-radius:18px;padding:6px 14px;cursor:pointer;';
-      bb.setAttribute('aria-pressed', 'false');
-      bb.addEventListener('click', function(){ bulkGo(o[0]); });
-      bulkBtns[o[0]] = bb; bulkRow.appendChild(bb);
+    var sensPill = document.createElement('div'); sensPill.style.cssText = 'display:inline-flex;border:1.5px solid #C9DFF3;border-radius:18px;overflow:hidden;';
+    var sensSegs = {};
+    [[false, 'Show all cards'], [true, 'Show only sensitive']].forEach(function(o){
+      var sb = document.createElement('button'); sb.type = 'button'; sb.textContent = o[1];
+      sb.style.cssText = 'font:inherit;font-size:13px;font-weight:700;padding:6px 14px;border:0;cursor:pointer;';
+      sb.setAttribute('aria-pressed', sensOnly === o[0] ? 'true' : 'false');
+      sb.addEventListener('click', function(){
+        if (sensOnly === o[0]) { return; }
+        sensOnly = o[0];
+        Object.keys(sensSegs).forEach(function(kk){
+          var on = (kk === 'true') === sensOnly, seg = sensSegs[kk];
+          seg.setAttribute('aria-pressed', on ? 'true' : 'false');
+          seg.style.background = on ? '#1F699E' : '#fff'; seg.style.color = on ? '#fff' : '#1F699E';
+        });
+        bulkClear(); draw();
+      });
+      sensSegs[String(o[0])] = sb; sensPill.appendChild(sb);
     });
-    var sensBtn = document.createElement('button'); sensBtn.type = 'button'; sensBtn.textContent = 'Show only sensitive';
-    sensBtn.style.cssText = 'font:inherit;font-size:13px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #C9DFF3;border-radius:18px;padding:6px 14px;cursor:pointer;';
-    sensBtn.setAttribute('aria-pressed', 'false');
-    sensBtn.addEventListener('click', function(){
-      sensOnly = !sensOnly; sensBtn.setAttribute('aria-pressed', sensOnly ? 'true' : 'false');
-      sensBtn.textContent = sensOnly ? 'Show all cards' : 'Show only sensitive';
-      bulkClear(); draw();
-    });
-    bulkRow.appendChild(sensBtn);
+    sensSegs['false'].style.background = '#1F699E'; sensSegs['false'].style.color = '#fff';
+    sensSegs['true'].style.background = '#fff'; sensSegs['true'].style.color = '#1F699E';
+    bulkRow.appendChild(sensPill);
+    var onxBtn = document.createElement('button'); onxBtn.type = 'button'; onxBtn.textContent = 'Turn on all except sensitive';
+    onxBtn.style.cssText = 'font:inherit;font-size:13px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #1F699E;border-radius:18px;padding:6px 14px;cursor:pointer;';
+    onxBtn.setAttribute('aria-pressed', 'false');
+    onxBtn.addEventListener('click', function(){ bulkGo('onx'); });
+    bulkBtns.onx = onxBtn; bulkRow.appendChild(onxBtn);
     box.appendChild(bulkRow); box.appendChild(bulkNote);
+    var colRow = document.createElement('div'); colRow.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin:0 0 4px;';
+    ['show', 'match'].forEach(function(field){
+      var cell = document.createElement('div'); cell.style.cssText = 'width:68px;display:flex;justify-content:center;gap:6px;';
+      [['on', 'On'], ['off', 'Off']].forEach(function(o){
+        var cb = document.createElement('button'); cb.type = 'button'; cb.textContent = o[1];
+        cb.style.cssText = 'font:inherit;font-size:11px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #C9DFF3;border-radius:10px;padding:2px 8px;cursor:pointer;';
+        cb.setAttribute('aria-pressed', 'false');
+        cb.setAttribute('aria-label', (o[0] === 'on' ? 'Turn on all ' : 'Turn off all ') + FIELD_SAY[field]);
+        cb.addEventListener('click', function(){ bulkGo(o[0], field); });
+        bulkBtns[field + ':' + o[0]] = cb; cell.appendChild(cb);
+      });
+      colRow.appendChild(cell);
+    });
+    box.appendChild(colRow);
     var list = document.createElement('div'); box.appendChild(list);
     var bot = document.createElement('div'); bot.style.cssText = 'display:flex;justify-content:flex-end;margin-top:14px;';
     var close2 = document.createElement('button'); close2.type = 'button'; close2.textContent = 'Done'; close2.style.cssText = close.style.cssText; close2.addEventListener('click', function(){ close.click(); });
