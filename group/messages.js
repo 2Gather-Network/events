@@ -256,7 +256,7 @@
     var ppl = people();
     if (gF) {
       var allB = smallPill(btn('All messages', 'quiet'));
-      allB.onclick = function () { window.location.href = 'https://2gather.network/messages/'; };
+      allB.onclick = function () { window.location.href = 'https://2appear.network/messages/'; };
       head.appendChild(allB);
     }
     if (ppl.length && gF && !drawList._asked && /[?&]new=1/.test(location.search)) { drawList._asked = true; drawNew(); return; }
@@ -353,7 +353,7 @@
         gs.forEach(function (g) {
           var r = el('div', 'padding:12px 16px;border:1.5px solid #DDE4EE;border-radius:14px;background:#fff;cursor:pointer;font-size:16px;font-weight:700;color:#1A2E42;', g.name || 'Group');
           r.setAttribute('role', 'link'); r.tabIndex = 0;
-          var go = function () { window.location.href = 'https://2gather.network/messages/?group=' + encodeURIComponent(g.groupId || g.id || '') + '&new=1'; };
+          var go = function () { window.location.href = 'https://2appear.network/messages/?group=' + encodeURIComponent(g.groupId || g.id || '') + '&new=1'; };
           r.onclick = go;
           r.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); go(); } });
           list.appendChild(r);
@@ -505,7 +505,7 @@
               groupsList.appendChild(el('div', 'font-size:12px;font-weight:800;color:#2F3D4F;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;', 'Groups you share with ' + nm));
               gl.forEach(function (g) {
                 var ga = el('a', 'display:block;font-size:14.5px;font-weight:700;color:#1F699E;text-decoration:none;padding:4px 0;cursor:pointer;', g.name || 'Group');
-                ga.href = g.slug ? 'https://2gather.network/group/' + encodeURIComponent(String(g.slug).split(',')[0].trim()) : 'https://2gather.network/group/?id=' + encodeURIComponent(g.id || '');
+                ga.href = g.slug ? 'https://2appear.network/group/' + encodeURIComponent(String(g.slug).split(',')[0].trim()) : 'https://2appear.network/group/?id=' + encodeURIComponent(g.id || '');
                 groupsList.appendChild(ga);
               });
             }).catch(function () { groupsList.textContent = 'That did not load. Try again in a moment.'; });
