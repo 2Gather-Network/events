@@ -46,7 +46,7 @@
     try { localStorage.removeItem(HEADING); } catch (e) {}
   };
 
-  var BALANCE_FIRST = { 'Connect': ['howIConnect'], 'Create': ['methods', 'subjects', 'expression'], 'Eat and drink': ['howIEatAndDrink'], 'Move': ['howIMove'], 'Play': ['energizesMeKinds'], 'Rest': ['howIRest'] };
+  var BALANCE_FIRST = { 'Connect': ['howIConnect'], 'Create': ['methods', 'subjects', 'expression'], 'Eat and drink': ['howIEatAndDrink'], 'Move': ['howIMove'], 'Play': ['energizesMeKinds'], 'Rest': ['howIRest'], 'My body and physical surroundings': ['bodyMoreOf'], 'My feelings': ['feelingsLately'], 'My energy': ['energyNotServing'], 'My mind': ['mindMoreOf'], 'My imagination': ['imaginationMoreOf'] };
 
   function _balanceDone(row) {
     var picked = String(row.exploreAreas || '').split('|').map(function (x) { return x.trim(); }).filter(function (x) { return BALANCE_FIRST[x]; });
