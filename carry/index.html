@@ -50,8 +50,8 @@
 (function () {
   var GATE = 'https://cw-api-gate.jessieupp.workers.dev';
   var CARRY = 'https://cw-carry.jessieupp.workers.dev';
-  var SITES = { gather: 'https://2gather.network', appear: 'https://2appear.network' };
-  var NAMES = { gather: '2Gather', appear: '2Appear' };
+  var SITES = { gather: 'https://2gather.network', appear: 'https://2appear.network', balance: 'https://2balance.network', creatingworks: 'https://creating.works' };
+  var NAMES = { gather: '2Gather', appear: '2Appear', balance: '2Balance', creatingworks: 'Creating.Works' };
   var STATE_KEY = 'cw-carry-state';
 
   function $(id) { return document.getElementById(id); }
@@ -121,8 +121,12 @@
 
   var f = frag();
   var here = hereSite();
-  var next = safeNext(f.next);
+  var jumpNext = ss(function () { return sessionStorage.getItem('cw-jump-next'); });
+  ss(function () { sessionStorage.removeItem('cw-jump-next'); });
+  var next = safeNext(jumpNext || f.next);
   wipeHash();
+
+  if (f.guest) { ss(function () { sessionStorage.removeItem(STATE_KEY); }); location.replace(next); return; }
 
   if (!here) { say('This page only works on our sites', 'Open the link again from the page you were on.'); return; }
 
@@ -130,14 +134,20 @@
     var kept = ss(function () { return sessionStorage.getItem(STATE_KEY); });
     ss(function () { sessionStorage.removeItem(STATE_KEY); });
     if (!kept || !f.state || kept !== f.state) {
+      if (jumpNext) { location.replace(next); return; }
       say('Please sign in here', 'We could not bring your sign-in across this time, so ' + NAMES[here] + ' needs you to sign in once.', next);
       return;
     }
     post('/redeem', { code: f.code, state: f.state }).then(function (d) {
       if (!d || d.status !== 'ok' || !d.editToken || !d.appearId) { throw new Error('refused'); }
       keep(d);
+      if (jumpNext) {
+        var markExp = parseInt(String(d.editToken).split('.')[1], 10) || 0;
+        localStorage.setItem('cw-jump-mark', JSON.stringify({ id: String(d.appearId).split('.').join('').toLowerCase(), exp: markExp, enabled: localStorage.getItem('cw-enabled') || '' }));
+      }
       location.replace(next);
     }).catch(function () {
+      if (jumpNext) { location.replace(next); return; }
       say('Please sign in here', 'We could not bring your sign-in across this time, so ' + NAMES[here] + ' needs you to sign in once.', next);
     });
     return;

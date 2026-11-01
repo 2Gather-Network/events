@@ -9,7 +9,7 @@
     try { Object.keys(w.localStorage).forEach(function (k) { for (var j = 0; j < ANSWER_KEYS.length; j++) { if (k.indexOf(ANSWER_KEYS[j]) === 0) { w.localStorage.removeItem(k); } } }); } catch (e) {}
   }
   var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-photo-at', 'cw-token', 'cw-first',
-               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-super-for', 'cw-lastEmail', 'cw-enabled'];
+               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-super-for', 'cw-lastEmail', 'cw-enabled', 'cw-jump-mark'];
   var VIEW_KEY = 'cw-view-as';
   var OUT_KEY = 'cw-view-out';
 
@@ -178,7 +178,107 @@
     }
   })();
 
+  (function jumpOrRemember() {
+    var SERVICE = 'https://cw-carry.jessieupp.workers.dev';
+    var GATE_URL = 'https://cw-api-gate.jessieupp.workers.dev';
+    var ON = false;
+    var SITE = { '2gather.network': 'gather', '2appear.network': 'appear', '2balance.network': 'balance', 'creating.works': 'creatingworks' };
+    var WAIT_MS = 30 * 60 * 1000, PENDING_MS = 9 * 60 * 1000, RETRY_MS = 10 * 60 * 1000;
+    var site = SITE[String(w.location.hostname || '').toLowerCase()];
+    if (!site) { return; }
+    if (!ON && ls(function () { return w.localStorage.getItem('cw-jump-test'); }, '') !== '1') { return; }
+    if (ls(function () { return w.top !== w.self; }, true)) { return; }
+    var nav = w.navigator || {};
+    if (nav.webdriver || /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|slack|discord|telegram|lighthouse|headless/i.test(String(nav.userAgent || ''))) { return; }
+    if (w.document && w.document.visibilityState === 'prerender') { return; }
+    var here = String(w.location.pathname || '/');
+    if (/^\/(carry|signout|signin|signup|signin-google)(\/|$)/.test(here)) { return; }
+    if (signedOutView() || viewingAs()) { return; }
+    var now = Date.now();
+    function newState() {
+      var a = new Uint8Array(16);
+      w.crypto.getRandomValues(a);
+      return Array.prototype.map.call(a, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+    }
+    function num(k) { return parseInt(ls(function () { return w.localStorage.getItem(k); }, '') || '0', 10) || 0; }
+
+    if (!found) {
+      if (num('cw-jump-wait') > now) { return; }
+      var until = String(now + WAIT_MS);
+      var held = ls(function () { w.localStorage.setItem('cw-jump-wait', until); return w.localStorage.getItem('cw-jump-wait') === until; }, false);
+      if (!held) { return; }
+      var st = newState();
+      var saved = ss(function () {
+        w.sessionStorage.setItem('cw-carry-state', st);
+        w.sessionStorage.setItem('cw-jump-next', here + String(w.location.search || '') + String(w.location.hash || ''));
+        return true;
+      }, false);
+      if (!saved) { return; }
+      w._cwJumping = true;
+      try { w.stop(); } catch (e) {}
+      w.location.replace(SERVICE + '/jump?to=' + site + '&state=' + st);
+      return;
+    }
+
+    var key = normalise(found);
+    var token = ls(function () { return w.localStorage.getItem('cw-token') || ''; }, '');
+    var exp = parseInt(token.split('.')[1], 10) || 0;
+    var enabled = ls(function () { return w.localStorage.getItem('cw-enabled') || ''; }, '');
+    var mark = ls(function () { return JSON.parse(w.localStorage.getItem('cw-jump-mark') || 'null'); }, null);
+    if (mark && mark.id === key && mark.exp === exp && String(mark.enabled || '') === enabled) { return; }
+
+    var pending = ss(function () { return JSON.parse(w.sessionStorage.getItem('cw-jump-pending') || 'null'); }, null);
+    if (pending && pending.id === key && pending.exp === exp && now - pending.at < PENDING_MS) {
+      var back = here + String(w.location.search || '');
+      if (w.location.hash || !/^\/(?!\/)[A-Za-z0-9\-._~\/%?=&+@:,]{0,300}$/.test(back)) { return; }
+      ss(function () { w.sessionStorage.removeItem('cw-jump-pending'); });
+      ls(function () { w.localStorage.setItem('cw-jump-mark', JSON.stringify({ id: key, exp: exp, enabled: String(pending.enabled || '') })); });
+      var form = w.document.createElement('form');
+      form.method = 'POST';
+      form.action = SERVICE + '/remember';
+      [['code', pending.code], ['state', pending.state], ['back', back]].forEach(function (pair) {
+        var input = w.document.createElement('input');
+        input.type = 'hidden';
+        input.name = pair[0];
+        input.value = pair[1];
+        form.appendChild(input);
+      });
+      w.document.documentElement.appendChild(form);
+      w._cwJumping = true;
+      try { w.stop(); } catch (e) {}
+      form.submit();
+      return;
+    }
+
+    if (num('cw-jump-retry') > now) { return; }
+    ls(function () { w.localStorage.setItem('cw-jump-retry', String(now + RETRY_MS)); });
+    w.setTimeout(function () {
+      var got = null, st = newState();
+      w.fetch(GATE_URL + '?action=carryReadyAll&appearId=' + encodeURIComponent(found) + '&meToken=' + encodeURIComponent(token), { referrerPolicy: 'no-referrer' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || d.status !== 'ok' || !d.passes) { throw new Error('refused'); }
+          got = d;
+          return w.fetch(SERVICE + '/prepare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            referrerPolicy: 'no-referrer',
+            body: JSON.stringify({ appearId: d.appearId, firstName: d.firstName || '', passes: d.passes, state: st })
+          });
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || d.status !== 'ok' || !d.code) { throw new Error('refused'); }
+          var list = String(got.enabledSolution || '');
+          ls(function () { w.localStorage.setItem('cw-enabled', list); });
+          ss(function () { w.sessionStorage.setItem('cw-jump-pending', JSON.stringify({ id: key, exp: exp, enabled: list, code: d.code, state: st, at: Date.now() })); });
+        })
+        .catch(function () {});
+    }, 1500);
+  })();
+
   (function wall() {
+    if (w._cwJumping) { return; }
     var here = String(w.location.pathname || '/');
     var onCW = String(w.location.hostname || '').indexOf('creating.works') >= 0;
     var onAppear = String(w.location.hostname || '').toLowerCase().indexOf('appear.network') >= 0;
