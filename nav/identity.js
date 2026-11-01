@@ -180,6 +180,12 @@
 
   var JUMP_SITE = { '2gather.network': 'gather', '2appear.network': 'appear', '2balance.network': 'balance', 'creating.works': 'creatingworks' };
   var JUMP_ON = false;
+  ls(function () {
+    var m = /^#cwjumptest=([01])$/.exec(String(w.location.hash || ''));
+    if (!m || !JUMP_SITE[String(w.location.hostname || '').toLowerCase()]) { return; }
+    if (m[1] === '1') { w.localStorage.setItem('cw-jump-test', '1'); } else { w.localStorage.removeItem('cw-jump-test'); }
+    w.history.replaceState(null, '', w.location.pathname + w.location.search);
+  });
   function jumpOn() {
     if (!JUMP_SITE[String(w.location.hostname || '').toLowerCase()]) { return false; }
     return JUMP_ON || ls(function () { return w.localStorage.getItem('cw-jump-test'); }, '') === '1';

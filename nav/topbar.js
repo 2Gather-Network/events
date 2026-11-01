@@ -427,12 +427,14 @@
       rows += '<div class="cwtb-row cwtb-row-me" data-row="me"></div>';
     }
 
+    function jumpIsOn() { return !!(window.CW && window.CW.jumpOn && window.CW.jumpOn()); }
     function enabledElsewhere() {
-      if (!(window.CW && window.CW.jumpOn && window.CW.jumpOn())) { return []; }
+      if (!jumpIsOn()) { return []; }
+      if (window.CW.me && window.CW.me().viewing) { return []; }
       var on = String((function () { try { return localStorage.getItem('cw-enabled') || ''; } catch (e) { return ''; } })() || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean);
       var here = siteOf(window.location.hostname);
       var out = [];
-      if (on.indexOf('Gather') > -1 && here !== 'gather') { out.push({ key: 'gather', label: '2Gather', items: [
+      if (gatherOn() && here !== 'gather') { out.push({ key: 'gather', label: '2Gather', items: [
         { label: 'Calendar',  url: carryLink(EVENTS + '/') },
         { label: 'My events', url: carryLink(link(MYEVENTS, 'memberCard')) }
       ]}); }
@@ -468,17 +470,17 @@
       mine += anchor('My profile', myProfileUrl(), 'cwtb-item');
       var ap = onAppear();
       mine += anchor('My messages', ap ? '/messages/' : 'https://2gather.network/messages', 'cwtb-item');
-      if (hasAGroup() && (ap || onCreatingWorks())) { mine += anchor('My groups', ap ? '/mygroups/' : carryLink('https://2appear.network/mygroups/'), 'cwtb-item'); }
-      if (hasBookmarks() && (ap || onCreatingWorks())) { mine += anchor('My network', ap ? '/network/' : carryLink('https://2appear.network/network/'), 'cwtb-item'); }
+      if (hasAGroup() && (ap || (onCreatingWorks() && !jumpIsOn()))) { mine += anchor('My groups', ap ? '/mygroups/' : carryLink('https://2appear.network/mygroups/'), 'cwtb-item'); }
+      if (hasBookmarks() && (ap || (onCreatingWorks() && !jumpIsOn()))) { mine += anchor('My network', ap ? '/network/' : carryLink('https://2appear.network/network/'), 'cwtb-item'); }
       if (ap) {
-        if (gatherOn()) {
+        if (gatherOn() && !jumpIsOn()) {
           mine += '<a role="button" tabindex="0" class="cwtb-item" data-sub="gather" aria-expanded="false">2Gather' + CARET + '</a>' +
                   '<div class="cwtb-sub" data-subof="gather" hidden>' +
                   anchor('Calendar', carryLink(EVENTS + '/'), 'cwtb-item') +
                   anchor('My events', carryLink(link(MYEVENTS, 'memberCard')), 'cwtb-item') + '</div>';
         }
       } else if (hasEvents()) { mine += anchor('My events', carryLink(link(MYEVENTS, 'memberCard')), 'cwtb-item'); }
-      if (!ap) { mine += otherSitesHtml(); }
+      mine += otherSitesHtml();
       mine += anchor('My account', ap ? '/account/' : link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    ap ? '/support/' : link(SUPPORT,  'memberCard'), 'cwtb-item');
       mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
@@ -659,6 +661,7 @@
       '@media(max-width:700px){.cwtb-me{background:none;padding:0;gap:0;}' +
         '.cwtb-me-name{display:none;}' +
         '.cwtb-me .cwtb-face{width:36px;height:36px;box-shadow:0 0 0 2px rgba(255,255,255,.55);}}' +
+      '.cwtb-mine{visibility:hidden;}' +
       '.cwtb-signin{flex-shrink:0;background:#fff;color:#1F699E;font-size:14px;font-weight:700;' +
         'padding:9px 18px;border-radius:22px;text-decoration:none;cursor:pointer;white-space:nowrap;}' +
       '.cwtb-signin:hover{background:#F7FBFF;}' +
@@ -780,14 +783,6 @@
         .then(function (r) { return r.json(); })
         .then(function (d) {
           if (!d || d.status === 'error') { _tbHush('lookupProfile', 5); return; }
-          if (d.found === false) {
-            // p.1033i, 1 Nov: an id with no row at all on Info draws a blank pill forever, hushed for an hour,
-            // because nothing here ever told it to stop being 'signed in'. A pill shows a person or nothing.
-            _tbHush('lookupProfile', 600);
-            try { if (window.CW && window.CW.forget) { window.CW.forget(); } } catch (e) {}
-            try { draw(); } catch (e) {}
-            return;
-          }
           try {
             if (d.name) {
               window.CW_NAME = d.name;
