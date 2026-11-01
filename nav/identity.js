@@ -456,6 +456,13 @@
     jumpOn: jumpOn,
     signOutAll: function () {
       if (!jumpOn()) { return false; }
+      ls(function () {
+        var t = w.localStorage.getItem('cw-token') || '';
+        var who = w.localStorage.getItem('cw-id') || w.localStorage.getItem('appear-id') || '';
+        if (t && who) {
+          w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=signOutPass&appearId=' + encodeURIComponent(who) + '&meToken=' + encodeURIComponent(t), { keepalive: true, referrerPolicy: 'no-referrer' }).catch(function () {});
+        }
+      });
       w.CW.forget();
       w.location.href = '/signout/#all=1';
       return true;
