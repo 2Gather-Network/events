@@ -46,6 +46,13 @@
     try { localStorage.removeItem(HEADING); } catch (e) {}
   };
 
+  var BALANCE_FIRST = { 'Connect': ['howIConnect'], 'Create': ['methods', 'subjects', 'expression'], 'Eat and drink': ['howIEatAndDrink'], 'Move': ['howIMove'], 'Play': ['energizesMeKinds'], 'Rest': ['howIRest'] };
+
+  function _balanceDone(row) {
+    var picked = String(row.exploreAreas || '').split('|').map(function (x) { return x.trim(); }).filter(function (x) { return BALANCE_FIRST[x]; });
+    return picked.length > 0 && picked.every(function (n) { return BALANCE_FIRST[n].some(function (k) { return !blank(row[k]); }); });
+  }
+
   CW.firstStop = function (id, next, done) {
     CW.forgetWhere();
     var settled = false;
@@ -60,6 +67,7 @@
         clearTimeout(timer);
         var row = (d && d.data) || {};
         var spoken = SAID.some(function (k) { return !blank(row[k]); });
+        if (String(window.location.hostname || '').toLowerCase().indexOf('2balance.network') > -1) { finish(_balanceDone(row) ? '/start/' : '/first-minute/'); return; }
         var onAppear = String(window.location.hostname || '').toLowerCase().indexOf('appear.network') > -1;
         finish((spoken || _asked(next) || onAppear) ? next : 'https://2gather.network/welcome/');
       })
