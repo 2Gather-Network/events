@@ -60,7 +60,7 @@
       if (!shown.length) {
         var none = document.createElement('div');
         none.textContent = 'No match';
-        none.style.cssText = 'padding:8px 10px;font-size:14px;color:#4B5A6D;';
+        none.style.cssText = 'padding:8px 10px;font-size:14px;color:#2F3D4F;';
         list.appendChild(none);
       }
     }

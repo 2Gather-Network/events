@@ -632,7 +632,7 @@
       '.cwtb-ask{padding:48px 20px;display:flex;justify-content:center;}' +
       '.cwtb-ask-card{background:#fff;border-radius:16px;padding:34px 34px 30px;max-width:460px;width:100%;}' +
       '.cwtb-ask-card h1{font-size:22px;font-weight:800;color:#1A2E42;margin:0 0 8px;line-height:1.3;}' +
-      '.cwtb-ask-card p{font-size:15px;color:#4B5A6D;line-height:1.55;margin:0 0 22px;}' +
+      '.cwtb-ask-card p{font-size:15px;color:#2F3D4F;line-height:1.55;margin:0 0 22px;}' +
       '.cwtb-ask-row{display:flex;gap:10px;flex-wrap:wrap;}' +
       '.cwtb-ask-go{background:#1F699E !important;color:#fff !important;font-size:15px;font-weight:700;' +
         'padding:12px 24px;border-radius:24px;text-decoration:none !important;cursor:pointer;' +
@@ -1058,7 +1058,7 @@
       a.href = href;
       a.textContent = label;
       a.style.cssText = 'font:inherit;font-size:13px;text-decoration:none;cursor:pointer;'
-        + (strong ? 'font-weight:800;color:#1F699E;' : 'font-weight:700;color:#4B5A6D;');
+        + (strong ? 'font-weight:800;color:#1F699E;' : 'font-weight:700;color:#2F3D4F;');
       right.appendChild(a);
       return a;
     }
@@ -1079,7 +1079,7 @@
     fold.type = 'button';
     fold.textContent = 'Hide';
     fold.style.cssText = 'font:inherit;font-size:12.5px;padding:4px 11px;border-radius:14px;'
-      + 'cursor:pointer;border:1px solid #C3D0DB;background:transparent;color:#4B5A6D;';
+      + 'cursor:pointer;border:1px solid #C3D0DB;background:transparent;color:#2F3D4F;';
     fold.onclick = function () { setFolded(true); };
     right.appendChild(fold);
 
@@ -1213,7 +1213,7 @@
       t.style.cssText = 'font-weight:700;';
       t.textContent = shown + (it.looksLikeName ? ' (may be a first name)' : '');
       var m = d.createElement('div');
-      m.style.cssText = 'font-size:13px;color:#4B5A6D;';
+      m.style.cssText = 'font-size:13px;color:#2F3D4F;';
       m.textContent = what || 'No categories chosen';
       var kindId = '';
       var kindBox = null;
@@ -1330,7 +1330,7 @@
       b.innerHTML = face
         + '<span style="min-width:0;">'
         +   '<span style="display:block;font-weight:700;">' + esc(label) + '</span>'
-        +   (email ? '<span style="display:block;font-size:12px;color:#4B5A6D;overflow:hidden;'
+        +   (email ? '<span style="display:block;font-size:12px;color:#2F3D4F;overflow:hidden;'
               + 'text-overflow:ellipsis;">' + esc(email) + '</span>' : '')
         + '</span>';
       b.onclick = function () { w.CW.viewAs(id, label); afterViewChange(); };
@@ -1361,7 +1361,7 @@
               out.appendChild(row(q, q));
               var note = d.createElement('div');
               note.textContent = 'No name matched. Press it to view as that id.';
-              note.style.cssText = 'font-size:12px;color:#4B5A6D;padding:2px 2px 0;';
+              note.style.cssText = 'font-size:12px;color:#2F3D4F;padding:2px 2px 0;';
               out.appendChild(note);
             }
           })

@@ -125,12 +125,12 @@
     '.balm .crow .chk{margin:0;flex:1;}' +
     '.balm .chk input{margin-top:2px;width:17px;height:17px;flex:none;accent-color:#1F699E;}' +
     '.balm .ib{flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid #1F699E;background:#fff;color:#1F699E;font:italic 700 13px/1 Georgia,serif;cursor:pointer;padding:0;}' +
-    '.balm .exn{font-size:13.5px;color:#4B5A6D;margin:4px 0 0 27px;line-height:1.45;}' +
+    '.balm .exn{font-size:13.5px;color:#2F3D4F;margin:4px 0 0 27px;line-height:1.45;}' +
     '.balm .own{display:flex;gap:8px;margin-top:10px;}' +
     '.balm .own input,.balm .own textarea{flex:1;min-width:0;font:inherit;font-size:15px;padding:10px 12px;border:1.5px solid #C9DFF3;border-radius:10px;color:#1A2E42;}' +
     '.balm .own textarea{min-height:90px;resize:vertical;}' +
     '.balm .abtn{font:inherit;font-size:14px;font-weight:700;padding:9px 18px;border-radius:20px;border:0;background:#1F699E;color:#fff;cursor:pointer;}' +
-    '.balm .msg{font-size:14px;line-height:1.5;color:#4B5A6D;margin:12px 0 0;}' +
+    '.balm .msg{font-size:14px;line-height:1.5;color:#2F3D4F;margin:12px 0 0;}' +
     '.balm .lead{font:inherit;font-size:17px;font-weight:800;color:#1F699E;margin:0 0 4px;}';
   document.head.appendChild(css);
 

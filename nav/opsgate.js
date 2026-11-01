@@ -49,20 +49,20 @@
     box.innerHTML =
       '<div style="background:#fff;border-radius:16px;max-width:430px;width:100%;padding:26px 26px 24px;">'
       + '<div style="font-size:20px;font-weight:800;color:#1A2E42;margin-bottom:4px;">This page is for the people who run Creating.Works</div>'
-      + '<div style="font-size:14.5px;color:#4B5A6D;line-height:1.55;margin-bottom:18px;">Put in the address on your record and we will send you a six digit code. It lasts fifteen minutes.</div>'
+      + '<div style="font-size:14.5px;color:#2F3D4F;line-height:1.55;margin-bottom:18px;">Put in the address on your record and we will send you a six digit code. It lasts fifteen minutes.</div>'
       + '<input id="cw-og-who" type="email" autocomplete="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:11px 13px;font:inherit;font-size:16px;color:#1A2E42;">'
       + '<button id="cw-og-send" type="button" style="margin-top:12px;width:100%;font:inherit;font-size:15px;font-weight:700;padding:12px 18px;border-radius:24px;border:0;background:#1F699E;color:#fff;cursor:pointer;">Send my code</button>'
       + '<div id="cw-og-pinrow" style="display:none;margin-top:14px;">'
       +   '<input id="cw-og-pin" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="Six digits" style="width:100%;box-sizing:border-box;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:11px 13px;font:inherit;font-size:16px;color:#1A2E42;">'
       +   '<button id="cw-og-go" type="button" style="margin-top:10px;width:100%;font:inherit;font-size:15px;font-weight:700;padding:12px 18px;border-radius:24px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;">Confirm</button>'
       + '</div>'
-      + '<div id="cw-og-say" style="font-size:13.5px;color:#4B5A6D;margin-top:12px;min-height:18px;"></div>'
+      + '<div id="cw-og-say" style="font-size:13.5px;color:#2F3D4F;margin-top:12px;min-height:18px;"></div>'
       + '</div>';
     d.body.appendChild(box);
 
     var say = function (t, bad) {
       var n = d.getElementById('cw-og-say');
-      if (n) { n.textContent = t || ''; n.style.color = bad ? '#7A2410' : '#4B5A6D'; }
+      if (n) { n.textContent = t || ''; n.style.color = bad ? '#7A2410' : '#2F3D4F'; }
     };
     if (msg) { say(msg); }
     var who = d.getElementById('cw-og-who');
