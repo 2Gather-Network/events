@@ -325,7 +325,7 @@
     function build(){
       btn = el('button', 'font:inherit;font-size:11px;font-weight:800;width:18px;height:18px;line-height:15px;padding:0;margin-left:6px;border-radius:50%;border:1.5px solid #1F699E;cursor:pointer;vertical-align:middle;', 'i');
       btn.type = 'button'; btn.setAttribute('aria-label', 'About these categories');
-      box = el('div', 'font-size:12.5px;color:#4B5A6D;background:#F7FBFF;border:1px solid #DDE6EF;border-radius:10px;padding:8px 12px;margin:0 0 10px;line-height:1.5;font-weight:500;');
+      box = el('div', 'font-size:12.5px;color:#2F3D4F;background:#F7FBFF;border:1px solid #DDE6EF;border-radius:10px;padding:8px 12px;margin:0 0 10px;line-height:1.5;font-weight:500;');
       box.appendChild(el('div', 'font-weight:700;color:#1A2E42;', 'About these categories'));
       box.appendChild(el('p', 'margin:4px 0 8px;', 'This is where you apply your time, care, and skill in life. Pick the ones that sound like you, whether you enjoy them, are good at them, or care about them. How you want to feel (like calmer or healthier) grows out of these, so they aren\u2019t listed as a parent category.'));
       var t = el('table', 'width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:1px solid #DDE6EF;border-radius:8px;overflow:hidden;');
@@ -338,7 +338,7 @@
       ].forEach(function(r, ri){
         var tr = document.createElement('tr');
         r.forEach(function(c, ci){
-          tr.appendChild(el(ri === 0 ? 'th' : 'td', 'text-align:left;vertical-align:top;padding:6px 10px;' + (ri ? 'border-top:1px solid #E6EDF4;color:' + (ci ? '#4B5A6D' : '#1A2E42') + ';' + (ci ? '' : 'width:38%;') : 'background:#F1F4F7;color:#1A2E42;font-weight:700;'), c));
+          tr.appendChild(el(ri === 0 ? 'th' : 'td', 'text-align:left;vertical-align:top;padding:6px 10px;' + (ri ? 'border-top:1px solid #E6EDF4;color:' + (ci ? '#2F3D4F' : '#1A2E42') + ';' + (ci ? '' : 'width:38%;') : 'background:#F1F4F7;color:#1A2E42;font-weight:700;'), c));
         });
         t.appendChild(tr);
       });
@@ -382,7 +382,7 @@
       'Professional': 'For people who work, learn or build together, like a trade, a business or a field of study.',
       'Eco/social cause': 'For people working on a cause, like clean water, housing or caring for the neighborhood.'
     };
-    var kindHint = el('div', 'font-size:13.5px;color:var(--soft,#4B5A6D);margin:-6px 0 14px;', '');
+    var kindHint = el('div', 'font-size:13.5px;color:var(--soft,#2F3D4F);margin:-6px 0 14px;', '');
     kindHint.style.display = 'none';
     root.appendChild(kindHint);
     var holder = el('div', '');

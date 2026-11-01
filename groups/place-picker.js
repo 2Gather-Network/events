@@ -60,7 +60,7 @@
     yes.className = chip; no.className = chip;
     yn.appendChild(yes); yn.appendChild(no);
     var pick = el('div', 'display:none;margin-top:12px;');
-    pick.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;margin-bottom:6px;', 'Choose where this group serves'));
+    pick.appendChild(el('div', 'font-size:13.5px;color:#2F3D4F;margin-bottom:6px;', 'Choose where this group serves'));
     var row = el('div', 'display:flex;flex-wrap:wrap;gap:8px;');
     pick.appendChild(row);
     var fieldStyle = 'flex:1 1 150px;min-width:140px;font:inherit;font-size:15px;padding:11px 12px;border:1.5px solid #C9DFF3;border-radius:12px;background:#fff;color:#1A2E42;';

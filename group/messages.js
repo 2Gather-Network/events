@@ -21,7 +21,7 @@
     var c = el('div', 'border:1.5px solid #C9DFF3;background:#F7FBFF;border-radius:14px;padding:12px 14px;margin:0 0 12px;');
     c.appendChild(el('div', 'font-size:15px;font-weight:800;color:#1A2E42;margin-bottom:4px;', 'What should Enter do when you write a message?'));
     var row = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;');
-    var done = el('div', 'font-size:13px;color:#4B5A6D;line-height:1.45;');
+    var done = el('div', 'font-size:13px;color:#2F3D4F;line-height:1.45;');
     [[true, 'Enter sends', 'Shift and Enter start a new line'], [false, 'Enter starts a new line', 'use the Send button to send']].forEach(function (o) {
       var b = btn(o[1], o[0] ? '' : 'ghost');
       b.title = o[2];
@@ -50,7 +50,7 @@
   }
   function btn(label, kind) {
     var b = el('button', 'font:inherit;font-size:14px;font-weight:700;border-radius:22px;padding:8px 18px;cursor:pointer;border:1.5px solid #1F699E;'
-      + (kind === 'ghost' ? 'background:#fff;color:#1F699E;' : kind === 'quiet' ? 'background:#fff;color:#4B5A6D;border-color:#DDE4EE;' : 'background:#1F699E;color:#fff;'), label);
+      + (kind === 'ghost' ? 'background:#fff;color:#1F699E;' : kind === 'quiet' ? 'background:#fff;color:#2F3D4F;border-color:#DDE4EE;' : 'background:#1F699E;color:#fff;'), label);
     b.type = 'button';
     return b;
   }
@@ -106,7 +106,7 @@
     var inp = el('input', 'width:100%;box-sizing:border-box;font:inherit;font-size:14.5px;color:#1A2E42;background:#fff;-webkit-appearance:none;appearance:none;border:1.5px solid #DDE4EE;border-radius:20px;padding:8px 14px;');
     inp.type = 'search'; inp.placeholder = 'Search these messages'; inp.setAttribute('aria-label', 'Search these messages');
     inp.autocomplete = 'off';
-    var cnt = el('div', 'font-size:12.5px;color:#4B5A6D;margin:5px 4px 0;min-height:16px;', '');
+    var cnt = el('div', 'font-size:12.5px;color:#2F3D4F;margin:5px 4px 0;min-height:16px;', '');
     wrap.appendChild(inp); wrap.appendChild(cnt);
     host.insertBefore(wrap, anchor);
     var hasRows = function () { return Array.prototype.some.call(listEl.children, function (r) { return r.getAttribute && r.getAttribute('data-q') != null; }); };
@@ -272,7 +272,7 @@
       head.appendChild(nb);
     }
     var list = el('div', 'display:flex;flex-direction:column;gap:0;');
-    var wait = el('div', 'font-size:14px;color:#4B5A6D;', 'Looking for your messages…');
+    var wait = el('div', 'font-size:14px;color:#2F3D4F;', 'Looking for your messages…');
     box.appendChild(wait);
     box.appendChild(list);
     api('/threads' + (gF ? '?group=' + encodeURIComponent(gF) : '')).then(function (d) {
@@ -291,7 +291,7 @@
         });
       }
       if (!ts.length) {
-        list.appendChild(el('div', 'font-size:14px;color:#4B5A6D;line-height:1.5;', (gF ? 'No messages with people in this group yet.' : 'No messages yet.')
+        list.appendChild(el('div', 'font-size:14px;color:#2F3D4F;line-height:1.5;', (gF ? 'No messages with people in this group yet.' : 'No messages yet.')
           + (ppl.length ? ' Start one above.' : '')));
         return;
       }
@@ -314,7 +314,7 @@
         txt.appendChild(top);
         var line = asking ? 'Wants to message you' : (t.status === 'request' ? 'Waiting for them to accept' : (t.status === 'pending' ? 'Delivering\u2026' : (t.status === 'refused' ? 'Did not go through' : (t.status === 'closed' ? 'Closed' : ''))));
         var prev = t.last ? (t.last.mine ? 'You: ' : '') + t.last.body : '';
-        txt.appendChild(el('div', 'font-size:14px;margin-top:2px;color:' + (t.unread ? '#1A2E42' : '#4B5A6D') + ';font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;', line ? line + (prev && asking ? ': ' + prev : '') : prev));
+        txt.appendChild(el('div', 'font-size:14px;margin-top:2px;color:' + (t.unread ? '#1A2E42' : '#2F3D4F') + ';font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;', line ? line + (prev && asking ? ': ' + prev : '') : prev));
         row.appendChild(txt);
         if (t.unread) row.appendChild(el('span', 'min-width:22px;height:22px;border-radius:11px;background:#1F699E;color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;flex:none;', String(t.unread > 99 ? '99+' : t.unread)));
         row.appendChild(el('span', 'font-size:22px;line-height:1;color:#7FB6E2;flex:none;', '\u203a'));
@@ -332,7 +332,7 @@
     var back = smallPill(btn('All messages', 'quiet'));
     back.onclick = drawList;
     head.appendChild(back);
-    var wait = el('div', 'font-size:14px;color:#4B5A6D;', 'Looking for your groups\u2026');
+    var wait = el('div', 'font-size:14px;color:#2F3D4F;', 'Looking for your groups\u2026');
     box.appendChild(wait);
     var find = el('input', 'width:100%;box-sizing:border-box;font:inherit;font-size:15px;color:#1A2E42;background:#fff;border:1.5px solid #DDE4EE;border-radius:12px;padding:10px 14px;margin:2px 0 10px;');
     find.type = 'search'; find.placeholder = 'Find your group'; find.setAttribute('aria-label', 'Find your group'); find.autocomplete = 'off';
@@ -349,7 +349,7 @@
         wait.remove();
         var gs = (d && Array.isArray(d.groups)) ? d.groups : null;
         if (!gs) { box.appendChild(el('div', 'font-size:14px;color:#7A2410;', 'Your groups did not load. Reload the page to try again.')); return; }
-        if (!gs.length) { box.appendChild(el('div', 'font-size:14px;color:#4B5A6D;', 'You are not in a group yet.')); return; }
+        if (!gs.length) { box.appendChild(el('div', 'font-size:14px;color:#2F3D4F;', 'You are not in a group yet.')); return; }
         gs.forEach(function (g) {
           var r = el('div', 'padding:12px 16px;border:1.5px solid #DDE4EE;border-radius:14px;background:#fff;cursor:pointer;font-size:16px;font-weight:700;color:#1A2E42;', g.name || 'Group');
           r.setAttribute('role', 'link'); r.tabIndex = 0;
@@ -502,7 +502,7 @@
               var gl = (d && d.groups) || [];
               if (!gl.length) { groupsList.textContent = 'No shared groups to show.'; return; }
               sharedLoaded = true;
-              groupsList.appendChild(el('div', 'font-size:12px;font-weight:800;color:#4B5A6D;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;', 'Groups you share with ' + nm));
+              groupsList.appendChild(el('div', 'font-size:12px;font-weight:800;color:#2F3D4F;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;', 'Groups you share with ' + nm));
               gl.forEach(function (g) {
                 var ga = el('a', 'display:block;font-size:14.5px;font-weight:700;color:#1F699E;text-decoration:none;padding:4px 0;cursor:pointer;', g.name || 'Group');
                 ga.href = g.slug ? 'https://2gather.network/group/' + encodeURIComponent(String(g.slug).split(',')[0].trim()) : 'https://2gather.network/group/?id=' + encodeURIComponent(g.id || '');
@@ -731,7 +731,7 @@
     var titleBox = el('div', '');
     titleBox.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', gname + ' Group Chat'));
     head.appendChild(titleBox);
-    var muteBtn = el('button', 'width:40px;height:40px;border-radius:50%;border:1.5px solid #DDE4EE;background:#fff;color:#4B5A6D;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;', '');
+    var muteBtn = el('button', 'width:40px;height:40px;border-radius:50%;border:1.5px solid #DDE4EE;background:#fff;color:#2F3D4F;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;', '');
     muteBtn.type = 'button';
     var headBtns = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
     headBtns.appendChild(muteBtn);
@@ -749,7 +749,7 @@
     box.appendChild(feed);
     var fk = scrollKit(feed);
     var fsrch = searchBar(box, feed.parentNode === box ? feed : feed.parentNode, feed, 'Show earlier messages to search further back');
-    var empty = el('div', 'font-size:14px;color:#4B5A6D;padding:8px 0;', '');
+    var empty = el('div', 'font-size:14px;color:#2F3D4F;padding:8px 0;', '');
     empty.appendChild(waitPill('Opening the chat…'));
     feed.appendChild(empty);
     var bar = el('div', 'display:flex;gap:8px;margin-top:12px;align-items:flex-end;');
@@ -775,7 +775,7 @@
       muteBtn.title = label; muteBtn.setAttribute('aria-label', label);
       muteBtn.style.background = muted ? '#1A2E42' : '#fff';
       muteBtn.style.borderColor = muted ? '#1A2E42' : '#DDE4EE';
-      muteBtn.style.color = muted ? '#fff' : '#4B5A6D';
+      muteBtn.style.color = muted ? '#fff' : '#2F3D4F';
     }
     paintMute();
     var muteAsk = el('div', 'display:none;background:#F7FBFF;border:1.5px solid #C9DFF3;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;color:#1A2E42;margin-bottom:10px;');
@@ -974,7 +974,7 @@
           got.onclick = function () {
             if (window.gpShow) window.gpShow('chat');
             api('/chat/welcome/seen', { body: { groupId: gid, id: chat.ctx.meId, token: token() } }).then(function (r) {
-              if (r && r.status === 'ok') { wb.remove(); if (!body.children.length) body.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;', 'No messages yet.')); }
+              if (r && r.status === 'ok') { wb.remove(); if (!body.children.length) body.appendChild(el('div', 'font-size:13.5px;color:#2F3D4F;', 'No messages yet.')); }
             }).catch(function () {});
           };
           gotRow.appendChild(got);
@@ -983,7 +983,7 @@
         }
         if (d.pin) line({ name: d.pin.from, body: d.pin.body }, true);
         (d.recent || []).forEach(function (m) { if (!d.pin || m.id !== d.pin.messageId) line(m, false); });
-        if (!body.children.length) body.appendChild(el('div', 'font-size:13.5px;color:#4B5A6D;', 'No messages yet.'));
+        if (!body.children.length) body.appendChild(el('div', 'font-size:13.5px;color:#2F3D4F;', 'No messages yet.'));
       }).catch(function () {});
   }
   function tilePeek(gid) {
@@ -1020,7 +1020,7 @@
       chat.box = document.getElementById(chat.ctx.chatBoxId || 'gp-chat');
       if (!chat.box) return;
       chat.box.innerHTML = '';
-      var w = el('div', 'font-size:14px;color:#4B5A6D;', '');
+      var w = el('div', 'font-size:14px;color:#2F3D4F;', '');
       w.appendChild(waitPill('Opening the chat…'));
       chat.box.appendChild(w);
       start().then(function (ok) {
@@ -1045,7 +1045,7 @@
       box = document.getElementById(ctx.boxId || 'gp-messages');
       if (!box) return;
       box.innerHTML = '';
-      var w = el('div', 'font-size:14px;color:#4B5A6D;', '');
+      var w = el('div', 'font-size:14px;color:#2F3D4F;', '');
       w.appendChild(waitPill('Opening your messages…'));
       box.appendChild(w);
       start().then(function (ok) {
