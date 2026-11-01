@@ -427,10 +427,39 @@
       rows += '<div class="cwtb-row cwtb-row-me" data-row="me"></div>';
     }
 
+    function enabledElsewhere() {
+      if (!(window.CW && window.CW.jumpOn && window.CW.jumpOn())) { return []; }
+      var on = String((function () { try { return localStorage.getItem('cw-enabled') || ''; } catch (e) { return ''; } })() || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean);
+      var here = siteOf(window.location.hostname);
+      var out = [];
+      if (on.indexOf('Gather') > -1 && here !== 'gather') { out.push({ key: 'gather', label: '2Gather', items: [
+        { label: 'Calendar',  url: carryLink(EVENTS + '/') },
+        { label: 'My events', url: carryLink(link(MYEVENTS, 'memberCard')) }
+      ]}); }
+      if (on.indexOf('Appear') > -1 && here !== 'appear') { out.push({ key: 'appear', label: '2Appear', items: [
+        { label: 'My groups',  url: carryLink('https://2appear.network/mygroups/') },
+        { label: 'My network', url: carryLink('https://2appear.network/network/') }
+      ]}); }
+      if (on.indexOf('Balance') > -1 && here !== 'balance') { out.push({ key: 'balance', label: '2Balance', items: [
+        { label: 'My ikigai', url: carryLink('https://2balance.network/ikigai/?step=joys') }
+      ]}); }
+      return out;
+    }
+    function otherSitesHtml() {
+      var out = '';
+      enabledElsewhere().forEach(function (sec) {
+        var rowItems = '';
+        sec.items.forEach(function (it) { rowItems += anchor(it.label, it.url, 'cwtb-item'); });
+        out += '<a role="button" tabindex="0" class="cwtb-item" data-sub="' + sec.key + '" aria-expanded="false">' + sec.label + CARET + '</a>' +
+               '<div class="cwtb-sub" data-subof="' + sec.key + '" hidden>' + rowItems + '</div>';
+      });
+      return out;
+    }
     function fillMine() {
       var mine = '';
       if (onBalance()) {
         if (firstMinDone()) { mine += anchor('My profile', '/ikigai/?step=joys', 'cwtb-item'); }
+        mine += otherSitesHtml();
         mine += anchor('My account', '/account/', 'cwtb-item');
         mine += anchor('Support', '/support/', 'cwtb-item');
         mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
@@ -449,6 +478,7 @@
                   anchor('My events', carryLink(link(MYEVENTS, 'memberCard')), 'cwtb-item') + '</div>';
         }
       } else if (hasEvents()) { mine += anchor('My events', carryLink(link(MYEVENTS, 'memberCard')), 'cwtb-item'); }
+      if (!ap) { mine += otherSitesHtml(); }
       mine += anchor('My account', ap ? '/account/' : link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    ap ? '/support/' : link(SUPPORT,  'memberCard'), 'cwtb-item');
       mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
@@ -750,6 +780,14 @@
         .then(function (r) { return r.json(); })
         .then(function (d) {
           if (!d || d.status === 'error') { _tbHush('lookupProfile', 5); return; }
+          if (d.found === false) {
+            // p.1033i, 1 Nov: an id with no row at all on Info draws a blank pill forever, hushed for an hour,
+            // because nothing here ever told it to stop being 'signed in'. A pill shows a person or nothing.
+            _tbHush('lookupProfile', 600);
+            try { if (window.CW && window.CW.forget) { window.CW.forget(); } } catch (e) {}
+            try { draw(); } catch (e) {}
+            return;
+          }
           try {
             if (d.name) {
               window.CW_NAME = d.name;
