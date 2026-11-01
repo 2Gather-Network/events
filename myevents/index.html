@@ -558,6 +558,7 @@ html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-ins
 <script src="/nav/loadlog.js?v=3"></script>
 <script src="/nav/event-categories.js?v=1"></script>
 <script src="/nav/waiting-words.js?v=13"></script>
+<script>if(/[?&]barcheck=1\b/.test(location.search)){document.addEventListener("DOMContentLoaded",function(){var s=document.createElement("script");s.src="/nav/bar-check.js?v=1";document.body.appendChild(s);});}</script>
 </head>
 <body>
 
@@ -1089,6 +1090,10 @@ html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-ins
         <label class="field-label">Date</label>
         <input class="input" id="f-date" type="date">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dark);margin-top:8px;cursor:pointer;"><input type="checkbox" id="f-date-tbd" onchange="toggleDateTbd()" style="width:15px;height:15px;accent-color:var(--primary);"> Date and time to be announced</label>
+      </div>
+      <div class="field" id="f-end-date-wrap">
+        <label class="field-label">End date <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted);">- optional</span></label>
+        <input class="input" id="f-end-date" type="date">
       </div>
       <div class="field" id="f-recur-end-wrap" style="display:none;">
         <label class="field-label">Last day <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted);">- optional, the series stops after this day</span></label>
@@ -2475,7 +2480,7 @@ function evToSheet(ev) {
   _rememberAppearLink(ev.hostlink);   
   return {
     id: ev.id, title: ev.title || "", categories: Array.isArray(ev.categories) ? ev.categories.join(",") : (ev.categories || ""),
-    date: ev.date || "", startTime: ev.time || "", endTime: ev.endtime || "", format: ev.format || "",
+    date: ev.date || "", endDate: ev.endDate || "", startTime: ev.time || "", endTime: ev.endtime || "", format: ev.format || "",
     location: ev.location || "", lat: ev.lat || "", lng: ev.lng || "", room: ev.room || "",
     description: ev.description || "", host: ev.host || "", hostlink: ev.hostlink || "",
     contactEmail: ev.contactEmail || "", contactPhone: ev.contactPhone || "",
@@ -2528,7 +2533,7 @@ function sheetToEv(row) {
   return { eventCreatedDate: row.eventCreatedDate || row.createdAt || "", eventUpdatedDate: row.eventUpdatedDate || row.updatedAt || "",
     id: String(row.id || ""), title: row.title || "",
     categories: row.categories ? String(row.categories).split(",").filter(Boolean) : [],
-    date: parseSheetDate(row.date), time: parseSheetTime(row.startTime), endtime: parseSheetTime(row.endTime),
+    date: parseSheetDate(row.date), endDate: row.endDate ? parseSheetDate(row.endDate) : "", time: parseSheetTime(row.startTime), endtime: parseSheetTime(row.endTime),
     dayOfWeek: parseInt(row.dayOfWeek) || 0,
     format: row.format || "", location: row.location || "", lat: row.lat || "", lng: row.lng || "",
     room: row.room || "", description: row.description || "", host: row.host || "", org: row.org || "",
@@ -3764,6 +3769,7 @@ function saveEditDraft() {
     keywords: document.getElementById("f-keywords")?.value.trim() || "",
     hostNote: document.getElementById("f-host-note")?.value.trim() || "",
     recurEnd: document.getElementById("f-recur-end")?.value || "",
+    endDate: document.getElementById("f-recurring")?.checked ? "" : (document.getElementById("f-end-date")?.value || ""),
     showLinks: _showLinksValue(),
     cats: [...selectedCats], format: selectedFormat, room: selectedRoom,
     interestedEnabled, sharedNotesEnabled,
@@ -3906,7 +3912,7 @@ function openModal(skipDraft = false) {
   document.getElementById("clone-btn").style.display = "none";
   _syncRecurringGate();
   const cancelSectionReset = document.getElementById("cancel-section"); if(cancelSectionReset) cancelSectionReset.style.display = "none";
-  ["f-title","f-date","f-location","f-lat","f-lng","f-desc","f-host","f-org","f-hostlink","f-contact-email","f-contact-phone","f-cooplink","f-passcode","f-paymentlink","f-host-note","f-group-ids"].forEach(id => { const el = document.getElementById(id); if(el) el.value = ""; });
+  ["f-title","f-date","f-end-date","f-location","f-lat","f-lng","f-desc","f-host","f-org","f-hostlink","f-contact-email","f-contact-phone","f-cooplink","f-passcode","f-paymentlink","f-host-note","f-group-ids"].forEach(id => { const el = document.getElementById(id); if(el) el.value = ""; });
   const _tbdReset = document.getElementById("f-date-tbd"); if(_tbdReset) _tbdReset.checked = false; toggleDateTbd();   
   const hlErr = document.getElementById("hostlink-error"); if(hlErr) hlErr.style.display = "none";
   const cancelReset = document.getElementById("f-cancelled"); if(cancelReset) cancelReset.checked = false;
@@ -4298,6 +4304,7 @@ function loadEditForm(id) {
   recurFreq = ev.recurFreq || (found.isRecurring ? "weekly" : null);
   _seriesFreqOnLoad = recurFreq;   
   var _rend = document.getElementById("f-recur-end"); if (_rend) _rend.value = ev.recurEnd || "";
+  var _edate = document.getElementById("f-end-date"); if (_edate) _edate.value = String(ev.endDate || "").slice(0, 10);
   const recurCb = document.getElementById("f-recurring");
   if (recurCb) { recurCb.checked = !!recurFreq; }
   const freqWrap = document.getElementById("recurring-freq-wrap");
@@ -4486,6 +4493,8 @@ function _paintRecur() {
   var on = !!(document.getElementById("f-recurring") || {}).checked;
   var re = document.getElementById("f-recur-end-wrap");
   if (re) re.style.display = (on && f) ? "block" : "none";
+  var ed = document.getElementById("f-end-date-wrap");
+  if (ed) ed.style.display = on ? "none" : "";
 }
 
 var _regHow = "";
@@ -6151,7 +6160,7 @@ function fmtDateShort(date) {
 
 function toggleDateTbd() {
   var on = !!(document.getElementById("f-date-tbd") && document.getElementById("f-date-tbd").checked);
-  ["f-date","f-time","f-endtime"].forEach(function(id){
+  ["f-date","f-end-date","f-time","f-endtime"].forEach(function(id){
     var el = document.getElementById(id);
     if (!el) return;
     el.disabled = on; el.style.opacity = on ? "0.5" : "";
@@ -6208,7 +6217,10 @@ async function submitEvent() {
   if (!host && !window._isSharing) { missing.push("host name"); missIds.push("f-host"); }
   if (missing.length > 0) { _markMissing(missIds); errEl.textContent = "Please add: " + missing.join(", ") + "."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   if (document.getElementById("f-recur-end")?.value && date && date !== "TBD" && document.getElementById("f-recur-end").value < date) { errEl.textContent = "The last day must be on or after the start date."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
-  if (time && endtime && endtime <= time) { errEl.textContent = "End time must be after start time."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
+  var _endDay = (document.getElementById("f-end-date") || {}).value || "";
+  var _startDay = (document.getElementById("f-date") || {}).value || "";
+  if (_endDay && _startDay && !(document.getElementById("f-recurring") || {}).checked && _endDay < _startDay) { errEl.textContent = "End date must be on or after the start date."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
+  if (time && endtime && endtime <= time && !(_endDay && _endDay > _startDay)) { errEl.textContent = "End time must be after start time."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   if (checkAllFields()) { errEl.textContent = "Please keep it community-friendly - your post contains language that isn't allowed."; errEl.style.display = "block"; errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   if ((selectedFormat === "virtual" || selectedFormat === "both") && !hostingOption) { errEl.textContent = "Please choose where you're hosting this - a community room or your own link."; errEl.style.display = "block"; _markMissing(["hosting-choice"]); errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
   if (hostingOption === "db" && !selectedRoom) { errEl.textContent = "Please select which virtual room is best for this event."; errEl.style.display = "block"; _markMissing(["db-room-section"]); errEl.scrollIntoView({ behavior:"smooth", block:"nearest" }); return; }
