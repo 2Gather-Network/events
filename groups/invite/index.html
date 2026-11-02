@@ -60,6 +60,10 @@
   .status{margin-top:12px;padding:10px 14px;border-radius:10px;font-size:14px;line-height:1.5;display:none;}
   .status.err{display:block;background:#FBE9E7;border:1px solid #E8B0A5;color:#7A2410;}
   .status.ok{display:block;background:#E7F5EA;border:1px solid #A5D5B0;color:#1A5A2C;}
+  .ev-list{display:flex;flex-direction:column;gap:2px;margin-top:10px;max-height:340px;overflow-y:auto;}
+  .ev-person{display:flex;align-items:center;gap:10px;padding:8px 4px;font-size:15px;color:var(--ink);cursor:pointer;}
+  .ev-person input{width:18px;height:18px;margin:0;flex:none;}
+  .ev-count{font-size:13px;color:var(--muted);margin-top:8px;}
   .foot{color:#fff;opacity:.55;font-size:11px;text-align:right;margin-top:24px;font-weight:600;letter-spacing:.05em;}
 </style>
   <script src="/nav/identity.js?v=53"></script>
@@ -69,6 +73,18 @@
 <body>
 <div class="wrap">
   <div class="breadcrumb"><a role="link" tabindex="0" data-nav="https://2appear.network/mygroups/" onclick="return _safeNavGo(this)">My groups</a> / <a role="link" tabindex="0" id="crumb-group" onclick="return _safeNavGo(this)">Group</a></div>
+  <div class="card" id="ev-card" style="display:none;">
+    <h1 id="ev-title">People from your event</h1>
+    <p class="lede" id="ev-lede" style="margin-bottom:6px;"></p>
+    <div class="ev-list" id="ev-list"></div>
+    <div class="ev-count" id="ev-count"></div>
+    <div id="ev-status" class="status"></div>
+    <div class="actions" id="ev-actions">
+      <a class="btn ghost" id="ev-skip" role="link" tabindex="0" onclick="return _safeNavGo(this)" style="display:none;">Skip for now, go to my group</a>
+      <button class="btn" id="ev-send">Invite</button>
+    </div>
+  </div>
+
   <div class="card">
     <h1 id="page-title">Invite people</h1>
     <p class="lede">Type their email address and we'll send them an invitation from 2Gather with the group's link and passcode.</p>
@@ -137,6 +153,7 @@
         groupHref = _withRef(window.cwGroupLink(d.group.slug, groupId));
         document.getElementById('skip-btn').setAttribute('data-nav', groupHref);
         document.getElementById('crumb-group').setAttribute('data-nav', groupHref);
+        document.getElementById('ev-skip').setAttribute('data-nav', groupHref);
         window._drawInviteQr();
       }
       var nm = (d && d.group && d.group.name) || '';
@@ -213,6 +230,73 @@
       .catch(function(){});
   }
   loadSent();
+
+  var isNew = params.get('new') === '1';
+  var evSay = function(kind, msg){ var el = document.getElementById('ev-status'); el.className = 'status ' + kind; el.textContent = msg; };
+  var evPeople = [], evLeft = 0, evTitle = '';
+  function evPaint(){
+    var list = document.getElementById('ev-list'), count = document.getElementById('ev-count'), send = document.getElementById('ev-send');
+    var forEv = evTitle ? 'from ' + evTitle : 'from your event';
+    document.getElementById('ev-title').textContent = isNew ? 'Your group is ready' : 'Invite people ' + forEv;
+    list.innerHTML = '';
+    if (!evLeft) {
+      document.getElementById('ev-lede').textContent = 'You have invited 10 people ' + forEv + ', the most for one group. You can still invite anyone else below.';
+      count.textContent = ''; send.style.display = 'none'; return;
+    }
+    if (!evPeople.length) {
+      document.getElementById('ev-lede').textContent = 'Everyone ' + forEv + ' who said yes to invitations has been invited or is already in the group.';
+      count.textContent = ''; send.style.display = 'none'; return;
+    }
+    document.getElementById('ev-lede').textContent = (isNew ? 'Invite people ' + forEv + ' now, or skip and do it later from this page. ' : '')
+      + 'These are the people who said yes to invitations at the event. Pick up to ' + evLeft + '. Each gets an invitation, and nobody joins unless they say yes.';
+    evPeople.forEach(function(p){
+      var row = document.createElement('label'); row.className = 'ev-person';
+      var box = document.createElement('input'); box.type = 'checkbox'; box.value = p.pick;
+      var nm = document.createElement('span'); nm.textContent = p.name;
+      row.appendChild(box); row.appendChild(nm); list.appendChild(row);
+      box.addEventListener('change', evCount);
+    });
+    send.style.display = '';
+    evCount();
+  }
+  function evPicked(){ return Array.prototype.slice.call(document.querySelectorAll('#ev-list input:checked')).map(function(b){ return b.value; }); }
+  function evCount(){
+    var n = evPicked().length;
+    document.getElementById('ev-count').textContent = n + ' of ' + evLeft + ' picked';
+    document.querySelectorAll('#ev-list input').forEach(function(b){ b.disabled = !b.checked && n >= evLeft; });
+    document.getElementById('ev-send').disabled = !n;
+  }
+  function evLoad(){
+    if (!meId) return;
+    return fetch(GS_URL + '?action=getEventSeen&groupInvitees=1&appearId=' + encodeURIComponent(meId) + '&groupId=' + encodeURIComponent(groupId))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || d.status !== 'ok' || !d.fromEvent) return;
+        evPeople = Array.isArray(d.people) ? d.people : []; evLeft = Number(d.left || 0); evTitle = String(d.eventTitle || '');
+        document.getElementById('ev-card').style.display = '';
+        evPaint();
+      })
+      .catch(function(){});
+  }
+  if (isNew) { var sk = document.getElementById('ev-skip'); sk.setAttribute('data-nav', groupHref); sk.style.display = ''; }
+  evLoad();
+  document.getElementById('ev-send').addEventListener('click', function(){
+    var picks = evPicked(), btn = this;
+    if (!picks.length) { evSay('err', 'Pick at least one person.'); return; }
+    btn.disabled = true; evSay('ok', 'Sending\u2026');
+    fetch(GS_URL + '?action=inviteToGroup&fromEvent=1&groupId=' + encodeURIComponent(groupId)
+      + '&invitedById=' + encodeURIComponent(meId) + '&picks=' + encodeURIComponent(picks.join('|')))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || d.status !== 'ok') { btn.disabled = false; evSay('err', (d && d.message) || 'That did not go through. Try again.'); return; }
+        var n = Number(d.sent || 0);
+        evSay('ok', (n === 1 ? '1 invitation sent.' : n + ' invitations sent.') + (d.leftOut ? ' ' + d.leftOut + ' were left out, because 10 is the most from one event.' : ''));
+        if (isNew) { var sk = document.getElementById('ev-skip'); sk.textContent = 'Go to my group'; }
+        loadSent();
+        evLoad();
+      })
+      .catch(function(){ btn.disabled = false; evSay('err', 'Could not reach the server. Try again in a moment.'); });
+  });
 
   function _adminTok(){
     var keys = ['cw_admin_' + groupId + '_' + String(meId || '').split('.').join('').toLowerCase(), 'cw_admin_super_' + meId];

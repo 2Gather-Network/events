@@ -128,7 +128,26 @@
 
   <div class="breadcrumb"><a role="link" tabindex="0" data-nav="https://2appear.network/mygroups" onclick="return _safeNavGo(this)" id="crumb-back" style="cursor:pointer;">My groups</a> / <span class="now">Start a group</span></div>
 
-  <div class="card">
+  <div class="card" id="fe-card" style="display:none;">
+    <h1 id="fe-title">Start a group from your event</h1>
+    <p class="lede" id="fe-lede">Three questions first. We use your answers to suggest a name and description, and you can change both.</p>
+    <div id="fe-qs">
+      <div class="q noline">What is this group for?</div>
+      <textarea id="fe-q1" maxlength="300" style="min-height:72px;"></textarea>
+      <div class="q noline">What do you want to happen in it?</div>
+      <p class="help">Examples: meet again, share what we know, work on something together.</p>
+      <textarea id="fe-q2" maxlength="300" style="min-height:72px;"></textarea>
+      <div class="q noline">Who is a good fit?</div>
+      <p class="help">One thing the people in it have in common.</p>
+      <textarea id="fe-q3" maxlength="300" style="min-height:72px;"></textarea>
+      <div id="fe-status" class="status"></div>
+      <div class="actions">
+        <button class="btn" id="fe-next">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="main-card">
 
     <h1>Start a group</h1>
 
@@ -338,6 +357,52 @@ We translate self-promotion to collaboration.</textarea>
       + '<div class="actions"><a class="btn ghost" role="link" tabindex="0" data-nav="https://2appear.network/mygroups" onclick="return _safeNavGo(this)">Back to my groups</a></div>'
       + '</div>';
     return;
+  }
+
+  var fromEvent = String(params.get('fromEvent') || '').trim();
+  var _fromEvTitle = '';
+  if (fromEvent) {
+    var feCard = document.getElementById('fe-card'), mainCard = document.getElementById('main-card');
+    var feSay = function(kind, msg){ var el = document.getElementById('fe-status'); el.className = 'status ' + kind; el.innerHTML = msg; };
+    mainCard.style.display = 'none';
+    feCard.style.display = '';
+    document.getElementById('fe-qs').style.display = 'none';
+    document.getElementById('fe-lede').textContent = 'Looking up your event\u2026';
+    var _feEsc = function(t){ return String(t || '').replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+    fetch(GS_URL + '?action=getEventSeen&startCheck=1&appearId=' + encodeURIComponent(meId) + '&eventId=' + encodeURIComponent(fromEvent))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.title) { _fromEvTitle = String(d.title); document.getElementById('fe-title').textContent = 'Start a group from ' + _fromEvTitle; }
+        if (d && d.status === 'ok' && d.mayStart) {
+          document.getElementById('fe-lede').textContent = 'Three questions first. We use your answers to suggest a name and description, and you can change both.';
+          document.getElementById('fe-qs').style.display = '';
+          return;
+        }
+        var why = !d || d.status !== 'ok' ? ((d && d.message) || 'That event could not be found.')
+          : d.reason === 'already' ? 'You already started a group from this event. <a href="' + _feEsc(d.groupUrl) + '">Open your group</a>.'
+          : d.reason === 'limit' ? 'You can start 2 groups from events in 24 hours. Try again tomorrow, or start a group without the event.'
+          : d.reason === 'notSeen' ? 'To start a group from this event, choose to be seen on the event page first.'
+          : d.reason === 'notEnded' ? 'You can start a group from this event once it is over.'
+          : d.reason === 'host' ? 'You hosted this event, so this way of starting a group is for the people who came.'
+          : 'A group cannot be started from this event.';
+        document.getElementById('fe-lede').innerHTML = why;
+      })
+      .catch(function(){ document.getElementById('fe-lede').textContent = 'That did not load. Reload the page to try again.'; });
+    var _feSentence = function(t){ t = String(t || '').replace(/\s+/g, ' ').trim().replace(/[.!?]+$/, ''); return t ? t.charAt(0).toUpperCase() + t.slice(1) + '.' : ''; };
+    document.getElementById('fe-next').addEventListener('click', function(){
+      var q = [1, 2, 3].map(function(n){ return String(document.getElementById('fe-q' + n).value || '').trim(); });
+      if (_missRun([
+        {ok: !!q[0], label: 'what the group is for', mark: document.getElementById('fe-q1')},
+        {ok: !!q[1], label: 'what you want to happen', mark: document.getElementById('fe-q2')},
+        {ok: !!q[2], label: 'who is a good fit', mark: document.getElementById('fe-q3')}
+      ], feSay)) return;
+      var nm = document.getElementById('f-name'), ds = document.getElementById('f-description');
+      if (!nm.value.trim()) nm.value = (_fromEvTitle ? _fromEvTitle + ' group' : '').slice(0, 80);
+      if (!ds.value.trim()) ds.value = (_feSentence(q[0]) + ' ' + _feSentence(q[1]) + ' A good fit: ' + _feSentence(q[2])).trim().slice(0, 400);
+      feCard.style.display = 'none';
+      mainCard.style.display = '';
+      try { window.scrollTo(0, 0); } catch (e) {}
+    });
   }
 
   fetch(GS_URL + '?action=getProfile&appearId=' + encodeURIComponent(meId) + '&meToken=' + encodeURIComponent((function(){try{return localStorage.getItem('cw-token')||'';}catch(e){return '';}})()))
@@ -706,13 +771,14 @@ We translate self-promotion to collaboration.</textarea>
       + '&joys=' + encodeURIComponent(_interests.get().joys)
       + '&skills=' + encodeURIComponent(_interests.get().skills)
       + '&cares=' + encodeURIComponent(_interests.get().cares)
-      + '&plan=' + encodeURIComponent('free');
+      + '&plan=' + encodeURIComponent('free')
+      + (fromEvent ? '&fromEventId=' + encodeURIComponent(fromEvent) : '');
 
     fetch(url)
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (d && d.status === 'ok' && d.groupId) {
-          var nextUrl = 'https://2appear.network/groups/invite?id=' + encodeURIComponent(d.groupId);
+          var nextUrl = 'https://2appear.network/groups/invite?id=' + encodeURIComponent(d.groupId) + (fromEvent ? '&fromEvent=' + encodeURIComponent(fromEvent) + '&new=1' : '');
           var _welcomeText = (((document.querySelector('#f-groupchat [data-groupchat].on') || {}).getAttribute('data-groupchat') === 'on') ? (document.getElementById('f-welcome').value || '').trim() : '');
           var _chatYes = ((document.querySelector('#f-groupchat [data-groupchat].on') || {}).getAttribute('data-groupchat') === 'on');
           var _histNo = _chatYes && ((document.querySelector('#f-history [data-history].on') || {}).getAttribute('data-history') === 'off');
@@ -774,7 +840,7 @@ We translate self-promotion to collaboration.</textarea>
 <script>
 var _cfTouched = false, _cfSent = false;
 (function(){
-  var card = document.querySelector('.card');
+  var card = document.getElementById('main-card');
   if (!card) return;
   var touch = function(){ _cfTouched = true; };
   card.addEventListener('input', touch, true);
