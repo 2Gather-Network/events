@@ -99,6 +99,15 @@
       return !!who && who === normalise(id);
     }, false);
   }
+  if (ss(function () { return w.sessionStorage.getItem('cw-jump-gone') === '1'; }, false)) {
+    ss(function () { w.sessionStorage.removeItem('cw-jump-gone'); });
+    ls(function () {
+      for (var gi = 0; gi < CLEAR.length; gi++) { w.localStorage.removeItem(CLEAR[gi]); }
+      w.localStorage.removeItem('cw-jump-retry');
+      Object.keys(w.localStorage).forEach(function (k) { if (k.indexOf('cw-edit-') === 0) { w.localStorage.removeItem(k); } });
+      clearAnswerCopies();
+    });
+  }
   var stored = fromDevice();
   if (stored && !proven(stored)) {
     ls(function () { for (var ci = 0; ci < CLEAR.length; ci++) { w.localStorage.removeItem(CLEAR[ci]); } clearAnswerCopies(); });
@@ -388,6 +397,24 @@
       try { w.stop(); } catch (e) {}
       w.location.replace(SERVICE + '/jump?to=' + site + '&state=' + st);
       return;
+    }
+
+    if (site === 'creatingworks' && !onSignIn && !ss(function () { return w.sessionStorage.getItem('cw-jump-cw-checked') === '1'; }, true)) {
+      var cst = newState();
+      var csaved = ss(function () {
+        w.sessionStorage.setItem('cw-jump-cw-checked', '1');
+        w.sessionStorage.setItem('cw-jump-cw-check', '1');
+        w.sessionStorage.setItem('cw-carry-state', cst);
+        w.sessionStorage.setItem('cw-jump-next', comeBack);
+        return true;
+      }, false);
+      if (csaved) {
+        jumpLog('signed in here; checking the service still knows you');
+        w._cwJumping = true;
+        try { w.stop(); } catch (e) {}
+        w.location.replace(SERVICE + '/jump?to=' + site + '&state=' + cst);
+        return;
+      }
     }
 
     var key = normalise(found);

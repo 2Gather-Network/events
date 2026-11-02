@@ -40,6 +40,11 @@
       localStorage.setItem('cw-id', d.appearId);
       localStorage.setItem('appear-id', d.appearId);
       if (d.name) { localStorage.setItem('cw-first', String(d.name).split(' ')[0]); }
+      if (d.photo) {
+        localStorage.setItem('cw-photo', d.photo);
+        localStorage.setItem('cw-photo-for', d.appearId);
+        localStorage.setItem('cw-photo-at', String(Date.now()));
+      }
       if (d.editToken) {
         localStorage.setItem('cw-token', d.editToken);
         var norm = String(d.appearId).split('.').join('').toLowerCase();

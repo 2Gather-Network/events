@@ -260,7 +260,13 @@
   function _tbQuiet(k) {
     try { var t = parseInt(sessionStorage.getItem('cw-tb-quiet:' + k) || '0', 10); return !!t && Date.now() < t; } catch (e) { return false; }
   }
+  var _tbLeaving = false;
+  try {
+    window.addEventListener('beforeunload', function () { _tbLeaving = true; });
+    window.addEventListener('pagehide', function () { _tbLeaving = true; });
+  } catch (e) {}
   function _tbHush(k, mins) {
+    if (_tbLeaving) return;
     try { sessionStorage.setItem('cw-tb-quiet:' + k, String(Date.now() + mins * 60000)); } catch (e) {}
   }
   function checkBookmarks() {

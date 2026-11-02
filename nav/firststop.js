@@ -55,6 +55,7 @@
 
   CW.firstStop = function (id, next, done) {
     CW.forgetWhere();
+    try { sessionStorage.removeItem('cw-tb-quiet:lookupProfile'); } catch (e) {}
     var settled = false, ready = null;
     try { var tk = localStorage.getItem('cw-token') || ''; ready = (id && tk && CW.prepareNow) ? CW.prepareNow(id, tk) : null; } catch (e) { ready = null; }
     function finish(url) {
