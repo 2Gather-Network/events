@@ -271,7 +271,8 @@
     }
 
     if (!found) {
-      if (num('cw-jump-wait') > now) { jumpLog('not signed in here; guest wait, ' + Math.ceil((num('cw-jump-wait') - now) / 60000) + ' min left, no jump'); return; }
+      var tabAsked = ss(function () { return w.sessionStorage.getItem('cw-jump-tab-asked') === '1'; }, true);
+      if (num('cw-jump-wait') > now && tabAsked) { jumpLog('not signed in here; guest wait, ' + Math.ceil((num('cw-jump-wait') - now) / 60000) + ' min left, no jump'); return; }
       var until = String(now + WAIT_MS);
       var held = ls(function () { w.localStorage.setItem('cw-jump-wait', until); return w.localStorage.getItem('cw-jump-wait') === until; }, false);
       if (!held) { return; }
@@ -279,6 +280,7 @@
       var saved = ss(function () {
         w.sessionStorage.setItem('cw-carry-state', st);
         w.sessionStorage.setItem('cw-jump-next', comeBack);
+        w.sessionStorage.setItem('cw-jump-tab-asked', '1');
         return true;
       }, false);
       if (!saved) { return; }
