@@ -2020,6 +2020,7 @@ async function confirmRsvp() {
 
 function finishRsvp() {
   closeRsvpModal();
+  _wigForce = true;
   applyRegisteredUI();
   showToast("✓ You're registered!");
   if (CW_ALUMNI_ON) { try { cwSeenOpen(_currentEv, false, true); return; } catch (err) {} }
@@ -2339,16 +2340,28 @@ async function maybeShowIntakePrompt() {
 }
 window.maybeShowIntakePrompt = maybeShowIntakePrompt;
 
-async function loadWhoIsGoing() {
-  if (!_currentEv) return;
-  if (!getMemberId()) return;
+let _wigRun = null, _wigDone = null, _wigForce = false;
+function loadWhoIsGoing() {
+  if (!_currentEv || !getMemberId()) return Promise.resolve();
+  const ev = _currentEv.id, force = _wigForce;
+  _wigForce = false;
+  if (_wigRun && _wigRun.ev === ev) { if (force) _wigRun.again = true; return _wigRun.p; }
+  if (!force && _wigDone && _wigDone.ev === ev && Date.now() - _wigDone.at < 60000) return Promise.resolve();
+  const run = { ev: ev, p: null, again: false };
+  run.p = _loadWhoIsGoingNow().then(function () { _wigDone = { ev: ev, at: Date.now() }; }, function () {})
+    .then(function () { if (_wigRun === run) _wigRun = null; if (run.again) { _wigForce = true; return loadWhoIsGoing(); } });
+  _wigRun = run;
+  return run.p;
+}
+async function _loadWhoIsGoingNow() {
+  let data = null;
   try {
     const _viewer = getMemberId() || "";
     const _sess = (window.CW && CW.passParam) ? CW.passParam() : "";
     const _wl = document.getElementById("who-is-going-list"), _ws = document.getElementById("who-is-going");
     if (_wl && _ws && !_wl.innerHTML.trim()) { _wl.innerHTML = '<span class="cw-loading">Loading who is going</span>'; _ws.style.display = "block"; }
     const res = await fetch(`${GS_URL}?action=getAttendees&eventId=${encodeURIComponent(_currentEv.id)}` + (_viewer ? "&appearId=" + encodeURIComponent(_viewer) : "") + _sess);
-    const data = await res.json();
+    data = await res.json();
     const list = document.getElementById("who-is-going-list");
     const section = document.getElementById("who-is-going");
     if (!data.attendees || data.attendees.length === 0) {
@@ -2358,9 +2371,9 @@ async function loadWhoIsGoing() {
         list.innerHTML = '<span style="font-size:13px;color:var(--muted);">' + _n + ' going</span>';
         section.style.display = "block";
       }
-      return;
+      return data;
     }
-    if (!list || !section) return;
+    if (!list || !section) return data;
     const attendees = data.attendees;
     const _myChipId = _rsvpAppearId || getMemberId() || "";
     const _norm = (s) => normalizeAppearId(String(s || ""));
@@ -2385,6 +2398,7 @@ async function loadWhoIsGoing() {
   } catch(e) {
     try { var _wl2 = document.getElementById("who-is-going-list"), _ws2 = document.getElementById("who-is-going"); if (_wl2 && /cw-loading/.test(_wl2.innerHTML)) { _wl2.innerHTML = ""; if (_ws2) _ws2.style.display = "none"; } } catch (e2) {}
   }
+  return data;
 }
 
 function _askCancelRsvp() {
