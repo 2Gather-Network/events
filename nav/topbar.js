@@ -487,7 +487,7 @@
       return mine;
     }
 
-    var _home = onCreatingWorks() ? 'https://creating.works/' : link(EVENTS, 'memberCard');
+    var _home = onCreatingWorks() ? 'https://creating.works/' : onAppear() ? 'https://2appear.network/' : onBalance() ? 'https://2balance.network/' : link(EVENTS, 'memberCard');
     var el = document.createElement('div');
     el.id = 'cw-topbar';
     el.innerHTML =
