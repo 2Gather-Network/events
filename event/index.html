@@ -175,7 +175,6 @@
 <script src="/nav/event-categories.js?v=1"></script>
 <script src="/nav/event-star.js?v=3"></script>
 <script src="/nav/waiting-words.js?v=11"></script>
-<script>if(/[?&]barcheck=1\b/.test(location.search)){document.addEventListener("DOMContentLoaded",function(){var s=document.createElement("script");s.src="/nav/bar-check.js?v=1";document.body.appendChild(s);});}</script>
 </head>
 <body>
 <div style="width:100%;max-width:560px;">
@@ -2104,6 +2103,7 @@ function cwSeenLinkPaint() {
   if (document.documentElement.classList.contains("cw-is-host")) return;
   if (document.getElementById("cw-seen-ask")) return;
   cwSeenLinkShow(true, false);
+  try { cwGrpBtnPaint(); } catch (e) {}
   try {
     if (typeof _currentEv !== "undefined" && _currentEv && !window.cwSeenPre && getMemberId()) {
       var p = cwSeenFetch(_currentEv.id); p.catch(function () { window.cwSeenPre = null; });
@@ -2242,6 +2242,103 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
         finish(true);
       })
       .catch(function (e) { msg.style.color = "#7A2410"; msg.textContent = (e && e.message && e.message !== "no") ? e.message : "That did not save. Try again in a moment."; });
+  };
+}
+function cwGrpEnded(ev) {
+  if (!ev || !ev.date) return false;
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var d = new Date((ev.endDate && ev.endDate > ev.date ? ev.endDate : ev.date) + "T00:00:00");
+  return !isNaN(d) && d < today;
+}
+function cwGrpBtnPaint() {
+  if (!CW_ALUMNI_ON || typeof _currentEv === "undefined" || !_currentEv || !cwGrpEnded(_currentEv)) return;
+  var me = ""; try { me = getMemberId() || ""; } catch (e) {}
+  var slot = document.getElementById("cw-seen-slot");
+  if (!me || !slot || document.getElementById("cw-grp-btn") || document.getElementById("cw-grp-box")) return;
+  var b = document.createElement("button");
+  b.type = "button"; b.id = "cw-grp-btn";
+  b.className = "btn btn-primary";
+  b.style.cssText = "display:block;margin:8px 0 12px;";
+  b.textContent = "Start a group from this event";
+  b.onclick = function () { cwGrpOpen(_currentEv); };
+  slot.insertBefore(b, slot.firstChild);
+}
+function cwGrpOpen(ev) {
+  var me = ""; try { me = getMemberId() || ""; } catch (e) {}
+  var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
+  var slot = document.getElementById("cw-seen-slot");
+  if (!slot || !ev) return;
+  var old = document.getElementById("cw-grp-box"); if (old) old.remove();
+  var btnEl = document.getElementById("cw-grp-btn"); if (btnEl) btnEl.style.display = "none";
+  var o = document.createElement("div");
+  o.id = "cw-grp-box"; o.style.cssText = "margin:16px 0;";
+  var card = "background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:18px 18px 14px;width:100%;box-sizing:border-box;font-family:inherit;";
+  o.innerHTML = '<div style="' + card + '"><p style="font-size:16px;font-weight:700;color:var(--dark);margin:0 0 4px;">Start a group from this event</p><p style="font-size:14px;color:var(--muted);margin:0;">Looking for the people you can invite…</p></div>';
+  slot.insertBefore(o, slot.firstChild);
+  var close = function () { o.remove(); var b2 = document.getElementById("cw-grp-btn"); if (b2) b2.style.display = "block"; };
+  fetch(GS_URL + "?action=getEventSeen&invitees=1&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id))
+    .then(function (r) { return r.json(); })
+    .then(function (d) { cwGrpForm(ev, o, d || {}, close); })
+    .catch(function () { o.firstChild.lastChild.textContent = "That did not load. Try again in a moment."; });
+}
+function cwGrpForm(ev, o, d, close) {
+  var $ = function (id) { return document.getElementById(id); };
+  var btn = "font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;cursor:pointer;font-family:inherit;";
+  var card = "background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:18px 18px 14px;width:100%;box-sizing:border-box;font-family:inherit;";
+  var lab = "display:block;font-size:14px;font-weight:700;color:var(--dark);margin:14px 0 4px;";
+  var field = "width:100%;box-sizing:border-box;font:inherit;font-size:14px;color:var(--dark);border:1px solid var(--border);border-radius:8px;padding:8px 10px;";
+  var head = '<p style="font-size:16px;font-weight:700;color:var(--dark);margin:0 0 4px;">Start a group from this event</p>';
+  var shut = '<div style="display:flex;justify-content:flex-end;margin-top:10px;"><button type="button" id="cw-grp-x" style="' + btn + 'background:#fff;border:1.5px solid var(--border);color:var(--dark);">Close</button></div>';
+  var note = function (t) { o.innerHTML = '<div style="' + card + '">' + head + '<p style="font-size:14px;color:var(--muted);margin:0;">' + t + '</p>' + shut + '</div>'; $("cw-grp-x").onclick = close; };
+  if (d.status !== "ok") { note(esc(d.message || "Sign in again to start a group.")); return; }
+  if (!d.ended) { note("You can start a group once the event is over."); return; }
+  if (!d.mayStart) { note("Choose Let other people at this event see me first. People who said yes are only shown to others who said yes."); return; }
+  var people = Array.isArray(d.people) ? d.people : [];
+  if (!people.length) { note("Nobody at this event has said yes to Let others say hi to me after this event yet."); return; }
+  var rows = people.map(function (p, i) {
+    var ph = p.photo ? '<img src="' + esc(p.photo) + '" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">' : '<span style="width:32px;height:32px;border-radius:50%;background:#D6E6F5;display:inline-block;"></span>';
+    return '<label style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--dark);padding:5px 0;"><input type="checkbox" class="cw-grp-p" data-i="' + i + '">' + ph + '<span>' + esc(p.name) + '</span></label>';
+  }).join("");
+  o.innerHTML = '<div style="' + card + '">' + head
+    + '<p style="font-size:13px;color:var(--muted);margin:0 0 10px;">The group lives on 2Appear and you host it. The people you pick get an invitation. Nobody is added unless they say yes.</p>'
+    + '<p style="' + lab + 'margin-top:4px;">Who do you want to invite?</p>'
+    + '<p style="font-size:13px;color:var(--muted);margin:0 0 6px;">Only people who chose to be seen and said yes to Let others say hi to me after this event are listed.</p>'
+    + '<label style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;color:var(--dark);padding:5px 0;"><input type="checkbox" id="cw-grp-all">Everyone listed (' + people.length + ')</label>'
+    + '<div style="max-height:260px;overflow:auto;padding-left:4px;">' + rows + '</div>'
+    + '<label for="cw-grp-name" style="' + lab + '">Name the group</label><input id="cw-grp-name" type="text" maxlength="80" style="' + field + '">'
+    + '<label for="cw-grp-q1" style="' + lab + '">What is this group for?</label><textarea id="cw-grp-q1" maxlength="300" rows="2" style="' + field + '"></textarea>'
+    + '<label for="cw-grp-q2" style="' + lab + '">What do you want to happen in it?</label><p style="font-size:13px;color:var(--muted);margin:0 0 4px;">Examples: meet again, share what we know, work on something together.</p><textarea id="cw-grp-q2" maxlength="300" rows="2" style="' + field + '"></textarea>'
+    + '<label for="cw-grp-q3" style="' + lab + '">Who is a good fit?</label><p style="font-size:13px;color:var(--muted);margin:0 0 4px;">One thing the people in it have in common.</p><textarea id="cw-grp-q3" maxlength="300" rows="2" style="' + field + '"></textarea>'
+    + '<p style="font-size:13px;color:var(--muted);margin:10px 0 0;">Your answers go with the invitation, so people see why the group exists.</p>'
+    + '<p id="cw-grp-msg" style="font-size:13px;color:#7A2410;margin:8px 0 0;min-height:18px;"></p>'
+    + '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px;"><button type="button" id="cw-grp-x" style="' + btn + 'background:#fff;border:1.5px solid var(--border);color:var(--dark);">Cancel</button><button type="button" id="cw-grp-go" style="' + btn + 'background:#1F699E;border:1.5px solid #1F699E;color:#fff;">Send invitations</button></div></div>';
+  $("cw-grp-x").onclick = close;
+  var boxes = function () { return Array.prototype.slice.call(o.querySelectorAll(".cw-grp-p")); };
+  $("cw-grp-all").onchange = function () { var on = this.checked; boxes().forEach(function (c) { c.checked = on; }); };
+  boxes().forEach(function (c) { c.onchange = function () { $("cw-grp-all").checked = boxes().every(function (x) { return x.checked; }); }; });
+  var msg = $("cw-grp-msg");
+  $("cw-grp-go").onclick = function () {
+    var picked = boxes().filter(function (c) { return c.checked; }).map(function (c) { return people[+c.getAttribute("data-i")].code; });
+    var nm = String($("cw-grp-name").value).trim(), q1 = String($("cw-grp-q1").value).trim(), q2 = String($("cw-grp-q2").value).trim(), q3 = String($("cw-grp-q3").value).trim();
+    if (!picked.length) { msg.textContent = "Pick at least one person to invite."; return; }
+    if (!nm) { msg.textContent = "Give the group a name."; return; }
+    if (!q1 || !q2 || !q3) { msg.textContent = "Answer all three questions first."; return; }
+    var me = ""; try { me = getMemberId() || ""; } catch (e) {}
+    var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
+    var go = $("cw-grp-go"); go.disabled = true;
+    msg.style.color = "#1F699E"; msg.textContent = "Making the group and sending invitations…";
+    fetch(GS_URL + "?action=saveEventShare&startFromEvent=1&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id)
+      + "&groupName=" + encodeURIComponent(nm) + "&q1=" + encodeURIComponent(q1) + "&q2=" + encodeURIComponent(q2) + "&q3=" + encodeURIComponent(q3) + "&codes=" + encodeURIComponent(picked.join("|")))
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r || r.status !== "ok") { throw new Error((r && r.message) || "no"); }
+        var n = Number(r.invited || 0);
+        o.innerHTML = '<div style="' + card + '">' + head
+          + '<p style="font-size:14px;color:var(--dark);margin:0 0 10px;">' + esc(nm) + ' is made on 2Appear. ' + (n === 1 ? '1 invitation sent.' : n + ' invitations sent.') + (r.skipped ? ' ' + r.skipped + ' already had one.' : '') + '</p>'
+          + '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;"><button type="button" id="cw-grp-x" style="' + btn + 'background:#fff;border:1.5px solid var(--border);color:var(--dark);">Close</button><a href="' + esc(r.url) + '" style="' + btn + 'background:#1F699E;border:1.5px solid #1F699E;color:#fff;text-decoration:none;">Open the group</a></div></div>';
+        $("cw-grp-x").onclick = close;
+      })
+      .catch(function (e) { go.disabled = false; msg.style.color = "#7A2410"; msg.textContent = (e && e.message && e.message !== "no") ? e.message : "That did not send. Try again in a moment."; });
   };
 }
 (function () {
