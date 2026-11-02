@@ -320,8 +320,17 @@
 
     if (num('cw-jump-retry') > now) { jumpLog('signed in here; last try was recent, ' + Math.ceil((num('cw-jump-retry') - now) / 60000) + ' min until next'); return; }
     jumpLog('signed in here; asking the backend for passes');
-    ls(function () { w.localStorage.setItem('cw-jump-retry', String(now + RETRY_MS)); });
-    w.setTimeout(function () { prepareSession(found, token).then(function () { remember(true); }).catch(function (e) { jumpLog('passes failed: ' + String((e && e.message) || e)); }); }, 1500);
+    ls(function () { w.localStorage.setItem('cw-jump-retry', String(now + 60 * 1000)); });
+    var asking = true;
+    w.addEventListener('pagehide', function () { if (asking) { ls(function () { w.localStorage.removeItem('cw-jump-retry'); }); } });
+    w.setTimeout(function () {
+      prepareSession(found, token).then(function () { asking = false; remember(true); }).catch(function (e) {
+        asking = false;
+        var refused = e && e.message === 'refused';
+        jumpLog('passes failed: ' + String((e && e.message) || e) + (refused ? '' : '; the next page tries again'));
+        ls(function () { if (refused) { w.localStorage.setItem('cw-jump-retry', String(Date.now() + RETRY_MS)); } else { w.localStorage.removeItem('cw-jump-retry'); } });
+      });
+    }, 1500);
   })();
 
   (function wall() {
