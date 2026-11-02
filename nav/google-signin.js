@@ -12,6 +12,23 @@
       return '&ref=' + encodeURIComponent(k.r) + (k.eventId ? '&refEvent=' + encodeURIComponent(k.eventId) : '');
     } catch (e) { return ''; }
   }
+  var G_CRED = 'cw-g-cred', G_NONCE = 'cw-g-nonce', G_BACK = 'cw-g-back';
+  function sameTab() {
+    try { return window.matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 768; } catch (e) { return false; }
+  }
+  function take(k) {
+    try { var v = sessionStorage.getItem(k) || ''; sessionStorage.removeItem(k); return v; } catch (e) { return ''; }
+  }
+  function newNonce() {
+    try { var b = new Uint8Array(16); crypto.getRandomValues(b); return Array.prototype.map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); } catch (e) { return ''; }
+  }
+  function nonceOf(jwt) {
+    try {
+      var p = String(jwt).split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (p.length % 4) { p += '='; }
+      return String(JSON.parse(atob(p)).nonce || '');
+    } catch (e) { return ''; }
+  }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -163,12 +180,29 @@
       };
     }
 
+    var cameBack = take(G_CRED), sentNonce = take(G_NONCE);
+    if (cameBack) {
+      if (sentNonce && nonceOf(cameBack) === sentNonce) { handle({ credential: cameBack }); }
+      else { say('Google did not answer. Try again.'); }
+    }
+
     var s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client';
     s.async = true;
     s.onload = function () {
       try {
-        google.accounts.id.initialize({ client_id: CLIENT_ID, callback: handle, ux_mode: 'popup', auto_select: true, cancel_on_tap_outside: true });
+        var setup = { client_id: CLIENT_ID, callback: handle, ux_mode: 'popup', auto_select: true, cancel_on_tap_outside: true };
+        var nonce = sameTab() ? newNonce() : '';
+        if (nonce) {
+          try {
+            sessionStorage.setItem(G_NONCE, nonce);
+            sessionStorage.setItem(G_BACK, location.pathname + location.search);
+            setup.ux_mode = 'redirect';
+            setup.login_uri = location.origin + '/g-signin/';
+            setup.nonce = nonce;
+          } catch (e) {}
+        }
+        google.accounts.id.initialize(setup);
         var w = Math.min(400, Math.max(200, Math.round(slot.getBoundingClientRect().width || 320)));
         google.accounts.id.renderButton(slot.querySelector('.cw-g-btn'),
           { theme: 'outline', size: 'large', shape: 'pill', text: opts.mode === 'signup' ? 'signup_with' : 'continue_with', width: w });
