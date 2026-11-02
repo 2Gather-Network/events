@@ -49,8 +49,9 @@
       + '.cw-g-new .tick input{width:18px;height:18px;flex-shrink:0;margin:1px 0 0;accent-color:#1F699E;}'
       + '.cw-g-new .cw-g-other{background:#fff;color:#1F699E;box-shadow:inset 0 0 0 1.5px #1F699E;margin-top:10px;}'
       + '.cw-g-wait{display:none;justify-content:center;margin-top:12px;}'
-      + '.cw-g-pill{display:inline-flex;align-items:center;gap:8px;background:#1F699E;color:#fff;font-size:13px;font-weight:700;'
-      +   'padding:8px 16px;border-radius:20px;white-space:nowrap;animation:cw-g-breathe 1.6s ease-in-out infinite;}'
+      + '.cw-g-pill{display:flex;width:100%;box-sizing:border-box;align-items:center;justify-content:center;gap:8px;background:#1F699E;color:#fff;font:inherit;font-weight:700;'
+      +   'padding:14px 24px;border-radius:24px;white-space:nowrap;animation:cw-g-breathe 1.6s ease-in-out infinite;}'
+      + '@media (min-width:700px){.cw-g-pill{width:auto;min-width:210px;font-size:15px;padding:11px 22px;min-height:44px;border-radius:26px;}}'
       + '@keyframes cw-g-breathe{0%,100%{opacity:1}50%{opacity:.62}}'
       + '@media (prefers-reduced-motion: reduce){.cw-g-pill{animation:none;}}';
     document.head.appendChild(st);
