@@ -2345,23 +2345,32 @@ function loadWhoIsGoing() {
   if (!_currentEv || !getMemberId()) return Promise.resolve();
   const ev = _currentEv.id, force = _wigForce;
   _wigForce = false;
-  if (_wigRun && _wigRun.ev === ev) { if (force) _wigRun.again = true; return _wigRun.p; }
-  if (!force && _wigDone && _wigDone.ev === ev && Date.now() - _wigDone.at < 60000) return Promise.resolve();
-  const run = { ev: ev, p: null, again: false };
-  run.p = _loadWhoIsGoingNow().then(function () { _wigDone = { ev: ev, at: Date.now() }; }, function () {})
-    .then(function () { if (_wigRun === run) _wigRun = null; if (run.again) { _wigForce = true; return loadWhoIsGoing(); } });
+  if (_wigRun && _wigRun.ev === ev) {
+    if (force) _wigRun.again = true; else _wigRun.paint = true;
+    return _wigRun.p;
+  }
+  if (!force && _wigDone && _wigDone.ev === ev && Date.now() - _wigDone.at < 60000) return _loadWhoIsGoingNow(_wigDone.data);
+  const run = { ev: ev, p: null, again: false, paint: false };
+  run.p = _loadWhoIsGoingNow().then(function (data) { if (data) _wigDone = { ev: ev, at: Date.now(), data: data }; }, function () {})
+    .then(function () {
+      if (_wigRun === run) _wigRun = null;
+      if (run.again) { _wigForce = true; return loadWhoIsGoing(); }
+      if (run.paint && _wigDone && _wigDone.ev === ev) return _loadWhoIsGoingNow(_wigDone.data);
+    });
   _wigRun = run;
   return run.p;
 }
-async function _loadWhoIsGoingNow() {
-  let data = null;
+async function _loadWhoIsGoingNow(had) {
+  let data = had || null;
   try {
     const _viewer = getMemberId() || "";
     const _sess = (window.CW && CW.passParam) ? CW.passParam() : "";
     const _wl = document.getElementById("who-is-going-list"), _ws = document.getElementById("who-is-going");
     if (_wl && _ws && !_wl.innerHTML.trim()) { _wl.innerHTML = '<span class="cw-loading">Loading who is going</span>'; _ws.style.display = "block"; }
-    const res = await fetch(`${GS_URL}?action=getAttendees&eventId=${encodeURIComponent(_currentEv.id)}` + (_viewer ? "&appearId=" + encodeURIComponent(_viewer) : "") + _sess);
-    data = await res.json();
+    if (!data) {
+      const res = await fetch(`${GS_URL}?action=getAttendees&eventId=${encodeURIComponent(_currentEv.id)}` + (_viewer ? "&appearId=" + encodeURIComponent(_viewer) : "") + _sess);
+      data = await res.json();
+    }
     const list = document.getElementById("who-is-going-list");
     const section = document.getElementById("who-is-going");
     if (!data.attendees || data.attendees.length === 0) {
