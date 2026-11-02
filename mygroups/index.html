@@ -131,6 +131,7 @@
     font-size:13px;font-weight:700;padding:8px 16px;border-radius:20px;white-space:nowrap;
     animation:cw-breathe 1.6s ease-in-out infinite;}
   @keyframes cw-breathe{0%,100%{opacity:1}50%{opacity:.62}}
+  @media (max-width:600px){ .iv2-bt{margin-left:0 !important;flex-basis:100%;} }
 </style>
   <script src="/nav/identity.js?v=47"></script>
 <style>body{overflow-x:clip;overflow-wrap:break-word;}</style>
@@ -144,10 +145,16 @@
     </div>
 
   <div class="card" id="invited-card" style="display:none;background:#fff;border-radius:14px;padding:20px 22px;margin-bottom:14px;">
-    <div style="font-size:16px;font-weight:800;color:var(--ink);margin-bottom:4px;">You're invited</div>
-    <p style="font-size:14px;color:var(--soft);line-height:1.55;margin:0 0 14px;">
+    <div id="invited-head" style="font-size:16px;font-weight:800;color:var(--ink);margin-bottom:4px;">You're invited</div>
+    <p id="invited-help" style="font-size:14px;color:var(--soft);line-height:1.55;margin:0 0 14px;">
       Joining is up to you. Nothing changes on your profile until you do.</p>
     <div id="invited-list"></div>
+  </div>
+
+  <div class="card" id="invites-all-card" style="display:none;background:#fff;border-radius:14px;padding:20px 22px;margin-bottom:14px;">
+    <div style="font-size:16px;font-weight:800;color:var(--ink);margin-bottom:4px;">Group invitations</div>
+    <p style="font-size:14px;color:var(--soft);line-height:1.55;margin:0 0 6px;">Invitations you hid. Joining is still up to you.</p>
+    <div id="invites-all-list"></div>
   </div>
 
   <div class="card" id="join-card" style="display:none;background:#fff;border-radius:14px;padding:20px 22px;margin-bottom:14px;">
@@ -349,6 +356,7 @@
       .then(function(d){
         var list = (d && d.ok && d.invites) || [];
         if (!list.length) return;
+        if (/[?&]invitebox=2(&|$)/.test(location.search)) { renderInvitesV2(list); return; }
         var box = document.getElementById('invited-list');
         box.innerHTML = '';
         list.forEach(function(iv){
@@ -408,6 +416,105 @@
         sub.textContent = 'Could not reach the server. Try again in a moment.';
         sub.style.color = '#7A2410';
       });
+  }
+  function renderInvitesV2(list){
+    var KEY = 'cw-inv-hidden-v2';
+    var hidden = {};
+    try { hidden = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch(err){ hidden = {}; }
+    var save = function(){ try { localStorage.setItem(KEY, JSON.stringify(hidden)); } catch(err){} };
+    var card = document.getElementById('invited-card'), box = document.getElementById('invited-list');
+    var allCard = document.getElementById('invites-all-card'), allBox = document.getElementById('invites-all-list');
+    document.getElementById('invited-head').style.display = 'none';
+    document.getElementById('invited-help').style.display = 'none';
+    var info = {};
+    var mk = function(tag, css, text){ var n = document.createElement(tag); if (css) n.style.cssText = css; if (text != null) n.textContent = text; return n; };
+    var btn = function(label, ghost, fn){
+      var b = mk('button', 'font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;border-radius:24px;padding:10px 18px;' + (ghost ? 'background:transparent;color:var(--brand);border:1.5px solid var(--brand);' : 'background:var(--brand);color:#fff;border:0;'), label);
+      b.type = 'button'; b.addEventListener('click', fn); return b;
+    };
+    var openGroup = function(iv){ location.href = 'https://2appear.network/group?id=' + encodeURIComponent(iv.groupId) + '&joining=1'; };
+    var photo = function(iv, size){
+      var w = mk('div', 'width:' + size + 'px;height:' + size + 'px;border-radius:10px;background:#cfe0ee;overflow:hidden;flex-shrink:0;');
+      var src = (info[iv.groupId] && info[iv.groupId].image) || iv.image || '';
+      if (src) { var im = document.createElement('img'); im.alt = ''; im.src = src; im.style.cssText = 'width:100%;height:100%;object-fit:cover;'; w.appendChild(im); }
+      return w;
+    };
+    var draw = function(){
+      box.innerHTML = ''; allBox.innerHTML = '';
+      var shown = 0, held = 0;
+      list.forEach(function(iv){
+        var first = String(iv.invitedByName || '').trim().split(/\s+/)[0];
+        var line = (first ? first + ' invited you to ' : 'You are invited to ') + (iv.name || 'a group');
+        var desc = iv.intro || (info[iv.groupId] && info[iv.groupId].intro) || '';
+        if (hidden[iv.groupId]) {
+          held++;
+          var hr = mk('div', 'display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--line);');
+          var ht = mk('div', 'flex:1 1 220px;min-width:0;');
+          ht.appendChild(mk('div', 'font-weight:700;color:var(--ink);font-size:15px;', iv.name || 'A group'));
+          ht.appendChild(mk('div', 'font-size:13px;color:var(--soft);margin-top:2px;', first ? 'Invited by ' + first : 'Invited'));
+          hr.appendChild(ht);
+          hr.appendChild(btn('Accept', false, function(){ openGroup(iv); }));
+          hr.appendChild(btn('Show again', true, function(){ delete hidden[iv.groupId]; save(); draw(); }));
+          allBox.appendChild(hr);
+          return;
+        }
+        shown++;
+        var row = mk('div', 'display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;padding:2px 0;');
+        row.className = 'iv2';
+        row.appendChild(photo(iv, 56));
+        var tx = mk('div', 'flex:1 1 220px;min-width:0;');
+        tx.appendChild(mk('div', 'font-size:16px;font-weight:700;color:var(--ink);line-height:1.35;', line));
+        if (desc) tx.appendChild(mk('div', 'font-size:14px;color:var(--soft);line-height:1.45;margin-top:3px;', desc));
+        row.appendChild(tx);
+        var bt = mk('div', 'display:flex;gap:8px;flex:0 0 auto;margin-left:auto;');
+        bt.className = 'iv2-bt';
+        bt.appendChild(btn('Accept', false, function(){ openGroup(iv); }));
+        bt.appendChild(btn('Not now', true, function(){
+          hidden[iv.groupId] = 1; save();
+          var note = mk('div', 'padding:2px 0;font-size:14px;color:var(--ink);line-height:1.5;');
+          note.appendChild(document.createTextNode('This invitation is hidden. You can find it under '));
+          var lk = mk('a', 'color:var(--brand);font-weight:700;cursor:pointer;text-decoration:underline;', 'Group invitations');
+          lk.addEventListener('click', function(){ allCard.scrollIntoView({ behavior:'smooth', block:'start' }); });
+          note.appendChild(lk);
+          note.appendChild(document.createTextNode(' on this page.'));
+          row.replaceWith(note);
+          setTimeout(draw, 6000);
+          allCard.style.display = '';
+          draw2();
+        }));
+        row.appendChild(bt);
+        box.appendChild(row);
+      });
+      card.style.display = shown ? '' : 'none';
+      allCard.style.display = held ? '' : 'none';
+    };
+    var draw2 = function(){
+      allBox.innerHTML = '';
+      list.forEach(function(iv){
+        if (!hidden[iv.groupId]) return;
+        var hr = mk('div', 'display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--line);');
+        var ht = mk('div', 'flex:1 1 220px;min-width:0;');
+        var first = String(iv.invitedByName || '').trim().split(/\s+/)[0];
+        ht.appendChild(mk('div', 'font-weight:700;color:var(--ink);font-size:15px;', iv.name || 'A group'));
+        ht.appendChild(mk('div', 'font-size:13px;color:var(--soft);margin-top:2px;', first ? 'Invited by ' + first : 'Invited'));
+        hr.appendChild(ht);
+        hr.appendChild(btn('Accept', false, function(){ openGroup(iv); }));
+        hr.appendChild(btn('Show again', true, function(){ delete hidden[iv.groupId]; save(); draw(); }));
+        allBox.appendChild(hr);
+      });
+    };
+    draw();
+    list.forEach(function(iv){
+      if (iv.intro) return;
+      fetch(GS_URL + '?action=getGroupBundle&groupId=' + encodeURIComponent(iv.groupId))
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          var g = (d && d.group) || {};
+          info[iv.groupId] = { intro: String(g.intro || g.description || '').trim(), image: String(g.image || '').trim() };
+          draw();
+        })
+        .catch(function(){});
+    });
   }
   loadInvites();
 
