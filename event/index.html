@@ -2068,13 +2068,18 @@ function cwShareAsk(ev, preview) {
   };
 }
 var CW_ALUMNI_ON = /[?&]alumni=1\b/.test(location.search);
+function cwSeenFetch(id) {
+  var me = ""; try { me = getMemberId() || ""; } catch (e) {}
+  var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
+  return fetch(GS_URL + "?action=getEventSeen&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(id)).then(function (r) { return r.json(); });
+}
 function cwSeenOpen(ev, preview, fromRegister) {
   var me = ""; try { me = getMemberId() || ""; } catch (e) {}
   var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
   if (!me || preview) { cwSeenAsk(ev, preview, null, fromRegister); return; }
-  fetch(GS_URL + "?action=getEventSeen&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id))
-    .then(function (r) { return r.json(); })
-    .then(function (d) { cwSeenAsk(ev, false, d && d.status === "ok" ? d : null, fromRegister); })
+  var pre = window.cwSeenPre; window.cwSeenPre = null;
+  var got = (pre && !fromRegister && pre.id === ev.id) ? pre.p : cwSeenFetch(ev.id);
+  got.then(function (d) { cwSeenAsk(ev, false, d && d.status === "ok" ? d : null, fromRegister); })
     .catch(function () { cwSeenAsk(ev, false, null, fromRegister); });
   try { var sl = document.getElementById("cw-seen-slot"); if (sl && fromRegister) sl.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
 }
@@ -2098,6 +2103,12 @@ function cwSeenLinkPaint() {
   if (document.documentElement.classList.contains("cw-is-host")) return;
   if (document.getElementById("cw-seen-ask")) return;
   cwSeenLinkShow(true, false);
+  try {
+    if (typeof _currentEv !== "undefined" && _currentEv && !window.cwSeenPre && getMemberId()) {
+      var p = cwSeenFetch(_currentEv.id); p.catch(function () { window.cwSeenPre = null; });
+      window.cwSeenPre = { id: _currentEv.id, p: p };
+    }
+  } catch (e) {}
 }
 function cwSeenAsk(ev, preview, saved, fromRegister) {
   if (!ev) return;
@@ -2141,7 +2152,7 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   var $ = function (id) { return document.getElementById(id); };
   try { cwSeenLinkShow(false); } catch (e) {}
   var msg = $("cw-seen-msg");
-  var finish = function (didSave) { o.remove(); try { cwSeenLinkShow(true, didSave === true); } catch (e) {} if (!preview && fromRegister) { try { cwCalAsk(ev); } catch (e) {} } };
+  var finish = function (didSave) { window.cwSeenPre = null; o.remove(); try { cwSeenLinkShow(true, didSave === true); } catch (e) {} if (!preview && fromRegister) { try { cwCalAsk(ev); } catch (e) {} } };
   var guess = function (lv) {
     var loc = String(st.prof.location || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
     var us = loc.length > 1 && loc[1] === "United States";
