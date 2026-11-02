@@ -304,7 +304,7 @@
       var d = w.document, a = d.activeElement, tag = a && a.tagName ? a.tagName.toLowerCase() : '';
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || (a && a.isContentEditable)) { return true; }
       var f = d.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]), textarea');
-      for (var i = 0; i < f.length; i++) { if (f[i].value) { return true; } }
+      for (var i = 0; i < f.length; i++) { if (f[i].value && f[i].value !== f[i].defaultValue && f[i].getClientRects().length) { return true; } }
       return false;
     }
     function remember(soon) {
