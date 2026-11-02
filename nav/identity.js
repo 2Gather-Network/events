@@ -210,22 +210,7 @@
       all.push(line);
       w.localStorage.setItem('cw-jump-log', JSON.stringify(all.slice(-14)));
     });
-    jumpPanel();
   }
-  function jumpPanel() {
-    var d = w.document;
-    if (!d.body) { d.addEventListener('DOMContentLoaded', jumpPanel); return; }
-    var box = d.getElementById('cw-jump-panel');
-    if (!box) {
-      box = d.createElement('div');
-      box.id = 'cw-jump-panel';
-      box.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;max-height:45vh;overflow:auto;background:#fff;color:#1A2E42;border:2px solid #1F699E;border-radius:10px;padding:10px 12px;font:12px/1.5 monospace;white-space:pre-wrap;word-break:break-word;';
-      d.body.appendChild(box);
-    }
-    var all = ls(function () { return JSON.parse(w.localStorage.getItem('cw-jump-log') || '[]'); }, []);
-    box.textContent = 'Sign-in check\n' + all.join('\n');
-  }
-
   function prepareSession(id, token) {
     var got = null, a = new Uint8Array(16), key = normalise(id), exp = parseInt(String(token).split('.')[1], 10) || 0;
     w.crypto.getRandomValues(a);
@@ -257,7 +242,6 @@
     var SERVICE = 'https://cw-carry.jessieupp.workers.dev';
     var WAIT_MS = 30 * 60 * 1000, PENDING_MS = 9 * 60 * 1000, RETRY_MS = 10 * 60 * 1000;
     if (!jumpOn()) { return; }
-    jumpPanel();
     var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
     if (ls(function () { return w.top !== w.self; }, true)) { return; }
     var nav = w.navigator || {};
