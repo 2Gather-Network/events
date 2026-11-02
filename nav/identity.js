@@ -193,12 +193,37 @@
   ls(function () {
     var m = /^#cwjumptest=([01])$/.exec(String(w.location.hash || ''));
     if (!m || !JUMP_SITE[String(w.location.hostname || '').toLowerCase()]) { return; }
-    if (m[1] === '1') { w.localStorage.setItem('cw-jump-test', '1'); } else { w.localStorage.removeItem('cw-jump-test'); }
+    if (m[1] === '1') { w.localStorage.setItem('cw-jump-test', '1'); } else { w.localStorage.removeItem('cw-jump-test'); w.localStorage.removeItem('cw-jump-log'); }
     w.history.replaceState(null, '', w.location.pathname + w.location.search);
   });
   function jumpOn() {
     if (!JUMP_SITE[String(w.location.hostname || '').toLowerCase()]) { return false; }
     return JUMP_ON || ls(function () { return w.localStorage.getItem('cw-jump-test'); }, '') === '1';
+  }
+
+  function jumpLog(step) {
+    if (!jumpOn()) { return; }
+    var line = new Date().toLocaleTimeString() + ' ' + String(w.location.pathname || '/') + ' ' + step;
+    ls(function () { w.console.info('[sign-in check] ' + line); });
+    ls(function () {
+      var all = JSON.parse(w.localStorage.getItem('cw-jump-log') || '[]');
+      all.push(line);
+      w.localStorage.setItem('cw-jump-log', JSON.stringify(all.slice(-14)));
+    });
+    jumpPanel();
+  }
+  function jumpPanel() {
+    var d = w.document;
+    if (!d.body) { d.addEventListener('DOMContentLoaded', jumpPanel); return; }
+    var box = d.getElementById('cw-jump-panel');
+    if (!box) {
+      box = d.createElement('div');
+      box.id = 'cw-jump-panel';
+      box.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;max-height:45vh;overflow:auto;background:#fff;color:#1A2E42;border:2px solid #1F699E;border-radius:10px;padding:10px 12px;font:12px/1.5 monospace;white-space:pre-wrap;word-break:break-word;';
+      d.body.appendChild(box);
+    }
+    var all = ls(function () { return JSON.parse(w.localStorage.getItem('cw-jump-log') || '[]'); }, []);
+    box.textContent = 'Sign-in check\n' + all.join('\n');
   }
 
   function prepareSession(id, token) {
@@ -208,7 +233,8 @@
     return w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=carryReadyAll&appearId=' + encodeURIComponent(id) + '&meToken=' + encodeURIComponent(token), { referrerPolicy: 'no-referrer' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (!d || d.status !== 'ok' || !d.passes) { throw new Error('refused'); }
+        if (!d || d.status !== 'ok' || !d.passes) { jumpLog('backend refused the passes: ' + String((d && d.message) || 'no answer')); throw new Error('refused'); }
+        jumpLog('backend gave passes for: ' + Object.keys(d.passes).join(', '));
         got = d;
         return w.fetch('https://cw-carry.jessieupp.workers.dev/prepare', {
           method: 'POST',
@@ -219,7 +245,8 @@
       })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (!d || d.status !== 'ok' || !d.code) { throw new Error('refused'); }
+        if (!d || d.status !== 'ok' || !d.code) { jumpLog('service refused the passes'); throw new Error('refused'); }
+        jumpLog('service holds the passes, ready to remember');
         var list = String(got.enabledSolution || '');
         ls(function () { w.localStorage.setItem('cw-enabled', list); });
         ss(function () { w.sessionStorage.setItem('cw-jump-pending', JSON.stringify({ id: key, exp: exp, enabled: list, code: d.code, state: st, at: Date.now() })); });
@@ -230,6 +257,7 @@
     var SERVICE = 'https://cw-carry.jessieupp.workers.dev';
     var WAIT_MS = 30 * 60 * 1000, PENDING_MS = 9 * 60 * 1000, RETRY_MS = 10 * 60 * 1000;
     if (!jumpOn()) { return; }
+    jumpPanel();
     var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
     if (ls(function () { return w.top !== w.self; }, true)) { return; }
     var nav = w.navigator || {};
@@ -237,7 +265,7 @@
     if (w.document && w.document.visibilityState === 'prerender') { return; }
     var here = String(w.location.pathname || '/');
     if (/^\/(carry|signout|signin|signup|signin-google)(\/|$)/.test(here)) { return; }
-    if (signedOutView() || viewingAs()) { return; }
+    if (signedOutView() || viewingAs()) { jumpLog('stopped: viewing as someone'); return; }
     var now = Date.now();
     function newState() {
       var a = new Uint8Array(16);
@@ -247,7 +275,7 @@
     function num(k) { return parseInt(ls(function () { return w.localStorage.getItem(k); }, '') || '0', 10) || 0; }
 
     if (!found) {
-      if (num('cw-jump-wait') > now) { return; }
+      if (num('cw-jump-wait') > now) { jumpLog('not signed in here; guest wait, ' + Math.ceil((num('cw-jump-wait') - now) / 60000) + ' min left, no jump'); return; }
       var until = String(now + WAIT_MS);
       var held = ls(function () { w.localStorage.setItem('cw-jump-wait', until); return w.localStorage.getItem('cw-jump-wait') === until; }, false);
       if (!held) { return; }
@@ -258,6 +286,7 @@
         return true;
       }, false);
       if (!saved) { return; }
+      jumpLog('not signed in here; asking the service');
       w._cwJumping = true;
       try { w.stop(); } catch (e) {}
       w.location.replace(SERVICE + '/jump?to=' + site + '&state=' + st);
@@ -269,7 +298,7 @@
     var exp = parseInt(token.split('.')[1], 10) || 0;
     var enabled = ls(function () { return w.localStorage.getItem('cw-enabled') || ''; }, '');
     var mark = ls(function () { return JSON.parse(w.localStorage.getItem('cw-jump-mark') || 'null'); }, null);
-    if (mark && mark.id === key && mark.exp === exp && String(mark.enabled || '') === enabled) { return; }
+    if (mark && mark.id === key && mark.exp === exp && String(mark.enabled || '') === enabled) { jumpLog('signed in here; service already told'); return; }
 
     function typing() {
       var d = w.document, a = d.activeElement, tag = a && a.tagName ? a.tagName.toLowerCase() : '';
@@ -282,8 +311,9 @@
       var pending = ss(function () { return JSON.parse(w.sessionStorage.getItem('cw-jump-pending') || 'null'); }, null);
       if (!pending || pending.id !== key || pending.exp !== exp || Date.now() - pending.at >= PENDING_MS) { return false; }
       var back = here + String(w.location.search || '');
-      if (w.location.hash || !/^\/(?!\/)[A-Za-z0-9\-._~\/%?=&+@:,]{0,300}$/.test(back)) { return true; }
-      if (soon && typing()) { return true; }
+      if (w.location.hash || !/^\/(?!\/)[A-Za-z0-9\-._~\/%?=&+@:,]{0,300}$/.test(back)) { jumpLog('remember held: this address cannot come back'); return true; }
+      if (soon && typing()) { jumpLog('remember held: you are typing'); return true; }
+      jumpLog('telling the service');
       ss(function () { w.sessionStorage.removeItem('cw-jump-pending'); });
       ls(function () { w.localStorage.setItem('cw-jump-mark', JSON.stringify({ id: key, exp: exp, enabled: String(pending.enabled || '') })); });
       var form = w.document.createElement('form');
@@ -304,9 +334,10 @@
     }
     if (remember(false)) { return; }
 
-    if (num('cw-jump-retry') > now) { return; }
+    if (num('cw-jump-retry') > now) { jumpLog('signed in here; last try was recent, ' + Math.ceil((num('cw-jump-retry') - now) / 60000) + ' min until next'); return; }
+    jumpLog('signed in here; asking the backend for passes');
     ls(function () { w.localStorage.setItem('cw-jump-retry', String(now + RETRY_MS)); });
-    w.setTimeout(function () { prepareSession(found, token).then(function () { remember(true); }).catch(function () {}); }, 1500);
+    w.setTimeout(function () { prepareSession(found, token).then(function () { remember(true); }).catch(function (e) { jumpLog('passes failed: ' + String((e && e.message) || e)); }); }, 1500);
   })();
 
   (function wall() {
