@@ -256,6 +256,44 @@
     d.getElementById('cw-jump-lines').textContent = 'Now: ' + me + '\n' + (all.length ? all.join('\n') : 'No steps yet');
     box.scrollTop = box.scrollHeight;
   }
+  function postRemember(pending, key, exp, back) {
+    jumpLog('telling the service');
+    ss(function () { w.sessionStorage.removeItem('cw-jump-pending'); });
+    ls(function () { w.localStorage.setItem('cw-jump-mark', JSON.stringify({ id: key, exp: exp, enabled: String(pending.enabled || '') })); });
+    var form = w.document.createElement('form');
+    form.method = 'POST';
+    form.action = 'https://cw-carry.jessieupp.workers.dev/remember';
+    [['code', pending.code], ['state', pending.state], ['back', back]].forEach(function (pair) {
+      var input = w.document.createElement('input');
+      input.type = 'hidden';
+      input.name = pair[0];
+      input.value = pair[1];
+      form.appendChild(input);
+    });
+    w.document.documentElement.appendChild(form);
+    w._cwJumping = true;
+    try { w.stop(); } catch (e) {}
+    form.submit();
+  }
+  function prepareNow(id, token) {
+    if (!jumpOn() || !id || !token || viewingAs() || signedOutView()) { return null; }
+    var key = normalise(id), exp = parseInt(String(token).split('.')[1], 10) || 0;
+    var mark = ls(function () { return JSON.parse(w.localStorage.getItem('cw-jump-mark') || 'null'); }, null);
+    if (mark && mark.id === key && mark.exp === exp) { return null; }
+    jumpLog('just signed in; asking the backend for passes now');
+    return prepareSession(id, token).then(function () { return { key: key, exp: exp }; });
+  }
+  function rememberNow(ready, where) {
+    var back = '';
+    try {
+      var u = new URL(String(where || '/'), w.location.href);
+      if (u.origin === w.location.origin && !u.hash) { back = u.pathname + u.search; }
+    } catch (e) { back = ''; }
+    var pending = ss(function () { return JSON.parse(w.sessionStorage.getItem('cw-jump-pending') || 'null'); }, null);
+    if (!ready || !back || !/^\/(?!\/)[A-Za-z0-9\-._~\/%?=&+@:,]{0,300}$/.test(back) || !pending || pending.id !== ready.key || pending.exp !== ready.exp) { return false; }
+    postRemember(pending, ready.key, ready.exp, back);
+    return true;
+  }
   function prepareSession(id, token) {
     var got = null, a = new Uint8Array(16), key = normalise(id), exp = parseInt(String(token).split('.')[1], 10) || 0;
     w.crypto.getRandomValues(a);
@@ -372,23 +410,7 @@
       var back = here + String(w.location.search || '');
       if (w.location.hash || !/^\/(?!\/)[A-Za-z0-9\-._~\/%?=&+@:,]{0,300}$/.test(back)) { jumpLog('remember held: this address cannot come back'); return true; }
       if (soon && typing()) { jumpLog('remember held: you are typing'); return true; }
-      jumpLog('telling the service');
-      ss(function () { w.sessionStorage.removeItem('cw-jump-pending'); });
-      ls(function () { w.localStorage.setItem('cw-jump-mark', JSON.stringify({ id: key, exp: exp, enabled: String(pending.enabled || '') })); });
-      var form = w.document.createElement('form');
-      form.method = 'POST';
-      form.action = SERVICE + '/remember';
-      [['code', pending.code], ['state', pending.state], ['back', back]].forEach(function (pair) {
-        var input = w.document.createElement('input');
-        input.type = 'hidden';
-        input.name = pair[0];
-        input.value = pair[1];
-        form.appendChild(input);
-      });
-      w.document.documentElement.appendChild(form);
-      w._cwJumping = true;
-      try { w.stop(); } catch (e) {}
-      form.submit();
+      postRemember(pending, key, exp, back);
       return true;
     }
     if (remember(false)) { return; }
@@ -582,6 +604,8 @@
     normalise: normalise,
     jumpOn: jumpOn,
     prepareSession: prepareSession,
+    prepareNow: prepareNow,
+    rememberNow: rememberNow,
     connectKnown: function () {
       var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
       if (!jumpOn() || (site !== 'appear' && site !== 'balance') || fromDevice()) { return false; }

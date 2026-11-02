@@ -55,8 +55,22 @@
 
   CW.firstStop = function (id, next, done) {
     CW.forgetWhere();
-    var settled = false;
-    function finish(url) { if (settled) return; settled = true; try { done(url); } catch (e) {} }
+    var settled = false, ready = null;
+    try { var tk = localStorage.getItem('cw-token') || ''; ready = (id && tk && CW.prepareNow) ? CW.prepareNow(id, tk) : null; } catch (e) { ready = null; }
+    function finish(url) {
+      if (settled) return; settled = true;
+      if (!ready) { try { done(url); } catch (e) {} return; }
+      var gone = false;
+      var leave = function () { if (gone) return; gone = true; try { done(url); } catch (e) {} };
+      var cap = setTimeout(leave, 10000);
+      ready.then(function (r) {
+        if (gone) return;
+        clearTimeout(cap);
+        var told = false;
+        try { told = CW.rememberNow(r, url); } catch (e) { told = false; }
+        if (told) { gone = true; } else { leave(); }
+      }, function () { clearTimeout(cap); leave(); });
+    }
     if (!id) { finish(next); return; }
 
     var timer = setTimeout(function () { finish(next); }, 8000);
