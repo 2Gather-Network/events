@@ -248,7 +248,8 @@
     if (nav.webdriver || /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|slack|discord|telegram|lighthouse|headless/i.test(String(nav.userAgent || ''))) { return; }
     if (w.document && w.document.visibilityState === 'prerender') { return; }
     var here = String(w.location.pathname || '/');
-    if (/^\/(carry|signout|signin|signup|signin-google)(\/|$)/.test(here)) { return; }
+    var onSignIn = /^\/(signin|signup)(\/|$)/.test(here);
+    if (!onSignIn && /^\/(carry|signout|signin-google)(\/|$)/.test(here)) { return; }
     if (signedOutView() || viewingAs()) { jumpLog('stopped: viewing as someone'); return; }
     var now = Date.now();
     function newState() {
@@ -258,6 +259,17 @@
     }
     function num(k) { return parseInt(ls(function () { return w.localStorage.getItem(k); }, '') || '0', 10) || 0; }
 
+    var comeBack = here + String(w.location.search || '') + String(w.location.hash || '');
+    if (onSignIn) {
+      if (found || /[?&]out=1(&|$)/.test(String(w.location.search || ''))) { return; }
+      var asked = ss(function () { return w.sessionStorage.getItem('cw-jump-signin-asked') === '1'; }, true);
+      if (asked || now - (num('cw-jump-wait') - WAIT_MS) < 60 * 1000) { jumpLog('sign-in page; service asked moments ago, no jump'); return; }
+      if (!ss(function () { w.sessionStorage.setItem('cw-jump-signin-asked', '1'); return true; }, false)) { return; }
+      var dest = ls(function () { return new URLSearchParams(w.location.search).get('next') || ''; }, '');
+      comeBack = /^\/(?!\/)[A-Za-z0-9\-._~\/%?=&+@:,#]{0,300}$/.test(dest) && !/^\/(signin|signup|signout|carry)(\/|$)/.test(dest) ? dest : comeBack;
+      ls(function () { w.localStorage.removeItem('cw-jump-wait'); });
+    }
+
     if (!found) {
       if (num('cw-jump-wait') > now) { jumpLog('not signed in here; guest wait, ' + Math.ceil((num('cw-jump-wait') - now) / 60000) + ' min left, no jump'); return; }
       var until = String(now + WAIT_MS);
@@ -266,7 +278,7 @@
       var st = newState();
       var saved = ss(function () {
         w.sessionStorage.setItem('cw-carry-state', st);
-        w.sessionStorage.setItem('cw-jump-next', here + String(w.location.search || '') + String(w.location.hash || ''));
+        w.sessionStorage.setItem('cw-jump-next', comeBack);
         return true;
       }, false);
       if (!saved) { return; }
