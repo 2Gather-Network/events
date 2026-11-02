@@ -210,6 +210,51 @@
       all.push(line);
       w.localStorage.setItem('cw-jump-log', JSON.stringify(all.slice(-14)));
     });
+    jumpPanel();
+  }
+  function jumpPanel() {
+    if (!jumpOn() || ss(function () { return w.sessionStorage.getItem('cw-jump-panel-off') === '1'; }, false)) { return; }
+    var d = w.document;
+    if (!d.body) { if (!w._cwPanelWait) { w._cwPanelWait = true; d.addEventListener('DOMContentLoaded', jumpPanel); } return; }
+    var box = d.getElementById('cw-jump-panel');
+    if (!box) {
+      box = d.createElement('div');
+      box.id = 'cw-jump-panel';
+      box.style.cssText = 'position:fixed;left:8px;bottom:8px;width:calc(100% - 16px);max-width:440px;box-sizing:border-box;z-index:2147483647;max-height:38vh;overflow:auto;background:#fff;color:#1A2E42;border:2px solid #1F699E;border-radius:10px;padding:8px 10px;font:12px/1.45 ui-monospace,Menlo,monospace;box-shadow:0 4px 14px rgba(0,0,0,.18);';
+      var head = d.createElement('div');
+      head.style.cssText = 'display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:4px;';
+      var title = d.createElement('span');
+      title.style.cssText = 'flex:1;';
+      title.textContent = 'Sign-in check, ' + String(w.location.hostname || '').replace(/^www\./, '');
+      var copy = d.createElement('button');
+      copy.type = 'button';
+      copy.textContent = 'Copy';
+      copy.style.cssText = 'background:none;border:0;color:#1F699E;font:inherit;font-weight:700;cursor:pointer;padding:2px 4px;';
+      copy.onclick = function () {
+        var text = title.textContent + '\n' + (d.getElementById('cw-jump-lines') || {}).textContent;
+        try { w.navigator.clipboard.writeText(text).then(function () { copy.textContent = 'Copied'; }, function () { copy.textContent = 'Copy failed'; }); } catch (e) { copy.textContent = 'Copy failed'; }
+      };
+      var shut = d.createElement('button');
+      shut.type = 'button';
+      shut.textContent = '×';
+      shut.setAttribute('aria-label', 'Close the sign-in check');
+      shut.style.cssText = 'background:none;border:0;color:#1F699E;font:inherit;font-size:18px;line-height:1;cursor:pointer;padding:0 4px;';
+      shut.onclick = function () { ss(function () { w.sessionStorage.setItem('cw-jump-panel-off', '1'); }); box.remove(); };
+      head.appendChild(title);
+      head.appendChild(copy);
+      head.appendChild(shut);
+      var lines = d.createElement('div');
+      lines.id = 'cw-jump-lines';
+      lines.style.cssText = 'white-space:pre-wrap;word-break:break-word;';
+      box.appendChild(head);
+      box.appendChild(lines);
+      d.body.appendChild(box);
+      w.addEventListener('storage', function (ev) { if (ev.key === 'cw-jump-log') { jumpPanel(); } });
+    }
+    var all = ls(function () { return JSON.parse(w.localStorage.getItem('cw-jump-log') || '[]'); }, []);
+    var me = ls(function () { return w.localStorage.getItem('cw-id') && w.localStorage.getItem('cw-token') ? 'signed in on this site' : 'not signed in on this site'; }, '');
+    d.getElementById('cw-jump-lines').textContent = 'Now: ' + me + '\n' + (all.length ? all.join('\n') : 'No steps yet');
+    box.scrollTop = box.scrollHeight;
   }
   function prepareSession(id, token) {
     var got = null, a = new Uint8Array(16), key = normalise(id), exp = parseInt(String(token).split('.')[1], 10) || 0;
@@ -242,6 +287,7 @@
     var SERVICE = 'https://cw-carry.jessieupp.workers.dev';
     var WAIT_MS = 30 * 60 * 1000, PENDING_MS = 9 * 60 * 1000, RETRY_MS = 10 * 60 * 1000;
     if (!jumpOn()) { return; }
+    jumpPanel();
     var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
     if (ls(function () { return w.top !== w.self; }, true)) { return; }
     var nav = w.navigator || {};
@@ -262,12 +308,13 @@
     var reloaded = ls(function () { var e = w.performance.getEntriesByType('navigation')[0]; return !!e && e.type === 'reload'; }, false);
     var comeBack = here + String(w.location.search || '') + String(w.location.hash || '');
     if (onSignIn) {
-      if (found || /[?&]out=1(&|$)/.test(String(w.location.search || ''))) { return; }
+      if (found) { return; }
+      if (/[?&]out=1(&|$)/.test(String(w.location.search || '')) && !reloaded) { jumpLog('sign-in page right after signing out; a reload asks the service'); return; }
       var asked = ss(function () { return w.sessionStorage.getItem('cw-jump-signin-asked') === '1'; }, true);
       if ((asked && !reloaded) || now - (num('cw-jump-wait') - WAIT_MS) < 60 * 1000) { jumpLog('sign-in page; service asked moments ago, no jump'); return; }
       if (!ss(function () { w.sessionStorage.setItem('cw-jump-signin-asked', '1'); return true; }, false)) { return; }
       var dest = ls(function () { return new URLSearchParams(w.location.search).get('next') || ''; }, '');
-      comeBack = /^\/(?!\/)[A-Za-z0-9\-._~\/%?=&+@:,#]{0,300}$/.test(dest) && !/^\/(signin|signup|signout|carry)(\/|$)/.test(dest) ? dest : comeBack;
+      comeBack = /^\/(?!\/)[A-Za-z0-9\-._~\/%?=&+@:,#]{0,300}$/.test(dest) && !/^\/(signin|signup|signout|carry)(\/|$)/.test(dest) ? dest : '/';
       ls(function () { w.localStorage.removeItem('cw-jump-wait'); });
     }
 
