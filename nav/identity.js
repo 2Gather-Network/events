@@ -307,6 +307,12 @@
 
     var reloaded = ls(function () { var e = w.performance.getEntriesByType('navigation')[0]; return !!e && e.type === 'reload'; }, false);
     var comeBack = here + String(w.location.search || '') + String(w.location.hash || '');
+    var outBack = '';
+    if (ls(function () { return w.localStorage.getItem('cw-out-show'); }, '') === '1') {
+      if (found || onSignIn || site === 'creatingworks') { ls(function () { w.localStorage.removeItem('cw-out-show'); }); }
+      else { outBack = '/signin/?out=1&next=' + encodeURIComponent(here + String(w.location.search || '')); }
+    }
+    var guestBack = onSignIn ? here + String(w.location.search || '') : outBack;
     if (onSignIn) {
       if (found) { return; }
       if (/[?&]out=1(&|$)/.test(String(w.location.search || '')) && !reloaded) { jumpLog('sign-in page right after signing out; a reload asks the service'); return; }
@@ -320,6 +326,12 @@
 
     if (!found) {
       var tabAsked = ss(function () { return w.sessionStorage.getItem('cw-jump-tab-asked') === '1'; }, true);
+      if (num('cw-jump-wait') > now && tabAsked && !reloaded && outBack) {
+        ls(function () { w.localStorage.removeItem('cw-out-show'); });
+        jumpLog('signed out on another site; showing the signed-out page');
+        w.location.replace(outBack);
+        return;
+      }
       if (num('cw-jump-wait') > now && tabAsked && !reloaded) { jumpLog('not signed in here; guest wait, ' + Math.ceil((num('cw-jump-wait') - now) / 60000) + ' min left, no jump'); return; }
       var until = String(now + WAIT_MS);
       var held = ls(function () { w.localStorage.setItem('cw-jump-wait', until); return w.localStorage.getItem('cw-jump-wait') === until; }, false);
@@ -329,6 +341,7 @@
         w.sessionStorage.setItem('cw-carry-state', st);
         w.sessionStorage.setItem('cw-jump-next', comeBack);
         w.sessionStorage.setItem('cw-jump-tab-asked', '1');
+        if (guestBack) { w.sessionStorage.setItem('cw-jump-guest-back', guestBack); } else { w.sessionStorage.removeItem('cw-jump-guest-back'); }
         return true;
       }, false);
       if (!saved) { return; }
