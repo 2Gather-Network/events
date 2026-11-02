@@ -271,10 +271,19 @@
     var mark = ls(function () { return JSON.parse(w.localStorage.getItem('cw-jump-mark') || 'null'); }, null);
     if (mark && mark.id === key && mark.exp === exp && String(mark.enabled || '') === enabled) { return; }
 
-    var pending = ss(function () { return JSON.parse(w.sessionStorage.getItem('cw-jump-pending') || 'null'); }, null);
-    if (pending && pending.id === key && pending.exp === exp && now - pending.at < PENDING_MS) {
+    function typing() {
+      var d = w.document, a = d.activeElement, tag = a && a.tagName ? a.tagName.toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || (a && a.isContentEditable)) { return true; }
+      var f = d.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]), textarea');
+      for (var i = 0; i < f.length; i++) { if (f[i].value) { return true; } }
+      return false;
+    }
+    function remember(soon) {
+      var pending = ss(function () { return JSON.parse(w.sessionStorage.getItem('cw-jump-pending') || 'null'); }, null);
+      if (!pending || pending.id !== key || pending.exp !== exp || Date.now() - pending.at >= PENDING_MS) { return false; }
       var back = here + String(w.location.search || '');
-      if (w.location.hash || !/^\/(?!\/)[A-Za-z0-9\-._~\/%?=&+@:,]{0,300}$/.test(back)) { return; }
+      if (w.location.hash || !/^\/(?!\/)[A-Za-z0-9\-._~\/%?=&+@:,]{0,300}$/.test(back)) { return true; }
+      if (soon && typing()) { return true; }
       ss(function () { w.sessionStorage.removeItem('cw-jump-pending'); });
       ls(function () { w.localStorage.setItem('cw-jump-mark', JSON.stringify({ id: key, exp: exp, enabled: String(pending.enabled || '') })); });
       var form = w.document.createElement('form');
@@ -291,12 +300,13 @@
       w._cwJumping = true;
       try { w.stop(); } catch (e) {}
       form.submit();
-      return;
+      return true;
     }
+    if (remember(false)) { return; }
 
     if (num('cw-jump-retry') > now) { return; }
     ls(function () { w.localStorage.setItem('cw-jump-retry', String(now + RETRY_MS)); });
-    w.setTimeout(function () { prepareSession(found, token).catch(function () {}); }, 1500);
+    w.setTimeout(function () { prepareSession(found, token).then(function () { remember(true); }).catch(function () {}); }, 1500);
   })();
 
   (function wall() {
