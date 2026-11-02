@@ -351,14 +351,15 @@
   document.getElementById('join-go').addEventListener('click', doJoin);
 
   var _INV_HIDE = 'cw-inv-hidden-v2';
-  var _invList = null, _invFailed = false, _invInfo = {}, _invTouched = false;
+  var _invList = null, _invFailed = false, _invInfo = {}, _invTouched = false, _invCanHide = false;
   var _invAsked = /[?&]tab=invites(&|$)/.test(location.search);
   function _invHidden(){
     try { return JSON.parse(localStorage.getItem(_INV_HIDE) || '{}') || {}; } catch(err){ return {}; }
   }
+  function _invIsNew(iv, h){ var st = String(iv.state || 'new'); return st === 'new' && !h[iv.groupId]; }
   function _invNewCount(){
     var h = _invHidden();
-    return (_invList || []).filter(function(iv){ return !h[iv.groupId]; }).length;
+    return (_invList || []).filter(function(iv){ return _invIsNew(iv, h); }).length;
   }
   function _invKeep(n){
     try { localStorage.setItem('cw-invites-new', JSON.stringify({ who: meId, n: n, at: Date.now() })); } catch(err){}
@@ -423,8 +424,8 @@
       return h;
     };
     var hid = _invHidden();
-    var fresh = _invList.filter(function(iv){ return !hid[iv.groupId]; });
-    var past = _invList.filter(function(iv){ return hid[iv.groupId]; });
+    var fresh = _invList.filter(function(iv){ return _invIsNew(iv, hid); });
+    var past = _invList.filter(function(iv){ return !_invIsNew(iv, hid); });
     box.innerHTML = '';
     if (!_invList.length) {
       box.appendChild(mk('p', 'font-size:15px;color:var(--ink);line-height:1.55;margin:18px 0 0;', 'You have no group invitations right now. When someone invites you to a group, it will show here.'));
@@ -446,6 +447,10 @@
         bt.appendChild(btn('Not now', true, function(){
           var h = _invHidden(); h[iv.groupId] = 1;
           try { localStorage.setItem(_INV_HIDE, JSON.stringify(h)); } catch(err){}
+          if (_invCanHide) {
+            iv.state = 'hidden';
+            fetch(GS_URL + '?action=hideInvite&appearId=' + encodeURIComponent(meId) + '&groupId=' + encodeURIComponent(iv.groupId) + '&nocache=1').catch(function(){});
+          }
           drawInvites();
         }));
         row.appendChild(bt);
@@ -459,13 +464,15 @@
         row.appendChild(photo(iv, 44));
         var tx = mk('div', 'flex:1 1 220px;min-width:0;');
         tx.appendChild(head(iv));
+        var joined = iv.state === 'joined';
         var when = iv.dateInvited ? fmtInviteDate(iv.dateInvited) : '';
-        tx.appendChild(mk('div', 'font-size:13px;color:var(--soft);margin-top:3px;', (when ? when + ' · ' : '') + 'You hid this'));
+        var did = iv.respondedAt ? fmtInviteDate(iv.respondedAt) : '';
+        tx.appendChild(mk('div', 'font-size:13px;color:var(--soft);margin-top:3px;', (when ? when + ' · ' : '') + (joined ? (did ? 'Joined ' + did : 'Joined') : 'You hid this')));
         row.appendChild(tx);
         var bt = mk('div', 'display:flex;gap:8px;flex:0 0 auto;margin-left:auto;align-items:center;'); bt.className = 'iv2-bt';
-        var tag = mk('span', '', 'Hidden'); tag.className = 'iv-tag';
+        var tag = mk('span', '', joined ? 'Joined' : 'Hidden'); tag.className = 'iv-tag';
         bt.appendChild(tag);
-        bt.appendChild(btn('Accept', false, function(){ openGroup(iv); }));
+        if (!joined) bt.appendChild(btn('Accept', false, function(){ openGroup(iv); }));
         row.appendChild(bt);
         box.appendChild(row);
       });
@@ -482,6 +489,7 @@
       .then(function(d){
         if (!d || !d.ok || !Array.isArray(d.invites)) throw new Error('not loaded');
         _invList = d.invites;
+        _invCanHide = d.canHide === true;
         drawInvites();
         if (!_invTouched && !_invAsked) {
           if (_invNewCount() > 0 && _pane !== 'invites') showInvites(true);
@@ -1068,6 +1076,6 @@
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',go); else go();
 })();
 </script>
-<script src="/nav/topbar.js?v=6.90" defer></script>
+<script src="/nav/topbar.js?v=6.91" defer></script>
 </body>
 </html>

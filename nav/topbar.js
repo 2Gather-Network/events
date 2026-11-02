@@ -294,7 +294,7 @@
     } catch (e) { return 0; }
   }
   function invitesLabel() {
-    var n = onAppear() ? invitesNew() : 0;
+    var n = invitesNew();
     return 'Invites' + (n ? ' (' + n + ')' : '');
   }
   function paintInvites() {
@@ -319,7 +319,7 @@
           if (!d || !d.ok || !Array.isArray(d.invites)) { _tbHush('getMyInvites', 5); return; }
           var hid = {};
           try { hid = JSON.parse(localStorage.getItem('cw-inv-hidden-v2') || '{}') || {}; } catch (e) { hid = {}; }
-          var n = d.invites.filter(function (iv) { return !hid[iv.groupId]; }).length;
+          var n = d.invites.filter(function (iv) { return String(iv.state || 'new') === 'new' && !hid[iv.groupId]; }).length;
           localStorage.setItem('cw-invites-new', JSON.stringify({ who: who, n: n, at: Date.now() }));
           paintInvites();
         })
@@ -486,7 +486,6 @@
       ]}); }
       if (on.indexOf('Appear') > -1 && here !== 'appear') { out.push({ key: 'appear', label: '2Appear', items: [
         { label: 'My groups',  url: carryLink('https://2appear.network/mygroups/') },
-        { label: invitesLabel(), url: carryLink('https://2appear.network/mygroups/?tab=invites'), cls: 'cwtb-item cwtb-under' },
         { label: 'My network', url: carryLink('https://2appear.network/network/') }
       ]}); }
       if (on.indexOf('Balance') > -1 && here !== 'balance') { out.push({ key: 'balance', label: '2Balance', items: [
@@ -519,7 +518,7 @@
       mine += anchor('My messages', ap ? '/messages/' : 'https://2gather.network/messages', 'cwtb-item');
       if (hasAGroup() && (ap || (onCreatingWorks() && !jumpIsOn()))) {
         mine += anchor('My groups', ap ? '/mygroups/' : carryLink('https://2appear.network/mygroups/'), 'cwtb-item');
-        mine += anchor(invitesLabel(), ap ? '/mygroups/?tab=invites' : carryLink('https://2appear.network/mygroups/?tab=invites'), 'cwtb-item cwtb-under');
+        if (ap) { mine += anchor(invitesLabel(), '/mygroups/?tab=invites', 'cwtb-item cwtb-under'); }
       }
       if (hasBookmarks() && (ap || (onCreatingWorks() && !jumpIsOn()))) { mine += anchor('My network', ap ? '/network/' : carryLink('https://2appear.network/network/'), 'cwtb-item'); }
       if (ap) {
@@ -739,7 +738,6 @@
       '.cwtb-item:hover{background:#F7FBFF;}' +
       '.cwtb-sub .cwtb-item,.cwtb-sub a.cwtb-item:link,.cwtb-sub a.cwtb-item:visited{padding-left:42px;font-size:15px;}' +
       '.cwtb-under,a.cwtb-under:link,a.cwtb-under:visited{padding-left:42px;font-size:15px;}' +
-      '.cwtb-sub .cwtb-under,.cwtb-sub a.cwtb-under:link,.cwtb-sub a.cwtb-under:visited{padding-left:62px;}' +
       '.cwtb-drawn .cw-dupe-brand{display:none !important;}' +
       '.cwtb-lit:not(.cwtb-me){background:rgba(255,255,255,.20);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);}' +
       '#cw-topbar.cwtb-menuing .cwtb-tab.cwtb-on:not(.cwtb-lit){background:transparent;box-shadow:none;}' +
