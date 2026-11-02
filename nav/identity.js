@@ -259,11 +259,12 @@
     }
     function num(k) { return parseInt(ls(function () { return w.localStorage.getItem(k); }, '') || '0', 10) || 0; }
 
+    var reloaded = ls(function () { var e = w.performance.getEntriesByType('navigation')[0]; return !!e && e.type === 'reload'; }, false);
     var comeBack = here + String(w.location.search || '') + String(w.location.hash || '');
     if (onSignIn) {
       if (found || /[?&]out=1(&|$)/.test(String(w.location.search || ''))) { return; }
       var asked = ss(function () { return w.sessionStorage.getItem('cw-jump-signin-asked') === '1'; }, true);
-      if (asked || now - (num('cw-jump-wait') - WAIT_MS) < 60 * 1000) { jumpLog('sign-in page; service asked moments ago, no jump'); return; }
+      if ((asked && !reloaded) || now - (num('cw-jump-wait') - WAIT_MS) < 60 * 1000) { jumpLog('sign-in page; service asked moments ago, no jump'); return; }
       if (!ss(function () { w.sessionStorage.setItem('cw-jump-signin-asked', '1'); return true; }, false)) { return; }
       var dest = ls(function () { return new URLSearchParams(w.location.search).get('next') || ''; }, '');
       comeBack = /^\/(?!\/)[A-Za-z0-9\-._~\/%?=&+@:,#]{0,300}$/.test(dest) && !/^\/(signin|signup|signout|carry)(\/|$)/.test(dest) ? dest : comeBack;
@@ -272,7 +273,7 @@
 
     if (!found) {
       var tabAsked = ss(function () { return w.sessionStorage.getItem('cw-jump-tab-asked') === '1'; }, true);
-      if (num('cw-jump-wait') > now && tabAsked) { jumpLog('not signed in here; guest wait, ' + Math.ceil((num('cw-jump-wait') - now) / 60000) + ' min left, no jump'); return; }
+      if (num('cw-jump-wait') > now && tabAsked && !reloaded) { jumpLog('not signed in here; guest wait, ' + Math.ceil((num('cw-jump-wait') - now) / 60000) + ' min left, no jump'); return; }
       var until = String(now + WAIT_MS);
       var held = ls(function () { w.localStorage.setItem('cw-jump-wait', until); return w.localStorage.getItem('cw-jump-wait') === until; }, false);
       if (!held) { return; }
@@ -284,7 +285,7 @@
         return true;
       }, false);
       if (!saved) { return; }
-      jumpLog('not signed in here; asking the service');
+      jumpLog(reloaded && tabAsked ? 'not signed in here; page reloaded, asking the service again' : 'not signed in here; asking the service');
       w._cwJumping = true;
       try { w.stop(); } catch (e) {}
       w.location.replace(SERVICE + '/jump?to=' + site + '&state=' + st);
