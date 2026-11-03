@@ -882,6 +882,7 @@ function pick(el, key){
             _lst.appendChild(a);
           });
           _lst.style.display = mine.length ? 'block' : 'none';
+          if (_gpLook) _gpLookSquares(mine.slice(0, 3));
         }
         _gpPanelEvents = mine;
         _gpPanelPast = past;
@@ -935,6 +936,76 @@ function pick(el, key){
     if (loc && !noPlace) bits.push(loc);
     return bits.join(' \u00b7 ');
   }
+
+  var _gpLook = /[?&]look=44(&|$)/.test(location.search);
+  function _gpLookSquares(list){
+    var box = document.getElementById('gp-tile-events-list'); if (!box) return;
+    box.innerHTML = '';
+    box.style.cssText = 'display:' + (list.length ? 'flex' : 'none') + ';gap:8px;margin-top:10px;flex-wrap:wrap;';
+    list.forEach(function(ev){
+      var d = String(ev.date || '').trim(), t = d ? new Date(d.split('T')[0] + 'T00:00:00') : null;
+      var ok = !!(t && !isNaN(t.getTime()));
+      var dw = (ev.dayOfWeek !== '' && ev.dayOfWeek !== null && ev.dayOfWeek !== undefined) ? String(GP_DAYS[parseInt(ev.dayOfWeek, 10)] || '').slice(0, 3) : '';
+      var day = ok ? t.toLocaleDateString(undefined, { weekday:'short' }) : dw;
+      var num = ok ? String(t.getDate()) : '';
+      var time = gpWhen({ startTime: ev.startTime }, true) || '';
+      var a = document.createElement('a');
+      a.setAttribute('role', 'link'); a.tabIndex = 0;
+      a.setAttribute('data-nav', 'https://2gather.network/event/?id=' + encodeURIComponent(ev.id || ''));
+      a.setAttribute('onclick', 'return _safeNavGo(this)');
+      var w = gpWhen(ev, true);
+      a.title = (ev.title || 'Event') + (w ? ' \u00b7 ' + w : '');
+      a.setAttribute('aria-label', a.title);
+      a.style.cssText = 'width:64px;height:64px;border-radius:10px;overflow:hidden;flex:none;display:flex;flex-direction:column;cursor:pointer;text-decoration:none;border:1.5px solid #C9DFF3;background:#EEF4FA;color:#1F699E;';
+      var dateSquare = function(){
+        a.innerHTML = ''; a.style.alignItems = 'center'; a.style.justifyContent = 'center';
+        [[ok ? day : 'Every', '11px', 700], [ok ? num : day, '20px', 800], [time, '11px', 700]].forEach(function(b){
+          if (!b[0]) return;
+          var sp = document.createElement('span'); sp.textContent = b[0];
+          sp.style.cssText = 'font-size:' + b[1] + ';font-weight:' + b[2] + ';line-height:1.15;';
+          a.appendChild(sp);
+        });
+      };
+      var img = String(ev.imageUrl || ev.detailImageUrl || '').trim();
+      if (/^https?:\/\//i.test(img)) {
+        var im = document.createElement('img'); im.alt = ''; im.src = img;
+        im.style.cssText = 'width:100%;flex:1;min-height:0;object-fit:cover;display:block;';
+        im.onerror = dateSquare;
+        var strip = document.createElement('span');
+        strip.textContent = ok ? (day + ' ' + num) : (day ? 'Every ' + day : 'Event');
+        strip.style.cssText = 'font-size:11px;font-weight:700;text-align:center;padding:2px 0;background:#EEF4FA;color:#1F699E;';
+        a.appendChild(im); a.appendChild(strip);
+      } else { dateSquare(); }
+      box.appendChild(a);
+    });
+  }
+  function _gpLookPanel(inGroup){
+    if (!_gpLook) return;
+    var bl = document.getElementById('gp-board-link'); if (bl) bl.textContent = 'View our board';
+    var ev = document.getElementById('gp-rs-event');
+    var cal = ev && ev.querySelector('.gp-rs-pill'); if (cal) cal.textContent = 'View our calendar';
+    var vb = document.getElementById('gp-viewall-btn'); if (vb) vb.textContent = 'View our members';
+    if (inGroup && ev && !document.getElementById('gp-look-members')) {
+      var head = document.getElementById('gp-members-heading'), row = document.getElementById('gp-here-row');
+      if (head && row && head.parentNode) {
+        var sec = document.createElement('div'); sec.className = 'gp-rs-sec'; sec.id = 'gp-look-members';
+        sec.appendChild(head.parentNode); sec.appendChild(row);
+        ev.parentNode.insertBefore(sec, ev.nextSibling);
+      }
+    }
+  }
+  function _gpLookIcon(){
+    var post = document.querySelector('#gp-panel-top .gpan-bf');
+    if (!post || document.getElementById('gp-look-cal')) return;
+    var a = document.createElement('a'); a.id = 'gp-look-cal'; a.className = 'gpan-bo';
+    a.setAttribute('role', 'link'); a.tabIndex = 0;
+    a.setAttribute('data-nav', 'https://2gather.network/events/'); a.setAttribute('onclick', 'return _safeNavGo(this)');
+    a.setAttribute('aria-label', 'Open the 2Gather calendar'); a.title = 'Open the 2Gather calendar';
+    a.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;padding-left:10px;padding-right:10px;text-decoration:none;';
+    a.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="9" y1="3" x2="9" y2="7"/><line x1="15" y1="3" x2="15" y2="7"/><line x1="8.5" y1="14.5" x2="9.5" y2="14.5"/><line x1="11.5" y1="14.5" x2="12.5" y2="14.5"/><line x1="14.5" y1="14.5" x2="15.5" y2="14.5"/></svg>';
+    post.parentNode.insertBefore(a, post.nextSibling);
+  }
+  if (_gpLook) { _gpLookPanel(false); _gpLookIcon(); }
 
   (function(){
     var btn = document.getElementById('gp-gather-btn');
@@ -1089,7 +1160,7 @@ function pick(el, key){
   function gpSyncManage(view){
     var btn = document.getElementById('gp-viewall-btn');
     if (!btn) return;
-    btn.textContent = 'View members';
+    btn.textContent = _gpLook ? 'View our members' : 'View members';
     btn.className = 'gp-rs-pill';
     btn.setAttribute('onclick', "gpShow('members')");
     btn.style.display = (view === 'members' || !window._gpAlreadyIn) ? 'none' : '';
@@ -2563,6 +2634,7 @@ var myPill = document.getElementById('gp-myprofile-pill');
         var _bl = document.getElementById('gp-board-link');
         if (_bl) { _bl.setAttribute('data-nav', window._gpSlug ? 'https://2appear.network/group/' + encodeURIComponent(window._gpSlug) + '/bulletin-board' : 'https://2appear.network/attendees/?group=' + encodeURIComponent(groupId)); _bl.setAttribute('onclick', 'return _safeNavGo(this)'); }
         if (_va) { _va.style.display = _viewerInGroup ? 'flex' : 'none'; }
+        _gpLookPanel(_viewerInGroup);
         (function(){
           var _cl = document.getElementById('gp-chat-link');
           var _chatOn = !!(d.group && (d.group.chat === true || String(d.group.chat).toLowerCase() === 'true'));
