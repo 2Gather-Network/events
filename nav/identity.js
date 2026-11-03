@@ -258,11 +258,29 @@
     postRemember(pending, ready.key, ready.exp, back);
     return true;
   }
+  function turnOnHere(id, token) {
+    var names = { gather: 'Gather', appear: 'Appear', balance: 'Balance' };
+    var nm = names[JUMP_SITE[String(w.location.hostname || '').toLowerCase()]];
+    var key = 'cw-here-' + (nm || '') + '-' + normalise(id);
+    if (!nm || ss(function () { return w.sessionStorage.getItem(key); }, '') === '1') { return w.Promise.resolve(); }
+    return w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=saveAccount&appearId=' + encodeURIComponent(id) + '&secure=1&editToken=' + encodeURIComponent(token) +
+        '&enabledSolution=' + nm, { referrerPolicy: 'no-referrer' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.status === 'ok' && d.enabledSolution) {
+          ls(function () { w.localStorage.setItem('cw-enabled', d.enabledSolution); });
+          ss(function () { w.sessionStorage.setItem(key, '1'); });
+          jumpLog('signed in here, so ' + nm + ' is turned on');
+        }
+      })
+      .catch(function () {});
+  }
   function prepareSession(id, token) {
     var got = null, a = new Uint8Array(16), key = normalise(id), exp = parseInt(String(token).split('.')[1], 10) || 0;
     w.crypto.getRandomValues(a);
     var st = Array.prototype.map.call(a, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
-    return w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=carryReadyAll&appearId=' + encodeURIComponent(id) + '&meToken=' + encodeURIComponent(token), { referrerPolicy: 'no-referrer' })
+    return turnOnHere(id, token)
+      .then(function () { return w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=carryReadyAll&appearId=' + encodeURIComponent(id) + '&meToken=' + encodeURIComponent(token), { referrerPolicy: 'no-referrer' }); })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || d.status !== 'ok' || !d.passes) { jumpLog('backend refused the passes: ' + String((d && d.message) || 'no answer')); throw new Error('refused'); }

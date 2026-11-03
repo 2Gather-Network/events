@@ -494,11 +494,6 @@
               '" onclick="return _safeNavGo(this)">Sign in</a>' +
               '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost" href="' + _su + '" data-nav="' + _su +
               '" onclick="return _safeNavGo(this)">Sign up</a>';
-      if (window.CW && window.CW.connectKnown && window.CW.connectKnown()) {
-        photo = '<a role="link" tabindex="0" class="cwtb-signin" href="#" onclick="window.CW.connectNow();return false;">Connect now</a>' +
-                '<a role="link" tabindex="0" class="cwtb-signin cwtb-ghost" href="' + _si + '" data-nav="' + _si +
-                '" onclick="return _safeNavGo(this)">Sign in</a>';
-      }
     }
 
     if (!atDoor && me()) {
@@ -512,15 +507,15 @@
       var on = String((function () { try { return localStorage.getItem('cw-enabled') || ''; } catch (e) { return ''; } })() || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean);
       var here = siteOf(window.location.hostname);
       var out = [];
-      if (gatherOn() && here !== 'gather') { out.push({ key: 'gather', label: '2Gather', items: [
+      if ((gatherOn() || here === 'gather')) { out.push({ key: 'gather', label: '2Gather', items: [
         { label: 'Calendar',  url: carryLink(EVENTS + '/') },
         { label: 'My events', url: carryLink(link(MYEVENTS, 'memberCard')) }
       ]}); }
-      if (on.indexOf('Appear') > -1 && here !== 'appear') { out.push({ key: 'appear', label: '2Appear', items: [
+      if (on.indexOf('Appear') > -1 || here === 'appear') { out.push({ key: 'appear', label: '2Appear', items: [
         { label: 'My groups',  url: carryLink('https://2appear.network/mygroups/') },
         { label: 'My network', url: carryLink('https://2appear.network/network/') }
       ]}); }
-      if (on.indexOf('Balance') > -1 && here !== 'balance') { out.push({ key: 'balance', label: '2Balance', items: [
+      if (on.indexOf('Balance') > -1 || here === 'balance') { out.push({ key: 'balance', label: '2Balance', items: [
         { label: 'My ikigai', url: carryLink('https://2balance.network/ikigai/?step=joys') }
       ]}); }
       return out;
