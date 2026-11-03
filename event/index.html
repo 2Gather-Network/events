@@ -334,11 +334,17 @@ async function loadCategories() {
 
 let RECURRING_EVENTS = [];
 
-function getNextDate(dayOfWeek) {
+function getNextDate(dayOfWeek, endTime) {
   const now = new Date();
   const d = new Date(now);
   d.setHours(0,0,0,0);
-  const diff = (dayOfWeek - d.getDay() + 7) % 7 || 7;
+  let diff = (dayOfWeek - d.getDay() + 7) % 7;
+  if (diff === 0) {
+    const hm = String(endTime || "").match(/^(\d{1,2}):(\d{2})/);
+    const endToday = new Date(now);
+    if (hm) { endToday.setHours(+hm[1], +hm[2], 0, 0); } else { endToday.setHours(23, 59, 59, 999); }
+    if (now > endToday) diff = 7;
+  }
   d.setDate(d.getDate() + diff);
   return d.toISOString().slice(0,10);
 }
@@ -354,7 +360,7 @@ function parseSheetTime(val) {
 function recurToEv(r) {
   return {
     id: r.id, title: r.title||"",
-    date: getNextDate(r.dayOfWeek),
+    date: getNextDate(r.dayOfWeek, r.endtime || r.time),
     time: r.time||"", endtime: r.endtime||"",
     format: r.format||"", location: r.location||"",
     room: r.room||"", description: r.description||"",
@@ -2628,7 +2634,7 @@ async function init() {
       const tmpl = allRows.find(r => String(r.id) === id);
       if (tmpl && tmpl.dayOfWeek) {
         const slug = (tmpl.title || "").toLowerCase().replace(/\s+/g, "-");
-        const nextDate = getNextDate(parseInt(tmpl.dayOfWeek));
+        const nextDate = getNextDate(parseInt(tmpl.dayOfWeek), parseSheetTime(tmpl.endTime) || parseSheetTime(tmpl.startTime));
         const occId = `recurring-${slug}-${nextDate}`;
         const recEv = { ...toEv(tmpl), dayOfWeek: parseInt(tmpl.dayOfWeek) || 0, time: parseSheetTime(tmpl.startTime), endtime: parseSheetTime(tmpl.endTime), id: occId };
         const ev = recurToEv(recEv);
@@ -3460,7 +3466,9 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
       var bmb = document.getElementById('bookmark-btn');
       var socb = document.getElementById('cw-soc-btn');
       if (socb && socb.parentNode !== icons) { icons.appendChild(socb); }
-      var stb = document.querySelector('#card .ev-star[data-ev]');
+      var stb = null;
+      try { stb = document.querySelector('.ev-star[data-ev="' + String(_currentEv.id).replace(/"/g, '\\"') + '"]'); } catch (e) {}
+      if (!stb) { stb = document.querySelector('#ev-categories .ev-star, #ev-star-top .ev-star'); }
       if (stb && stb.parentNode !== icons) {
         var stHome = stb.parentNode;
         if (socb && socb.parentNode === icons) { icons.insertBefore(stb, socb); } else { icons.appendChild(stb); }
