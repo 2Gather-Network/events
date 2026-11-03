@@ -221,7 +221,12 @@
       return !!(v && v.yes === true && norm(v.who) === norm(me()));
     } catch (e) { return false; }
   }
-  function gatherOn() { return true; }
+  function gatherOn() {
+    try {
+      var on = String(localStorage.getItem('cw-enabled') || '').split('|').map(function (x) { return x.trim(); });
+      return on.indexOf('Gather') > -1 || hasEvents();
+    } catch (e) { return hasEvents(); }
+  }
   var INITIALS_CSS = 'display:flex;align-items:center;justify-content:center;background:#EEF4FA;color:#1F699E;font-weight:800;font-size:13px;';
   function initialsOf(n) {
     return String(n || '').trim().split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('');
