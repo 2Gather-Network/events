@@ -262,7 +262,8 @@
     var names = { gather: 'Gather', appear: 'Appear', balance: 'Balance' };
     var nm = names[JUMP_SITE[String(w.location.hostname || '').toLowerCase()]];
     var key = 'cw-here-' + (nm || '') + '-' + normalise(id);
-    if (!nm || ss(function () { return w.sessionStorage.getItem(key); }, '') === '1') { return w.Promise.resolve(); }
+    var reload = ls(function () { var e = w.performance.getEntriesByType('navigation')[0]; return !!e && e.type === 'reload'; }, false);
+    if (!nm || (!reload && ss(function () { return w.sessionStorage.getItem(key); }, '') === '1')) { return w.Promise.resolve(); }
     return w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=saveAccount&appearId=' + encodeURIComponent(id) + '&secure=1&editToken=' + encodeURIComponent(token) +
         '&enabledSolution=' + nm, { referrerPolicy: 'no-referrer' })
       .then(function (r) { return r.json(); })
@@ -271,6 +272,10 @@
           ls(function () { w.localStorage.setItem('cw-enabled', d.enabledSolution); });
           ss(function () { w.sessionStorage.setItem(key, '1'); });
           jumpLog('signed in here, so ' + nm + ' is turned on');
+        } else if (d && d.status === 'error' && /expired|sign in again/i.test(String(d.message || ''))) {
+          jumpLog('this sign-in was ended on another device; signing out here');
+          try { if (w.CW && w.CW.forget) { w.CW.forget(); } } catch (e) {}
+          w.location.replace('/signin/?out=1');
         }
       })
       .catch(function () {});
