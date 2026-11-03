@@ -392,6 +392,7 @@
     var key = normalise(found);
     var token = ls(function () { return w.localStorage.getItem('cw-token') || ''; }, '');
     var exp = parseInt(token.split('.')[1], 10) || 0;
+    if (token && exp > Date.now()) { turnOnHere(found, token); }
     var enabled = ls(function () { return w.localStorage.getItem('cw-enabled') || ''; }, '');
     var mark = ls(function () { return JSON.parse(w.localStorage.getItem('cw-jump-mark') || 'null'); }, null);
     if (mark && mark.id === key && mark.exp === exp && String(mark.enabled || '') === enabled) { jumpLog('signed in here; service already told'); return; }
