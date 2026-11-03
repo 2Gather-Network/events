@@ -29,6 +29,14 @@
     document.head.appendChild(st);
   }
   function go(url) { window.location.href = url; return false; }
+  function safeHref(url) {
+    try {
+      var u = new URL(url), keep = ['id', 'groupId', 'group', 'eventId', 'v', 'p', 'view', 'tab'], q = new URLSearchParams();
+      u.searchParams.forEach(function (val, k) { if (keep.indexOf(k) > -1) q.append(k, val); });
+      var s = q.toString();
+      return u.origin + u.pathname + (s ? '?' + s : '');
+    } catch (e) { return ''; }
+  }
 
   window.cwCameFrom = function () {
     var r = '';
@@ -59,12 +67,13 @@
     el.innerHTML = '';
     var from = window.cwCameFrom();
     if (!from) return null;
-    var a = document.createElement('span');
+    var to = safeHref(from.url) || from.url;
+    var a = document.createElement('a');
     a.className = 'crumb-link'; a.textContent = from.label;
     a.setAttribute('role', 'link'); a.tabIndex = 0;
+    a.href = to;
     a.style.cursor = 'pointer';
-    a.onclick = function () { go(from.url); };
-    a.onkeydown = function (e) { if (e.key === 'Enter') go(from.url); };
+    a.onclick = function () { go(from.url); return false; };
     el.appendChild(a);
     var t = String(tail || '').trim();
     if (t) {
