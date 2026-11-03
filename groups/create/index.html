@@ -360,14 +360,16 @@ We translate self-promotion to collaboration.</textarea>
   }
 
   var fromEvent = String(params.get('fromEvent') || '').trim();
-  var _fromEvTitle = '';
+  var _fromEvTitle = String(params.get('t') || '').slice(0, 120);
   if (fromEvent) {
     var feCard = document.getElementById('fe-card'), mainCard = document.getElementById('main-card');
     var feSay = function(kind, msg){ var el = document.getElementById('fe-status'); el.className = 'status ' + kind; el.innerHTML = msg; };
     mainCard.style.display = 'none';
     feCard.style.display = '';
-    document.getElementById('fe-qs').style.display = 'none';
-    document.getElementById('fe-lede').textContent = 'Looking up your event\u2026';
+    var feAsked = params.get('ok') === '1';
+    if (_fromEvTitle) document.getElementById('fe-title').textContent = 'Start a group from ' + _fromEvTitle;
+    document.getElementById('fe-qs').style.display = feAsked ? '' : 'none';
+    document.getElementById('fe-lede').textContent = feAsked ? 'Three questions first. We use your answers to suggest a name and description, and you can change both.' : 'Looking up your event\u2026';
     var _feEsc = function(t){ return String(t || '').replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
     fetch(GS_URL + '?action=getEventSeen&startCheck=1&appearId=' + encodeURIComponent(meId) + '&eventId=' + encodeURIComponent(fromEvent))
       .then(function(r){ return r.json(); })
@@ -378,6 +380,7 @@ We translate self-promotion to collaboration.</textarea>
           document.getElementById('fe-qs').style.display = '';
           return;
         }
+        document.getElementById('fe-qs').style.display = 'none';
         var why = !d || d.status !== 'ok' ? ((d && d.message) || 'That event could not be found.')
           : d.reason === 'already' ? 'You already started a group from this event. <a href="' + _feEsc(d.groupUrl) + '">Open your group</a>.'
           : d.reason === 'limit' ? 'You can start 2 groups from events in 24 hours. Try again tomorrow, or start a group without the event.'
@@ -388,7 +391,7 @@ We translate self-promotion to collaboration.</textarea>
           : 'A group cannot be started from this event.';
         document.getElementById('fe-lede').innerHTML = why;
       })
-      .catch(function(){ document.getElementById('fe-lede').textContent = 'That did not load. Reload the page to try again.'; });
+      .catch(function(){ if (feAsked) return; document.getElementById('fe-lede').textContent = 'That did not load. Reload the page to try again.'; });
     var _feSentence = function(t){ t = String(t || '').replace(/\s+/g, ' ').trim().replace(/[.!?]+$/, ''); return t ? t.charAt(0).toUpperCase() + t.slice(1) + '.' : ''; };
     document.getElementById('fe-next').addEventListener('click', function(){
       var q = [1, 2, 3].map(function(n){ return String(document.getElementById('fe-q' + n).value || '').trim(); });
