@@ -377,7 +377,7 @@ function recurToEv(r) {
     sharedNotesEnabled: r.sharedNotesEnabled||false, sharedNotes: r.sharedNotes||"",
     host_note: r.host_note||"",
     cancelled: r.cancelled||false,
-    groupId: r.groupId||"",
+    groupId: r.groupId||"", groupJoinOnRsvp: r.groupJoinOnRsvp||"",
     socializedBy: r.socializedBy||[], socializerCount: r.socializerCount||0,
   };
 }
@@ -552,6 +552,7 @@ function _paintBookmarkSlot() {
   document.documentElement.classList.toggle('cw-is-host', !!(known && k.hosts));
   try { _paintHostingBtn(); } catch (e) {}
   if (known && k.hosts) { try { cwGrpBtnPaint(); } catch (e) {} try { cwHiPaint(); } catch (e) {} }
+  if (known || failed) { try { cwGjrPaint(false); } catch (e) {} }
 }
 
 function _superViewer() {
@@ -675,7 +676,7 @@ function toEv(r) {
     venue: r.venue||"", org: r.org||"", county: r.county||"", hostType: r.hostType||"",
     intakeRedirect: r.intakeRedirect||"",
     hostMemberCard: r.hostMemberCard||"", signupPotluck: r.signupPotluck||"",
-    groupId: r.groupId||"",
+    groupId: r.groupId||"", groupJoinOnRsvp: r.groupJoinOnRsvp||"",
     socializedBy: _socByList(r.socializedBy), socializerCount: Number(r.socializerCount) || 0,
   };
 }
@@ -990,6 +991,7 @@ function render(ev) {
         </div>
       </div>
       <div style="margin-bottom:8px;">${engagementSection}</div>
+      <div id="cw-gjr-slot"></div>
       ${potluckSection}
       <div class="meta" id="ev-meta">${lines}</div>
       ${ev.detailImageUrl ? `<img class="detail-img" src="${esc(ev.detailImageUrl)}" alt="" onerror="this.style.display='none'">` : ""}
@@ -1080,6 +1082,7 @@ function applyRegisteredUI() {
   }
   _paintHostingBtn();
   try { cwSeenLinkPaint(); } catch (err) {}
+  try { cwGjrPaint(true); } catch (err) {}
   const cancelArea = document.getElementById("cancel-rsvp-area");
   if (cancelArea) cancelArea.style.display = "block";
   const confirmed = document.getElementById("interest-confirmed");
@@ -2257,6 +2260,69 @@ function cwGrpEnded(ev) {
   var today = new Date(); today.setHours(0, 0, 0, 0);
   var d = new Date((ev.endDate && ev.endDate > ev.date ? ev.endDate : ev.date) + "T00:00:00");
   return !isNaN(d) && d < today;
+}
+function cwGjrPaint(registered) {
+  if (typeof _currentEv === "undefined" || !_currentEv) return;
+  var ev = _currentEv, slot = document.getElementById("cw-gjr-slot"); if (!slot) return;
+  var n = String(ev.groupId || "").split("|").filter(function (x) { return String(x).trim(); }).length;
+  if (String(ev.groupJoinOnRsvp || "").toLowerCase() !== "true" || !n || ev.cancelled) { slot.innerHTML = ""; return; }
+  if (document.documentElement.classList.contains("cw-is-host")) { slot.innerHTML = ""; return; }
+  var info = "background:#E8F2F9;border-radius:10px;padding:10px 14px;font-size:13.5px;line-height:1.5;color:#1A2E42;margin:0 0 12px;";
+  if (!registered) {
+    if (window.cwGjrAsked === ev.id) return;
+    slot.innerHTML = '<p style="' + info + '">' + (n === 1 ? "This event has an associated group that you can join when you RSVP." : "This event has associated groups that you can join when you RSVP.") + '</p>';
+    return;
+  }
+  if (window.cwGjrAsked === ev.id) return;
+  window.cwGjrAsked = ev.id;
+  var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
+  var pass = (window.CW && CW.passParam) ? CW.passParam() : "";
+  if (!me) return;
+  slot.innerHTML = '<p style="' + info + '"><span class="cw-loading">Looking up the groups from this event</span></p>';
+  fetch(GS_URL + "?action=getEventSeen&eventGroups=1&eventId=" + encodeURIComponent(ev.id) + "&appearId=" + encodeURIComponent(me) + pass + "&t=" + Date.now())
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var gs = (d && d.status === "ok" && d.groups) || [];
+      if (!gs.length) { slot.innerHTML = ""; return; }
+      var btn = "display:inline-flex;align-items:center;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;text-decoration:none;white-space:nowrap;";
+      var rows = gs.map(function (g, i) {
+        var right = g.member
+          ? '<a href="' + esc(g.url) + '" target="_blank" rel="noopener" style="font-size:13px;color:#1F699E;font-weight:700;">You’re a member</a>'
+          : g.mode === "passcode"
+            ? '<span style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;"><span style="font-size:13px;color:#2F3D4F;">Passcode <b id="cw-gjr-pc-' + i + '">' + esc(g.passcode || "") + '</b></span>'
+              + '<button type="button" data-gjr-copy="' + i + '" style="' + btn + 'background:#fff;color:#1F699E;border:1.5px solid #1F699E;">Copy</button>'
+              + '<a href="' + esc(g.url) + '" target="_blank" rel="noopener" style="' + btn + 'background:#1F699E;color:#fff;border:1.5px solid #1F699E;">Join this group</a></span>'
+            : '<button type="button" data-gjr-ask="' + i + '" style="' + btn + 'background:#fff;color:#1F699E;border:1.5px solid #1F699E;">Ask to join</button>';
+        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;flex-wrap:wrap;"><span style="font-size:15px;color:#1A2E42;">' + esc(g.name) + '</span>' + right + '</div>'
+          + '<p id="cw-gjr-st-' + i + '" style="display:none;font-size:13.5px;margin:0 0 6px;line-height:1.5;"></p>';
+      }).join("");
+      slot.innerHTML = '<div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;margin:0 0 12px;">'
+        + '<p style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 4px;">' + (gs.length === 1 ? "Group from this event" : "Groups from this event") + '</p>' + rows + '</div>';
+      slot.querySelectorAll("[data-gjr-copy]").forEach(function (b) {
+        b.onclick = function () {
+          var g = gs[+b.getAttribute("data-gjr-copy")];
+          var done = function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 2500); };
+          try { navigator.clipboard.writeText(String(g.passcode || "")).then(done, done); } catch (e) { done(); }
+        };
+      });
+      slot.querySelectorAll("[data-gjr-ask]").forEach(function (b) {
+        b.onclick = function () {
+          var i = +b.getAttribute("data-gjr-ask"), g = gs[i], st = document.getElementById("cw-gjr-st-" + i);
+          b.disabled = true; b.textContent = "Asking…";
+          var tell = function (t, ok) { if (st) { st.style.display = ""; st.style.color = ok ? "#1A5A2C" : "#1A2E42"; st.innerHTML = t; } };
+          fetch(GS_URL + "?action=saveJoinRequest&groupId=" + encodeURIComponent(g.groupId) + "&fromEvent=" + encodeURIComponent(ev.id) + "&appearId=" + encodeURIComponent(me) + pass + "&t=" + Date.now())
+            .then(function (r) { return r.json(); })
+            .then(function (a) {
+              if (a && (a.ok || a.status === "ok")) { b.textContent = a.joined ? "Joined" : "Asked"; tell(a.joined ? "You’re in." : "Asked. The group’s host will let you know.", true); return; }
+              b.disabled = false; b.textContent = "Ask to join";
+              if (a && a.code === "profile-incomplete") { tell("Before joining a group, add " + esc((a.missing || []).join(", ")) + ' to your <a href="https://2gather.network/ikigai/" target="_blank" rel="noopener" style="color:#1F699E;font-weight:700;">profile</a>.', false); return; }
+              tell('Ask from the <a href="' + esc(g.url) + '" target="_blank" rel="noopener" style="color:#1F699E;font-weight:700;">group’s page</a>.', false);
+            })
+            .catch(function () { b.disabled = false; b.textContent = "Ask to join"; tell("That did not go through. Try again.", false); });
+        };
+      });
+    })
+    .catch(function () { slot.innerHTML = ""; });
 }
 function cwHiPaint() {
   if (typeof _currentEv === "undefined" || !_currentEv || String(_currentEv.hostType || "") !== "socializer") return;
