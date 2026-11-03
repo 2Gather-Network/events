@@ -551,7 +551,7 @@ function _paintBookmarkSlot() {
   b.style.display = (known && k.hosts) ? 'none' : '';
   document.documentElement.classList.toggle('cw-is-host', !!(known && k.hosts));
   try { _paintHostingBtn(); } catch (e) {}
-  if (known && k.hosts) { try { cwGrpBtnPaint(); } catch (e) {} }
+  if (known && k.hosts) { try { cwGrpBtnPaint(); } catch (e) {} try { cwHiPaint(); } catch (e) {} }
 }
 
 function _superViewer() {
@@ -1315,7 +1315,7 @@ function _paintSocialize() {
   if (!_welcome && st !== 'yes') { b.style.display = 'none'; return; }
   var lab = b.querySelector('.cw-soc-label');
   if (st === 'yes') {
-    if (lab) lab.textContent = "You're socializing this";
+    if (lab) lab.textContent = "Your socializing";
     b.classList.remove('btn-outline'); b.classList.add('btn-primary');
     var _k2 = _evRoleKnown, _eid2 = String((_currentEv && _currentEv.id) || '');
     var _hosts2 = !!(_k2 && _k2.id === _eid2 && _k2.hosts);
@@ -2257,6 +2257,48 @@ function cwGrpEnded(ev) {
   var today = new Date(); today.setHours(0, 0, 0, 0);
   var d = new Date((ev.endDate && ev.endDate > ev.date ? ev.endDate : ev.date) + "T00:00:00");
   return !isNaN(d) && d < today;
+}
+function cwHiPaint() {
+  if (typeof _currentEv === "undefined" || !_currentEv || String(_currentEv.hostType || "") !== "socializer") return;
+  if (window.cwHiAsked === _currentEv.id) return;
+  window.cwHiAsked = _currentEv.id;
+  var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
+  if (!me) return;
+  var pass = (window.CW && CW.passParam) ? CW.passParam() : "";
+  var ev = _currentEv, sid = ev.seriesId || ev.id;
+  var said = ""; try { said = sessionStorage.getItem("cw-hi-said") || ""; sessionStorage.removeItem("cw-hi-said"); } catch (e) {}
+  fetch(GS_URL + "?action=getEventSeen&hostInvite=1&eventId=" + encodeURIComponent(sid) + "&appearId=" + encodeURIComponent(me) + pass + "&t=" + Date.now())
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var inv = d && d.status === "ok" ? d.invite : null;
+      if (!inv && !said) return;
+      var slot = document.getElementById("cw-seen-slot"); if (!slot) return;
+      var o = document.getElementById("cw-hi-box");
+      if (!o) { o = document.createElement("div"); o.id = "cw-hi-box"; o.style.cssText = "margin:16px 0;"; slot.insertBefore(o, slot.firstChild); }
+      var first = esc(String((inv && inv.host) || ev.host || "the host").split(/\s+/)[0]);
+      var when = ""; try { when = inv ? new Date(inv.invitedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""; } catch (e) {}
+      var info = "background:#E8F2F9;border-radius:10px;padding:10px 14px;font-size:13.5px;line-height:1.5;color:#1A2E42;margin:0 0 10px;";
+      var html = said ? '<p style="' + info + '">' + esc(said) + '</p>' : "";
+      if (inv && inv.state === "pending") {
+        html += '<p style="' + info + '">Waiting for ' + first + ' to confirm they host this. Asked ' + esc(when) + '. Only you see this.</p>';
+        if (inv.asksLeft > 0) html += '<div style="display:flex;justify-content:flex-end;"><button type="button" class="btn btn-outline" id="cw-hi-again">Ask ' + first + ' again</button></div><p id="cw-hi-st" style="display:none;font-size:13.5px;margin:8px 0 0;"></p>';
+      } else if (inv && inv.state === "declined") {
+        html += '<p style="' + info + '">' + first + ' said they don’t host this. It stays yours to edit as the person who shared it.</p>';
+      }
+      o.innerHTML = html;
+      var b = document.getElementById("cw-hi-again");
+      if (b) b.onclick = function () {
+        b.disabled = true; b.textContent = "Sending…";
+        fetch(GS_URL + "?action=socialize&hostInvite=1&id=" + encodeURIComponent(sid) + "&appearId=" + encodeURIComponent(me) + pass + "&t=" + Date.now())
+          .then(function (r) { return r.json(); })
+          .then(function (a) {
+            var st = document.getElementById("cw-hi-st"); if (st) { st.style.display = ""; st.style.color = (a && a.status === "ok") ? "#1A5A2C" : "#c0392b"; st.textContent = (a && a.status === "ok") ? "Sent. We emailed " + String((inv && inv.host) || "them").split(/\s+/)[0] + " again." : ((a && a.message) || "That did not go through. Try again."); }
+            b.textContent = "Ask " + String((inv && inv.host) || "").split(/\s+/)[0] + " again"; b.disabled = !!(a && a.status === "ok");
+          })
+          .catch(function () { b.disabled = false; b.textContent = "Ask again"; });
+      };
+    })
+    .catch(function () {});
 }
 function cwGrpBtnPaint() {
   if (!CW_ALUMNI_ON || typeof _currentEv === "undefined" || !_currentEv) return;
