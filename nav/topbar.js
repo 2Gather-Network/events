@@ -372,6 +372,38 @@
     return '';
   }
 
+  (function () {
+    var fill = function (a) {
+      var u = a.getAttribute('data-nav');
+      if (!u || /^javascript:/i.test(u)) return;
+      if (a.hasAttribute('href') && a.getAttribute('data-cw-href') !== '1') return;
+      if (a.getAttribute('href') !== u) { a.setAttribute('href', u); a.setAttribute('data-cw-href', '1'); }
+    };
+    var sweep = function (root) {
+      try {
+        if (root.nodeType !== 1) return;
+        if (root.matches && root.matches('a[data-nav]')) fill(root);
+        Array.prototype.forEach.call(root.querySelectorAll('a[data-nav]'), fill);
+      } catch (e) {}
+    };
+    var start = function () {
+      sweep(document.body);
+      try {
+        new MutationObserver(function (ms) {
+          ms.forEach(function (m) {
+            if (m.type === 'attributes') { if (m.target.tagName === 'A') fill(m.target); return; }
+            Array.prototype.forEach.call(m.addedNodes, sweep);
+          });
+        }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-nav'] });
+      } catch (e) {}
+      document.addEventListener('click', function (e) {
+        var a = e.target && e.target.closest ? e.target.closest('a[data-nav][href]') : null;
+        if (a && (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1)) e.stopImmediatePropagation();
+      }, true);
+    };
+    if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  })();
+
   if (!window._safeNavGo) {
     window._safeNavGo = function (el) {
       try {
