@@ -106,8 +106,8 @@
     if (c.box && c.box.parentNode) c.box.parentNode.removeChild(c.box);
     if (c.btn) c.btn.setAttribute('aria-expanded', 'false');
   }
-  async function save() {
-    var c = cur;
+  function save() { return saveFor(cur); }
+  async function saveFor(c) {
     if (!c || c.ev.cancelled) return;
     var w = who();
     if (!w.real) return;
@@ -123,12 +123,11 @@
       if (d && d.status === 'ok' && d.socializing === true) ok = d;
     } catch (e) {}
     c.saving = false;
-    if (cur !== c) return;
-    if (!ok) { tell('That did not save. Try again.'); c.pending = false; return; }
+    if (!ok) { if (cur === c) tell('That did not save. Try again.'); c.pending = false; return; }
     c.done = true;
     remember(String(c.ev.id), w.me || w.real, ok.shown === true);
-    tell('');
-    if (c.pending) { c.pending = false; if (c.listed !== want) save(); }
+    if (cur === c) tell('');
+    if (c.pending) { c.pending = false; if (c.listed !== want) saveFor(c); }
   }
   function copyText(url, btn) {
     var orig = btn ? btn.innerHTML : '';
@@ -182,12 +181,7 @@
       if (window.MutationObserver) { keep = new MutationObserver(reattach); keep.observe(document.body, { childList: true, subtree: true }); }
       try { var r = box.getBoundingClientRect(); if (r.bottom > window.innerHeight) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
     },
-    close: function () {
-      var c = cur;
-      if (!c) return;
-      var t0 = Date.now();
-      (function wait() { if ((c.saving || c.pending) && Date.now() - t0 < 6000) { setTimeout(wait, 150); return; } if (cur === c) close(); })();
-    },
+    close: function () { close(); },
     act: async function (what, btn) {
       if (!cur) return;
       if (what === 'qr') { try { await cur.shortJob; } catch (e) {} if (cur) qr(); }
