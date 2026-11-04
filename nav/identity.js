@@ -191,7 +191,9 @@
           w.location.replace(back);
           return;
         }
-        ls(function () { w.localStorage.setItem('cw-jump-wait', String(Date.now() + 30 * 60 * 1000)); });
+        jumpLog('the sign-in the service gave was refused; signing out every site here');
+        endedEverywhere();
+        return;
       }
       w.location.replace(onCW ? '/' : '/signin/?next=' + encodeURIComponent(back));
     }
@@ -210,6 +212,11 @@
     return JUMP_ON || ls(function () { return w.localStorage.getItem('cw-jump-test'); }, '') === '1';
   }
 
+  function endedEverywhere() {
+    try { if (w.CW && w.CW.forget) { w.CW.forget(); } } catch (e) {}
+    if (jumpOn()) { w._cwJumping = true; w.location.replace('/signout/#all=1'); return; }
+    w.location.replace('/signin/?out=1');
+  }
   function jumpLog(step) {
     if (!jumpOn()) { return; }
     var line = new Date().toLocaleTimeString() + ' ' + String(w.location.pathname || '/') + ' ' + step;
@@ -273,9 +280,8 @@
           ss(function () { w.sessionStorage.setItem(key, '1'); });
           jumpLog('signed in here, so ' + nm + ' is turned on');
         } else if (d && d.status === 'error' && /expired|sign in again/i.test(String(d.message || ''))) {
-          jumpLog('this sign-in was ended on another device; signing out here');
-          try { if (w.CW && w.CW.forget) { w.CW.forget(); } } catch (e) {}
-          w.location.replace('/signin/?out=1');
+          jumpLog('this sign-in was ended on another device; signing out every site here');
+          endedEverywhere();
         }
       })
       .catch(function () {});
