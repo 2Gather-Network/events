@@ -198,6 +198,11 @@
   .ev-soc { width:30px; height:30px; box-sizing:border-box; border:1px solid #D5E1EC; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; color:#6B7A8D; flex:0 0 30px; }
   .ev-soc:hover { border-color:#1F699E; color:#1F699E; }
   .ev-soc:focus-visible { outline:2px solid #1F699E; outline-offset:2px; }
+  #cw-socpop { position:fixed; inset:0; background:rgba(15,30,45,.45); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px; }
+  #cw-socpop .cw-socpop-in { background:#fff; border-radius:14px; width:100%; max-width:560px; max-height:calc(100vh - 32px); overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,.25); position:relative; }
+  #cw-socpop iframe { display:block; width:100%; height:0; border:0; }
+  #cw-socpop .cw-socpop-wait { padding:28px 24px; font-size:15px; color:#374151; }
+  #cw-socpop .cw-socpop-wait a { color:#1F699E; font-weight:700; }
   .ev-pill { font-size:11px; font-weight:600; background:#EAF2F8; color:var(--primary); border-radius:12px; padding:3px 9px; line-height:1.4; }
   .ev-pill.part { background:#fff; color:var(--muted); border:1px solid var(--border); font-weight:500; }
   #for-you-section, #rec-head, #rec-why, #rec-mygroups-row, #for-you-more, #for-you-results { display:none !important; }
@@ -3448,9 +3453,49 @@ function _evMatches(ev) {
 function _evActs(ev, star) {
   if (!star) return "";
   var welcome = String(ev.exchangeType || "").split(",").indexOf("spread") > -1 || String(ev.hostType || "").toLowerCase() === "socializer";
-  var soc = welcome ? '<a class="ev-soc" href="/event.html?id=' + encodeURIComponent(ev.id) + '&socialize=1" title="Socialize this event" aria-label="Socialize this event"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a3 3 0 0 1 0 6"/><path d="M10 8v11a1 1 0 0 1 -1 1h-1a1 1 0 0 1 -1 -1v-5"/><path d="M12 8h0l4.524 -3.77a.9 .9 0 0 1 1.476 .692v12.156a.9 .9 0 0 1 -1.476 .692l-4.524 -3.77h-8a1 1 0 0 1 -1 -1v-4a1 1 0 0 1 1 -1h8"/></svg></a>' : "";
+  var soc = welcome ? '<a class="ev-soc" href="/event/?id=' + encodeURIComponent(ev.id) + '&socialize=1" title="Socialize this event" aria-label="Socialize this event"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a3 3 0 0 1 0 6"/><path d="M10 8v11a1 1 0 0 1 -1 1h-1a1 1 0 0 1 -1 -1v-5"/><path d="M12 8h0l4.524 -3.77a.9 .9 0 0 1 1.476 .692v12.156a.9 .9 0 0 1 -1.476 .692l-4.524 -3.77h-8a1 1 0 0 1 -1 -1v-4a1 1 0 0 1 1 -1h8"/></svg></a>' : "";
   return '<span class="ev-acts">' + star + soc + '</span>';
 }
+document.addEventListener("click", function (e) {
+  var a = e.target.closest && e.target.closest(".ev-soc");
+  if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+  e.preventDefault(); e.stopPropagation();
+  _socPopOpen(a.getAttribute("href"));
+}, true);
+function _socPopClose() {
+  var p = document.getElementById("cw-socpop");
+  if (p) p.remove();
+  document.removeEventListener("keydown", _socPopKey);
+}
+function _socPopKey(e) { if (e.key === "Escape") _socPopClose(); }
+function _socPopOpen(href) {
+  _socPopClose();
+  var src = href + (href.indexOf("?") > -1 ? "&" : "?") + "embed=1";
+  var p = document.createElement("div");
+  p.id = "cw-socpop";
+  p.innerHTML = '<div class="cw-socpop-in" role="dialog" aria-modal="true" aria-label="Socialize"><div class="cw-socpop-wait">Opening\u2026</div><iframe title="Socialize" allow="clipboard-write; web-share"></iframe></div>';
+  p.addEventListener("click", function (e) { if (e.target === p) _socPopClose(); });
+  document.body.appendChild(p);
+  document.addEventListener("keydown", _socPopKey);
+  var f = p.querySelector("iframe"), w = p.querySelector(".cw-socpop-wait");
+  setTimeout(function () {
+    if (document.getElementById("cw-socpop") === p && w && !w.hidden) {
+      w.innerHTML = 'This is taking a while. <a href="' + esc(href) + '">Open the event</a> instead.';
+    }
+  }, 15000);
+  f.src = src;
+}
+window.addEventListener("message", function (e) {
+  if (e.origin !== location.origin || !e.data || !e.data.cwSoc) return;
+  var p = document.getElementById("cw-socpop");
+  if (!p) return;
+  if (e.data.cwSoc === "close") { _socPopClose(); return; }
+  if (e.data.open && e.data.h > 0) {
+    var w = p.querySelector(".cw-socpop-wait"), f = p.querySelector("iframe");
+    if (w) w.hidden = true;
+    if (f) f.style.height = Math.min(e.data.h, window.innerHeight - 32) + "px";
+  }
+});
 function _evMatchPills(ev, star) {
   try {
     var m = _evMatches(ev);
