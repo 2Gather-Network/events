@@ -87,8 +87,21 @@
     var u = cur.short || base();
     return (cur.listed && window.CW && CW.withRef) ? CW.withRef(u) : u;
   }
+  var keep = null;
+  function reattach() {
+    if (!cur || cur.box.isConnected) return;
+    var id = cur.ev.id, card = null, all = document.querySelectorAll('.event-card');
+    for (var i = 0; i < all.length; i++) { if (all[i].dataset && all[i].dataset.eventId === id) { card = all[i]; break; } }
+    if (!card) return;
+    var top = card.querySelector('.event-card-top') || card;
+    top.appendChild(cur.box);
+    cur.card = card;
+    var b = card.querySelector('.ev-soc');
+    if (b) { cur.btn = b; b.setAttribute('aria-expanded', 'true'); }
+  }
   function close() {
     if (!cur) return;
+    if (keep) { keep.disconnect(); keep = null; }
     var c = cur; cur = null;
     if (c.box && c.box.parentNode) c.box.parentNode.removeChild(c.box);
     if (c.btn) c.btn.setAttribute('aria-expanded', 'false');
@@ -166,6 +179,7 @@
       var top = card.querySelector('.event-card-top') || card;
       top.appendChild(box);
       btn.setAttribute('aria-expanded', 'true');
+      if (window.MutationObserver) { keep = new MutationObserver(reattach); keep.observe(document.body, { childList: true, subtree: true }); }
       try { var r = box.getBoundingClientRect(); if (r.bottom > window.innerHeight) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
     },
     close: function () {
