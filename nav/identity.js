@@ -180,6 +180,7 @@
       var path = String(w.location.pathname || '/');
       if (/^\/(signin|signup|signin-google)(\/|$)/.test(path)) { return; }
       w._cwSignInAgain = true;
+      var wasViewing = !!viewingAs();
       try { if (w.CW && w.CW.forget) { w.CW.forget(); } } catch (e) {}
       var onCW = String(w.location.hostname || '').indexOf('creating.works') >= 0;
       var back = path + String(w.location.search || '') + String(w.location.hash || '').replace(/^#cwview=.*$/, '');
@@ -191,9 +192,12 @@
           w.location.replace(back);
           return;
         }
-        jumpLog('the sign-in the service gave was refused; signing out every site here');
-        endedEverywhere();
-        return;
+        if (!wasViewing) {
+          jumpLog('the sign-in the service gave was refused; signing out every site here');
+          endedEverywhere();
+          return;
+        }
+        ls(function () { w.localStorage.setItem('cw-jump-wait', String(Date.now() + 30 * 60 * 1000)); });
       }
       w.location.replace(onCW ? '/' : '/signin/?next=' + encodeURIComponent(back));
     }
