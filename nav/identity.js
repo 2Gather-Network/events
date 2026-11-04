@@ -179,8 +179,9 @@
       if (w._cwSignInAgain) { return; }
       var path = String(w.location.pathname || '/');
       if (/^\/(signin|signup|signin-google)(\/|$)/.test(path)) { return; }
+      if (viewingAs()) { jumpLog('a call was refused while viewing as someone; nothing signed out'); return; }
       w._cwSignInAgain = true;
-      if (jumpOn() && !viewingAs()) {
+      if (jumpOn()) {
         var fresh = parseInt(ls(function () { return w.localStorage.getItem('cw-jump-arrived'); }, '') || '0', 10) || 0;
         if (Date.now() - fresh <= 2 * 60 * 1000 && asked) {
           w.setTimeout(function () {
