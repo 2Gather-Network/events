@@ -46,10 +46,10 @@
     try { localStorage.removeItem(HEADING); } catch (e) {}
   };
 
-  var BALANCE_FIRST = { 'Connect': ['howIConnect'], 'Create': ['methods', 'subjects', 'expression'], 'Eat and drink': ['howIEatAndDrink'], 'Move': ['howIMove'], 'Play': ['energizesMeKinds'], 'Rest': ['howIRest'], 'My body and physical surroundings': ['bodyMoreOf'], 'My feelings': ['feelingsLately'], 'My energy': ['energyNotServing'], 'My mind': ['mindMoreOf'], 'My imagination': ['imaginationMoreOf'] };
+  var BALANCE_FIRST = { 'Connect': ['1stHowIConnect'], 'Create': ['methods', 'subjects', 'expression'], 'Eat and drink': ['1stHowIEatAndDrink'], 'Move': ['howIMove'], 'Play': ['1stEnergizesMeKinds'], 'Rest': ['howIRest'], 'My body and physical surroundings': ['1stBodyMoreOf'], 'My feelings': ['1stFeelingsLately'], 'My energy': ['1stEnergyNotServing'], 'My mind': ['1stMindMoreOf'], 'My imagination': ['1stImaginationMoreOf'] };
 
   function _balanceDone(row) {
-    var picked = String(row.exploreAreas || '').split('|').map(function (x) { return x.trim(); }).filter(function (x) { return BALANCE_FIRST[x]; });
+    var picked = String(row['1stExploreAreas'] || '').split('|').map(function (x) { return x.trim(); }).filter(function (x) { return BALANCE_FIRST[x]; });
     return picked.length > 0 && picked.every(function (n) { return BALANCE_FIRST[n].some(function (k) { return !blank(row[k]); }); });
   }
 
