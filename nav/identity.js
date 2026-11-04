@@ -163,7 +163,7 @@
       var asked = '';
       try { asked = (typeof out === 'string') ? out : (out && out.url) || ''; } catch (e) {}
       return p.then(function (r) {
-        try { if (r && r.headers && r.headers.get('X-CW-Signin') === '1' && namesMe(asked)) { signInAgain(asked); } } catch (e) {}
+        try { if (r && r.headers && r.headers.get('X-CW-Signin') === '1' && namesMe(asked)) { signInAgain(); } } catch (e) {}
         return r;
       });
     };
@@ -175,7 +175,7 @@
       for (var i = 0; i < keys.length; i++) { if (normalise(q.get(keys[i]) || '') === mine) { return true; } }
       return false;
     }
-    function signInAgain(asked) {
+    function signInAgain() {
       if (w._cwSignInAgain) { return; }
       var path = String(w.location.pathname || '/');
       if (/^\/(signin|signup|signin-google)(\/|$)/.test(path)) { return; }
@@ -183,9 +183,11 @@
       w._cwSignInAgain = true;
       if (jumpOn()) {
         var fresh = parseInt(ls(function () { return w.localStorage.getItem('cw-jump-arrived'); }, '') || '0', 10) || 0;
-        if (Date.now() - fresh <= 2 * 60 * 1000 && asked) {
+        var who = ls(function () { return w.localStorage.getItem('cw-id') || w.localStorage.getItem('appear-id') || ''; }, '');
+        var tok = ls(function () { return w.localStorage.getItem('cw-token') || ''; }, '');
+        if (Date.now() - fresh <= 2 * 60 * 1000 && who && tok) {
           w.setTimeout(function () {
-            orig.call(w, asked + (asked.indexOf('?') > -1 ? '&' : '?') + 'nocache=' + Date.now(), { referrerPolicy: 'no-referrer' })
+            orig.call(w, 'https://cw-api-gate.jessieupp.workers.dev?action=getPermissions&appearId=' + encodeURIComponent(who) + '&meToken=' + encodeURIComponent(tok) + '&nocache=' + Date.now(), { referrerPolicy: 'no-referrer' })
               .then(function (r2) {
                 if (r2 && r2.headers && r2.headers.get('X-CW-Signin') === '1') {
                   jumpLog('the sign-in the service gave was refused twice; signing out every site here');
