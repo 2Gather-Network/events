@@ -111,6 +111,7 @@
   }
   function chipLine(t) {
     var text = String(t || '').trim();
+    if (!text || /^Loading\s*(\.\.\.|\u2026)?$/i.test(text)) { return shuffled()[0] + '\u2026'; }
     if (/^Looking up this group/i.test(text)) { return shuffled()[0] + '\u2026'; }
     var o = text.match(/^Opening (.+?)\s*(\.\.\.|\u2026)?$/i);
     if (o && o[1] && !/^(Manage|your |the )/i.test(o[1])) { return shuffled()[0] + '\u2026'; }
