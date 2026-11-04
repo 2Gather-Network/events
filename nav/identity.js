@@ -163,7 +163,7 @@
       var asked = '';
       try { asked = (typeof out === 'string') ? out : (out && out.url) || ''; } catch (e) {}
       return p.then(function (r) {
-        try { if (r && r.headers && r.headers.get('X-CW-Signin') === '1' && namesMe(asked)) { signInAgain(); } } catch (e) {}
+        try { if (r && r.headers && r.headers.get('X-CW-Signin') === '1' && namesMe(asked)) { signInAgain(asked); } } catch (e) {}
         return r;
       });
     };
@@ -175,12 +175,30 @@
       for (var i = 0; i < keys.length; i++) { if (normalise(q.get(keys[i]) || '') === mine) { return true; } }
       return false;
     }
-    function signInAgain() {
+    function signInAgain(asked) {
       if (w._cwSignInAgain) { return; }
       var path = String(w.location.pathname || '/');
       if (/^\/(signin|signup|signin-google)(\/|$)/.test(path)) { return; }
       w._cwSignInAgain = true;
-      var wasViewing = !!viewingAs();
+      if (jumpOn() && !viewingAs()) {
+        var fresh = parseInt(ls(function () { return w.localStorage.getItem('cw-jump-arrived'); }, '') || '0', 10) || 0;
+        if (Date.now() - fresh <= 2 * 60 * 1000 && asked) {
+          w.setTimeout(function () {
+            orig.call(w, asked + (asked.indexOf('?') > -1 ? '&' : '?') + 'nocache=' + Date.now(), { referrerPolicy: 'no-referrer' })
+              .then(function (r2) {
+                if (r2 && r2.headers && r2.headers.get('X-CW-Signin') === '1') {
+                  jumpLog('the sign-in the service gave was refused twice; signing out every site here');
+                  endedEverywhere();
+                } else {
+                  w._cwSignInAgain = false;
+                  jumpLog('one refused answer, the second was fine; staying signed in');
+                }
+              })
+              .catch(function () { w._cwSignInAgain = false; jumpLog('one refused answer, the second did not arrive; staying signed in'); });
+          }, 2000);
+          return;
+        }
+      }
       try { if (w.CW && w.CW.forget) { w.CW.forget(); } } catch (e) {}
       var onCW = String(w.location.hostname || '').indexOf('creating.works') >= 0;
       var back = path + String(w.location.search || '') + String(w.location.hash || '').replace(/^#cwview=.*$/, '');
@@ -190,11 +208,6 @@
         if (Date.now() - arrived > 2 * 60 * 1000) {
           ls(function () { w.localStorage.removeItem('cw-jump-wait'); });
           w.location.replace(back);
-          return;
-        }
-        if (!wasViewing) {
-          jumpLog('the sign-in the service gave was refused; signing out every site here');
-          endedEverywhere();
           return;
         }
         ls(function () { w.localStorage.setItem('cw-jump-wait', String(Date.now() + 30 * 60 * 1000)); });
@@ -218,6 +231,7 @@
 
   function endedEverywhere() {
     try { if (w.CW && w.CW.forget) { w.CW.forget(); } } catch (e) {}
+    ls(function () { w.localStorage.setItem('cw-jump-wait', String(Date.now() + 30 * 60 * 1000)); });
     if (jumpOn()) { w._cwJumping = true; w.location.replace('/signout/#all=1'); return; }
     w.location.replace('/signin/?out=1');
   }
@@ -275,8 +289,9 @@
     var key = 'cw-here-' + (nm || '') + '-' + normalise(id);
     var reload = ls(function () { var e = w.performance.getEntriesByType('navigation')[0]; return !!e && e.type === 'reload'; }, false);
     if (!nm || (!reload && ss(function () { return w.sessionStorage.getItem(key); }, '') === '1')) { return w.Promise.resolve(); }
-    return w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=saveAccount&appearId=' + encodeURIComponent(id) + '&secure=1&editToken=' + encodeURIComponent(token) +
-        '&enabledSolution=' + nm, { referrerPolicy: 'no-referrer' })
+    var ask = 'https://cw-api-gate.jessieupp.workers.dev?action=saveAccount&appearId=' + encodeURIComponent(id) + '&secure=1&editToken=' + encodeURIComponent(token) +
+        '&enabledSolution=' + nm;
+    return w.fetch(ask, { referrerPolicy: 'no-referrer' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d && d.status === 'ok' && d.enabledSolution) {
@@ -284,8 +299,19 @@
           ss(function () { w.sessionStorage.setItem(key, '1'); });
           jumpLog('signed in here, so ' + nm + ' is turned on');
         } else if (d && d.status === 'error' && /expired|sign in again/i.test(String(d.message || ''))) {
-          jumpLog('this sign-in was ended on another device; signing out every site here');
-          endedEverywhere();
+          jumpLog('this sign-in was refused; asking once more');
+          return new w.Promise(function (done) { w.setTimeout(done, 2000); })
+            .then(function () { return w.fetch(ask + '&nocache=' + Date.now(), { referrerPolicy: 'no-referrer' }); })
+            .then(function (r2) { return r2.json(); })
+            .then(function (d2) {
+              if (d2 && d2.status === 'error' && /expired|sign in again/i.test(String(d2.message || ''))) {
+                jumpLog('this sign-in was ended on another device; signing out every site here');
+                endedEverywhere();
+              } else {
+                jumpLog('the second answer was fine; staying signed in');
+              }
+            })
+            .catch(function () { jumpLog('the second answer did not arrive; staying signed in'); });
         }
       })
       .catch(function () {});
