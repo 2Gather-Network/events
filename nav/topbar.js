@@ -230,13 +230,6 @@
         + '<span class="cwtb-face" style="' + INITIALS_CSS + '">' + e3(initialsOf(n)) + '</span>';
     } catch (e) {}
   }
-  function hasBookmarks() {
-    try {
-      var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
-      var v = JSON.parse(localStorage.getItem('cw-havebookmarks') || 'null');
-      return !!(v && v.yes === true && norm(v.who) === norm(me()));
-    } catch (e) { return false; }
-  }
   function _tbProved() {
     try {
       if (!localStorage.getItem('cw-token')) { return false; }
@@ -322,9 +315,6 @@
       if (v && norm(f) && norm(f) === norm(real)) { return (onAppear() ? '' : 'https://2gather.network') + '/hi/' + encodeURIComponent(v); }
     } catch (e) {}
     return (onAppear() ? '' : 'https://2gather.network') + '/me/?mine=1';
-  }
-  function hasAGroup() {
-    try { return !!me(); } catch (e) { return false; }
   }
 
   function me() {
@@ -488,19 +478,24 @@
     }
 
     function jumpIsOn() { return !!(window.CW && window.CW.jumpOn && window.CW.jumpOn()); }
+    function appearSection() {
+      var items = [{ label: 'My groups', url: carryLink('https://2appear.network/mygroups/') }];
+      if (onAppear()) { items.push({ label: invitesLabel(), url: '/mygroups/?tab=invites', cls: 'cwtb-item cwtb-under' }); }
+      items.push({ label: 'My network', url: carryLink('https://2appear.network/network/') });
+      return { key: 'appear', label: '2Appear', items: items };
+    }
     function enabledElsewhere() {
       var out = [{ key: 'gather', label: '2Gather', items: [
         { label: 'Calendar',  url: carryLink(EVENTS + '/') },
         { label: 'My events', url: carryLink(link(MYEVENTS, 'memberCard')) }
       ]}];
-      if (!jumpIsOn()) { return out; }
-      if (window.CW.me && window.CW.me().viewing) { return out; }
-      var on = String((function () { try { return localStorage.getItem('cw-enabled') || ''; } catch (e) { return ''; } })() || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean);
       var here = siteOf(window.location.hostname);
-      if (on.indexOf('Appear') > -1 || here === 'appear') { out.push({ key: 'appear', label: '2Appear', items: [
-        { label: 'My groups',  url: carryLink('https://2appear.network/mygroups/') },
-        { label: 'My network', url: carryLink('https://2appear.network/network/') }
-      ]}); }
+      if (!jumpIsOn() || (window.CW.me && window.CW.me().viewing)) {
+        if (here === 'appear' || here === 'creatingworks') { out.push(appearSection()); }
+        return out;
+      }
+      var on = String((function () { try { return localStorage.getItem('cw-enabled') || ''; } catch (e) { return ''; } })() || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean);
+      if (on.indexOf('Appear') > -1 || here === 'appear') { out.push(appearSection()); }
       if (on.indexOf('Balance') > -1 || here === 'balance') { out.push({ key: 'balance', label: '2Balance', items: [
         { label: 'My ikigai', url: carryLink('https://2balance.network/ikigai/?step=joys') }
       ]}); }
@@ -529,11 +524,6 @@
       mine += anchor('My profile', myProfileUrl(), 'cwtb-item');
       var ap = onAppear();
       mine += anchor('My messages', ap ? '/messages/' : 'https://2gather.network/messages', 'cwtb-item');
-      if (hasAGroup() && (ap || (onCreatingWorks() && !jumpIsOn()))) {
-        mine += anchor('My groups', ap ? '/mygroups/' : carryLink('https://2appear.network/mygroups/'), 'cwtb-item');
-        if (ap) { mine += anchor(invitesLabel(), '/mygroups/?tab=invites', 'cwtb-item cwtb-under'); }
-      }
-      if (hasBookmarks() && (ap || (onCreatingWorks() && !jumpIsOn()))) { mine += anchor('My network', ap ? '/network/' : carryLink('https://2appear.network/network/'), 'cwtb-item'); }
       mine += otherSitesHtml();
       mine += anchor('My account', ap ? '/account/' : link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    ap ? '/support/' : link(SUPPORT,  'memberCard'), 'cwtb-item');
@@ -743,6 +733,7 @@
       '.cwtb-item:hover{background:#F7FBFF;}' +
       '.cwtb-sub .cwtb-item,.cwtb-sub a.cwtb-item:link,.cwtb-sub a.cwtb-item:visited{padding-left:42px;font-size:15px;}' +
       '.cwtb-under,a.cwtb-under:link,a.cwtb-under:visited{padding-left:42px;font-size:15px;}' +
+      '.cwtb-sub a.cwtb-item.cwtb-under,.cwtb-sub a.cwtb-item.cwtb-under:link,.cwtb-sub a.cwtb-item.cwtb-under:visited{padding-left:62px;}' +
       '.cwtb-drawn .cw-dupe-brand{display:none !important;}' +
       '.cwtb-lit:not(.cwtb-me){background:rgba(255,255,255,.20);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);}' +
       '#cw-topbar.cwtb-menuing .cwtb-tab.cwtb-on:not(.cwtb-lit){background:transparent;box-shadow:none;}' +
