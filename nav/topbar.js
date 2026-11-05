@@ -206,13 +206,6 @@
     ]}
   ];
 
-  function hasEvents() {
-    try {
-      var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
-      var v = JSON.parse(localStorage.getItem('cw-haveevents') || 'null');
-      return !!(v && v.yes === true && norm(v.who) === norm(me()));
-    } catch (e) { return false; }
-  }
   function firstMinDone() {
     try {
       if (String(sessionStorage.getItem('cw-view-as') || '').trim()) { return true; }
@@ -220,12 +213,6 @@
       var v = JSON.parse(localStorage.getItem('cw-firstmin') || 'null');
       return !!(v && v.yes === true && norm(v.who) === norm(me()));
     } catch (e) { return false; }
-  }
-  function gatherOn() {
-    try {
-      var on = String(localStorage.getItem('cw-enabled') || '').split('|').map(function (x) { return x.trim(); });
-      return on.indexOf('Gather') > -1 || hasEvents();
-    } catch (e) { return hasEvents(); }
   }
   var INITIALS_CSS = 'display:flex;align-items:center;justify-content:center;background:#EEF4FA;color:#1F699E;font-weight:800;font-size:13px;';
   function initialsOf(n) {
@@ -502,15 +489,14 @@
 
     function jumpIsOn() { return !!(window.CW && window.CW.jumpOn && window.CW.jumpOn()); }
     function enabledElsewhere() {
-      if (!jumpIsOn()) { return []; }
-      if (window.CW.me && window.CW.me().viewing) { return []; }
-      var on = String((function () { try { return localStorage.getItem('cw-enabled') || ''; } catch (e) { return ''; } })() || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean);
-      var here = siteOf(window.location.hostname);
-      var out = [];
-      if ((gatherOn() || here === 'gather')) { out.push({ key: 'gather', label: '2Gather', items: [
+      var out = [{ key: 'gather', label: '2Gather', items: [
         { label: 'Calendar',  url: carryLink(EVENTS + '/') },
         { label: 'My events', url: carryLink(link(MYEVENTS, 'memberCard')) }
-      ]}); }
+      ]}];
+      if (!jumpIsOn()) { return out; }
+      if (window.CW.me && window.CW.me().viewing) { return out; }
+      var on = String((function () { try { return localStorage.getItem('cw-enabled') || ''; } catch (e) { return ''; } })() || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean);
+      var here = siteOf(window.location.hostname);
       if (on.indexOf('Appear') > -1 || here === 'appear') { out.push({ key: 'appear', label: '2Appear', items: [
         { label: 'My groups',  url: carryLink('https://2appear.network/mygroups/') },
         { label: 'My network', url: carryLink('https://2appear.network/network/') }
@@ -548,14 +534,6 @@
         if (ap) { mine += anchor(invitesLabel(), '/mygroups/?tab=invites', 'cwtb-item cwtb-under'); }
       }
       if (hasBookmarks() && (ap || (onCreatingWorks() && !jumpIsOn()))) { mine += anchor('My network', ap ? '/network/' : carryLink('https://2appear.network/network/'), 'cwtb-item'); }
-      if (ap) {
-        if (gatherOn() && !jumpIsOn()) {
-          mine += '<a role="button" tabindex="0" class="cwtb-item" data-sub="gather" aria-expanded="false">2Gather' + CARET + '</a>' +
-                  '<div class="cwtb-sub" data-subof="gather" hidden>' +
-                  anchor('Calendar', carryLink(EVENTS + '/'), 'cwtb-item') +
-                  anchor('My events', carryLink(link(MYEVENTS, 'memberCard')), 'cwtb-item') + '</div>';
-        }
-      } else if (hasEvents()) { mine += anchor('My events', carryLink(link(MYEVENTS, 'memberCard')), 'cwtb-item'); }
       mine += otherSitesHtml();
       mine += anchor('My account', ap ? '/account/' : link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    ap ? '/support/' : link(SUPPORT,  'memberCard'), 'cwtb-item');
