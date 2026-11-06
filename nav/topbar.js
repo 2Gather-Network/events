@@ -427,7 +427,7 @@
     }
 
     var atDoor = (window.location.pathname || '').toLowerCase().indexOf('/signin') === 0;
-    if (!atDoor) { checkBookmarks(); checkInvites(); }
+    if (!atDoor) { checkBookmarks(); }
 
     function myName() {
       try {
@@ -480,7 +480,6 @@
     function jumpIsOn() { return !!(window.CW && window.CW.jumpOn && window.CW.jumpOn()); }
     function appearSection() {
       var items = [{ label: 'My groups', url: carryLink('https://2appear.network/mygroups/') }];
-      if (onAppear()) { items.push({ label: invitesLabel(), url: '/mygroups/?tab=invites', cls: 'cwtb-item cwtb-under' }); }
       items.push({ label: 'My network', url: carryLink('https://2appear.network/network/') });
       return { key: 'appear', label: '2Appear', items: items };
     }
@@ -732,8 +731,6 @@
         'text-decoration:none;cursor:pointer;white-space:nowrap;}' +
       '.cwtb-item:hover{background:#F7FBFF;}' +
       '.cwtb-sub .cwtb-item,.cwtb-sub a.cwtb-item:link,.cwtb-sub a.cwtb-item:visited{padding-left:42px;font-size:15px;}' +
-      '.cwtb-under,a.cwtb-under:link,a.cwtb-under:visited{padding-left:42px;font-size:15px;}' +
-      '.cwtb-sub a.cwtb-item.cwtb-under,.cwtb-sub a.cwtb-item.cwtb-under:link,.cwtb-sub a.cwtb-item.cwtb-under:visited{padding-left:62px;}' +
       '.cwtb-drawn .cw-dupe-brand{display:none !important;}' +
       '.cwtb-lit:not(.cwtb-me){background:rgba(255,255,255,.20);box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);}' +
       '#cw-topbar.cwtb-menuing .cwtb-tab.cwtb-on:not(.cwtb-lit){background:transparent;box-shadow:none;}' +
@@ -1256,6 +1253,18 @@
     try { own = /^\/(me|hi)(\/|$)/.test(w.location.pathname) && (d.documentElement.classList.contains('cw-own') || !!d.getElementById('pv-edit-profile')); } catch (e) { own = false; }
     if (own) { w.location.href = '/me/?mine=1'; } else { w.location.reload(); }
   }
+  function cancelBtn(panel) {
+    var c = d.createElement('button');
+    c.type = 'button';
+    c.textContent = 'Cancel';
+    c.style.cssText = 'font:inherit;font-weight:700;padding:6px 14px;border-radius:14px;cursor:pointer;'
+      + 'border:1px solid #C3D0DB;background:transparent;color:#2F3D4F;';
+    var close = function () { panel.remove(); d.removeEventListener('keydown', onKey); };
+    var onKey = function (ev) { if (ev.key === 'Escape') { close(); } };
+    d.addEventListener('keydown', onKey);
+    c.onclick = close;
+    return c;
+  }
   function openWords(bar) {
     var old = d.getElementById('cw-viewas-words'); if (old) { old.remove(); return; }
     var other = d.getElementById('cw-viewas-pick'); if (other) { other.remove(); }
@@ -1270,7 +1279,11 @@
     head.textContent = 'Looking for proposed words…';
     var list = d.createElement('div');
     list.style.cssText = 'display:flex;flex-direction:column;gap:8px;max-width:640px;';
-    panel.appendChild(head); panel.appendChild(list);
+    var wTop = d.createElement('div');
+    wTop.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:640px;margin-bottom:8px;';
+    head.style.marginBottom = '0';
+    wTop.appendChild(head); wTop.appendChild(cancelBtn(panel));
+    panel.appendChild(wTop); panel.appendChild(list);
     d.body.appendChild(panel);
     var auth = '&appearId=' + encodeURIComponent(realMeId)
       + '&meToken=' + encodeURIComponent(String(ls(function () { return w.localStorage.getItem('cw-token'); }, '') || ''));
@@ -1382,9 +1395,9 @@
       + 'padding:9px 12px;font:inherit;outline:none;';
     var out = d.createElement('div');
     out.style.cssText = 'margin-top:8px;display:flex;flex-direction:column;gap:5px;max-width:420px;';
+    var outLine = d.createElement('div');
+    outLine.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;';
     if (w.CW && w.CW.viewSignedOut) {
-      var outLine = d.createElement('div');
-      outLine.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;';
       var asOut = d.createElement('button');
       asOut.type = 'button';
       asOut.textContent = 'Signed out';
@@ -1392,8 +1405,9 @@
         + 'border:1px solid #DDE3EA;background:#F7FBFF;color:#1A2E42;';
       asOut.onclick = function () { w.CW.viewSignedOut(); w.location.reload(); };
       outLine.appendChild(asOut);
-      panel.appendChild(outLine);
     }
+    outLine.appendChild(cancelBtn(panel));
+    panel.appendChild(outLine);
     panel.appendChild(inp); panel.appendChild(out);
     bar.parentNode.insertBefore(panel, bar.nextSibling);
     inp.focus();
