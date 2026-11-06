@@ -40,7 +40,7 @@
   ];
   var KIND_TOPS = {
     Recreational: ['Play', 'Outdoors', 'Movement', 'Arts & Expression', 'Food & Drink', 'Travel'],
-    Personal: ['Home Life', 'Animals', 'Rest & Recovery', 'Personal Care', 'Medical']
+    Personal: ['Home Life', 'Animals', 'Rest & Recovery', 'Personal Care', 'Medical', 'Personal security', 'Belief & Meaning']
   };
   function kindOfTop(name){
     name = String(name || '').trim();
@@ -75,7 +75,8 @@
     var st = document.createElement('style'); st.id = 'cw-pk-style';
     st.textContent = '.cwpk-all{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;}'
       + '.cwpk:not(.on){background:#fff;}.cwpk:not(.on):hover{background:#EEF2F7;}'
-      + '.cwpk.cwpk-all{border:2px solid #1F699E;color:#1F699E;font-weight:700;}.cwpk.cwpk-all.on{color:#fff;}';
+      + '.cwpk.cwpk-all{border:2px solid #1F699E;color:#1F699E;font-weight:700;}.cwpk.cwpk-all.on{color:#fff;}'
+      + '.cwpk:not(.cwpk-all){color:#1A2E42;font-weight:400;}.cwpk:not(.cwpk-all):not(.on){border-color:#C9D6E2;}.cwpk:not(.cwpk-all).on{color:#fff;}';
     document.head.appendChild(st);
   }
   function makePicker(host, sec, chip, onChange){
@@ -128,7 +129,7 @@
       return list;
     }
     function pill(text, isOn, fn){
-      var c = document.createElement('div'); c.className = chip + ' cwpk' + (isOn ? ' on' : '') + (text === 'Select all' ? ' cwpk-all' : '');
+      var c = document.createElement('div'); c.className = chip + ' cwpk' + (isOn ? ' on' : '') + ((text === 'Select all' || /^Any (eco|social) cause$/.test(text)) ? ' cwpk-all' : '');
       c.textContent = (isOn ? '✓ ' : '') + text;
       c.addEventListener('click', fn);
       return c;
@@ -266,7 +267,7 @@
         var key = at.concat(n.name).join(SEP);
         if (n.kids.length) {
           var d = document.createElement('div'); d.className = chip + ' cwpk';
-          d.style.cssText = 'color:#1F699E;border-color:#1F699E;';
+          d.style.cssText = 'color:#1A2E42;border-color:#C9D6E2;';
           d.textContent = (n.emoji ? n.emoji + ' ' : '') + n.name;
           d.addEventListener('click', function(){
             at = at.concat(n.name);
