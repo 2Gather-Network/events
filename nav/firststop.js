@@ -53,6 +53,31 @@
     return picked.length > 0 && picked.every(function (n) { return BALANCE_FIRST[n].some(function (k) { return !blank(row[k]); }); });
   }
 
+  var READY = 'cw-page-ready';
+  function _pageReady(row, id) {
+    var photo = !blank(row.photoURL) || !blank(row.photo);
+    try { if (!photo && localStorage.getItem('cw-photo-for') === id && localStorage.getItem('cw-photo')) { photo = true; } } catch (e) {}
+    return photo && !blank(row.location) && !blank(row.languages);
+  }
+  function _keepReady(id, ready) {
+    try { localStorage.setItem(READY, JSON.stringify({ who: id, ready: ready, at: Date.now() })); } catch (e) {}
+  }
+
+  CW.pageReady = function (id, cb) {
+    var c = null;
+    try { c = JSON.parse(localStorage.getItem(READY) || 'null'); } catch (e) {}
+    if (c && c.who === id && c.ready === true && (Date.now() - Number(c.at)) < 600000) { cb(true); return; }
+    fetch(GS + '?action=getIntake&appearId=' + encodeURIComponent(id))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.status === 'error' || d.found === false) { cb(null); return; }
+        var ready = _pageReady((d && d.data) || {}, id);
+        _keepReady(id, ready);
+        cb(ready);
+      })
+      .catch(function () { cb(null); });
+  };
+
   CW.firstStop = function (id, next, done) {
     CW.forgetWhere();
     try { sessionStorage.removeItem('cw-tb-quiet:lookupProfile'); } catch (e) {}
@@ -84,6 +109,11 @@
         var spoken = SAID.some(function (k) { return !blank(row[k]); });
         if (String(window.location.hostname || '').toLowerCase().indexOf('2balance.network') > -1) { finish(_balanceDone(row) ? '/start/' : '/first-minute/'); return; }
         var onAppear = String(window.location.hostname || '').toLowerCase().indexOf('appear.network') > -1;
+        if (onAppear && d && d.status !== 'error' && !_asked(next) && String(next || '/') === '/') {
+          var ready = _pageReady(row, id);
+          _keepReady(id, ready);
+          if (ready) { finish('/me/?mine=1'); return; }
+        }
         finish((spoken || _asked(next) || onAppear) ? next : 'https://2gather.network/welcome/');
       })
       .catch(function () { clearTimeout(timer); finish(next); });
