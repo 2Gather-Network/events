@@ -39,6 +39,7 @@
     try {
       localStorage.setItem('cw-id', d.appearId);
       localStorage.setItem('appear-id', d.appearId);
+      if (d.name) { localStorage.setItem('cw-name', d.name); localStorage.setItem('cw-name-for', d.appearId); localStorage.setItem('cw-name-at', String(Date.now())); }
       if (d.name) { localStorage.setItem('cw-first', String(d.name).split(' ')[0]); }
       if (d.photo) {
         localStorage.setItem('cw-photo', d.photo);
