@@ -27,6 +27,7 @@
       });
     }
   };
+  var ANY_LABEL = { Ecological: 'Any eco cause', Social: 'Any social cause' };
   var SECTIONS = [
     { key: 'joys', title: 'Interests', head: 'Recreational, personal and professional', sub: '', own: 'Something else?' },
     { key: 'cares', title: 'Interests', head: 'Eco/Social Causes', sub: '', own: 'Something else under Eco/Social Causes?' }
@@ -132,7 +133,7 @@
       c.addEventListener('click', fn);
       return c;
     }
-    var openN = {};
+    var openN = {}, accFind = {};
     function drawAcc(){
       cats.innerHTML = '';
       var heads = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0 10px;');
@@ -146,20 +147,18 @@
         });
         heads.appendChild(h);
       });
-      var names = tree.map(function(n){ return n.name; });
-      var allOn = names.length && names.every(function(k){ return !!on[k]; });
-      heads.appendChild(pill('Select all', allOn, function(){
-        names.forEach(function(k){
-          if (allOn) unmark(k); else { mark(k); order.slice().forEach(function(x){ if (x.indexOf(k + SEP) === 0) unmark(x); }); }
-        });
-        draw(); onChange();
-      }));
       cats.appendChild(heads);
       tree.forEach(function(n){
         if (!openN[n.name]) return;
         cats.appendChild(el('div', 'font-size:14px;font-weight:700;color:var(--ink,#1A2E42);margin:8px 0 6px;', n.name));
+        var sq = document.createElement('input');
+        sq.type = 'text'; sq.maxLength = 60; sq.value = accFind[n.name] || '';
+        sq.placeholder = 'Search ' + (ANY_LABEL[n.name] ? n.name.toLowerCase() + ' causes' : n.name.toLowerCase());
+        sq.setAttribute('aria-label', sq.placeholder);
+        sq.style.cssText = 'width:100%;box-sizing:border-box;margin:0 0 8px;';
+        cats.appendChild(sq);
         var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;');
-        r.appendChild(pill('All of ' + n.name, !!on[n.name], function(){
+        r.appendChild(pill(ANY_LABEL[n.name] || ('All of ' + n.name), !!on[n.name], function(){
           if (on[n.name]) unmark(n.name); else { mark(n.name); order.slice().forEach(function(x){ if (x.indexOf(n.name + SEP) === 0) unmark(x); }); }
           draw(); onChange();
         }));
@@ -173,6 +172,18 @@
         });
         r.appendChild(otherPill([n.name]));
         cats.appendChild(r);
+        var none = el('div', 'font-size:13px;color:var(--muted,#6B7A8D);margin:6px 0 0;', 'Nothing matches. Tap + Other to add it.');
+        cats.appendChild(none);
+        var kidPills = Array.prototype.slice.call(r.children, 1, r.children.length - 1);
+        var filt = function(){
+          var q = String(sq.value || '').trim().toLowerCase(), seen = 0;
+          accFind[n.name] = sq.value;
+          kidPills.forEach(function(c, i){ var hit = !q || n.kids[i].name.toLowerCase().indexOf(q) > -1; c.style.display = hit ? '' : 'none'; if (hit) seen++; });
+          none.style.display = (q && !seen) ? '' : 'none';
+        };
+        sq.addEventListener('input', filt);
+        sq.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') ev.preventDefault(); });
+        filt();
       });
     }
     function allNodes(list, path, out){
