@@ -2299,6 +2299,7 @@ function cwGjrPaint(registered) {
             .then(function (r) { return r.json(); })
             .then(function (a) {
               if (a && (a.ok || a.status === "ok")) { b.textContent = a.joined ? "Joined" : "Asked"; tell(a.joined ? "You’re in." : "Asked. The group’s host will let you know.", true); return; }
+              if (a && a.code === "interests-needed") { b.textContent = "Ask to join"; cwGjrPick(st, b, g, a, ev.id, me, pass); return; }
               b.disabled = false; b.textContent = "Ask to join";
               if (a && a.code === "profile-incomplete") { tell("Before joining a group, add " + esc((a.missing || []).join(", ")) + ' to your <a href="https://2gather.network/ikigai/" target="_blank" rel="noopener" style="color:#1F699E;font-weight:700;">profile</a>.', false); return; }
               tell('Ask from the <a href="' + esc(g.url) + '" target="_blank" rel="noopener" style="color:#1F699E;font-weight:700;">group’s page</a>.', false);
@@ -2308,6 +2309,49 @@ function cwGjrPaint(registered) {
       });
     })
     .catch(function () { slot.innerHTML = ""; });
+}
+function cwGjrPick(st, b, g, a, evId, me, pass) {
+  if (!st) return;
+  var SEP = " › ", on = {}, order = [];
+  var list = function (v) { v = String(v || ""); return v.split(/[;|]/.test(v) ? /[;|]/ : ",").map(function (x) { return x.trim(); }).filter(Boolean); };
+  st.style.display = ""; st.style.color = "#1A2E42"; st.innerHTML = "";
+  var h = document.createElement("span"); h.style.cssText = "display:block;font-weight:700;font-size:15px;margin:4px 0 2px;"; h.textContent = "What are your interests for joining " + (g.name || "this group") + "?"; st.appendChild(h);
+  var sub = document.createElement("span"); sub.style.cssText = "display:block;margin-bottom:8px;"; sub.textContent = "Pick one or more."; st.appendChild(sub);
+  var wrap = document.createElement("span"); wrap.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;"; st.appendChild(wrap);
+  [["joys", a.joys], ["skills", a.skills], ["cares", a.cares]].forEach(function (sx) {
+    list(sx[1]).forEach(function (k) {
+      var seg = k.split(/\s*›\s*/).map(function (x) { return x.trim(); }).filter(Boolean);
+      if (!seg.length) return;
+      var name = seg[seg.length - 1], key = sx[0] + ":" + seg.join(SEP);
+      if (on.hasOwnProperty(key)) return;
+      on[key] = false; order.push(key);
+      var c = document.createElement("button"); c.type = "button";
+      var paint = function () {
+        c.style.cssText = "display:inline-flex;align-items:center;line-height:1.2;cursor:pointer;border-radius:999px;padding:5px 12px;font:inherit;font-size:13.5px;font-weight:700;"
+          + (on[key] ? "background:#1F699E;color:#fff;border:1.5px solid #1F699E;" : "background:#fff;color:#1A2E42;border:1.5px solid #DDE3EA;");
+        c.textContent = (on[key] ? "✓ " : "") + name;
+      };
+      c.onclick = function () { on[key] = !on[key]; paint(); err.textContent = ""; };
+      paint(); wrap.appendChild(c);
+    });
+  });
+  var err = document.createElement("span"); err.style.cssText = "display:block;color:#7A2410;margin-bottom:8px;"; st.appendChild(err);
+  var go = document.createElement("button"); go.type = "button"; go.textContent = "Send my request";
+  go.style.cssText = "display:inline-flex;align-items:center;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;background:#1F699E;color:#fff;border:1.5px solid #1F699E;";
+  st.appendChild(go);
+  go.onclick = function () {
+    var chosen = order.filter(function (k) { return on[k]; });
+    if (!chosen.length) { err.textContent = "Pick at least one."; return; }
+    go.disabled = true; go.textContent = "Sending…";
+    fetch(GS_URL + "?action=saveJoinRequest&groupId=" + encodeURIComponent(g.groupId) + "&fromEvent=" + encodeURIComponent(evId) + "&appearId=" + encodeURIComponent(me) + "&joinInterests=" + encodeURIComponent(chosen.join(";")) + pass + "&t=" + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && (d.ok || d.status === "ok")) { b.textContent = d.joined ? "Joined" : "Asked"; st.style.color = "#1A5A2C"; st.textContent = d.joined ? "You’re in." : "Asked. The group’s host will let you know."; return; }
+        go.disabled = false; go.textContent = "Send my request";
+        err.innerHTML = 'That did not go through. Ask from the <a href="' + esc(g.url) + '" target="_blank" rel="noopener" style="color:#1F699E;font-weight:700;">group’s page</a>.';
+      })
+      .catch(function () { go.disabled = false; go.textContent = "Send my request"; err.textContent = "That did not go through. Try again."; });
+  };
 }
 function cwHiPaint() {
   if (typeof _currentEv === "undefined" || !_currentEv || String(_currentEv.hostType || "") !== "socializer") return;
