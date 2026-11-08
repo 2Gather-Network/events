@@ -123,6 +123,11 @@ html.order-needs .grid > .quadrant:nth-child(1){order:-1;}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px;}
 .quadrant{background:#fff;border-radius:14px;border:1px solid #e8eaf0;overflow:hidden;display:flex;flex-direction:column;}
 .q-header{padding:10px 14px 8px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f0f1f5;background:#fff;cursor:pointer;user-select:none;}
+.sk-words{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px 0;}
+.quadrant.q-closed .sk-words{display:none;}
+.sk-words[hidden]{display:none;}
+.sk-word{font-family:'Nunito Sans','DM Sans',sans-serif;font-size:13px;font-weight:700;padding:7px 14px;border-radius:24px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;}
+.sk-word[aria-pressed="true"]{background:#1F699E;color:#fff;}
 .q-title{font-size:14px;font-weight:700;letter-spacing:0.04em;color:#374151;}
 .q-count{font-size:13px;color:#5A6473;font-weight:600;}
 .lang-accent{width:100%;font-size:12px;color:#1F699E;font-weight:600;padding:6px 2px 0;border-top:1px solid #f0f1f5;margin-top:4px;}
@@ -362,7 +367,7 @@ var _photoMap={};
 var _catMap={};                   
 var _parentCats={};               
 var _collapsed={skills:false,interests:false,values:false,needs:false};
-var _chips={skills:[],interests:[],values:[],needs:[]};   
+var _chips={skills:[],interests:[],values:[],needs:[],haves:[]};   
 var _myOffer={};                  
 var _myNeed={};                   
 var _offerersByItem={};           
@@ -734,6 +739,7 @@ function processRow(data, appearId){
     communityType: mainCommunityType,
     values:        unionByItem(mainValues, ikValues),
     needs:         unionByItem(mainNeeds, ikNeeds),
+    haves:         parseHaves(data.haves),
     languages:String(data.languages||'').split('|').map(function(s){return s.trim();}).filter(Boolean)
   };
   _members.push(member);
@@ -772,6 +778,19 @@ function someoneElse(map){
   return false;
 }
 
+function parseHaves(str){
+  return String(str||'').split('|').map(function(t){
+    var p=String(t).split(':'), name=String(p[0]||'').trim(); if(!name) return null;
+    var cat='', local=false, last=String(p[p.length-1]||'').trim().toLowerCase();
+    for(var i=1;i<p.length;i++){
+      var sg=String(p[i]||'');
+      if(sg.indexOf('c=')===0) cat=sg.slice(2).replace(/^[^A-Za-z0-9]+/,'').trim();
+      else if(sg.indexOf('f=')===0) local=sg.slice(2).indexOf('local')>-1;
+    }
+    var kind=(p.length>1&&last==='space')?'space':'thing';
+    return {item:name, category:cat, meta:kind, local:local};
+  }).filter(Boolean);
+}
 function memberChips(field){
   var byPerson={};
   var pids=[];
@@ -784,7 +803,7 @@ function memberChips(field){
       if(_parentCats[low]) return;
       if(seen[low]) return; seen[low]=true;
       if(!byPerson[pid]){ byPerson[pid]=[]; pids.push(pid); }
-      byPerson[pid].push({item:label, category:it.category||'', meta:it.meta||'', detail:it.detail||'', member:{appearId:m.appearId, photo:m.photo, pageLink:m.pageLink}});
+      byPerson[pid].push({item:label, category:it.category||'', meta:it.meta||'', detail:it.detail||'', offerKind:field==='haves'?(it.meta||'thing'):'', local:!!it.local, member:{appearId:m.appearId, photo:m.photo, pageLink:m.pageLink}});
     });
   });
   pids=shuffle(pids);
@@ -815,6 +834,7 @@ function buildChips(){
   _chips.interests=memberChips('interests');
   _chips.values   =memberChips('values');
   _chips.needs    =memberChips('needs');
+  _chips.haves    =memberChips('haves');
   renderGuestPhotos();
 }
 
@@ -1164,12 +1184,13 @@ function _countChipsHTML(list, needsMode, key){
   var html=order.map(function(k){
     var g=by[k], n=Object.keys(g.people).length, en=g.en;
     var cat;
-    if(needsMode){ cat=en.category||''; }
+    if(en.offerKind){ cat=(en.category||(en.offerKind==='space'?'Space':'Thing'))+(en.local?' \u00b7 Local':''); }
+    else if(needsMode){ cat=en.category||''; }
     else if(key==='interests'){ cat=(en.meta||'').split(',').map(function(s){return s.trim();}).filter(Boolean).join(', '); }
     else { cat=refFor(en.item).category||''; }
     if(cat==='Domain'){ cat=(key==='values')?'Sector interest':''; }
     var dim=_matchMode&&!g.mt;
-    var sk=n>1?' data-sk="'+escHTML(key)+'" data-si="'+escHTML(en.item)+'" role="button" tabindex="0"':'';
+    var sk=n>1?' data-sk="'+escHTML(en.offerKind?'haves':key)+'" data-si="'+escHTML(en.item)+'" role="button" tabindex="0"':'';
     var mems=g.mems||[], who=g.names.filter(Boolean).join(', ');
     var one=(n===1 && _myId && mems[0] && mems[0].appearId);
     var open=one?' onclick="openProfile(\''+escHTML(mems[0].appearId||'')+'\',\''+escHTML(mems[0].pageLink||'')+'\')"':'';
@@ -1258,6 +1279,29 @@ function renderSection(bodyId, countId, entries, needsMode, key){
   body.innerHTML=html;
   _fitRows(body, filtered.length);
 }
+var _skShow='skill';
+function renderSkillsAndOffers(){
+  var sp=(_chips.haves||[]).filter(function(en){ return en.offerKind==='space'; });
+  var th=(_chips.haves||[]).filter(function(en){ return en.offerKind!=='space'; });
+  var any=sp.length||th.length;
+  if(!any) _skShow='skill';
+  if(_skShow==='space'&&!sp.length) _skShow='skill';
+  if(_skShow==='thing'&&!th.length) _skShow='skill';
+  var body=document.getElementById('skills-body'), q=body&&body.parentNode, words=document.getElementById('sk-words');
+  var t=q&&q.querySelector('.q-title'); if(t) t.textContent=any?'Skills and offerings':'Skills represented';
+  if(q && !words){ words=document.createElement('div'); words.id='sk-words'; words.className='sk-words'; q.insertBefore(words, body); }
+  if(words){
+    var w=[['all','Show all'],['skill','Skills']]; if(sp.length) w.push(['space','Spaces']); if(th.length) w.push(['thing','Things']);
+    words.hidden=!any;
+    words.innerHTML=w.map(function(x){ return '<button type="button" class="sk-word" data-show="'+x[0]+'" aria-pressed="'+(_skShow===x[0]?'true':'false')+'">'+x[1]+'</button>'; }).join('');
+  }
+  var list=_skShow==='all'?(_chips.skills||[]).concat(_chips.haves||[]):_skShow==='skill'?(_chips.skills||[]):_skShow==='space'?sp:th;
+  renderSection('skills-body','skills-count',list,false,'skills');
+}
+document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('#sk-words .sk-word'); if(!b) return;
+  e.stopPropagation(); _skShow=b.dataset.show; renderSkillsAndOffers();
+},true);
 function _fitRows(body, total){
   if(!body || !body.offsetParent) return;
   var chips=Array.prototype.filter.call(body.children,function(c){ return c.classList && c.classList.contains('chip'); });
@@ -1317,7 +1361,7 @@ function renderAll(){
   if(panel) panel.style.display='none';
   if(photos) photos.style.display='';
   if(searchSlot) searchSlot.style.display='';
-  renderSection('skills-body','skills-count',_chips.skills,false,'skills');
+  renderSkillsAndOffers();
   renderSection('interests-body','interests-count',_chips.interests,false,'interests');
   renderSection('values-body','values-count',_chips.values,false,'values');
   renderSection('needs-body','needs-count',_chips.needs,true,'needs');
@@ -1639,7 +1683,7 @@ async function loadContributions(){
   var KEY='<div class="mp-key"><span class="mp-key-item"><span class="mp-key-dot comp"></span>Offer/need match</span><span class="mp-key-item"><span class="mp-key-dot coseek"></span>Both need this</span><span class="mp-key-item"><span class="mp-key-dot share"></span>In common</span></div>';
   function draw(state){
     var item=state.item,ppl=state.ppl,others=ppl.filter(function(p){return !isMe(p.appearId);}),meIn=others.length<ppl.length;
-    var h='<div class="sp-top"><div style="flex:1;min-width:0"><h2 class="sp-title" id="sp-title">'+escHTML(titleCase(item))+'</h2><div class="mp-sub">'+ppl.length+' people '+(_groupId?'in this group':'here')+' '+({interests:'share this interest',skills:'share this skill',needs:'share this request',values:'care about this'}[state.key]||'share this')+'</div></div><button type="button" class="sp-x" data-sp="close" aria-label="Close">×</button></div>';
+    var h='<div class="sp-top"><div style="flex:1;min-width:0"><h2 class="sp-title" id="sp-title">'+escHTML(titleCase(item))+'</h2><div class="mp-sub">'+ppl.length+' people '+(_groupId?'in this group':'here')+' '+({interests:'share this interest',skills:'share this skill',needs:'share this request',values:'care about this',haves:'offer this'}[state.key]||'share this')+'</div></div><button type="button" class="sp-x" data-sp="close" aria-label="Close">×</button></div>';
     if(!state.all){
       h+=others.concat(ppl.filter(function(p){return isMe(p.appearId);})).map(function(p){return row(p,dot('share',titleCase(item)));}).join('');
       var q=encodeURIComponent(item);
