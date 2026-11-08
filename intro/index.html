@@ -1098,6 +1098,7 @@
     var f = document.getElementById('gp-photo-face'); if (!f) return;
     f.innerHTML = '<img src="' + url + '" alt="" style="width:100%;height:100%;object-fit:cover;">';
     var b = document.getElementById('gp-photo-btn'); if (b) b.textContent = 'Change photo';
+    try { if (window.ioReveal) window.ioReveal(); } catch (e) {}
   }
 
 
@@ -1132,7 +1133,7 @@
       gpHandleSay('Checking…');
       timer = setTimeout(function(){ gpHandleFree(v).then(function(ok){ if (gpHandleClean(el.value) !== v) return; if (ok === null) gpHandleSay('Could not check that just now.', true); else gpHandleSay(ok ? v + ' is free.' : 'Somebody already has that name.', !ok); }); }, 450);
     });
-    if (!have) gpHandleFree(sug).then(function(ok){ if (ok === false && _gpHandle.auto) gpHandleSay('That one is taken. A number is added when you continue.'); });
+    if (!have) gpHandleFree(sug).then(function(ok){ if (ok === false && _gpHandle.auto) gpHandleSay('That one is taken. A number is added when you keep it.'); });
   }
   function gpHandleSave(){
     var el = document.getElementById('gp-handle-in');
@@ -1162,16 +1163,11 @@
       + '<div style="min-width:0;">'
       + '<div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;">Your photo</div>'
       + '<div style="font-size:13.5px;color:#2F3D4F;line-height:1.5;margin-bottom:8px;">'
-      + 'A professional photo helps people recognize you when you show up.</div>'
+      + 'A professional photo helps people recognize you when you show up. You can show your photo when and where you want.</div>'
       + '<button type="button" id="gp-photo-btn" style="font:inherit;font-size:13.5px;font-weight:700;'
       + 'padding:8px 16px;border-radius:20px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;'
       + 'cursor:pointer;">Add a photo</button>'
       + '<div id="gp-photo-stat" style="font-size:13px;color:#2F3D4F;margin-top:6px;"></div>'
-      + '<div id="gp-handle" style="display:none;margin-top:14px;"><div style="font-size:14px;font-weight:800;color:#1A2E42;margin-bottom:2px;">Your link</div>'
-      + '<div style="font-size:13px;color:#2F3D4F;margin-bottom:6px;">This is where people find your profile. It is made from your name and you can change it.</div>'
-      + '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="font-size:14px;color:#2F3D4F;">2gather.network/hi/</span>'
-      + '<input id="gp-handle-in" type="text" autocomplete="off" spellcheck="false" maxlength="30" style="flex:0 1 220px;min-width:140px;border:1.5px solid #DDE3EA;background:#F7FBFF;border-radius:10px;padding:9px 12px;font:inherit;font-size:14px;color:#1A2E42;outline:none;"></div>'
-      + '<div id="gp-handle-say" style="font-size:13px;color:#2F3D4F;margin-top:6px;min-height:18px;"></div></div>'
       + '</div>';
     var btn = wrap.querySelector('#gp-photo-btn');
     btn.addEventListener('click', gpChoosePhoto);
@@ -1179,7 +1175,7 @@
     if (meId) {
       fetch(GS_URL + '?action=lookupProfile&appearId=' + encodeURIComponent(meId) + (gpToken() ? '&editToken=' + encodeURIComponent(gpToken()) : ''))
         .then(function(r){ return r.json(); })
-        .then(function(d){ if (d && d.photo) gpPhotoShow(d.photo); try { gpHandleInit(d, wrap); } catch (e) {} })
+        .then(function(d){ if (d && d.photo) gpPhotoShow(d.photo); window._gpProf = d || {}; try { var rw = document.querySelector('[data-k="ready"]'); if (rw) { gpHandleInit(d, rw); if (rw._paint) rw._paint(); } } catch (e) {} })
         .catch(function(){});
     }
     return wrap;
@@ -1357,7 +1353,9 @@
         blocks.thanks = gpThanksBlock();
       }
     });
-    var ORDER = [['photo', 'Required'], ['loc', 'Required'], ['lang', 'Required'], ['groupInterests', 'Required · at least one'], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Optional'], ['introSkills', 'Required · at least one'], ['introOffer', 'Optional'], ['thanks', 'Required'], ['introNeed', 'Optional']];
+    blocks.tz = gpTzBlock();
+    blocks.ready = gpReadyBlock();
+    var ORDER = [['photo', 'Required'], ['lang', 'Required'], ['loc', 'Required'], ['tz', ''], ['ready', ''], ['groupInterests', 'Required · at least one'], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Optional'], ['introSkills', 'Required · at least one'], ['introOffer', 'Optional'], ['thanks', 'Required'], ['introNeed', 'Optional']];
     ORDER.forEach(function(o, i){
       var b = blocks[o[0]]; if (!b) return;
       b.setAttribute('data-k', o[0]);
@@ -1420,6 +1418,136 @@
     on('gp-loc-city', function(e){ _gpPlace.city = String(e.value || '').trim(); });
     on('gp-loc-postal', function(e){ _gpPlace.postal = String(e.value || '').trim(); });
     if (window.cwSearchSelect) { window.cwSearchSelect(box.querySelector('#gp-loc-state'), 'Search states'); window.cwSearchSelect(box.querySelector('#gp-loc-county'), 'Search counties'); }
+  }
+  var IO_TZ = [
+    ['Pacific/Honolulu', 'Hawaii (UTC-10:00)'],
+    ['America/Anchorage', 'Alaska (UTC-09:00)'],
+    ['America/Los_Angeles', 'Pacific Time (UTC-08:00)'],
+    ['America/Phoenix', 'Arizona (UTC-07:00)'],
+    ['America/Denver', 'Mountain Time (UTC-07:00)'],
+    ['America/Chicago', 'Central Time (UTC-06:00)'],
+    ['America/Mexico_City', 'Mexico City (UTC-06:00)'],
+    ['America/New_York', 'Eastern Time (UTC-05:00)'],
+    ['America/Bogota', 'Bogota, Lima (UTC-05:00)'],
+    ['America/Halifax', 'Atlantic Time (UTC-04:00)'],
+    ['America/Caracas', 'Caracas, Santiago (UTC-04:00)'],
+    ['America/St_Johns', 'Newfoundland (UTC-03:30)'],
+    ['America/Sao_Paulo', 'Sao Paulo, Buenos Aires (UTC-03:00)'],
+    ['Atlantic/Azores', 'Azores (UTC-01:00)'],
+    ['Europe/London', 'London, Dublin, Lisbon (UTC+00:00)'],
+    ['Africa/Lagos', 'Lagos, West Africa (UTC+01:00)'],
+    ['Europe/Paris', 'Paris, Berlin, Madrid, Rome (UTC+01:00)'],
+    ['Africa/Johannesburg', 'Johannesburg, Cairo (UTC+02:00)'],
+    ['Europe/Kyiv', 'Kyiv, Athens, Helsinki (UTC+02:00)'],
+    ['Africa/Nairobi', 'Nairobi, East Africa (UTC+03:00)'],
+    ['Europe/Moscow', 'Moscow, Istanbul (UTC+03:00)'],
+    ['Asia/Tehran', 'Tehran (UTC+03:30)'],
+    ['Asia/Dubai', 'Dubai (UTC+04:00)'],
+    ['Asia/Kabul', 'Kabul (UTC+04:30)'],
+    ['Asia/Karachi', 'Karachi, Tashkent (UTC+05:00)'],
+    ['Asia/Kolkata', 'India (UTC+05:30)'],
+    ['Asia/Kathmandu', 'Kathmandu (UTC+05:45)'],
+    ['Asia/Dhaka', 'Dhaka (UTC+06:00)'],
+    ['Asia/Bangkok', 'Bangkok, Jakarta, Hanoi (UTC+07:00)'],
+    ['Asia/Shanghai', 'Beijing, Hong Kong, Singapore, Manila (UTC+08:00)'],
+    ['Australia/Perth', 'Perth (UTC+08:00)'],
+    ['Asia/Tokyo', 'Tokyo, Seoul (UTC+09:00)'],
+    ['Australia/Adelaide', 'Adelaide, Darwin (UTC+09:30)'],
+    ['Australia/Sydney', 'Sydney, Melbourne, Brisbane (UTC+10:00)'],
+    ['Pacific/Noumea', 'Solomon Islands, New Caledonia (UTC+11:00)'],
+    ['Pacific/Auckland', 'Auckland, Fiji (UTC+12:00)'],
+    ['Pacific/Tongatapu', 'Tonga, Samoa (UTC+13:00)']
+  ];
+  var IO_TZ_STATE = { 'Hawaii':'Pacific/Honolulu', 'Alaska':'America/Anchorage', 'Arizona':'America/Phoenix',
+    'California':'America/Los_Angeles', 'Nevada':'America/Los_Angeles', 'Oregon':'America/Los_Angeles', 'Washington':'America/Los_Angeles',
+    'Colorado':'America/Denver', 'Idaho':'America/Denver', 'Montana':'America/Denver', 'New Mexico':'America/Denver', 'Utah':'America/Denver', 'Wyoming':'America/Denver',
+    'Alabama':'America/Chicago', 'Arkansas':'America/Chicago', 'Illinois':'America/Chicago', 'Iowa':'America/Chicago', 'Kansas':'America/Chicago', 'Louisiana':'America/Chicago',
+    'Minnesota':'America/Chicago', 'Mississippi':'America/Chicago', 'Missouri':'America/Chicago', 'Nebraska':'America/Chicago', 'North Dakota':'America/Chicago',
+    'Oklahoma':'America/Chicago', 'South Dakota':'America/Chicago', 'Tennessee':'America/Chicago', 'Texas':'America/Chicago', 'Wisconsin':'America/Chicago' };
+  function ioTzLabel(z){ for (var i = 0; i < IO_TZ.length; i++) { if (IO_TZ[i][0] === z) return IO_TZ[i][1]; } return z || ''; }
+  function ioTzGuess(){
+    var L = window._gpLoc || {};
+    if (L.country === 'United States' && L.state) return IO_TZ_STATE[L.state] || 'America/New_York';
+    return '';
+  }
+  window._ioTz = ''; window._ioTzSent = '';
+  function ioTzSave(z){
+    window._ioTz = z;
+    if (!z || z === window._ioTzSent || window._ioViewing || !gpToken()) return;
+    window._ioTzSent = z;
+    fetch(GS_URL + '?action=saveAccount&appearId=' + encodeURIComponent(meId) + '&editToken=' + encodeURIComponent(gpToken()) + '&timeZone=' + encodeURIComponent(z)).catch(function(){ window._ioTzSent = ''; });
+  }
+  function gpTzBlock(){
+    var w = document.createElement('div');
+    var opts = IO_TZ.map(function(t){ return '<option value="' + gpEscL(t[0]) + '">' + gpEscL(t[1]) + '</option>'; }).join('');
+    w.innerHTML = '<div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:10px;">My time zone</div>'
+      + '<div id="io-tz-guess" hidden><div style="font-size:14.5px;color:#1A2E42;margin:0 0 12px;">From where you are, your time zone is <b id="io-tz-name"></b>. Is that right?</div>'
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap;"><button type="button" class="btn" id="io-tz-yes">Yes, that’s right</button>'
+      + '<button type="button" id="io-tz-no" style="font:inherit;font-size:14.5px;font-weight:700;padding:10px 20px;border-radius:24px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;">Choose another</button></div>'
+      + '<div id="io-tz-ok" hidden style="font-size:13.5px;color:#2F3D4F;margin-top:10px;">Got it.</div></div>'
+      + '<div id="io-tz-ask" hidden><div id="io-tz-why" style="font-size:13.5px;color:#2F3D4F;margin:0 0 12px;"></div>'
+      + '<select id="io-tz-sel" aria-label="My time zone" style="font:inherit;font-size:14px;padding:10px 12px;border:1.5px solid #DDE3EA;border-radius:10px;background:#fff;color:#1A2E42;max-width:100%;"><option value="">Select your time zone</option>' + opts + '</select></div>';
+    var yes = w.querySelector('#io-tz-yes'), no = w.querySelector('#io-tz-no'), sel = w.querySelector('#io-tz-sel');
+    yes.addEventListener('click', function(){ ioTzSave(w._guess); w.querySelector('#io-tz-ok').hidden = false; });
+    no.addEventListener('click', function(){ window._ioTz = ''; w.querySelector('#io-tz-ok').hidden = true; ioTzAsk(w, 'Search, then pick one.'); });
+    sel.addEventListener('change', function(){ ioTzSave(sel.value); });
+    return w;
+  }
+  function ioTzAsk(w, why){
+    w.querySelector('#io-tz-guess').hidden = true;
+    w.querySelector('#io-tz-ask').hidden = false;
+    w.querySelector('#io-tz-why').textContent = why;
+    var sel = w.querySelector('#io-tz-sel');
+    if (!sel.value) {
+      var mine = ''; try { mine = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+      if (mine && IO_TZ.some(function(t){ return t[0] === mine; })) { sel.value = mine; ioTzSave(mine); }
+    }
+    if (window.cwSearchSelect && !sel._cwss) { sel._cwss = 1; try { window.cwSearchSelect(sel, 'Search time zones'); } catch (e) {} }
+  }
+  window.ioTzPaint = function(){
+    var w = document.querySelector('[data-k="tz"]'); if (!w) return;
+    var g = ioTzGuess();
+    if (window._ioTz && window._ioTz !== g) { ioTzAsk(w, 'Search, then pick one.'); return; }
+    if (!g) { ioTzAsk(w, 'Pick the time zone you are in. Search, then pick one.'); return; }
+    w._guess = g;
+    w.querySelector('#io-tz-name').textContent = ioTzLabel(g);
+    w.querySelector('#io-tz-guess').hidden = false;
+    w.querySelector('#io-tz-ask').hidden = true;
+    w.querySelector('#io-tz-ok').hidden = window._ioTz !== g;
+  };
+  function gpReadyBlock(){
+    var w = document.createElement('div');
+    var appear = /(^|\.)2appear\.network$/.test(String(location.hostname || ''));
+    var host = appear ? '2appear.network/hi/' : '2gather.network/hi/';
+    var ghost = 'font:inherit;font-size:14.5px;font-weight:700;padding:10px 20px;border-radius:24px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;';
+    w.innerHTML = '<div style="font-size:22px;font-weight:800;color:#1A2E42;margin-bottom:4px;">Your page is ready</div>'
+      + '<div style="font-size:14.5px;color:#2F3D4F;margin:0 0 16px;">Do you want to see your page, or do you have some time to build it more by answering some more questions?</div>'
+      + '<div id="gp-handle" style="display:none;border:1.5px solid #C9DFF3;border-radius:14px;padding:16px 18px;background:#fff;">'
+      + '<div style="font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#1A2E42;margin-bottom:2px;">Your link</div>'
+      + '<div style="font-size:13.5px;color:#2F3D4F;margin-bottom:10px;">' + (appear ? 'This is where people find your profile. Share it to connect with anyone.' : 'This is where members find your profile on 2Gather.') + ' Is this the link you want?</div>'
+      + '<div id="io-vl-show" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span style="font-size:16px;color:#1A2E42;">' + host + '<b id="io-vl-slug"></b></span>'
+      + '<span style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn" id="io-vl-keep">Keep this link</button><button type="button" id="io-vl-change" style="' + ghost + '">Change</button></span></div>'
+      + '<div id="io-vl-edit" hidden><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 10px;"><span style="font-size:16px;color:#1A2E42;">' + host + '</span>'
+      + '<input id="gp-handle-in" type="text" autocomplete="off" spellcheck="false" maxlength="30" aria-label="Your link" style="flex:1 1 200px;min-width:0;border:2px solid #1F699E;background:#fff;border-radius:12px;padding:10px 14px;font:inherit;font-size:16px;color:#1A2E42;outline:none;"></div>'
+      + '<span style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn" id="io-vl-save">Save this name</button><button type="button" id="io-vl-cancel" style="' + ghost + '">Cancel</button></span></div>'
+      + '<div id="gp-handle-say" style="font-size:13px;color:#2F3D4F;margin-top:8px;min-height:18px;"></div>'
+      + '</div>';
+    var $ = function(id){ return w.querySelector('#' + id); };
+    var paint = function(){ var el = $('gp-handle-in'); $('io-vl-slug').textContent = gpHandleClean(el.value); };
+    var editing = function(on){ $('io-vl-edit').hidden = !on; $('io-vl-show').style.display = on ? 'none' : 'flex'; };
+    var kept = function(){ var el = $('gp-handle-in'); if (_gpHandle.have && gpHandleClean(el.value) === _gpHandle.have) { paint(); editing(false); gpHandleSay('Kept. You can change it any time on My account.'); return true; } return false; };
+    var save = function(btn){
+      if (window._ioViewing) { gpHandleSay('You’re viewing as ' + window._ioViewing + '. Nothing is saved here.'); return; }
+      btn.disabled = true; gpHandleSay('Saving…');
+      gpHandleSave().then(function(){ btn.disabled = false; if (!kept() && !/already has|Use 2 to|did not save|Could not/.test(String(($('gp-handle-say') || {}).textContent || ''))) gpHandleSay('That did not save. Try again.', true); });
+    };
+    $('io-vl-keep').addEventListener('click', function(){ if (!kept()) save(this); });
+    $('io-vl-change').addEventListener('click', function(){ editing(true); gpHandleSay(''); var el = $('gp-handle-in'); try { el.focus(); el.select(); } catch (e) {} });
+    $('io-vl-save').addEventListener('click', function(){ var v = gpHandleClean($('gp-handle-in').value); if (!gpHandleOk(v)) { gpHandleSay('Use 2 to 30 letters, numbers or dashes.', true); return; } save(this); });
+    $('io-vl-cancel').addEventListener('click', function(){ var el = $('gp-handle-in'); if (_gpHandle.have) el.value = _gpHandle.have; else if (w._sug) el.value = w._sug; paint(); editing(false); gpHandleSay(''); });
+    w._paint = function(){ var el = $('gp-handle-in'); if (!w._sug && el.value) w._sug = el.value; paint(); };
+    if (window._gpProf) { try { gpHandleInit(window._gpProf, w); w._paint(); } catch (e) {} }
+    return w;
   }
   function gpThanksBlock(){
     var tw = document.createElement('div');
@@ -1634,7 +1762,7 @@
         if (loc && window._ioLocTouched) { window._ioLocText = loc; window._ioLocTouched = false; }
         if (pz) window._ioPostalSaved = pz;
         dropped.forEach(function(x){ delete window._ioLoaded[x.k][x.lw]; });
-        return gpHandleSave().then(function(){ return { dropped: [] }; });
+        return { dropped: [] };
       });
   };
   try { if (window.GP_JOINING) gpJoinGroup(); } catch (e) {}
@@ -1660,6 +1788,7 @@
   var forGroup = q.get('for') === 'group';
   if (forGroup) { STEPS = STEPS.filter(function(s){ return s.slug !== 'offer' && s.slug !== 'seeking'; }); }
   var forEvent = q.get('for') === 'event';
+  if (!forGroup && !forEvent && !window.GP_JOINING) { STEPS.splice(1, 0, { slug: 'timezone', rail: '', keys: ['tz'] }, { slug: 'ready', rail: '', keys: ['ready'] }); }
   var backTo = !!q.get('next') && (forGroup || forEvent);
   var ix = -1;
   STEPS.forEach(function(s, i){ if (s.slug === want) ix = i; });
@@ -1669,6 +1798,20 @@
   var foot = go.parentNode;
   var back = document.createElement('button'); back.type = 'button'; back.className = 'io-back'; back.textContent = 'Back';
   foot.insertBefore(back, foot.firstChild);
+  var qa = document.createElement('button'); qa.type = 'button'; qa.textContent = 'Build it with Q&A'; qa.style.cssText = 'display:none;font:inherit;font-size:14.5px;font-weight:700;padding:10px 20px;border-radius:24px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;';
+  foot.insertBefore(qa, go);
+  qa.addEventListener('click', function(){ var si = -1; STEPS.forEach(function(s, i){ if (s.slug === 'ready') si = i; }); if (si > -1 && STEPS[si + 1]) { view = STEPS[si + 1].slug; show(); } });
+  window.ioReveal = function(){
+    if (view !== 'start') { go.style.visibility = ''; return; }
+    var ok = function(k){ return !NEED[k] || NEED[k][1](); };
+    var lang = qs.querySelector('[data-k="lang"]'), loc = qs.querySelector('[data-k="loc"]');
+    var p = ok('photo'), l = p && ok('lang');
+    if (lang) lang.style.display = p ? '' : 'none';
+    if (loc) loc.style.display = l ? '' : 'none';
+    go.style.visibility = (l && ok('loc')) ? '' : 'hidden';
+  };
+  qs.addEventListener('click', function(){ setTimeout(window.ioReveal, 0); });
+  qs.addEventListener('change', function(){ setTimeout(window.ioReveal, 0); });
   var stepLab = document.createElement('div'); stepLab.className = 'io-step';
   title.parentNode.insertBefore(stepLab, title);
   var pane = document.createElement('iframe'); pane.className = 'io-pane'; pane.title = 'Your answers'; pane.setAttribute('scrolling', 'no');
@@ -1689,7 +1832,7 @@
   function paintRail(){
     if (!railBox) return;
     railBox.innerHTML = '';
-    [{ slug: 'answers', rail: 'All interests' }].concat(STEPS.slice(1)).forEach(function(s){
+    [{ slug: 'answers', rail: 'All interests' }].concat(STEPS.slice(1).filter(function(s){ return !!s.rail; })).forEach(function(s){
       var b = document.createElement('button'); b.type = 'button'; b.textContent = s.rail;
       if (s.slug === view) { b.className = 'on'; b.setAttribute('aria-current', 'page'); }
       b.addEventListener('click', function(){ if (view !== 'answers') { try { gpHandoff(); } catch (e) {} } view = s.slug; show(); });
@@ -1714,7 +1857,10 @@
     stepLab.style.display = stepLab.textContent ? '' : 'none';
     title.textContent = done ? STEPS[si] && STEPS[si].rail || '' : (window.GP_JOINING ? 'Before you go in' : 'Set up your profile');
     back.style.display = (si > 0 && !window._ioJoinOnly) ? '' : 'none';
-    go.textContent = window._ioJoinOnly ? 'Enter group' : (si === STEPS.length - 1) ? (done ? 'Done' : 'Finish') : 'Next';
+    go.textContent = window._ioJoinOnly ? 'Enter group' : (view === 'ready') ? 'See my page' : ((view === 'start' || view === 'timezone') && STEPS.some(function(x){ return x.slug === 'ready'; })) ? 'Continue' : (si === STEPS.length - 1) ? (done ? 'Done' : 'Finish') : 'Next';
+    qa.style.display = view === 'ready' ? '' : 'none';
+    if (view === 'timezone') { try { window.ioTzPaint(); } catch (e) {} }
+    window.ioReveal();
     if (window._ioFirstBtn) window._ioFirstBtn.style.display = window._ioJoinOnly ? '' : 'none';
     url(view);
     paintRail();
@@ -1730,6 +1876,7 @@
     introEnjoy: ['one thing you enjoy', function(){ var t = document.getElementById('gp-intro-introEnjoy'); return !!(t && t.value.trim()); }],
     introValues: ['one thing you care about', function(){ var t = document.getElementById('gp-intro-introValues'); return !!(t && t.value.trim()); }],
     introSkills: ['one skill', function(){ var t = document.getElementById('gp-intro-introSkills'); return !!(t && t.value.trim()); }],
+    tz: ['your time zone', function(){ return !!window._ioTz; }],
     thanks: ['how you like to be appreciated', function(){ return Object.keys(window._gpThanksPicked || {}).some(function(k){ return _gpThanksPicked[k]; }); }]
   };
   var stat = document.getElementById('gp-intro-status');
@@ -1784,7 +1931,8 @@
     var miss = si > -1 ? stillNeeded(si) : [];
     if (miss.length) { stat.textContent = (miss.length === 1 && miss[0] === 'your postal code') ? 'Please enter your postal code.' : 'Still needed: ' + (miss.length > 1 ? miss.slice(0, -1).join(', ') + ' and ' + miss[miss.length - 1] : miss[0]) + '.'; stat.className = 'io-need'; var fb = qs.querySelector('.io-miss'); if (fb && fb.scrollIntoView) fb.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     stat.textContent = ''; stat.className = '';
-    var pend = runSave();
+    if (view === 'ready') { go.disabled = true; go.classList.add('io-breathe'); go.textContent = 'Opening your page\u2026'; saveChain.catch(function(){}).then(function(){ if (window._ioSaveFailed) { go.disabled = false; go.classList.remove('io-breathe'); go.textContent = 'See my page'; return; } location.href = '/me/?mine=1&cb=' + Date.now(); }); return; }
+    var pend = view === 'timezone' ? saveChain : runSave();
     if (si < STEPS.length - 1 && !window._ioJoinOnly) { view = STEPS[si + 1].slug; show(); return; }
     try { gpHandoff(); } catch (e) {}
     var toAll = function(){ go.disabled = true; go.classList.add('io-breathe'); go.textContent = 'Opening your interests\u2026'; pend.then(function(){ if (window._ioSaveFailed) { go.disabled = false; go.classList.remove('io-breathe'); go.textContent = done ? 'Done' : 'Finish'; return; } location.href = '/ikigai/interests?new=1&cb=' + Date.now(); }); };
