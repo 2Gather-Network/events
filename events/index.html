@@ -3312,6 +3312,36 @@ function applyPageCap(list) {
   return list.slice(0, _shownCount);
 }
 
+var _classKey = "";
+var _classTitle = "";
+function _repKey(e) {
+  var t = String((e && e.title) || "").trim().toLowerCase().replace(/\s+/g, " ");
+  var v = String((e && (e.venue || e.location)) || "").trim().toLowerCase().replace(/\s+/g, " ");
+  return t + "|" + v;
+}
+function _groupRepeats(list) {
+  var first = {}, out = [];
+  list.forEach(function (e) {
+    if (_isCancelledEvent(e) || !e.title) { out.push(e); return; }
+    var k = _repKey(e);
+    if (first[k]) { first[k]._moreDates++; return; }
+    var c = Object.assign({}, e, { _moreDates: 0 });
+    first[k] = c;
+    out.push(c);
+  });
+  return out;
+}
+function showClassDates(k, t) {
+  _classKey = k || "";
+  _classTitle = t || "";
+  renderEvents();
+  try { var b = document.getElementById("upcoming-box"); if (b) b.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (x) {}
+}
+function clearClassDates() {
+  _classKey = "";
+  _classTitle = "";
+  renderEvents();
+}
 function loadMoreEvents() {
   _shownCount += PAGE_STEP;
   renderEvents();
@@ -4128,6 +4158,7 @@ function renderEvents() {
         .map(function (x) { return x.e; });
     }
   } catch (e) {}
+  if (_classKey) { list = list.filter(function (e) { return _repKey(e) === _classKey; }); }
 
   refreshCountyOptions();   
   var _wished = 0;
@@ -4139,7 +4170,11 @@ function renderEvents() {
   var _sab = document.getElementById("show-all-btn");
   var _grid = document.getElementById("event-grid");
   if (_uh) {
-    _uh.textContent = "Upcoming events";
+    if (_classKey) {
+      _uh.innerHTML = "All dates and times for " + esc(_classTitle) + ' <a onclick="clearClassDates()" style="color:var(--primary);font-weight:700;cursor:pointer;margin-left:8px;">Show all events</a>';
+    } else {
+      _uh.textContent = "Upcoming events";
+    }
   }
   if (_grid) { _grid.style.display = ""; }
   if (_uh) { _uh.style.display = "block"; }
@@ -4173,6 +4208,7 @@ function renderEvents() {
     _paintRangeChips();
   } catch (e) {}
 
+  if (!_classKey && activeTab !== "past") { list = _groupRepeats(list); }
   grid.innerHTML = "";
   var _lm = document.getElementById("load-more-wrap");   
   if (_lm) _lm.remove();
@@ -4251,6 +4287,7 @@ function renderEvents() {
       <div class="event-card-top">
         <div class="event-title" title="${esc(ev.title)}">${esc(ev.title)}</div>
         ${ev.date ? `<div class="ev-when">🗓️ ${fmtDate(ev.date, ev.time, ev.endtime)}${ev.recurFreq ? ` (${_freqLabel(ev.recurFreq)})` : ""}</div>` : ""}
+        ${ev._moreDates ? `<a class="ev-more-dates" data-k="${esc(_repKey(ev))}" data-t="${esc(ev.title || "")}" onclick="showClassDates(this.dataset.k, this.dataset.t)" style="display:inline-block;font-size:14px;font-weight:700;color:var(--primary);cursor:pointer;margin:2px 0 4px;">More dates/times (${ev._moreDates})</a>` : ""}
         ${_evWhereLine(ev)}
         ${_evMatchPills(ev, window.cwEventStar ? _evActs(ev, cwEventStar(ev.id)) : "")}
       </div>
