@@ -484,7 +484,7 @@
       var code = (t.other && t.other.code) || '';
       if (code) {
         var a = el('a', 'font-size:12.5px;font-weight:700;color:#1F699E;text-decoration:underline;cursor:pointer;', nm);
-        a.href = 'https://2gather.network/me/?v=' + encodeURIComponent(code);
+        a.href = 'https://2gather.network/hi/?v=' + encodeURIComponent(code);
         sub.appendChild(a);
       } else sub.appendChild(el('b', 'font-size:12.5px;', nm));
       if (code) {

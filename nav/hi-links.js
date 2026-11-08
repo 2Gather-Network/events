@@ -18,7 +18,7 @@
   function codeOf(a) {
     var u;
     try { u = new URL(a.getAttribute('href'), location.href); } catch (e) { return ''; }
-    if (u.hostname !== '2gather.network' || !/^\/me\/?$/.test(u.pathname)) return '';
+    if (u.hostname !== '2gather.network' || !/^\/(me|hi)\/?$/.test(u.pathname)) return '';
     var c = String(u.searchParams.get('v') || u.searchParams.get('p') || '').trim().toLowerCase();
     if (!/^[0-9a-z]{6}$/.test(c)) return '';
     var other = false;
@@ -28,12 +28,12 @@
   function point(code, name) {
     if (!name) return;
     var to = 'https://2gather.network/hi/' + encodeURIComponent(name);
-    document.querySelectorAll('a[href*="/me/?"]').forEach(function (a) {
+    document.querySelectorAll('a[href*="/me/?"], a[href*="/hi/?"]').forEach(function (a) {
       if (codeOf(a) === code) a.setAttribute('href', to);
     });
   }
   function sweep() {
-    document.querySelectorAll('a[href*="/me/?"]').forEach(function (a) {
+    document.querySelectorAll('a[href*="/me/?"], a[href*="/hi/?"]').forEach(function (a) {
       var code = codeOf(a);
       if (!code) return;
       var got = read(code);
