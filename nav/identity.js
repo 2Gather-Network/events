@@ -292,15 +292,19 @@
     var key = 'cw-here-' + (nm || '') + '-' + normalise(id);
     var reload = ls(function () { var e = w.performance.getEntriesByType('navigation')[0]; return !!e && e.type === 'reload'; }, false);
     if (!nm || (!reload && ss(function () { return w.sessionStorage.getItem(key); }, '') === '1')) { return w.Promise.resolve(); }
+    var wants = ls(function () { return w.sessionStorage.getItem('cw-turn-on-' + nm) === '1'; }, false);
     var ask = 'https://cw-api-gate.jessieupp.workers.dev?action=saveAccount&appearId=' + encodeURIComponent(id) + '&secure=1&editToken=' + encodeURIComponent(token) +
-        '&enabledSolution=' + nm;
+        (wants ? '&enabledSolution=' + nm : '');
     return w.fetch(ask, { referrerPolicy: 'no-referrer' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d && d.status === 'ok' && d.enabledSolution) {
-          ls(function () { w.localStorage.setItem('cw-enabled', d.enabledSolution); });
+        if (d && d.status === 'ok') {
+          if (d.enabledSolution) {
+            ls(function () { w.localStorage.setItem('cw-enabled', d.enabledSolution); });
+            ss(function () { w.sessionStorage.removeItem('cw-turn-on-' + nm); });
+            jumpLog('asked to, so ' + nm + ' is turned on');
+          } else { jumpLog('signed in here; ' + nm + ' not turned on unless the member asks'); }
           ss(function () { w.sessionStorage.setItem(key, '1'); });
-          jumpLog('signed in here, so ' + nm + ' is turned on');
         } else if (d && d.status === 'error' && /expired|sign in again/i.test(String(d.message || ''))) {
           jumpLog('this sign-in was refused; asking once more');
           return new w.Promise(function (done) { w.setTimeout(done, 2000); })
@@ -319,6 +323,14 @@
       })
       .catch(function () {});
   }
+  w.CW_turnOnHere = function () {
+    var nm = { gather: 'Gather', appear: 'Appear', balance: 'Balance' }[JUMP_SITE[String(w.location.hostname || '').toLowerCase()]];
+    var token = ls(function () { return w.localStorage.getItem('cw-token') || ''; }, '');
+    var id = ls(function () { return w.localStorage.getItem('cw-id') || ''; }, '');
+    if (!nm || !token || !id) { return w.Promise.resolve(); }
+    ss(function () { w.sessionStorage.setItem('cw-turn-on-' + nm, '1'); w.sessionStorage.removeItem('cw-here-' + nm + '-' + normalise(id)); });
+    return turnOnHere(id, token);
+  };
   function prepareSession(id, token) {
     var got = null, a = new Uint8Array(16), key = normalise(id), exp = parseInt(String(token).split('.')[1], 10) || 0;
     w.crypto.getRandomValues(a);
