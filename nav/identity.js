@@ -220,7 +220,7 @@
   })();
 
   var JUMP_SITE = { '2gather.network': 'gather', '2appear.network': 'appear', '2balance.network': 'balance', 'creating.works': 'creatingworks' };
-  var JUMP_ON = false;
+  var JUMP_ON = true;
   ls(function () {
     var m = /^#cwjumptest=([01])$/.exec(String(w.location.hash || ''));
     if (!m || !JUMP_SITE[String(w.location.hostname || '').toLowerCase()]) { return; }
