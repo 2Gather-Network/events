@@ -1892,6 +1892,11 @@ function _pasteImageFailed(file) {
   clearPasteImage();
 }
 
+function _blockedPage(text) {
+  var t = String(text || "").trim();
+  if (t.length < 80) return true;
+  return t.length < 2000 && /just a moment|enable javascript and cookies|checking your browser|verify you are human|attention required|are you a robot|access denied|captcha/i.test(t);
+}
 async function fetchEventFromUrl() {
   const urlEl = document.getElementById("paste-url");
   const errEl = document.getElementById("parse-error");
@@ -1917,6 +1922,13 @@ async function fetchEventFromUrl() {
     if (!text || (data && data.error)) {
       errEl.textContent = "Couldn't read that link. Paste the event text instead.";
       errEl.style.display = "block";
+      btn.disabled = false; btn.textContent = _label;
+      return;
+    }
+    if (_blockedPage(text)) {
+      errEl.textContent = "That site wouldn't let us read the event. Copy the event text from the page and paste it in the box above, or upload a picture of it.";
+      errEl.style.display = "block";
+      btn.disabled = false; btn.textContent = _label;
       return;
     }
     window._fetchedImages = (data && Array.isArray(data.images)) ? data.images : [];   
@@ -2042,6 +2054,7 @@ async function bulkRead() {
     var text = (page && page.text || "").trim();
     try { _bulk.image = String((page && page.image) || "").trim(); } catch (e) {}
     if (!text || page.error) { _bulkMsg("That page could not be read. Check the link opens in your browser, then press Read calendar again.", true); btn.disabled = false; return; }
+    if (_blockedPage(text)) { _bulkMsg("That site wouldn't let us read the page. Open it in your browser and paste the events into Paste text instead.", true); btn.disabled = false; return; }
     var today = _bulkToday();
     var cats = (CATEGORIES || []).map(function (c) { return c.label; });
     var prompt = "Today's date is " + today + ". The text below is a web page that lists events.\n\n"
@@ -2250,7 +2263,7 @@ async function parseEventText() {
 
   const prompt = `Today's date is ${_todayStr}. When the text gives a date without a year, choose the NEXT upcoming occurrence (this year, or next year if that day has already passed) - never a date in the past.
 
-Extract event details from this text. Return ONLY a JSON object with these fields (use null for missing info):
+Extract event details from this text. Use only what is written in it. Never invent, guess or work out a title, date, time, place or description: if the text does not state it, use null. Return ONLY a JSON object with these fields (use null for missing info):
 
 {
   "title": "event name/title",
@@ -2263,7 +2276,7 @@ Extract event details from this text. Return ONLY a JSON object with these field
   "format": "virtual" or "inperson" or "both",
   "venue": "venue / place name only, e.g. Lake Ballinger Community Center (null if none)",
   "location": "street address only, WITHOUT the venue name (e.g. 23000 Lakeview Dr, Mountlake Terrace, WA)",
-  "description": "event description",
+  "description": "the event's own description, copied from the text in its own words (you may leave out lines that are not about the event); null if the text has none - never write one",
   "cooplink": "any group/organization URL",
   "paymentlink": "any registration/payment URL",
   "contactEmail": "contact email if mentioned",
