@@ -153,7 +153,7 @@
       if (choices && choices.length) {
         pick = document.createElement('select');
         pick.setAttribute('aria-label', 'Which kind it is');
-        pick.style.cssText = 'font:inherit;font-size:14px;padding:9px 10px;border:1.5px solid #DDE3EA;border-radius:10px;background:#fff;color:#1A2E42;';
+        pick.style.cssText = 'appearance:none;-webkit-appearance:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1.5l5 5 5-5\' fill=\'none\' stroke=\'%231F699E\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'/%3E%3C/svg%3E") no-repeat right 14px center;background-size:12px 8px;border:1.5px solid #DDE4EE;border-radius:22px;font:600 14px \'Nunito Sans\',\'DM Sans\',sans-serif;color:#1A2E42;padding:8px 38px 8px 16px;min-height:38px;cursor:pointer;';
         var ph = document.createElement('option'); ph.value = ''; ph.textContent = 'Which kind is it?'; pick.appendChild(ph);
         choices.forEach(function(c){ var o = document.createElement('option'); o.value = c; o.textContent = c; if (c === addPick) o.selected = true; pick.appendChild(o); });
         pick.addEventListener('change', function(){ addPick = pick.value; });
