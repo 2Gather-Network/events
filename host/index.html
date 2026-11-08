@@ -51,8 +51,10 @@
   var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
   var q = new URLSearchParams(location.search);
   var hp = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
-  var eid = String(q.get('e') || '').trim(), key = String(hp.get('k') || q.get('k') || '').trim();
-  var rid = String(q.get('r') || '').trim();
+  var eid = String(q.get('e') || '').trim(), by = String(q.get('by') || '').trim(), rid = String(q.get('r') || '').trim();
+  var KS = 'cw-host-key-' + eid, CS = 'cw-host-keep-' + eid;
+  var key = String(hp.get('k') || q.get('k') || '').trim();
+  if (!rid) { try { if (key) sessionStorage.setItem(KS, key); else key = sessionStorage.getItem(KS) || ''; } catch (e) {} }
   if (rid) {
     try { history.replaceState(null, '', location.pathname + '?r=' + encodeURIComponent(rid)); } catch (e) {}
     var rcard = document.getElementById('card');
@@ -96,10 +98,12 @@
       .catch(function(){ rsay('Could not reach the server', 'Try again in a moment.'); });
     return;
   }
-  try { history.replaceState(null, '', location.pathname + (eid ? '?e=' + encodeURIComponent(eid) : '')); } catch (e) {}
+  var here = location.pathname + (eid ? '?e=' + encodeURIComponent(eid) + (by ? '&by=' + encodeURIComponent(by) : '') : '');
+  try { history.replaceState(null, '', here); } catch (e) {}
   var card = document.getElementById('card');
   var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); };
   var evUrl = 'https://2gather.network/event/?id=' + encodeURIComponent(eid);
+  var calUrl = 'https://2gather.network/events/';
   var say = function(h, p, btns){ card.innerHTML = '<h1>' + h + '</h1>' + (p ? '<p class="lede">' + p + '</p>' : '') + (btns ? '<div class="actions">' + btns + '</div>' : ''); };
   if (!eid || !key) { say('This link is missing a piece', 'Open the link from your email again, all of it.'); return; }
   var me = (window.CW && CW.me) ? CW.me() : { id: '' };
@@ -107,54 +111,79 @@
   var id = (window.CW && CW.realMe) ? CW.realMe().id : '';
   var pass = (window.CW && CW.passParam) ? CW.passParam() : '';
   if (!id || !pass) {
-    say('Are you the host of this event?', 'Sign in with the address this email came to. If you have no 2Gather account, sign up with that address in the same step. Then open the link in your email again.',
-      '<a class="btn primary" href="https://2gather.network/signin/">Sign in or sign up</a>');
+    var nx = encodeURIComponent(here);
+    var up = 'https://2gather.network/signup/?next=' + nx + '&e=' + encodeURIComponent(eid) + (by ? '&by=' + encodeURIComponent(by) : '') + '&from=hostinvite';
+    say('You\u2019ve been asked to host an event', 'Sign up with the address this email came to, or sign in if you already have an account. You\u2019ll come straight back here.',
+      '<a class="btn ghost" href="https://2gather.network/signin/?next=' + nx + '">Sign in</a><a class="btn primary" href="' + esc(up) + '">Sign up</a>');
     return;
   }
-  fetch(GS_URL + '?action=getEventSeen&hostInvite=1&eventId=' + encodeURIComponent(eid) + '&key=' + encodeURIComponent(key) + '&appearId=' + encodeURIComponent(id) + pass + '&t=' + Date.now())
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if (!d || d.status !== 'ok') {
-        if (d && d.code === 'signin') { say('Sign in again', 'Your sign-in ended. Sign in, then open the link in your email again.', '<a class="btn primary" href="https://2gather.network/signin/">Sign in</a>'); return; }
-        if (d && d.code === 'otherAddress') { say('Sign in with the address we wrote to', esc(d.message)); return; }
-        say('This link does not work', esc((d && d.message) || 'Ask the person who shared the event to send it again.'));
-        return;
-      }
-      if (d.state === 'confirmed') { say('This was already answered', 'The host confirmed.', '<a class="btn primary" href="' + esc(evUrl) + '">See the event</a>'); return; }
-      if (d.state !== 'pending') { say('This link was already answered', 'If you meant to answer differently, ask the person who shared the event to send it again.'); return; }
-      if (d.youSharedIt) { say('You shared this event', 'This link is for the person you named as host. Send them the email, or ask again from the event page.', '<a class="btn ghost" href="' + esc(evUrl) + '">Back to the event</a>'); return; }
-      var who = esc(d.sharedBy), first = esc(String(d.sharedBy || '').split(/\s+/)[0]);
-      card.innerHTML = '<h1>Are you the host of ' + esc(d.title) + '?</h1>'
-        + '<p class="lede">' + who + ' shared it on 2Gather and named ' + esc(d.host || 'you') + ' as its host.</p>'
-        + '<div class="info">Say yes and the event is yours: you edit it, turn on registration and write to your guests.</div>'
-        + '<p style="font-size:15px;font-weight:700;margin:0 0 8px;">Keep ' + first + ' as a co-host?</p>'
-        + '<label class="opt"><input type="radio" name="keep" value="1"> Yes, ' + first + ' helps run it</label>'
-        + '<label class="opt"><input type="radio" name="keep" value="0" checked> No, ' + first + ' keeps socializing it only</label>'
-        + '<div class="actions"><button type="button" class="btn ghost" id="no">Not me</button><button type="button" class="btn primary" id="yes">Yes, I\u2019m the host</button></div>'
-        + '<div class="status" id="st"></div>';
-      var send = function(ans){
-        var y = document.getElementById('yes'), n = document.getElementById('no'), st = document.getElementById('st');
-        var keep = (document.querySelector('input[name=keep]:checked') || {}).value === '1' ? '1' : '0';
-        y.disabled = n.disabled = true; st.className = 'status'; st.textContent = '';
-        (ans === 'yes' ? y : n).textContent = 'Saving\u2026';
-        fetch(GS_URL + '?action=socialize&hostAnswer=' + ans + '&id=' + encodeURIComponent(eid) + '&key=' + encodeURIComponent(key) + '&keep=' + keep + '&appearId=' + encodeURIComponent(id) + pass + '&t=' + Date.now())
-          .then(function(r){ return r.json(); })
-          .then(function(a){
-            if (a && a.status === 'ok') {
-              try { sessionStorage.setItem('cw-wrote-at', String(Date.now())); } catch (e) {}
-              if (ans === 'yes') { say('You\u2019re the host of ' + esc(d.title), 'It\u2019s yours to edit now. We told ' + who + '.', '<a class="btn primary" href="' + esc('https://2gather.network/event/?id=' + encodeURIComponent(a.eventId || eid)) + '">Go to my event</a>'); }
-              else { say('Thanks for telling us', 'We told ' + who + ' you are not the host. Nothing changed on your account.'); }
-              return;
-            }
-            y.disabled = n.disabled = false; y.textContent = 'Yes, I\u2019m the host'; n.textContent = 'Not me';
-            st.className = 'status err'; st.textContent = (a && a.message) || 'That did not go through. Try again.';
-          })
-          .catch(function(){ y.disabled = n.disabled = false; y.textContent = 'Yes, I\u2019m the host'; n.textContent = 'Not me'; st.className = 'status err'; st.textContent = 'Could not reach the server. Try again in a moment.'; });
-      };
-      document.getElementById('yes').onclick = function(){ send('yes'); };
-      document.getElementById('no').onclick = function(){ send('no'); };
-    })
-    .catch(function(){ say('Could not reach the server', 'Try again in a moment.'); });
+  var NEED_WORDS = { name: 'your full name', photo: 'a photo of you', languages: 'the languages you speak' };
+  var needText = function(n){ var w = (n || []).map(function(x){ return NEED_WORDS[x] || x; }); return w.length < 2 ? w.join('') : w.slice(0, -1).join(', ') + ' and ' + w[w.length - 1]; };
+  var keepPicked = function(){ var v = (document.querySelector('input[name=keep]:checked') || {}).value; if (v) { try { sessionStorage.setItem(CS, v); } catch (e) {} } try { return sessionStorage.getItem(CS) === '1' ? '1' : '0'; } catch (e) { return v === '1' ? '1' : '0'; } };
+  var d = null;
+  var profileStep = function(needs){
+    var back = encodeURIComponent('https://2gather.network' + here);
+    card.innerHTML = '<h1>One step before you host</h1>'
+      + '<p class="lede">Guests see the host on the event, so add ' + esc(needText(needs)) + ' first. Then come back and say yes.</p>'
+      + '<div class="actions"><button type="button" class="btn ghost" id="recheck">I\u2019ve added them</button><a class="btn primary" href="https://2gather.network/ikigai/?for=event&next=' + back + '">Add them now</a></div>'
+      + '<div class="status" id="st"></div>';
+    document.getElementById('recheck').onclick = function(){ load(true); };
+  };
+  var ask = function(){
+    var who = esc(d.sharedBy), first = esc(String(d.sharedBy || '').split(/\s+/)[0]);
+    var kept = ''; try { kept = sessionStorage.getItem(CS) || ''; } catch (e) {}
+    card.innerHTML = '<h1>Would you like to be named as host?</h1>'
+      + '<p class="lede">You\u2019ve been asked if you\u2019d like to be named as host for this event: <strong>' + esc(d.title) + '</strong>' + (d.when ? ', ' + esc(d.when) : '') + '. ' + who + ' posted it on 2Gather.</p>'
+      + '<div class="info">Say yes and the event is yours: you can edit it and turn on features that help your guests get to know each other, get connected, and find what they are seeking.</div>'
+      + '<p style="font-size:15px;font-weight:700;margin:0 0 8px;">Keep ' + first + ' as a co-host?</p>'
+      + '<label class="opt"><input type="radio" name="keep" value="1"' + (kept === '1' ? ' checked' : '') + '> Yes, ' + first + ' helps run it as a co-host</label>'
+      + '<label class="opt"><input type="radio" name="keep" value="0"' + (kept === '1' ? '' : ' checked') + '> No, ' + first + ' stays listed as socializing it</label>'
+      + '<div class="actions"><button type="button" class="btn ghost" id="no">Not me</button><button type="button" class="btn primary" id="yes">Yes, I\u2019m the host</button></div>'
+      + '<div class="status" id="st"></div>';
+    var send = function(ans){
+      var y = document.getElementById('yes'), n = document.getElementById('no'), st = document.getElementById('st');
+      var keep = keepPicked();
+      if (ans === 'yes' && d.needs && d.needs.length) { profileStep(d.needs); return; }
+      y.disabled = n.disabled = true; st.className = 'status'; st.textContent = '';
+      (ans === 'yes' ? y : n).textContent = 'Saving\u2026';
+      fetch(GS_URL + '?action=socialize&hostAnswer=' + ans + '&id=' + encodeURIComponent(eid) + '&key=' + encodeURIComponent(key) + '&keep=' + keep + '&appearId=' + encodeURIComponent(id) + pass + '&t=' + Date.now())
+        .then(function(r){ return r.json(); })
+        .then(function(a){
+          if (a && a.status === 'ok') {
+            try { sessionStorage.setItem('cw-wrote-at', String(Date.now())); sessionStorage.removeItem(KS); sessionStorage.removeItem(CS); } catch (e) {}
+            if (ans === 'yes') { location.href = 'https://2gather.network/event/?id=' + encodeURIComponent(a.eventId || eid); return; }
+            say('Thanks for telling us', 'We let ' + who + ' know you are not the host. Nothing changed on your account.', '<a class="btn primary" href="' + calUrl + '">See what\u2019s on</a>');
+            return;
+          }
+          if (a && a.code === 'profile') { profileStep(a.needs || []); return; }
+          y.disabled = n.disabled = false; y.textContent = 'Yes, I\u2019m the host'; n.textContent = 'Not me';
+          st.className = 'status err'; st.textContent = (a && a.message) || 'That did not go through. Try again.';
+        })
+        .catch(function(){ y.disabled = n.disabled = false; y.textContent = 'Yes, I\u2019m the host'; n.textContent = 'Not me'; st.className = 'status err'; st.textContent = 'Could not reach the server. Try again in a moment.'; });
+    };
+    document.getElementById('yes').onclick = function(){ send('yes'); };
+    document.getElementById('no').onclick = function(){ send('no'); };
+  };
+  var load = function(recheck){
+    fetch(GS_URL + '?action=getEventSeen&hostInvite=1&eventId=' + encodeURIComponent(eid) + '&key=' + encodeURIComponent(key) + '&appearId=' + encodeURIComponent(id) + pass + '&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(x){
+        d = x;
+        if (!d || d.status !== 'ok') {
+          if (d && d.code === 'signin') { say('Sign in again', 'Your sign-in ended. Sign in and you\u2019ll come straight back here.', '<a class="btn primary" href="https://2gather.network/signin/?next=' + encodeURIComponent(here) + '">Sign in</a>'); return; }
+          if (d && d.code === 'otherAddress') { say('Sign in with the address we wrote to', esc(d.message)); return; }
+          say('This link does not work', esc((d && d.message) || 'Ask the person who shared the event to send it again.'));
+          return;
+        }
+        if (d.state === 'confirmed') { say('This was already answered', 'The host confirmed.', '<a class="btn primary" href="' + esc(evUrl) + '">See the event</a>'); return; }
+        if (d.state !== 'pending') { say('This link was already answered', 'If you meant to answer differently, ask the person who shared the event to send it again.'); return; }
+        if (d.youSharedIt) { say('You shared this event', 'This link is for the person you named as host. Send them the email, or ask again from the event page.', '<a class="btn ghost" href="' + esc(evUrl) + '">Back to the event</a>'); return; }
+        if (recheck && d.needs && d.needs.length) { profileStep(d.needs); var st = document.getElementById('st'); if (st) { st.className = 'status err'; st.textContent = 'Still missing: ' + needText(d.needs) + '.'; } return; }
+        ask();
+      })
+      .catch(function(){ say('Could not reach the server', 'Try again in a moment.'); });
+  };
+  load(false);
 })();
 </script>
 <script src="/nav/topbar.js?v=6.99" defer></script>
