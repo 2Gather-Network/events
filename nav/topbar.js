@@ -155,7 +155,7 @@
   function supportUrl() {
     var here = '';
     try { here = String(window.location.pathname || '').trim(); } catch (e) {}
-    return here ? (SUPPORT + '?from=' + encodeURIComponent(here)) : SUPPORT;
+    return here ? (SUPPORT + '?re=' + encodeURIComponent(here)) : SUPPORT;
   }
 
   function groupNavOn() {
@@ -1042,7 +1042,7 @@
     var here = '';
     try { here = String(w.location.pathname || '').trim(); } catch (e) {}
     return here
-      ? 'https://2gather.network/support?from=' + encodeURIComponent(here)
+      ? 'https://2gather.network/support?re=' + encodeURIComponent(here)
       : 'https://2gather.network/support';
   }
 

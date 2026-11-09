@@ -41,7 +41,7 @@
   window.cwCameFrom = function () {
     var r = '';
     try {
-      var f = new URLSearchParams(location.search).get('from');
+      var f = new URLSearchParams(location.search).get('re') || new URLSearchParams(location.search).get('from');
       if (f && f.charAt(0) === '/' && f.charAt(1) !== '/') { r = 'https://2gather.network' + f; }
     } catch (e) {}
     if (!r) { try { r = String(document.referrer || ''); } catch (e) { return null; } }
@@ -188,7 +188,7 @@
       { key: 'profile', label: 'My profile', url: _onBal ? '/ikigai/?step=joys' : 'https://2gather.network/me/' },
       { key: 'permissions', label: 'My permissions', url: 'https://2gather.network/account/#permissions', superOnly: true },
       { key: 'account', label: 'My account', url: _onBal ? '/account/' : 'https://2gather.network/account/' },
-      { key: 'support', label: 'Support', url: (_onBal ? '/support?from=' : 'https://2gather.network/support?from=') + encodeURIComponent(location.pathname) },
+      { key: 'support', label: 'Support', url: (_onBal ? '/support?re=' : 'https://2gather.network/support?re=') + encodeURIComponent(location.pathname) },
       { key: 'signout', label: 'Sign out', out: true }
     ];
     items.forEach(function (it) {
