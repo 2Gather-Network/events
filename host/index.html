@@ -52,6 +52,50 @@
   var q = new URLSearchParams(location.search);
   var hp = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
   var eid = String(q.get('e') || '').trim(), key = String(hp.get('k') || q.get('k') || '').trim();
+  var rid = String(q.get('r') || '').trim();
+  if (rid) {
+    try { history.replaceState(null, '', location.pathname + '?r=' + encodeURIComponent(rid)); } catch (e) {}
+    var rcard = document.getElementById('card');
+    var resc = function(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); };
+    var rsay = function(h, p, btns){ rcard.innerHTML = '<h1>' + h + '</h1>' + (p ? '<p class="lede">' + p + '</p>' : '') + (btns ? '<div class="actions">' + btns + '</div>' : ''); };
+    document.title = 'Request to host \u00b7 2Gather';
+    if (!key) { rsay('This link is missing a piece', 'Open the link from the email again, all of it.'); return; }
+    var rme = (window.CW && CW.me) ? CW.me() : { id: '' };
+    if (rme.viewing) { rsay('You are viewing as someone else', 'Stop viewing as them first. Only a super admin can accept a request to host.'); return; }
+    var rid2 = (window.CW && CW.realMe) ? CW.realMe().id : '', rpass = (window.CW && CW.passParam) ? CW.passParam() : '';
+    if (!rid2 || !rpass) { rsay('Request to host', 'Sign in as a 2Gather super admin, then open the link in the email again.', '<a class="btn primary" href="https://2gather.network/signin/">Sign in</a>'); return; }
+    var rbase = GS_URL + '?request=' + encodeURIComponent(rid) + '&key=' + encodeURIComponent(key) + '&appearId=' + encodeURIComponent(rid2) + rpass;
+    fetch(rbase + '&action=getEventSeen&hostRequest=1&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || d.status !== 'ok') { rsay(d && d.code === 'notSuper' ? 'Only a super admin can open this' : 'This link does not work', resc((d && d.message) || 'Open the link from the email again.')); return; }
+        var rev = 'https://2gather.network/event/?id=' + encodeURIComponent(d.eventId);
+        if (d.state === 'accepted') { rsay('This was already accepted', '', '<a class="btn primary" href="' + resc(rev) + '">See the event</a>'); return; }
+        if (d.state !== 'pending') { rsay('This request was replaced or closed', 'Nothing more to do here.', '<a class="btn ghost" href="' + resc(rev) + '">See the event</a>'); return; }
+        rcard.innerHTML = '<h1>' + resc(d.name) + ' asked to host ' + resc(d.title) + '</h1>'
+          + '<p class="lede">' + [d.when, d.place].filter(String).map(resc).join('<br>') + '</p>'
+          + '<p class="lede"><a href="' + resc(d.profile) + '" target="_blank" rel="noopener">' + resc(d.name) + '\u2019s profile</a> (opens a new tab)</p>'
+          + (d.note ? '<div class="info">Their note: \u201c' + resc(d.note) + '\u201d</div>' : '')
+          + (d.postedBy ? '<p class="lede">Posted by ' + resc(d.postedBy) + ' as a socializer, who stays listed as socializing it.</p>' : '')
+          + (d.changed ? '<div class="status err" style="display:block;">This event changed since the request, so Accept will not move it.</div>' : '')
+          + '<div class="info">Accept names ' + resc(d.name) + ' host with edit privileges. Both of them get an email.</div>'
+          + '<div class="actions"><a class="btn ghost" href="' + resc(rev) + '" target="_blank" rel="noopener">See the event</a><button type="button" class="btn primary" id="acc">Accept</button></div>'
+          + '<div class="status" id="rst"></div>';
+        document.getElementById('acc').onclick = function(){
+          var b = this, st = document.getElementById('rst');
+          b.disabled = true; b.textContent = 'Saving\u2026'; st.className = 'status'; st.textContent = '';
+          fetch(rbase + '&action=socialize&hostRequestAccept=1&t=' + Date.now())
+            .then(function(r){ return r.json(); })
+            .then(function(a){
+              if (a && a.status === 'ok') { rsay(resc(a.name) + ' is now the host of ' + resc(d.title), 'We emailed them and the person who posted it.', '<a class="btn primary" href="' + resc(rev) + '">See the event</a>'); return; }
+              b.disabled = false; b.textContent = 'Accept'; st.className = 'status err'; st.textContent = (a && a.message) || 'That did not go through. Try again.';
+            })
+            .catch(function(){ b.disabled = false; b.textContent = 'Accept'; st.className = 'status err'; st.textContent = 'Could not reach the server. Try again in a moment.'; });
+        };
+      })
+      .catch(function(){ rsay('Could not reach the server', 'Try again in a moment.'); });
+    return;
+  }
   try { history.replaceState(null, '', location.pathname + (eid ? '?e=' + encodeURIComponent(eid) : '')); } catch (e) {}
   var card = document.getElementById('card');
   var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); };

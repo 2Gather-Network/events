@@ -173,7 +173,10 @@
       box.innerHTML = cwSocBoxHTML({
         me: !!w.me, hosted: btn.getAttribute('data-hosted') === '1', cancelled: ev.cancelled, ask: !!w.me && !ev.cancelled, listed: cur.listed,
         signinHTML: '<p class="cw-soc-q"><a href="https://2gather.network/signin/" style="font-weight:700;">Sign in</a> to be listed as somebody helping spread it.</p>',
-        on: { done: 'cwSocInline.close()', copy: "cwSocInline.act('copy', this)", share: "cwSocInline.act('share', this)", qr: "cwSocInline.act('qr', this)", list: 'cwSocInline.list(this.checked)' }
+        on: { done: 'cwSocInline.close()', copy: "cwSocInline.act('copy', this)", share: "cwSocInline.act('share', this)", qr: "cwSocInline.act('qr', this)", list: 'cwSocInline.list(this.checked)' },
+        extra: (btn.getAttribute('data-soc') === '1' && !ev.cancelled && window.cwHostReqHTML)
+          ? '<div class="cw-soc-hostq" style="margin:22px 0 0;font-size:13.5px;line-height:1.55;"><a role="button" tabindex="0" style="cursor:pointer;color:#1F699E;text-decoration:underline;" onclick="var m=this.nextElementSibling;m.hidden=!m.hidden;">Are you the host of this event?</a><div hidden style="margin:8px 0 0;">' + cwHostReqHTML(ev) + '</div></div>'
+          : ''
       });
       var top = card.querySelector('.event-card-top') || card;
       top.appendChild(box);
