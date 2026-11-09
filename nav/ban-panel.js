@@ -64,7 +64,7 @@
           u.onclick = function () {
             u.disabled = true; u.textContent = 'Undoing…';
             get('action=unbanPerson&banId=' + encodeURIComponent(b.banId)).then(function (r2) {
-              if (r2 && r2.status === 'ok') { say.textContent = (r2.name || b.name) + ' can sign in again.'; loadList(); }
+              if (r2 && r2.status === 'ok') { say.textContent = (r2.name || b.name) + ' can sign in again.' + (r2.purged === false ? ' Their name link can take up to 10 minutes to come back.' : ''); loadList(); }
               else { u.disabled = false; u.textContent = 'Undo'; say.textContent = (r2 && r2.message) || 'That did not go through.'; }
             }).catch(function () { u.disabled = false; u.textContent = 'Undo'; say.textContent = 'That did not go through.'; });
           };
@@ -89,7 +89,7 @@
         if (!armed) { armed = true; go.textContent = 'Yes, ban ' + (p.name || 'them'); say.textContent = 'They are signed out on every device within a minute. You can undo it below.'; return; }
         go.disabled = true; go.textContent = 'Banning…';
         get('action=banPerson&target=' + encodeURIComponent(p.appearId) + '&reason=' + encodeURIComponent(why.value.trim())).then(function (r) {
-          if (r && r.status === 'ok') { pick.style.display = 'none'; inp.value = ''; say.textContent = (r.name || p.name) + ' is banned. Super admins were emailed.'; loadList(); }
+          if (r && r.status === 'ok') { pick.style.display = 'none'; inp.value = ''; say.textContent = (r.name || p.name) + ' is banned. Super admins were emailed.' + (r.purged === false ? ' Their name link can keep opening for up to 10 minutes.' : ''); loadList(); }
           else { go.disabled = false; armed = false; go.textContent = 'Ban ' + (p.name || 'this person') + ' now'; say.textContent = (r && r.message) || 'That did not go through.'; }
         }).catch(function () { go.disabled = false; armed = false; go.textContent = 'Ban ' + (p.name || 'this person') + ' now'; say.textContent = 'That did not go through.'; });
       };
