@@ -1150,6 +1150,9 @@
       ? (waiting + ' support ticket' + (waiting === 1 ? '' : 's') + ' waiting')
       : 'Support', _supportHere(), waiting > 0);
 
+    var nm = adminLink('New members', '#', false);
+    nm.onclick = function (ev) { ev.preventDefault(); openNewMembers(bar); };
+
     if (operatorOk) {
       var pw = adminLink(wordsLabel(), '#', false);
       pw.id = 'cw-words-link';
@@ -1264,6 +1267,58 @@
     d.addEventListener('keydown', onKey);
     c.onclick = close;
     return c;
+  }
+  function openNewMembers(bar) {
+    var old = d.getElementById('cw-viewas-new'); if (old) { old.remove(); return; }
+    ['cw-viewas-pick', 'cw-viewas-words'].forEach(function (id) { var o = d.getElementById(id); if (o) { o.remove(); } });
+    var panel = d.createElement('div');
+    panel.id = 'cw-viewas-new';
+    var top = 34; try { top = Math.round(bar.getBoundingClientRect().bottom) || 34; } catch (e) {}
+    panel.style.cssText = 'position:fixed;left:0;right:0;top:' + top + 'px;max-height:70vh;overflow:auto;'
+      + 'box-shadow:0 6px 18px rgba(26,46,66,.12);z-index:100000;background:#fff;color:#1A2E42;'
+      + 'border-bottom:1px solid #DDE3EA;padding:12px 14px;font:400 14px/1.4 "Nunito Sans","DM Sans",system-ui,sans-serif;';
+    var head = d.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:760px;margin-bottom:10px;';
+    var ht = d.createElement('div'); ht.style.cssText = 'font-weight:800;'; ht.textContent = 'Looking for new members\u2026';
+    head.appendChild(ht); head.appendChild(cancelBtn(panel));
+    var cols = d.createElement('div');
+    cols.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;max-width:760px;';
+    panel.appendChild(head); panel.appendChild(cols);
+    d.body.appendChild(panel);
+    function when(t) { try { return new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } }
+    function list(title, rows) {
+      var box = d.createElement('div');
+      var h = d.createElement('div');
+      h.style.cssText = 'font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#2F3D4F;margin:0 0 6px;';
+      h.textContent = title; box.appendChild(h);
+      if (!rows.length) { var none = d.createElement('div'); none.style.cssText = 'color:#2F3D4F;'; none.textContent = 'Nobody yet'; box.appendChild(none); return box; }
+      rows.forEach(function (r) {
+        var row = d.createElement('div');
+        row.style.cssText = 'display:flex;justify-content:space-between;gap:8px;border:1px solid #E3EAF0;border-radius:10px;padding:8px 10px;margin-bottom:6px;';
+        var l = d.createElement('div'); l.style.cssText = 'min-width:0;';
+        var a = d.createElement(r.link ? 'a' : 'span');
+        if (r.link) { a.href = r.link; a.target = '_blank'; a.rel = 'noopener'; }
+        a.textContent = r.name || 'A new member';
+        a.style.cssText = 'font-weight:700;color:#1F699E;text-decoration:underline;';
+        var u = d.createElement('div'); u.style.cssText = 'font-size:12.5px;color:#2F3D4F;overflow-wrap:anywhere;';
+        u.textContent = String(r.link || '').replace(/^https:\/\//, '');
+        l.appendChild(a); l.appendChild(u);
+        var t = d.createElement('div'); t.style.cssText = 'font-size:12.5px;color:#2F3D4F;white-space:nowrap;'; t.textContent = when(r.at);
+        row.appendChild(l); row.appendChild(t); box.appendChild(row);
+      });
+      return box;
+    }
+    var auth = '&appearId=' + encodeURIComponent(realMeId)
+      + '&meToken=' + encodeURIComponent(String(ls(function () { return w.localStorage.getItem('cw-token'); }, '') || ''));
+    fetch(GS + '?action=getNewMembers' + auth + '&t=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r || r.status !== 'ok') { ht.textContent = 'New members did not load. Close and try again.'; return; }
+        ht.textContent = 'New members';
+        cols.appendChild(list('Last 3 who joined', r.joined || []));
+        cols.appendChild(list('Last 3 who finished About me', r.finished || []));
+      })
+      .catch(function () { ht.textContent = 'New members did not load. Close and try again.'; });
   }
   function openWords(bar) {
     var old = d.getElementById('cw-viewas-words'); if (old) { old.remove(); return; }
