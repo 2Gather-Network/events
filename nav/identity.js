@@ -304,7 +304,10 @@
             ss(function () { w.sessionStorage.removeItem('cw-turn-on-' + nm); });
             jumpLog('asked to, so ' + nm + ' is turned on');
           } else { jumpLog('signed in here; ' + nm + ' not turned on unless the member asks'); }
-          ss(function () { w.sessionStorage.setItem(key, '1'); });
+          if (typeof d.conductOk === 'boolean') { ls(function () { w.localStorage.setItem('cw-conduct', d.conductOk ? 'yes' : 'no'); }); }
+          if (d.conductNeeded) { conductScreen(nm, 'ask', ''); }
+          else if (d.conductCarry) { conductScreen(nm, 'carry', d.conductCarry); }
+          if (!d.conductNeeded) { ss(function () { w.sessionStorage.setItem(key, '1'); }); }
         } else if (d && d.status === 'error' && /expired|sign in again/i.test(String(d.message || ''))) {
           jumpLog('this sign-in was refused; asking once more');
           return new w.Promise(function (done) { w.setTimeout(done, 2000); })
@@ -322,6 +325,15 @@
         }
       })
       .catch(function () {});
+  }
+  function conductScreen(nm, mode, from) {
+    if (viewingAs()) { return; }
+    var go = function () { if (w.CW_conduct) { w.CW_conduct(nm, mode, from); } };
+    if (w.CW_conduct) { go(); return; }
+    var s = w.document.createElement('script');
+    s.src = 'https://2gather.network/nav/conduct.js?v=1';
+    s.onload = go;
+    (w.document.head || w.document.documentElement).appendChild(s);
   }
   w.CW_turnOnHere = function () {
     var nm = { gather: 'Gather', appear: 'Appear', balance: 'Balance' }[JUMP_SITE[String(w.location.hostname || '').toLowerCase()]];
