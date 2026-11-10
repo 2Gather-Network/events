@@ -61,7 +61,7 @@
       <div class="faces" id="faces"></div>
       <p class="msg" id="msg"><span class="wait">Looking up the guests</span></p>
     </div>
-    <aside class="side">
+    <aside class="side" id="side" hidden>
       <div class="box">
         <div class="row"><div class="lab">Lobby</div><a class="btn ghost" id="lobby" href="#">View the lobby</a></div>
         <div class="stat">What guests need, offer and care about, for those who joined the lobby.</div>
@@ -99,10 +99,21 @@
   $("lobby").href = "https://2gather.network/attendees/?id=" + encodeURIComponent(id);
   $("matches").href = "https://2gather.network/event/matches/?id=" + encodeURIComponent(id);
   crumbs("");
-  fetch(GS + "?action=getEventById&id=" + encodeURIComponent(id))
-    .then(function (r) { return r.json(); })
-    .then(function (d) { var t = d && d.event && d.event.title; if (t) { $("evt").textContent = "Event: " + t; document.title = t + " guests · 2Gather"; crumbs(t); } })
-    .catch(function () {});
+  function shown(t) { $("side").hidden = false; if (t) { $("evt").textContent = "Event: " + t; document.title = t + " guests · 2Gather"; crumbs(t); } }
+  function hidden() { $("side").hidden = true; $("count").textContent = ""; $("faces").innerHTML = ""; $("srch").hidden = true; say(me() ? "Event not found." : 'This event is not on the public calendar. If you are part of its group, sign in to see it.<br><a class="btn" style="margin-top:12px;" href="https://2gather.network/signin/?next=' + encodeURIComponent(location.pathname + location.search) + '">Sign in</a>'); }
+  function seen() {
+    var who = me(), pass = (window.CW && CW.passParam) ? CW.passParam() : "&meToken=" + encodeURIComponent(token());
+    return fetch(GS + "?action=eventBundle&id=" + encodeURIComponent(id) + "&t=" + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (b) {
+        var row = (b && Array.isArray(b.events) ? b.events : []).filter(function (x) { return String(x && x.id) === id; })[0];
+        if (row) return row.title || "Event";
+        if (!who) return null;
+        return fetch(GS + "?action=getEventById&id=" + encodeURIComponent(id) + "&appearId=" + encodeURIComponent(who) + pass + "&t=" + Date.now())
+          .then(function (r) { return r.json(); })
+          .then(function (o) { return (o && o.event && o.event.row && String(o.event.row.id) === id) ? (o.event.row.title || "Event") : null; });
+      });
+  }
   var all = [];
   function face(a) {
     var nm = String(a.name || "").trim() || "A guest";
@@ -147,7 +158,12 @@
       .catch(function () { say('The guests could not load just now. <a href="" onclick="location.reload();return false;" style="color:#1F699E;font-weight:700;">Try again</a>'); });
   }
   $("q").addEventListener("input", paint);
-  run(0);
+  function start(tries) {
+    if (!me() && tries < 12) { setTimeout(function () { start(tries + 1); }, 500); return; }
+    seen().then(function (t) { if (t === null) { hidden(); return; } shown(t); run(0); })
+      .catch(function () { say('The guests could not load just now. <a href="" onclick="location.reload();return false;" style="color:#1F699E;font-weight:700;">Try again</a>'); });
+  }
+  start(0);
 })();
 </script>
 </body>
