@@ -132,7 +132,8 @@
     <div class="field"><label for="f-name">Name</label><input type="text" id="f-name" maxlength="120" autocomplete="off"></div>
     <div class="field"><label for="f-email">Email</label><input type="email" id="f-email" maxlength="254" autocomplete="off"></div>
     <div class="field"><label for="f-phone">Phone</label><input type="tel" id="f-phone" maxlength="40" autocomplete="off"></div>
-    <div class="field"><label for="f-met">How I met this person</label><input type="text" id="f-met" maxlength="200" placeholder="Ex: at an event, online, a referral" autocomplete="off"></div>
+    <div class="field"><span class="q">How I met this person</span><div class="pills" data-f="metHow" data-set="met"></div>
+      <input type="text" id="f-met" maxlength="200" placeholder="How did you meet?" aria-label="How did you meet?" autocomplete="off" hidden style="margin-top:8px"></div>
     <div class="field"><span class="q">How I want to follow up</span><div class="pills" data-f="followUpHow" data-set="how"></div></div>
     <div class="field"><span class="q">What type of invite I want to send</span><div class="pills" data-f="inviteType" data-set="invite"></div></div>
     <div class="field"><span class="q">I followed up with</span><div class="pills" data-f="followedUpWith" data-set="how"></div></div>
@@ -161,6 +162,7 @@
   var PHOTOS = 'https://cw-photos.jessieupp.workers.dev';
   var HOW = ['Appear', 'Text', 'Call', 'Email'];
   var INVITE = [['Network', 'Network invite'], ['Event', 'Event invite'], ['Group', 'Group invite'], ['Meeting', 'Meeting invite'], ['Other', 'Other']];
+  var MET = [['Event', 'Event'], ['Online', 'Online'], ['Referral', 'Referral'], ['Other', 'Other']];
   var INVITE_WORD = { Network: 'Network invite', Event: 'Event invite', Group: 'Group invite', Meeting: 'Meeting invite', Other: 'Other' };
 
   try { if (window.cwBreadcrumb) { window.cwBreadcrumb(document.getElementById('breadcrumb'), 'My contacts'); } } catch (e) {}
@@ -259,7 +261,8 @@
 
   function pills() {
     Array.prototype.forEach.call(document.querySelectorAll('.pills'), function (box) {
-      var set = box.getAttribute('data-set') === 'how' ? HOW.map(function (h) { return [h, h]; }) : INVITE;
+      var kind = box.getAttribute('data-set');
+      var set = kind === 'how' ? HOW.map(function (h) { return [h, h]; }) : kind === 'met' ? MET : INVITE;
       box.innerHTML = '';
       set.forEach(function (it) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'pill'; b.textContent = it[1];
@@ -268,10 +271,29 @@
           var on = b.getAttribute('aria-pressed') === 'true';
           Array.prototype.forEach.call(box.children, function (x) { x.setAttribute('aria-pressed', 'false'); });
           b.setAttribute('aria-pressed', on ? 'false' : 'true');
+          if (kind === 'met') { metOther(!on && it[0] === 'Other'); }
         };
         box.appendChild(b);
       });
     });
+  }
+  function metOther(open) {
+    var t = $('f-met');
+    t.hidden = !open;
+    if (open) { setTimeout(function () { try { t.focus(); } catch (e) {} }, 20); } else { t.value = ''; }
+  }
+  function metGet() {
+    var v = pillsGet('metHow');
+    if (v !== 'Other') { return v; }
+    return String($('f-met').value || '').trim() || 'Other';
+  }
+  function metSet(v) {
+    v = String(v || '').trim();
+    var known = ['Event', 'Online', 'Referral'];
+    if (!v) { pillsSet('metHow', ''); metOther(false); return; }
+    if (known.indexOf(v) > -1) { pillsSet('metHow', v); metOther(false); return; }
+    pillsSet('metHow', 'Other'); metOther(true);
+    $('f-met').value = v === 'Other' ? '' : v;
   }
   function pillsGet(f) {
     var box = document.querySelector('.pills[data-f="' + f + '"]'), out = [];
@@ -356,10 +378,10 @@
     $('f-name').value = c ? c.name : '';
     $('f-email').value = c ? c.email : '';
     $('f-phone').value = c ? c.phone : '';
-    $('f-met').value = c ? c.metHow : '';
     $('f-notes').value = c ? c.notes : '';
     $('f-tags').value = c ? c.tag : '';
     $('f-url').value = c ? c.url : '';
+    metSet(c ? c.metHow : '');
     pillsSet('followUpHow', c ? c.followUpHow : '');
     pillsSet('inviteType', c ? c.inviteType : '');
     pillsSet('followedUpWith', c ? c.followedUpWith : '');
@@ -399,7 +421,7 @@
     if (!name) { msg('Add a name. It is the only thing a contact needs.', true); $('f-name').focus(); return; }
     BUSY = true; $('save').disabled = true; msg('Saving');
     var p = {
-      name: name, email: $('f-email').value, phone: $('f-phone').value, metHow: $('f-met').value,
+      name: name, email: $('f-email').value, phone: $('f-phone').value, metHow: metGet(),
       followUpHow: pillsGet('followUpHow'), inviteType: pillsGet('inviteType'),
       followedUpWith: pillsGet('followedUpWith'), extended: pillsGet('extended'),
       notes: $('f-notes').value, tag: $('f-tags').value, url: $('f-url').value,
