@@ -1615,7 +1615,13 @@ window.cwSocDone = function () {
 };
 
 function applyUnregisteredUI() {
-  try { cwSeenLinkShow(false); var _ca = document.getElementById("cw-seen-ask"); if (_ca) _ca.remove(); } catch (e) {}
+  try { cwSeenLinkShow(false); var _rn = document.getElementById("cw-reg-note"); if (_rn) _rn.remove(); } catch (e) {}
+  try {
+    if (/[?&]choices=1\b/.test(location.search) && !window.cwChoicesOpened && typeof _currentEv !== "undefined" && _currentEv && getMemberId() && !document.getElementById("cw-seen-ask")) {
+      window.cwChoicesOpened = true;
+      setTimeout(function () { openRsvpModal(); }, 0);
+    }
+  } catch (e) {}
   const btn = document.getElementById("interest-btn");
   if (btn) {
     btn.classList.remove("cw-going-on");
@@ -1947,9 +1953,8 @@ function openRsvpModal() {
   } catch (e) {}
   const memberId = getMemberId();
   if (!memberId) { _showRsvpPanel(); showStep("signin"); return; }
-  _showRsvpPanel();
   _rsvpAppearId = memberId;
-  confirmRsvp();
+  cwSeenOpen(_currentEv, false, true);
 }
 
 function closeRsvpModal() {
@@ -2065,16 +2070,6 @@ function cwSeenFetch(id) {
   var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
   return fetch(GS_URL + "?action=getEventSeen&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(id)).then(function (r) { return r.json(); });
 }
-function cwSeenOpen(ev, preview, fromRegister) {
-  var me = ""; try { me = getMemberId() || ""; } catch (e) {}
-  var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
-  if (!me || preview) { cwSeenAsk(ev, preview, null, fromRegister); return; }
-  var pre = window.cwSeenPre; window.cwSeenPre = null;
-  var got = (pre && !fromRegister && pre.id === ev.id) ? pre.p : cwSeenFetch(ev.id);
-  got.then(function (d) { cwSeenAsk(ev, false, d && d.status === "ok" ? d : null, fromRegister); })
-    .catch(function () { cwSeenAsk(ev, false, null, fromRegister); });
-  try { var sl = document.getElementById("cw-seen-slot"); if (sl && fromRegister) sl.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
-}
 function cwSeenLinkShow(on, saved) {
   var slot = document.getElementById("cw-seen-slot");
   if (!slot) return;
@@ -2087,7 +2082,7 @@ function cwSeenLinkShow(on, saved) {
     a.onclick = function () { if (typeof _currentEv !== "undefined" && _currentEv) { cwSeenOpen(_currentEv, false, false); } };
     slot.appendChild(a);
   }
-  a.textContent = saved ? "Saved. Change your choices for this event" : "Your choices for this event";
+  a.textContent = "Edit your registration";
   a.style.display = "inline-block";
 }
 function cwSeenLinkPaint() {
@@ -2096,7 +2091,6 @@ function cwSeenLinkPaint() {
   if (/[?&]choices=1\b/.test(location.search) && !window.cwChoicesOpened && typeof _currentEv !== "undefined" && _currentEv && getMemberId()) {
     window.cwChoicesOpened = true;
     cwSeenOpen(_currentEv, false, false);
-    setTimeout(function () { try { var sl = document.getElementById("cw-seen-slot"); if (sl) sl.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} }, 900);
     return;
   }
   cwSeenLinkShow(true, false);
@@ -2108,65 +2102,110 @@ function cwSeenLinkPaint() {
     }
   } catch (e) {}
 }
-function cwSeenAsk(ev, preview, saved, fromRegister) {
+function cwSeenOpen(ev, preview, fromRegister) {
   if (!ev) return;
+  var me = ""; try { me = getMemberId() || ""; } catch (e) {}
+  var shell = cwStepsShell(ev, !!fromRegister);
+  if (!me || preview) { cwSeenAsk(ev, preview, null, fromRegister); return; }
+  shell.body.innerHTML = '<p class="cw-loading" style="font-size:14px;color:var(--muted);">Looking up your choices</p>';
+  var pre = window.cwSeenPre; window.cwSeenPre = null;
+  var got = (pre && !fromRegister && pre.id === ev.id) ? pre.p : cwSeenFetch(ev.id);
+  got.then(function (d) { cwSeenAsk(ev, false, d && d.status === "ok" ? d : null, fromRegister); })
+    .catch(function () { cwSeenAsk(ev, false, null, fromRegister); });
+}
+function cwStepsShell(ev, reg) {
   var old = document.getElementById("cw-seen-ask");
   if (old) old.remove();
-  var LV = ["Not shared", "Global", "Region", "Country", "State", "County", "City", "Neighborhood"];
-  var FROM = [["bookmarked", "People I bookmarked"], ["match", "People I match with"], ["messaged", "People I messaged"], ["everyone", "Everyone at the event"], ["none", "Nobody"]];
-  var st = { level: "Not shared", text: "", postal: "", ok: false, photo: "", prof: {}, name: "full", from: { bookmarked: true, match: true }, mail: true, mine: true };
+  if (!document.getElementById("cw-steps-css")) {
+    var cs = document.createElement("style");
+    cs.id = "cw-steps-css";
+    cs.textContent = "#cw-seen-ask{position:fixed;inset:0;background:rgba(15,30,45,.45);display:flex;align-items:center;justify-content:center;z-index:2000;padding:16px;font-family:inherit}"
+      + "#cw-seen-ask .cw-pop{background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.18)}"
+      + "#cw-seen-ask .cw-ph{padding:16px 18px 10px;border-bottom:1px solid var(--border)}"
+      + "#cw-seen-ask .cw-pt{font-size:17px;font-weight:700;color:var(--dark);margin:0 0 8px;padding-right:56px;line-height:1.3}"
+      + "#cw-seen-ask .cw-pc{float:right;background:none;border:0;font:inherit;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;padding:2px 0}"
+      + "#cw-seen-ask .cw-prog{display:flex;gap:6px}#cw-seen-ask .cw-prog span{flex:1;height:6px;border-radius:3px;background:#DDE4EE}#cw-seen-ask .cw-prog span.on{background:#1F699E}"
+      + "#cw-seen-ask .cw-pl{font-size:12.5px;color:var(--muted);margin:6px 0 0}"
+      + "#cw-seen-ask .cw-pb{padding:16px 18px;overflow:auto;flex:1}"
+      + "#cw-seen-ask .cw-pf{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:space-between;align-items:center}"
+      + "#cw-seen-ask .cw-b{font:inherit;font-weight:700;font-size:14px;padding:10px 20px;border-radius:20px;cursor:pointer}"
+      + "#cw-seen-ask .cw-b.pri{background:#1F699E;color:#fff;border:1.5px solid #1F699E}#cw-seen-ask .cw-b.gh{background:#fff;color:#1F699E;border:1.5px solid #1F699E}#cw-seen-ask .cw-b[disabled]{opacity:.5;cursor:default}"
+      + "#cw-seen-ask h3{font-size:16px;font-weight:700;color:var(--dark);margin:0 0 4px}"
+      + "#cw-seen-ask .cw-sub{display:block;font-size:13px;color:var(--muted);margin:2px 0 0;line-height:1.45}"
+      + "#cw-seen-ask .cw-row{display:flex;align-items:flex-start;gap:10px;font-size:15px;color:var(--dark);padding:7px 0}#cw-seen-ask .cw-row input{margin-top:4px}#cw-seen-ask .cw-row.off{color:#9AA6B2}"
+      + "#cw-seen-ask .cw-in{margin:0 0 0 26px}"
+      + "#cw-seen-ask .cw-imgf{display:flex;align-items:center;gap:10px;border:1.5px solid #C9D6E2;background:#F6F9FC;border-radius:12px;padding:8px 10px;margin:6px 0 4px}"
+      + "#cw-seen-ask .cw-tile{width:44px;height:44px;border-radius:10px;background:#DDE4EE;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;overflow:hidden}#cw-seen-ask .cw-tile img{width:100%;height:100%;object-fit:cover}"
+      + "#cw-seen-ask .cw-imgf input{flex:1;border:0;background:transparent;font:inherit;font-size:14px;min-width:0;outline:none}"
+      + "#cw-seen-ask .cw-up{font:inherit;font-size:13px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #1F699E;border-radius:16px;padding:6px 12px;white-space:nowrap;cursor:pointer}"
+      + "#cw-seen-ask .cw-help{font-size:12.5px;color:var(--muted);margin:0 0 6px}"
+      + "#cw-seen-ask .cw-info{background:#E8F2F9;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.5;color:#1A2E42;margin:6px 0 4px}"
+      + "#cw-seen-ask .cw-same{display:flex;align-items:flex-start;gap:10px;background:#E8F2F9;border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:14.5px;font-weight:700;color:#1A2E42}#cw-seen-ask .cw-same .cw-sub{font-weight:400}"
+      + "#cw-seen-ask .cw-pills{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}"
+      + "#cw-seen-ask .cw-pill{font:inherit;font-size:13.5px;padding:6px 13px;border-radius:999px;border:1.5px solid #C9D6E2;background:#fff;color:var(--dark);cursor:pointer}#cw-seen-ask .cw-pill[aria-pressed=true]{background:#1F699E;border-color:#1F699E;color:#fff;font-weight:700}"
+      + "#cw-seen-ask .cw-tr{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:15px;color:var(--dark);padding:7px 0}"
+      + "#cw-seen-ask .cw-sw{position:relative;width:42px;height:24px;border-radius:12px;background:#C6CDD8;border:0;cursor:pointer;flex-shrink:0;padding:0}#cw-seen-ask .cw-sw::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}#cw-seen-ask .cw-sw[aria-checked=true]{background:#1F699E}#cw-seen-ask .cw-sw[aria-checked=true]::after{left:21px}"
+      + "#cw-seen-ask .cw-sum{background:#F6F9FC;border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;font-size:14px;line-height:1.7;margin:10px 0;color:var(--dark)}"
+      + "#cw-seen-ask .cw-msg{font-size:13px;color:#7A2410;margin:0;min-height:18px;flex:1}"
+      + "@media (max-width:640px){#cw-seen-ask{padding:0;align-items:stretch}#cw-seen-ask .cw-pop{max-width:none;max-height:none;height:100%;border-radius:0}}";
+    document.head.appendChild(cs);
+  }
   var o = document.createElement("div");
   o.id = "cw-seen-ask";
-  o.style.cssText = "margin:16px 0;";
-  var btn = "font-weight:700;font-size:14px;padding:10px 18px;border-radius:20px;cursor:pointer;font-family:inherit;";
-  var row = "display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--dark);padding:6px 0;";
-  var sub = "font-size:13px;color:var(--muted);margin:2px 0 0;";
-  var pill = "font-size:13px;padding:5px 12px;border-radius:999px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;font-family:inherit;";
-  var head = "font-size:14px;font-weight:700;color:var(--dark);margin:12px 0 2px;";
-  var trow = "display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;color:var(--dark);padding:6px 0;";
-  o.innerHTML = '<div role="group" aria-labelledby="cw-seen-q" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:18px 18px 14px;width:100%;box-sizing:border-box;font-family:inherit;">'
-    + '<p id="cw-seen-q" style="font-size:16px;font-weight:700;color:var(--dark);margin:0 0 4px;">' + (fromRegister ? "You\u2019re registered for " + esc(ev.title || "this event") : "Your choices for this event") + '</p>'
-    + '<p style="' + sub + 'margin:0 0 6px;">Everyone registered shows to the other guests at this event. You choose how.</p>'
-    + '<p style="' + head + 'margin-top:6px;">How your name shows at this event</p>'
-    + '<div role="radiogroup" aria-label="How your name shows at this event" style="margin:0 0 6px;">'
-    + '<label style="' + row + 'padding:3px 0;"><input type="radio" name="cw-seen-nm" value="full" checked> Full name</label>'
-    + '<label style="' + row + 'padding:3px 0;"><input type="radio" name="cw-seen-nm" value="short"> First name and last initial</label>'
-    + '<label style="' + row + 'padding:3px 0;"><input type="radio" name="cw-seen-nm" value="initials"> Initials</label></div>'
-    + '<label style="' + row + '"><input type="checkbox" id="cw-seen-pho" checked style="margin-top:3px;"><span>Show my photo at this event</span></label>'
-    + '<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin:4px 0 8px;"><img id="cw-seen-ph" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;display:none;"><span id="cw-seen-pt" style="font-size:13px;color:var(--dark);">Looking for your photo\u2026</span></div>'
-    + '<p id="cw-seen-no" style="display:none;background:#E8F2F9;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.5;color:#1A2E42;margin:0 0 8px;">With initials or no photo, you can\u2019t join the lobby and you won\u2019t get matches for this event. Nobody can open your profile from this event either. To join the lobby, pick at least first name and last initial and show your photo.</p>'
-    + '<p style="' + head + '">Share your location?</p>'
-    + '<p style="' + sub + '">At what level do others at this event see where you are?</p>'
-    + '<div id="cw-seen-lv" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;"></div>'
-    + '<div id="cw-seen-cf" style="display:none;background:#E6F1FB;border-radius:10px;padding:10px 12px;margin:0 0 8px;">'
-    + '<p style="font-size:13px;color:var(--muted);margin:0;">Others at this event will see</p>'
-    + '<input id="cw-seen-tx" type="text" maxlength="80" aria-label="The place others will see" style="width:100%;font:inherit;font-size:14px;font-weight:700;color:var(--dark);border:1px solid var(--border);border-radius:8px;padding:6px 8px;margin:4px 0 6px;">'
-    + '<div id="cw-seen-pz" style="display:none;"><p style="font-size:13px;color:var(--muted);margin:0;">Postal code (needed for neighborhood; kept private, not shown)</p><input id="cw-seen-pc" type="text" maxlength="12" aria-label="Postal code" style="width:100%;font:inherit;font-size:14px;color:var(--dark);border:1px solid var(--border);border-radius:8px;padding:6px 8px;margin:4px 0 6px;"></div>'
-    + '<p style="font-size:13px;color:var(--muted);margin:0 0 8px;">Is that right?</p>'
-    + '<div style="display:flex;gap:8px;"><button type="button" id="cw-seen-y" style="' + pill + '">Yes</button><button type="button" id="cw-seen-n" style="' + pill + '">No</button></div></div>'
-    + '<label style="' + row + '"><input type="checkbox" id="cw-seen-lb" style="margin-top:3px;"><span>Show me in the lobby with my guest profile details<span style="display:block;' + sub + '">The lobby shows what guests need, offer and care about. It needs at least your first name and last initial and your photo.</span></span></label>'
-    + '<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:12px;">'
-    + '<p style="font-size:16px;font-weight:700;color:var(--dark);margin:0 0 2px;">2Appear</p>'
-    + '<p style="font-size:12px;color:var(--muted);margin:0 0 10px;">These features are a part of 2appear.network: your digital space with your people and on your terms.</p>'
-    + '<label style="' + row + '"><input type="checkbox" id="cw-seen-mk" checked style="margin-top:3px;"><span>Let me connect with people I want to meet after this event</span></label>'
-    + '<label style="' + row + '"><input type="checkbox" id="cw-seen-inv" checked style="margin-top:3px;"><span>Let others connect with me after the event</span></label>'
-    + '<p style="' + head + '">Who can invite me to their events from here?</p>'
-    + '<p style="' + sub + '">Select all that apply.</p>'
-    + '<div id="cw-seen-fr" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;"></div>'
-    + '<p style="' + sub + 'margin:0 0 4px;line-height:1.5;"><b>People I bookmarked</b>: people I saved at this event. <b>People I match with</b>: people who share a need, an offer or an interest with me at this event. <b>People I messaged</b>: people I have sent a message to. <b>Everyone at the event</b>: anyone registered for this event.</p>'
-    + '<p style="' + head + '">How do I hear about an event invite from other event guests?</p>'
-    + '<div style="' + trow + '"><span>Email me</span><button type="button" id="cw-seen-em" role="switch" aria-checked="true" aria-label="Email me about event invites"></button></div>'
-    + '<div style="' + trow + '"><span>Show it in My events</span><button type="button" id="cw-seen-me" role="switch" aria-checked="true" aria-label="Show event invites in My events"></button></div></div>'
-    + '<label style="' + row + '"><input type="checkbox" id="cw-seen-mu" disabled style="margin-top:3px;"><span>Turn on Match up<span style="display:block;' + sub + '">See what you and others at this event need and offer. Only people who turn on Match up see each other\u2019s matches. Needs Show me in the lobby first.</span></span></label>'
-    + '<p id="cw-seen-msg" style="font-size:13px;color:#7A2410;margin:8px 0 0;min-height:18px;"></p>'
-    + '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px;"><button type="button" id="cw-seen-yes" style="' + btn + 'background:#1F699E;border:1.5px solid #1F699E;color:#fff;">Done</button></div></div>';
-  var slot = document.getElementById("cw-seen-slot");
-  if (!slot) return;
-  slot.appendChild(o);
+  o.innerHTML = '<div class="cw-pop" role="dialog" aria-modal="true" aria-labelledby="cw-st-t"><div class="cw-ph"><button type="button" class="cw-pc" id="cw-st-x">Close</button>'
+    + '<p class="cw-pt" id="cw-st-t">' + esc((reg ? "Register for " : "Edit your registration for ") + (ev.title || "this event")) + '</p>'
+    + '<div class="cw-prog" id="cw-st-pr"><span class="on"></span><span></span><span></span></div><p class="cw-pl" id="cw-st-pl">Step 1 of 3: How you show at this event</p></div>'
+    + '<div class="cw-pb" id="cw-st-b"></div>'
+    + '<div class="cw-pf"><button type="button" class="cw-b gh" id="cw-st-bk" style="visibility:hidden;">Back</button><p class="cw-msg" id="cw-seen-msg" role="status"></p><button type="button" class="cw-b pri" id="cw-st-nx" disabled>Next</button></div></div>';
+  document.body.appendChild(o);
+  document.getElementById("cw-st-x").onclick = function () { o.remove(); };
+  o.addEventListener("click", function (e) { if (e.target === o) o.remove(); });
+  return { el: o, body: document.getElementById("cw-st-b") };
+}
+function cwRegNote(ev, edited) {
+  var btn = document.getElementById("interest-btn");
+  var old = document.getElementById("cw-reg-note"); if (old) old.remove();
+  var n = document.createElement("div");
+  n.id = "cw-reg-note"; n.setAttribute("role", "status");
+  n.style.cssText = "position:relative;margin:10px 0 4px;background:#E8F2F9;border-radius:12px;padding:12px 74px 12px 14px;font-size:14px;line-height:1.5;color:#1A2E42;";
+  n.innerHTML = '<b>' + (edited ? "Your registration is updated." : "You’re registered.") + '</b> Your choices for this event are saved.<br><a href="#" id="cw-reg-note-ed" style="color:#1F699E;font-weight:700;">Edit your registration</a>'
+    + '<button type="button" id="cw-reg-note-x" style="position:absolute;top:8px;right:8px;background:none;border:0;font:inherit;font-size:13px;font-weight:700;color:#1F699E;cursor:pointer;padding:6px 8px;">Got it</button>';
+  var at = btn ? (btn.closest(".ev-going-row") || btn.parentNode) : document.getElementById("cw-seen-slot");
+  if (!at) return;
+  at.insertAdjacentElement("afterend", n);
+  document.getElementById("cw-reg-note-x").onclick = function () { n.remove(); };
+  document.getElementById("cw-reg-note-ed").onclick = function (e) { e.preventDefault(); n.remove(); cwSeenOpen(ev, false, false); };
+  try { n.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
+}
+function cwSeenAsk(ev, preview, saved, fromRegister) {
+  if (!ev) return;
+  var reg = !!fromRegister;
+  var o = document.getElementById("cw-seen-ask");
+  if (!o) { cwStepsShell(ev, reg); o = document.getElementById("cw-seen-ask"); }
   var $ = function (id) { return document.getElementById(id); };
-  try { cwSeenLinkShow(false); } catch (e) {}
-  var msg = $("cw-seen-msg");
-  var finish = function (didSave) { window.cwSeenPre = null; o.remove(); try { cwSeenLinkShow(true, didSave === true); } catch (e) {} if (!preview && fromRegister) { try { cwCalAsk(ev); } catch (e) {} } };
+  var body = $("cw-st-b"), msg = $("cw-seen-msg"), nx = $("cw-st-nx"), bk = $("cw-st-bk");
+  var LV = ["Not shared", "Global", "Region", "Country", "State", "County", "City", "Neighborhood"];
+  var FROM = [["bookmarked", "People I bookmarked"], ["match", "People I match with"], ["messaged", "People I messaged"], ["everyone", "All event guests"], ["none", "Nobody"]];
+  var STEPS = ["How you show at this event", "Share your location", "2Appear"];
+  var st = { step: 0, name: "full", photo: true, have: "", blob: null, img: "", lobby: false, match: false, level: "Not shared", text: "", postal: "", ok: false, prof: {},
+    connect: true, others: true, from: { bookmarked: true, match: true }, onlyMine: false, mail: true, mine: true, same: false, done: false, lastWasReg: false };
+  var me = ""; try { me = getMemberId() || ""; } catch (e) {}
+  var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
+  var fill = function (s) {
+    if (!s) return;
+    if (s.nameShown) { st.name = ["full", "short", "initials"].indexOf(s.nameShown) > -1 ? s.nameShown : "full"; st.photo = s.photoShown === true; }
+    else if (s.seen === false && s.answered) { st.name = "initials"; st.photo = false; }
+    st.lobby = s.inLobby === true; st.match = s.inLobby === true && s.matchUp === true;
+    st.level = LV.indexOf(s.level) > -1 ? s.level : "Not shared"; st.text = String(s.place || ""); st.postal = String(s.postal || ""); st.ok = !!st.text;
+    if (typeof s.invite === "boolean") st.others = s.invite; if (typeof s.startGroup === "boolean") st.connect = s.startGroup;
+    if (s.inviteFrom) { st.from = {}; if (s.inviteFrom !== "none") String(s.inviteFrom).split(",").forEach(function (w) { st.from[w] = true; }); }
+    else if (s.invite === true) st.from.everyone = true;
+    st.onlyMine = s.inviteMatchOnly === true; st.mail = s.inviteEmail !== false; st.mine = s.inviteMyEvents !== false;
+  };
+  if (saved && saved.registered && (saved.answered || saved.nameShown)) fill(saved);
+  var last = saved && saved.last && reg ? saved.last : null;
+  var hasPhoto = function () { return !!(st.img || st.have); };
+  var lobbyOk = function () { return st.name !== "initials" && st.photo && hasPhoto(); };
   var guess = function (lv) {
     var loc = String(st.prof.location || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
     var us = loc.length > 1 && loc[1] === "United States";
@@ -2178,128 +2217,185 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     if (lv === "City") return String(st.prof.city || "").trim() ? [String(st.prof.city).trim(), us ? loc[0] : ""].filter(Boolean).join(", ") : "";
     return "";
   };
-  var paintLevels = function () {
-    var box = $("cw-seen-lv"); box.innerHTML = "";
-    LV.forEach(function (lv) {
-      var b = document.createElement("button"); b.type = "button"; b.textContent = lv; b.style.cssText = pill;
-      if (lv === st.level) { b.style.background = "#1F699E"; b.style.borderColor = "#1F699E"; b.style.color = "#fff"; }
-      b.onclick = function () {
-        st.level = lv; st.ok = false; msg.textContent = "";
-        st.text = lv === "Not shared" ? "" : guess(lv);
-        st.postal = lv === "Neighborhood" ? String(st.prof.postal || "").trim() : "";
-        $("cw-seen-tx").value = st.text; $("cw-seen-pc").value = st.postal;
-        $("cw-seen-cf").style.display = lv === "Not shared" ? "none" : "block";
-        $("cw-seen-pz").style.display = lv === "Neighborhood" ? "block" : "none";
-        paintLevels(); paintOk();
-      };
-      box.appendChild(b);
-    });
+  var head = function () {
+    var sp = $("cw-st-pr").children;
+    for (var i = 0; i < sp.length; i++) sp[i].className = (st.done || i <= st.step) ? "on" : "";
+    $("cw-st-pl").textContent = st.done ? "All 3 steps done" : "Step " + (st.step + 1) + " of 3: " + STEPS[st.step];
+    $("cw-st-t").textContent = st.done ? (st.lastWasReg ? "You’re registered" : "Your registration is updated") : ((reg ? "Register for " : "Edit your registration for ") + (ev.title || "this event"));
+    bk.style.visibility = st.step === 0 && !st.done ? "hidden" : "visible";
+    nx.disabled = false;
+    nx.textContent = st.done ? "Done" : st.step === 2 ? (reg ? "Finish registering" : "Save changes") : "Next";
+    msg.style.color = "#7A2410"; msg.textContent = "";
   };
-  var paintOk = function () {
-    var y = $("cw-seen-y"), n = $("cw-seen-n");
-    y.style.background = st.ok ? "#1F699E" : "#fff"; y.style.color = st.ok ? "#fff" : "var(--dark)"; y.style.borderColor = st.ok ? "#1F699E" : "var(--border)";
-    n.style.background = "#fff"; n.style.color = "var(--dark)";
+  var shrink = function (src, ok) {
+    var im = new Image();
+    im.crossOrigin = "anonymous";
+    im.onload = function () {
+      try {
+        var side = Math.min(im.width, im.height), c = document.createElement("canvas"); c.width = 600; c.height = 600;
+        c.getContext("2d").drawImage(im, (im.width - side) / 2, (im.height - side) / 2, side, side, 0, 0, 600, 600);
+        c.toBlob(function (b) { if (!b) { ok(""); return; } st.blob = b; st.img = c.toDataURL("image/jpeg", 0.8); ok("ok"); }, "image/jpeg", 0.85);
+      } catch (e) { ok(""); }
+    };
+    im.onerror = function () { ok(""); };
+    im.src = src;
   };
-  var paintSw = function (id, on) {
-    var b = $(id); b.setAttribute("aria-checked", on ? "true" : "false");
-    b.style.cssText = "position:relative;width:42px;height:24px;border-radius:12px;border:0;cursor:pointer;flex-shrink:0;padding:0;background:" + (on ? "#1F699E" : "#C6CDD8") + ";";
-    b.innerHTML = '<span style="position:absolute;top:3px;left:' + (on ? "21px" : "3px") + ';width:18px;height:18px;border-radius:50%;background:#fff;"></span>';
+  var takeFile = function (f) {
+    if (!f) return;
+    var h = $("cw-st-imh"); if (h) h.textContent = "Getting it ready…";
+    var u = URL.createObjectURL(f);
+    shrink(u, function (r) { try { URL.revokeObjectURL(u); } catch (e) {} if (!r) { if ($("cw-st-imh")) $("cw-st-imh").textContent = "That picture could not be read."; return; } st.photo = true; s1(); });
   };
-  var paintFrom = function () {
-    var box = $("cw-seen-fr"); box.innerHTML = "";
-    FROM.forEach(function (f) {
-      var on = f[0] === "none" ? !Object.keys(st.from).some(function (k) { return st.from[k]; }) : !!st.from[f[0]];
-      var b = document.createElement("button"); b.type = "button"; b.textContent = f[1]; b.setAttribute("aria-pressed", on ? "true" : "false"); b.style.cssText = pill;
-      if (on) { b.style.background = "#1F699E"; b.style.borderColor = "#1F699E"; b.style.color = "#fff"; }
-      b.onclick = function () {
-        if (f[0] === "none") st.from = {};
-        else st.from[f[0]] = !st.from[f[0]];
-        paintFrom();
-      };
-      box.appendChild(b);
-    });
-  };
-  var lobbyOk = function () { return st.name !== "initials" && $("cw-seen-pho").checked && !!st.photo; };
-  var chain = function () {
-    var okL = lobbyOk();
-    $("cw-seen-no").style.display = okL ? "none" : "block";
-    $("cw-seen-lb").disabled = !okL; if (!okL) $("cw-seen-lb").checked = false;
-    var lb = okL && $("cw-seen-lb").checked;
-    $("cw-seen-mu").disabled = !lb; if (!lb) $("cw-seen-mu").checked = false;
-  };
-  var answered = saved && (saved.nameShown || saved.answered || saved.seen || saved.invite || saved.startGroup || saved.matchUp || saved.level);
-  if (answered) {
-    st.level = LV.indexOf(saved.level) > -1 ? saved.level : "Not shared"; st.text = String(saved.place || ""); st.postal = String(saved.postal || ""); st.ok = !!st.text;
-    $("cw-seen-inv").checked = saved.invite === true; $("cw-seen-mk").checked = saved.startGroup === true;
-    if (saved.nameShown) { st.name = ["full", "short", "initials"].indexOf(saved.nameShown) > -1 ? saved.nameShown : "full"; $("cw-seen-pho").checked = saved.photoShown === true; }
-    else if (saved.seen !== true) { st.name = "initials"; $("cw-seen-pho").checked = false; }
-    Array.prototype.forEach.call(document.querySelectorAll('input[name="cw-seen-nm"]'), function (r) { r.checked = r.value === st.name; });
-    $("cw-seen-lb").checked = saved.inLobby === true; $("cw-seen-mu").checked = saved.inLobby === true && saved.matchUp === true;
-    if (saved.inviteFrom) { st.from = {}; if (saved.inviteFrom !== "none") String(saved.inviteFrom).split(",").forEach(function (w) { st.from[w] = true; }); }
-    else if (saved.invite === true) st.from.everyone = true;
-    st.mail = saved.inviteEmail !== false; st.mine = saved.inviteMyEvents !== false;
-    $("cw-seen-cf").style.display = st.level === "Not shared" ? "none" : "block"; $("cw-seen-pz").style.display = st.level === "Neighborhood" ? "block" : "none";
-    $("cw-seen-tx").value = st.text; $("cw-seen-pc").value = st.postal;
-  }
-  paintLevels(); paintOk(); paintFrom(); paintSw("cw-seen-em", st.mail); paintSw("cw-seen-me", st.mine);
-  $("cw-seen-em").onclick = function () { st.mail = !st.mail; paintSw("cw-seen-em", st.mail); };
-  $("cw-seen-me").onclick = function () { st.mine = !st.mine; paintSw("cw-seen-me", st.mine); };
-  $("cw-seen-pho").onchange = chain;
-  $("cw-seen-lb").onchange = chain;
-  Array.prototype.forEach.call(document.querySelectorAll('input[name="cw-seen-nm"]'), function (r) { r.onchange = function () { if (r.checked) st.name = r.value; chain(); }; });
-  $("cw-seen-tx").oninput = function () { st.text = this.value; st.ok = false; paintOk(); };
-  $("cw-seen-pc").oninput = function () { st.postal = this.value; st.ok = false; paintOk(); };
-  $("cw-seen-y").onclick = function () { if (!String($("cw-seen-tx").value).trim()) { msg.textContent = "Type the place to show first."; return; } st.ok = true; msg.textContent = ""; paintOk(); };
-  $("cw-seen-n").onclick = function () { st.ok = false; paintOk(); $("cw-seen-tx").focus(); $("cw-seen-tx").select(); };
-  var me0 = ""; try { me0 = getMemberId() || ""; } catch (e) {}
-  var setPhoto = function (u) {
-    st.photo = u || "";
-    var im = $("cw-seen-ph"), pt = $("cw-seen-pt");
-    if (u) { im.src = u; im.style.display = "block"; pt.textContent = "Your photo from your profile"; }
-    else { im.style.display = "none"; pt.innerHTML = 'You have no photo on your profile yet. <a href="https://2gather.network/account/" target="_blank" rel="noopener" style="color:#1F699E;font-weight:700;">Add a photo</a>'; }
-    chain();
-  };
-  if (preview && !me0) { st.prof = { location: "Washington, United States", postal: "98201" }; setPhoto("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23D6E6F5'/%3E%3C/svg%3E"); }
-  else if (me0) {
-    fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(me0)).then(function (r) { return r.json(); }).then(function (x) { if (x && x.found && x.photo) { setPhoto(x.photo); } }).catch(function () {}).then(function () { if (!st.photo) { var pt = $("cw-seen-pt"); if (pt && /Looking/.test(pt.textContent)) { setPhoto(""); } } });
-    var tk0 = ""; try { tk0 = localStorage.getItem("cw-token") || ""; } catch (e) {}
-    fetch(GS_URL + "?action=getProfile&appearId=" + encodeURIComponent(me0) + "&meToken=" + encodeURIComponent(tk0)).then(function (r) { return r.json(); }).then(function (pr) {
-      var d = pr && pr.found && pr.data ? pr.data : {};
-      st.prof = d;
-      if (!st.photo && d.photoURL) { setPhoto(String(d.photoURL)); }
-      if (st.level !== "Not shared" && !String(st.text).trim()) {
-        var g = guess(st.level);
-        if (g) { st.text = g; $("cw-seen-tx").value = g; }
-      }
-      if (st.level === "Neighborhood" && !String(st.postal).trim()) { st.postal = String(st.prof.postal || "").trim(); $("cw-seen-pc").value = st.postal; }
-    }).catch(function () {});
-  }
-  chain();
-  $("cw-seen-yes").onclick = function () {
-    if (st.level !== "Not shared") {
-      if (!String(st.text).trim()) { msg.textContent = st.level === "Neighborhood" ? "Type your neighborhood name." : "Type the place to show, or choose Not shared."; return; }
-      if (!st.ok) { msg.textContent = "Answer Is that right? with Yes first."; return; }
-      if (st.level === "Neighborhood" && !String(st.postal).trim()) { msg.textContent = "Add your postal code to show your neighborhood."; return; }
+  var s1 = function () {
+    if (!lobbyOk()) { st.lobby = false; }
+    if (!st.lobby) st.match = false;
+    var note = st.name === "initials" || !st.photo;
+    var h = "";
+    if (last && st.step === 0) h += '<label class="cw-same"><input type="checkbox" id="cw-st-same"' + (st.same ? " checked" : "") + ' style="margin-top:3px"><span>Use the same selections from my last event<span class="cw-sub">' + (st.same ? "Everything is filled in as you had it. Go through each screen, and if it looks good, you’re registered." : "Fills in every screen as you answered for your last event.") + '</span></span></label>';
+    h += '<h3>How your name shows at this event</h3>'
+      + ["full", "short", "initials"].map(function (v, i) { return '<label class="cw-row"><input type="radio" name="cw-seen-nm" value="' + v + '"' + (st.name === v ? " checked" : "") + '> ' + ["Full name", "First name and last initial", "Initials"][i] + '</label>'; }).join("")
+      + '<label class="cw-row"><input type="checkbox" id="cw-seen-pho"' + (st.photo ? " checked" : "") + '><span>Show my photo at this event</span></label>';
+    if (st.photo) {
+      var src = st.img || st.have;
+      h += '<div class="cw-in"><div class="cw-imgf"><div class="cw-tile">' + (src ? '<img src="' + esc(src) + '" alt="">' : "&#128444;&#65039;") + '</div>'
+        + '<input type="text" id="cw-st-iml" placeholder="Paste an image, a link, or upload one" aria-label="Your profile photo"><button type="button" class="cw-up" id="cw-st-up">Upload</button><input type="file" id="cw-st-f" accept="image/*" hidden></div>'
+        + '<p class="cw-help" id="cw-st-imh">' + (st.img ? "Ready. It becomes your profile photo when you " + (reg ? "finish registering." : "save your changes.") : (st.have ? "Your profile photo. A new one here changes it everywhere." : "Add a profile photo to show it at this event and join the lobby.")) + '</p></div>';
     }
-    if (preview) { msg.textContent = "This is a preview. Nothing was saved."; return; }
-    var me = ""; try { me = getMemberId() || ""; } catch (e) {}
-    var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
-    var from = Object.keys(st.from).filter(function (k) { return st.from[k]; });
-    var lb = lobbyOk() && $("cw-seen-lb").checked;
-    msg.style.color = "#1F699E"; msg.textContent = "Saving\u2026";
-    fetch(GS_URL + "?action=saveEventShare&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id)
-      + "&seen=true&nameShown=" + encodeURIComponent(st.name) + "&photoShown=" + ($("cw-seen-pho").checked && st.photo ? "true" : "false")
-      + "&lobby=" + (lb ? "true" : "false") + "&matchUp=" + (lb && $("cw-seen-mu").checked ? "true" : "false")
-      + "&invite=" + ($("cw-seen-inv").checked ? "true" : "false") + "&startGroup=" + ($("cw-seen-mk").checked ? "true" : "false")
-      + "&inviteFrom=" + encodeURIComponent(from.length ? from.join(",") : "none") + "&inviteEmail=" + (st.mail ? "true" : "false") + "&inviteMyEvents=" + (st.mine ? "true" : "false")
-      + "&placeLevel=" + encodeURIComponent(st.level) + "&placeText=" + encodeURIComponent(st.text) + "&placePostal=" + encodeURIComponent(st.postal))
+    if (note) h += '<p class="cw-info">With initials or no photo, you can’t join the lobby and you won’t get matches for this event. Nobody can open your profile from this event either.</p>';
+    var okL = lobbyOk();
+    h += '<label class="cw-row' + (okL ? "" : " off") + '"><input type="checkbox" id="cw-seen-lb"' + (st.lobby ? " checked" : "") + (okL ? "" : " disabled") + '><span>Show me in the lobby<span class="cw-sub">The lobby shows what other event guests need, offer, and care about.</span></span></label>'
+      + '<label class="cw-row' + (st.lobby ? "" : " off") + '"><input type="checkbox" id="cw-seen-mu"' + (st.match ? " checked" : "") + (st.lobby ? "" : " disabled") + '><span>Turn on Match up<span class="cw-sub"><b>Entering the lobby required.</b><br>See what you and other guests at this event need and offer. Only people who turn on Match up see each other’s matches.</span></span></label>';
+    body.innerHTML = h;
+    Array.prototype.forEach.call(body.querySelectorAll('input[name="cw-seen-nm"]'), function (r) { r.onchange = function () { st.name = r.value; s1(); }; });
+    $("cw-seen-pho").onchange = function () { st.photo = this.checked; s1(); };
+    $("cw-seen-lb").onchange = function () { st.lobby = this.checked; s1(); };
+    $("cw-seen-mu").onchange = function () { st.match = this.checked; };
+    if ($("cw-st-same")) $("cw-st-same").onchange = function () { st.same = this.checked; if (st.same) fill(last); s1(); };
+    if ($("cw-st-up")) {
+      $("cw-st-up").onclick = function () { $("cw-st-f").click(); };
+      $("cw-st-f").onchange = function () { takeFile(this.files && this.files[0]); };
+      $("cw-st-iml").oninput = function () {
+        var v = this.value.trim();
+        if (!/^https:\/\//.test(v)) return;
+        $("cw-st-imh").textContent = "Getting it ready…";
+        shrink(v, function (r) { if (!r) { $("cw-st-imh").textContent = "That picture could not be read. Save it, then press Upload."; return; } s1(); });
+      };
+    }
+  };
+  var paintLv = function () {
+    var h = '<h3>Share your location?</h3><p class="cw-sub">At what level do other guests at this event see where you are?</p><div class="cw-pills">'
+      + LV.map(function (l) { return '<button type="button" class="cw-pill" data-lv="' + l + '" aria-pressed="' + (st.level === l) + '">' + l + '</button>'; }).join("") + '</div>';
+    if (st.level !== "Not shared") {
+      h += '<div class="cw-info"><span style="font-size:13px;color:var(--muted);">Other guests will see</span>'
+        + '<input id="cw-seen-tx" type="text" maxlength="80" value="' + esc(st.text) + '" aria-label="The place other guests will see" style="width:100%;font:inherit;font-size:14px;font-weight:700;color:var(--dark);border:1px solid var(--border);border-radius:8px;padding:6px 8px;margin:4px 0 6px;">'
+        + (st.level === "Neighborhood" ? '<span style="font-size:13px;color:var(--muted);">Postal code (needed for neighborhood; kept private, not shown)</span><input id="cw-seen-pc" type="text" maxlength="12" value="' + esc(st.postal) + '" aria-label="Postal code" style="width:100%;font:inherit;font-size:14px;color:var(--dark);border:1px solid var(--border);border-radius:8px;padding:6px 8px;margin:4px 0 6px;">' : "")
+        + '<span style="font-size:13px;color:var(--muted);">Is that right?</span> <button type="button" class="cw-pill" id="cw-seen-y" aria-pressed="' + st.ok + '">Yes</button> <button type="button" class="cw-pill" id="cw-seen-n">No</button></div>';
+    }
+    body.innerHTML = h;
+    Array.prototype.forEach.call(body.querySelectorAll("[data-lv]"), function (b) {
+      b.onclick = function () {
+        st.level = b.getAttribute("data-lv"); st.ok = false;
+        st.text = st.level === "Not shared" ? "" : guess(st.level);
+        st.postal = st.level === "Neighborhood" ? String(st.prof.postal || "").trim() : "";
+        paintLv();
+      };
+    });
+    if ($("cw-seen-tx")) $("cw-seen-tx").oninput = function () { st.text = this.value; st.ok = false; $("cw-seen-y").setAttribute("aria-pressed", "false"); };
+    if ($("cw-seen-pc")) $("cw-seen-pc").oninput = function () { st.postal = this.value; st.ok = false; $("cw-seen-y").setAttribute("aria-pressed", "false"); };
+    if ($("cw-seen-y")) $("cw-seen-y").onclick = function () { if (!String(st.text).trim()) { msg.textContent = "Type the place to show first."; return; } st.ok = true; msg.textContent = ""; this.setAttribute("aria-pressed", "true"); };
+    if ($("cw-seen-n")) $("cw-seen-n").onclick = function () { st.ok = false; $("cw-seen-y").setAttribute("aria-pressed", "false"); $("cw-seen-tx").focus(); $("cw-seen-tx").select(); };
+  };
+  var s3 = function () {
+    var any = Object.keys(st.from).some(function (k) { return st.from[k]; });
+    var h = '<h3>2Appear</h3><p class="cw-sub" style="margin-bottom:8px">These features are a part of 2appear.network: your digital space with your people and on your terms.</p>'
+      + '<label class="cw-row"><input type="checkbox" id="cw-seen-mk"' + (st.connect ? " checked" : "") + '><span>Let me connect with people I want to meet after this event</span></label>'
+      + '<label class="cw-row"><input type="checkbox" id="cw-seen-inv"' + (st.others ? " checked" : "") + '><span>Let others connect with me after the event</span></label>'
+      + '<h3 style="margin-top:12px">Who can invite you to their events from here?</h3><p class="cw-sub">Select all that apply.</p><div class="cw-pills">'
+      + FROM.map(function (f) { var on = f[0] === "none" ? !any : !!st.from[f[0]]; return '<button type="button" class="cw-pill" data-fr="' + f[0] + '" aria-pressed="' + on + '">' + f[1] + '</button>'; }).join("") + '</div>'
+      + (st.from.everyone ? '<label class="cw-row"><input type="checkbox" id="cw-seen-om"' + (st.onlyMine ? " checked" : "") + '><span>Only share events that match my interests</span></label>' : "")
+      + '<p class="cw-sub"><b>People I bookmarked</b>: people I saved at this event. <b>People I match with</b>: people who share a need, an offer or an interest with me at this event. <b>People I messaged</b>: people I have sent a message to. <b>All event guests</b>: anyone registered for this event.</p>'
+      + '<h3 style="margin-top:14px">How do I hear about an event invite from other event guests?</h3>'
+      + '<div class="cw-tr"><span>Email me</span><button type="button" class="cw-sw" role="switch" id="cw-seen-em" aria-checked="' + st.mail + '" aria-label="Email me about event invites"></button></div>'
+      + '<div class="cw-tr"><span>Show it in My events</span><button type="button" class="cw-sw" role="switch" id="cw-seen-me" aria-checked="' + st.mine + '" aria-label="Show event invites in My events"></button></div>';
+    body.innerHTML = h;
+    $("cw-seen-mk").onchange = function () { st.connect = this.checked; };
+    $("cw-seen-inv").onchange = function () { st.others = this.checked; };
+    if ($("cw-seen-om")) $("cw-seen-om").onchange = function () { st.onlyMine = this.checked; };
+    Array.prototype.forEach.call(body.querySelectorAll("[data-fr]"), function (b) { b.onclick = function () { var k = b.getAttribute("data-fr"); if (k === "none") st.from = {}; else st.from[k] = !st.from[k]; s3(); }; });
+    $("cw-seen-em").onclick = function () { st.mail = !st.mail; s3(); };
+    $("cw-seen-me").onclick = function () { st.mine = !st.mine; s3(); };
+  };
+  var s4 = function () {
+    var nm = { full: "Full name", short: "First name and last initial", initials: "Initials" }[st.name];
+    body.innerHTML = '<p style="font-size:20px;font-weight:700;color:var(--dark);margin:4px 0 8px;">' + esc(st.lastWasReg ? "You’re registered for " + (ev.title || "this event") : "Your registration is updated") + '</p>'
+      + '<div class="cw-sum">Your name: <b>' + nm + '</b><br>Your photo: <b>' + (st.photo && hasPhoto() ? "Shown" : "Not shown") + '</b><br>Lobby: <b>' + (st.lobby ? "On" : "Off") + '</b> · Match up: <b>' + (st.match ? "On" : "Off") + '</b><br>Location: <b>' + esc(st.level === "Not shared" ? "Not shared" : st.text) + '</b></div>'
+      + '<p class="cw-sub" style="margin-bottom:12px">Press Back to change anything. You can also change these any time from the event page.</p>'
+      + (ev.date && ev.date !== "TBD" ? '<button type="button" class="cw-b gh" id="cw-st-cal">Add to calendar</button>' : "");
+    if ($("cw-st-cal")) $("cw-st-cal").onclick = function () { try { cwCalAsk(ev); var c = document.getElementById("cw-cal-ask"); if (c) c.style.zIndex = "2001"; } catch (e) {} };
+  };
+  var paint = function () { head(); if (st.done) s4(); else [s1, paintLv, s3][st.step](); try { body.scrollTop = 0; } catch (e) {} };
+  var check = function () {
+    if (st.step === 1 && st.level !== "Not shared") {
+      if (!String(st.text).trim()) return st.level === "Neighborhood" ? "Type your neighborhood name." : "Type the place to show, or choose Not shared.";
+      if (!st.ok) return "Answer Is that right? with Yes first.";
+      if (st.level === "Neighborhood" && !String(st.postal).trim()) return "Add your postal code to show your neighborhood.";
+    }
+    return "";
+  };
+  var savePhoto = function () {
+    if (!st.blob || !st.photo) return Promise.resolve("");
+    return fetch("https://cw-photos.jessieupp.workers.dev/upload?id=" + encodeURIComponent(me), { method: "POST", headers: { "Content-Type": "image/jpeg", "x-cw-token": tok }, body: st.blob })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (!d || d.status !== "ok") { var e2 = new Error(d && d.message || "no"); throw e2; }
-        finish(true);
-      })
-      .catch(function (e) { msg.style.color = "#7A2410"; msg.textContent = (e && e.message && e.message !== "no") ? e.message : "That did not save. Try again in a moment."; });
+        if (!d || d.status !== "ok" || !d.url) throw new Error((d && d.message) || "Your photo did not go up. Try again.");
+        return fetch(GS_URL + "?action=saveAccount&appearId=" + encodeURIComponent(me) + "&secure=1&editToken=" + encodeURIComponent(tok) + "&guestPhotoURL=" + encodeURIComponent(d.url))
+          .then(function (r) { return r.json(); })
+          .then(function (x) { if (!x || x.status !== "ok") throw new Error("Your photo went up but did not save. Sign in again, then try again."); st.have = d.url; st.blob = null; st.img = ""; return d.url; });
+      });
   };
+  var save = function () {
+    var from = Object.keys(st.from).filter(function (k) { return st.from[k]; });
+    var lb = lobbyOk() && st.lobby;
+    return fetch(GS_URL + "?action=saveEventShare&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id)
+      + "&seen=true" + (reg ? "&register=true" : "") + "&nameShown=" + encodeURIComponent(st.name) + "&photoShown=" + (st.photo && hasPhoto() ? "true" : "false")
+      + "&lobby=" + (lb ? "true" : "false") + "&matchUp=" + (lb && st.match ? "true" : "false")
+      + "&invite=" + (st.others ? "true" : "false") + "&startGroup=" + (st.connect ? "true" : "false")
+      + "&inviteFrom=" + encodeURIComponent(from.length ? from.join(",") : "none") + "&inviteEmail=" + (st.mail ? "true" : "false") + "&inviteMyEvents=" + (st.mine ? "true" : "false") + "&inviteMatchOnly=" + (st.from.everyone && st.onlyMine ? "true" : "false")
+      + "&placeLevel=" + encodeURIComponent(st.level) + "&placeText=" + encodeURIComponent(st.text) + "&placePostal=" + encodeURIComponent(st.postal))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (!d || d.status !== "ok") throw new Error((d && d.message) || "That did not save. Try again in a moment."); return d; });
+  };
+  bk.onclick = function () { if (st.done) { st.done = false; st.step = 2; } else if (st.step > 0) st.step--; paint(); };
+  nx.onclick = function () {
+    if (st.done) { o.remove(); cwRegNote(ev, !st.firstReg); return; }
+    var bad = check(); if (bad) { msg.textContent = bad; return; }
+    if (st.step < 2) { st.step++; paint(); return; }
+    if (preview) { msg.textContent = "This is a preview. Nothing was saved."; return; }
+    nx.disabled = true; bk.disabled = true; msg.style.color = "#1F699E";
+    msg.textContent = reg ? "Registering you…" : "Saving…";
+    var wasReg = reg;
+    savePhoto().then(save).then(function () {
+      bk.disabled = false;
+      if (wasReg) { st.firstReg = true; try { _wigForce = true; applyRegisteredUI(); } catch (e) {} try { if (typeof _loadWhoIsGoingNow === "function") _loadWhoIsGoingNow(); } catch (e) {} }
+      st.lastWasReg = wasReg; reg = false; st.done = true; paint();
+    }).catch(function (e) { nx.disabled = false; bk.disabled = false; msg.style.color = "#7A2410"; msg.textContent = (e && e.message) || "That did not save. Try again in a moment."; });
+  };
+  document.addEventListener("paste", function (e) {
+    if (!document.getElementById("cw-seen-ask") || st.done || st.step !== 0 || !st.photo) return;
+    if (e.target && e.target.id && e.target.id !== "cw-st-iml" && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+    var it = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < it.length; i++) if (it[i].type.indexOf("image") === 0) { e.preventDefault(); takeFile(it[i].getAsFile()); return; }
+  });
+  if (preview && !me) { st.have = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23D6E6F5'/%3E%3C/svg%3E"; st.prof = { location: "Washington, United States", postal: "98201" }; }
+  else if (me) {
+    fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(me)).then(function (r) { return r.json(); }).then(function (x) { if (x && x.found && x.photo && !st.have) { st.have = x.photo; if (st.step === 0 && !st.done) s1(); } }).catch(function () {});
+    fetch(GS_URL + "?action=getProfile&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok)).then(function (r) { return r.json(); }).then(function (pr) {
+      var d = pr && pr.found && pr.data ? pr.data : {};
+      st.prof = d;
+      if (!st.have && d.photoURL) { st.have = String(d.photoURL); if (st.step === 0 && !st.done) s1(); }
+    }).catch(function () {});
+  }
+  paint();
 }
 function cwGrpEnded(ev) {
   if (!ev || !ev.date) return false;
