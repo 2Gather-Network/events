@@ -126,6 +126,7 @@ html.order-needs .grid > .quadrant:nth-child(1){order:-1;}
 .sk-words{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px 0;}
 .quadrant.q-closed .sk-words{display:none;}
 .sk-words[hidden]{display:none;}
+.sk-preview{flex-basis:100%;margin:2px 0 0;font-size:13px;color:#555;}
 .sk-word{font-family:'Nunito Sans','DM Sans',sans-serif;font-size:13px;font-weight:700;padding:7px 14px;border-radius:24px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;}
 .sk-word[aria-pressed="true"]{background:#1F699E;color:#fff;}
 .q-title{font-size:14px;font-weight:700;letter-spacing:0.04em;color:#374151;}
@@ -845,7 +846,23 @@ function buildChips(){
   _chips.values   =memberChips('values');
   _chips.needs    =memberChips('needs');
   _chips.haves    =memberChips('haves');
+  if(_offerPreview) _chips.haves=_chips.haves.concat(previewHaves());
   renderGuestPhotos();
+}
+var _offerPreview=(function(){ try{ return new URLSearchParams(location.search).get('preview')==='offers'; }catch(e){ return false; } })();
+function previewHaves(){
+  var who={d:'Dana',l:'Lee',j:'Jo',k:'Kim',a:'Ari'};
+  return [
+    ['Meeting room','space','','dl',true,'Seats 12, weekday evenings'],
+    ['Kitchen','space','','j',false,'Commercial kitchen, Saturdays'],
+    ['Garden tools','thing','Thing to lend','k',false,'Shovels, rakes and a wheelbarrow'],
+    ['Seeds','thing','Thing to give','dak',true,'Tomato and bean seeds from my garden']
+  ].reduce(function(out,r){
+    r[3].split('').forEach(function(c){
+      out.push({item:r[0], category:r[2], meta:r[1], detail:r[5], offerKind:r[1], local:r[4], member:{appearId:'preview-'+who[c].toLowerCase(), name:who[c], photo:'', pageLink:'', preview:true}});
+    });
+    return out;
+  },[]);
 }
 
 var PHOTOS_INITIAL=(window.matchMedia && window.matchMedia('(max-width: 720px)').matches) ? 20 : 60;
@@ -1198,12 +1215,13 @@ function _countChipsHTML(list, needsMode, key){
     if(en.offerKind){ cat=(en.category||(en.offerKind==='space'?'Space':'Thing'))+(en.local?' \u00b7 Local':''); }
     else if(needsMode){ cat=en.category||''; }
     else if(key==='interests'){ cat=(en.meta||'').split(',').map(function(s){return s.trim();}).filter(Boolean).join(', '); }
+    else if(key==='skills' && _skShow==='all'){ cat='Skill'; }
     else { cat=refFor(en.item).category||''; }
     if(cat==='Domain'){ cat=(key==='values')?'Sector interest':''; }
     var dim=_matchMode&&!g.mt;
     var sk=n>1?' data-sk="'+escHTML(en.offerKind?'haves':key)+'" data-si="'+escHTML(en.item)+'" role="button" tabindex="0"':'';
     var mems=g.mems||[], who=g.names.filter(Boolean).join(', ');
-    var one=(n===1 && _myId && mems[0] && mems[0].appearId);
+    var one=(n===1 && _myId && mems[0] && mems[0].appearId && !mems[0].preview);
     var open=one?' onclick="openProfile(\''+escHTML(mems[0].appearId||'')+'\',\''+escHTML(mems[0].pageLink||'')+'\')"':'';
     var cls='chip cnt'+(n>1?' shared':'')+(dim?' dim':'')+(g.mt==='green'?' match':'')+(g.mt==='orange'?' match-need':'')+(one||n>1?'':' noclick');
     var num=n>1?'<span class="cnt-num" aria-label="'+n+' people">'+n+'</span>':'';
@@ -1304,7 +1322,8 @@ function renderSkillsAndOffers(){
   if(words){
     var w=[['all','Show all'],['skill','Skills']]; if(sp.length) w.push(['space','Spaces']); if(th.length) w.push(['thing','Things']);
     words.hidden=!any;
-    words.innerHTML=w.map(function(x){ return '<button type="button" class="sk-word" data-show="'+x[0]+'" aria-pressed="'+(_skShow===x[0]?'true':'false')+'">'+x[1]+'</button>'; }).join('');
+    words.innerHTML=w.map(function(x){ return '<button type="button" class="sk-word" data-show="'+x[0]+'" aria-pressed="'+(_skShow===x[0]?'true':'false')+'">'+x[1]+'</button>'; }).join('')
+      +(_offerPreview?'<p class="sk-preview">Preview with made-up people. Members\u2019 offerings show here once they arrive.</p>':'');
   }
   var list=_skShow==='all'?(_chips.skills||[]).concat(_chips.haves||[]):_skShow==='skill'?(_chips.skills||[]):_skShow==='space'?sp:th;
   renderSection('skills-body','skills-count',list,false,'skills');
@@ -1681,7 +1700,7 @@ async function loadContributions(){
     (_chips[key]||[]).forEach(function(en){
       if(String(en.item||'').toLowerCase()!==k)return;
       var id=nid(en.member&&en.member.appearId);if(!id||seen[id])return;seen[id]=1;
-      var m=who(en.member.appearId);out.push({appearId:en.member.appearId,code:String(m.code||en.member.code||''),photo:m.photo||en.member.photo||'',pageLink:m.pageLink||en.member.pageLink||'',name:nm(m),detail:en.offerKind?(en.detail||''):''});
+      var m=who(en.member.appearId);out.push({appearId:en.member.appearId,code:String(m.code||en.member.code||''),photo:m.photo||en.member.photo||'',pageLink:m.pageLink||en.member.pageLink||'',name:(m.first||m.name||en.member.name||nm(m)),detail:en.offerKind?(en.detail||''):''});
     });
     out.sort(function(a,b){return a.name.localeCompare(b.name);});
     return out;
@@ -1691,6 +1710,7 @@ async function loadContributions(){
   function dot(cls,item,note){return '<div class="mp-item"><span class="mp-dot '+cls+'"></span><div class="mp-item-text"><span class="mp-item-name">'+escHTML(item)+'</span>'+(note?'<span class="mp-note">'+escHTML(note)+'</span>':'')+'</div></div>';}
   function row(p,items){
     var me=isMe(p.appearId);
+    if(/^preview-/.test(String(p.appearId))) return '<div class="mp-row">'+photo(p)+'<div class="mp-body"><div class="mp-name">'+escHTML(p.name)+'</div><div class="mp-list">'+items+'</div></div></div>';
     return '<div class="mp-row">'+photo(p)+'<div class="mp-body"><div class="mp-name"><button type="button" class="sp-nm" data-sp="open" data-id="'+escHTML(p.appearId)+'" data-link="'+escHTML(p.pageLink)+'">'+escHTML(p.name)+'</button></div><div class="mp-list">'+items+'</div></div>'
       +(me?'':'<div class="mp-actions"><a class="mp-btn primary" href="'+msgUrl(p.appearId)+'">Message</a>'+(_bmPeople[nid(p.appearId)]?'<button type="button" class="mp-btn" disabled>Bookmarked</button>':'<button type="button" class="mp-btn" data-sp="bm" data-id="'+escHTML(p.appearId)+'">Bookmark</button>')+'</div>')
       +'</div>';
