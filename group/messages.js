@@ -682,8 +682,9 @@
     b.onclick = onTap;
     return b;
   }
-  function chatRow(m) {
-    var isHost = chat.role === 'host' || chat.role === 'cohost';
+  function chatRow(m, st) {
+    st = st || chat;
+    var isHost = st.role === 'host' || st.role === 'cohost';
     var row = el('div', 'display:flex;gap:10px;align-items:flex-start;padding:6px 0;');
     row.setAttribute('data-mid', String(m.id));
     if (!m.removed) row.setAttribute('data-q', ((m.name || '') + ' ' + (m.body || '')).toLowerCase());
@@ -701,10 +702,10 @@
     who.textContent = m.removed ? 'Removed by ' + (m.removedBy || 'a host') : (m.mine ? 'You' : (m.name || 'Someone'));
     if (!m.removed && (m.role === 'host' || m.role === 'cohost')) who.appendChild(el('span', 'font-size:11.5px;font-weight:800;color:#1F699E;background:#E6F1FB;border-radius:8px;padding:0 6px;margin-left:6px;', m.role === 'cohost' ? 'Co-host' : 'Host'));
     who.appendChild(el('span', 'font-weight:600;color:#6B7A8D;margin-left:6px;font-size:12.5px;', chatTime(m.at)));
-    if (isHost && !m.removed && chat.onPin) {
+    if (isHost && !m.removed && st.onPin) {
       var pl = el('a', 'font-weight:700;color:#1F699E;margin-left:8px;font-size:12.5px;cursor:pointer;', 'Pin');
       pl.setAttribute('role', 'button'); pl.tabIndex = 0;
-      pl.onclick = function () { chat.onPin(m); };
+      pl.onclick = function () { st.onPin(m); };
       who.appendChild(pl);
     }
     mb.appendChild(who);
@@ -713,8 +714,56 @@
     mb.appendChild(p);
     row.appendChild(av); row.appendChild(mb);
     row._mb = mb;
-    if (m.mine && !m.removed && chat.onDelete) row.appendChild(deleteX(function () { chat.onDelete(m, row); }));
+    if (m.mine && !m.removed && st.onDelete) row.appendChild(deleteX(function () { st.onDelete(m, row); }));
     return row;
+  }
+  function roundBtn(label) {
+    var b = el('button', 'width:40px;height:40px;border-radius:50%;border:1.5px solid #DDE4EE;background:#fff;color:#2F3D4F;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;', '');
+    b.type = 'button'; b.title = label; b.setAttribute('aria-label', label);
+    return b;
+  }
+  function askBox(head) {
+    var a = el('div', 'display:none;background:#F7FBFF;border:1.5px solid #C9DFF3;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;color:#1A2E42;margin-bottom:10px;');
+    head.parentNode.insertBefore(a, head.nextSibling);
+    a.ask = function (title, text, yesLabel, noLabel, onYes) {
+      if (a.style.display !== 'none' && a._t === title) { a.style.display = 'none'; return; }
+      a._t = title;
+      a.innerHTML = '';
+      a.appendChild(el('div', 'font-weight:800;margin-bottom:4px;', title));
+      a.appendChild(el('div', '', text));
+      var row = el('div', 'display:flex;gap:8px;margin-top:10px;');
+      var yes = btn(yesLabel), no = btn(noLabel, 'quiet');
+      yes.onclick = function () { yes.disabled = true; onYes(function () { yes.disabled = false; }); };
+      no.onclick = function () { a.style.display = 'none'; };
+      row.appendChild(yes); row.appendChild(no); a.appendChild(row);
+      a.style.display = '';
+    };
+    a.hide = function () { a.style.display = 'none'; };
+    return a;
+  }
+  function muteMoon(ask, text, save) {
+    var b = roundBtn('Mute this chat'), muted = false;
+    function paint() {
+      var label = muted ? 'Unmute this chat' : 'Mute this chat';
+      b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>' + (muted ? '<path d="M3 3l18 18"/>' : '') + '</svg>';
+      b.title = label; b.setAttribute('aria-label', label);
+      b.style.background = muted ? '#1A2E42' : '#fff';
+      b.style.borderColor = muted ? '#1A2E42' : '#DDE4EE';
+      b.style.color = muted ? '#fff' : '#2F3D4F';
+    }
+    function set(want, done) {
+      b.disabled = true;
+      save(want).then(function (m) {
+        b.disabled = false; if (done) done();
+        if (typeof m === 'boolean') { muted = m; paint(); if (ask._t === 'Mute this chat?') ask.hide(); }
+      }).catch(function () { b.disabled = false; if (done) done(); });
+    }
+    b.onclick = function () {
+      if (muted) { set(false); return; }
+      ask.ask('Mute this chat?', text, 'Yes, mute it', 'Keep listening', function (done) { set(true, done); });
+    };
+    paint();
+    return { btn: b, paint: function (m) { muted = !!m; paint(); } };
   }
   function chatStop() { if (chat.poll) { clearInterval(chat.poll); chat.poll = null; } chat.open = false; }
   function chatBadge(n, muted) {
@@ -731,13 +780,15 @@
     var titleBox = el('div', '');
     titleBox.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', gname + ' Group Chat'));
     head.appendChild(titleBox);
-    var muteBtn = el('button', 'width:40px;height:40px;border-radius:50%;border:1.5px solid #DDE4EE;background:#fff;color:#2F3D4F;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;', '');
-    muteBtn.type = 'button';
     var headBtns = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
-    headBtns.appendChild(muteBtn);
     head.appendChild(headBtns);
     head.appendChild(gatherLink());
     box.appendChild(head);
+    var moon = muteMoon(askBox(head), 'You will stop receiving email notifications of this group\u2019s chat messages. You can still open the chat and read everything. Tap the moon again any time to unmute.', function (want) {
+      return api('/chat/prefs', { body: { groupId: chatGroupId(), muted: want, id: chat.ctx.meId, token: token() } }).then(function (d) { return d && d.status === 'ok' ? !!d.muted : null; });
+    });
+    var muteBtn = moon.btn;
+    headBtns.appendChild(muteBtn);
     var welcomeBox = el('div', 'display:none;background:#E6F1FB;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;color:#1A2E42;margin-bottom:10px;');
     box.appendChild(welcomeBox);
     var pinBox = el('div', 'display:none;background:#FFF8E1;border-radius:12px;padding:10px 14px;font-size:13.5px;line-height:1.45;color:#1A2E42;margin-bottom:10px;');
@@ -768,38 +819,6 @@
     box.appendChild(bar);
     var note = el('div', 'font-size:14px;font-weight:700;margin-top:6px;');
     box.appendChild(note);
-    var muted = false;
-    function paintMute() {
-      var label = muted ? 'Unmute this chat' : 'Mute this chat';
-      muteBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>' + (muted ? '<path d="M3 3l18 18"/>' : '') + '</svg>';
-      muteBtn.title = label; muteBtn.setAttribute('aria-label', label);
-      muteBtn.style.background = muted ? '#1A2E42' : '#fff';
-      muteBtn.style.borderColor = muted ? '#1A2E42' : '#DDE4EE';
-      muteBtn.style.color = muted ? '#fff' : '#2F3D4F';
-    }
-    paintMute();
-    var muteAsk = el('div', 'display:none;background:#F7FBFF;border:1.5px solid #C9DFF3;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;color:#1A2E42;margin-bottom:10px;');
-    head.parentNode.insertBefore(muteAsk, head.nextSibling);
-    function setMuted(want) {
-      muteBtn.disabled = true;
-      api('/chat/prefs', { body: { groupId: chatGroupId(), muted: want, id: chat.ctx.meId, token: token() } }).then(function (d) {
-        muteBtn.disabled = false;
-        if (d && d.status === 'ok') { muted = d.muted; paintMute(); muteAsk.style.display = 'none'; }
-      }).catch(function () { muteBtn.disabled = false; });
-    }
-    muteBtn.onclick = function () {
-      if (muted) { setMuted(false); return; }
-      if (muteAsk.style.display !== 'none') { muteAsk.style.display = 'none'; return; }
-      muteAsk.innerHTML = '';
-      muteAsk.appendChild(el('div', 'font-weight:800;margin-bottom:4px;', 'Mute this chat?'));
-      muteAsk.appendChild(el('div', '', 'You will stop receiving email notifications of this group\u2019s chat messages. You can still open the chat and read everything. Tap the moon again any time to unmute.'));
-      var row = el('div', 'display:flex;gap:8px;margin-top:10px;');
-      var yes = btn('Yes, mute it'), no = btn('Keep listening', 'quiet');
-      yes.onclick = function () { yes.disabled = true; setMuted(true); };
-      no.onclick = function () { muteAsk.style.display = 'none'; };
-      row.appendChild(yes); row.appendChild(no); muteAsk.appendChild(row);
-      muteAsk.style.display = '';
-    };
     var isHostNow = function () { return chat.role === 'host' || chat.role === 'cohost'; };
     function paintWelcome(w) {
       welcomeBox.innerHTML = '';
@@ -901,7 +920,7 @@
       if (!d || d.status !== 'ok') { empty.textContent = (d && d.message) || 'The chat did not open. Reload the page to try again.'; return; }
       if (!d.allowed) { empty.textContent = d.reason === 'chat-off' ? 'The host has turned the group chat off.' : ''; bar.style.display = 'none'; muteBtn.style.display = 'none'; return; }
       chat.role = d.role || '';
-      muted = !!d.muted; paintMute(); paintPin(d.pin); paintWelcome(d.welcome);
+      moon.paint(d.muted); paintPin(d.pin); paintWelcome(d.welcome);
       if (!d.messages.length) empty.textContent = 'No messages yet. Say hello.';
       else add(d.messages);
       feed.scrollTop = feed.scrollHeight;
@@ -1056,5 +1075,377 @@
       }).catch(function () { say(w, 'Your messages did not load. Reload the page to try again.', true); });
     },
     close: stopPoll
+  };
+
+  var SC_MAX = 8, scPoll = null;
+  var SC_GATE = 'https://cw-api-gate.jessieupp.workers.dev';
+  var SVG_ADD = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M19 8v6M16 11h6"/></svg>';
+  var SVG_LEAVE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 16l-4-4 4-4"/><path d="M6 12h10"/></svg>';
+  function scStop() { if (scPoll) { clearInterval(scPoll); scPoll = null; } }
+  function scCall(path, body, retried) {
+    return start().then(function (ok) {
+      if (!ok) { var er = new Error('Sign in to see your messages.'); er.plain = true; throw er; }
+      var b = { id: ctx.meId, token: token() };
+      Object.keys(body || {}).forEach(function (k) { b[k] = body[k]; });
+      return api(path, { body: b });
+    }).then(function (d) {
+      if (!retried && again(d)) return scCall(path, body, true);
+      return d;
+    });
+  }
+  function scCrumbs(parts) {
+    var cr = document.getElementById('crumbs');
+    if (!cr) return;
+    cr.innerHTML = '';
+    parts.forEach(function (p, i) {
+      if (i) cr.appendChild(document.createTextNode(' / '));
+      var a;
+      if (p.href) { a = document.createElement('a'); a.href = p.href; a.textContent = p.text; }
+      else a = el('span', 'font-weight:800;', p.text);
+      cr.appendChild(a);
+    });
+    cr.style.display = '';
+  }
+  function scGroupHref(c) {
+    var sl = String(c.groupSlug || '').split(',')[0].trim();
+    return sl ? 'https://2appear.network/group/' + encodeURIComponent(sl) : 'https://2appear.network/group/?id=' + encodeURIComponent(c.groupId || '');
+  }
+  function scNames(people, withMe, more) {
+    var others = (people || []).filter(function (p) { return !p.me; }).map(function (p) { return p.name.split(' ')[0] + (p.joined ? '' : ' (invited)'); });
+    if (withMe) others.push('you');
+    if (more) others.push(more + ' more invited');
+    if (others.length <= 1) return others.join('');
+    return others.slice(0, -1).join(', ') + ' and ' + others[others.length - 1];
+  }
+  function scTitle(c) { return c.name || scNames(c.people, false, 0) || 'Chat'; }
+  function scRowOf(m) { return { id: m.id, mine: m.mine, name: m.from, role: '', body: m.body, at: m.at, photo: m.photo, removed: false }; }
+  function scGroupPeople(gid) {
+    return start().then(function () { return fetch(SC_GATE + '?action=getGroupBundle&groupId=' + encodeURIComponent(gid) + '&me=' + encodeURIComponent(ctx.meId)); })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var ppl = ((d && d.attendees) || []).filter(function (p) { return p && p.code; }).map(function (p) {
+          return { code: String(p.code), name: String(p.name || p.first || 'Someone').trim(), photo: p.photo || '' };
+        }).filter(function (p) { return p.code !== me; });
+        ppl.sort(function (a, b) { return a.name.localeCompare(b.name); });
+        return { group: (d && d.group) || {}, people: ppl };
+      });
+  }
+  function scPicker(host, pool, chosen, limit, withMe) {
+    var chips = el('div', 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px;');
+    var field = el('div', 'position:relative;');
+    var inp = el('input', 'width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:10px 14px;border:1.5px solid #DDE4EE;border-radius:12px;background:#fff;color:#1A2E42;');
+    inp.type = 'text'; inp.autocomplete = 'off'; inp.placeholder = 'Type a name'; inp.setAttribute('aria-label', 'Add someone');
+    var list = el('div', 'display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#fff;border:1.5px solid #DDE4EE;border-radius:12px;box-shadow:0 6px 18px rgba(26,46,66,.12);max-height:240px;overflow:auto;z-index:5;');
+    field.appendChild(inp); field.appendChild(list);
+    host.appendChild(chips); host.appendChild(field);
+    function paint() {
+      chips.innerHTML = '';
+      chosen.forEach(function (c) {
+        var p = pool.filter(function (x) { return x.code === c; })[0] || { name: 'Someone' };
+        var chip = el('div', 'display:inline-flex;align-items:center;gap:8px;padding:5px 6px 5px 5px;border:1.5px solid #1F699E;background:#E6F1FB;border-radius:22px;font-size:14px;font-weight:700;color:#1A2E42;');
+        chip.appendChild(photoCircle(p.photo, 24));
+        chip.appendChild(el('span', '', p.name));
+        var x = el('button', 'font:inherit;font-size:18px;line-height:1;border:0;background:none;color:#1F699E;cursor:pointer;padding:0 4px;', '×');
+        x.type = 'button'; x.setAttribute('aria-label', 'Take ' + p.name + ' out');
+        x.onclick = function () { chosen.splice(chosen.indexOf(c), 1); paint(); };
+        chip.appendChild(x);
+        chips.appendChild(chip);
+      });
+      if (withMe) {
+        var mine = el('div', 'display:inline-flex;align-items:center;padding:5px 12px;border:1.5px solid #DDE4EE;border-radius:22px;font-size:14px;font-weight:700;color:#2F3D4F;', 'You');
+        chips.appendChild(mine);
+      }
+      field.style.display = chosen.length >= limit ? 'none' : '';
+    }
+    function suggest() {
+      var q = inp.value.trim().toLowerCase();
+      list.innerHTML = '';
+      if (!q) { list.style.display = 'none'; return; }
+      var hits = pool.filter(function (p) { return chosen.indexOf(p.code) === -1 && p.name.toLowerCase().indexOf(q) > -1; }).slice(0, 8);
+      if (!hits.length) list.appendChild(el('div', 'padding:10px 14px;font-size:14px;color:#6B7A8D;', 'No one in this group matches that name.'));
+      hits.forEach(function (p) {
+        var r = el('div', 'display:flex;gap:10px;align-items:center;padding:8px 14px;font-size:15px;color:#1A2E42;cursor:pointer;');
+        r.appendChild(photoCircle(p.photo, 28)); r.appendChild(el('span', '', p.name));
+        var pickIt = function () { chosen.push(p.code); inp.value = ''; list.style.display = 'none'; paint(); inp.focus(); };
+        r.onmousedown = function (ev) { ev.preventDefault(); pickIt(); };
+        r.ontouchstart = pickIt;
+        list.appendChild(r);
+      });
+      list.style.display = 'block';
+    }
+    inp.addEventListener('input', suggest);
+    inp.addEventListener('blur', function () { setTimeout(function () { list.style.display = 'none'; }, 150); });
+    paint();
+    return inp;
+  }
+
+  function scStart(host, o) {
+    scStop();
+    box = host;
+    var gid = o.groupId;
+    box.innerHTML = '';
+    box.appendChild(waitPill('Opening Start a chat…'));
+    scGroupPeople(gid).then(function (gp) {
+      var g = gp.group || {}, pool = gp.people;
+      var gname = String(g.name || '').trim() || 'this group';
+      scCrumbs([{ text: 'My groups', href: 'https://2appear.network/mygroups/' }, { text: gname, href: scGroupHref({ groupSlug: g.slug, groupId: gid }) }, { text: 'Start a chat' }]);
+      var chosen = [];
+      (o.with || []).forEach(function (c) { if (chosen.length < SC_MAX - 1 && chosen.indexOf(c) === -1 && pool.some(function (p) { return p.code === c; })) chosen.push(c); });
+      frame('Start a chat');
+      box.appendChild(el('div', 'font-size:16px;font-weight:700;color:#1A2E42;margin:4px 0 8px;', 'Who is in it'));
+      var inp = scPicker(box, pool, chosen, SC_MAX - 1, true);
+      inp.placeholder = 'Add someone from ' + gname;
+      box.appendChild(el('div', 'font-size:13px;color:#6B7A8D;margin-top:6px;line-height:1.45;', 'Up to 8 people, you included. Only members of this group. Each person joins before they see the chat.'));
+      box.appendChild(el('label', 'display:block;font-size:16px;font-weight:700;color:#1A2E42;margin:16px 0 6px;', 'Name it (optional)'));
+      var nm = el('input', 'width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:10px 14px;border:1.5px solid #DDE4EE;border-radius:12px;background:#fff;color:#1A2E42;');
+      nm.type = 'text'; nm.maxLength = 60; nm.id = 'sc-name'; box.lastChild.htmlFor = 'sc-name';
+      var word = String(o.word || '').trim();
+      if (word) nm.value = word.charAt(0).toUpperCase() + word.slice(1);
+      box.appendChild(nm);
+      box.appendChild(el('div', 'font-size:16px;font-weight:700;color:#1A2E42;margin:16px 0 6px;', 'Say why'));
+      var ta = el('textarea', 'width:100%;box-sizing:border-box;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:12px;padding:10px 12px;min-height:110px;resize:vertical;');
+      ta.placeholder = 'Write a first message'; ta.setAttribute('aria-label', 'First message'); ta.maxLength = 2000;
+      box.appendChild(ta);
+      var bar = el('div', 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;');
+      var go = btn('Start chat'), cancel = btn('Cancel', 'quiet');
+      var note = el('span', 'font-size:14px;font-weight:700;');
+      cancel.onclick = function () { if (history.length > 1) history.back(); else location.href = '/messages/'; };
+      bar.appendChild(go); bar.appendChild(cancel); bar.appendChild(note);
+      box.appendChild(bar);
+      go.onclick = function () {
+        if (!chosen.length) { say(note, 'Choose who is in it.', true); inp.focus(); return; }
+        if (!ta.value.trim()) { say(note, 'Write a first message.', true); ta.focus(); return; }
+        go.disabled = true; cancel.disabled = true;
+        say(note, 'Starting the chat. This can take up to a minute.');
+        scCall('/small/start', { groupId: gid, to: chosen.slice(), name: nm.value, body: ta.value }).then(function (d) {
+          if (d && d.started) { location.href = '/messages/?chat=' + encodeURIComponent(d.chatId) + (d.skipped ? '&skipped=' + d.skipped : ''); return; }
+          go.disabled = false; cancel.disabled = false;
+          say(note, (d && d.message) || 'That did not go through. Try again.', true);
+        }).catch(function () { go.disabled = false; cancel.disabled = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
+      };
+    }).catch(function () { box.innerHTML = ''; box.appendChild(el('div', 'font-size:14px;color:#7A2410;', 'This group did not load. Reload the page to try again.')); });
+  }
+
+  function scRoom(host, id, o) {
+    scStop();
+    box = host;
+    box.innerHTML = '';
+    box.appendChild(waitPill('Opening the chat…'));
+    Promise.all([scCall('/small/chat', { chatId: id }), api('/prefs').catch(function () { return null; })]).then(function (res) {
+      var d = res[0], pf = res[1];
+      if (pf && pf.status === 'ok') enterSends = pf.enterSends === false ? false : true;
+      if (!d || d.status !== 'ok') { box.innerHTML = ''; box.appendChild(el('div', 'font-size:14px;color:#2F3D4F;', (d && d.message) || 'That chat could not be found.')); return; }
+      var c = d.chat, title = scTitle(c);
+      scCrumbs([{ text: 'My messages', href: '/messages/' }, { text: title }]);
+      box.innerHTML = '';
+      var head = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;');
+      var titleBox = el('div', 'min-width:0;');
+      titleBox.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;', title));
+      var sub = el('div', 'font-size:13px;color:#6B7A8D;margin-top:2px;', scNames(c.people, true, c.moreInvited) + ' · from ');
+      var ga = document.createElement('a'); ga.href = scGroupHref(c); ga.textContent = c.groupName || 'the group';
+      ga.setAttribute('style', 'color:#1F699E;font-weight:700;');
+      sub.appendChild(ga);
+      titleBox.appendChild(sub);
+      head.appendChild(titleBox);
+      box.appendChild(head);
+
+      if (c.status === 'invited') {
+        var first = d.lines[0];
+        var starter = c.invitedBy || (first ? first.from : 'Someone');
+        box.appendChild(el('div', 'font-size:15px;color:#1A2E42;line-height:1.5;margin:6px 0 10px;', starter + (c.startedByMe ? '' : (first ? ' started this chat with you.' : ' added you to this chat.')) + ' Join to see it and get its messages.'));
+        if (first) box.appendChild(chatRow(scRowOf(first), { role: '' }));
+        var acts = el('div', 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;');
+        var yes = btn('Join'), no = btn('No thanks', 'quiet');
+        var note0 = el('span', 'font-size:14px;font-weight:700;');
+        var answer = function (what) {
+          yes.disabled = true; no.disabled = true;
+          say(note0, what === 'join' ? 'Joining. This can take up to a minute.' : '');
+          scCall('/small/respond', { chatId: c.id, action: what }).then(function (r) {
+            if (what === 'decline') { location.href = '/messages/'; return; }
+            if (r && r.joined) { scRoom(host, id, o); return; }
+            if (r && r.gone) { say(note0, r.message || 'This chat is no longer open to join.', true); return; }
+            yes.disabled = false; no.disabled = false;
+            say(note0, (r && r.message) || 'That did not go through. Try again.', true);
+          }).catch(function () { yes.disabled = false; no.disabled = false; say(note0, 'That did not reach the server. Try again in a moment.', true); });
+        };
+        yes.onclick = function () { answer('join'); };
+        no.onclick = function () { answer('decline'); };
+        acts.appendChild(yes); acts.appendChild(no); acts.appendChild(note0);
+        box.appendChild(acts);
+        return;
+      }
+
+      var headBtns = el('div', 'display:flex;gap:8px;flex-wrap:wrap;');
+      head.appendChild(headBtns);
+      var ask = askBox(head);
+      var addB = roundBtn('Add people'); addB.innerHTML = SVG_ADD;
+      var moon = muteMoon(ask, 'You will stop receiving email notifications of this chat’s messages. You can still open the chat and read everything. Tap the moon again any time to unmute.', function (want) {
+        return scCall('/small/mute', { chatId: c.id, muted: want }).then(function (r) { return r && r.status === 'ok' ? !!r.muted : null; });
+      });
+      moon.paint(c.muted);
+      var leaveB = roundBtn('Leave this chat'); leaveB.innerHTML = SVG_LEAVE;
+      headBtns.appendChild(addB); headBtns.appendChild(moon.btn); headBtns.appendChild(leaveB);
+      leaveB.onclick = function () {
+        addBox.style.display = 'none';
+        ask.ask('Leave this chat?', 'You will stop seeing its messages and getting its emails. The others keep the chat.', 'Yes, leave', 'Stay', function (done) {
+          scCall('/small/leave', { chatId: c.id }).then(function () { location.href = '/messages/'; }).catch(function () { done(); });
+        });
+      };
+
+      var addBox = el('div', 'display:none;background:#F7FBFF;border:1.5px solid #C9DFF3;border-radius:12px;padding:12px 14px;margin-bottom:10px;');
+      box.appendChild(addBox);
+      addB.onclick = function () {
+        if (addBox.style.display !== 'none') { addBox.style.display = 'none'; return; }
+        ask.hide();
+        addBox.style.display = ''; addBox.innerHTML = '';
+        addBox.appendChild(waitPill('Looking up ' + (c.groupName || 'the group') + '…'));
+        scGroupPeople(c.groupId).then(function (gp) {
+          var inNow = (c.people || []).map(function (p) { return p.code; });
+          var pool = gp.people.filter(function (p) { return inNow.indexOf(p.code) === -1; });
+          var room = SC_MAX - (c.people || []).length - (c.moreInvited || 0);
+          addBox.innerHTML = '';
+          addBox.appendChild(el('div', 'font-weight:800;color:#1A2E42;margin-bottom:8px;', 'Add people'));
+          if (room < 1) { addBox.appendChild(el('div', 'font-size:14px;color:#2F3D4F;', 'This chat has 8 people, the most it can hold.')); return; }
+          var picked = [];
+          var pin = scPicker(addBox, pool, picked, room, false);
+          pin.placeholder = 'Add someone from ' + (c.groupName || 'this group');
+          addBox.appendChild(el('div', 'font-size:13px;color:#6B7A8D;margin-top:6px;', 'They join before they see the chat.'));
+          var row = el('div', 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;');
+          var inv = btn('Invite'), shut = btn('Cancel', 'quiet'), an = el('span', 'font-size:14px;font-weight:700;');
+          shut.onclick = function () { addBox.style.display = 'none'; };
+          inv.onclick = function () {
+            if (!picked.length) { say(an, 'Choose someone to add.', true); return; }
+            inv.disabled = true; say(an, 'Inviting. This can take up to a minute.');
+            scCall('/small/add', { chatId: c.id, to: picked.slice() }).then(function (r) {
+              inv.disabled = false;
+              if (r && r.status === 'ok') { scRoom(host, id, { skipped: r.skipped }); return; }
+              say(an, (r && r.message) || 'That did not go through. Try again.', true);
+            }).catch(function () { inv.disabled = false; say(an, 'That did not reach the server. Try again in a moment.', true); });
+          };
+          row.appendChild(inv); row.appendChild(shut); row.appendChild(an);
+          addBox.appendChild(row);
+        }).catch(function () { addBox.innerHTML = ''; addBox.appendChild(el('div', 'font-size:14px;color:#7A2410;', 'The group did not load. Try again in a moment.')); });
+      };
+
+      if (!d.noteSeen) {
+        var nb = el('div', 'background:#E6F1FB;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;color:#1A2E42;margin-bottom:10px;');
+        nb.appendChild(el('div', '', 'Everyone here gets an email for new messages unless they mute the chat. If you leave, the others keep the chat.'));
+        var got = btn('Got it'); got.style.marginTop = '10px';
+        got.onclick = function () {
+          got.disabled = true;
+          scCall('/small/note/seen', {}).then(function (r) { if (r && r.status === 'ok') nb.remove(); else got.disabled = false; }).catch(function () { got.disabled = false; });
+        };
+        nb.appendChild(got);
+        box.appendChild(nb);
+      }
+      var sk = parseInt((o && o.skipped) || '0', 10) || 0;
+      if (sk) box.appendChild(el('div', 'font-size:14px;color:#2F3D4F;margin-bottom:10px;', (sk === 1 ? 'One person you picked is' : sk + ' people you picked are') + ' not taking messages right now, so they were not invited.'));
+
+      var st = { role: '', onPin: null, onDelete: null };
+      var feed = el('div', 'display:flex;flex-direction:column;max-height:460px;overflow:auto;padding-right:4px;');
+      box.appendChild(feed);
+      var fk = scrollKit(feed);
+      var fsrch = searchBar(box, feed.parentNode === box ? feed : feed.parentNode, feed, '');
+      var empty = el('div', 'font-size:14px;color:#2F3D4F;padding:8px 0;', 'No messages yet. Say hello.');
+      var bar = el('div', 'display:flex;gap:8px;margin-top:12px;align-items:flex-end;');
+      var ta = el('textarea', 'flex:1;min-width:0;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:18px;padding:9px 14px;min-height:42px;resize:vertical;');
+      ta.placeholder = 'Write to ' + (scNames((c.people || []).filter(function (p) { return p.joined; }), false, 0) || 'the chat'); ta.maxLength = 2000;
+      var send = btn('Send');
+      typing(ta, send);
+      bar.appendChild(ta); bar.appendChild(send);
+      box.appendChild(bar);
+      var note = el('div', 'font-size:14px;font-weight:700;margin-top:6px;');
+      box.appendChild(note);
+      function paintLines(lines) {
+        var nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
+        var keep = {};
+        lines.forEach(function (m) { keep[String(m.id)] = 1; });
+        Array.prototype.slice.call(feed.children).forEach(function (r) { var k = r.getAttribute('data-mid'); if (k && !keep[k]) r.remove(); });
+        var added = false, mineNew = false;
+        lines.forEach(function (m) {
+          if (feed.querySelector('[data-mid="' + m.id + '"]')) return;
+          feed.appendChild(chatRow(scRowOf(m), st)); added = true; if (m.mine) mineNew = true;
+        });
+        if (!feed.querySelector('[data-mid]')) { if (!empty.parentNode) feed.appendChild(empty); }
+        else if (empty.parentNode) empty.remove();
+        if (added && (nearBottom || mineNew)) { feed.scrollTop = feed.scrollHeight; if (fk) { feed._stuck = true; fk.bottom(); } }
+        else if (added && fk) { feed._stuck = false; fk.pill(); }
+        fsrch.apply();
+      }
+      st.onDelete = function (m, rowEl) {
+        var old = rowEl.querySelector('.gp-del-ask');
+        if (old) { old.remove(); return; }
+        var a = el('div', 'margin-top:6px;'); a.className = 'gp-del-ask';
+        a.appendChild(el('div', 'font-size:13.5px;color:#1A2E42;margin-bottom:6px;', 'Delete this message? It disappears for everyone in the chat.'));
+        var r2 = el('div', 'display:flex;gap:8px;');
+        var y = btn('Yes, delete'), n = btn('No', 'quiet');
+        y.onclick = function () {
+          y.disabled = true;
+          scCall('/small/delete', { chatId: c.id, lineId: m.id }).then(function (x) {
+            if (x && x.status === 'ok') { rowEl.remove(); if (!feed.querySelector('[data-mid]')) feed.appendChild(empty); return; }
+            y.disabled = false; say(note, (x && x.message) || 'That did not go through.', true);
+          }).catch(function () { y.disabled = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
+        };
+        n.onclick = function () { a.remove(); };
+        r2.appendChild(y); r2.appendChild(n); a.appendChild(r2);
+        (rowEl._mb || rowEl).appendChild(a);
+      };
+      paintLines(d.lines || []);
+      feed.scrollTop = feed.scrollHeight;
+      var refresh = function () {
+        if (document.hidden) return;
+        scCall('/small/chat', { chatId: id }).then(function (r) {
+          if (r && r.status === 'ok' && r.chat && r.chat.status === 'joined') paintLines(r.lines || []);
+        }).catch(function () {});
+      };
+      scPoll = setInterval(refresh, 15000);
+      send.onclick = function () {
+        var t = ta.value.trim();
+        if (!t) return;
+        send.disabled = true; ta.readOnly = true; say(note, '');
+        scCall('/small/send', { chatId: c.id, body: t }).then(function (r) {
+          send.disabled = false; ta.readOnly = false;
+          if (r && r.sent) { ta.value = ''; ta.focus(); refresh(); return; }
+          say(note, (r && r.message) || 'That did not go through.', true);
+        }).catch(function () { send.disabled = false; ta.readOnly = false; say(note, 'That did not reach the server. Try again in a moment.', true); });
+      };
+    }).catch(function (e) { box.innerHTML = ''; box.appendChild(el('div', 'font-size:14px;color:#2F3D4F;', (e && e.plain && e.message) || 'The chat did not open. Reload the page to try again.')); });
+  }
+
+  function scList(host) {
+    scCall('/small/list', {}).then(function (d) {
+      var chats = (d && d.chats) || [];
+      if (!chats.length) return;
+      host.innerHTML = '';
+      host.appendChild(el('div', 'font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:12px;', 'Chats with a few people'));
+      var list = el('div', 'display:flex;flex-direction:column;gap:10px;');
+      chats.forEach(function (c) {
+        var row = el('a', 'display:flex;gap:14px;align-items:center;padding:14px 16px;border:1.5px solid ' + (c.unread || c.status === 'invited' ? '#B5D3EA' : '#DDE4EE') + ';border-radius:14px;background:' + (c.unread || c.status === 'invited' ? '#F7FBFF' : '#fff') + ';text-decoration:none;color:#1A2E42;');
+        row.href = '/messages/?chat=' + encodeURIComponent(c.id);
+        var txt = el('div', 'flex:1;min-width:0;');
+        var top = el('div', 'display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;');
+        top.appendChild(el('b', 'font-size:16px;color:#1A2E42;', scTitle(c)));
+        if (c.last && c.last.at) top.appendChild(el('span', 'font-size:12.5px;color:#6B7A8D;margin-left:auto;', when(c.last.at)));
+        txt.appendChild(top);
+        var line = c.status === 'invited'
+          ? (c.invitedBy || 'Someone') + ' invited you to a chat in ' + (c.groupName || 'a group')
+          : (c.last ? (c.last.mine ? 'You' : String(c.last.from || 'Someone').split(' ')[0]) + ': ' + c.last.body : scNames(c.people, true, c.moreInvited));
+        txt.appendChild(el('div', 'font-size:14px;margin-top:2px;color:#2F3D4F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;', line));
+        row.appendChild(txt);
+        if (c.status === 'invited') row.appendChild(el('span', 'border-radius:11px;background:#1F699E;color:#fff;font-size:12px;font-weight:800;padding:3px 9px;flex:none;', 'Join?'));
+        else if (c.unread) row.appendChild(el('span', 'min-width:22px;height:22px;border-radius:11px;background:#1F699E;color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;flex:none;', String(c.unread > 99 ? '99+' : c.unread)));
+        row.appendChild(el('span', 'font-size:22px;line-height:1;color:#7FB6E2;flex:none;', '›'));
+        list.appendChild(row);
+      });
+      host.appendChild(list);
+      host.hidden = false;
+    }).catch(function () {});
+  }
+
+  window.cwSmallChats = {
+    init: function (o) { if (!ctx) ctx = { meId: o.meId, token: o.token }; },
+    start: scStart,
+    room: scRoom,
+    list: scList
   };
 })();
