@@ -1732,7 +1732,50 @@ async function loadContributions(){
     return out;
   }
   var KEY='<div class="mp-key"><span class="mp-key-item"><span class="mp-key-dot comp"></span>Offer/need match</span><span class="mp-key-item"><span class="mp-key-dot coseek"></span>Both need this</span><span class="mp-key-item"><span class="mp-key-dot share"></span>In common</span></div>';
+  function evWhen(ev){var d=String(ev.date||'').trim(),t='';try{if(d&&d.toUpperCase()!=='TBD'){var x=new Date(d.length>10?d:d+'T00:00:00');if(!isNaN(x))t=x.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});}}catch(e){}return [t,String(ev.time||'').trim(),String(ev.location||ev.venue||'').trim()].filter(Boolean).join(' \u00b7 ');}
+  function evUpcoming(ev){var d=String(ev.date||'').trim();if(!d||d.toUpperCase()==='TBD'||ev.recurFreq)return true;var t=new Date();t.setHours(0,0,0,0);return new Date(d.length>10?d:d+'T00:00:00')>=t;}
+  function myToken(){try{var n=String(_myId||'').split('.').join('').toLowerCase(),raw=localStorage.getItem('cw-edit-'+n);if(raw){var o=JSON.parse(raw);if(o&&o.t)return o.t;}return localStorage.getItem('cw-token')||'';}catch(e){return '';}}
+  var MSG='https://cw-messages.jessieupp.workers.dev';
+  function msgSession(){
+    var k='cw-msg-session-'+String(_myId||'');
+    try{var s=sessionStorage.getItem(k)||'',x=parseInt(s.split('.')[1]||'0',10);if(s&&x>Date.now()+60000)return Promise.resolve(s);}catch(e){}
+    return fetch(MSG+'/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:_myId,token:myToken()})}).then(function(r){return r.json();}).then(function(d){if(!d||d.status!=='ok')return '';try{sessionStorage.setItem(k,d.session);}catch(e){}return d.session;});
+  }
+  function loadHosted(state){
+    state.evs=null;
+    fetch(GS_URL+'?action=getMyEvents&appearId='+encodeURIComponent(_myId)+'&t='+Date.now()).then(function(r){return r.json();}).then(function(d){
+      state.evs=(d&&d.status==='ok'&&Array.isArray(d.events)?d.events:[]).filter(function(ev){return ev&&ev.id&&evUpcoming(ev)&&String(ev.cancelled||'').toLowerCase()!=='true';});
+      if(_sp&&state.view==='host')draw(state);
+    }).catch(function(){state.evs=[];state.evErr=1;if(_sp&&state.view==='host')draw(state);});
+  }
+  function sendInvite(state,evId,btn){
+    var codes=state.ppl.filter(function(p){return !isMe(p.appearId)&&p.code;}).map(function(p){return p.code;}).slice(0,7);
+    if(!codes.length)return;
+    btn.disabled=true;btn.textContent='Sending\u2026';
+    msgSession().then(function(sk){
+      if(!sk)throw new Error('session');
+      return fetch(MSG+'/invite/event',{method:'POST',headers:{'Content-Type':'application/json','x-msg-session':sk},body:JSON.stringify({eventId:String(evId),groupId:String(window._cwBoardGroupId||_groupId),to:codes})}).then(function(r){return r.json();});
+    }).then(function(d){
+      if(d&&d.status==='ok'){state.sent=state.sent||{};state.sent[evId]=1;state.evMsg='';}
+      else state.evMsg=(d&&d.message)||'That could not be sent. Try again in a moment.';
+      draw(state);
+    }).catch(function(){state.evMsg='That could not be sent. Try again in a moment.';draw(state);});
+  }
+  function drawHost(state){
+    var others=state.ppl.filter(function(p){return !isMe(p.appearId);});
+    var names=others.length<=2?others.map(function(p){return p.name;}).join(' and '):'all '+others.length;
+    var h='<div class="sp-top"><div style="flex:1;min-width:0"><h2 class="sp-title" id="sp-title">Invite '+escHTML(names)+' to one of your events</h2><div class="mp-sub">Events you host that have not happened yet. Pick one.</div></div><button type="button" class="sp-x" data-sp="close" aria-label="Close">\u00d7</button></div>';
+    if(state.evs===null)h+='<p class="sp-note">Looking for your events\u2026</p>';
+    else if(state.evErr)h+='<p class="sp-note">Your events did not load. Close this and try again.</p>';
+    else if(!state.evs.length)h+='<p class="sp-note">You are not hosting an event that is coming up.</p>';
+    else h+=state.evs.map(function(ev){var done=state.sent&&state.sent[ev.id];return '<div class="mp-row"><div class="mp-body"><div class="mp-name">'+escHTML(ev.title||ev.name||'Your event')+'</div><div class="mp-note">'+escHTML(evWhen(ev))+'</div></div><div class="mp-actions">'+(done?'<button type="button" class="mp-btn" disabled>Invite sent</button>':'<button type="button" class="mp-btn primary" data-sp="inv" data-ev="'+escHTML(ev.id)+'">Invite them</button>')+'</div></div>';}).join('');
+    if(state.sent&&Object.keys(state.sent).length)h+='<p class="sp-note">Invite sent. It reaches only the people who enabled accepting invitations, so some may not get it. You can message them directly if you need to confirm receipt.</p>';
+    if(state.evMsg)h+='<p class="sp-note">'+escHTML(state.evMsg)+'</p>';
+    h+='<button type="button" class="sp-lk" data-sp="back">Back to '+escHTML(titleCase(state.item))+'</button>';
+    return h;
+  }
   function draw(state){
+    if(state.view==='host'){_sp.querySelector('.sp-box').innerHTML=drawHost(state);_sp.querySelector('.sp-box').scrollTop=0;return;}
     var item=state.item,ppl=state.ppl,others=ppl.filter(function(p){return !isMe(p.appearId);}),meIn=others.length<ppl.length;
     var h='<div class="sp-top"><div style="flex:1;min-width:0"><h2 class="sp-title" id="sp-title">'+escHTML(titleCase(item))+'</h2><div class="mp-sub">'+ppl.length+' people '+(_groupId?'in this group':'here')+' '+({interests:'share this interest',skills:'share this skill',needs:'share this request',values:'care about this',haves:'offer this'}[state.key]||'share this')+'</div></div><button type="button" class="sp-x" data-sp="close" aria-label="Close">×</button></div>';
     if(!state.all){
@@ -1775,7 +1818,9 @@ async function loadContributions(){
       var a=b.dataset.sp;
       if(a==='close')close();
       else if(a==='all'){state.all=true;draw(state);}
-      else if(a==='back'){state.all=false;draw(state);}
+      else if(a==='back'){state.all=false;state.view='';draw(state);}
+      else if(a==='share'&&_groupId&&_myId){e.preventDefault();state.view='host';state.evMsg='';loadHosted(state);draw(state);}
+      else if(a==='inv'){sendInvite(state,b.dataset.ev,b);}
       else if(a==='chat'||a==='share'){e.preventDefault();state.note=a;draw(state);}
       else if(a==='gm'){window._spFrom={key:state.key,item:state.item};close();if(!_matchMode)toggleMatches();else{try{paintCrumbs();}catch(x){}}}
       else if(a==='bm'){bookmarkMatch(b,b.dataset.id);}
