@@ -154,13 +154,16 @@
     }
 
     function askNew(d) {
+      var solo = /(^|\.)2balance\.network$/i.test(String(location.hostname || ''));
       var card = opts.card || slot.parentNode;
       var box = document.createElement('div');
       box.className = 'cw-g-new';
       box.innerHTML =
-          '<h1>Welcome to 2Gather</h1>'
+          '<h1>Welcome to ' + (solo ? '2Balance' : (/(^|\.)2appear\.network$/i.test(String(location.hostname || '')) ? '2Appear' : '2Gather')) + '</h1>'
         + '<p class="lede">We do not have ' + esc(d.email) + ' yet.</p>'
-        + '<label class="tick"><input type="checkbox" class="cw-g-agree"><span>I agree to the <a href="https://2gather.network/terms-of-service.html">Terms of Service</a>, <a href="https://2gather.network/privacy-policy.html">Privacy Policy</a> and <a href="https://2gather.network/code-of-conduct.html">Code of Conduct</a>.</span></label>'
+        + (solo
+            ? '<label class="tick"><input type="checkbox" class="cw-g-agree"><span>I agree to the <a href="https://2gather.network/terms-of-service.html">Terms of Service</a> and <a href="https://2gather.network/privacy-policy.html">Privacy Policy</a>.</span></label>'
+            : '<label class="tick"><input type="checkbox" class="cw-g-agree"><span>I agree to the <a href="https://2gather.network/terms-of-service.html">Terms of Service</a>, <a href="https://2gather.network/privacy-policy.html">Privacy Policy</a> and <a href="https://2gather.network/code-of-conduct.html">Code of Conduct</a>.</span></label>')
         + '<label class="tick"><input type="checkbox" class="cw-g-age"> I confirm that I am at least 18 years of age or older.</label>'
         + '<button type="button" class="cw-g-create">Create my account</button>'
         + '<button type="button" class="cw-g-other">Use a different account</button>'
@@ -178,7 +181,7 @@
         if (!box.querySelector('.cw-g-agree').checked) { say2('Please read the terms and tick the box to agree.'); return; }
         if (!box.querySelector('.cw-g-age').checked) { say2('Please confirm you are 18 or over.'); return; }
         var b = this; b.disabled = true; b.textContent = 'Creating your account...'; say2('');
-        ask('googleSignup', '&terms=1&age=1').then(function (r) {
+        ask('googleSignup', '&terms=1&age=1' + (solo ? '' : '&conduct=1')).then(function (r) {
           if (r && r.status === 'ok' && r.appearId) { finish(r, opts.nextNew || '/events/'); return; }
           b.disabled = false; b.textContent = 'Create my account';
           say2((r && r.message) || 'That did not go through. Try once more.');
