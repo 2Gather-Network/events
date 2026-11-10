@@ -926,7 +926,7 @@ function render(ev) {
     _isLoggedIn
       ? (_isLakeBallinger
         ? `<button onclick="window.location.href='https://lakeballingerhub.com'" id="interest-btn" class="ev-going-btn" style="background:var(--primary);color:#fff;border:none;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">Visit event hub</button>`
-        : `<button onclick="openRsvpModal()" id="interest-btn" class="ev-going-btn cw-rsvp" style="display:inline-flex;align-items:center;gap:6px;background:#C4501A;color:#fff;border:none;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:0 0 auto;"><path d="M15 5v2M15 11v2M15 17v2M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7a2 2 0 0 1 2-2"/></svg>RSVP</button>`)
+        : `<button onclick="return false" disabled id="interest-btn" class="ev-going-btn cw-rsvp cw-rsvp-wait" style="display:inline-flex;align-items:center;gap:6px;background:#C4501A;color:#fff;border:none;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;cursor:default;white-space:nowrap;font-family:inherit;animation:cw-breathe 1.6s ease-in-out infinite;">Checking your RSVP</button>`)
       : (_isLakeBallinger
         ? `<a href="https://lakeballingerhub.com" class="ev-going-btn" style="display:inline-block;background:var(--primary);color:#fff;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;white-space:nowrap;text-decoration:none;">Visit event hub</a>`
         : `<button onclick="openRsvpRegister()" class="ev-going-btn cw-rsvp" style="display:inline-flex;align-items:center;gap:6px;background:#C4501A;color:#fff;border:none;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;white-space:nowrap;cursor:pointer;font-family:inherit;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:0 0 auto;"><path d="M15 5v2M15 11v2M15 17v2M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7a2 2 0 0 1 2-2"/></svg>RSVP</button>`)
@@ -1059,6 +1059,7 @@ function render(ev) {
 
 
 function applyRegisteredUI() {
+  try { var _wb = document.getElementById("interest-btn"); if (_wb) { _wb.classList.remove("cw-rsvp-wait"); _wb.style.animation = ""; } } catch (e) {}
   const btn = document.getElementById("interest-btn");
   const _chipId = _rsvpAppearId || getMemberId() || "";
   if (btn) {
@@ -1615,6 +1616,7 @@ window.cwSocDone = function () {
 };
 
 function applyUnregisteredUI() {
+  try { var _wb = document.getElementById("interest-btn"); if (_wb) { _wb.classList.remove("cw-rsvp-wait"); _wb.style.animation = ""; } } catch (e) {}
   try { cwSeenLinkShow(false); var _rn = document.getElementById("cw-reg-note"); if (_rn) _rn.remove(); } catch (e) {}
   try {
     if (/[?&]choices=1\b/.test(location.search) && !window.cwChoicesOpened && typeof _currentEv !== "undefined" && _currentEv && getMemberId() && !document.getElementById("cw-seen-ask")) {
@@ -1666,7 +1668,7 @@ async function verifyRegistrationState() {
     const rows = (data.registrations || []).filter(function(r) {
       return String(r.eventId || "").trim() === String(_currentEv.id).trim();
     });
-    if (rows.length === 0) return;
+    if (rows.length === 0) { applyUnregisteredUI(); return; }
     rows.sort(function(a, b) {
       return _regTimestamp(b).localeCompare(_regTimestamp(a));
     });
@@ -1678,9 +1680,10 @@ async function verifyRegistrationState() {
       _rsvpAppearId = memberId;
       applyRegisteredUI();
     }
-  } catch(e) {  }
+  } catch(e) { applyUnregisteredUI(); }
 }
 window.verifyRegistrationState = verifyRegistrationState;
+setInterval(function () { try { var b = document.getElementById("interest-btn"); if (b && b.classList.contains("cw-rsvp-wait") && !b.dataset.cwWaitAt) b.dataset.cwWaitAt = String(Date.now()); if (b && b.classList.contains("cw-rsvp-wait") && Date.now() - Number(b.dataset.cwWaitAt) > 30000 && typeof verifyRegistrationState === "function") { b.dataset.cwWaitAt = String(Date.now()); verifyRegistrationState(); } } catch (e) {} }, 3000);
 
 
 let _currentEv = null; 
@@ -2107,7 +2110,7 @@ function cwSeenOpen(ev, preview, fromRegister) {
   var me = ""; try { me = getMemberId() || ""; } catch (e) {}
   var shell = cwStepsShell(ev, !!fromRegister);
   if (!me || preview) { cwSeenAsk(ev, preview, null, fromRegister); return; }
-  shell.body.innerHTML = '<p class="cw-loading" style="font-size:14px;color:var(--muted);">Looking up your choices</p>';
+  shell.body.innerHTML = '<span class="cw-wait">Looking up your choices</span>';
   var pre = window.cwSeenPre; window.cwSeenPre = null;
   var got = (pre && !fromRegister && pre.id === ev.id) ? pre.p : cwSeenFetch(ev.id);
   got.then(function (d) { cwSeenAsk(ev, false, d && d.status === "ok" ? d : null, fromRegister); })
@@ -2150,6 +2153,7 @@ function cwStepsShell(ev, reg) {
       + "#cw-seen-ask .cw-ib{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;border:1.5px solid #1F699E;background:#fff;color:#1F699E;font:700 12px/1 Georgia,serif;cursor:pointer;padding:0;margin-left:6px;vertical-align:middle}"
       + "#cw-seen-ask .cw-ibox{background:#E8F2F9;border:1.5px solid #B9D3EA;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.55;color:#1A2E42;margin:6px 0 8px}#cw-seen-ask .cw-ibox p{margin:0 0 4px}#cw-seen-ask .cw-ibox p:last-child{margin:0}"
       + "#cw-seen-ask .cw-ex{color:var(--muted);font-weight:400}"
+      + "#cw-seen-ask .cw-wait{display:inline-flex;align-items:center;background:#1F699E;color:#fff;font-size:13px;font-weight:700;padding:7px 16px;border-radius:20px;white-space:nowrap;animation:cw-breathe 1.6s ease-in-out infinite}"
       + "#cw-seen-ask .cw-box{border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin:0 0 12px}"
       + "@media (max-width:640px){#cw-seen-ask{padding:0;align-items:flex-start}#cw-seen-ask .cw-pop{max-width:none;max-height:100%;border-radius:0 0 16px 16px}}";
     document.head.appendChild(cs);
@@ -2174,11 +2178,12 @@ function cwRegNote(ev, edited) {
   n.style.cssText = "position:relative;margin:10px 0 4px;background:#E8F2F9;border-radius:12px;padding:12px 74px 12px 14px;font-size:14px;line-height:1.5;color:#1A2E42;";
   n.innerHTML = '<b>' + (edited ? "Your registration is updated." : "You’re registered.") + '</b> Your choices for this event are saved.<br><a href="#" id="cw-reg-note-ed" style="color:#1F699E;font-weight:700;">Edit your registration</a>'
     + '<button type="button" id="cw-reg-note-x" style="position:absolute;top:8px;right:8px;background:none;border:0;font:inherit;font-size:13px;font-weight:700;color:#1F699E;cursor:pointer;padding:6px 8px;">Got it</button>';
-  var at = btn ? (btn.closest(".ev-going-row") || btn.parentNode) : document.getElementById("cw-seen-slot");
-  if (!at) return;
-  at.insertAdjacentElement("afterend", n);
-  document.getElementById("cw-reg-note-x").onclick = function () { n.remove(); };
-  document.getElementById("cw-reg-note-ed").onclick = function (e) { e.preventDefault(); n.remove(); cwSeenOpen(ev, false, false); };
+  var slot = document.getElementById("cw-seen-slot");
+  if (!slot) return;
+  slot.insertBefore(n, slot.firstChild);
+  try { cwSeenLinkShow(false); } catch (e) {}
+  document.getElementById("cw-reg-note-x").onclick = function () { n.remove(); try { cwSeenLinkShow(true, true); } catch (e) {} };
+  document.getElementById("cw-reg-note-ed").onclick = function (e) { e.preventDefault(); n.remove(); try { cwSeenLinkShow(true, true); } catch (e2) {} cwSeenOpen(ev, false, false); };
   try { n.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
 }
 function cwSeenAsk(ev, preview, saved, fromRegister) {
@@ -2233,7 +2238,7 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     var sp = $("cw-st-pr").children;
     for (var i = 0; i < sp.length; i++) sp[i].className = (st.done || i <= st.step) ? "on" : "";
     $("cw-st-pl").textContent = st.done ? "All 3 steps done" : "Step " + (st.step + 1) + " of 3: " + STEPS[st.step];
-    $("cw-st-t").textContent = st.done ? (st.lastWasReg ? "You’re registered" : "Your registration is updated") : ((reg ? "Register for " : "Edit your registration for ") + (ev.title || "this event"));
+    $("cw-st-t").textContent = st.done ? (st.lastWasReg ? "You’re registered for " + (ev.title || "this event") : "Your registration is updated") : ((reg ? "Register for " : "Edit your registration for ") + (ev.title || "this event"));
     bk.style.visibility = st.step === 0 && !st.done ? "hidden" : "visible";
     nx.disabled = false;
     nx.textContent = st.done ? "Done" : st.step === 2 ? (reg ? "Finish registering" : "Save changes") : "Next";
@@ -2259,6 +2264,8 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     shrink(u, function (r) { try { URL.revokeObjectURL(u); } catch (e) {} if (!r) { if ($("cw-st-imh")) $("cw-st-imh").textContent = "That picture could not be read."; return; } st.photo = true; s1(); });
   };
   var s1 = function () {
+    if (!st.profReady) { body.innerHTML = '<span class="cw-wait">Looking up your name and photo</span>'; nx.disabled = true; return; }
+    nx.disabled = false;
     if (!lobbyOk()) { st.lobby = false; }
     if (!st.lobby) st.match = false;
     var note = st.name === "initials" || !st.photo;
@@ -2342,8 +2349,8 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   };
   var s4 = function () {
     var nm = { full: "Full name", short: "First name and last initial", initials: "Initials" }[st.name];
-    body.innerHTML = '<p style="font-size:20px;font-weight:700;color:var(--dark);margin:4px 0 8px;">' + esc(st.lastWasReg ? "You’re registered for " + (ev.title || "this event") : "Your registration is updated") + '</p>'
-      + '<div class="cw-sum">Your name: <b>' + nm + '</b><br>Your photo: <b>' + (st.photo && hasPhoto() ? "Shown" : "Not shown") + '</b><br>Lobby: <b>' + (st.lobby ? "On" : "Off") + '</b> · Match up: <b>' + (st.match ? "On" : "Off") + '</b><br>Location: <b>' + esc(st.level === "Not shared" ? "Not shared" : st.text) + '</b></div>'
+    body.innerHTML = (st.offNote ? '<p class="cw-info">' + esc(st.offNote) + '</p>' : '')
+      + '<div class="cw-sum">Your name: <b>' + esc(nameAs(st.name) || nm) + '</b><br>Your photo: <b>' + (st.photo && hasPhoto() ? "Shown" : "Not shown") + '</b><br>Lobby: <b>' + (st.lobby ? "On" : "Off") + '</b> · Match up: <b>' + (st.match ? "On" : "Off") + '</b><br>Location: <b>' + esc(st.level === "Not shared" ? "Not shared" : st.text) + '</b></div>'
       + '<p class="cw-sub" style="margin-bottom:12px">Press Back to change anything. You can also change these any time from the event page.</p>'
       + (ev.date && ev.date !== "TBD" ? '<button type="button" class="cw-b gh" id="cw-st-cal">Add to calendar</button>' : "");
     if ($("cw-st-cal")) $("cw-st-cal").onclick = function () { try { cwCalAsk(ev); var c = document.getElementById("cw-cal-ask"); if (c) c.style.zIndex = "2001"; } catch (e) {} };
@@ -2387,10 +2394,14 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     if (st.step < 2) { st.step++; paint(); return; }
     if (preview) { msg.textContent = "This is a preview. Nothing was saved."; return; }
     nx.disabled = true; bk.disabled = true; msg.style.color = "#1F699E";
-    msg.innerHTML = '<span class="cw-loading">' + (reg ? "Registering you" : "Saving your changes") + '</span>';
+    msg.innerHTML = '<span class="cw-wait">' + (reg ? "Registering you" : "Saving your changes") + '</span>';
     var wasReg = reg;
-    savePhoto().then(save).then(function () {
+    var wantLobby = lobbyOk() && st.lobby;
+    savePhoto().then(save).then(function (d) {
       bk.disabled = false;
+      st.offNote = "";
+      if (d && typeof d.photoShown === "boolean" && st.photo && !d.photoShown) { st.photo = false; st.offNote = "We could not find your profile photo, so your photo, the lobby and Match up are off. Add a photo, then edit your registration."; }
+      if (d && typeof d.inLobby === "boolean") { st.lobby = d.inLobby; st.match = d.inLobby && d.matchUp === true; if (wantLobby && !d.inLobby && !st.offNote) st.offNote = "The lobby could not be turned on. Edit your registration to try again."; }
       if (wasReg) { st.firstReg = true; try { _wigForce = true; applyRegisteredUI(); } catch (e) {} try { if (typeof _loadWhoIsGoingNow === "function") _loadWhoIsGoingNow(); } catch (e) {} }
       st.lastWasReg = wasReg; reg = false; st.done = true; paint();
     }).catch(function (e) { nx.disabled = false; bk.disabled = false; msg.style.color = "#7A2410"; msg.textContent = (e && e.message) || "That did not save. Try again in a moment."; });
@@ -2401,15 +2412,16 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     var it = (e.clipboardData && e.clipboardData.items) || [];
     for (var i = 0; i < it.length; i++) if (it[i].type.indexOf("image") === 0) { e.preventDefault(); takeFile(it[i].getAsFile()); return; }
   });
-  if (preview && !me) { st.have = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23D6E6F5'/%3E%3C/svg%3E"; st.prof = { location: "Washington, United States", postal: "98201" }; }
+  var waits = 0, ready = function () { waits++; if (waits >= 2 && !st.profReady) { st.profReady = true; if (st.step === 0 && !st.done) s1(); } };
+  setTimeout(function () { if (!st.profReady) { st.profReady = true; if (st.step === 0 && !st.done) s1(); } }, 9000);
+  if (preview && !me) { st.profReady = true; st.have = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23D6E6F5'/%3E%3C/svg%3E"; st.prof = { location: "Washington, United States", postal: "98201" }; }
   else if (me) {
-    fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(me)).then(function (r) { return r.json(); }).then(function (x) { if (x && x.found) { if (x.name) st.nm = x.name; if (x.photo && !st.have) st.have = x.photo; if (st.step === 0 && !st.done) s1(); } }).catch(function () {});
+    fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(me)).then(function (r) { return r.json(); }).then(function (x) { if (x && x.found) { if (x.name) st.nm = x.name; if (x.photo && !st.have) st.have = x.photo; } }).catch(function () {}).then(ready);
     fetch(GS_URL + "?action=getProfile&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok)).then(function (r) { return r.json(); }).then(function (pr) {
       var d = pr && pr.found && pr.data ? pr.data : {};
       st.prof = d;
       if (!st.have && d.photoURL) st.have = String(d.photoURL);
-      if (st.step === 0 && !st.done) s1();
-    }).catch(function () {});
+    }).catch(function () {}).then(ready);
   }
   paint();
 }
@@ -2813,6 +2825,7 @@ function _paintHostingBtn() {
       if (_hid) { location.href = "https://2gather.network/myevents/?id=" + encodeURIComponent(_hid) + "&show=rsvps&cb=" + Date.now(); }
     };
     g.disabled = false;
+    g.classList.remove("cw-rsvp-wait"); g.style.animation = "";
     g.title = "See everyone who registered";
     g.textContent = "Host";
     g.style.background = "#C4501A";
