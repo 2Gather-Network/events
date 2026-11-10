@@ -17,7 +17,8 @@
     var h = el('h2', 'font-size:22px;font-weight:800;margin:0 0 12px;line-height:1.25;', 'Before you meet people on ' + site);
     h.id = 'cw-coc-h'; h.tabIndex = -1;
     card.appendChild(h);
-    card.appendChild(el('p', 'margin:0 0 18px;', 'We have a Code of Conduct for how we treat each other here. We would love you to read it. When you have, tell us below.'));
+    card.appendChild(el('p', 'margin:0 0 10px;', '2Balance is just you. ' + site + ' is you and a whole bunch of other people.'));
+    card.appendChild(el('p', 'margin:0 0 18px;', 'Because of that, we have a Code of Conduct for how we treat each other here. We would love you to read it. When you have, tell us below.'));
     var row = el('div', 'display:flex;flex-wrap:wrap;gap:10px;align-items:center;');
     var read = link('Read the Code of Conduct', BTN + 'display:inline-block;text-decoration:none;border:1.5px solid ' + BRAND + ';background:#fff;color:' + BRAND + ';');
     var yes = el('button', BTN + 'border:0;background:' + BRAND + ';color:#fff;', 'I have read it');
