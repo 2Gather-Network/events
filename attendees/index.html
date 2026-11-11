@@ -1729,10 +1729,12 @@ async function loadContributions(){
 .sp-box .mp-actions{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;max-width:280px;}
 .sp-box .mp-actions [data-sp="offer"]{flex-basis:100%;}
 .sp-box .mp-actions .sp-br{flex-basis:100%;height:0;}
-.sp-given{display:inline-flex;align-items:center;gap:8px;font-family:inherit;font-size:13px;font-weight:600;color:#5A6878;background:#fff;border:1px solid #DDE3EA;border-radius:24px;padding:7px 14px;cursor:pointer;}
-.sp-given .sp-ring{width:16px;height:16px;border:2px solid #7A8796;border-radius:50%;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;line-height:1;color:#1F699E;flex-shrink:0;}
+.sp-given{display:inline-flex;align-items:center;gap:8px;font-family:inherit;font-size:13px;font-weight:700;color:#1A2E42;background:#fff;border:1.5px solid #1F699E;border-radius:24px;padding:7px 14px;cursor:pointer;}
+.sp-given .sp-ring{width:16px;height:16px;border:2px solid #1A2E42;border-radius:50%;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;line-height:1;color:#1F699E;flex-shrink:0;}
 .sp-given[aria-pressed="true"]{background:#F2F8FC;}
 .sp-given[aria-pressed="true"] .sp-ring{border-color:#1F699E;}
+.sp-save{flex-basis:100%;text-align:right;font-size:12px;color:#5A6878;min-height:0;}
+.sp-save:empty{display:none;}
 @media(max-width:600px){.sp-box .mp-row{flex-wrap:wrap;}.sp-box .mp-actions{max-width:none;width:100%;justify-content:flex-start;padding-left:56px;box-sizing:border-box;}.sp-box .mp-actions .mp-btn{flex:1 1 auto;text-align:center;}}
 .sp-lk{display:block;margin:14px auto 0;background:none;border:0;padding:6px 0;font-family:'Nunito Sans','DM Sans',sans-serif;font-size:14px;font-weight:700;color:#1F699E;text-decoration:underline;cursor:pointer;text-align:center;}
 .sp-ask{font-size:15px;font-weight:700;margin:6px 0 0;color:#1A2E42;}
@@ -1764,7 +1766,7 @@ async function loadContributions(){
   function myHave(w){var k=String(w||'').toLowerCase();return ((_myData&&_myData.haves)||[]).filter(function(x){return String(x.item||'').toLowerCase()===k;})[0]||null;}
   function offerWord(p){if(!_myData||isMe(p.appearId))return '';var m=who(p.appearId),pref=String(_spItem||'').toLowerCase(),hit='';(m.needs||[]).some(function(n){var k=String(n.item||'').toLowerCase();if(!k||!_mOn(m,k)||!_mOn(_myData,k)||!myHave(k))return false;if(!hit||k===pref)hit=n.item;return k===pref;});return hit;}
   var _spItem='',_given={};
-  function ownBtn(p){var h=myHave(_spItem),b='';if(h){var k=String(h.item).toLowerCase();var off=_given[k]!==undefined?_given[k]:!_mOn(_myData,k);b='<button type="button" class="sp-given" data-sp="'+(off?'avail':'given')+'" data-w="'+escHTML(h.item)+'" aria-pressed="'+(off?'true':'false')+'"><span class="sp-ring" aria-hidden="true">'+(off?'\u2713':'')+'</span>Mark as given</button>';}return '<div class="mp-actions">'+b+(b?'<span class="sp-br"></span>':'')+'<button type="button" class="mp-btn" data-sp="open" data-id="'+escHTML(p.appearId)+'" data-link="'+escHTML(p.pageLink||'')+'">Open profile</button><a class="mp-btn" href="/ikigai/?step=interests">Edit profile</a></div>';}
+  function ownBtn(p){var h=myHave(_spItem),b='';if(h){var k=String(h.item).toLowerCase();var off=_given[k]!==undefined?_given[k]:!_mOn(_myData,k);b='<button type="button" class="sp-given" data-sp="'+(off?'avail':'given')+'" data-w="'+escHTML(h.item)+'" aria-pressed="'+(off?'true':'false')+'"><span class="sp-ring" aria-hidden="true">'+(off?'\u2713':'')+'</span>Mark as given</button>';}return '<div class="mp-actions">'+b+(b?'<span class="sp-save" id="sp-save" aria-live="polite"></span><span class="sp-br"></span>':'')+'<button type="button" class="mp-btn" data-sp="open" data-id="'+escHTML(p.appearId)+'" data-link="'+escHTML(p.pageLink||'')+'">Open profile</button><a class="mp-btn" href="/ikigai/?step=interests">Edit profile</a></div>';}
   function givenNote(){var h=myHave(_spItem);if(!h)return '';var k=String(h.item).toLowerCase();var off=_given[k]!==undefined?_given[k]:!_mOn(_myData,k);return off?'<div class="mp-note">Given. It no longer shows in matches.</div>':'';}
   function photo(p){var ini=escHTML((p.name||p.appearId||'?').charAt(0).toUpperCase());return p.photo?'<img class="mp-photo" src="'+escHTML(p.photo)+'" alt="" data-initial="'+ini+'" onerror="imgFallback(this)">':'<div class="mp-photo-fallback">'+ini+'</div>';}
   function dot(cls,item,note){return '<div class="mp-item"><span class="mp-dot '+cls+'"></span><div class="mp-item-text"><span class="mp-item-name">'+escHTML(item)+'</span>'+(note?'<span class="mp-note">'+escHTML(note)+'</span>':'')+'</div></div>';}
@@ -1875,14 +1877,22 @@ async function loadContributions(){
     _sp.querySelector('.sp-box').innerHTML=h;
     _sp.querySelector('.sp-box').scrollTop=0;
   }
+  var _saving={};
   function setMatch(word,on,b,state){
-    var k=String(word||'').toLowerCase().trim();if(!k||!_myId)return;b.disabled=true;
+    var k=String(word||'').toLowerCase().trim();if(!k||!_myId||_saving[k])return;
+    var was=_given[k]!==undefined?_given[k]:!_mOn(_myData,k);
+    _saving[k]=1;_given[k]=!on;
+    if(_myData){_myData.nomatch=_myData.nomatch||{};if(on)delete _myData.nomatch[k];else _myData.nomatch[k]=1;}
+    try{computeGlobals();}catch(e){}
+    draw(state);
+    var note=document.getElementById('sp-save');if(note)note.textContent='Saving\u2026';
+    function undo(msg){_given[k]=was;if(_myData){_myData.nomatch=_myData.nomatch||{};if(was)_myData.nomatch[k]=1;else delete _myData.nomatch[k];}try{computeGlobals();}catch(e){}delete _saving[k];draw(state);var n2=document.getElementById('sp-save');if(n2)n2.textContent=msg;}
     fetch(GS_URL+'?action=getIntake&appearId='+encodeURIComponent(_myId)).then(function(r){return r.json();}).then(function(d){
       var has=d&&(d.answerDetails!==undefined||(d.data&&d.data.answerDetails!==undefined));if(!has)throw new Error('no card');
       var raw=(d&&(d.answerDetails!==undefined?d.answerDetails:(d.data&&d.data.answerDetails)))||'';var det={};try{det=JSON.parse(String(raw||'')||'{}')||{};}catch(e){det={};}
       if(typeof det!=='object'||Array.isArray(det))det={};var card=Object.assign({},det[k]||{});card.match=!!on;var part={};part[k]=card;
       return fetch(GS_URL+'?action=saveAnswerDetails&appearId='+encodeURIComponent(_myId)+'&details='+encodeURIComponent(JSON.stringify(part))).then(function(r){return r.json();});
-    }).then(function(d){b.disabled=false;if(!d||d.status!=='ok')return;_given[k]=!on;if(_myData){_myData.nomatch=_myData.nomatch||{};if(on)delete _myData.nomatch[k];else _myData.nomatch[k]=1;}try{computeGlobals();}catch(e){}draw(state);}).catch(function(){b.disabled=false;});
+    }).then(function(d){if(!d||d.status!=='ok'){undo('That did not save. Try again.');return;}delete _saving[k];var n3=document.getElementById('sp-save');if(n3)n3.textContent='Saved.';setTimeout(function(){var n4=document.getElementById('sp-save');if(n4&&n4.textContent==='Saved.')n4.textContent='';},1500);}).catch(function(){undo('That did not save. Try again.');});
   }
   var _sp=null;
   function close(){if(_sp){_sp.remove();_sp=null;document.body.style.overflow='';document.removeEventListener('keydown',onKey);}}
