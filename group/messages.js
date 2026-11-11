@@ -1058,7 +1058,7 @@
       if (s) s.textContent = 'Your conversations';
       session = keptSession();
       if (session) { me = session.split('.')[0]; tileRefresh(); }
-      if (window._gpView === 'messages' && !box) { var t = ''; try { var _q = new URLSearchParams(location.search); t = _q.get('to') || ''; if (t && _q.get('text')) window._cwPrefill = _q.get('text'); } catch (e) {} this.open(t); }
+      if (window._gpView === 'messages' && !box) { var t = ''; try { t = new URLSearchParams(location.search).get('to') || ''; } catch (e) {} try { var _ol = JSON.parse(sessionStorage.getItem('cw-offer-line') || 'null'); sessionStorage.removeItem('cw-offer-line'); if (t && _ol && String(_ol.to || '').toLowerCase() === t.toLowerCase() && _ol.line) window._cwPrefill = String(_ol.line).slice(0, 2000); } catch (e) {} this.open(t); }
     },
     open: function (to) {
       if (!ctx) return;
