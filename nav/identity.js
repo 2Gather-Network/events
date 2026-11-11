@@ -361,7 +361,11 @@
     return w.Promise.all([on, askPasses()])
       .then(function (both) {
         var t = both[0] || {}, d = both[1];
-        if (nm && d && d.status === 'ok' && d.passes && !lists(d.enabledSolution) && t.ok && lists(t.list)) {
+        var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
+        if (d && d.status === 'ok' && d.passes && d.passes[site] && t.ok && lists(t.list) && !lists(d.enabledSolution)) {
+          d.enabledSolution = t.list;
+        }
+        if (nm && d && d.status === 'ok' && d.passes && !d.passes[site] && t.ok && lists(t.list)) {
           jumpLog(nm + ' was just turned on; asking for passes once more');
           return askPasses().then(function (d2) {
             if (!d2 || d2.status !== 'ok' || !d2.passes) { throw new Error('second ask refused'); }
