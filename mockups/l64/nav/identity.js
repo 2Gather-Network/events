@@ -292,6 +292,7 @@
     var key = 'cw-here-' + (nm || '') + '-' + normalise(id);
     var reload = ls(function () { var e = w.performance.getEntriesByType('navigation')[0]; return !!e && e.type === 'reload'; }, false);
     if (!nm || (!reload && ss(function () { return w.sessionStorage.getItem(key); }, '') === '1')) { return w.Promise.resolve({ ok: true, skipped: true, list: '' }); }
+    if (/[?&]failsave=1(&|$)/.test(String(w.location.search || '')) && !w._cwFailSaveDone) { w._cwFailSaveDone = true; jumpLog('test switch: the site-on save fails this once'); return w.Promise.resolve({ ok: false }); }
     var wants = true;
     var ask = 'https://cw-api-gate.jessieupp.workers.dev?action=saveAccount&appearId=' + encodeURIComponent(id) + '&secure=1&editToken=' + encodeURIComponent(token) +
         (wants ? '&enabledSolution=' + nm : '');
