@@ -295,7 +295,7 @@
     var wants = true;
     var ask = 'https://cw-api-gate.jessieupp.workers.dev?action=saveAccount&appearId=' + encodeURIComponent(id) + '&secure=1&editToken=' + encodeURIComponent(token) +
         (wants ? '&enabledSolution=' + nm : '');
-    return w.fetch(ask, { referrerPolicy: 'no-referrer' })
+    return w.fetch(ask, { referrerPolicy: 'no-referrer', keepalive: true })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d && d.status === 'ok') {
@@ -356,24 +356,54 @@
         .then(function (r) { return r.json(); });
     };
     var lists = function (v) { return String(v || '').split('|').map(function (x) { return x.trim(); }).indexOf(nm) > -1; };
-    var on = turnOnHere(id, token);
-    w._cwSiteOn = on;
-    return w.Promise.all([on, askPasses()])
-      .then(function (both) {
-        var t = both[0] || {}, d = both[1];
-        var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
-        if (d && d.status === 'ok' && d.passes && d.passes[site] && t.ok && lists(t.list) && !lists(d.enabledSolution)) {
-          d.enabledSolution = t.list;
+    var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
+    var settleOn = null;
+    w._cwSiteOn = new w.Promise(function (res) { settleOn = res; });
+    var useOn = function (p) { p.then(settleOn, function () { settleOn({ ok: false }); }); return p; };
+    var good = function (d) { return !!(d && d.status === 'ok' && d.passes); };
+    var secondAsk = function (t, d) {
+      t = t || {};
+      if (good(d) && d.passes[site] && t.ok && lists(t.list) && !lists(d.enabledSolution)) {
+        d.enabledSolution = t.list;
+      }
+      if (nm && good(d) && !d.passes[site] && t.ok && lists(t.list)) {
+        jumpLog(nm + ' was just turned on; asking for passes once more');
+        return askPasses().then(function (d2) {
+          if (!good(d2)) { throw new Error('second ask refused'); }
+          return d2;
+        }, function () { throw new Error('second ask refused'); });
+      }
+      return d;
+    };
+    var first = askPasses();
+    var deviceHas = lists(ls(function () { return w.localStorage.getItem('cw-enabled') || ''; }, ''));
+    var flow;
+    if (deviceHas) {
+      flow = first.then(function (d) {
+        if (nm && good(d) && d.passes[site] && lists(d.enabledSolution) && d.conductOk === true) {
+          jumpLog(nm + ' is already on; no save needed');
+          ls(function () { w.localStorage.setItem('cw-conduct', 'yes'); });
+          ss(function () { w.sessionStorage.setItem('cw-here-' + nm + '-' + key, '1'); });
+          settleOn({ ok: true, list: String(d.enabledSolution || ''), conductNeeded: false });
+          return d;
         }
-        if (nm && d && d.status === 'ok' && d.passes && !d.passes[site] && t.ok && lists(t.list)) {
-          jumpLog(nm + ' was just turned on; asking for passes once more');
-          return askPasses().then(function (d2) {
-            if (!d2 || d2.status !== 'ok' || !d2.passes) { throw new Error('second ask refused'); }
-            return d2;
-          }, function () { throw new Error('second ask refused'); });
-        }
-        return d;
-      })
+        return useOn(turnOnHere(id, token)).then(function (t) { return secondAsk(t, d); });
+      }, function (e) { useOn(turnOnHere(id, token)); throw e; });
+    } else {
+      var on = useOn(turnOnHere(id, token));
+      if (site === 'gather') {
+        first.then(function (d) {
+          if (good(d) && d.passes.gather && d.conductOk === true) { settleOn({ ok: true, background: true }); }
+        }, function () {});
+        flow = first.then(function (d) {
+          if (good(d) && d.passes.gather && d.conductOk === true) { jumpLog('Gather save carries on in the background'); return d; }
+          return on.then(function (t) { return secondAsk(t, d); });
+        });
+      } else {
+        flow = w.Promise.all([on, first]).then(function (both) { return secondAsk(both[0], both[1]); });
+      }
+    }
+    return flow
       .then(function (d) {
         if (!d || d.status !== 'ok' || !d.passes) { jumpLog('backend refused the passes: ' + String((d && d.message) || 'no answer')); throw new Error('refused'); }
         jumpLog('backend gave passes for: ' + Object.keys(d.passes).join(', '));
