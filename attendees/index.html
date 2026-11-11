@@ -751,6 +751,7 @@ function processRow(data, appearId){
     values:        unionByItem(mainValues, ikValues),
     needs:         unionByItem(mainNeeds, ikNeeds),
     haves:         parseHaves(data.haves),
+    nomatch:       nomatchSet(data.nomatch),
     languages:String(data.languages||'').split('|').map(function(s){return s.trim();}).filter(Boolean)
   };
   _members.push(member);
@@ -762,6 +763,8 @@ function addTo(map, item, id){
   if(!map[k]) map[k]={};
   map[k][normId(id)]=true;
 }
+function nomatchSet(a){ var o={}; (Array.isArray(a)?a:[]).forEach(function(w){ var k=String(w||'').toLowerCase().trim(); if(k) o[k]=1; }); return o; }
+function _mOn(m,w){ return !((m&&m.nomatch)||{})[String(w||'').toLowerCase().trim()]; }
 function isCoach(x){ return /coach|guide/i.test((x&&x.meta)||''); }
 function computeGlobals(){
   _myOffer={}; _myNeed={}; _offerersByItem={}; _needersByItem={}; _providersByItem={}; _myProvide={};
@@ -769,17 +772,19 @@ function computeGlobals(){
     ['skills','interests','values'].forEach(function(f){
       (m[f]||[]).forEach(function(x){ addTo(_offerersByItem, x.item, m.appearId); });
     });
-    (m.skills||[]).forEach(function(x){ addTo(_providersByItem, x.item, m.appearId); });
+    (m.skills||[]).forEach(function(x){ if(_mOn(m,x.item)) addTo(_providersByItem, x.item, m.appearId); });
+    (m.haves||[]).forEach(function(x){ if(_mOn(m,x.item)) addTo(_providersByItem, x.item, m.appearId); });
     (m.interests||[]).forEach(function(x){ if(isCoach(x)) addTo(_providersByItem, x.item, m.appearId); });
-    (m.needs||[]).forEach(function(n){ addTo(_needersByItem, n.item, m.appearId); });
+    (m.needs||[]).forEach(function(n){ if(_mOn(m,n.item)) addTo(_needersByItem, n.item, m.appearId); });
   });
   if(_myData){
     ['skills','interests','values'].forEach(function(f){
       (_myData[f]||[]).forEach(function(x){ if(x.item) _myOffer[x.item.toLowerCase()]=true; });
     });
-    (_myData.skills||[]).forEach(function(x){ if(x.item) _myProvide[x.item.toLowerCase()]=true; });
+    (_myData.skills||[]).forEach(function(x){ if(x.item && _mOn(_myData,x.item)) _myProvide[x.item.toLowerCase()]=true; });
+    (_myData.haves||[]).forEach(function(x){ if(x.item && _mOn(_myData,x.item)) _myProvide[x.item.toLowerCase()]=true; });
     (_myData.interests||[]).forEach(function(x){ if(x.item && isCoach(x)) _myProvide[x.item.toLowerCase()]=true; });
-    (_myData.needs||[]).forEach(function(n){ if(n.item) _myNeed[n.item.toLowerCase()]=true; });
+    (_myData.needs||[]).forEach(function(n){ if(n.item && _mOn(_myData,n.item)) _myNeed[n.item.toLowerCase()]=true; });
   }
 }
 function someoneElse(map){
@@ -1687,6 +1692,12 @@ async function loadContributions(){
 .sp-inv{font-size:14px;font-weight:700;color:#1A2E42;margin:16px 0 0;padding-top:14px;border-top:1px solid #DDE4EE;}
 .sp-acts{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0;}
 .sp-lk{display:block;margin:14px auto 0;background:none;border:0;padding:6px 0;font-family:'Nunito Sans','DM Sans',sans-serif;font-size:14px;font-weight:700;color:#1F699E;text-decoration:underline;cursor:pointer;text-align:center;}
+.sp-ask{font-size:15px;font-weight:700;margin:6px 0 0;color:#1A2E42;}
+.sp-pills{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px;}
+.sp-pill{font-family:inherit;font-size:13px;font-weight:700;padding:7px 14px;border-radius:24px;border:1.5px solid #1F699E;color:#1F699E;background:#fff;cursor:pointer;}
+.sp-pill.on{background:#1F699E;color:#fff;}
+.sp-first{background:#F7F9FC;border:1px solid #DDE4EE;border-radius:12px;padding:12px 14px;font-size:14px;margin:0 0 14px;color:#1A2E42;}
+.sp-send{display:flex;justify-content:flex-end;}
 .sp-note{font-size:13px;color:#2F3D4F;background:#E8F2F9;border-radius:10px;padding:10px 12px;margin:10px 0 0;}
 @media(max-width:600px){.sp-veil{align-items:flex-end;padding:0;}.sp-box{max-width:none;border-radius:18px 18px 0 0;max-height:88vh;padding:18px 16px calc(18px + env(safe-area-inset-bottom));}}
 </style>
@@ -1707,13 +1718,18 @@ async function loadContributions(){
     return out;
   }
   function msgUrl(id){return '/messages/?to='+encodeURIComponent(id);}
+  function myHave(w){var k=String(w||'').toLowerCase();return ((_myData&&_myData.haves)||[]).filter(function(x){return String(x.item||'').toLowerCase()===k;})[0]||null;}
+  function offerWord(p){if(!_myData||isMe(p.appearId))return '';var m=who(p.appearId),pref=String(_spItem||'').toLowerCase(),hit='';(m.needs||[]).some(function(n){var k=String(n.item||'').toLowerCase();if(!k||!_mOn(m,k)||!_mOn(_myData,k)||!myHave(k))return false;if(!hit||k===pref)hit=n.item;return k===pref;});return hit;}
+  var _spItem='',_given={};
+  function ownBtn(){var h=myHave(_spItem);if(!h)return '';var k=String(h.item).toLowerCase();var off=_given[k]!==undefined?_given[k]:!_mOn(_myData,k);return off?'<div class="mp-actions"><button type="button" class="mp-btn" data-sp="avail" data-w="'+escHTML(h.item)+'">Still available</button></div>':'<div class="mp-actions"><button type="button" class="mp-btn" data-sp="given" data-w="'+escHTML(h.item)+'">Mark as given</button></div>';}
+  function givenNote(){var h=myHave(_spItem);if(!h)return '';var k=String(h.item).toLowerCase();var off=_given[k]!==undefined?_given[k]:!_mOn(_myData,k);return off?'<div class="mp-note">Given. It no longer shows in matches.</div>':'';}
   function photo(p){var ini=escHTML((p.name||p.appearId||'?').charAt(0).toUpperCase());return p.photo?'<img class="mp-photo" src="'+escHTML(p.photo)+'" alt="" data-initial="'+ini+'" onerror="imgFallback(this)">':'<div class="mp-photo-fallback">'+ini+'</div>';}
   function dot(cls,item,note){return '<div class="mp-item"><span class="mp-dot '+cls+'"></span><div class="mp-item-text"><span class="mp-item-name">'+escHTML(item)+'</span>'+(note?'<span class="mp-note">'+escHTML(note)+'</span>':'')+'</div></div>';}
   function row(p,items){
     var me=isMe(p.appearId);
     if(/^preview-/.test(String(p.appearId))) return '<div class="mp-row">'+photo(p)+'<div class="mp-body"><div class="mp-name">'+escHTML(p.name)+'</div><div class="mp-list">'+items+'</div></div></div>';
     return '<div class="mp-row">'+photo(p)+'<div class="mp-body"><div class="mp-name"><button type="button" class="sp-nm" data-sp="open" data-id="'+escHTML(p.appearId)+'" data-link="'+escHTML(p.pageLink)+'">'+escHTML(p.name)+'</button></div><div class="mp-list">'+items+'</div></div>'
-      +(me?'':'<div class="mp-actions"><a class="mp-btn primary" href="'+msgUrl(p.appearId)+'">Message</a>'+(_bmPeople[nid(p.appearId)]?'<button type="button" class="mp-btn" disabled>Bookmarked</button>':'<button type="button" class="mp-btn" data-sp="bm" data-id="'+escHTML(p.appearId)+'">Bookmark</button>')+'</div>')
+      +(me?ownBtn():(function(){var ow=offerWord(p);return '<div class="mp-actions">'+(ow?'<button type="button" class="mp-btn primary" data-sp="offer" data-id="'+escHTML(p.appearId)+'" data-w="'+escHTML(ow)+'">Offer it</button>':'')+'<a class="mp-btn'+(ow?'':' primary')+'" href="'+msgUrl(p.appearId)+'">Message</a>'+(_bmPeople[nid(p.appearId)]?'<button type="button" class="mp-btn" disabled>Bookmarked</button>':'<button type="button" class="mp-btn" data-sp="bm" data-id="'+escHTML(p.appearId)+'">Bookmark</button>')+'</div>';})())
       +'</div>';
   }
   function shared(ppl){
@@ -1722,9 +1738,9 @@ async function loadContributions(){
     function cap(x){return x.charAt(0).toUpperCase()+x.slice(1);}
     function nmOf(id){return set[id].name;}
     function list(ids){var l=ids.map(nmOf);return l.length<2?l.join(''):l.slice(0,-1).join(', ')+' and '+l[l.length-1];}
-    function has(field){var by={};(_chips[field]||[]).forEach(function(en){var id=nid(en.member&&en.member.appearId);if(!set[id])return;var k=String(en.item||'').toLowerCase();if(!k)return;(by[k]=by[k]||{item:en.item,ids:{}}).ids[id]=1;});return by;}
+    function has(field){var by={};(_chips[field]||[]).forEach(function(en){var id=nid(en.member&&en.member.appearId);if(!set[id])return;var k=String(en.item||'').toLowerCase();if(!k)return;if((field==='needs'||field==='skills'||field==='haves')&&!_mOn(who(en.member.appearId),k))return;(by[k]=by[k]||{item:en.item,ids:{}}).ids[id]=1;});return by;}
     var off={};['skills','interests','values'].forEach(function(f){var by=has(f);Object.keys(by).forEach(function(k){if(!off[k])off[k]={item:by[k].item,ids:{}};Object.keys(by[k].ids).forEach(function(i){off[k].ids[i]=1;});});});
-    var need=has('needs'),sk=has('skills');
+    var need=has('needs'),sk=has('skills'),hv=has('haves');Object.keys(hv).forEach(function(k){if(!sk[k])sk[k]={item:hv[k].item,ids:{}};Object.keys(hv[k].ids).forEach(function(i){sk[k].ids[i]=1;});});
     var rows={};function add(id,html,rank){(rows[id]=rows[id]||[]).push({h:html,r:rank});}
     Object.keys(need).forEach(function(k){var n=need[k],s=sk[k];if(!s)return;Object.keys(n.ids).forEach(function(i){var o=Object.keys(s.ids).filter(function(j){return j!==i;});if(o.length)add(i,dot('comp',titleCase(n.item),(o.length===1&&isMe(o[0])?'You offer this':cap(list(o)+' '+(o.length===1?'offers':'offer')+' this'))),0);});Object.keys(s.ids).forEach(function(i){var w=Object.keys(n.ids).filter(function(j){return j!==i;});if(w.length)add(i,dot('comp',titleCase(s.item),(w.length===1&&isMe(w[0])?'You are looking for this':cap(list(w)+' '+(w.length===1?'is':'are')+' looking for this'))),0);});});
     Object.keys(need).forEach(function(k){var ids=Object.keys(need[k].ids);if(ids.length<2)return;ids.forEach(function(i){add(i,dot('coseek',titleCase(need[k].item),many?'with '+list(ids.filter(function(j){return j!==i;})):''),1);});});
@@ -1775,7 +1791,15 @@ async function loadContributions(){
     h+='<button type="button" class="sp-lk" data-sp="back">Back to '+escHTML(titleCase(state.item))+'</button>';
     return h;
   }
+  function drawOffer(state){var p=who(state.offerTo),first=nm(p),w=String(state.offerW||'').toLowerCase(),how=state.how||'give';
+    var line='Hi '+first+', I have a '+w+' to '+how+'. Would you like it?';
+    var h='<div class="sp-top"><div style="flex:1;min-width:0"><h2 class="sp-title" id="sp-title">Offer your '+escHTML(w)+' to '+escHTML(first)+'</h2></div><button type="button" class="sp-x" data-sp="close" aria-label="Close">\u00d7</button></div>';
+    h+='<p class="sp-ask">How would you like to offer it?</p><div class="sp-pills">'+['give','lend','trade','sell'].map(function(x){return '<button type="button" class="sp-pill'+(x===how?' on':'')+'" data-sp="how" data-h="'+x+'">'+titleCase(x)+'</button>';}).join('')+'</div>';
+    h+='<div class="sp-first">'+escHTML(line)+'</div><div class="sp-send"><a class="mp-btn primary" href="'+msgUrl(state.offerTo)+'&text='+encodeURIComponent(line)+'">Send message</a></div>';
+    return h;}
   function draw(state){
+    _spItem=state.item||'';
+    if(state.view==='offer'){_sp.querySelector('.sp-box').innerHTML=drawOffer(state);_sp.querySelector('.sp-box').scrollTop=0;return;}
     if(state.view==='host'){_sp.querySelector('.sp-box').innerHTML=drawHost(state);_sp.querySelector('.sp-box').scrollTop=0;return;}
     var item=state.item,ppl=state.ppl,others=ppl.filter(function(p){return !isMe(p.appearId);}),meIn=others.length<ppl.length;
     var h='<div class="sp-top"><div style="flex:1;min-width:0"><h2 class="sp-title" id="sp-title">'+escHTML(titleCase(item))+'</h2><div class="mp-sub">'+ppl.length+' people '+(_groupId?'in this group':'here')+' '+({interests:'share this interest',skills:'share this skill',needs:'share this request',values:'care about this',haves:'offer this'}[state.key]||'share this')+'</div></div><button type="button" class="sp-x" data-sp="close" aria-label="Close">×</button></div>';
@@ -1783,7 +1807,8 @@ async function loadContributions(){
       h+=others.map(function(p){return row(p,dot('share',titleCase(item),p.detail||''));}).join('');
       h+='<p class="sp-note">These are made-up people for the preview, so there is nothing to send them.</p>';
     }else if(!state.all){
-      h+=others.concat(ppl.filter(function(p){return isMe(p.appearId);})).map(function(p){return row(p,dot('share',titleCase(item),p.detail||''));}).join('');
+      h+=others.concat(ppl.filter(function(p){return isMe(p.appearId);})).map(function(p){return row(p,dot('share',titleCase(item),p.detail||'')+(isMe(p.appearId)?givenNote():''));}).join('');
+      if(state.key==='haves'&&myHave(item)&&!someoneElse(_needersByItem[String(item).toLowerCase()]))h+='<p class="sp-note">Nobody here needs this yet. It shows here when someone does.</p>';
       var q=encodeURIComponent(item);
       var inv=others.length<=2?others.map(function(p){return p.name;}).join(' and '):'all '+others.length;
       h+='<p class="sp-inv">Invite '+escHTML(inv)+' to:</p>';
@@ -1804,6 +1829,15 @@ async function loadContributions(){
     }
     _sp.querySelector('.sp-box').innerHTML=h;
     _sp.querySelector('.sp-box').scrollTop=0;
+  }
+  function setMatch(word,on,b,state){
+    var k=String(word||'').toLowerCase().trim();if(!k||!_myId)return;b.disabled=true;
+    fetch(GS_URL+'?action=getIntake&appearId='+encodeURIComponent(_myId)).then(function(r){return r.json();}).then(function(d){
+      var has=d&&(d.answerDetails!==undefined||(d.data&&d.data.answerDetails!==undefined));if(!has)throw new Error('no card');
+      var raw=(d&&(d.answerDetails!==undefined?d.answerDetails:(d.data&&d.data.answerDetails)))||'';var det={};try{det=JSON.parse(String(raw||'')||'{}')||{};}catch(e){det={};}
+      if(typeof det!=='object'||Array.isArray(det))det={};var card=Object.assign({},det[k]||{});card.match=!!on;var part={};part[k]=card;
+      return fetch(GS_URL+'?action=saveAnswerDetails&appearId='+encodeURIComponent(_myId)+'&details='+encodeURIComponent(JSON.stringify(part))).then(function(r){return r.json();});
+    }).then(function(d){b.disabled=false;if(!d||d.status!=='ok')return;_given[k]=!on;if(_myData){_myData.nomatch=_myData.nomatch||{};if(on)delete _myData.nomatch[k];else _myData.nomatch[k]=1;}try{computeGlobals();}catch(e){}draw(state);}).catch(function(){b.disabled=false;});
   }
   var _sp=null;
   function close(){if(_sp){_sp.remove();_sp=null;document.body.style.overflow='';document.removeEventListener('keydown',onKey);}}
@@ -1828,6 +1862,9 @@ async function loadContributions(){
       else if(a==='chat'||a==='share'){e.preventDefault();state.note=a;draw(state);}
       else if(a==='gm'){window._spFrom={key:state.key,item:state.item};close();if(!_matchMode)toggleMatches();else{try{paintCrumbs();}catch(x){}}}
       else if(a==='bm'){bookmarkMatch(b,b.dataset.id);}
+      else if(a==='offer'){state.prevView=state.view||'';state.view='offer';state.offerTo=b.dataset.id;state.offerW=b.dataset.w;state.how='give';draw(state);}
+      else if(a==='how'){state.how=b.dataset.h;draw(state);}
+      else if(a==='given'||a==='avail'){setMatch(b.dataset.w,a==='avail',b,state);}
       else if(a==='open'){close();openProfile(b.dataset.id,b.dataset.link);}
     });
     draw(state);

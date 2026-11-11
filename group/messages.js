@@ -523,6 +523,7 @@
     var ta = el('textarea', 'flex:1;min-width:0;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:18px;padding:9px 14px;min-height:42px;resize:vertical;');
     ta.placeholder = 'Write a reply';
     ta.maxLength = 2000;
+    if (window._cwPrefill) { ta.value = String(window._cwPrefill).slice(0, 2000); window._cwPrefill = ''; }
     var send = btn('Send');
     typing(ta, send);
     var pick1 = choiceCard();
@@ -1057,7 +1058,7 @@
       if (s) s.textContent = 'Your conversations';
       session = keptSession();
       if (session) { me = session.split('.')[0]; tileRefresh(); }
-      if (window._gpView === 'messages' && !box) { var t = ''; try { t = new URLSearchParams(location.search).get('to') || ''; } catch (e) {} this.open(t); }
+      if (window._gpView === 'messages' && !box) { var t = ''; try { var _q = new URLSearchParams(location.search); t = _q.get('to') || ''; if (t && _q.get('text')) window._cwPrefill = _q.get('text'); } catch (e) {} this.open(t); }
     },
     open: function (to) {
       if (!ctx) return;
