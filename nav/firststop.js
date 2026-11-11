@@ -90,10 +90,12 @@
       siteOk = Promise.race([siteOn, onCap]).then(function (t) {
         if (!t || !t.conductNeeded) return t;
         return new Promise(function (ok) {
+          var started = Date.now();
           var tick = setInterval(function () {
-            var yes = false;
+            var yes = false, card = false;
             try { yes = localStorage.getItem('cw-conduct') === 'yes'; } catch (e) {}
-            if (yes) { clearInterval(tick); ok(t); }
+            try { card = !!document.getElementById('cw-coc'); } catch (e) {}
+            if (yes || (!card && Date.now() - started > 8000)) { clearInterval(tick); ok(t); }
           }, 400);
         });
       });
