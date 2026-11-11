@@ -1019,10 +1019,14 @@ function chipHTML(entry, matchType, needsMode, key){
   var infoEl='';   
   var popEl='';
   var _chipInner=photoEl+'<div class="chip-text"><span class="chip-label">'+escHTML(titleCase(label))+'</span>'+catEl+'</div>';
-  var openInner=_myId
+  var offerPop=!!(_myId && (entry.offerKind || (key==='skills' && _skMode==='offerings')) && mem.appearId && !mem.preview && normId(mem.appearId)!==normId(_myId));
+  if(offerPop) cls+=' pop1';
+  var openInner=offerPop
+    ? '<span class="chip-open">'+_chipInner+'</span>'
+    : _myId
     ? '<span class="chip-open" onclick="openProfile(\''+escHTML(mem.appearId||'')+'\',\''+escHTML(mem.pageLink||'')+'\')">'+_chipInner+'</span>'
     : '<span class="chip-open" style="cursor:default;">'+_chipInner+'</span>';
-  return '<div class="'+cls+'" title="'+escHTML(label)+'">'
+  return '<div class="'+cls+'" title="'+escHTML(label)+'"'+(offerPop?' data-sk="'+(entry.offerKind?'haves':'skills')+'" data-si="'+escHTML(label)+'" role="button" tabindex="0"':'')+'>'
     +openInner
     +infoEl
     +popEl
@@ -1256,8 +1260,9 @@ function _countChipsHTML(list, needsMode, key){
     var sk=n>1?' data-sk="'+escHTML(en.offerKind?'haves':key)+'" data-si="'+escHTML(en.item)+'" role="button" tabindex="0"':'';
     var mems=g.mems||[], who=g.names.filter(Boolean).join(', ');
     var one=(n===1 && _myId && mems[0] && mems[0].appearId && !mems[0].preview);
-    var offerOne=one && !!en.offerKind && normId(mems[0].appearId)!==normId(_myId);
-    if(offerOne){ sk=' data-sk="haves" data-si="'+escHTML(en.item)+'" role="button" tabindex="0"'; one=false; }
+    var offerSkill=(key==='skills' && _skMode==='offerings' && !en.offerKind);
+    var offerOne=one && (!!en.offerKind || offerSkill) && normId(mems[0].appearId)!==normId(_myId);
+    if(offerOne){ sk=' data-sk="'+(en.offerKind?'haves':'skills')+'" data-si="'+escHTML(en.item)+'" role="button" tabindex="0"'; one=false; }
     var open=one?' onclick="openProfile(\''+escHTML(mems[0].appearId||'')+'\',\''+escHTML(mems[0].pageLink||'')+'\')"':'';
     var cls='chip cnt'+(n>1?' shared':'')+(offerOne?' pop1':'')+(dim?' dim':'')+(g.mt==='green'?' match':'')+(g.mt==='orange'?' match-need':'')+(one||n>1||offerOne?'':' noclick');
     var num=n>1?'<span class="cnt-num" aria-label="'+n+' people">'+n+'</span>':'';
@@ -1846,7 +1851,7 @@ async function loadContributions(){
     if(state.view==='offer'){_sp.querySelector('.sp-box').innerHTML=drawOffer(state);_sp.querySelector('.sp-box').scrollTop=0;return;}
     if(state.view==='host'){_sp.querySelector('.sp-box').innerHTML=drawHost(state);_sp.querySelector('.sp-box').scrollTop=0;return;}
     var item=state.item,ppl=state.ppl,others=ppl.filter(function(p){return !isMe(p.appearId);}),meIn=others.length<ppl.length;
-    var h='<div class="sp-top"><div style="flex:1;min-width:0"><h2 class="sp-title" id="sp-title">'+escHTML(titleCase(item))+'</h2><div class="mp-sub">'+(ppl.length===1?'1 person '+(_groupId?'in this group':'here')+' offers this':ppl.length+' people '+(_groupId?'in this group':'here')+' '+({interests:'share this interest',skills:'share this skill',needs:'share this request',values:'care about this',haves:'offer this'}[state.key]||'share this'))+'</div></div><button type="button" class="sp-x" data-sp="close" aria-label="Close">×</button></div>';
+    var h='<div class="sp-top"><div style="flex:1;min-width:0"><h2 class="sp-title" id="sp-title">'+escHTML(titleCase(item))+'</h2><div class="mp-sub">'+(ppl.length===1?'1 person '+(_groupId?'in this group':'here')+(state.key==='skills'?' has this skill':' offers this'):ppl.length+' people '+(_groupId?'in this group':'here')+' '+({interests:'share this interest',skills:'share this skill',needs:'share this request',values:'care about this',haves:'offer this'}[state.key]||'share this'))+'</div></div><button type="button" class="sp-x" data-sp="close" aria-label="Close">×</button></div>';
     if(!state.all&&others.length&&others.every(function(p){return /^preview-/.test(String(p.appearId));})){
       h+=others.map(function(p){return row(p,dot('share',titleCase(item),p.detail||''));}).join('');
       h+='<p class="sp-note">These are made-up people for the preview, so there is nothing to send them.</p>';
@@ -1888,7 +1893,7 @@ async function loadContributions(){
   function onKey(e){if(e.key==='Escape')close();}
   window.spBackTo=function(e){if(e)e.preventDefault();var f=window._spFrom;if(_matchMode)toggleMatches();if(f)openSharePop(f.key,f.item);return false;};
   window.openSharePop=function(key,item){
-    var k=String(item||'').toLowerCase(),ppl=peopleFor(key,k);if(ppl.length<2&&!(key==='haves'&&ppl.length===1&&!isMe(ppl[0].appearId)))return;
+    var k=String(item||'').toLowerCase(),ppl=peopleFor(key,k);if(ppl.length<2&&!((key==='haves'||(key==='skills'&&_skMode==='offerings'))&&ppl.length===1&&!isMe(ppl[0].appearId)))return;
     close();
     var state={key:key,k:k,item:item,ppl:ppl,all:false,note:''};
     _sp=document.createElement('div');_sp.className='sp-veil';
@@ -1916,12 +1921,12 @@ async function loadContributions(){
     var x=_sp.querySelector('.sp-x');if(x)x.focus();
   };
   document.addEventListener('click',function(e){
-    var c=e.target.closest&&e.target.closest('.chip.cnt.shared[data-sk],.chip.cnt.pop1[data-sk]');if(!c)return;
+    var c=e.target.closest&&e.target.closest('.chip.cnt.shared[data-sk],.chip.pop1[data-sk]');if(!c)return;
     e.preventDefault();e.stopPropagation();openSharePop(c.dataset.sk,c.dataset.si);
   },true);
   document.addEventListener('keydown',function(e){
     if(e.key!=='Enter'&&e.key!==' ')return;
-    var c=e.target.closest&&e.target.closest('.chip.cnt.shared[data-sk],.chip.cnt.pop1[data-sk]');if(!c)return;
+    var c=e.target.closest&&e.target.closest('.chip.cnt.shared[data-sk],.chip.pop1[data-sk]');if(!c)return;
     e.preventDefault();openSharePop(c.dataset.sk,c.dataset.si);
   });
 })();
