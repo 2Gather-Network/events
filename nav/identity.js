@@ -291,7 +291,7 @@
     var nm = names[JUMP_SITE[String(w.location.hostname || '').toLowerCase()]];
     var key = 'cw-here-' + (nm || '') + '-' + normalise(id);
     var reload = ls(function () { var e = w.performance.getEntriesByType('navigation')[0]; return !!e && e.type === 'reload'; }, false);
-    if (!nm || (!reload && ss(function () { return w.sessionStorage.getItem(key); }, '') === '1')) { return w.Promise.resolve(); }
+    if (!nm || (!reload && ss(function () { return w.sessionStorage.getItem(key); }, '') === '1')) { return w.Promise.resolve({ ok: true, skipped: true, list: '' }); }
     var wants = true;
     var ask = 'https://cw-api-gate.jessieupp.workers.dev?action=saveAccount&appearId=' + encodeURIComponent(id) + '&secure=1&editToken=' + encodeURIComponent(token) +
         (wants ? '&enabledSolution=' + nm : '');
@@ -308,6 +308,7 @@
           if (d.conductNeeded) { conductScreen(nm, 'ask', ''); }
           else if (d.conductCarry) { conductScreen(nm, 'carry', d.conductCarry); }
           if (!d.conductNeeded) { ss(function () { w.sessionStorage.setItem(key, '1'); }); }
+          return { ok: true, list: String(d.enabledSolution || ''), conductNeeded: !!d.conductNeeded };
         } else if (d && d.status === 'error' && /expired|sign in again/i.test(String(d.message || ''))) {
           jumpLog('this sign-in was refused; asking once more');
           return new w.Promise(function (done) { w.setTimeout(done, 2000); })
@@ -320,11 +321,13 @@
               } else {
                 jumpLog('the second answer was fine; staying signed in');
               }
+              return { ok: false };
             })
-            .catch(function () { jumpLog('the second answer did not arrive; staying signed in'); });
+            .catch(function () { jumpLog('the second answer did not arrive; staying signed in'); return { ok: false }; });
         }
+        return { ok: false };
       })
-      .catch(function () {});
+      .catch(function () { return { ok: false }; });
   }
   function conductScreen(nm, mode, from) {
     if (viewingAs()) { return; }
@@ -347,9 +350,26 @@
     var got = null, a = new Uint8Array(16), key = normalise(id), exp = parseInt(String(token).split('.')[1], 10) || 0;
     w.crypto.getRandomValues(a);
     var st = Array.prototype.map.call(a, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
-    return turnOnHere(id, token)
-      .then(function () { return w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=carryReadyAll&appearId=' + encodeURIComponent(id) + '&meToken=' + encodeURIComponent(token), { referrerPolicy: 'no-referrer' }); })
-      .then(function (r) { return r.json(); })
+    var nm = { gather: 'Gather', appear: 'Appear', balance: 'Balance' }[JUMP_SITE[String(w.location.hostname || '').toLowerCase()]] || '';
+    var askPasses = function () {
+      return w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=carryReadyAll&appearId=' + encodeURIComponent(id) + '&meToken=' + encodeURIComponent(token), { referrerPolicy: 'no-referrer' })
+        .then(function (r) { return r.json(); });
+    };
+    var lists = function (v) { return String(v || '').split('|').map(function (x) { return x.trim(); }).indexOf(nm) > -1; };
+    var on = turnOnHere(id, token);
+    w._cwSiteOn = on;
+    return w.Promise.all([on, askPasses()])
+      .then(function (both) {
+        var t = both[0] || {}, d = both[1];
+        if (nm && d && d.status === 'ok' && d.passes && !lists(d.enabledSolution) && t.ok && lists(t.list)) {
+          jumpLog(nm + ' was just turned on; asking for passes once more');
+          return askPasses().then(function (d2) {
+            if (!d2 || d2.status !== 'ok' || !d2.passes) { throw new Error('second ask refused'); }
+            return d2;
+          }, function () { throw new Error('second ask refused'); });
+        }
+        return d;
+      })
       .then(function (d) {
         if (!d || d.status !== 'ok' || !d.passes) { jumpLog('backend refused the passes: ' + String((d && d.message) || 'no answer')); throw new Error('refused'); }
         jumpLog('backend gave passes for: ' + Object.keys(d.passes).join(', '));
@@ -674,6 +694,7 @@
     prepareSession: prepareSession,
     prepareNow: prepareNow,
     rememberNow: rememberNow,
+    siteOnSettled: function () { return w._cwSiteOn || w.Promise.resolve({ ok: true, skipped: true }); },
     connectKnown: function () {
       var site = JUMP_SITE[String(w.location.hostname || '').toLowerCase()];
       if (!jumpOn() || (site !== 'appear' && site !== 'balance') || fromDevice()) { return false; }

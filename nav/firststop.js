@@ -83,18 +83,38 @@
     try { sessionStorage.removeItem('cw-tb-quiet:lookupProfile'); } catch (e) {}
     var settled = false, ready = null;
     try { var tk = localStorage.getItem('cw-token') || ''; ready = (id && tk && CW.prepareNow) ? CW.prepareNow(id, tk) : null; } catch (e) { ready = null; }
+    var siteOn = (ready && CW.siteOnSettled) ? CW.siteOnSettled() : null;
+    var siteOk = !siteOn;
+    if (siteOn) {
+      var onCap = new Promise(function (ok) { setTimeout(function () { ok({ ok: false }); }, 30000); });
+      siteOk = Promise.race([siteOn, onCap]).then(function (t) {
+        if (!t || !t.conductNeeded) return t;
+        return new Promise(function (ok) {
+          var tick = setInterval(function () {
+            var yes = false;
+            try { yes = localStorage.getItem('cw-conduct') === 'yes'; } catch (e) {}
+            if (yes) { clearInterval(tick); ok(t); }
+          }, 400);
+        });
+      });
+    }
     function finish(url) {
       if (settled) return; settled = true;
       if (!ready) { try { done(url); } catch (e) {} return; }
       var gone = false;
-      var leave = function () { if (gone) return; gone = true; try { done(url); } catch (e) {} };
-      var cap = setTimeout(leave, 10000);
+      var leave = function () {
+        if (gone) return; gone = true;
+        Promise.resolve(siteOk).then(function () { try { done(url); } catch (e) {} });
+      };
+      var cap = setTimeout(leave, 20000);
       ready.then(function (r) {
         if (gone) return;
         clearTimeout(cap);
-        var told = false;
-        try { told = CW.rememberNow(r, url); } catch (e) { told = false; }
-        if (told) { gone = true; } else { leave(); }
+        Promise.resolve(siteOk).then(function () {
+          var told = false;
+          try { told = CW.rememberNow(r, url); } catch (e) { told = false; }
+          if (told) { gone = true; } else { leave(); }
+        });
       }, function () { clearTimeout(cap); leave(); });
     }
     if (!id) { finish(next); return; }
