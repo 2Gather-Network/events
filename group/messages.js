@@ -427,6 +427,7 @@
     var ta = el('textarea', 'width:100%;box-sizing:border-box;margin-top:12px;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:12px;padding:10px 12px;min-height:110px;resize:vertical;');
     ta.placeholder = 'Say hello, and what you would like to talk about';
     ta.maxLength = 2000;
+    var _ol1 = takeOfferLine(); if (_ol1) ta.value = _ol1;
     var pick2 = choiceCard();
     if (pick2) box.appendChild(pick2);
     box.appendChild(ta);
@@ -459,6 +460,16 @@
     (exact ? ta : inp).focus();
   }
 
+  function takeOfferLine() {
+    try {
+      var t = (new URLSearchParams(location.search).get('to') || '').toLowerCase();
+      var o = JSON.parse(sessionStorage.getItem('cw-offer-line') || 'null');
+      if (!o) return '';
+      sessionStorage.removeItem('cw-offer-line');
+      if (!t || String(o.to || '').toLowerCase() !== t || !o.line) return '';
+      return String(o.line).slice(0, 2000);
+    } catch (e) { return ''; }
+  }
   function drawThread(id) {
     openId = id;
     try { api('/warm', { body: { threadId: id, id: ctx.meId, token: token() } }).catch(function () {}); } catch (e) {}
@@ -523,7 +534,7 @@
     var ta = el('textarea', 'flex:1;min-width:0;font:inherit;font-size:15px;color:#1A2E42;border:1.5px solid #DDE4EE;border-radius:18px;padding:9px 14px;min-height:42px;resize:vertical;');
     ta.placeholder = 'Write a reply';
     ta.maxLength = 2000;
-    if (window._cwPrefill) { ta.value = String(window._cwPrefill).slice(0, 2000); window._cwPrefill = ''; }
+    var _ol2 = window._cwPrefill || takeOfferLine(); if (_ol2) { ta.value = String(_ol2).slice(0, 2000); window._cwPrefill = ''; }
     var send = btn('Send');
     typing(ta, send);
     var pick1 = choiceCard();
