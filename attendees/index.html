@@ -709,6 +709,13 @@ function parseIkigaiInterests(str){
     return {item:(p[0]||'').trim(), category:(p.length>=3?p[1]:'').trim(), meta:p.slice(1).filter(function(x){return !/^(alsoIn|isLearnedBy|guideAs|practiceAs)=/i.test(String(x).trim());}).join(':').trim()};
   }).filter(function(o){return o.item;});
 }
+function interestLevel(meta){
+  var p=String(meta||'').split(':');
+  var lv=String((p.length>=2?p[1]:p[0])||'').trim();
+  var m={'participant':'Experienced','practitioner':'Experienced','coach':'Guide','learner':'Beginner','entry level':'Beginner','mid level':'Experienced','expert level':'Guide'};
+  var seen={};
+  return lv.split(',').map(function(x){ var k=String(x).trim(); return m[k.toLowerCase()]||k; }).filter(function(x){ var k=x.toLowerCase(); if(!x||seen[k]) return false; seen[k]=1; return true; }).join(', ');
+}
 function skillEnjoySet(data){
   var o={};
   [data&&data.interests,data&&data.ikigaiInterests].forEach(function(str){ String(str||'').split('|').forEach(function(t){ var w=String(t).split(':')[0].trim().toLowerCase(); if(w) o[w]=1; }); });
@@ -743,7 +750,6 @@ function processRow(data, appearId){
   var mainHobbies       = data.hobbies
     ? parseTagStr(data.hobbies)
         .filter(function(h){ return h.item.split(/\s+/).length <= 2; })
-        .map(function(h){ if(!h.meta) h.meta='Participant'; return h; })
     : [];
   var mainValues        = parseTagStr(data.values).concat(parseTagStr(data.domains)).concat(parseTagStr(data.waysOfBeing));
   var mainNeeds         = dropWorkValues(parseNeeds(data.needs));
@@ -763,8 +769,7 @@ function processRow(data, appearId){
                    : unionByItem(mainSkills, mainProfSvc),
     interests:     (ikInterests.length
                    ? unionByItem(mainHobbies, ikInterests)
-                   : unionByItem(mainHobbies, mainCommunityType))
-                   .map(function(x){ if(!x.meta) x.meta='Participant'; return x; }),
+                   : unionByItem(mainHobbies, mainCommunityType)),
     communityType: mainCommunityType,
     values:        unionByItem(mainValues, ikValues),
     needs:         unionByItem(mainNeeds, ikNeeds),
@@ -998,7 +1003,7 @@ function chipHTML(entry, matchType, needsMode, key){
   var cls='chip'+(dim?' dim':'')+(matchType==='green'?' match':'')+(matchType==='orange'?' match-need':'')+(_myId?'':' noclick');
   var cat;
   if(needsMode){ cat=entry.category||''; }
-  else if(key==='interests'){ cat=(entry.meta||'').split(',').map(function(s){return s.trim();}).filter(Boolean).join(', '); }
+  else if(key==='interests'){ cat=interestLevel(entry.meta); }
   else { cat=refFor(label).category||''; }
   if(cat==='Domain'){ cat = (key==='values') ? 'Sector interest' : ''; }   
   var initial=escHTML((label||'?').charAt(0).toUpperCase());
@@ -1238,7 +1243,7 @@ function _countChipsHTML(list, needsMode, key){
     var cat;
     if(en.offerKind){ cat=(en.category||(en.offerKind==='space'?'Space':'Thing'))+(en.local?' \u00b7 Local':''); }
     else if(needsMode){ cat=en.category||''; }
-    else if(key==='interests'){ cat=(en.meta||'').split(',').map(function(s){return s.trim();}).filter(Boolean).join(', '); }
+    else if(key==='interests'){ cat=interestLevel(en.meta); }
     else if(key==='skills' && _skShow==='all'){ cat='Skill'; }
     else { cat=refFor(en.item).category||''; }
     if(cat==='Domain'){ cat=(key==='values')?'Sector interest':''; }
