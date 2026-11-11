@@ -453,7 +453,7 @@
       if (found || onSignIn || site === 'creatingworks') { ls(function () { w.localStorage.removeItem('cw-out-show'); }); }
       else { outBack = '/signin/?out=1&next=' + encodeURIComponent(here + String(w.location.search || '')); }
     }
-    var guestBack = onSignIn ? here + String(w.location.search || '') : outBack;
+    var guestBack = onSignIn ? String(w.location.pathname || '/') + String(w.location.search || '') : outBack;
     if (onSignIn) {
       if (found) { return; }
       if (/[?&]out=1(&|$)/.test(String(w.location.search || '')) && !reloaded) { jumpLog('sign-in page right after signing out; a reload asks the service'); return; }
