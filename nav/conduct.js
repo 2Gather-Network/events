@@ -39,18 +39,24 @@
       var id = ls('cw-id'), token = ls('cw-token');
       if (!id || !token) { say.textContent = 'Sign in again, then press this once more.'; return; }
       yes.disabled = true; yes.textContent = 'Saving...'; say.textContent = '';
-      w.fetch(GS + '?action=saveAccount&ackConduct=1&secure=1&appearId=' + encodeURIComponent(id) + '&editToken=' + encodeURIComponent(token), { referrerPolicy: 'no-referrer' })
+      shade.style.display = 'none';
+      w.CW_conductSave = w.fetch(GS + '?action=saveAccount&ackConduct=1&secure=1&appearId=' + encodeURIComponent(id) + '&editToken=' + encodeURIComponent(token), { referrerPolicy: 'no-referrer', keepalive: true })
         .then(function (r) { return r.json(); })
         .then(function (r) {
           if (r && r.status === 'ok' && r.conductOk) {
             try { w.localStorage.setItem('cw-conduct', 'yes'); } catch (e) {}
             shade.remove();
-            return;
+            return true;
           }
           yes.disabled = false; yes.textContent = 'I have read it';
           say.textContent = (r && r.message) || 'That did not save. Try again.';
-        })
-        .catch(function () { yes.disabled = false; yes.textContent = 'I have read it'; say.textContent = 'That did not save. Try again.'; });
+          shade.style.display = 'flex';
+          return false;
+        }, function () {
+          yes.disabled = false; yes.textContent = 'I have read it'; say.textContent = 'That did not save. Try again.';
+          shade.style.display = 'flex';
+          return false;
+        });
     };
   }
 

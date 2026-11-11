@@ -3030,6 +3030,25 @@ function gpRuleLine(gr){
             });
           }
 
+          function _gpWarmIntro(){
+            if (!meId || _lookingAs()) return;
+            var tok = '';
+            try {
+              var norm = String(meId || '').split('.').join('').toLowerCase();
+              var o = JSON.parse(localStorage.getItem('cw-edit-' + norm) || 'null');
+              if (o && o.t && (!o.exp || o.exp > Date.now())) { tok = o.t; }
+              else {
+                var t2 = localStorage.getItem('cw-token') || '';
+                var who = String(localStorage.getItem('cw-id') || '').split('.').join('').toLowerCase();
+                var exp = parseInt(String(t2).split('.')[1], 10);
+                if (t2 && who && who === norm && exp && Date.now() <= exp - 60000) tok = t2;
+              }
+            } catch (e) { tok = ''; }
+            var opt = { keepalive: true };
+            fetch(GS_URL + '?action=getIntake&appearId=' + encodeURIComponent(meId), opt).catch(function(){});
+            fetch(GS_URL + '?action=lookupProfile&appearId=' + encodeURIComponent(meId) + (tok ? '&editToken=' + encodeURIComponent(tok) : ''), opt).catch(function(){});
+          }
+
           function tryJoin(code, go, interests){
             if (_lookingAs()) {
               say('You are looking at this as somebody else, so nothing can be saved - joining included. They have to join from their own sign-in.', true);
@@ -3044,6 +3063,8 @@ function gpRuleLine(gr){
             setTimeout(function(){
               if (stat && stat.textContent === 'Checking...') say('Still checking. The server is slow right now - please keep this page open.', false, true);
             }, 15000);
+            (window.CW_conductSave || Promise.resolve(true)).then(function(_conductOk){
+            if (_conductOk === false) { go.disabled = false; say('That did not go through. Try again in a moment.', true); return; }
             fetch(GS_URL + '?action=saveJoinRequest&groupId=' + encodeURIComponent(groupId)
                   + '&appearId=' + encodeURIComponent(meId)
                   + '&passcode=' + encodeURIComponent(code)
@@ -3074,6 +3095,7 @@ function gpRuleLine(gr){
                   return;
                 }
                 if (res && res.code === 'profile-incomplete') {
+                  _gpWarmIntro();
                   var _mi = (res.missing && res.missing.length) ? res.missing : null;
                   if (/[?&]joining=1/.test(location.search)) {
                     if (stat) { stat.textContent = ''; stat.style.display = 'none'; }
@@ -3134,6 +3156,7 @@ function gpRuleLine(gr){
                     say('Could not reach the server. Try again in a moment.', true);
                   });
               });
+            });
           }
 
           function askHost(){

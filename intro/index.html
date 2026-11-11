@@ -1222,9 +1222,12 @@
       gpPhotoStat('');
       
       
-      fetch(GS_URL + '?action=saveIntake&appearId=' + encodeURIComponent(meId)
+      window._ioPhotoSave = fetch(GS_URL + '?action=saveIntake&appearId=' + encodeURIComponent(meId)
             + '&secure=1&editToken=' + encodeURIComponent(gpToken())
-            + '&photoURL=' + encodeURIComponent(d.url)).catch(function(){});
+            + '&photoURL=' + encodeURIComponent(d.url), { keepalive: true })
+        .then(function(r){ return r.json(); })
+        .then(function(s){ if (!s || s.status === 'error') throw new Error('not saved'); return true; })
+        .catch(function(){ gpPhotoStat('That did not go through.'); return false; });
     }).catch(function(){ gpPhotoStat('That did not go through.'); });
   }
 
@@ -1912,17 +1915,21 @@
     if (retry) { var b = document.createElement('button'); b.type = 'button'; b.textContent = 'Try again'; b.addEventListener('click', function(){ runSave(); }); saveBar.appendChild(b); }
     saveBar.style.display = '';
   }
-  function saveTry(n){
+  var saveGen = 0;
+  function saveTry(n, gen){
     return window.ioSave().catch(function(err){
       var m = String((err && err.message) || '');
+      if (gen < saveGen && !/did not load/i.test(m)) { return { dropped: [] }; }
       if (n >= 2 || /did not load/i.test(m)) { throw err; }
       bar('The save is taking a while. Trying again\u2026', false, false, true);
-      return new Promise(function(ok){ setTimeout(ok, 8000); }).then(function(){ return saveTry(n + 1); });
+      return new Promise(function(ok){ setTimeout(ok, 8000); }).then(function(){ return gen < saveGen ? { dropped: [] } : saveTry(n + 1, gen); });
     });
   }
   function runSave(){
     window._ioSaving = true;
-    saveChain = saveChain.catch(function(){}).then(function(){ return saveTry(0); }).then(function(res){
+    var gen = ++saveGen;
+    saveChain = saveChain.catch(function(){}).then(function(){ return saveTry(0, gen); }).then(function(res){
+      if (gen < saveGen) return;
       window._ioSaving = false;
       var dn = (res && res.dropped) || [];
       if (res && res.viewing) { bar('You\u2019re viewing as ' + res.viewing + '. Nothing is saved here.'); return; }
@@ -1948,7 +1955,7 @@
     try { gpHandoff(); } catch (e) {}
     var toAll = function(){ go.disabled = true; go.classList.add('io-breathe'); go.textContent = 'Opening your interests\u2026'; pend.then(function(){ if (window._ioSaveFailed) { go.disabled = false; go.classList.remove('io-breathe'); go.textContent = done ? 'Done' : 'Finish'; return; } location.href = '/ikigai/interests?new=1&cb=' + Date.now(); }); };
     if (done && !backTo) { toAll(); return; }
-    if (backTo) { go.disabled = true; go.classList.add('io-breathe'); go.textContent = forGroup ? 'Joining the group\u2026' : 'Opening the event\u2026'; if (window._ioSaving) bar('Please wait while your answers save, then you go straight in.', false, false, true); pend.then(function(){ if (window._ioSaveFailed) { go.disabled = false; go.classList.remove('io-breathe'); go.textContent = 'Finish'; return; } _introDone(); }); return; }
+    if (backTo) { go.disabled = true; go.classList.add('io-breathe'); go.textContent = forGroup ? 'Joining the group\u2026' : 'Opening the event\u2026'; if (window._ioSaving) bar('Please wait while your answers save, then you go straight in.', false, false, true); Promise.all([pend, window._ioPhotoSave || true]).then(function(got){ if (window._ioSaveFailed || got[1] === false) { go.disabled = false; go.classList.remove('io-breathe'); go.textContent = 'Finish'; return; } _introDone(); }); return; }
     if (forGroup) { go.disabled = true; pend.then(function(){ location.href = '/design/group-joined/?cb=' + Date.now(); }); return; }
     done = true; toAll();
   });
