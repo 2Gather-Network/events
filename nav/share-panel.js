@@ -80,7 +80,9 @@
         wait.remove();
         wrap.appendChild(c);
         if (o.title) wrap.appendChild(el('div', 'font-size:13px;font-weight:700;color:#1A2E42;margin-top:4px;', o.title));
-        wrap.appendChild(el('div', 'font-size:12px;color:#2F3D4F;word-break:break-all;margin-top:2px;', o.url));
+        var ul = el('a', 'display:block;font-size:12px;font-weight:700;color:#1F699E;word-break:break-all;margin-top:2px;text-decoration:underline;', o.url);
+        ul.href = o.url; ul.target = '_blank'; ul.rel = 'noopener';
+        wrap.appendChild(ul);
       }, function(){ wait.textContent = 'The QR code did not load. Try again in a moment.'; });
     }, 'qr');
     box.appendChild(row);
