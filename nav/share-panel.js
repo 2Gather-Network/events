@@ -4,6 +4,8 @@
   var ICON = {
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>',
     share: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+    text: '<path d="M21 12a8 8 0 0 1-11.7 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
     qr: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h3v3h-3zM20 14v6h-6M17 20v0"/>'
   };
   function icon(name){
@@ -59,6 +61,10 @@
     if (navigator.share) {
       mk('Share', function(){ navigator.share({ title: o.title || document.title, text: o.text || '', url: o.url }).catch(function(){}); }, 'share');
     }
+    mk('Email', function(){ window.location.href = 'mailto:?subject=' + encodeURIComponent(o.title || document.title) + '&body=' + encodeURIComponent((o.text ? o.text + ' ' : '') + o.url); }, 'mail');
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '') || (window.matchMedia && window.matchMedia('(pointer:coarse)').matches)) {
+      mk('Text', function(){ window.location.href = 'sms:' + (/iPhone|iPad|iPod/i.test(navigator.userAgent || '') ? '&' : '?') + 'body=' + encodeURIComponent((o.text ? o.text + ' ' : '') + o.url); }, 'text');
+    }
     mk('QR', function(){
       if (qrSlot.firstChild) { qrSlot.innerHTML = ''; return; }
       var wrap = el('div', 'margin-top:12px;text-align:center;border:1.5px solid #DDE4EE;border-radius:12px;padding:12px;');
@@ -74,9 +80,6 @@
         wrap.appendChild(c);
         if (o.title) wrap.appendChild(el('div', 'font-size:13px;font-weight:700;color:#1A2E42;margin-top:4px;', o.title));
         wrap.appendChild(el('div', 'font-size:12px;color:#2F3D4F;word-break:break-all;margin-top:2px;', o.url));
-        var dl = el('a', 'display:inline-block;margin-top:10px;font-size:14px;font-weight:700;color:#1F699E;', 'Download PNG');
-        dl.href = c.toDataURL('image/png'); dl.download = (o.fileName || 'qr-code') + '.png';
-        wrap.appendChild(dl);
       }, function(){ wait.textContent = 'The QR code did not load. Try again in a moment.'; });
     }, 'qr');
     box.appendChild(row);
