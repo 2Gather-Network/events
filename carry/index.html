@@ -119,13 +119,18 @@
       return !!(t && id && exp && Date.now() < exp - 60000);
     } catch (e) { return false; }
   }
+  function lim(u, o) {
+    var c = typeof AbortController === 'function' ? new AbortController() : null, t = null;
+    if (c) { o.signal = c.signal; t = setTimeout(function () { jumpLog('no answer in 35 s'); c.abort(); }, 35000); }
+    return fetch(u, o).then(function (r) { return r.json(); }).then(function (j) { clearTimeout(t); return j; }, function (e) { clearTimeout(t); throw e; });
+  }
   function post(path, body) {
-    return fetch(CARRY + path, {
+    return lim(CARRY + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       referrerPolicy: 'no-referrer'
-    }).then(function (r) { return r.json(); });
+    });
   }
   function keep(d) {
     localStorage.setItem('cw-id', d.appearId);
@@ -192,9 +197,8 @@
       }
       localStorage.removeItem('cw-jump-known');
       if (connect && connect === here && TURN_ON[here]) {
-        return fetch(GATE + '?action=saveAccount&appearId=' + encodeURIComponent(d.appearId) + '&secure=1&editToken=' + encodeURIComponent(d.editToken) +
+        return lim(GATE + '?action=saveAccount&appearId=' + encodeURIComponent(d.appearId) + '&secure=1&editToken=' + encodeURIComponent(d.editToken) +
             '&enabledSolution=' + TURN_ON[here], { referrerPolicy: 'no-referrer' })
-          .then(function (r) { return r.json(); })
           .then(function (s) { if (s && s.enabledSolution) { localStorage.setItem('cw-enabled', s.enabledSolution); } })
           .catch(function () {})
           .then(function () { location.replace(next); });
@@ -229,9 +233,8 @@
     var getReady = ready
       ? Promise.resolve(ready)
       : (sayWait('Getting your sign-in ready for ' + NAMES[f.to] + '. This can take up to half a minute.'),
-         fetch(GATE + '?action=carryReady&appearId=' + encodeURIComponent(me) + '&site=' + encodeURIComponent(f.to) +
+         lim(GATE + '?action=carryReady&appearId=' + encodeURIComponent(me) + '&site=' + encodeURIComponent(f.to) +
                '&meToken=' + encodeURIComponent(token), { referrerPolicy: 'no-referrer' })
-           .then(function (r) { return r.json(); })
            .then(function (d) {
              if (!d || d.status !== 'ok' || !d.pass) { throw new Error('refused'); }
              return post('/ready', { pass: d.pass, appearId: d.appearId, firstName: d.firstName || '', expiresAt: d.expiresAt, site: d.site || f.to });
