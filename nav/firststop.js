@@ -78,11 +78,11 @@
       .catch(function () { cb(null); });
   };
 
-  CW.firstStop = function (id, next, done) {
+  CW.firstStop = function (id, next, done, carry) {
     CW.forgetWhere();
     try { sessionStorage.removeItem('cw-tb-quiet:lookupProfile'); } catch (e) {}
     var settled = false, ready = null;
-    try { var tk = localStorage.getItem('cw-token') || ''; ready = (id && tk && CW.prepareNow) ? CW.prepareNow(id, tk) : null; } catch (e) { ready = null; }
+    try { var tk = localStorage.getItem('cw-token') || ''; ready = (id && tk && CW.prepareNow) ? CW.prepareNow(id, tk, carry) : null; } catch (e) { ready = null; }
     var siteOn = (ready && CW.siteOnSettled) ? CW.siteOnSettled() : null;
     var siteOk = !siteOn;
     if (siteOn) {
