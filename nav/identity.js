@@ -326,6 +326,25 @@
       })
       .catch(function () {});
   }
+  function turnOnAppearForGroups(id, token) {
+    var path = String(w.location.pathname || '');
+    if (!/^\/(group|groups|mygroups|network)(\/|$)/i.test(path) || viewingAs() || !id || !token) { return; }
+    var have = ls(function () { return w.localStorage.getItem('cw-enabled') || ''; }, '');
+    if (have.split('|').map(function (x) { return x.trim(); }).indexOf('Appear') > -1) { return; }
+    var key = 'cw-here-Appear-g-' + normalise(id);
+    if (ss(function () { return w.sessionStorage.getItem(key); }, '') === '1') { return; }
+    ss(function () { w.sessionStorage.setItem(key, '1'); });
+    w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=saveAccount&appearId=' + encodeURIComponent(id) + '&secure=1&editToken=' + encodeURIComponent(token) + '&enabledSolution=Appear', { referrerPolicy: 'no-referrer' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.status === 'ok' && d.enabledSolution) {
+          ls(function () { w.localStorage.setItem('cw-enabled', d.enabledSolution); });
+          jumpLog('on a group page, so Appear is turned on');
+          if (d.conductNeeded) { conductScreen('Appear', 'ask', ''); }
+        }
+      })
+      .catch(function () {});
+  }
   function conductScreen(nm, mode, from) {
     if (viewingAs()) { return; }
     var go = function () { if (w.CW_conduct) { w.CW_conduct(nm, mode, from); } };
@@ -460,7 +479,7 @@
     var key = normalise(found);
     var token = ls(function () { return w.localStorage.getItem('cw-token') || ''; }, '');
     var exp = parseInt(token.split('.')[1], 10) || 0;
-    if (token && exp > Date.now()) { turnOnHere(found, token); }
+    if (token && exp > Date.now()) { turnOnHere(found, token); turnOnAppearForGroups(found, token); }
     var enabled = ls(function () { return w.localStorage.getItem('cw-enabled') || ''; }, '');
     var mark = ls(function () { return JSON.parse(w.localStorage.getItem('cw-jump-mark') || 'null'); }, null);
     if (mark && mark.id === key && mark.exp === exp && String(mark.enabled || '') === enabled) { jumpLog('signed in here; service already told'); return; }
