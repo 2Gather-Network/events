@@ -1072,6 +1072,7 @@
       if (window._gpView === 'messages' && !box) { var t = ''; try { t = new URLSearchParams(location.search).get('to') || ''; } catch (e) {} try { var _ol = JSON.parse(sessionStorage.getItem('cw-offer-line') || 'null'); sessionStorage.removeItem('cw-offer-line'); if (t && _ol && String(_ol.to || '').toLowerCase() === t.toLowerCase() && _ol.line) window._cwPrefill = String(_ol.line).slice(0, 2000); } catch (e) {} this.open(t); }
     },
     open: function (to) {
+      to = String(to || '').replace(/^c:/i, '');
       if (!ctx) return;
       box = document.getElementById(ctx.boxId || 'gp-messages');
       if (!box) return;
