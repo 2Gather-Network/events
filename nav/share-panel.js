@@ -1,6 +1,6 @@
 (function(){
   function el(tag, css, text){ var e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; }
-  var BTN = 'flex:1 1 0;min-width:0;font:inherit;font-size:14px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #1F699E;border-radius:10px;padding:6px 8px;cursor:pointer;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:6px;white-space:nowrap;';
+  var BTN = 'font:inherit;font-size:13px;font-weight:700;line-height:1.3;color:#1F699E;background:#fff;border:1.5px solid #1F699E;border-radius:24px;padding:7px 14px;cursor:pointer;display:inline-flex;flex-direction:row;align-items:center;justify-content:center;gap:6px;white-space:nowrap;';
   var ICON = {
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>',
     share: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>',
@@ -11,7 +11,7 @@
   function icon(name){
     var w = document.createElement('span');
     w.style.cssText = 'display:inline-flex;line-height:0;';
-    w.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[name] + '</svg>';
+    w.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[name] + '</svg>';
     return w;
   }
   function loadQrLib(done, fail){
@@ -39,16 +39,17 @@
     var host = o.after;
     if (!host || !host.parentNode) return null;
     var old = document.getElementById('cw-share-panel');
-    if (old) { old.remove(); if (old._for === o.url) return null; }
-    var box = el('div', 'margin-top:12px;text-align:left;background:#fff;border:1.5px solid #C9D6E3;border-radius:14px;padding:16px;position:relative;');
+    if (old) { old.remove(); if (old._close) old._close(); if (old._for === o.url) return null; }
+    var box = el('div', 'margin-top:12px;text-align:left;background:#fff;border:1.5px solid #C9DFF3;border-radius:14px;padding:16px;position:relative;');
     box.id = 'cw-share-panel'; box._for = o.url;
+    function closeBox(){ box.remove(); if (o.onClose) o.onClose(); }
     var x = el('button', 'position:absolute;top:8px;right:10px;background:none;border:0;font-size:22px;line-height:1;color:#2F3D4F;cursor:pointer;padding:4px;', '×');
     x.type = 'button'; x.setAttribute('aria-label', 'Close');
-    x.addEventListener('click', function(){ box.remove(); });
+    x.addEventListener('click', closeBox);
     box.appendChild(x);
     box.appendChild(el('div', 'font-size:18px;font-weight:800;color:#1A2E42;margin:0 24px 6px 0;', o.heading || 'Share'));
     if (o.lede) box.appendChild(el('div', 'font-size:14px;color:#2F3D4F;line-height:1.5;margin-bottom:12px;', o.lede));
-    var row = el('div', 'display:flex;gap:8px;');
+    var row = el('div', 'display:flex;flex-wrap:wrap;gap:8px;');
     var say = el('div', 'font-size:13px;color:#2F3D4F;margin-top:8px;min-height:0;');
     say.setAttribute('role', 'status');
     var qrSlot = el('div', '');
@@ -85,10 +86,13 @@
     box.appendChild(row);
     box.appendChild(say);
     box.appendChild(qrSlot);
-    var done = el('button', 'margin-top:12px;font:inherit;font-size:15px;font-weight:700;color:#fff;background:#1F699E;border:0;border-radius:10px;padding:10px 20px;cursor:pointer;', 'Done');
+    var doneRow = el('div', 'display:flex;justify-content:flex-end;margin-top:12px;');
+    var done = el('button', 'font:inherit;font-size:13px;font-weight:700;line-height:1.3;color:#fff;background:#1F699E;border:1.5px solid #1F699E;border-radius:24px;padding:7px 14px;cursor:pointer;', 'Done');
     done.type = 'button';
-    done.addEventListener('click', function(){ box.remove(); });
-    box.appendChild(done);
+    done.addEventListener('click', closeBox);
+    doneRow.appendChild(done);
+    box.appendChild(doneRow);
+    box._close = o.onClose || null;
     host.parentNode.insertBefore(box, host.nextSibling);
     return box;
   };
