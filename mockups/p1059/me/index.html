@@ -1568,7 +1568,7 @@
     if(_skC){ _foot='<div class="pv-sk-foot">'+_cnt+(window._pvSkCnt||'')+'</div>'; _hdrR=_skC; }
     return '<div class="pv-section'+(label==="What I'm seeking"?' pv-seek':'')+(label==='What I care about'?' pv-care':'')+'"><div class="pv-section-header"><div class="pv-section-label">'+label+'</div>'+_hdrR
       +(canEdit?'<button class="pv-edit" data-step="'+step+'">✏️ Edit</button>':'')+'</div>'+_leg
-      +(tagsHtml?'<div class="pv-tags">'+tagsHtml+'</div>':'')+(extra||'')+_foot
+      +(tagsHtml?'<div class="pv-tags">'+tagsHtml+'</div>':'')+(extra||'')+_foot+(({"What I'm seeking":'n','What I enjoy':'e','What I can do':'s','What I care about':'c'})[label]&&window._pvHid?(window._pvHid[({"What I'm seeking":'n','What I enjoy':'e','What I can do':'s','What I care about':'c'})[label]]||''):'')
       +'</div>';
   }
   function pvOffer(name, emoji, kind, extra){
@@ -1609,6 +1609,8 @@
         var cn=box.querySelector('.pv-sk-n'); if(cn){ cn.textContent=cn.getAttribute(md==='skills'?'data-s':'data-o'); }
         return;
       }
+      var hb=e.target&&e.target.closest?e.target.closest('.pv-hid-b'):null;
+      if(hb){ var hx=hb.nextElementSibling, ho=hb.getAttribute('aria-expanded')==='true'; hb.setAttribute('aria-expanded',ho?'false':'true'); if(hx){ if(ho){ hx.setAttribute('hidden',''); } else { hx.removeAttribute('hidden'); } } return; }
       var db=e.target&&e.target.closest?e.target.closest('.pv-dur'):null;
       if(db){ var bx=db.nextElementSibling, op=db.getAttribute('aria-expanded')==='true'; db.setAttribute('aria-expanded',op?'false':'true'); if(bx){ if(op){ bx.setAttribute('hidden',''); } else { bx.removeAttribute('hidden'); } } return; }
       var ob=e.target&&e.target.closest?e.target.closest('.pv-offer-btn'):null;
@@ -1695,20 +1697,24 @@
   function renderProfileView(){
     paintShellHeader();
     var pv=document.getElementById('profile-view');
-    var seeking=NEEDS_ADDED.map(function(n){ return pvTag(n.item, {pin:!!n.local, cats:needCats(n)}); }).join('');
-    var enjoy=_noCats(ENJOY_ADDED,function(x){return x.t;}).map(function(it){ return pvTag(it.t, {level:(it.sel||[]).join(', '), cats:pvCats(it.t)}); }).join('');
+    var _hidSet=(function(){ if(_viewingSomeoneElse) return null; var set={}, any=false; try{ var raw=(window._profRaw||{}).answerDetails; var det=typeof raw==='string'?JSON.parse(raw||'{}'):(raw||{}); Object.keys(det||{}).forEach(function(k){ var d=det[k]||{}; var v=(d.show!==undefined)?d.show:d.showOnProfile; if(v===false||v==='false'||v==='no'){ set[String(k).replace(/\s+/g,' ').trim().toLowerCase()]=1; any=true; } }); }catch(e){} return any?set:null; })();
+    var _HID={n:[],e:[],s:[],c:[]};
+    function _vis(list,get,bucket){ if(!_hidSet) return list; return (list||[]).filter(function(x){ var w=get(x); var k=String(w||'').replace(/\s+/g,' ').trim().toLowerCase(); if(_hidSet[k]){ _HID[bucket].push(w); return false; } return true; }); }
+    var _NEEDS_V=_vis(NEEDS_ADDED,function(x){return x.item;},'n'), _ENJOY_V=_vis(ENJOY_ADDED,function(x){return x.t;},'e'), _SKILLS_V=_vis(SKILLS_ADDED,function(x){return x.t;},'s'), _VALUES_V=_vis(VALUES_ADDED,function(x){return x.t;},'c'), _DOMS_V=_vis(DOMAINS_ADDED,function(x){return x.t;},'c');
+    var seeking=_NEEDS_V.map(function(n){ return pvTag(n.item, {pin:!!n.local, cats:needCats(n)}); }).join('');
+    var enjoy=_noCats(_ENJOY_V,function(x){return x.t;}).map(function(it){ return pvTag(it.t, {level:(it.sel||[]).join(', '), cats:pvCats(it.t)}); }).join('');
     var _ex=EXPRESSION_ADDED.filter(Boolean);
     var expr=pvWrap(_ex.map(function(x){ return pvTag(x); }).join(''), 'What expresses me');
     var methods=pvWrapLine(SKILL_METHODS_ON.map(function(m){ return pvTag(m,{cats:pvCats(m),noSub:true}); }).join(''), '');
     var _langs=String((_loaded&&_loaded.languages)||'').split(/[|,]/).map(function(x){ return x.trim(); }).filter(Boolean);
     var _enjSet={}, _wkSet={}; ENJOY_ADDED.forEach(function(e){ _enjSet[String(e.t||'').trim().toLowerCase()]=1; }); WORK_SKILLS.forEach(function(w){ _wkSet[String(w).split(':')[0].trim().toLowerCase()]=1; });
-    var _skHtml=pvWrap(_noCats(SKILLS_ADDED,function(x){return x.t;}).filter(function(s){ var k=String(s.t||'').trim().toLowerCase(); return !!String(s.level||'').trim() && !(_enjSet[k] && !_wkSet[k]) && !_wkSet[k]; }).map(function(s){ return pvTag(s.t, {level:s.level, cats:pvCats(s.t), noSub:true, cls:(/guide/i.test(s.level)?'pv-lv-guide':(/experienced/i.test(s.level)?'pv-lv-exp':(/beginner/i.test(s.level)?'pv-lv-beg':'')))}); }).join(''), '');
+    var _skHtml=pvWrap(_noCats(_SKILLS_V,function(x){return x.t;}).filter(function(s){ var k=String(s.t||'').trim().toLowerCase(); return !!String(s.level||'').trim() && !(_enjSet[k] && !_wkSet[k]) && !_wkSet[k]; }).map(function(s){ return pvTag(s.t, {level:s.level, cats:pvCats(s.t), noSub:true, cls:(/guide/i.test(s.level)?'pv-lv-guide':(/experienced/i.test(s.level)?'pv-lv-exp':(/beginner/i.test(s.level)?'pv-lv-beg':'')))}); }).join(''), '');
     var skills=_skHtml?'<div class="pv-skills">'+_skHtml+'</div>':'';
     var langsHtml=pvWrap(_langs.map(function(l){ return pvTag(l); }).join(''), '');
     var _langCard=_langs.length>1?pvTag('Languages \u{1F5E3}',{sub:_langs.length+' spoken',cls:'pv-langcard'}).replace('<div class="pv-tag pv-langcard','<div role="button" tabindex="0" aria-expanded="false" class="pv-tag pv-langcard'):'';
     if(_langCard){ _skHtml=_skHtml?_skHtml.replace(/<\/div>$/,_langCard+'</div>'):pvWrap(_langCard,''); skills='<div class="pv-skills">'+_skHtml+'</div><div class="pv-langpanel" hidden>'+langsHtml+'</div>'; }
-    var vals=pvWrap(_noCats(VALUES_ADDED,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl, cats:pvCats(v.t)}); }).join(''), '');
-    var doms=pvWrapLine(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl}); }).join(''), 'Sectors');
+    var vals=pvWrap(_noCats(_VALUES_V,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl, cats:pvCats(v.t)}); }).join(''), '');
+    var doms=pvWrapLine(_noCats(_DOMS_V,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl}); }).join(''), 'Sectors');
     var _haves = SECTIONS[4].data.map(function(h){
       var cat = String((h.cats && h.cats[0]) || '');
       var last = cat.split(':').pop().trim().toLowerCase();
@@ -1731,14 +1737,16 @@
       var line=cat||(isSpace?"A space I'm offering":"Something I'm offering");
       return pvOffer(h.text||'An offering', emo, line, {local:h.offerLocal, detail:h.offerDetail});
     });
+    var _eyeOff='<svg class="pv-hid-i" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.585 10.587a2 2 0 0 0 2.829 2.828"/><path d="M16.681 16.673a8.717 8.717 0 0 1 -4.681 1.327c-3.6 0 -6.6 -2 -9 -6c1.272 -2.12 2.712 -3.678 4.32 -4.674m2.86 -1.146a9.055 9.055 0 0 1 1.82 -.18c3.6 0 6.6 2 9 6c-.666 1.11 -1.379 2.067 -2.138 2.87"/><path d="M3 3l18 18"/></svg>';
+    window._pvHid={}; ['n','e','s','c'].forEach(function(b){ var l=_HID[b]; window._pvHid[b]=l.length?'<div class="pv-hid"><button type="button" class="pv-hid-b" aria-expanded="false">'+_eyeOff+'<span>Hidden</span></button><div class="pv-hid-box" hidden>'+l.map(function(w){ return pvTag(w,{noSub:true,cls:'pv-tag-hid'}); }).join('')+'</div></div>':''; });
     var _offerObjs=SECTIONS[4].data.map(function(h){
       var cat=String(h.offerCat||'').replace(/^[^A-Za-z0-9]+/,'').trim();
       var kk=((h.cats&&h.cats[0])||'').split(':').pop().trim().toLowerCase();
       var base=cat||(kk==='space'?'Space':'Thing');
       return { n:_capFirst(h.text||'An offering'), s:base+(h.offerLocal?' \u00b7 Local':''), tip:h.offerDetail?('Offering: '+h.offerDetail):'' };
     });
-    var _skillObjs=_noCats(SKILLS_ADDED,function(x){return x.t;}).map(function(x){ return { n:_capFirst(x.t), s:String(x.cat||'').replace(/^[^A-Za-z0-9]+/,'').trim() }; });
-    var skillsO=pvWrap(_noCats(SKILLS_ADDED,function(x){return x.t;}).map(function(s){ return pvTag(s.t, {level:s.level, cats:pvCats(s.t)}); }).join('')
+    var _skillObjs=_noCats(_SKILLS_V,function(x){return x.t;}).map(function(x){ return { n:_capFirst(x.t), s:String(x.cat||'').replace(/^[^A-Za-z0-9]+/,'').trim() }; });
+    var skillsO=pvWrap(_noCats(_SKILLS_V,function(x){return x.t;}).map(function(s){ return pvTag(s.t, {level:s.level, cats:pvCats(s.t)}); }).join('')
       +_langs.map(function(l){ return pvTag(l); }).join(''), '');
     var methodsO=pvWrap(SKILL_METHODS_ON.map(function(m){ return pvTag(m); }).join(''), '', 'margin-bottom:10px;');
     var domsO=pvWrap(_noCats(DOMAINS_ADDED,function(x){return x.t;}).map(function(v){ return pvTag(v.t,{level:v.lvl}); }).join(''), 'Sectors');
@@ -2800,6 +2808,12 @@
   .pv-q4 .pv-sub-h{font-size:11px;letter-spacing:.06em;margin:10px 0 6px;}
   .pv-q4 .pv-sub-h:first-child{margin-top:0;}
   .pv-q4 .pv-tags{gap:8px;}
+  .pv-hid{margin-top:10px;}
+  .pv-hid-b{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #DDE4EE;border-radius:14px;padding:6px 12px;font-family:inherit;font-size:13px;font-weight:700;color:#5A6878;cursor:pointer;}
+  .pv-hid-b[aria-expanded="true"]{background:#1F699E;border-color:#1F699E;color:#fff;}
+  .pv-hid-box{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #DDE4EE;}
+  .pv-hid-box[hidden]{display:none;}
+  .pv-hid-box .pv-tag{border:1.5px dashed #B9C3D0;background:transparent;opacity:.75;}
   .pv-sk{margin:0 0 14px;}
   .pv-section-header:has(.pv-sk-seg){flex-wrap:wrap;row-gap:8px;}
   .pv-section-header:has(.pv-sk-seg) .pv-section-label{white-space:nowrap;}
