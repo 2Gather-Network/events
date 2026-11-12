@@ -267,13 +267,13 @@
     try { w.stop(); } catch (e) {}
     form.submit();
   }
-  function prepareNow(id, token) {
+  function prepareNow(id, token, carry) {
     if (!jumpOn() || !id || !token || viewingAs() || signedOutView()) { return null; }
     var key = normalise(id), exp = parseInt(String(token).split('.')[1], 10) || 0;
     var mark = ls(function () { return JSON.parse(w.localStorage.getItem('cw-jump-mark') || 'null'); }, null);
     if (mark && mark.id === key && mark.exp === exp) { return null; }
     jumpLog('just signed in; asking the backend for passes now');
-    return prepareSession(id, token).then(function () { return { key: key, exp: exp }; });
+    return prepareSession(id, token, carry).then(function () { return { key: key, exp: exp }; });
   }
   function rememberNow(ready, where) {
     var back = '';
@@ -347,7 +347,7 @@
     ss(function () { w.sessionStorage.setItem('cw-turn-on-' + nm, '1'); w.sessionStorage.removeItem('cw-here-' + nm + '-' + normalise(id)); });
     return turnOnHere(id, token);
   };
-  function prepareSession(id, token) {
+  function prepareSession(id, token, carry) {
     var got = null, a = new Uint8Array(16), key = normalise(id), exp = parseInt(String(token).split('.')[1], 10) || 0;
     w.crypto.getRandomValues(a);
     var st = Array.prototype.map.call(a, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
@@ -376,7 +376,9 @@
       }
       return d;
     };
-    var first = askPasses();
+    var came = !!(carry && carry.status === 'ok' && carry.passes && normalise(carry.appearId) === key);
+    if (came) { jumpLog('passes came with the code'); }
+    var first = came ? w.Promise.resolve(carry) : askPasses();
     var deviceHas = lists(ls(function () { return w.localStorage.getItem('cw-enabled') || ''; }, ''));
     var flow;
     if (deviceHas) {
