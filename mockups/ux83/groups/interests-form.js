@@ -128,6 +128,11 @@
     inp.type = 'text'; inp.placeholder = 'Type one, then press Add'; inp.maxLength = 60; inp.style.flex = '1';
     var add = document.createElement('button');
     add.type = 'button'; add.className = 'btn ghost'; add.textContent = 'Add';
+    if (sec.steps) {
+      row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
+      inp.style.cssText = 'flex:1 1 220px;min-width:0;box-sizing:border-box;height:34px;padding:0 12px;margin:0;';
+      add.className = 'btn'; add.style.cssText = 'height:34px;padding:0 14px;margin:0;font-size:13px;font-weight:700;';
+    }
     row.appendChild(inp); row.appendChild(add); host.appendChild(row);
     function syncOwn(){ ownLabel.style.display = otherOpen ? '' : 'none'; row.style.display = otherOpen ? 'flex' : 'none'; }
     function otherPill(path){
@@ -283,6 +288,7 @@
       tx.type = 'text'; tx.maxLength = 60; tx.value = addDraft;
       tx.setAttribute('aria-label', 'Add your own idea');
       if (!v2) tx.placeholder = 'Add your own idea';
+      if (sec.steps) tx.placeholder = '\uD83D\uDD0D Search';
       tx.style.cssText = v2 ? 'flex:1 1 220px;min-width:0;box-sizing:border-box;height:34px;padding:0 12px;margin:0;' : 'flex:1 1 220px;min-width:0;box-sizing:border-box;';
       rowEl.appendChild(tx);
       var pick = null;
@@ -337,7 +343,7 @@
         });
         heads.appendChild(h);
       });
-      cats.appendChild(addBox(tree.map(function(n){ return n.name; })));
+      if (!(sec.steps && tree.some(function(n){ return openN[n.name]; }))) cats.appendChild(addBox(tree.map(function(n){ return n.name; })));
       if (sec.steps) cats.appendChild(recentRow());
       cats.appendChild(heads);
       tree.forEach(function(n){
@@ -450,7 +456,7 @@
       cats.appendChild(crumb);
       if (help) cats.appendChild(help.box);
       if (sec.steps && catBox) { cats.appendChild(catBoxEl()); return; }
-      if (sec.tag) cats.appendChild(addBox(at.length ? null : list.filter(function(n){ return n.kids && n.kids.length; }).map(function(n){ return n.name; })));
+      if (sec.tag && !(sec.steps && at.length)) cats.appendChild(addBox(at.length ? null : list.filter(function(n){ return n.kids && n.kids.length; }).map(function(n){ return n.name; })));
       var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;');
       if (sec.steps && !at.length) Array.prototype.slice.call(recentRow().children).forEach(function(c){ r.appendChild(c); });
       if (at.length) {
