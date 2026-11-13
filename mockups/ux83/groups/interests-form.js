@@ -600,8 +600,8 @@
     var holder = el('div', '');
     root.appendChild(holder);
     var prev = el('div', 'background:var(--panel,#F7FBFF);border:1.5px solid var(--panel-line,#C9DFF3);border-radius:12px;padding:14px 16px;margin:14px 0 6px;');
-    prev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 4px;letter-spacing:.03em;', 'YOUR TAGS'));
-    var prevSay = prev.appendChild(el('div', o.kindPills ? 'font-size:13.5px;color:#1A2E42;margin:0 0 10px;' : 'font-size:12.5px;color:var(--muted,#6B7A8D);margin:0 0 10px;padding-bottom:10px;border-bottom:1px solid #DDE6EF;', 'When new members join, they will select which tags you offer below.'));
+    prev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 4px;letter-spacing:.03em;', 'YOUR GROUP TOPICS'));
+    var prevSay = prev.appendChild(el('div', o.kindPills ? 'font-size:13.5px;color:#1A2E42;margin:0 0 10px;' : 'font-size:12.5px;color:var(--muted,#6B7A8D);margin:0 0 10px;padding-bottom:10px;border-bottom:1px solid #DDE6EF;', 'When new members join, they will select which group topics you offer below.'));
     var prevBody = el('div', '');
     prev.appendChild(prevBody);
     root.appendChild(prev);
@@ -788,8 +788,8 @@
     function stepPreview(){
       if (stepStage === 'review') {
         rev.innerHTML = '';
-        rev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 8px;letter-spacing:.03em;', 'YOUR TAGS'));
-        var hp = el('div', 'margin:0 0 8px;', 'When new members join, they will select which tags you offer below. They can also add their own.'); hp.className = 'help';
+        rev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 8px;letter-spacing:.03em;', 'YOUR GROUP TOPICS'));
+        var hp = el('div', 'margin:0 0 8px;', 'When new members join, they will select which group topics you offer below. They can also add their own.'); hp.className = 'help';
         rev.appendChild(hp);
         rev.appendChild(tagsBlock(shownKinds(99), true));
         rev.appendChild(el('div', 'font-size:13px;color:#1A2E42;margin:14px 0 0;', "Tap a kind's name to go back and change it."));
