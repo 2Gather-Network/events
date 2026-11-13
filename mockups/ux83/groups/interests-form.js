@@ -273,7 +273,7 @@
       });
       paint();
       wordTies().then(function(m){ ties = m; if (catBox === cb) { cb.auto = null; paint(); } }).catch(function(){});
-      setTimeout(function(){ try { si.focus(); } catch (e) {} }, 0);
+      setTimeout(function(){ try { si.focus({ preventScroll: true }); } catch (e) {} }, 0);
       return b;
     }
     function addBox(choices){
@@ -319,7 +319,7 @@
       go.addEventListener('click', doAdd);
       tx.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') { ev.preventDefault(); doAdd(); } });
       tx.addEventListener('input', function(){ addDraft = tx.value; });
-      if (addFocus) { addFocus = false; setTimeout(function(){ try { tx.focus(); } catch (e) {} }, 0); }
+      if (addFocus) { addFocus = false; setTimeout(function(){ try { tx.focus({ preventScroll: true }); } catch (e) {} }, 0); }
       return box;
     }
     var openN = {}, accFind = {};
@@ -804,16 +804,37 @@
       b.addEventListener('click', function(){ if (!dim) fn(); });
       return b;
     }
+    function topCover(){
+      var cover = 0;
+      try {
+        for (var t = 0; t < 4; t++) {
+          var n = document.elementFromPoint(Math.round(window.innerWidth / 2), Math.round(cover) + 2), hit = false;
+          while (n && n !== document.body && n !== document.documentElement) {
+            var ps = getComputedStyle(n).position;
+            if (ps === 'fixed' || ps === 'sticky') { var b = n.getBoundingClientRect().bottom; if (b > cover) { cover = b; hit = true; } break; }
+            n = n.parentElement;
+          }
+          if (!hit) break;
+        }
+      } catch (e) {}
+      return cover;
+    }
+    function showTop(el2){
+      try {
+        var gap = topCover() + 12, r = el2.getBoundingClientRect();
+        if (r.top < gap || r.top > window.innerHeight - 80) window.scrollTo(0, Math.max(0, window.pageYOffset + r.top - gap));
+      } catch (e) {}
+    }
     function goStage(st){
       stepStage = st; applyStage();
-      try { root.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {}
+      showTop(root);
     }
     function nextQ(){
       var all = document.querySelectorAll('.q, h2, label'), i, n;
       for (i = 0; i < all.length; i++) {
         n = all[i];
         if (root.contains(n) || !(root.compareDocumentPosition(n) & 4) || !n.offsetParent) continue;
-        try { n.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {}
+        showTop(n);
         return;
       }
     }
