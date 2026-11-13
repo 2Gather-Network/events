@@ -140,7 +140,7 @@ label:has(> input[type="checkbox"]){min-height:44px;}
   <script src="/group/offer-count.js?v=1"></script>
   <script src="/nav/category-tree.js?v=7"></script>
   <script src="/groups/place-picker.js?v=2"></script>
-  <script src="/groups/interests-form.js?v=40"></script>
+  <script src="/mockups/ux83/groups/interests-form.js?v=51"></script>
 <script src="/group/permissions.js?v=19"></script>
 <script src="/nav/waiting-words.js?v=15"></script>
 </head>
@@ -425,13 +425,25 @@ label:has(> input[type="checkbox"]){min-height:44px;}
       </div>
 
       <div class="gi-box" style="border:1.5px solid #C9DFF3;border-radius:14px;padding:12px 20px 16px;margin-top:22px;">
-      <div class="q noline">Group agreements</div>
-      <textarea id="e-agreements"></textarea>
-
-      <div class="q noline">Resources</div>
+      <div class="q noline">Do you have any workflow links you want to add to this group?</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="e-res-yn">
+        <div class="tab" data-yn="on">Yes</div>
+        <div class="tab on" data-yn="off">No</div>
+      </div>
+      <div id="e-res-wrap" style="display:none;margin-top:10px;">
       <div class="help">Links to your group’s own workflows. They show up for everyone in the group, and you can add more anytime. A row with no address is dropped when you save.</div>
       <div id="e-res-list"></div>
       <button type="button" class="btn ghost sm" id="e-res-add" style="margin-top:8px;">Add a resource</button>
+      </div>
+
+      <div class="q noline">Do you want to add group agreements?</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="e-agr-yn">
+        <div class="tab" data-yn="on">Yes</div>
+        <div class="tab on" data-yn="off">No</div>
+      </div>
+      <div id="e-agr-wrap" style="display:none;margin-top:10px;">
+      <textarea id="e-agreements"></textarea>
+      </div>
 
       </div>
 
@@ -488,8 +500,9 @@ label:has(> input[type="checkbox"]){min-height:44px;}
 
       <div id="e-passbox" style="border:1.5px solid #C9DFF3;border-radius:14px;padding:12px 20px 16px;margin-top:22px;">
       <div class="q noline" style="margin-top:0;">Group password</div>
-      <div class="help">This code is shared with people you invite so keep it memorable 🎉</div>
+      <div class="help" id="e-pass-limit" style="margin:2px 0 6px;">Up to 10 characters.</div>
       <input type="text" id="e-passcode" maxlength="10">
+      <div class="help" style="margin:6px 0 0;">This code is shared with people you invite so keep it memorable 🎉</div>
       <label style="display:flex;gap:9px;align-items:center;margin-top:10px;font-size:14px;cursor:pointer;"><input type="checkbox" id="e-approve" style="width:18px;height:18px;margin:0;flex:none;"> Ask me to approve people who join with the passcode</label>
 
       <div class="q noline">How does someone join?</div>
@@ -850,7 +863,9 @@ label:has(> input[type="checkbox"]){min-height:44px;}
         document.getElementById('e-image').value = g.image || '';
         _updateEThumb();
         document.getElementById('e-passcode').value = g.passcode || '';
+        if (window._ePassSync) window._ePassSync();
         document.getElementById('e-agreements').value = g.agreements || '';
+        if (window._eYnFromData) window._eYnFromData();
         _writeGroupCache(g);
         _eHostIds = Array.isArray(g.hostIds)
           ? g.hostIds.slice()
@@ -1661,7 +1676,7 @@ label:has(> input[type="checkbox"]){min-height:44px;}
   });
 
   var _eSecLive = false;
-  var _eInterests = window.cwGroupSections({ root: 'e-sections', name: 'e-name', chipClass: 'tab', meId: meId });
+  var _eInterests = window.cwGroupSections({ root: 'e-sections', name: 'e-name', chipClass: 'tab', meId: meId, kindPills: true, steps: true });
   var _ePlace = window.cwGroupPlacePicker({ root: 'e-placepick', chipClass: 'tab', meId: meId });
   (function(){
     var b = document.getElementById('e-offercats-help-btn');
@@ -2165,6 +2180,7 @@ label:has(> input[type="checkbox"]){min-height:44px;}
     if (!Array.isArray(arr)) arr = [];
     arr.forEach(function(r){ _addResRow(r && r.type, r && r.url); });
     if (!arr.length) _addResRow('', '');
+    if (window._eYnFromData) window._eYnFromData();
   }
   function _readResources(){
     var out = [];
@@ -2530,15 +2546,41 @@ label:has(> input[type="checkbox"]){min-height:44px;}
     filterMembers(document.getElementById('mem-search').value);
   });
 
+  function _eYnOn(id){ var r = document.getElementById(id); return !!(r && r.querySelector('.tab.on[data-yn="on"]')); }
+  (function(){
+    function setYn(row, on){ row.querySelectorAll('.tab').forEach(function(c){ c.classList.toggle('on', c.getAttribute('data-yn') === (on ? 'on' : 'off')); }); }
+    function wire(rowId, wrapId){
+      var row = document.getElementById(rowId), wrap = document.getElementById(wrapId); if (!row || !wrap) return null;
+      function sync(){ wrap.style.display = _eYnOn(rowId) ? '' : 'none'; }
+      row.addEventListener('click', function(e){ var c = e.target.closest ? e.target.closest('.tab') : null; if (!c) return; setYn(row, c.getAttribute('data-yn') === 'on'); sync(); });
+      sync();
+      return function(on){ setYn(row, on); sync(); };
+    }
+    var setRes = wire('e-res-yn', 'e-res-wrap'), setAgr = wire('e-agr-yn', 'e-agr-wrap');
+    window._eYnFromData = function(){
+      var a = document.getElementById('e-agreements');
+      if (setAgr) setAgr(!!(a && a.value.trim()));
+      var any = false;
+      document.querySelectorAll('#e-res-list .res-url').forEach(function(u){ if (u.value.trim()) any = true; });
+      if (setRes) setRes(any);
+    };
+    var pi = document.getElementById('e-passcode'), pm = document.getElementById('e-pass-limit');
+    if (pi && pm) {
+      var base = pm.textContent;
+      var ps = function(){ var atMax = pi.value.length >= 10; pm.textContent = atMax ? 'That is the most you can use, 10 characters.' : base; pm.style.fontWeight = atMax ? '700' : ''; };
+      pi.addEventListener('input', ps); ps();
+      window._ePassSync = ps;
+    }
+  })();
   function _infoPayload(){
     return {
       name: document.getElementById('e-name').value.trim(),
       description: document.getElementById('e-description').value.trim(),
       image: document.getElementById('e-image').value.trim(),
       passcode: document.getElementById('e-passcode').value.trim(),
-      agreements: document.getElementById('e-agreements').value.trim(),
+      agreements: _eYnOn('e-agr-yn') ? document.getElementById('e-agreements').value.trim() : '',
       coHostIds: _eCoHosts.join('|'),
-      resources: _readResources(),
+      resources: _eYnOn('e-res-yn') ? _readResources() : '[]',
       succession: _readSuccession(),
       successorEmail: (document.getElementById('e-successor') || {}).value ? document.getElementById('e-successor').value.trim() : '',
       joinMode: 'open',   
