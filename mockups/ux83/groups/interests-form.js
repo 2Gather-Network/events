@@ -562,7 +562,7 @@
           if (kn) { var kk = kn.path.join(SEP); if (!on[kk]) mark(kk); addRecent(kk); return; }
         }
         var full = otherPath.length ? otherPath.concat(w).join(SEP) : w;
-        if (w && !order.some(function(k){ return k.toLowerCase() === full.toLowerCase(); })) { mark(full, true); if (sec.steps) { suggest(otherPath, w); addRecent(full); } }
+        if (w && !order.some(function(k){ return k.toLowerCase() === full.toLowerCase(); })) { mark(full, true); if (sec.steps) { for (var pi = 1; pi <= otherPath.length; pi++) { var pk = otherPath.slice(0, pi).join(SEP); if (on[pk]) unmark(pk); } suggest(otherPath, w); addRecent(full); } }
       });
       inp.value = ''; sg2.innerHTML = ''; draw(); onChange();
     }
