@@ -572,7 +572,7 @@
     root.innerHTML = '';
     var q = el('div', '', 'What kind of group is this?'); q.className = 'q';
     root.appendChild(q);
-    var help = el('div', 'margin:0 0 8px;', 'Pick every tag that fits your group, from any kind. Tap a kind to switch which ideas you are looking at. What you pick becomes the questions new members answer when they join, so you learn what each person is into.');
+    var help = el('div', 'margin:0 0 8px;', o.steps ? 'Pick every type that fits your group. This helps us build a brief Q&A before your new members join. Not only do they get to know what this group is about, but they can share what they are interested in when joining.' : 'Pick every tag that fits your group, from any kind. Tap a kind to switch which ideas you are looking at. What you pick becomes the questions new members answer when they join, so you learn what each person is into.');
     help.className = 'help';
     root.appendChild(help);
     var chosen = {}, pillRow = null, stepStage = 'pick';
