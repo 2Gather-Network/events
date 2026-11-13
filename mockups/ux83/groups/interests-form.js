@@ -603,6 +603,7 @@
         });
       },
       home: function(){ at = []; otherOpen = false; draw(); },
+      tops: function(){ return (tree || []).filter(function(n){ return n.kids && n.kids.length; }).map(function(n){ return n.name; }); },
       get: function(){ if (String(inp.value || '').trim()) addOwn(); return order.filter(function(k){ return on[k]; }).join(';'); },
       set: function(v){ on = {}; order = []; own = {}; splitList(v).forEach(function(k){ k = normalise(k); if (k) mark(k, k.indexOf(SEP) === -1); }); draw(); }
     };
@@ -668,10 +669,10 @@
     root.appendChild(kinds);
     function joyKind(){ var f = null; KINDS.forEach(function(o){ if (o.key === 'joys' && kindOn[o.label]) f = o.label; }); return f; }
     var KIND_HINTS = {
-      'Recreational': 'For the things you do for the joy of it, like games, hiking, art or cooking together.',
-      'Personal': 'For the people closest to you, like family, a health team or close friends.',
-      'Professional': 'For people who work, learn or build together, like a trade, a business or a field of study.',
-      'Eco/social cause': 'For people working on a cause, like clean water, housing or caring for the neighborhood.'
+      'Recreational': o.steps ? 'For people doing things just for the joy of it - like games, hiking, art, or cooking.' : 'For the things you do for the joy of it, like games, hiking, art or cooking together.',
+      'Personal': o.steps ? 'For supporting connection with self or others.' : 'For the people closest to you, like family, a health team or close friends.',
+      'Professional': o.steps ? 'For people who work, learn, or build together - like a trade, a business, or a field of study.' : 'For people who work, learn or build together, like a trade, a business or a field of study.',
+      'Eco/social cause': o.steps ? 'For people working on a cause, like housing, food security, or caring for a neighborhood.' : 'For people working on a cause, like clean water, housing or caring for the neighborhood.'
     };
     var kindHint = el('div', 'font-size:13.5px;color:var(--soft,#2F3D4F);margin:-6px 0 14px;', '');
     kindHint.style.display = 'none';
@@ -847,6 +848,12 @@
       KINDS.forEach(function(k){ if (list.indexOf(k) === -1 && !chosen[k.label] && picksOf(k).length) list.push(k); });
       return list;
     }
+    var ALL_CARE = { Ecological: 'All eco', Social: 'All social' };
+    function kindTops(k){
+      if (!parts[k.key] || !parts[k.key].tops) return [];
+      var t = parts[k.key].tops();
+      return k.key === 'joys' ? t.filter(function(x){ return kindOfTop(x) === k.label; }) : t;
+    }
     function tagsBlock(list, links){
       var box = el('div', '');
       list.forEach(function(k){
@@ -855,13 +862,21 @@
         if (links && idx > -1) { h.href = '#'; h.addEventListener('click', function(e){ e.preventDefault(); goStage(idx); }); }
         box.appendChild(h);
         var row = el('div', 'display:flex;flex-wrap:wrap;gap:4px;');
-        if (!picks.length) row.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);', 'None'));
+        var allT = kindTops(k);
+        var isAll = !!chosen[k.label] && (!picks.length || (allT.length > 1 && picks.length === allT.length && allT.every(function(t){ return picks.indexOf(t) > -1; })));
+        if (isAll) {
+          var ac = document.createElement('div'); ac.className = chip;
+          ac.style.cssText = 'padding:2px 10px;font-size:12.5px;line-height:1.5;max-width:100%;';
+          ac.textContent = 'All ' + k.label.toLowerCase();
+          row.appendChild(ac);
+          picks = [];
+        }
         picks.forEach(function(key){
           var p = key.split(SEP);
           var c = document.createElement('div'); c.className = chip;
           c.style.cssText = 'padding:2px 10px;font-size:12.5px;line-height:1.5;cursor:pointer;max-width:100%;';
           c.title = 'Remove';
-          c.textContent = p[p.length - 1] + ' ×';
+          c.textContent = ((k.key === 'cares' && p.length === 1 && ALL_CARE[p[0]]) ? ALL_CARE[p[0]] : p[p.length - 1]) + ' ×';
           c.addEventListener('click', function(){ parts[k.key].remove(key); });
           row.appendChild(c);
         });
@@ -873,10 +888,9 @@
       if (stepStage === 'review') {
         rev.innerHTML = '';
         rev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 8px;letter-spacing:.03em;', 'YOUR GROUP TOPICS'));
-        var hp = el('div', 'margin:0 0 8px;', 'When new members join, they will select which group topics you offer below. They can also add their own.'); hp.className = 'help';
+        var hp = el('div', 'margin:0 0 8px;', 'When new members join, they will select their interests from your selected group topics below. They can also add their interests for joining the group.'); hp.className = 'help';
         rev.appendChild(hp);
         rev.appendChild(tagsBlock(shownKinds(99), true));
-        rev.appendChild(el('div', 'font-size:13px;color:#1A2E42;margin:14px 0 0;', "Tap a kind's name to go back and change it."));
         return;
       }
       prevBody.appendChild(tagsBlock(shownKinds(typeof stepStage === 'number' ? stepStage : -1), false));
@@ -958,7 +972,19 @@
     paintKindPills(); syncKindPills();
     paintKinds(); layout(); preview();
     return {
-      get: function(){ return { joys: parts.joys.get(), skills: '', cares: parts.cares.get() }; },
+      get: function(){
+        var j = parts.joys.get(), c = parts.cares.get();
+        if (o.steps) {
+          var jl = j ? j.split(';') : [];
+          chosenList().forEach(function(k){
+            if (picksOf(k).length) return;
+            if (k.key === 'joys') kindTops(k).forEach(function(t){ if (jl.indexOf(t) === -1) jl.push(t); });
+            else if (!c) c = kindTops(k).join(';');
+          });
+          j = jl.join(';');
+        }
+        return { joys: j, skills: '', cares: c };
+      },
       set: function(joys, skills, cares){
         parts.joys.set([joys, skills].filter(Boolean).join(';')); parts.cares.set(cares);
         var jp = parts.joys.picks(), first = null;
