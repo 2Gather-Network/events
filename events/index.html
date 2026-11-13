@@ -3476,6 +3476,7 @@ function _loadHosted() {
       var set = {};
       list.forEach(function (x) { var id = String((x && (x.id || x.eventId)) || "").trim(); if (id) { set[id] = 1; } });
       _hostedIds = set;
+      if (window._hostPending) { window._hostPending = false; if (_hasHostEvents()) { _hostMode = "only"; } }
       try { renderEvents(); } catch (e) {}
     })
     .catch(function () { _hostedAsked = ""; });
@@ -3537,6 +3538,11 @@ function setTri(which, v) {
   renderEvents();
 }
 function togglePill(which) {
+  if (which === "host" && !_hostedIds && _hostMode !== "only") {
+    window._hostPending = true;
+    try { renderEvents(); } catch (e) {}
+    return;
+  }
   if (which === "mat" && !_interestsNow().length) {
     try {
       var _fys = document.getElementById("for-you-section"); if (_fys) { _fys.style.display = "block"; }
@@ -3623,15 +3629,16 @@ function _paintRangeChips() {
   var _sf = document.getElementById("show-from");
   var _me = ""; try { _me = (typeof getMemberId === "function") ? (getMemberId() || "") : ""; } catch (e) {}
   var _noGroups = !!(_me && !_myGroupsBusy && !_myGroupsFailed && Array.isArray(_myGroups) && _myGroups.length === 0);
-  var _pv = { mat: (_matchMode === "only" || _hasMatchEvents() || !!_me), grp: (_grpMode === "only" || _hasGroupEvents()), host: (_hostMode === "only" || _hasHostEvents()) };
+  var _pv = { mat: (_matchMode === "only" || _hasMatchEvents() || !!_me), grp: (_grpMode === "only" || _hasGroupEvents()), host: (_hostMode === "only" || _hasHostEvents() || !!(_me && !_hostedIds)) };
   var _pm = { mat: _matchMode, grp: _grpMode, host: _hostMode };
   window._pillSeen = window._pillSeen || {};
   ["mat", "grp", "host"].forEach(function (k) {
     if (_pv[k]) { window._pillSeen[k] = 1; }
-    _pv[k] = !!(_pv[k] || window._pillSeen[k]);
+    if (k !== "host") { _pv[k] = !!(_pv[k] || window._pillSeen[k]); }
     var pb = document.getElementById("pill-" + k);
     if (!pb) { return; }
     pb.style.display = _pv[k] ? "" : "none";
+    if (k === "host") { pb.textContent = window._hostPending ? "Loading..." : "My hosted events"; }
     pb.classList.toggle("on", _pm[k] === "only");
     pb.setAttribute("aria-pressed", _pm[k] === "only" ? "true" : "false");
   });
