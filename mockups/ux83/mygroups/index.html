@@ -54,6 +54,9 @@
   .rail-folded .chev{font-size:13px;line-height:1;opacity:.75;}
   .railtools{display:flex;gap:8px;align-items:center;margin:6px 6px 10px;}
   .railtools .search{flex:1;min-width:0;margin:0;}
+  .railstar{flex:none;width:38px;height:38px;box-sizing:border-box;border:1.5px solid #B9D3EA;border-radius:50%;background:#fff;color:#6B7A8D;font-size:19px;line-height:1;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .railstar.on{background:#1F699E;border-color:#1F699E;color:#fff;}
+  .railstar:focus-visible{outline:2px solid #1F699E;outline-offset:2px;}
   .railsort{appearance:none;-webkit-appearance:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%231F699E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 14px center;background-size:12px 8px;border:1.5px solid #DDE4EE;border-radius:22px;font:600 14px 'Nunito Sans','DM Sans',sans-serif;color:#1A2E42;padding:8px 38px 8px 16px;min-height:38px;cursor:pointer;max-width:44%;}
   .railsort:focus{outline:0;border-color:#1F699E;box-shadow:0 0 0 3px rgba(31,105,158,.18);}
   @media(max-width:600px){.railsort{font-size:16px;}}
@@ -179,6 +182,7 @@
       </div>
       <div class="railtools">
         <div class="search"><input type="text" id="rail-filter" placeholder="&#128269; Search"></div>
+        <button type="button" id="rail-star" class="railstar" aria-pressed="false" aria-label="Show starred groups only">&#9734;</button>
         <select id="rail-sort" class="railsort" aria-label="Sort groups"></select>
       </div>
       <div id="rail-items"></div>
@@ -490,7 +494,7 @@
         _invList = d.invites;
         _invCanHide = d.canHide === true;
         drawInvites();
-        if (!_invTouched && !_invAsked) {
+        if (!_invTouched && !_invAsked && !_hadSaved) {
           if (_invNewCount() > 0 && _pane !== 'invites') showInvites(true);
           else if (_invNewCount() === 0 && _pane === 'invites') { _pane = _paneBefore; showInvites(false); renderRail(); }
         }
@@ -732,12 +736,16 @@
 
   var _groups = [], _pane = 'member', _sort = 'newest', _sortChosen = false;
   var _PANE_KEY = 'cw-mygroups-pane';
+  var _hadSaved = false;
+  var _STAR_KEY = 'cw-mygroups-star', _starOnly = { member: false, hosted: false };
+  try { var _ss = JSON.parse(window.localStorage.getItem(_STAR_KEY) || '{}') || {}; _starOnly.member = !!_ss.member; _starOnly.hosted = !!_ss.hosted; } catch (e) {}
   try {
     var _savedPane = window.localStorage.getItem(_PANE_KEY);
     if (_savedPane === 'hosted' || _savedPane === 'member') { _pane = _savedPane; }
+    if (_savedPane === 'hosted' || _savedPane === 'member' || _savedPane === 'invites') { _hadSaved = _savedPane; }
   } catch (e) {}
   var _paneBefore = _pane;
-  if (_invAsked || _invWas() > 0) { showInvites(true); }
+  if (_invAsked || _hadSaved === 'invites' || (!_hadSaved && _invWas() > 0)) { showInvites(true); }
   loadInvites();
   function _time(g){
     var t = new Date(String(g.dateCreated || '')).getTime();
@@ -839,10 +847,13 @@
     var segM = document.getElementById('seg-member');
     if (segH) { segH.textContent = (nHost === 1 ? 'Group hosted' : 'Groups hosted') + ' (' + nHost + ')'; segH.classList.toggle('on', _pane === 'hosted'); }
     if (segM) { segM.textContent = (nMember === 1 ? 'Joined group' : 'Groups joined') + ' (' + nMember + ')'; segM.classList.toggle('on', _pane === 'member'); }
+    var _rs = document.getElementById('rail-star');
+    if (_rs) { var _on = !!_starOnly[_pane]; _rs.classList.toggle('on', _on); _rs.setAttribute('aria-pressed', _on ? 'true' : 'false'); _rs.innerHTML = _on ? '&#9733;' : '&#9734;'; }
     rail.innerHTML = '';
     var shown = _groups.filter(function(g){
       if (!_inPane(g)) return false;
       if (_sort === 'staronly' && _sortChosen && !g.starred) return false;
+      if (_starOnly[_pane] && !g.starred) return false;
       if (_sort === 'adminonly' && _sortChosen && !g.adminOnly) return false;
       return !q || String(g.name||'').toLowerCase().indexOf(q) !== -1;
     });
@@ -857,7 +868,7 @@
         if (_sm) _sm.classList.add('on');
       }
       var _msg = q ? 'No groups match.'
-        : (_sort === 'staronly' && _sortChosen) ? 'No starred groups here yet. Tap the \u2606 on a card to star it.'
+        : ((_sort === 'staronly' && _sortChosen) || _starOnly[_pane]) ? 'No starred groups here yet. Tap the \u2606 on a card to star it.'
         : (_sort === 'adminonly' && _sortChosen) ? 'No admin-only groups on this tab.'
         : (_pane === 'member'
              ? "You aren't part of any groups yet. Join one and it will show up here."
@@ -931,6 +942,15 @@
       _sortChosen = true; _sort = sel.value; renderSort(); renderRail();
     });
   })();
+  (function(){
+    var b = document.getElementById('rail-star');
+    if (b) b.addEventListener('click', function(){
+      if (_pane !== 'member' && _pane !== 'hosted') return;
+      _starOnly[_pane] = !_starOnly[_pane];
+      try { window.localStorage.setItem(_STAR_KEY, JSON.stringify(_starOnly)); } catch (e) {}
+      renderRail();
+    });
+  })();
   ['hosted','member'].forEach(function(pane){
     var b = document.getElementById('seg-' + pane);
     if (b) b.addEventListener('click', function(){
@@ -942,7 +962,7 @@
   });
   (function(){
     var b = document.getElementById('seg-invites');
-    if (b) b.addEventListener('click', function(){ _invTouched = true; showInvites(true); foldRail(false); });
+    if (b) b.addEventListener('click', function(){ _invTouched = true; try { window.localStorage.setItem(_PANE_KEY, 'invites'); } catch (e) {} showInvites(true); foldRail(false); });
   })();
 
   var _fresh = '';
