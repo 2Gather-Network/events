@@ -134,7 +134,7 @@
       c.addEventListener('click', fn);
       return c;
     }
-    var addDraft = '', addPick = '', addSay = '', addFocus = false;
+    var addDraft = '', addPick = '', addSay = '', addFocus = false, addAsk = false;
     function suggest(path, w){
       if (sec.key !== 'joys' || !sec.meId) return;
       var q = GATE + '?action=addWord&appearId=' + encodeURIComponent(sec.meId) + '&text=' + encodeURIComponent(w) + '&askedIn=interest';
@@ -146,8 +146,8 @@
       var rowEl = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;');
       var tx = document.createElement('input');
       tx.type = 'text'; tx.maxLength = 60; tx.value = addDraft;
-      tx.placeholder = 'Add your own idea'; tx.setAttribute('aria-label', 'Add your own idea');
-      tx.style.cssText = 'flex:1 1 220px;min-width:0;box-sizing:border-box;';
+      tx.setAttribute('aria-label', 'Add your own idea');
+      tx.style.cssText = 'flex:1 1 220px;min-width:0;box-sizing:border-box;height:38px;padding:0 12px;margin:0;';
       rowEl.appendChild(tx);
       var pick = null;
       if (choices && choices.length) {
@@ -157,24 +157,26 @@
         var ph = document.createElement('option'); ph.value = ''; ph.textContent = 'Which kind is it?'; pick.appendChild(ph);
         choices.forEach(function(c){ var o = document.createElement('option'); o.value = c; o.textContent = c; if (c === addPick) o.selected = true; pick.appendChild(o); });
         pick.addEventListener('change', function(){ addPick = pick.value; });
+        if (!addAsk) pick.style.display = 'none';
         rowEl.appendChild(pick);
       }
       var go = document.createElement('button');
-      go.type = 'button'; go.className = 'btn ghost'; go.textContent = 'Add';
+      go.type = 'button'; go.className = 'btn'; go.textContent = 'Add'; go.style.cssText = 'height:38px;padding:0 20px;margin:0;';
       rowEl.appendChild(go);
       box.appendChild(rowEl);
       var note = el('div', 'font-size:13px;color:#2F3D4F;margin:6px 0 0;', addSay);
       box.appendChild(note);
+      box.appendChild(el('div', 'font-size:13.5px;color:#1A2E42;margin:8px 0 0;', 'Add your own idea above or select a category below to explore some ideas.'));
       function doAdd(){
         var path = at.length ? at.slice() : (pick && pick.value ? [pick.value] : []);
         var words = String(tx.value || '').split(',').map(function(w){ w = w.trim().replace(/[|;›]/g, ''); return (window.CW && CW.sentence) ? CW.sentence(w) : w; }).filter(Boolean);
         if (!words.length) { addSay = 'Type an idea first.'; note.textContent = addSay; return; }
-        if (!path.length) { addSay = 'Pick which kind it is, then press Add.'; note.textContent = addSay; if (pick) pick.focus(); return; }
+        if (!path.length) { addSay = 'Pick which kind it is, then press Add.'; note.textContent = addSay; if (pick) { addAsk = true; pick.style.display = ''; pick.focus(); } return; }
         words.forEach(function(w){
           var full = path.concat(w).join(SEP);
           if (!order.some(function(k){ return k.toLowerCase() === full.toLowerCase(); })) { mark(full, true); suggest(path, w); }
         });
-        addDraft = ''; addSay = 'Added under ' + path.join(' › ') + '. A new idea is reviewed before others can pick it.';
+        addDraft = ''; addAsk = false; addSay = 'Added under ' + path.join(' › ') + '. A new idea is reviewed before others can pick it.';
         addFocus = true; draw(); onChange();
       }
       go.addEventListener('click', doAdd);
@@ -455,7 +457,7 @@
     root.appendChild(holder);
     var prev = el('div', 'background:var(--panel,#F7FBFF);border:1.5px solid var(--panel-line,#C9DFF3);border-radius:12px;padding:14px 16px;margin:14px 0 6px;');
     prev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 4px;letter-spacing:.03em;', 'YOUR TAGS'));
-    prev.appendChild(el('div', 'font-size:12.5px;color:var(--muted,#6B7A8D);margin:0 0 10px;padding-bottom:10px;border-bottom:1px solid #DDE6EF;', 'When new members join, they will select which tags you offer below.'));
+    prev.appendChild(el('div', 'font-size:13.5px;color:#1A2E42;margin:0 0 10px;padding-bottom:10px;border-bottom:1px solid #DDE6EF;', 'When new members join, they will select which tags you offer below.'));
     var prevBody = el('div', '');
     prev.appendChild(prevBody);
     root.appendChild(prev);
@@ -524,7 +526,7 @@
         var picks = sec === 'joys' ? all.filter(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; }) : all;
         if (picks.length) any = true;
         var col = el('div', 'display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0;padding:0 14px;' + (k !== KINDS[0] ? 'border-left:1px solid #DDE6EF;' : 'padding-left:0;'));
-        col.appendChild(el('div', 'font-size:13px;font-weight:700;color:var(--muted,#6B7A8D);', k.label));
+        col.appendChild(el('div', 'font-size:13.5px;font-weight:700;color:var(--muted,#6B7A8D);', k.label));
         if (!picks.length) col.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);', 'None'));
         if (picks.length) col.firstChild.textContent = k.label + ' (' + picks.length + ')';
         var LIM = 6, cap = openCols[k.label] ? 9999 : LIM, shown = 0, groups = [], gi = {};
