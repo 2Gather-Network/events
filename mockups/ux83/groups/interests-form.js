@@ -454,6 +454,7 @@
         });
       } else if (!sec.tag) crumb.style.display = 'none';
       cats.appendChild(crumb);
+      if (sec.steps && sec.hint && sec.hint()) cats.appendChild(el('div', 'font-size:13.5px;color:var(--soft,#2F3D4F);margin:-4px 0 12px;', sec.hint()));
       if (help) cats.appendChild(help.box);
       if (sec.steps && catBox) { cats.appendChild(catBoxEl()); return; }
       if (sec.tag && !(sec.steps && at.length)) cats.appendChild(addBox(at.length ? null : list.filter(function(n){ return n.kids && n.kids.length; }).map(function(n){ return n.name; })));
@@ -626,7 +627,7 @@
       kinds.innerHTML = '';
       var hk = null; KINDS.forEach(function(k){ if (kindOn[k.label]) hk = k.label; });
       kindHint.textContent = hk ? KIND_HINTS[hk] : '';
-      kindHint.style.display = hk ? '' : 'none';
+      kindHint.style.display = (hk && !(o.steps && hk !== 'Eco/social cause')) ? '' : 'none';
       (o.kindPills ? KINDS.filter(function(k){ return chosen[k.label]; }) : KINDS).forEach(function(k, i){
         var on = !!kindOn[k.label], cnt = kindCount(k);
         var c = el('button', 'font:inherit;font-size:14.5px;font-weight:700;border:0;border-radius:0;padding:11px 8px;cursor:pointer;' + (i ? 'border-left:1.5px solid #C9DFF3;' : '') + 'background:' + (on ? '#1F699E' : '#fff') + ';color:' + (on ? '#fff' : '#1A2E42') + ';', k.label + (cnt ? ' (' + cnt + ')' : ''));
@@ -732,6 +733,8 @@
       s.selectAll = true;
       if (s.key === 'joys') { s.tag = true; s.visible = function(n){ return !!joyKind() && kindOfTop(n) === joyKind(); }; s.heading = function(){ return 'Ideas for ' + String(joyKind() || '').toLowerCase() + ' groups'; }; }
       if (s.key === 'cares') s.accordion = true;
+      if (s.key === 'joys') s.hint = function(){ return KIND_HINTS[joyKind()] || ''; };
+      if (s.key === 'cares' && o.steps) { kindHint.style.margin = '4px 0 12px'; wrap.insertBefore(kindHint, body); }
       s.noFind = true;
       s.meId = meIdFor;
       s.steps = !!o.steps;
