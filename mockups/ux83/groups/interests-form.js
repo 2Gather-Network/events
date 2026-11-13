@@ -10,6 +10,37 @@
     _rd.catch(function(){ _rd = null; });
     return _rd;
   }
+  var _wt = null;
+  function wordTies(){
+    if (_wt) return _wt;
+    _wt = fetch(GATE + '?action=getCategories&words=1').then(function(r){ return r.json(); }).then(function(d){
+      var r = (d && d.result) || d || {}, cols = r.wordCols || [], rows = r.words || [];
+      var ix = function(n){ return cols.indexOf(n); }, iId = ix('wordId'), iW = ix('word'), iK = ix('kindOf'), iC = ix('categories'), iO = ix('otherNames');
+      var byId = {}, map = {};
+      var low = function(x){ return String(x || '').replace(/\s+/g, ' ').trim().toLowerCase(); };
+      var list = function(x){ return String(x || '').split(/[|,]/).map(function(y){ return y.trim(); }).filter(Boolean); };
+      rows.forEach(function(w){ byId[w[iId]] = w; });
+      var catsOf = function(w){
+        var out = [], seen = {}, stack = [w], n = 0;
+        while (stack.length && n++ < 50) {
+          var a = stack.pop(); if (!a || seen[a[iId]]) continue; seen[a[iId]] = 1;
+          list(a[iC]).forEach(function(c){ if (out.indexOf(c) === -1) out.push(c); });
+          if (!out.length) list(a[iK]).forEach(function(k){ if (byId[k]) stack.push(byId[k]); });
+        }
+        return out;
+      };
+      rows.forEach(function(w){
+        var cs = catsOf(w); if (!cs.length) return;
+        [w[iW]].concat(list(w[iO])).forEach(function(nm){
+          var k = low(nm); if (!k) return;
+          map[k] = (map[k] || []).concat(cs.filter(function(c){ return (map[k] || []).indexOf(c) === -1; }));
+        });
+      });
+      return map;
+    });
+    _wt.catch(function(){ _wt = null; });
+    return _wt;
+  }
   function withKids(t){ return (t || []).filter(function(n){ return n.kids && n.kids.length; }); }
   var TREES = {
     joys: function(){ return window.cwCategoryTree({ skills: 'none', topics: true }).then(withKids); },
@@ -199,15 +230,19 @@
       var note = el('div', 'font-size:13px;font-weight:600;color:#1A2E42;margin:6px 0 0;', '');
       b.appendChild(list); b.appendChild(note);
       var foot = el('div', 'display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;');
-      var cx = document.createElement('button'); cx.type = 'button'; cx.className = 'cw-cancel'; cx.textContent = 'Cancel';
+      var cx = document.createElement('button'); cx.type = 'button'; cx.textContent = 'Cancel';
+      cx.style.cssText = 'font-family:inherit;border-radius:22px;padding:8px 16px;font-size:14px;font-weight:700;line-height:1.5;border:1.5px solid #1F699E;background:#fff;color:#1F699E;margin:0;cursor:pointer;';
+      var ties = null;
       var dn = document.createElement('button'); dn.type = 'button'; dn.textContent = 'Done';
       foot.appendChild(cx); foot.appendChild(dn); b.appendChild(foot);
       function picked(){ return tops.map(function(t){ return t.name; }).filter(function(n){ return cb.picks[n]; }); }
       function paint(){
         var qx = String(cb.q || '').trim(), lq = qx.toLowerCase(), assoc = [];
+        lq = lq.replace(/\s+/g, ' ');
         if (lq && tree) allNodes(tree, [], []).forEach(function(n){
           if (n.path.length > 1 && n.name.toLowerCase() === lq && assoc.indexOf(n.path[0]) === -1 && tops.some(function(t){ return t.name === n.path[0]; })) assoc.push(n.path[0]);
         });
+        if (lq && ties && ties[lq]) ties[lq].forEach(function(c){ var t = tops.filter(function(x){ return x.name.toLowerCase() === c.toLowerCase(); })[0]; if (t && assoc.indexOf(t.name) === -1) assoc.push(t.name); });
         if (lq !== cb.auto) { cb.auto = lq; assoc.forEach(function(t){ cb.picks[t] = true; }); }
         var shown = tops.filter(function(t){ return !lq || t.name.toLowerCase().indexOf(lq) > -1 || assoc.indexOf(t.name) > -1; });
         list.innerHTML = '';
@@ -237,6 +272,7 @@
         nextBox(); draw(); onChange();
       });
       paint();
+      wordTies().then(function(m){ ties = m; if (catBox === cb) { cb.auto = null; paint(); } }).catch(function(){});
       setTimeout(function(){ try { si.focus(); } catch (e) {} }, 0);
       return b;
     }
