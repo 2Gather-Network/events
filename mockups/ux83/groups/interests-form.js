@@ -223,7 +223,7 @@
         if (nm.some(function(x){ return x.indexOf(lq) > -1; })) { seen[nl] = 1; hits.push(n); }
       });
       hits.sort(function(a, b){ var x = a.name.toLowerCase().indexOf(lq) === 0 ? 0 : 1, y = b.name.toLowerCase().indexOf(lq) === 0 ? 0 : 1; return x - y || a.name.localeCompare(b.name); });
-      return { exact: exact, hits: hits.slice(0, 40) };
+      return { exact: exact, hits: hits.slice(0, 10) };
     }
     function pickNode(n){
       var key = n.path.join(SEP);
@@ -231,9 +231,10 @@
       addDraft = ''; inp.value = ''; sg2.innerHTML = ''; addRecent(key); addFocus = true; draw(); onChange();
     }
     function sugEl(q, onNew, onCancel){
-      var box = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 0;');
+      var wrapper = el('div', ''), box = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 0;');
+      wrapper.appendChild(box);
       var t = String(q || '').trim();
-      if (!t) return box;
+      if (!t) return wrapper;
       var m = matchNodes(t);
       var pb = function(label, strong, fn){
         var b = document.createElement('button'); b.type = 'button'; b.textContent = label;
@@ -241,10 +242,11 @@
         b.addEventListener('click', fn); box.appendChild(b);
       };
       m.hits.forEach(function(n){ pb(n.name, false, function(){ pickNode(n); }); });
+      if (m.hits.length) { box = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 0;'); wrapper.appendChild(box); }
       if (m.exact) pb('+ Add “' + m.exact.name + '”', true, function(){ pickNode(m.exact); });
       else pb('+ Add “' + sentence(t) + '”', true, onNew);
       pb('Cancel', false, onCancel);
-      return box;
+      return wrapper;
     }
     function stepAdd(words){
       words.forEach(function(w){
