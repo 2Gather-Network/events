@@ -240,11 +240,9 @@
         b.style.cssText = 'font-family:inherit;background:#fff;border:1.5px solid ' + (strong ? '#1F699E' : '#DDE4EE') + ';border-radius:20px;padding:5px 12px;font-size:13px;font-weight:700;color:#1F699E;cursor:pointer;margin:0;line-height:1.4;';
         b.addEventListener('click', fn); box.appendChild(b);
       };
+      m.hits.forEach(function(n){ pb(n.name, false, function(){ pickNode(n); }); });
       if (m.exact) pb('+ Add “' + m.exact.name + '”', true, function(){ pickNode(m.exact); });
-      else {
-        m.hits.forEach(function(n){ pb(n.name, false, function(){ pickNode(n); }); });
-        pb('+ Add “' + sentence(t) + '”', true, onNew);
-      }
+      else pb('+ Add “' + sentence(t) + '”', true, onNew);
       pb('Cancel', false, onCancel);
       return box;
     }
