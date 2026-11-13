@@ -79,7 +79,7 @@
       + '.cwpk:not(.cwpk-all){color:#1A2E42;font-weight:400;}.cwpk:not(.cwpk-all):not(.on){border-color:#C9D6E2;}.cwpk:not(.cwpk-all).on{color:#fff;}';
     document.head.appendChild(st);
   }
-  function makePicker(host, sec, chip, onChange){
+  function makePicker(host, sec, chip, onChange, v2){
     pickerStyle();
     var on = {}, order = [], tree = null, at = [], own = {}, helpState = { open: false };
     var find = document.createElement('input');
@@ -134,7 +134,7 @@
       c.addEventListener('click', fn);
       return c;
     }
-    var addDraft = '', addPick = '', addSay = '', addFocus = false;
+    var addDraft = '', addPick = '', addSay = '', addFocus = false, addAsk = false;
     function suggest(path, w){
       if (sec.key !== 'joys' || !sec.meId) return;
       var q = GATE + '?action=addWord&appearId=' + encodeURIComponent(sec.meId) + '&text=' + encodeURIComponent(w) + '&askedIn=interest';
@@ -146,8 +146,9 @@
       var rowEl = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;');
       var tx = document.createElement('input');
       tx.type = 'text'; tx.maxLength = 60; tx.value = addDraft;
-      tx.placeholder = 'Add your own idea'; tx.setAttribute('aria-label', 'Add your own idea');
-      tx.style.cssText = 'flex:1 1 220px;min-width:0;box-sizing:border-box;';
+      tx.setAttribute('aria-label', 'Add your own idea');
+      if (!v2) tx.placeholder = 'Add your own idea';
+      tx.style.cssText = v2 ? 'flex:1 1 220px;min-width:0;box-sizing:border-box;height:38px;padding:0 12px;margin:0;' : 'flex:1 1 220px;min-width:0;box-sizing:border-box;';
       rowEl.appendChild(tx);
       var pick = null;
       if (choices && choices.length) {
@@ -157,24 +158,26 @@
         var ph = document.createElement('option'); ph.value = ''; ph.textContent = 'Which kind is it?'; pick.appendChild(ph);
         choices.forEach(function(c){ var o = document.createElement('option'); o.value = c; o.textContent = c; if (c === addPick) o.selected = true; pick.appendChild(o); });
         pick.addEventListener('change', function(){ addPick = pick.value; });
+        if (v2 && !addAsk) pick.style.display = 'none';
         rowEl.appendChild(pick);
       }
       var go = document.createElement('button');
-      go.type = 'button'; go.className = 'btn ghost'; go.textContent = 'Add';
+      go.type = 'button'; go.className = v2 ? 'btn' : 'btn ghost'; go.textContent = 'Add'; if (v2) go.style.cssText = 'height:38px;padding:0 20px;margin:0;';
       rowEl.appendChild(go);
       box.appendChild(rowEl);
       var note = el('div', 'font-size:13px;color:#2F3D4F;margin:6px 0 0;', addSay);
       box.appendChild(note);
+      if (v2) box.appendChild(el('div', 'font-size:13.5px;color:#1A2E42;margin:8px 0 0;', 'Add your own idea above or select a category below to explore some ideas.'));
       function doAdd(){
         var path = at.length ? at.slice() : (pick && pick.value ? [pick.value] : []);
         var words = String(tx.value || '').split(',').map(function(w){ w = w.trim().replace(/[|;›]/g, ''); return (window.CW && CW.sentence) ? CW.sentence(w) : w; }).filter(Boolean);
         if (!words.length) { addSay = 'Type an idea first.'; note.textContent = addSay; return; }
-        if (!path.length) { addSay = 'Pick which kind it is, then press Add.'; note.textContent = addSay; if (pick) pick.focus(); return; }
+        if (!path.length) { addSay = 'Pick which kind it is, then press Add.'; note.textContent = addSay; if (pick) { addAsk = true; pick.style.display = ''; pick.focus(); } return; }
         words.forEach(function(w){
           var full = path.concat(w).join(SEP);
           if (!order.some(function(k){ return k.toLowerCase() === full.toLowerCase(); })) { mark(full, true); suggest(path, w); }
         });
-        addDraft = ''; addSay = 'Added under ' + path.join(' › ') + '. A new idea is reviewed before others can pick it.';
+        addDraft = ''; addAsk = false; addSay = 'Added under ' + path.join(' › ') + '. A new idea is reviewed before others can pick it.';
         addFocus = true; draw(); onChange();
       }
       go.addEventListener('click', doAdd);
@@ -432,6 +435,8 @@
     var help = el('div', 'margin:0 0 8px;', 'Pick every tag that fits your group, from any kind. Tap a kind to switch which ideas you are looking at. What you pick becomes the questions new members answer when they join, so you learn what each person is into.');
     help.className = 'help';
     root.appendChild(help);
+    var chosen = {}, pillRow = null;
+    if (o.kindPills) { pillRow = el('div', 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;'); root.appendChild(pillRow); }
     var find = document.createElement('input');
     find.type = 'text'; find.placeholder = 'Search every kind for a topic to tag'; find.maxLength = 60; find.style.cssText = 'width:100%;box-sizing:border-box;margin:0 0 10px;';
     root.appendChild(find);
@@ -453,7 +458,7 @@
     root.appendChild(holder);
     var prev = el('div', 'background:var(--panel,#F7FBFF);border:1.5px solid var(--panel-line,#C9DFF3);border-radius:12px;padding:14px 16px;margin:14px 0 6px;');
     prev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 4px;letter-spacing:.03em;', 'YOUR TAGS'));
-    prev.appendChild(el('div', 'font-size:12.5px;color:var(--muted,#6B7A8D);margin:0 0 10px;padding-bottom:10px;border-bottom:1px solid #DDE6EF;', 'When new members join, they will select which tags you offer below.'));
+    prev.appendChild(el('div', o.kindPills ? 'font-size:13.5px;color:#1A2E42;margin:0 0 10px;' : 'font-size:12.5px;color:var(--muted,#6B7A8D);margin:0 0 10px;padding-bottom:10px;border-bottom:1px solid #DDE6EF;', 'When new members join, they will select which tags you offer below.'));
     var prevBody = el('div', '');
     prev.appendChild(prevBody);
     root.appendChild(prev);
@@ -470,7 +475,7 @@
       var hk = null; KINDS.forEach(function(k){ if (kindOn[k.label]) hk = k.label; });
       kindHint.textContent = hk ? KIND_HINTS[hk] : '';
       kindHint.style.display = hk ? '' : 'none';
-      KINDS.forEach(function(k, i){
+      (o.kindPills ? KINDS.filter(function(k){ return chosen[k.label]; }) : KINDS).forEach(function(k, i){
         var on = !!kindOn[k.label], cnt = kindCount(k);
         var c = el('button', 'font:inherit;font-size:14.5px;font-weight:700;border:0;border-radius:0;padding:11px 8px;cursor:pointer;' + (i ? 'border-left:1.5px solid #C9DFF3;' : '') + 'background:' + (on ? '#1F699E' : '#fff') + ';color:' + (on ? '#fff' : '#1A2E42') + ';', k.label + (cnt ? ' (' + cnt + ')' : ''));
         c.type = 'button';
@@ -522,7 +527,7 @@
         var picks = sec === 'joys' ? all.filter(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; }) : all;
         if (picks.length) any = true;
         var col = el('div', 'display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0;padding:0 14px;' + (k !== KINDS[0] ? 'border-left:1px solid #DDE6EF;' : 'padding-left:0;'));
-        col.appendChild(el('div', 'font-size:13px;font-weight:700;color:var(--muted,#6B7A8D);', k.label));
+        col.appendChild(el('div', o.kindPills ? 'font-size:13.5px;font-weight:700;color:var(--muted,#6B7A8D);' : 'font-size:13px;font-weight:700;color:var(--muted,#6B7A8D);', k.label));
         if (!picks.length) col.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);', 'None'));
         if (picks.length) col.firstChild.textContent = k.label + ' (' + picks.length + ')';
         var LIM = 6, cap = openCols[k.label] ? 9999 : LIM, shown = 0, groups = [], gi = {};
@@ -576,10 +581,30 @@
       if (s.key === 'cares') s.accordion = true;
       s.noFind = true;
       s.meId = meIdFor;
-      parts[s.key] = makePicker(body, s, chip, preview);
+      parts[s.key] = makePicker(body, s, chip, preview, !!o.kindPills);
     });
     if (nm) nm.addEventListener('input', preview);
-    kindOn.Recreational = true;
+    if (!o.kindPills) kindOn.Recreational = true;
+    function anyChosen(){ return KINDS.some(function(k){ return chosen[k.label]; }); }
+    function syncKindPills(){
+      if (!o.kindPills) return;
+      var any = anyChosen(), disp = any ? '' : 'none';
+      [find, found, kinds, holder, prev].forEach(function(n){ n.style.display = disp; });
+      if (!any) kindHint.style.display = 'none';
+      var act = null; KINDS.forEach(function(k){ if (kindOn[k.label] && chosen[k.label]) act = k.label; });
+      if (!act) { KINDS.forEach(function(k){ kindOn[k.label] = false; }); var first = KINDS.filter(function(k){ return chosen[k.label]; })[0]; if (first) { kindOn[first.label] = true; if (first.key === 'joys' && parts.joys) parts.joys.home(); } }
+    }
+    function paintKindPills(){
+      if (!pillRow) return;
+      pillRow.innerHTML = '';
+      KINDS.forEach(function(k){
+        var b = document.createElement('button'); b.type = 'button'; b.className = chip + (chosen[k.label] ? ' on' : ''); b.textContent = k.label;
+        b.setAttribute('aria-pressed', chosen[k.label] ? 'true' : 'false');
+        b.addEventListener('click', function(){ chosen[k.label] = !chosen[k.label]; paintKindPills(); syncKindPills(); paintKinds(); layout(); });
+        pillRow.appendChild(b);
+      });
+    }
+    paintKindPills(); syncKindPills();
     paintKinds(); layout(); preview();
     return {
       get: function(){ return { joys: parts.joys.get(), skills: '', cares: parts.cares.get() }; },
@@ -589,6 +614,7 @@
         KINDS.forEach(function(k){ if (!first && k.key === 'joys' && jp.some(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; })) first = k.label; });
         if (!first && parts.cares.picks().length) first = 'Eco/social cause';
         if (first) { KINDS.forEach(function(k){ kindOn[k.label] = false; }); kindOn[first] = true; if (parts.joys) parts.joys.home(); }
+        if (o.kindPills) { KINDS.forEach(function(k){ if (kindCount(k)) chosen[k.label] = true; }); if (first) chosen[first] = true; paintKindPills(); syncKindPills(); }
         paintKinds(); layout(); preview();
       }
     };
