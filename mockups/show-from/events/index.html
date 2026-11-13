@@ -130,6 +130,7 @@
   .range-chips .rc-row3 { flex:1 1 100%; display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; }
   .range-chips .tw { display:inline-flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .range-chips .tw-l { font-size:14px; font-weight:700; color:#1A2E42; white-space:nowrap; }
+  .tw-create { font-size:13px; font-weight:700; color:#1F699E; text-decoration:underline; white-space:nowrap; }
   .tw-pp { display:flex; flex-wrap:nowrap; gap:6px; }
   html .tw-pp button.fbar-fp { font-family:inherit; font-size:13px; font-weight:700; color:#1A2E42; background:#fff; border:1.5px solid #DDE4EE; border-radius:20px; padding:5px 10px; cursor:pointer; white-space:nowrap; flex:0 0 auto; }
   html .tw-pp button.fbar-fp:hover { background:#F4F9FE; }
@@ -623,11 +624,11 @@
           </div>
         </div>
       </div>
-      <div id="topic-add-row" style="display:none;gap:8px;position:relative;flex-shrink:0;align-items:center;margin-bottom:12px;">
+      <div id="topic-add-row" style="display:none;gap:8px;position:relative;flex:1 1 260px;min-width:0;flex-wrap:nowrap;align-items:center;margin-bottom:12px;">
         <input id="interests-input" type="text" placeholder='Topic or "exact phrase"' autocomplete="off"
-          style="width:220px;max-width:52vw;border:1.5px solid var(--border);border-radius:8px;padding:9px 14px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;box-sizing:border-box;"
+          style="flex:1 1 auto;min-width:0;width:auto;height:34px;border:1.5px solid var(--border);border-radius:8px;padding:0 14px;font-size:14px;font-family:inherit;color:var(--dark);outline:none;box-sizing:border-box;"
           oninput="onInterestsInput(event)" onkeydown="onInterestsKeydown(event)">
-        <button id="topic-add-btn" onclick="onTopicAddClick()" style="flex-shrink:0;background:var(--cw-blue);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;">Add</button>
+        <button id="topic-add-btn" onclick="onTopicAddClick()" style="flex:0 0 auto;height:34px;background:var(--cw-blue);color:#fff;border:none;border-radius:8px;padding:0 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;">Add</button>
         <div id="interests-autocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:20;max-height:180px;overflow-y:auto;margin-top:4px;"></div>
       </div>
     </div>
@@ -801,7 +802,7 @@
     <button type="button" class="tg on" id="show-photos" role="switch" aria-checked="true" onclick="togglePhotos()"><span class="tg-track"><span class="tg-knob"></span></span><span>Images</span></button>
     </div>
     <div class="rc-row3">
-      <span class="tw tw-show-from" id="show-from" style="display:none;"><span class="tw-l">Show events from</span><span class="tw-pp" role="group" aria-label="Show events from"><button type="button" class="fbar-fp" id="pill-mat" aria-pressed="false" onclick="togglePill('mat')">My matches</button><button type="button" class="fbar-fp" id="pill-grp" aria-pressed="false" onclick="togglePill('grp')">My groups</button><button type="button" class="fbar-fp" id="pill-host" aria-pressed="false" onclick="togglePill('host')">My hosted events</button></span></span>
+      <span class="tw tw-show-from" id="show-from" style="display:none;"><span class="tw-l">Show events from</span><span class="tw-pp" role="group" aria-label="Show events from"><button type="button" class="fbar-fp" id="pill-mat" aria-pressed="false" onclick="togglePill('mat')">My matches</button><button type="button" class="fbar-fp" id="pill-grp" aria-pressed="false" onclick="togglePill('grp')">My groups</button><a class="tw-create" id="pill-grp-link" href="https://2appear.network/groups/create/" style="display:none;">Create a group</a><button type="button" class="fbar-fp" id="pill-host" aria-pressed="false" onclick="togglePill('host')">My hosted events</button></span></span>
     </div>
   </div>
   <div id="cal-loading" style="display:none;text-align:center;margin:22px 0 8px;"><span class="cw-loading">Loading events</span></div>
@@ -3533,6 +3534,16 @@ function setTri(which, v) {
   renderEvents();
 }
 function togglePill(which) {
+  if (which === "mat" && !_interestsNow().length) {
+    try {
+      var _fys = document.getElementById("for-you-section"); if (_fys) { _fys.style.display = "block"; }
+      var _tar = document.getElementById("topic-add-row"); if (_tar) { _tar.style.display = "flex"; }
+      onInterestsPencil();
+      var _inp = document.getElementById("interests-input");
+      if (_inp) { _inp.scrollIntoView({ block: "center" }); _inp.focus(); }
+    } catch (e) {}
+    return;
+  }
   var cur = which === "grp" ? _grpMode : (which === "host" ? _hostMode : _matchMode);
   setTri(which, cur === "only" ? "all" : "only");
 }
@@ -3605,7 +3616,9 @@ function _paintRangeChips() {
   });
   try { _loadHosted(); } catch (e) {}
   var _sf = document.getElementById("show-from");
-  var _pv = { mat: (_matchMode === "only" || _hasMatchEvents()), grp: (_grpMode === "only" || _hasGroupEvents()), host: (_hostMode === "only" || _hasHostEvents()) };
+  var _me = ""; try { _me = (typeof getMemberId === "function") ? (getMemberId() || "") : ""; } catch (e) {}
+  var _noGroups = !!(_me && !_myGroupsBusy && !_myGroupsFailed && Array.isArray(_myGroups) && _myGroups.length === 0);
+  var _pv = { mat: (_matchMode === "only" || _hasMatchEvents() || !!_me), grp: (_grpMode === "only" || _hasGroupEvents()), host: (_hostMode === "only" || _hasHostEvents()) };
   var _pm = { mat: _matchMode, grp: _grpMode, host: _hostMode };
   window._pillSeen = window._pillSeen || {};
   ["mat", "grp", "host"].forEach(function (k) {
@@ -3617,7 +3630,9 @@ function _paintRangeChips() {
     pb.classList.toggle("on", _pm[k] === "only");
     pb.setAttribute("aria-pressed", _pm[k] === "only" ? "true" : "false");
   });
-  if (_sf) { _sf.style.display = (_pv.mat || _pv.grp || _pv.host) ? "inline-flex" : "none"; }
+  var _gl = document.getElementById("pill-grp-link");
+  if (_gl) { _gl.style.display = (_noGroups && !_pv.grp) ? "" : "none"; }
+  if (_sf) { _sf.style.display = (_pv.mat || _pv.grp || _pv.host || (_gl && _gl.style.display !== "none")) ? "inline-flex" : "none"; }
   var _r3 = document.querySelector(".rc-row3");
   if (_r3) { _r3.style.display = (_sf && _sf.style.display !== "none") ? "flex" : "none"; }
   _paintPhotos();
