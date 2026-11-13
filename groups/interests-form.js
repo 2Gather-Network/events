@@ -148,7 +148,7 @@
       tx.type = 'text'; tx.maxLength = 60; tx.value = addDraft;
       tx.setAttribute('aria-label', 'Add your own idea');
       if (!v2) tx.placeholder = 'Add your own idea';
-      tx.style.cssText = v2 ? 'flex:1 1 220px;min-width:0;box-sizing:border-box;height:38px;padding:0 12px;margin:0;' : 'flex:1 1 220px;min-width:0;box-sizing:border-box;';
+      tx.style.cssText = v2 ? 'flex:1 1 220px;min-width:0;box-sizing:border-box;height:34px;padding:0 12px;margin:0;' : 'flex:1 1 220px;min-width:0;box-sizing:border-box;';
       rowEl.appendChild(tx);
       var pick = null;
       if (choices && choices.length) {
@@ -162,7 +162,7 @@
         rowEl.appendChild(pick);
       }
       var go = document.createElement('button');
-      go.type = 'button'; go.className = v2 ? 'btn' : 'btn ghost'; go.textContent = 'Add'; if (v2) go.style.cssText = 'height:38px;padding:0 20px;margin:0;';
+      go.type = 'button'; go.className = v2 ? 'btn' : 'btn ghost'; go.textContent = 'Add'; if (v2) go.style.cssText = 'height:34px;padding:0 14px;margin:0;font-size:13px;font-weight:700;';
       rowEl.appendChild(go);
       box.appendChild(rowEl);
       var note = el('div', 'font-size:13px;color:#2F3D4F;margin:6px 0 0;', addSay);
