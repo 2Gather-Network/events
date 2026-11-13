@@ -79,7 +79,7 @@
       + '.cwpk:not(.cwpk-all){color:#1A2E42;font-weight:400;}.cwpk:not(.cwpk-all):not(.on){border-color:#C9D6E2;}.cwpk:not(.cwpk-all).on{color:#fff;}';
     document.head.appendChild(st);
   }
-  function makePicker(host, sec, chip, onChange){
+  function makePicker(host, sec, chip, onChange, v2){
     pickerStyle();
     var on = {}, order = [], tree = null, at = [], own = {}, helpState = { open: false };
     var find = document.createElement('input');
@@ -135,11 +135,110 @@
       return c;
     }
     var addDraft = '', addPick = '', addSay = '', addFocus = false, addAsk = false;
-    function suggest(path, w){
+    function suggest(path, w, cats){
       if (sec.key !== 'joys' || !sec.meId) return;
       var q = GATE + '?action=addWord&appearId=' + encodeURIComponent(sec.meId) + '&text=' + encodeURIComponent(w) + '&askedIn=interest';
-      q += path.length > 1 ? '&kindOf=' + encodeURIComponent(path[path.length - 1]) : '&categories=' + encodeURIComponent(path[0]);
+      if (cats && cats.length) q += '&categories=' + encodeURIComponent(cats.join('|'));
+      else q += path.length > 1 ? '&kindOf=' + encodeURIComponent(path[path.length - 1]) : '&categories=' + encodeURIComponent(path[0]);
       fetch(q).catch(function(){});
+    }
+    var catBox = null, catQueue = [], recent = [];
+    function knownNode(w){
+      if (!tree) return null;
+      var lw = String(w).toLowerCase();
+      var hits = allNodes(tree, [], []).filter(function(n){ return n.name.toLowerCase() === lw; });
+      if (!hits.length) return null;
+      var vis = hits.filter(function(n){ return !sec.visible || sec.visible(n.path[0]); });
+      return vis[0] || hits[0];
+    }
+    function addRecent(k){ if (recent.indexOf(k) === -1) recent.push(k); }
+    function nextBox(){ catBox = catQueue.length ? { word: catQueue.shift(), picks: {}, q: '', auto: '' } : null; addFocus = !catBox; }
+    function stepAdd(words){
+      words.forEach(function(w){
+        var n = knownNode(w);
+        if (n) {
+          var key = n.path.join(SEP);
+          if (!on[key]) { mark(key); for (var i = 1; i < n.path.length; i++) unmark(n.path.slice(0, i).join(SEP)); }
+          addRecent(key);
+          return;
+        }
+        if (at.length) {
+          var full = at.concat(w).join(SEP);
+          if (!on[full]) { mark(full, true); suggest(at, w); }
+          addRecent(full);
+          return;
+        }
+        var have = order.some(function(k){ var p = k.split(SEP); return on[k] && p[p.length - 1].toLowerCase() === w.toLowerCase(); });
+        if (!have && catQueue.indexOf(w) === -1 && !(catBox && catBox.word === w)) catQueue.push(w);
+      });
+      if (!catBox) nextBox();
+      draw(); onChange();
+    }
+    function andList(a){ return a.length < 2 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+    function recentRow(){
+      var rr = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 8px;');
+      recent.forEach(function(k){
+        if (!on[k]) return;
+        var segs = k.split(SEP);
+        if (sec.visible && !sec.visible(segs[0])) return;
+        rr.appendChild(pill(segs[segs.length - 1], true, function(){ unmark(k); recent = recent.filter(function(x){ return x !== k; }); draw(); onChange(); }));
+      });
+      return rr;
+    }
+    function catBoxEl(){
+      var cb = catBox, tops = (tree || []).filter(function(n){ return n.kids && n.kids.length; });
+      var b = el('div', 'background:var(--panel,#F7FBFF);border:1.5px solid #1F699E;border-radius:14px;padding:12px 14px;margin:0 0 12px;');
+      b.appendChild(el('div', 'font-size:13px;font-weight:800;letter-spacing:.05em;color:#1A2E42;margin:0 0 10px;', 'PICK CATEGORIES FOR ' + cb.word.toUpperCase()));
+      var sw = el('div', 'display:flex;align-items:center;background:#F7F9FC;border:1.5px solid #DDE4EE;border-radius:99px;padding:0 14px;margin:0 0 10px;min-height:38px;box-sizing:border-box;');
+      var si = document.createElement('input');
+      si.type = 'search'; si.maxLength = 60; si.value = cb.q; si.placeholder = '🔍 Search';
+      si.setAttribute('aria-label', 'Search categories');
+      si.style.cssText = 'flex:1;min-width:0;border:0;background:transparent;font-family:inherit;font-size:14px;padding:8px 4px;outline:none;box-shadow:none;margin:0;height:auto;';
+      sw.appendChild(si); b.appendChild(sw);
+      var list = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;');
+      var note = el('div', 'font-size:13px;font-weight:600;color:#1A2E42;margin:6px 0 0;', '');
+      b.appendChild(list); b.appendChild(note);
+      var foot = el('div', 'display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;');
+      var cx = document.createElement('button'); cx.type = 'button'; cx.className = 'cw-cancel'; cx.textContent = 'Cancel';
+      var dn = document.createElement('button'); dn.type = 'button'; dn.textContent = 'Done';
+      foot.appendChild(cx); foot.appendChild(dn); b.appendChild(foot);
+      function picked(){ return tops.map(function(t){ return t.name; }).filter(function(n){ return cb.picks[n]; }); }
+      function paint(){
+        var qx = String(cb.q || '').trim(), lq = qx.toLowerCase(), assoc = [];
+        if (lq && tree) allNodes(tree, [], []).forEach(function(n){
+          if (n.path.length > 1 && n.name.toLowerCase() === lq && assoc.indexOf(n.path[0]) === -1 && tops.some(function(t){ return t.name === n.path[0]; })) assoc.push(n.path[0]);
+        });
+        if (lq !== cb.auto) { cb.auto = lq; assoc.forEach(function(t){ cb.picks[t] = true; }); }
+        var shown = tops.filter(function(t){ return !lq || t.name.toLowerCase().indexOf(lq) > -1 || assoc.indexOf(t.name) > -1; });
+        list.innerHTML = '';
+        shown.forEach(function(t){
+          list.appendChild(pill((t.emoji ? t.emoji + ' ' : '') + t.name, !!cb.picks[t.name], function(){ cb.picks[t.name] = !cb.picks[t.name]; paint(); }));
+        });
+        note.style.color = '#1A2E42';
+        if (lq && !shown.length) { note.textContent = 'Nothing matches. Clear the search to see every category.'; note.style.color = '#5A6878'; }
+        else if (assoc.length) note.textContent = qx.charAt(0).toUpperCase() + qx.slice(1) + ' is associated with ' + andList(assoc) + '.';
+        else note.textContent = '';
+        note.style.display = note.textContent ? '' : 'none';
+        var any = picked().length > 0;
+        dn.disabled = !any;
+        dn.style.cssText = 'font-family:inherit;border-radius:22px;padding:8px 16px;font-size:14px;font-weight:700;line-height:1.5;border:1.5px solid #1F699E;background:#1F699E;color:#fff;margin:0;cursor:' + (any ? 'pointer;' : 'default;opacity:.5;');
+      }
+      si.addEventListener('input', function(){ cb.q = si.value; paint(); });
+      si.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') ev.preventDefault(); });
+      cx.addEventListener('click', function(){ nextBox(); draw(); });
+      dn.addEventListener('click', function(){
+        var cs = picked();
+        if (!cs.length) return;
+        var prim = cs.filter(function(n){ return !sec.visible || sec.visible(n); })[0] || cs[0];
+        var key = prim + SEP + cb.word;
+        if (!on[key]) mark(key, true);
+        suggest([prim], cb.word, cs);
+        addRecent(key);
+        nextBox(); draw(); onChange();
+      });
+      paint();
+      setTimeout(function(){ try { si.focus(); } catch (e) {} }, 0);
+      return b;
     }
     function addBox(choices){
       var box = el('div', 'margin:0 0 12px;');
@@ -147,7 +246,8 @@
       var tx = document.createElement('input');
       tx.type = 'text'; tx.maxLength = 60; tx.value = addDraft;
       tx.setAttribute('aria-label', 'Add your own idea');
-      tx.style.cssText = 'flex:1 1 220px;min-width:0;box-sizing:border-box;height:38px;padding:0 12px;margin:0;';
+      if (!v2) tx.placeholder = 'Add your own idea';
+      tx.style.cssText = v2 ? 'flex:1 1 220px;min-width:0;box-sizing:border-box;height:34px;padding:0 12px;margin:0;' : 'flex:1 1 220px;min-width:0;box-sizing:border-box;';
       rowEl.appendChild(tx);
       var pick = null;
       if (choices && choices.length) {
@@ -157,20 +257,21 @@
         var ph = document.createElement('option'); ph.value = ''; ph.textContent = 'Which kind is it?'; pick.appendChild(ph);
         choices.forEach(function(c){ var o = document.createElement('option'); o.value = c; o.textContent = c; if (c === addPick) o.selected = true; pick.appendChild(o); });
         pick.addEventListener('change', function(){ addPick = pick.value; });
-        if (!addAsk) pick.style.display = 'none';
+        if (v2 && !addAsk) pick.style.display = 'none';
         rowEl.appendChild(pick);
       }
       var go = document.createElement('button');
-      go.type = 'button'; go.className = 'btn'; go.textContent = 'Add'; go.style.cssText = 'height:38px;padding:0 20px;margin:0;';
+      go.type = 'button'; go.className = v2 ? 'btn' : 'btn ghost'; go.textContent = 'Add'; if (v2) go.style.cssText = 'height:34px;padding:0 14px;margin:0;font-size:13px;font-weight:700;';
       rowEl.appendChild(go);
       box.appendChild(rowEl);
       var note = el('div', 'font-size:13px;color:#2F3D4F;margin:6px 0 0;', addSay);
       box.appendChild(note);
-      box.appendChild(el('div', 'font-size:13.5px;color:#1A2E42;margin:8px 0 0;', 'Add your own idea above or select a category below to explore some ideas.'));
+      if (v2) box.appendChild(el('div', 'font-size:13.5px;color:#1A2E42;margin:8px 0 0;', 'Add your own idea above or select a category below to explore some ideas.'));
       function doAdd(){
         var path = at.length ? at.slice() : (pick && pick.value ? [pick.value] : []);
         var words = String(tx.value || '').split(',').map(function(w){ w = w.trim().replace(/[|;›]/g, ''); return (window.CW && CW.sentence) ? CW.sentence(w) : w; }).filter(Boolean);
         if (!words.length) { addSay = 'Type an idea first.'; note.textContent = addSay; return; }
+        if (sec.steps) { addDraft = ''; addSay = ''; stepAdd(words); return; }
         if (!path.length) { addSay = 'Pick which kind it is, then press Add.'; note.textContent = addSay; if (pick) { addAsk = true; pick.style.display = ''; pick.focus(); } return; }
         words.forEach(function(w){
           var full = path.concat(w).join(SEP);
@@ -188,6 +289,7 @@
     var openN = {}, accFind = {};
     function drawAcc(){
       cats.innerHTML = '';
+      if (sec.steps && catBox) { cats.appendChild(catBoxEl()); return; }
       var heads = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0 10px;');
       tree.forEach(function(n){
         var h = document.createElement('div'); h.className = chip + ' cwpk' + (openN[n.name] ? ' on' : '');
@@ -200,6 +302,7 @@
         heads.appendChild(h);
       });
       cats.appendChild(addBox(tree.map(function(n){ return n.name; })));
+      if (sec.steps) cats.appendChild(recentRow());
       cats.appendChild(heads);
       tree.forEach(function(n){
         if (!openN[n.name]) return;
@@ -310,8 +413,10 @@
       } else if (!sec.tag) crumb.style.display = 'none';
       cats.appendChild(crumb);
       if (help) cats.appendChild(help.box);
+      if (sec.steps && catBox) { cats.appendChild(catBoxEl()); return; }
       if (sec.tag) cats.appendChild(addBox(at.length ? null : list.filter(function(n){ return n.kids && n.kids.length; }).map(function(n){ return n.name; })));
       var r = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;');
+      if (sec.steps && !at.length) Array.prototype.slice.call(recentRow().children).forEach(function(c){ r.appendChild(c); });
       if (at.length) {
         var here = at.join(SEP);
         r.appendChild(pill('All of ' + at[at.length - 1], !!on[here], function(){ toggle(here); }));
@@ -434,7 +539,7 @@
     var help = el('div', 'margin:0 0 8px;', 'Pick every tag that fits your group, from any kind. Tap a kind to switch which ideas you are looking at. What you pick becomes the questions new members answer when they join, so you learn what each person is into.');
     help.className = 'help';
     root.appendChild(help);
-    var chosen = {}, pillRow = null;
+    var chosen = {}, pillRow = null, stepStage = 'pick';
     if (o.kindPills) { pillRow = el('div', 'display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;'); root.appendChild(pillRow); }
     var find = document.createElement('input');
     find.type = 'text'; find.placeholder = 'Search every kind for a topic to tag'; find.maxLength = 60; find.style.cssText = 'width:100%;box-sizing:border-box;margin:0 0 10px;';
@@ -452,15 +557,21 @@
     };
     var kindHint = el('div', 'font-size:13.5px;color:var(--soft,#2F3D4F);margin:-6px 0 14px;', '');
     kindHint.style.display = 'none';
+    var prog = el('div', 'font-size:13px;font-weight:700;color:#5A6878;margin:0 0 6px;', '');
+    prog.style.display = 'none';
+    if (o.steps) root.appendChild(prog);
     root.appendChild(kindHint);
     var holder = el('div', '');
     root.appendChild(holder);
     var prev = el('div', 'background:var(--panel,#F7FBFF);border:1.5px solid var(--panel-line,#C9DFF3);border-radius:12px;padding:14px 16px;margin:14px 0 6px;');
     prev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 4px;letter-spacing:.03em;', 'YOUR TAGS'));
-    prev.appendChild(el('div', 'font-size:13.5px;color:#1A2E42;margin:0 0 10px;padding-bottom:10px;border-bottom:1px solid #DDE6EF;', 'When new members join, they will select which tags you offer below.'));
+    var prevSay = prev.appendChild(el('div', o.kindPills ? 'font-size:13.5px;color:#1A2E42;margin:0 0 10px;' : 'font-size:12.5px;color:var(--muted,#6B7A8D);margin:0 0 10px;padding-bottom:10px;border-bottom:1px solid #DDE6EF;', 'When new members join, they will select which tags you offer below.'));
     var prevBody = el('div', '');
     prev.appendChild(prevBody);
     root.appendChild(prev);
+    var rev = el('div', ''), foot = el('div', 'display:flex;justify-content:space-between;align-items:center;gap:10px;margin:14px 0 0;');
+    rev.style.display = 'none';
+    if (o.steps) { root.appendChild(rev); root.appendChild(foot); }
     var parts = {}, boxes = {}, open = {}, kindOn = {}, openCols = {};
     function boxOpen(key){ return KINDS.some(function(k){ return k.key === key && kindOn[k.label]; }); }
     function gname(){ return (nm && String(nm.value || '').trim()) || 'this group'; }
@@ -519,6 +630,7 @@
       paintKinds();
       drawFound();
       prevBody.innerHTML = '';
+      if (o.steps) { stepPreview(); return; }
       var any = false;
       var grid = el('div', 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 0;');
       KINDS.forEach(function(k){
@@ -526,7 +638,7 @@
         var picks = sec === 'joys' ? all.filter(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; }) : all;
         if (picks.length) any = true;
         var col = el('div', 'display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0;padding:0 14px;' + (k !== KINDS[0] ? 'border-left:1px solid #DDE6EF;' : 'padding-left:0;'));
-        col.appendChild(el('div', 'font-size:13.5px;font-weight:700;color:var(--muted,#6B7A8D);', k.label));
+        col.appendChild(el('div', o.kindPills ? 'font-size:13.5px;font-weight:700;color:var(--muted,#6B7A8D);' : 'font-size:13px;font-weight:700;color:var(--muted,#6B7A8D);', k.label));
         if (!picks.length) col.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);', 'None'));
         if (picks.length) col.firstChild.textContent = k.label + ' (' + picks.length + ')';
         var LIM = 6, cap = openCols[k.label] ? 9999 : LIM, shown = 0, groups = [], gi = {};
@@ -580,13 +692,15 @@
       if (s.key === 'cares') s.accordion = true;
       s.noFind = true;
       s.meId = meIdFor;
-      parts[s.key] = makePicker(body, s, chip, preview);
+      s.steps = !!o.steps;
+      parts[s.key] = makePicker(body, s, chip, preview, !!o.kindPills);
     });
     if (nm) nm.addEventListener('input', preview);
     if (!o.kindPills) kindOn.Recreational = true;
     function anyChosen(){ return KINDS.some(function(k){ return chosen[k.label]; }); }
     function syncKindPills(){
       if (!o.kindPills) return;
+      if (o.steps) { applyStage(); return; }
       var any = anyChosen(), disp = any ? '' : 'none';
       [find, found, kinds, holder, prev].forEach(function(n){ n.style.display = disp; });
       if (!any) kindHint.style.display = 'none';
@@ -603,6 +717,103 @@
         pillRow.appendChild(b);
       });
     }
+    function chosenList(){ return KINDS.filter(function(k){ return chosen[k.label]; }); }
+    function picksOf(k){
+      var all = parts[k.key] ? parts[k.key].picks() : [];
+      return k.key === 'joys' ? all.filter(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; }) : all;
+    }
+    function shownKinds(upto){
+      var list = chosenList().filter(function(k, i){ return i <= upto; });
+      KINDS.forEach(function(k){ if (list.indexOf(k) === -1 && !chosen[k.label] && picksOf(k).length) list.push(k); });
+      return list;
+    }
+    function tagsBlock(list, links){
+      var box = el('div', '');
+      list.forEach(function(k){
+        var picks = picksOf(k), idx = chosenList().indexOf(k);
+        var h = el(links && idx > -1 ? 'a' : 'div', 'display:block;font-size:14px;font-weight:800;color:#1F699E;margin:8px 0 4px;' + (links && idx > -1 ? 'text-decoration:underline;cursor:pointer;' : ''), k.label);
+        if (links && idx > -1) { h.href = '#'; h.addEventListener('click', function(e){ e.preventDefault(); goStage(idx); }); }
+        box.appendChild(h);
+        var row = el('div', 'display:flex;flex-wrap:wrap;gap:4px;');
+        if (!picks.length) row.appendChild(el('div', 'font-size:13px;color:var(--muted,#6B7A8D);', 'None'));
+        picks.forEach(function(key){
+          var p = key.split(SEP);
+          var c = document.createElement('div'); c.className = chip;
+          c.style.cssText = 'padding:2px 10px;font-size:12.5px;line-height:1.5;cursor:pointer;max-width:100%;';
+          c.title = 'Remove';
+          c.textContent = p[p.length - 1] + ' ×';
+          c.addEventListener('click', function(){ parts[k.key].remove(key); });
+          row.appendChild(c);
+        });
+        box.appendChild(row);
+      });
+      return box;
+    }
+    function stepPreview(){
+      if (stepStage === 'review') {
+        rev.innerHTML = '';
+        rev.appendChild(el('div', 'font-size:16px;font-weight:700;color:var(--ink,#1A2E42);margin:0 0 8px;letter-spacing:.03em;', 'YOUR TAGS'));
+        var hp = el('div', 'margin:0 0 8px;', 'When new members join, they will select which tags you offer below. They can also add their own.'); hp.className = 'help';
+        rev.appendChild(hp);
+        rev.appendChild(tagsBlock(shownKinds(99), true));
+        rev.appendChild(el('div', 'font-size:13px;color:#1A2E42;margin:14px 0 0;', "Tap a kind's name to go back and change it."));
+        return;
+      }
+      prevBody.appendChild(tagsBlock(shownKinds(typeof stepStage === 'number' ? stepStage : -1), false));
+    }
+    function stepBtn(text, solid, dim, fn){
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = text;
+      b.style.cssText = 'font-family:inherit;border-radius:22px;padding:8px 16px;font-size:14px;font-weight:700;line-height:1.5;margin:0;border:1.5px solid #1F699E;' + (solid ? 'background:#1F699E;color:#fff;' : 'background:#fff;color:#1F699E;') + 'cursor:' + (dim ? 'default;opacity:.5;' : 'pointer;');
+      if (dim) b.setAttribute('aria-disabled', 'true');
+      b.addEventListener('click', function(){ if (!dim) fn(); });
+      return b;
+    }
+    function goStage(st){
+      stepStage = st; applyStage();
+      try { root.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {}
+    }
+    function nextQ(){
+      var all = document.querySelectorAll('.q, h2, label'), i, n;
+      for (i = 0; i < all.length; i++) {
+        n = all[i];
+        if (root.contains(n) || !(root.compareDocumentPosition(n) & 4) || !n.offsetParent) continue;
+        try { n.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {}
+        return;
+      }
+    }
+    function applyStage(){
+      if (!o.steps) return;
+      var list = chosenList(), n = list.length;
+      if (typeof stepStage === 'number' && (stepStage < 0 || stepStage >= n)) stepStage = n ? 'review' : 'pick';
+      if (stepStage === 'review' && !n) stepStage = 'pick';
+      var isPick = stepStage === 'pick', isRev = stepStage === 'review', isKind = !isPick && !isRev;
+      q.style.display = isPick ? '' : 'none';
+      help.style.display = isPick ? '' : 'none';
+      if (pillRow) pillRow.style.display = isPick ? 'flex' : 'none';
+      [find, found, kinds].forEach(function(x){ x.style.display = 'none'; });
+      holder.style.display = isKind ? '' : 'none';
+      prev.style.display = isKind ? '' : 'none';
+      prog.style.display = isKind ? '' : 'none';
+      rev.style.display = isRev ? '' : 'none';
+      prevSay.style.display = 'none';
+      KINDS.forEach(function(x){ kindOn[x.label] = false; });
+      if (isKind) {
+        var k = list[stepStage];
+        kindOn[k.label] = true;
+        if (k.key === 'joys' && parts.joys) parts.joys.home();
+        prog.textContent = k.label + ' · ' + (stepStage + 1) + ' of ' + n;
+      }
+      layout(); preview();
+      foot.innerHTML = '';
+      if (isPick) {
+        foot.style.justifyContent = 'flex-end';
+        foot.appendChild(stepBtn('Continue', true, !n, function(){ goStage(0); }));
+      } else {
+        foot.style.justifyContent = 'space-between';
+        foot.appendChild(stepBtn('Back', false, false, function(){ goStage(isRev ? n - 1 : (stepStage > 0 ? stepStage - 1 : 'pick')); }));
+        foot.appendChild(stepBtn('Continue', true, false, function(){ if (isRev) nextQ(); else goStage(stepStage + 1 < n ? stepStage + 1 : 'review'); }));
+      }
+    }
     paintKindPills(); syncKindPills();
     paintKinds(); layout(); preview();
     return {
@@ -613,7 +824,8 @@
         KINDS.forEach(function(k){ if (!first && k.key === 'joys' && jp.some(function(x){ return kindOfTop(x.split(SEP)[0]) === k.label; })) first = k.label; });
         if (!first && parts.cares.picks().length) first = 'Eco/social cause';
         if (first) { KINDS.forEach(function(k){ kindOn[k.label] = false; }); kindOn[first] = true; if (parts.joys) parts.joys.home(); }
-        if (o.kindPills) { KINDS.forEach(function(k){ if (kindCount(k)) chosen[k.label] = true; }); if (first) chosen[first] = true; paintKindPills(); syncKindPills(); }
+        if (o.kindPills) { KINDS.forEach(function(k){ if (kindCount(k)) chosen[k.label] = true; }); if (first) chosen[first] = true; if (o.steps) stepStage = anyChosen() ? 'review' : 'pick'; paintKindPills(); syncKindPills(); }
+        if (o.steps) return;
         paintKinds(); layout(); preview();
       }
     };
