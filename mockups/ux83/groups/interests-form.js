@@ -138,13 +138,14 @@
       add.style.display = 'none';
       inp.addEventListener('input', function(){
         sg2.innerHTML = '';
-        if (String(inp.value || '').trim()) sg2.appendChild(sugEl(inp.value, function(){ addOwn(); }, function(){ inp.value = ''; sg2.innerHTML = ''; }));
+        if (String(inp.value || '').trim()) sg2.appendChild(sugEl(inp.value, function(){ addOwn(); }, function(){ inp.value = ''; sg2.innerHTML = ''; if (syncKey2) syncKey2(); }));
       });
       row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
       inp.style.cssText = 'flex:1 1 220px;min-width:0;box-sizing:border-box;height:34px;padding:0 12px;margin:0;';
       add.className = 'btn'; add.style.cssText = 'display:none;';
     }
     row.appendChild(inp); row.appendChild(add); host.appendChild(row); host.appendChild(sg2);
+    var syncKey2 = sec.steps ? enterKey(inp, function(){ addOwn(); }) : null;
     function syncOwn(){ ownLabel.style.display = otherOpen ? '' : 'none'; row.style.display = otherOpen ? 'flex' : 'none'; if (!otherOpen) sg2.innerHTML = ''; }
     function otherPill(path){
       var here = path.join(SEP), mine = otherOpen && otherPath.join(SEP) === here;
@@ -200,6 +201,29 @@
     }
     function addRecent(k){ if (recent.indexOf(k) === -1) recent.push(k); }
     function nextBox(){ catBox = catQueue.length ? { word: catQueue.shift(), picks: {}, q: '', auto: '' } : null; addFocus = !catBox; }
+    function enterKey(field, onAdd){
+      var wrap = el('div', 'position:relative;flex:1 1 220px;min-width:0;');
+      field.parentNode.insertBefore(wrap, field); wrap.appendChild(field);
+      field.style.flex = ''; field.style.width = '100%'; field.style.height = '42px'; field.style.boxSizing = 'border-box';
+      var phone = false;
+      try { phone = window.matchMedia('(hover: none) and (pointer: coarse)').matches; } catch (e) {}
+      var arrow = function(px, w){ return '<svg width="' + px + '" height="' + px + '" viewBox="0 0 24 24" fill="none" stroke="#5A6878" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="M9 11l-4 4 4 4"/></svg>'; };
+      var k = document.createElement('button'); k.type = 'button';
+      if (phone) {
+        k.setAttribute('aria-label', 'Add'); k.innerHTML = arrow(22, 2.4);
+        k.style.cssText = 'position:absolute;right:4px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;background:none;padding:0;margin:0;align-items:center;justify-content:center;cursor:pointer;';
+        field.style.paddingRight = '44px';
+      } else {
+        k.innerHTML = arrow(16, 2.4) + '<span>Enter</span>';
+        k.style.cssText = 'position:absolute;right:8px;top:50%;transform:translateY(-50%);align-items:center;gap:4px;background:#fff;border:1.5px solid #DDE4EE;border-radius:8px;padding:3px 8px;margin:0;font-family:inherit;font-size:12px;font-weight:700;color:#5A6878;line-height:1.3;cursor:pointer;';
+        field.style.paddingRight = '96px';
+      }
+      k.addEventListener('click', function(){ onAdd(); });
+      wrap.appendChild(k);
+      var sync = function(){ k.style.display = String(field.value || '').trim() ? 'flex' : 'none'; };
+      field.addEventListener('input', sync); sync();
+      return sync;
+    }
     function sentence(t){ t = String(t || '').trim(); return (window.CW && CW.sentence) ? CW.sentence(t) : t.charAt(0).toUpperCase() + t.slice(1); }
     var dbWords = null;
     if (sec.steps) wordTies().then(function(m){ dbWords = m._words || []; }).catch(function(){});
@@ -228,7 +252,7 @@
     function pickNode(n){
       var key = n.path.join(SEP);
       if (!on[key]) { mark(key); for (var i = 1; i < n.path.length; i++) unmark(n.path.slice(0, i).join(SEP)); }
-      addDraft = ''; inp.value = ''; sg2.innerHTML = ''; addRecent(key); addFocus = true; draw(); onChange();
+      addDraft = ''; inp.value = ''; sg2.innerHTML = ''; if (syncKey2) syncKey2(); addRecent(key); addFocus = true; draw(); onChange();
     }
     function sugEl(q, onNew, onCancel){
       var wrapper = el('div', ''), box = el('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 0;');
@@ -371,9 +395,10 @@
         var sg = el('div', '');
         var paintSg = function(){
           sg.innerHTML = '';
-          if (String(tx.value || '').trim()) sg.appendChild(sugEl(tx.value, function(){ doAdd(); }, function(){ tx.value = ''; addDraft = ''; sg.innerHTML = ''; }));
+          if (String(tx.value || '').trim()) sg.appendChild(sugEl(tx.value, function(){ doAdd(); }, function(){ tx.value = ''; addDraft = ''; sg.innerHTML = ''; try { tx.dispatchEvent(new Event('input')); } catch (e) {} }));
         };
         tx.addEventListener('input', paintSg);
+        enterKey(tx, function(){ doAdd(); });
         box.appendChild(sg);
         setTimeout(paintSg, 0);
       }
@@ -580,7 +605,7 @@
         var full = otherPath.length ? otherPath.concat(w).join(SEP) : w;
         if (w && !order.some(function(k){ return k.toLowerCase() === full.toLowerCase(); })) { mark(full, true); if (sec.steps) { for (var pi = 1; pi <= otherPath.length; pi++) { var pk = otherPath.slice(0, pi).join(SEP); if (on[pk]) unmark(pk); } suggest(otherPath, w); addRecent(full); } }
       });
-      inp.value = ''; sg2.innerHTML = ''; draw(); onChange();
+      inp.value = ''; sg2.innerHTML = ''; if (syncKey2) syncKey2(); draw(); onChange();
     }
     add.addEventListener('click', addOwn);
     inp.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') { ev.preventDefault(); addOwn(); } });
