@@ -29,13 +29,17 @@
         }
         return out;
       };
+      var words = [];
       rows.forEach(function(w){
         var cs = catsOf(w); if (!cs.length) return;
-        [w[iW]].concat(list(w[iO])).forEach(function(nm){
+        var nmz = [String(w[iW] || '').trim()].concat(list(w[iO])).filter(Boolean);
+        if (nmz[0]) words.push({ word: nmz[0], names: nmz, cats: cs });
+        nmz.forEach(function(nm){
           var k = low(nm); if (!k) return;
           map[k] = (map[k] || []).concat(cs.filter(function(c){ return (map[k] || []).indexOf(c) === -1; }));
         });
       });
+      map._words = words;
       return map;
     });
     _wt.catch(function(){ _wt = null; });
@@ -197,17 +201,29 @@
     function addRecent(k){ if (recent.indexOf(k) === -1) recent.push(k); }
     function nextBox(){ catBox = catQueue.length ? { word: catQueue.shift(), picks: {}, q: '', auto: '' } : null; addFocus = !catBox; }
     function sentence(t){ t = String(t || '').trim(); return (window.CW && CW.sentence) ? CW.sentence(t) : t.charAt(0).toUpperCase() + t.slice(1); }
+    var dbWords = null;
+    if (sec.steps) wordTies().then(function(m){ dbWords = m._words || []; }).catch(function(){});
     function matchNodes(q){
-      var lq = String(q || '').trim().toLowerCase().replace(/\s+/g, ' '), exact = null, hits = [];
-      if (!lq || !tree) return { exact: null, hits: [] };
-      allNodes(tree, [], []).forEach(function(n){
-        if (n.path.length < 2 || (sec.visible && !sec.visible(n.path[0]))) return;
-        var nl = n.name.toLowerCase();
-        if (nl === lq) { if (!exact) exact = n; return; }
-        if ((nl.indexOf(lq) === 0 || nl.indexOf(' ' + lq) > -1) && !hits.some(function(h){ return h.name.toLowerCase() === nl; })) hits.push(n);
+      var lq = String(q || '').trim().toLowerCase().replace(/\s+/g, ' '), exact = null, hits = [], seen = {};
+      if (lq.length < 2 || !tree) return { exact: null, hits: [] };
+      var tops = {};
+      tree.forEach(function(n){ tops[n.name.toLowerCase()] = n.name; });
+      var cands = [];
+      allNodes(tree, [], []).forEach(function(n){ if (n.path.length > 1) cands.push({ name: n.name, names: [n.name], path: n.path }); });
+      (dbWords || []).forEach(function(w){
+        var c = null;
+        w.cats.some(function(x){ var t = tops[String(x).toLowerCase()]; if (t) { c = t; return true; } return false; });
+        if (c) cands.push({ name: w.word, names: w.names, path: [c, w.word] });
       });
-      hits.sort(function(a, b){ return (a.name.toLowerCase().indexOf(lq) === 0 ? 0 : 1) - (b.name.toLowerCase().indexOf(lq) === 0 ? 0 : 1); });
-      return { exact: exact, hits: hits.slice(0, 6) };
+      cands.forEach(function(n){
+        var nl = n.name.toLowerCase();
+        if (seen[nl]) return;
+        var nm = n.names.map(function(x){ return String(x).toLowerCase(); });
+        if (nm.indexOf(lq) > -1) { seen[nl] = 1; if (!exact) exact = n; return; }
+        if (nm.some(function(x){ return x.indexOf(lq) > -1; })) { seen[nl] = 1; hits.push(n); }
+      });
+      hits.sort(function(a, b){ var x = a.name.toLowerCase().indexOf(lq) === 0 ? 0 : 1, y = b.name.toLowerCase().indexOf(lq) === 0 ? 0 : 1; return x - y || a.name.localeCompare(b.name); });
+      return { exact: exact, hits: hits.slice(0, 40) };
     }
     function pickNode(n){
       var key = n.path.join(SEP);
@@ -234,7 +250,7 @@
     }
     function stepAdd(words){
       words.forEach(function(w){
-        var n = knownNode(w);
+        var n = sec.steps ? matchNodes(w).exact : knownNode(w);
         if (n) {
           var key = n.path.join(SEP);
           if (!on[key]) { mark(key); for (var i = 1; i < n.path.length; i++) unmark(n.path.slice(0, i).join(SEP)); }
@@ -558,7 +574,7 @@
         w = w.trim().replace(/[|;›]/g, '');
         if (window.CW && CW.sentence) { w = CW.sentence(w); }
         if (sec.steps && w) {
-          var kn = knownNode(w);
+          var kn = matchNodes(w).exact;
           if (kn) { var kk = kn.path.join(SEP); if (!on[kk]) mark(kk); addRecent(kk); return; }
         }
         var full = otherPath.length ? otherPath.concat(w).join(SEP) : w;
