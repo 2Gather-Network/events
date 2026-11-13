@@ -14,6 +14,20 @@
   .lede{font-size:13.5px;line-height:1.5;color:var(--grey);margin:0 0 12px;}
   .search{width:100%;font:inherit;font-size:14px;padding:11px 14px;border:1.5px solid var(--pale);border-radius:12px;color:var(--ink);background:#fff;}
   .search:focus{outline:2px solid var(--blue);outline-offset:1px;}
+  .searchw{position:relative;}
+  .searchw .search{height:42px;box-sizing:border-box;padding-right:96px;}
+  .searchw .search:focus{outline:0;border-color:#1F699E;box-shadow:0 0 0 3px rgba(31,105,158,.18);}
+  .searchw .search::-webkit-search-cancel-button{display:none;}
+  .enterkey{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:none;align-items:center;gap:4px;background:#fff;border:1.5px solid #DDE4EE;border-radius:8px;padding:3px 8px;font:inherit;font-size:12px;font-weight:700;color:#5A6878;cursor:pointer;}
+  .enterkey svg{width:16px;height:16px;}
+  .searchw.typed .enterkey{display:inline-flex;}
+  .searchw .search[hidden] + .enterkey, body.focustag .enterkey{display:none !important;}
+  @media (hover:none) and (pointer:coarse){
+    .searchw .search{padding-right:48px;}
+    .enterkey{border:0;padding:0;width:34px;height:34px;justify-content:center;border-radius:8px;}
+    .enterkey svg{width:22px;height:22px;}
+    .enterkey .ek-word{display:none;}
+  }
   .crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:14px 0 8px;font-size:13px;font-weight:700;color:var(--muted);}
   .crumbs button{font:inherit;font-weight:700;color:var(--blue);background:none;border:0;padding:2px 3px;cursor:pointer;text-decoration:underline;}
   .crumbs .now{color:var(--ink);padding:2px 3px;}
@@ -641,6 +655,7 @@
   }
   function drawSearch(){
     var box = els.results; box.innerHTML = '';
+    try { if (els.search && els.search.parentNode && els.search.parentNode.classList) els.search.parentNode.classList.toggle('typed', !!String(els.search.value || '').trim()); } catch (e) {}
     loadEmo();
     var q = lc(st.q);
     if (q.length < 2) { box.style.display = 'none'; els.browse.style.display = ''; return; }
@@ -2080,17 +2095,26 @@
   function skeleton(){
     app.innerHTML = '';
     var s = el('input', 'search'); s.type = 'search'; s.placeholder = '\u{1F50D} Search or add an interest'; s.setAttribute('aria-label', 'Search or add an interest'); s.autocomplete = 'off';
-    s.addEventListener('input', function(){ st.q = s.value; drawSearch(); });
+    var sw = el('div', 'searchw');
+    var ek = el('button', 'enterkey'); ek.type = 'button'; ek.setAttribute('aria-label', 'Add');
+    ek.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#5A6878" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="M9 11l-4 4 4 4"/></svg><span class="ek-word">Enter</span>';
+    var typedNow = function(){ sw.classList.toggle('typed', !!String(s.value || '').trim()); };
+    var addTyped = function(){
+      var w = cap(clean(st.q)); if (!w) { return; }
+      var hit = st.byName[lc(w)], name = hit ? hit.word : w;
+      st.q = ''; s.value = ''; typedNow();
+      if (!has(name)) { if (hit && !hit.extra) { pick(name, areaOf(hit)); return; } st.msg = ''; st.tagging = [{ word: name, area: hit ? areaOf(hit) : 'Other', root: '', teach: '' }]; }
+      drawAll();
+    };
+    s.addEventListener('input', function(){ st.q = s.value; typedNow(); drawSearch(); });
     s.addEventListener('keydown', function(e){
       if (e.key !== 'Enter') { return; }
       e.preventDefault();
-      var w = cap(clean(st.q)); if (!w) { return; }
-      var hit = st.byName[lc(w)], name = hit ? hit.word : w;
-      st.q = ''; s.value = '';
-      if (!has(name)) { if (hit && !hit.extra) { pick(name, areaOf(hit)); return; } st.msg = ''; st.tagging = [{ word: name, area: hit ? areaOf(hit) : 'Other', root: '', teach: '' }]; }
-      drawAll();
+      addTyped();
     });
-    els.search = s; app.appendChild(s);
+    ek.addEventListener('click', function(){ addTyped(); try { s.focus(); } catch (e) {} });
+    sw.appendChild(s); sw.appendChild(ek);
+    els.search = s; app.appendChild(sw);
      els.paste = el('div', 'pastew'); app.appendChild(els.paste); 
     els.pend = el('div', 'pendwrap'); app.appendChild(els.pend);
     els.results = el('div', 'resw'); els.browse = el('div', 'browsew'); els.cards = el('div', 'cardsw');
