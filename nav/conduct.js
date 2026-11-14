@@ -1,12 +1,20 @@
 (function (w, d) {
   var GS = 'https://cw-api-gate.jessieupp.workers.dev';
-  var COC = 'https://2gather.network/code-of-conduct.html';
+  var COC = w.location.origin + '/code-of-conduct.html';
   var INK = '#1A2E42', SOFT = '#2F3D4F', BRAND = '#1F699E';
   var FONT = '"Nunito Sans","DM Sans",system-ui,sans-serif';
   var BTN = 'font:inherit;font-size:15px;font-weight:700;padding:11px 20px;border-radius:24px;cursor:pointer;';
   function ls(k) { try { return w.localStorage.getItem(k) || ''; } catch (e) { return ''; } }
   function el(tag, css, text) { var x = d.createElement(tag); if (css) { x.style.cssText = css; } if (text) { x.textContent = text; } return x; }
   function link(text, css) { var a = el('a', css, text); a.href = COC; a.target = '_blank'; a.rel = 'noopener'; return a; }
+
+  function backTo() {
+    try {
+      var r = d.referrer || '';
+      if (r && r.indexOf(w.location.href.split('#')[0]) !== 0) { return r; }
+    } catch (e) {}
+    return 'https://2gather.network/events/';
+  }
 
   function ask(site) {
     if (d.getElementById('cw-coc')) { return; }
@@ -17,20 +25,27 @@
     var h = el('h2', 'font-size:22px;font-weight:800;margin:0 0 12px;line-height:1.25;', 'Before you meet people on ' + site);
     h.id = 'cw-coc-h'; h.tabIndex = -1;
     card.appendChild(h);
-    card.appendChild(el('p', 'margin:0 0 10px;', '2Balance is just you. ' + site + ' is you and a whole bunch of other people.'));
-    card.appendChild(el('p', 'margin:0 0 18px;', 'Because of that, we have a Code of Conduct for how we treat each other here. We would love you to read it. When you have, tell us below.'));
+    card.appendChild(el('p', 'margin:0 0 18px;', site + ' is you engaging with other people. Because of that, we have a Code of Conduct for how we treat each other here. We would love you to read it. When you have, tell us below.'));
     var row = el('div', 'display:flex;flex-wrap:wrap;gap:10px;align-items:center;');
-    var read = link('Read the Code of Conduct', BTN + 'display:inline-block;text-decoration:none;border:1.5px solid ' + BRAND + ';background:#fff;color:' + BRAND + ';');
-    var yes = el('button', BTN + 'border:0;background:' + BRAND + ';color:#fff;', 'I have read it');
+    var OUT = BTN + 'display:inline-block;text-decoration:none;border:1.5px solid ' + BRAND + ';background:#fff;color:' + BRAND + ';';
+    var FILL = BTN + 'display:inline-block;text-decoration:none;border:1.5px solid ' + BRAND + ';background:' + BRAND + ';color:#fff;';
+    var read = link('Take me to Code of Conduct', OUT);
+    read.addEventListener('click', function () { read.style.cssText = FILL; });
+    var yes = el('button', OUT, 'I agree to the Code of Conduct');
     yes.type = 'button';
+    var done = el('button', OUT, 'Done');
+    done.type = 'button'; done.style.display = 'none';
+    done.onclick = function () { shade.remove(); };
     row.appendChild(read); row.appendChild(yes);
     card.appendChild(row);
     var say = el('div', 'font-size:14px;color:#A32D2D;min-height:20px;margin-top:10px;');
     say.setAttribute('role', 'status');
     card.appendChild(say);
-    var later = el('a', 'display:inline-block;margin-top:4px;font-size:14px;font-weight:700;color:' + SOFT + ';text-decoration:underline;', 'Not now, take me to 2Balance');
-    later.href = 'https://2balance.network/';
-    card.appendChild(later);
+    var foot = el('div', 'display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;margin-top:14px;');
+    var later = el('a', 'font-size:14px;font-weight:700;color:' + BRAND + ';text-decoration:underline;', 'Not now, take me back');
+    later.href = backTo();
+    foot.appendChild(later); foot.appendChild(done);
+    card.appendChild(foot);
     shade.appendChild(card);
     d.body.appendChild(shade);
     try { h.focus(); } catch (e) {}
@@ -38,19 +53,20 @@
     yes.onclick = function () {
       var id = ls('cw-id'), token = ls('cw-token');
       if (!id || !token) { say.textContent = 'Sign in again, then press this once more.'; return; }
-      yes.disabled = true; yes.textContent = 'Saving...'; say.textContent = '';
+      yes.disabled = true; yes.style.cssText = FILL; yes.textContent = 'Saving...'; say.textContent = '';
       w.fetch(GS + '?action=saveAccount&ackConduct=1&secure=1&appearId=' + encodeURIComponent(id) + '&editToken=' + encodeURIComponent(token), { referrerPolicy: 'no-referrer' })
         .then(function (r) { return r.json(); })
         .then(function (r) {
           if (r && r.status === 'ok' && r.conductOk) {
             try { w.localStorage.setItem('cw-conduct', 'yes'); } catch (e) {}
-            shade.remove();
+            yes.textContent = 'I agree to the Code of Conduct';
+            done.style.display = 'inline-block';
             return;
           }
-          yes.disabled = false; yes.textContent = 'I have read it';
+          yes.disabled = false; yes.style.cssText = OUT; yes.textContent = 'I agree to the Code of Conduct';
           say.textContent = (r && r.message) || 'That did not save. Try again.';
         })
-        .catch(function () { yes.disabled = false; yes.textContent = 'I have read it'; say.textContent = 'That did not save. Try again.'; });
+        .catch(function () { yes.disabled = false; yes.style.cssText = OUT; yes.textContent = 'I agree to the Code of Conduct'; say.textContent = 'That did not save. Try again.'; });
     };
   }
 
