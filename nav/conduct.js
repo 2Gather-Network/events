@@ -35,7 +35,7 @@
     yes.type = 'button';
     var done = el('button', OUT, 'Done');
     done.type = 'button'; done.style.display = 'none';
-    done.onclick = function () { shade.remove(); };
+    done.onclick = function () { close(); };
     row.appendChild(read); row.appendChild(yes);
     card.appendChild(row);
     var say = el('div', 'font-size:14px;color:#A32D2D;min-height:20px;margin-top:10px;');
@@ -48,6 +48,12 @@
     card.appendChild(foot);
     shade.appendChild(card);
     d.body.appendChild(shade);
+    var tb = d.getElementById('cw-topbar'), tbZ = tb ? tb.style.zIndex : '';
+    if (tb) {
+      tb.style.zIndex = '100004';
+      try { shade.style.paddingTop = Math.max(56, Math.round(tb.getBoundingClientRect().bottom) + 16) + 'px'; } catch (e) {}
+    }
+    function close() { shade.remove(); if (tb) { tb.style.zIndex = tbZ; } }
     try { h.focus(); } catch (e) {}
 
     yes.onclick = function () {
