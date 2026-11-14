@@ -525,7 +525,7 @@
         mine += anchor('My messages', '/messages/',   'cwtb-item');
         mine += anchor('My groups',   carryLink('https://2appear.network/mygroups/'), 'cwtb-item');
         mine += anchor('My network',  carryLink('https://2appear.network/network/'),  'cwtb-item');
-        mine += anchor('Calendar',    carryLink(EVENTS + '/'), 'cwtb-item');
+        mine += anchor('Calendar',    '/events/', 'cwtb-item');
         mine += anchor('My account',  '/account/', 'cwtb-item');
         mine += anchor('Support',     '/support/', 'cwtb-item');
         mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
