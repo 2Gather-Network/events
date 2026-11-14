@@ -13,7 +13,7 @@
       var r = d.referrer || '';
       if (r && r.indexOf(w.location.href.split('#')[0]) !== 0) { return r; }
     } catch (e) {}
-    return 'https://2gather.network/events/';
+    return w.location.origin + '/events/';
   }
 
   function ask(site) {

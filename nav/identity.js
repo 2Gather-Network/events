@@ -350,7 +350,7 @@
     var go = function () { if (w.CW_conduct) { w.CW_conduct(nm, mode, from); } };
     if (w.CW_conduct) { go(); return; }
     var s = w.document.createElement('script');
-    s.src = 'https://2gather.network/nav/conduct.js?v=2';
+    s.src = 'https://2gather.network/nav/conduct.js?v=3';
     s.onload = go;
     (w.document.head || w.document.documentElement).appendChild(s);
   }
