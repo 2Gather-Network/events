@@ -530,7 +530,8 @@
         ? ['/', '/signin', '/signup', '/signin-google', '/signout']
       : onBalance
         ? ['/', '/signin', '/signup', '/signin-google', '/signout']
-        : ['/signin', '/signup', '/signin-google', '/signout', '/event', '/events'];
+        : ['/signin', '/signup', '/signin-google', '/signout'];
+    var PUBLIC_EXACT = (!onCW && !onBalance) ? ['/event', '/event/', '/event/index.html', '/event.html', '/events', '/events/', '/events/index.html', '/events.html'] : [];
 
     var asked = ls(function () { return new URLSearchParams(w.location.search).get('lock'); }, null);
     if (asked !== null) {
@@ -545,6 +546,7 @@
     }
     if (ls(function () { return w.localStorage.getItem(LOCK_KEY); }, null) === '0') { return; }
 
+    if (PUBLIC_EXACT.indexOf(here) > -1) { return; }
     for (var i = 0; i < OPEN.length; i++) {
       if (here === OPEN[i] || here.indexOf(OPEN[i] + '/') === 0 || here.indexOf(OPEN[i] + '.') === 0) { return; }
     }
