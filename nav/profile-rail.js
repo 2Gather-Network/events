@@ -127,12 +127,6 @@
           { key: 'account',     label: 'My account' },
           { key: 'myprofile',   label: 'My profile', url: _onBal ? '/ikigai/?step=joys' : 'https://2gather.network/ikigai/' },
           { key: 'permissions', label: 'Global permissions' }
-        ]],
-        ['SOLUTIONS', [
-          { key: 'gather',  label: '2Gather',  dot: true  },
-          { key: 'appear',  label: '2Appear',  dot: false },
-          { key: 'balance', label: '2Balance', dot: false },
-          { key: 'license', label: 'License', dot: false }
         ]]
       ];
       GROUPS.forEach(function (g) {
