@@ -5190,7 +5190,7 @@ function _vmSync() {
   _vmEnsure();
   var p = document.getElementById("vm-pub"), g = document.getElementById("vm-grp");
   var priv = false; try { priv = currentVisibility === "private"; } catch (e) {}
-  if (priv) { _vmGrpOn = true; }
+  if (priv && _vmHasGroups()) { _vmGrpOn = true; }
   if (p) p.checked = !priv;
   if (g) g.checked = !!_vmGrpOn;
   var _vr = document.getElementById("vm-grp-row");
@@ -5198,6 +5198,10 @@ function _vmSync() {
   var box = document.getElementById("share-opt-group"); if (box) box.style.display = _vmGrpOn ? "flex" : "none";
   var lbl = document.getElementById("vis-group-label");
   if (lbl) { lbl.style.display = _vmGrpOn ? "" : "none"; lbl.textContent = priv ? "Which of your groups?" : "Which of your groups? (optional)"; }
+}
+function _vmHasGroups() {
+  try { if (_formGroups) return !!_formGroups.length; } catch (e) {}
+  return _vmKnownHasGroups() === "1";
 }
 function _vmChange() {
   var p = document.getElementById("vm-pub"), g = document.getElementById("vm-grp");
@@ -5207,7 +5211,7 @@ function _vmChange() {
     document.querySelectorAll("#f-group-checks .grp-check").forEach(function (c) { c.checked = false; });
     onGroupPick();
   }
-  var v = (p && p.checked) ? "public" : (_vmGrpOn ? "private" : "public");
+  var v = (p && p.checked) ? "public" : ((_vmGrpOn || !_vmHasGroups()) ? "private" : "public");
   try { formDirty = true; } catch (e) {}
   setVisibility(v);
   if (p && g) { p.checked = !!p.checked; }
@@ -5578,8 +5582,9 @@ function setVisibility(v) {
   const hint = document.getElementById("vis-hint");
   if (pub) pub.classList.toggle("selected", v === "public");
   if (priv) priv.classList.toggle("selected", v === "private");
+  var _noGrp = false; try { _noGrp = !_vmHasGroups(); } catch (e) {}
   if (hint) hint.textContent = v === "private"
-    ? "Kept off the public events calendar. Anyone with the link can still open it."
+    ? (_noGrp ? "Only you and your co-hosts can open it." : "Kept off the public events calendar. Anyone with the link can still open it.")
     : "On the public events calendar, where anyone can find it.";
   try { _visGroupHere(v); } catch (e) {}
   try {
@@ -6650,7 +6655,7 @@ async function submitEvent() {
     var _vp = document.getElementById("vm-pub"), _vg = document.getElementById("vm-grp");
     var _vErr = "";
     if (_vp && _vg && !_vp.checked && !_vg.checked) { _vErr = "Choose Show on public calendar, Show on group(s), or both."; }
-    else if (currentVisibility === "private" && !String((document.getElementById("f-group-ids") || {}).value || "").trim()) { _vErr = "Pick at least one group, or choose Show on public calendar."; }
+    else if (currentVisibility === "private" && _vmHasGroups() && !String((document.getElementById("f-group-ids") || {}).value || "").trim()) { _vErr = "Pick at least one group, or choose Show on public calendar."; }
     if (_vErr) {
       _markMissing(["vm-boxes"]);
       var _gme = document.getElementById("vm-err");
