@@ -520,6 +520,18 @@
         mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
         return mine;
       }
+      if (onAppear()) {
+        mine += anchor('My messages', '/messages/',   'cwtb-item');
+        mine += anchor('My profile',  myProfileUrl(), 'cwtb-item');
+        mine += anchor('My events',   '/myevents/', 'cwtb-item');
+        mine += anchor('My groups',   carryLink('https://2appear.network/mygroups/'), 'cwtb-item');
+        mine += anchor('My network',  carryLink('https://2appear.network/network/'),  'cwtb-item');
+        mine += anchor('Calendar',    '/events/', 'cwtb-item');
+        mine += anchor('Account',     '/account/', 'cwtb-item');
+        mine += anchor('Support',     '/support/', 'cwtb-item');
+        mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
+        return mine;
+      }
       mine += anchor('My profile', myProfileUrl(), 'cwtb-item');
       var ap = onAppear();
       mine += anchor('My messages', ap ? '/messages/' : 'https://2gather.network/messages', 'cwtb-item');
