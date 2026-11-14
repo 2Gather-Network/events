@@ -136,6 +136,7 @@
         var box = document.createElement('div'); box.className = 'cw-prail-list';
         g[1].forEach(function (it) {
           if (it.out && opts.viewingSomeoneElse) { return; }
+          if (it.key === 'permissions' && /(^|\.)2gather\.network$/i.test(location.hostname)) { return; }
           var b = document.createElement('button'); b.type = 'button';
           b.appendChild(document.createTextNode(it.label));
           if (typeof it.dot === 'boolean') {
@@ -180,13 +181,14 @@
     var list = document.createElement('div'); list.className = 'cw-prail-list';
     var items = [
       { key: 'profile', label: 'My profile', url: _onBal ? '/ikigai/?step=joys' : 'https://2gather.network/me/' },
-      { key: 'permissions', label: 'My permissions', url: 'https://2gather.network/account/#permissions', superOnly: true },
+      { key: 'permissions', label: 'My permissions', url: 'https://2appear.network/account/#permissions', superOnly: true },
       { key: 'account', label: 'My account', url: _onBal ? '/account/' : 'https://2gather.network/account/' },
       { key: 'support', label: 'Support', url: (_onBal ? '/support?re=' : 'https://2gather.network/support?re=') + encodeURIComponent(location.pathname) },
       { key: 'signout', label: 'Sign out', out: true }
     ];
     items.forEach(function (it) {
       if (it.out && opts.viewingSomeoneElse) return;
+      if (it.key === 'permissions' && /(^|\.)2gather\.network$/i.test(location.hostname)) return;
       if (it.superOnly) { var _su = ''; try { _su = localStorage.getItem('cw-super') || ''; } catch (e) {} if (_su !== 'yes' || !_cwProven() || opts.viewingSomeoneElse) return; }
       var b = document.createElement('button'); b.type = 'button'; b.textContent = it.label;
       if (it.key === opts.active) { b.className = 'on'; b.setAttribute('aria-current', 'page'); }
