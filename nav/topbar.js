@@ -532,6 +532,13 @@
         mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
         return mine;
       }
+      if ((window.location.hostname || '').toLowerCase().indexOf('2gather.network') > -1) {
+        mine += anchor('Calendar',    carryLink('https://2appear.network/events/'), 'cwtb-item');
+        mine += anchor('My events',   carryLink('https://2appear.network/myevents/'), 'cwtb-item');
+        mine += anchor('Support',     link(SUPPORT, 'memberCard'), 'cwtb-item');
+        mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
+        return mine;
+      }
       mine += anchor('My profile', myProfileUrl(), 'cwtb-item');
       var ap = onAppear();
       mine += anchor('My messages', ap ? '/messages/' : 'https://2gather.network/messages', 'cwtb-item');
