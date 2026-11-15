@@ -47,6 +47,7 @@ html.order-needs .grid > .quadrant:nth-child(1){order:-1;}
 #hub-sec:empty{display:none;}
 .grid > .quadrant.hub-sec-off{display:none !important;}
 }
+a.btn-matches{display:inline-flex;align-items:center;}
 .btn-matches{background:#1F699E;color:#fff;border:1.5px solid #1F699E;border-radius:24px;padding:0 18px;height:40px;box-sizing:border-box;font-size:14px;font-weight:700;font-family:'Nunito Sans','DM Sans',sans-serif;cursor:pointer;white-space:nowrap;transition:background 0.15s;flex-shrink:0;}
 .btn-matches:hover{background:#185A88;border-color:#185A88;}
 .btn-matches.active{background:#1F699E;border-color:#1F699E;color:#fff;}
@@ -91,6 +92,7 @@ html.order-needs .grid > .quadrant:nth-child(1){order:-1;}
 
 .guest-photos{display:flex;flex-wrap:wrap;gap:6px;padding:10px 0 0;margin-top:10px;border-top:1px solid #f0f1f5;}
 @media (max-width:768px){#guest-photos{display:none !important;}}
+@media (max-width:768px){#guest-photos.gp-host-alone{display:flex !important;}}
 .guest-photos .gp-count{font-size:12.5px;color:#2F3D4F;font-weight:600;width:100%;padding-bottom:6px;display:flex;align-items:center;flex-wrap:wrap;}
 .gp-count .gp-me{margin-left:auto;}
 .gp-count .gp-me a{border:1px solid #1F699E;padding:3px 4px 3px 15px !important;gap:9px !important;border-radius:26px !important;font-size:14px !important;line-height:1 !important;color:#1F699E !important;}
@@ -689,6 +691,7 @@ function _boardApply(d){
 }
 async function loadMembers(){
   if(_groupId){ return loadGroupMembers(); }
+  if(!_myId && _eventId){ window.location.replace('https://2appear.network/event/?id='+encodeURIComponent(_eventId)); return; }
   try{
     var res=await fetch(GS_URL+'?action=getEventProfiles&eventId='+encodeURIComponent(_eventId)+(_myId?'&me='+encodeURIComponent(_myId):''));
     var d=await res.json();
@@ -697,6 +700,7 @@ async function loadMembers(){
       d.attendees.forEach(function(p){ processRow(p, p.appearId); });
       _meRegistered = (typeof d.meRegistered==='boolean') ? d.meRegistered : !!_myId;
       if(d.me && _meRegistered && !d.attendees.some(function(p){ return normId(p.appearId)===normId(d.me.appearId); })){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
+      if(_myId && !_meRegistered){ var _hd=await _muInfo(); if(!(_hd&&_hd.host===true)){ window.location.replace('https://2appear.network/event/?id='+encodeURIComponent(_eventId)); return; } }
       if(_myId && !_myData) await loadMyDataFallback();
       _boardShow();
       computeGlobals(); buildChips(); renderAll();
@@ -961,6 +965,9 @@ function renderGuestPhotos(){
     if(!m.photo) return false;
     return true;
   });
+  var _hostAlone=!_groupId&&!_bmOnly&&!_searchQ&&window._isHost===true&&!visible.some(function(m){return normId(m.appearId)!==normId(_myId);});
+  el.classList.toggle('gp-host-alone',!!_hostAlone);
+  if(_hostAlone&&!visible.length){ el.style.display=''; el.innerHTML='<div class="gp-count">Only you are here so far. Guests show up here when they register.</div>'; return; }
   if(!visible.length){
     if(_bmOnly){ el.style.display=''; el.innerHTML='<div class="gp-count">Nobody bookmarked here yet'+_bmSwitchHTML().replace('class="bm-people-switch','class="bm-people-switch bm-after-text')+'</div>'; return; }
     el.style.display='none'; return;
@@ -989,6 +996,7 @@ function renderGuestPhotos(){
     : Math.min(_photosShown, n);
   var slice=ordered.slice(0, showCount);
   var _cntText=(_groupId&&!_bmOnly)?'':n+' '+(n===1?'person':'people')+(_bmOnly?' bookmarked':' here');
+  if(_hostAlone) _cntText='Only you are here so far. Guests show up here when they register.';
   var _bmSw=_bmSwitchHTML();
   if(_cntText) _bmSw=_bmSw.replace('class="bm-people-switch','class="bm-people-switch bm-after-text');
   var _mePill=(!_groupId&&window._myPillHTML)?'<span class="gp-me">'+window._myPillHTML+'</span>':'';
@@ -1648,15 +1656,13 @@ function renderProfileCta(){
   } else if(!_meRegistered){
     if(!_myId){
       primary='<button onclick="hubRegisterPrompt()" style="'+BTNB+'">Sign up to register</button>';
-    } else {                                                
-      primary='<button onclick="hubRegister()" style="'+BTNB+'">Register for this event</button>';
     }
   } else if(!_myData){                                      
     var url='https://creating.works/profile?id='+encodeURIComponent(_myId)+(_eventId?'&eventId='+encodeURIComponent(_eventId):'')+'&intro=1';
     primary='<a href="'+url+'" style="'+BTN+'">Create my profile</a>';
   }                                                         
-  var cantMakeIt=(!_meRegistered && !window._evPast)?'<a class="hub-cant" onclick="toggleCantMakeIt()" style="font-size:13px;color:#fff;text-decoration:underline;cursor:pointer;">Can\'t make it?</a>':'';
-  var cantMakeItPanel=(!_meRegistered && !window._evPast)?'<div id="cant-make-it-panel" style="display:none;background:#fff;border-radius:10px;padding:16px 18px;margin:10px auto 0;max-width:420px;position:relative;font-size:14px;color:#1a1a2e;line-height:1.5;text-align:left;">'
+  var cantMakeIt=(!_myId && !_meRegistered && !window._evPast)?'<a class="hub-cant" onclick="toggleCantMakeIt()" style="font-size:13px;color:#fff;text-decoration:underline;cursor:pointer;">Can\'t make it?</a>':'';
+  var cantMakeItPanel=(!_myId && !_meRegistered && !window._evPast)?'<div id="cant-make-it-panel" style="display:none;background:#fff;border-radius:10px;padding:16px 18px;margin:10px auto 0;max-width:420px;position:relative;font-size:14px;color:#1a1a2e;line-height:1.5;text-align:left;">'
     +'<button onclick="toggleCantMakeIt()" aria-label="Close" style="position:absolute;top:8px;right:10px;background:none;border:none;font-size:18px;color:#2F3D4F;cursor:pointer;line-height:1;">×</button>'
     +'This is for people who live here, or who call this place home. Register to come in person, or register to engage online after the event completes.'
     +'</div>':'';
@@ -1708,7 +1714,25 @@ function renderHubNav(){
 }
 function updateHeaderButton(){
   var btn=document.getElementById('matches-btn'); if(!btn) return;
+  if(_eventId&&!_groupId){
+    var on=document.getElementById('mu-on-btn');
+    if(!on){ on=document.createElement('a'); on.id='mu-on-btn'; on.className='btn-matches'; on.style.display='none'; on.style.textDecoration='none'; on.textContent='Turn on Match up'; on.href='https://2gather.network/event/matchup/?id='+encodeURIComponent(_eventId); btn.parentNode.insertBefore(on,btn); }
+    btn.style.display=(_myData&&window._muOk===true)?'':'none';
+    on.style.display=(_myData&&window._muOk===false)?'':'none';
+    if(window._muOk===undefined&&_myData) _loadMuOk();
+    return;
+  }
   btn.style.display=_myData?'':'none';
+}
+function _muInfo(){
+  if(window._muP) return window._muP;
+  var t=''; try{ t=localStorage.getItem('cw-token')||''; }catch(e){}
+  window._muP=fetch(GS_URL+'?action=getEventPeople&matchup=1&appearId='+encodeURIComponent(_myId)+'&meToken='+encodeURIComponent(t)+'&eventId='+encodeURIComponent(_eventId)).then(function(r){return r.json();}).catch(function(){ return null; });
+  return window._muP;
+}
+function _loadMuOk(){
+  if(window._muAsked) return; window._muAsked=true;
+  _muInfo().then(function(d){ window._isHost=!!(d&&d.host===true); try{ renderGuestPhotos(); }catch(e){} window._muOk=!!(d&&(d.on||d.host)); updateHeaderButton(); if(!window._muOk&&_matchMode){ try{ toggleMatches(); }catch(e){} } });
 }
 (async function init(){
   document.title=_groupId?'Group bulletin board':'Lobby · 2Gather';
