@@ -533,6 +533,7 @@
         return mine;
       }
       if ((window.location.hostname || '').toLowerCase().indexOf('2gather.network') > -1) {
+        mine += anchor('Account',     link(ACCOUNT, 'CWid'), 'cwtb-item');
         mine += anchor('Support',     link(SUPPORT, 'memberCard'), 'cwtb-item');
         mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
         return mine;
