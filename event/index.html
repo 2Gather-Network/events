@@ -2300,8 +2300,8 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   var body = $("cw-st-b"), msg = $("cw-seen-msg"), nx = $("cw-st-nx"), bk = $("cw-st-bk");
   var LV = ["Not shared", "Global", "Region", "Country", "State", "County", "City", "Neighborhood"];
   var FROM = [["bookmarked", "People I bookmarked"], ["match", "People I match with"], ["messaged", "People I messaged"], ["everyone", "All event guests"], ["none", "Nobody"]];
-  var STEPS = ["How you show on the attendee list", "Join the event lobby"];
-  var HASLB = String(ev.hasBB) === "true" || ev.hasBB === true, NSTEP = HASLB ? 2 : 1;
+  var STEPS = ["How you show on the attendee list", "Join the event lobby", "Join the event lobby"];
+  var HASLB = String(ev.hasBB) === "true" || ev.hasBB === true, NSTEP = HASLB ? 2 : 1, NSHOW = HASLB ? 3 : 1;
   var st = { step: 0, name: "full", photo: true, have: "", blob: null, img: "", lobby: false, match: false, level: "Not shared", text: "", postal: "", ok: false, prof: {},
     connect: false, others: false, from: {}, onlyMine: false, mail: true, mine: true, same: false, done: false, lastWasReg: false };
   var me = ""; try { me = getMemberId() || ""; } catch (e) {}
@@ -2342,12 +2342,15 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   };
   var head = function () {
     var sp = $("cw-st-pr").children;
-    for (var i = 0; i < sp.length; i++) { sp[i].className = (st.done || i <= st.step) ? "on" : ""; sp[i].style.display = i < NSTEP ? "" : "none"; }
-    $("cw-st-pl").textContent = st.done ? "All " + NSTEP + " steps done" : "Step " + (st.step + 1) + " of " + NSTEP + ": " + STEPS[st.step];
-    $("cw-st-t").textContent = st.done ? (st.lastWasReg ? "You’re registered for " + (ev.title || "this event") : "Your registration is updated") : ((reg ? "Register for " : "Edit your registration for ") + (ev.title || "this event"));
+    var _ph = st.done ? st.phase : "";
+    for (var i = 0; i < sp.length; i++) { sp[i].className = (_ph === "lobby" || (st.done && _ph !== "cal") || i <= st.step) ? "on" : ""; sp[i].style.display = i < NSHOW ? "" : "none"; }
+    $("cw-st-pl").textContent = _ph === "cal" ? "" : _ph === "lobby" ? "Step 3 of 3: " + STEPS[2] : st.done ? "All " + NSHOW + " steps done" : "Step " + (st.step + 1) + " of " + NSHOW + ": " + STEPS[st.step];
+    $("cw-st-t").textContent = _ph === "lobby" ? ((st.lastWasReg ? "Register for " : "Edit your registration for ") + (ev.title || "this event")) : st.done ? (st.lastWasReg ? "You’re registered for " + (ev.title || "this event") : "Your registration is updated") : ((reg ? "Register for " : "Edit your registration for ") + (ev.title || "this event"));
     bk.style.visibility = st.step === 0 && !st.done ? "hidden" : "visible";
     nx.disabled = false;
-    nx.textContent = st.done ? "Done" : st.step === NSTEP - 1 ? (reg ? "Register" : "Save changes") : "Next";
+    bk.textContent = _ph === "cal" ? "Skip" : _ph === "lobby" ? "View event" : "Back";
+    nx.textContent = _ph === "cal" ? "Add to calendar" : _ph === "lobby" ? "Visit the lobby" : st.done ? "Done" : st.step === NSTEP - 1 ? (reg ? "Register" : "Save changes") : "Next";
+    nx.classList.remove("gh"); nx.classList.add("pri");
     msg.style.color = "#7A2410"; msg.textContent = "";
   };
   var shrink = function (src, ok) {
@@ -2423,19 +2426,21 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   var s2lb = function () {
     var p = st.prof || {}, hasPho = !!(st.have || st.img);
     var loc = String(p.location || "").trim(), lang = Array.isArray(p.languages) ? p.languages.join(", ") : String(p.languages || "").trim();
-    var h = '<div class="cw-box"><p class="cw-sub" style="margin:0 0 10px">The lobby is open before and during the event. Everyone in it is matched with other attendees.</p>'
-      + '<label class="cw-row"><input type="checkbox" id="cw-lb-join"' + (st.lobby ? " checked" : "") + '><span>Join the lobby</span></label>';
+    if (typeof st.lbLoc !== "string") st.lbLoc = loc;
+    if (typeof st.lbLang !== "string") st.lbLang = lang;
+    var _fs = 'box-sizing:border-box;width:100%;font:inherit;font-size:14px;border:1px solid var(--border);border-radius:8px;padding:6px 8px';
+    var h = '<div class="cw-box"><div class="cw-tr"><span>Turn on lobby</span><button type="button" class="cw-sw" role="switch" id="cw-lb-join" aria-checked="' + (st.lobby ? "true" : "false") + '" aria-label="Turn on lobby"></button></div>'
+      + '<div class="cw-info"><p style="margin:0">The lobby is open before and during the event. Everyone in it is matched with other attendees.</p>' + (st.lobby ? '<p style="margin:6px 0 0">All four are needed to enter the lobby.</p>' : '') + '</div>';
     if (st.lobby) {
-      h += '<p class="cw-info">All four are needed to enter the lobby.</p>'
-        + '<p class="cw-sub" style="margin:8px 0 2px"><b>Name</b></p><p style="margin:0">' + esc(myName()) + '</p>'
+      h += '<p class="cw-sub" style="margin:8px 0 2px"><b>Name</b></p><p style="margin:0">' + esc(myName()) + '</p>'
         + '<p class="cw-sub" style="margin:10px 0 2px"><b>Photo</b></p>'
         + '<div class="cw-in"><div class="cw-imgf"><div class="cw-tile">' + (st.img || st.have ? '<img src="' + esc(st.img || st.have) + '" alt="">' : "&#128444;&#65039;") + '</div>'
         + '<input type="text" id="cw-st-iml" placeholder="Paste an image, a link, or upload one" aria-label="Your profile photo"><button type="button" class="cw-up' + (hasPho ? '' : ' need') + '" id="cw-st-up">Upload</button><input type="file" id="cw-st-f" accept="image/*" hidden></div></div>'
-        + '<p class="cw-sub" style="margin:10px 0 2px"><b>Location</b></p>' + (loc ? '<p style="margin:0">' + esc(loc) + '</p>' : '<input type="text" id="cw-lb-loc" maxlength="80" value="' + esc(st.lbLoc || "") + '" aria-label="Location" style="width:100%;font:inherit;font-size:14px;border:1px solid var(--border);border-radius:8px;padding:6px 8px">')
-        + '<p class="cw-sub" style="margin:10px 0 2px"><b>Language(s)</b></p>' + (lang ? '<p style="margin:0">' + esc(lang) + '</p>' : '<input type="text" id="cw-lb-lang" maxlength="120" value="' + esc(st.lbLang || "") + '" aria-label="Language(s)" style="width:100%;font:inherit;font-size:14px;border:1px solid var(--border);border-radius:8px;padding:6px 8px"><p class="cw-sub" style="margin:4px 0 0">Your languages are also saved to your profile.</p>');
+        + '<p class="cw-sub" style="margin:10px 0 2px"><b>Location</b></p><input type="text" id="cw-lb-loc" maxlength="80" value="' + esc(st.lbLoc) + '" aria-label="Location" style="' + _fs + '">'
+        + '<p class="cw-sub" style="margin:10px 0 2px"><b>Language(s)</b></p><input type="text" id="cw-lb-lang" maxlength="120" value="' + esc(st.lbLang) + '" aria-label="Language(s)" style="' + _fs + '"><p class="cw-sub" style="margin:4px 0 0">Your languages are also saved to your profile.</p>';
     }
     body.innerHTML = h + '</div>';
-    $("cw-lb-join").onchange = function () { st.lobby = this.checked; st.match = st.lobby; s2lb(); };
+    $("cw-lb-join").onclick = function () { st.lobby = !st.lobby; st.match = st.lobby; s2lb(); };
     if ($("cw-lb-loc")) $("cw-lb-loc").oninput = function () { st.lbLoc = this.value; };
     if ($("cw-lb-lang")) $("cw-lb-lang").oninput = function () { st.lbLang = this.value; };
     if ($("cw-st-up")) { $("cw-st-up").onclick = function () { $("cw-st-f").click(); }; $("cw-st-f").onchange = function () { st.photo = true; takeFile(this.files && this.files[0]); }; }
@@ -2499,10 +2504,14 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     if ($("cw-st-cal")) $("cw-st-cal").onclick = function () { try { cwCalAsk(ev); var c = document.getElementById("cw-cal-ask"); if (c) c.style.zIndex = "2001"; } catch (e) {} };
     if (HASLB && st.lobby) { nx.classList.remove("pri"); nx.classList.add("gh"); } else { nx.classList.remove("gh"); nx.classList.add("pri"); }
   };
-  var paint = function () { head(); if (st.done) s4(); else [s1, s2lb][st.step](); try { body.scrollTop = 0; } catch (e) {} };
+  var sCal = function () { body.innerHTML = '<p style="margin:4px 0 0">Add this event to your calendar?</p>'; };
+  var sLobby = function () { body.innerHTML = (st.offNote ? '<p class="cw-info">' + esc(st.offNote) + '</p>' : '') + '<p style="margin:4px 0 0">When visiting the lobby, you\u2019ll be matched with other attendees.</p>'; };
+  var paint = function () { head(); if (st.done && st.phase === "cal") sCal(); else if (st.done && st.phase === "lobby") sLobby(); else if (st.done) s4(); else [s1, s2lb][st.step](); try { body.scrollTop = 0; } catch (e) {} };
+  var finish = function () { if (document.documentElement.classList.contains("cw-regpage")) { _cwRegPageBack(); return; } o.remove(); cwRegNote(ev, !st.firstReg); };
+  var afterCal = function () { if (HASLB && st.lobby) { st.phase = "lobby"; paint(); } else finish(); };
   var check = function () {
     if (st.step === 1 && st.lobby && st.name === "initials") return "To join the lobby, pick at least first name and last initial and show your photo.";
-    if (st.step === 1 && st.lobby) { var _p = st.prof || {}; if (!(st.have || st.img || st.blob)) return "Add a profile photo to show it at this event and join the lobby."; if (!String(_p.location || "").trim() && !String(st.lbLoc || "").trim()) return "All four are needed to enter the lobby."; if (!(Array.isArray(_p.languages) ? _p.languages.length : String(_p.languages || "").trim()) && !String(st.lbLang || "").trim()) return "All four are needed to enter the lobby."; }
+    if (st.step === 1 && st.lobby) { var _p = st.prof || {}; if (!(st.have || st.img || st.blob)) return "Add a profile photo to show it at this event and join the lobby."; if (!String(st.lbLoc || "").trim()) return "All four are needed to enter the lobby."; if (!String(st.lbLang || "").trim()) return "All four are needed to enter the lobby."; }
     if (st.step === 1 && st.level !== "Not shared") {
       if (!String(st.text).trim()) return st.level === "Neighborhood" ? "Type your neighborhood name." : "Type the place to show, or choose Not shared.";
       if (!st.ok) return "Answer Is that right? with Yes first.";
@@ -2524,8 +2533,9 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   var save = function () {
     var from = Object.keys(st.from).filter(function (k) { return st.from[k]; });
     var lb = HASLB && st.lobby;
-    if (lb && String(st.lbLang || "").trim()) { try { fetch(GS_URL + "?action=saveAccount&appearId=" + encodeURIComponent(me) + "&secure=1&editToken=" + encodeURIComponent(tok) + "&languages=" + encodeURIComponent(String(st.lbLang).trim())); } catch (e) {} }
-    if (lb) { st.photo = true; var _pl = String((st.prof || {}).location || st.lbLoc || "").trim(); if (_pl) { st.level = "City"; st.text = _pl; st.ok = true; } }
+    var _pp = st.prof || {}, _pLang = Array.isArray(_pp.languages) ? _pp.languages.join(", ") : String(_pp.languages || "").trim();
+    if (lb && String(st.lbLang || "").trim() && String(st.lbLang).trim() !== _pLang) { try { fetch(GS_URL + "?action=saveAccount&appearId=" + encodeURIComponent(me) + "&secure=1&editToken=" + encodeURIComponent(tok) + "&languages=" + encodeURIComponent(String(st.lbLang).trim())); } catch (e) {} }
+    if (lb) { st.photo = true; var _pl = String(st.lbLoc || (st.prof || {}).location || "").trim(); if (_pl) { st.level = "City"; st.text = _pl; st.ok = true; } }
     return fetch(GS_URL + "?action=saveEventShare&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id)
       + "&seen=true" + (reg ? "&register=true" : "") + "&nameShown=" + encodeURIComponent(st.name) + "&photoShown=" + (st.photo && hasPhoto() ? "true" : "false")
       + "&lobby=" + (lb ? "true" : "false") + "&matchUp=" + (lb ? "true" : "false")
@@ -2535,9 +2545,21 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
       .then(function (r) { return r.json(); })
       .then(function (d) { if (!d || d.status !== "ok") throw new Error((d && d.message) || "That did not save. Try again in a moment."); return d; });
   };
-  bk.onclick = function () { if (st.done) { st.done = false; st.step = 2; } else if (st.step > 0) st.step--; paint(); };
+  bk.onclick = function () {
+    if (st.done && st.phase === "cal") { afterCal(); return; }
+    if (st.done && st.phase === "lobby") { finish(); return; }
+    if (st.done) { st.done = false; st.step = 2; } else if (st.step > 0) st.step--; paint(); };
   nx.onclick = function () {
-    if (st.done) { if (document.documentElement.classList.contains("cw-regpage")) { _cwRegPageBack(); return; } o.remove(); cwRegNote(ev, !st.firstReg); return; }
+    if (st.done && st.phase === "cal") {
+      try { cwCalAsk(ev); } catch (e) {}
+      var _c = document.getElementById("cw-cal-ask");
+      if (!_c) { afterCal(); return; }
+      _c.style.zIndex = "2001";
+      var _w = setInterval(function () { if (!document.getElementById("cw-cal-ask")) { clearInterval(_w); afterCal(); } }, 300);
+      return;
+    }
+    if (st.done && st.phase === "lobby") { location.href = "https://2gather.network/attendees/?id=" + encodeURIComponent(ev.id); return; }
+    if (st.done) { finish(); return; }
     var bad = check(); if (bad) { msg.textContent = bad; return; }
     if (st.step < NSTEP - 1) { st.step++; paint(); return; }
     if (preview) { msg.textContent = "This is a preview. Nothing was saved."; return; }
@@ -2551,7 +2573,9 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
       if (d && typeof d.photoShown === "boolean" && st.photo && !d.photoShown) { st.photo = false; st.offNote = "We could not find your profile photo, so your photo, the lobby and Match up are off. Add a photo, then edit your registration."; }
       if (d && typeof d.inLobby === "boolean") { st.lobby = d.inLobby; st.match = d.inLobby && d.matchUp === true; if (wantLobby && !d.inLobby && !st.offNote) st.offNote = "The lobby could not be turned on. Edit your registration to try again."; }
       if (wasReg) { st.firstReg = true; try { _wigForce = true; applyRegisteredUI(); } catch (e) {} try { if (typeof _loadWhoIsGoingNow === "function") _loadWhoIsGoingNow(); } catch (e) {} }
-      st.lastWasReg = wasReg; reg = false; st.done = true; paint();
+      st.lastWasReg = wasReg; reg = false; st.done = true;
+      st.phase = (wasReg && ev.date && ev.date !== "TBD") ? "cal" : (HASLB && st.lobby) ? "lobby" : "";
+      paint();
     }).catch(function (e) { nx.disabled = false; bk.disabled = false; msg.style.color = "#7A2410"; msg.textContent = (e && e.message) || "That did not save. Try again in a moment."; });
   };
   document.addEventListener("paste", function (e) {
