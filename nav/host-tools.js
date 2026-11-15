@@ -183,7 +183,6 @@
         var lb = el("a", "cwh-b", "Go to the lobby"); lb.href = "https://2gather.network/attendees/?id=" + encodeURIComponent(eid); acts.appendChild(lb);
       }
       var inv = el("button", "cwh-b", "Invite people"); inv.type = "button"; inv.setAttribute("aria-expanded", "false"); acts.appendChild(inv);
-      var ed = el("a", "cwh-b", "Edit event"); ed.href = "https://2appear.network/myevents/?id=" + encodeURIComponent(seriesId(ev)); acts.appendChild(ed);
       var attUrl = "https://2appear.network/myevents/?id=" + encodeURIComponent(seriesId(ev)) + "&show=rsvps";
       var ma = el("a", "cwh-b", "Manage attendees"); ma.href = attUrl; ma.style.display = "none"; acts.appendChild(ma);
       row.parentNode.insertBefore(acts, row.nextSibling);
