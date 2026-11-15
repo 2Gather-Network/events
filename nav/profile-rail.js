@@ -136,7 +136,7 @@
         var box = document.createElement('div'); box.className = 'cw-prail-list';
         g[1].forEach(function (it) {
           if (it.out && opts.viewingSomeoneElse) { return; }
-          if (it.key === 'permissions' && /(^|\.)2gather\.network$/i.test(location.hostname)) { return; }
+          if ((it.key === 'permissions' || it.key === 'myprofile') && /(^|\.)2gather\.network$/i.test(location.hostname)) { return; }
           var b = document.createElement('button'); b.type = 'button';
           b.appendChild(document.createTextNode(it.label));
           if (typeof it.dot === 'boolean') {
