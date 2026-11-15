@@ -2267,7 +2267,7 @@ function cwStepsShell(ev, reg) {
   o.id = "cw-seen-ask";
   o.innerHTML = '<div class="cw-pop" role="dialog" aria-modal="true" aria-labelledby="cw-st-t"><div class="cw-ph"><button type="button" class="cw-pc" id="cw-st-x">Close</button>'
     + '<p class="cw-pt" id="cw-st-t">' + esc((reg ? "Register for " : "Edit your registration for ") + (ev.title || "this event")) + '</p>'
-    + '<div class="cw-prog" id="cw-st-pr"><span class="on"></span><span></span><span></span></div><p class="cw-pl" id="cw-st-pl">Step 1 of 3: How you show at this event</p></div>'
+    + '<div class="cw-prog" id="cw-st-pr"><span class="on"></span><span></span><span></span><span></span><span></span></div><p class="cw-pl" id="cw-st-pl">Step 1 of 3: How you show at this event</p></div>'
     + '<div class="cw-pb" id="cw-st-b"></div>'
     + '<div class="cw-pf"><button type="button" class="cw-b gh" id="cw-st-bk" style="visibility:hidden;">Back</button><p class="cw-msg" id="cw-seen-msg" role="status"></p><button type="button" class="cw-b pri" id="cw-st-nx" disabled>Next</button></div></div>';
   document.body.appendChild(o);
@@ -2300,8 +2300,10 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   var body = $("cw-st-b"), msg = $("cw-seen-msg"), nx = $("cw-st-nx"), bk = $("cw-st-bk");
   var LV = ["Not shared", "Global", "Region", "Country", "State", "County", "City", "Neighborhood"];
   var FROM = [["bookmarked", "People I bookmarked"], ["match", "People I match with"], ["messaged", "People I messaged"], ["everyone", "All event guests"], ["none", "Nobody"]];
-  var STEPS = ["How you show on the attendee list", "Join the event lobby", "Join the event lobby"];
-  var HASLB = String(ev.hasBB) === "true" || ev.hasBB === true, NSTEP = HASLB ? 2 : 1, NSHOW = HASLB ? 3 : 1;
+  var HASLB = String(ev.hasBB) === "true" || ev.hasBB === true;
+  var flow = function () { var f = [s1]; if (HASLB) f.push(s2lb); if (!(HASLB && st.lobby)) f.push(paintLv); f.push(s3); return f; };
+  var stepName = function (fn) { return fn === s1 ? "How you show at this event" : fn === s2lb ? "Join the event lobby" : fn === paintLv ? "Share your location" : "After the event"; };
+  var nShow = function () { return flow().length + (HASLB && st.lobby ? 1 : 0); };
   var st = { step: 0, name: "full", photo: true, have: "", blob: null, img: "", lobby: false, match: false, level: "Not shared", text: "", postal: "", ok: false, prof: {},
     connect: false, others: false, from: {}, onlyMine: false, mail: true, mine: true, same: false, done: false, lastWasReg: false };
   var me = ""; try { me = getMemberId() || ""; } catch (e) {}
@@ -2343,13 +2345,13 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   var head = function () {
     var sp = $("cw-st-pr").children;
     var _ph = st.done ? st.phase : "";
-    for (var i = 0; i < sp.length; i++) { sp[i].className = (_ph === "lobby" || (st.done && _ph !== "cal") || i <= st.step) ? "on" : ""; sp[i].style.display = i < NSHOW ? "" : "none"; }
-    $("cw-st-pl").textContent = _ph === "cal" ? "" : _ph === "lobby" ? "Step 3 of 3: " + STEPS[2] : st.done ? "All " + NSHOW + " steps done" : "Step " + (st.step + 1) + " of " + NSHOW + ": " + STEPS[st.step];
+    for (var i = 0; i < sp.length; i++) { sp[i].className = (_ph === "lobby" || (st.done && _ph !== "cal") || i <= st.step) ? "on" : ""; sp[i].style.display = i < nShow() ? "" : "none"; }
+    $("cw-st-pl").textContent = _ph === "cal" ? "" : _ph === "lobby" ? "Step " + nShow() + " of " + nShow() + ": Join the event lobby" : st.done ? "All " + nShow() + " steps done" : "Step " + (st.step + 1) + " of " + nShow() + ": " + stepName(flow()[st.step]);
     $("cw-st-t").textContent = _ph === "lobby" ? ((st.lastWasReg ? "Register for " : "Edit your registration for ") + (ev.title || "this event")) : st.done ? (st.lastWasReg ? "You’re registered for " + (ev.title || "this event") : "Your registration is updated") : ((reg ? "Register for " : "Edit your registration for ") + (ev.title || "this event"));
     bk.style.visibility = st.step === 0 && !st.done ? "hidden" : "visible";
     nx.disabled = false;
     bk.textContent = _ph === "cal" ? "Skip" : _ph === "lobby" ? "View event" : "Back";
-    nx.textContent = _ph === "cal" ? "Add to calendar" : _ph === "lobby" ? "Visit the lobby" : st.done ? "Done" : st.step === NSTEP - 1 ? (reg ? "Register" : "Save changes") : "Next";
+    nx.textContent = _ph === "cal" ? "Add to calendar" : _ph === "lobby" ? "Visit the lobby" : st.done ? "Done" : st.step === flow().length - 1 ? (reg ? "Finish registering" : "Save changes") : "Next";
     nx.classList.remove("gh"); nx.classList.add("pri");
     msg.style.color = "#7A2410"; msg.textContent = "";
   };
@@ -2396,9 +2398,9 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
       h += '</div>';
     }
     {
-    h += '<div class="cw-box"><h3>How should your name show on the attendee list?</h3>'
+    h += '<div class="cw-box"><h3>How your name shows at this event' + (nameAs(st.name) ? ': ' + esc(nameAs(st.name)) : '') + '</h3>'
       + ["full", "short", "initials"].map(function (v, i) { var ex = nameAs(v); return '<label class="cw-row"><input type="radio" name="cw-seen-nm" value="' + v + '"' + (st.name === v ? " checked" : "") + '> <span>' + ["Full name", "First name and last initial", "Initials"][i] + (ex ? ' <span class="cw-ex">\u00b7 ' + esc(ex) + '</span>' : '') + '</span></label>'; }).join("")
-      + '<label class="cw-row"><input type="checkbox" id="cw-seen-pho"' + (st.photo ? " checked" : "") + '><span>Show my photo on the attendee list</span></label>';
+      + '<label class="cw-row"><input type="checkbox" id="cw-seen-pho"' + (st.photo ? " checked" : "") + '><span>Show my photo at this event</span></label>';
     if (st.photo) {
       var src = st.img || st.have;
       h += '<div class="cw-in"><div class="cw-imgf"><div class="cw-tile">' + (src ? '<img src="' + esc(src) + '" alt="">' : "&#128444;&#65039;") + '</div>'
@@ -2506,13 +2508,14 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   };
   var sCal = function () { body.innerHTML = '<p style="margin:4px 0 0">Add this event to your calendar?</p>'; };
   var sLobby = function () { body.innerHTML = (st.offNote ? '<p class="cw-info">' + esc(st.offNote) + '</p>' : '') + '<p style="margin:4px 0 0">When visiting the lobby, you\u2019ll be matched with other attendees.</p>'; };
-  var paint = function () { head(); if (st.done && st.phase === "cal") sCal(); else if (st.done && st.phase === "lobby") sLobby(); else if (st.done) s4(); else [s1, s2lb][st.step](); try { body.scrollTop = 0; } catch (e) {} };
+  var paint = function () { head(); if (st.done && st.phase === "cal") sCal(); else if (st.done && st.phase === "lobby") sLobby(); else if (st.done) s4(); else flow()[st.step](); try { body.scrollTop = 0; } catch (e) {} };
   var finish = function () { if (document.documentElement.classList.contains("cw-regpage")) { _cwRegPageBack(); return; } o.remove(); cwRegNote(ev, !st.firstReg); };
   var afterCal = function () { if (HASLB && st.lobby) { st.phase = "lobby"; paint(); } else finish(); };
   var check = function () {
-    if (st.step === 1 && st.lobby && st.name === "initials") return "To join the lobby, pick at least first name and last initial and show your photo.";
-    if (st.step === 1 && st.lobby) { var _p = st.prof || {}; if (!(st.have || st.img || st.blob)) return "Add a profile photo to show it at this event and join the lobby."; if (!String(st.lbLoc || "").trim()) return "All four are needed to enter the lobby."; if (!String(st.lbLang || "").trim()) return "All four are needed to enter the lobby."; }
-    if (st.step === 1 && st.level !== "Not shared") {
+    var _cur = flow()[st.step];
+    if (_cur === s2lb && st.lobby && st.name === "initials") return "To join the lobby, pick at least first name and last initial and show your photo.";
+    if (_cur === s2lb && st.lobby) { var _p = st.prof || {}; if (!(st.have || st.img || st.blob)) return "Add a profile photo to show it at this event and join the lobby."; if (!String(st.lbLoc || "").trim()) return "All four are needed to enter the lobby."; if (!String(st.lbLang || "").trim()) return "All four are needed to enter the lobby."; }
+    if (_cur === paintLv && st.level !== "Not shared") {
       if (!String(st.text).trim()) return st.level === "Neighborhood" ? "Type your neighborhood name." : "Type the place to show, or choose Not shared.";
       if (!st.ok) return "Answer Is that right? with Yes first.";
       if (st.level === "Neighborhood" && !String(st.postal).trim()) return "Add your postal code to show your neighborhood.";
@@ -2548,7 +2551,7 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   bk.onclick = function () {
     if (st.done && st.phase === "cal") { afterCal(); return; }
     if (st.done && st.phase === "lobby") { finish(); return; }
-    if (st.done) { st.done = false; st.step = 2; } else if (st.step > 0) st.step--; paint(); };
+    if (st.done) { st.done = false; st.step = flow().length - 1; } else if (st.step > 0) st.step--; paint(); };
   nx.onclick = function () {
     if (st.done && st.phase === "cal") {
       try { cwCalAsk(ev); } catch (e) {}
@@ -2561,7 +2564,7 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     if (st.done && st.phase === "lobby") { location.href = "https://2gather.network/attendees/?id=" + encodeURIComponent(ev.id); return; }
     if (st.done) { finish(); return; }
     var bad = check(); if (bad) { msg.textContent = bad; return; }
-    if (st.step < NSTEP - 1) { st.step++; paint(); return; }
+    if (st.step < flow().length - 1) { st.step++; paint(); return; }
     if (preview) { msg.textContent = "This is a preview. Nothing was saved."; return; }
     nx.disabled = true; bk.disabled = true; msg.style.color = "#1F699E";
     msg.innerHTML = '<span class="cw-wait">' + (reg ? "Registering you" : "Saving your changes") + '</span>';
