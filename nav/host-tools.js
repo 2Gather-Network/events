@@ -1,6 +1,6 @@
 (function(){
   var GS = "https://cw-api-gate.jessieupp.workers.dev";
-  var CSS = "#cwh-posted{order:3}#cwh-acts,#cwh-invite{order:4}"
+  var CSS = "#cwh-acts,#cwh-invite{order:4}"
     + ".cwh-acts{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}"
     + ".cwh-b{background:#1F699E;color:#fff;border:0;border-radius:24px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;min-height:0}"
     + ".cwh-b.on{background:#17577F}"
@@ -164,7 +164,7 @@
   }
 
   function clear(){
-    ["cwh-acts", "cwh-invite", "cwh-att", "cwh-posted"].forEach(function (id) { var n = document.getElementById(id); if (n) n.remove(); });
+    ["cwh-acts", "cwh-invite", "cwh-att"].forEach(function (id) { var n = document.getElementById(id); if (n) n.remove(); });
     state.id = "";
   }
 
@@ -192,16 +192,6 @@
         var c = inviteCard(ev); acts.parentNode.insertBefore(c, acts.nextSibling); c._load();
         inv.classList.add("on"); inv.setAttribute("aria-expanded", "true");
       };
-      if (/[?&]posted=1\b/.test(location.search) && ev.date && ev.date !== "TBD" && !ev.cancelled) {
-        var po = el("div", "cwh-posted"); po.id = "cwh-posted";
-        po.appendChild(el("span", "", "Your event is posted."));
-        var cal = el("button", "cwh-gh", "Add to calendar"); cal.type = "button";
-        cal.onclick = function () { try { cwCalAsk(ev); } catch (e) {} };
-        po.appendChild(cal);
-        var main = h1.closest("#card, .cw-rl-main, .card-body") || row.parentNode;
-        var body = main.querySelector(".card-body") || main;
-        body.insertBefore(po, body.firstChild);
-      }
       fetch(GS + "?action=getAttendees&eventId=" + encodeURIComponent(eid) + "&appearId=" + encodeURIComponent(me()) + "&nocache=1")
         .then(function (r) { return r.json(); })
         .then(function (d) {
