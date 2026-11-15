@@ -16,8 +16,8 @@
     var INNER = o.capsule === 'inner';
     var cap = el('div', INNER ? 'display:flex;gap:4px;border:1.5px solid #1F699E;border-radius:26px;padding:3px;background:#fff;' : 'display:flex;border:1.5px solid #1F699E;border-radius:24px;overflow:hidden;');
     var BS = INNER ? 'flex:1;font:inherit;font-size:13.5px;font-weight:700;padding:8px 6px;border:0;border-radius:22px;cursor:pointer;' : 'flex:1;font:inherit;font-size:13.5px;font-weight:700;padding:9px 6px;border:0;cursor:pointer;';
-    var bNet = el('button', BS, 'Invite from my network');
-    var bNew = el('button', BS, 'Invite someone new');
+    var bNet = el('button', BS, 'From network');
+    var bNew = el('button', BS, 'Someone new');
     bNet.type = 'button'; bNew.type = 'button';
     cap.appendChild(bNet); cap.appendChild(bNew);
     var secNet = el('div', 'margin-top:14px;'), secNew = el('div', 'margin-top:14px;display:none;');
@@ -41,7 +41,8 @@
       list.innerHTML = '';
       if (!ALL) return;
       var q = String(find.value || '').trim().toLowerCase();
-      ALL.filter(function(p){ return !q || String(p.name || '').toLowerCase().indexOf(q) > -1; }).forEach(function(p){
+      var matches = ALL.filter(function(p){ return !q || String(p.name || '').toLowerCase().indexOf(q) > -1; });
+      matches.slice(0, 10).forEach(function(p){
         var row = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #DDE4EE;');
         var nameBox = el('span', 'display:flex;flex-direction:column;');
         nameBox.appendChild(el('span', 'font-size:14.5px;font-weight:700;color:#1A2E42;', p.name));
@@ -98,6 +99,12 @@
           list.appendChild(box);
         }
       });
+      if (matches.length > 10 && o.inviteHref) {
+        var more = el('div', 'font-size:13px;color:#2F3D4F;margin-top:10px;', 'Showing 10 of ' + matches.length + '. For more, open your ');
+        var ml = el('a', 'color:#1F699E;font-weight:700;text-decoration:underline;', 'Group invite page'); ml.href = o.inviteHref;
+        more.appendChild(ml); more.appendChild(document.createTextNode('.'));
+        list.appendChild(more);
+      }
       if (!list.firstChild) netSay.textContent = ALL.length ? '' : 'You have not bookmarked anyone yet. Open somebody’s profile and press Bookmark, and they will show up here.';
     }
     find.addEventListener('input', draw);
