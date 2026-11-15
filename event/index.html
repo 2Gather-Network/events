@@ -257,9 +257,12 @@
       <div style="width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 10px;"></div>
       Generating QR code...
     </div>
-    <canvas id="qr-canvas" style="display:none;border-radius:10px;max-width:100%;"></canvas>
-    <p id="qr-event-title" style="font-size:13px;font-weight:700;color:var(--dark);margin:12px 0 4px;"></p>
-    <p id="qr-short-url" style="font-size:12px;color:var(--muted);margin-bottom:16px;word-break:break-all;"></p>
+    <canvas id="qr-canvas" style="display:none;margin:0 auto;border-radius:10px;max-width:100%;"></canvas>
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0 4px;font-size:13px;font-weight:700;">
+      <a id="qr-event-title" href="#" target="_top" style="color:#1F699E;text-decoration:underline;"></a>
+      <button type="button" id="qr-copy" onclick="copyQrLink()" aria-label="Copy link" title="Copy link" style="background:none;border:0;padding:4px;cursor:pointer;color:#1F699E;display:inline-flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+    </div>
+    <p id="qr-short-url" role="status" style="font-size:13px;font-weight:700;color:var(--dark);margin:0 0 16px;min-height:18px;"></p>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-outline" onclick="closeQrModal()">Close</button>
     </div>
@@ -3095,26 +3098,20 @@ async function openQrModal() {
   document.getElementById("qr-loading").style.display = "block";
   document.getElementById("qr-event-title").textContent = _currentEv.title || "";
   document.getElementById("qr-short-url").textContent = "";
+  document.getElementById("qr-event-title").href = _shareBase();
   document.getElementById("qr-modal").classList.add("open");
 
-  if (_shortLink) {
-    _qrShortUrl = _shortLink;
-    document.getElementById("qr-short-url").textContent = _qrShortUrl;
-    renderQr(_qrShortUrl);
-    return;
-  }
-
-  try {
-    const res = await fetch(`${GS_URL}?action=getShortCode&id=${encodeURIComponent(_currentEv.id)}`);
-    const data = await res.json();
-    if (data.status !== "ok" || !data.code) throw new Error("no code");
-    _qrShortUrl = _shareBase();
-  } catch(e) {
-    _qrShortUrl = _shareBase();
-  }
-
-  document.getElementById("qr-short-url").textContent = _qrShortUrl;
+  _qrShortUrl = _shareBase();
   renderQr(_qrShortUrl);
+}
+
+function copyQrLink() {
+  var u = _shareBase(), say = document.getElementById("qr-short-url");
+  var ok = function () { if (say) { say.textContent = "Link copied!"; setTimeout(function () { if (say) say.textContent = ""; }, 2000); } };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(u).then(ok, function () { window.prompt("Copy this link:", u); }); return; }
+  } catch (e) {}
+  window.prompt("Copy this link:", u);
 }
 
 function renderQr(url) {
@@ -3136,6 +3133,21 @@ function renderQr(url) {
     level: "H",
     padding: 16,
   });
+  try {
+    var _cx = canvas.getContext("2d"), _w = canvas.width, _h = canvas.height, _px = _cx.getImageData(0, 0, _w, _h).data;
+    var _x0 = _w, _x1 = -1, _y0 = _h, _y1 = -1;
+    for (var _y = 0; _y < _h; _y++) { for (var _x = 0; _x < _w; _x++) { if (_px[(_y * _w + _x) * 4] < 128) { if (_x < _x0) _x0 = _x; if (_x > _x1) _x1 = _x; if (_y < _y0) _y0 = _y; if (_y > _y1) _y1 = _y; } } }
+    if (_x1 > _x0 && _y1 > _y0) {
+      var _side = Math.max(_x1 - _x0 + 1, _y1 - _y0 + 1), _tmp = document.createElement("canvas");
+      _tmp.width = _side; _tmp.height = _side;
+      var _tc = _tmp.getContext("2d"); _tc.fillStyle = "#ffffff"; _tc.fillRect(0, 0, _side, _side);
+      _tc.drawImage(canvas, _x0, _y0, _x1 - _x0 + 1, _y1 - _y0 + 1, 0, 0, _x1 - _x0 + 1, _y1 - _y0 + 1);
+      _cx.fillStyle = "#ffffff"; _cx.fillRect(0, 0, _w, _h);
+      var _pad = Math.round((_w - _side) / 2);
+      _cx.imageSmoothingEnabled = false;
+      _cx.drawImage(_tmp, _pad, _pad, _side, _side);
+    }
+  } catch (e) {}
   document.getElementById("qr-loading").style.display = "none";
   canvas.style.display = "block";
 }
