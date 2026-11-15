@@ -378,7 +378,7 @@ function recurToEv(r) {
     interestedEnabled: r.interestedEnabled||"off", interested: r.interested||"",
     sharedNotesEnabled: r.sharedNotesEnabled||false, sharedNotes: r.sharedNotes||"",
     host_note: r.host_note||"",
-    cancelled: r.cancelled||false,
+    cancelled: r.cancelled||false, hasBB: r.hasBB===true||String(r.hasBB).toLowerCase()==="true",
     groupId: r.groupId||"", groupJoinOnRsvp: r.groupJoinOnRsvp||"",
     socializedBy: r.socializedBy||[], socializerCount: r.socializerCount||0,
   };
@@ -1674,7 +1674,7 @@ function applyUnregisteredUI() {
   const confirmed = document.getElementById("interest-confirmed");
   if (confirmed) confirmed.style.display = "none";
   window._isRegistered = false;
-  try { if (_cwRegPageOn()) _cwRegPageBack(); } catch (e) {}
+  try { if (_cwRegPageNew()) _cwRegPageOpen(); else if (_cwRegPageOn()) _cwRegPageBack(); } catch (e) {}
   try { _cwCrumbMid(); } catch (e) {}
   document.documentElement.classList.remove("cw-registered");
   _paintBoard();
@@ -2155,13 +2155,16 @@ function cwSeenFetch(id) {
   var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
   return fetch(GS_URL + "?action=getEventSeen&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(id)).then(function (r) { return r.json(); });
 }
-function _cwRegPageOn() { return /[?&]reg=edit\b/.test(location.search); }
+function _cwRegPageOn() { return /[?&]reg=(edit|new)\b/.test(location.search); }
+function _cwRegPageNew() { return /[?&]reg=new\b/.test(location.search); }
 function _cwRegPageBack() { var id = ""; try { id = String((_currentEv && _currentEv.id) || new URLSearchParams(location.search).get("id") || ""); } catch (e) {} location.href = "/event/?id=" + encodeURIComponent(id); }
 function _cwRegPageOpen() {
   if (!_cwRegPageOn() || window._cwRegPageDone || typeof _currentEv === "undefined" || !_currentEv) return;
+  var _me = ""; try { _me = getMemberId() || ""; } catch (e) {}
+  if (!_me) { _cwRegPageBack(); return; }
   window._cwRegPageDone = true;
   document.documentElement.classList.add("cw-regpage");
-  cwSeenOpen(_currentEv, false, false);
+  cwSeenOpen(_currentEv, false, _cwRegPageNew() && !window._isRegistered);
   var o = document.getElementById("cw-seen-ask"), w = document.querySelector(".cw-tpl-wrap");
   if (o && w) { w.insertBefore(o, w.firstChild); }
   try { window.scrollTo(0, 0); } catch (e) {}
@@ -2205,6 +2208,7 @@ function cwSeenLinkPaint() {
 function cwSeenOpen(ev, preview, fromRegister) {
   if (!ev) return;
   var me = ""; try { me = getMemberId() || ""; } catch (e) {}
+  if (fromRegister && !preview && me && !_cwRegPageOn()) { location.href = "/event/?id=" + encodeURIComponent(ev.id) + "&reg=new"; return; }
   var shell = cwStepsShell(ev, !!fromRegister);
   if (!me || preview) { cwSeenAsk(ev, preview, null, fromRegister); return; }
   shell.body.innerHTML = '<span class="cw-wait">Looking up your choices</span>';
