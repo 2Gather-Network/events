@@ -13,9 +13,11 @@
   }
   window.cwShareInvite = function(o){
     var wrap = el('div', 'margin-top:14px;padding-top:14px;border-top:1.5px solid #DDE4EE;');
-    var cap = el('div', 'display:flex;border:1.5px solid #1F699E;border-radius:24px;overflow:hidden;');
-    var bNet = el('button', 'flex:1;font:inherit;font-size:13.5px;font-weight:700;padding:9px 6px;border:0;cursor:pointer;', 'Invite from my network');
-    var bNew = el('button', 'flex:1;font:inherit;font-size:13.5px;font-weight:700;padding:9px 6px;border:0;cursor:pointer;', 'Invite someone new');
+    var INNER = o.capsule !== 'plain';
+    var cap = el('div', INNER ? 'display:flex;gap:4px;border:1.5px solid #1F699E;border-radius:26px;padding:3px;background:#fff;' : 'display:flex;border:1.5px solid #1F699E;border-radius:24px;overflow:hidden;');
+    var BS = INNER ? 'flex:1;font:inherit;font-size:13.5px;font-weight:700;padding:8px 6px;border:0;border-radius:22px;cursor:pointer;' : 'flex:1;font:inherit;font-size:13.5px;font-weight:700;padding:9px 6px;border:0;cursor:pointer;';
+    var bNet = el('button', BS, 'Invite from my network');
+    var bNew = el('button', BS, 'Invite someone new');
     bNet.type = 'button'; bNew.type = 'button';
     cap.appendChild(bNet); cap.appendChild(bNew);
     var secNet = el('div', 'margin-top:14px;'), secNew = el('div', 'margin-top:14px;display:none;');
@@ -51,7 +53,12 @@
             fetch(o.GS_URL + '?action=inviteToGroup&groupId=' + encodeURIComponent(o.groupId) + '&invitedById=' + encodeURIComponent(o.meId) + '&appearIds=' + encodeURIComponent(p.appearId))
               .then(function(r){ return r.json(); })
               .then(function(d){
-                if (d && d.status === 'ok') { p.done = Number(d.sent || 0) > 0 ? 'Invited' : (Number(d.alreadyMembers || 0) > 0 ? 'Already in this group' : 'Already invited'); netSay.textContent = ''; draw(); }
+                if (d && d.status === 'ok') {
+                  var sentN = Number(d.sent || 0) > 0, mem = Number(d.alreadyMembers || 0) > 0;
+                  p.done = sentN ? 'Invited' : (mem ? 'Already in this group' : 'Already invited');
+                  draw();
+                  netSay.textContent = sentN ? ('Invited ' + p.name + '. Pending until they answer.') : (mem ? (p.name + ' is already in this group.') : (p.name + ' was already invited. Pending until they answer.'));
+                }
                 else { b.disabled = false; netSay.textContent = (d && d.message) ? d.message : 'That did not go through. Try again.'; }
               })
               .catch(function(){ b.disabled = false; netSay.textContent = 'Could not reach the server. Try again in a moment.'; });
@@ -101,7 +108,7 @@
         .then(function(d){
           send.disabled = false;
           if (d && d.status === 'ok' && d.already && d.message) { newSay.textContent = d.message; mail.value = ''; first.value = ''; }
-          else if (d && d.status === 'ok') { newSay.textContent = 'Invitation sent to ' + to + '.'; mail.value = ''; first.value = ''; }
+          else if (d && d.status === 'ok') { newSay.textContent = 'Invited ' + (String(first.value || '').trim() || to) + '. Invitation sent to ' + to + '. Pending until they answer.'; mail.value = ''; first.value = ''; }
           else { newSay.textContent = (d && d.message) ? d.message : 'That did not go through. Try again.'; }
         })
         .catch(function(){ send.disabled = false; newSay.textContent = 'Could not reach the server. Try again in a moment.'; });
