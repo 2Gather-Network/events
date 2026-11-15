@@ -4,7 +4,7 @@
   var SHOW_EVERYWHERE   = true;   
 
   window.CW_SIGNIN = window.CW_SIGNIN || (function () {
-    var SIGNIN = 'https://2gather.network/signin/';
+    var SIGNIN = (/(^|\.)2appear\.network$/i.test(window.location.hostname || '') ? 'https://2appear.network' : 'https://2gather.network') + '/signin/';
     try {
       var here = window.location.pathname || '';
       if (here.indexOf('/signin') === 0) { return SIGNIN; }
@@ -12,7 +12,7 @@
     } catch (e) { return SIGNIN; }
   })();
   window.CW_SIGNUP = window.CW_SIGNUP || (function () {
-    var SIGNUP = 'https://2gather.network/signup/';
+    var SIGNUP = (/(^|\.)2appear\.network$/i.test(window.location.hostname || '') ? 'https://2appear.network' : 'https://2gather.network') + '/signup/';
     try {
       var here = window.location.pathname || '';
       if (here.indexOf('/signup') === 0 || here.indexOf('/signin') === 0) { return SIGNUP; }
