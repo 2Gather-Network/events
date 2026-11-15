@@ -62,7 +62,7 @@
     if (navigator.share) {
       mk('Share', function(){ navigator.share({ title: o.title || document.title, text: o.text || '', url: o.url }).catch(function(){}); }, 'share');
     }
-    mk('Email', function(){ window.location.href = 'mailto:?subject=' + encodeURIComponent(o.title || document.title) + '&body=' + encodeURIComponent((o.text ? o.text + ' ' : '') + o.url); }, 'mail');
+    if (!o.noEmail) mk('Email', function(){ window.location.href = 'mailto:?subject=' + encodeURIComponent(o.title || document.title) + '&body=' + encodeURIComponent((o.text ? o.text + ' ' : '') + o.url); }, 'mail');
     if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '') || (window.matchMedia && window.matchMedia('(pointer:coarse)').matches)) {
       mk('Text', function(){ window.location.href = 'sms:' + (/iPhone|iPad|iPod/i.test(navigator.userAgent || '') ? '&' : '?') + 'body=' + encodeURIComponent((o.text ? o.text + ' ' : '') + o.url); }, 'text');
     }
@@ -88,6 +88,7 @@
     box.appendChild(row);
     box.appendChild(say);
     box.appendChild(qrSlot);
+    if (o.below) { var bw = o.below(); if (bw) box.appendChild(bw); }
     var doneRow = el('div', 'display:flex;justify-content:flex-end;margin-top:12px;');
     var done = el('button', 'font:inherit;font-size:13px;font-weight:700;line-height:1.3;color:#fff;background:#1F699E;border:1.5px solid #1F699E;border-radius:24px;padding:7px 14px;cursor:pointer;', 'Done');
     done.type = 'button';

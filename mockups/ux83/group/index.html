@@ -247,8 +247,9 @@
 input[type="checkbox"]{accent-color:#1F699E !important;width:18px !important;height:18px !important;}
 label:has(> input[type="checkbox"]){min-height:44px;}
 </style>
-  <script src="/mockups/ux83/nav/share-panel.js?v=7"></script>
-<script src="/nav/identity.js?v=61"></script>
+  <script src="/mockups/ux83/nav/share-panel.js?v=8"></script>
+  <script src="/mockups/ux83/group/share-invite.js?v=1"></script>
+<script src="/nav/identity.js?v=66"></script>
   <script>window.cwGroupAddress=function(){};</script>
   <script src="/nav/firststop.js?v=9"></script>
   <script src="/group/offer-count.js?v=1"></script>
@@ -456,6 +457,7 @@ label:has(> input[type="checkbox"]){min-height:44px;}
         </div>
         <div class="gp-rs-sec" id="gp-rs-last" style="display:none;">
           <div class="gp-rs-lastrow">
+            <button type="button" id="gp-share-btn" class="gp-rs-pill gp-rs-view" aria-expanded="false" style="display:none;justify-content:center;">Share</button>
             <button type="button" id="gp-tools-btn" class="gp-rs-pill gp-rs-view" aria-expanded="false" style="display:none;justify-content:center;">Tools</button>
             <button type="button" id="gp-rs-links-btn" class="gp-rs-pill gp-rs-view" aria-expanded="false" style="display:none;justify-content:center;">Links</button>
             <div id="gp-manage-wrap" style="display:none;margin:0;text-align:right;">
@@ -998,7 +1000,7 @@ function pick(el, key){
   }
   window.gpLastBox = function(){
     var box = document.getElementById('gp-rs-last'); if (!box) return;
-    var any = ['gp-tools-btn','gp-rs-links-btn','gp-manage-wrap'].some(function(i){ var e = document.getElementById(i); return e && e.style.display !== 'none'; });
+    var any = ['gp-share-btn','gp-tools-btn','gp-rs-links-btn','gp-manage-wrap'].some(function(i){ var e = document.getElementById(i); return e && e.style.display !== 'none'; });
     box.style.display = any ? '' : 'none';
   };
   function gpPanelOrder(inGroup){
@@ -2694,11 +2696,6 @@ var myPill = document.getElementById('gp-myprofile-pill');
             wrap.appendChild(a); wrap.appendChild(t);
             _ll.appendChild(wrap);
           });
-          var _sh = document.createElement('button');
-          _sh.type = 'button'; _sh.id = 'gp-share-btn'; _sh.setAttribute('aria-label', 'Share this group');
-          _sh.setAttribute('style', 'display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:13.5px;font-weight:700;color:#1F699E;background:none;border:0;padding:0;cursor:pointer;text-align:left;');
-          _sh.innerHTML = '<span class="gp-rs-ring"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></span>'; var _st = document.createElement('span'); _st.textContent = 'Share group'; _sh.appendChild(_st);
-          _tl.appendChild(_sh);
           function _pill(btn, list, on, off, other, otherList, otherBtn, otherOff){
             if (btn._wired) return; btn._wired = true;
             btn.addEventListener('click', function(){
@@ -2713,6 +2710,7 @@ var myPill = document.getElementById('gp-myprofile-pill');
           _pill(_tb, _tl, 'Tools', 'Tools', 0, _ll, _lb, 'Links');
           _pill(_lb, _ll, 'Links', 'Links', 0, _tl, _tb, 'Tools');
           _tb.style.display = _viewerInGroup ? 'inline-flex' : 'none';
+          var _shb = document.getElementById('gp-share-btn'); if (_shb) _shb.style.display = _viewerInGroup ? 'inline-flex' : 'none';
           _lb.style.display = (_viewerInGroup && _ll.children.length) ? 'inline-flex' : 'none';
           window.gpLastBox();
         })();
@@ -2776,10 +2774,13 @@ var myPill = document.getElementById('gp-myprofile-pill');
             var url = slug ? 'https://2appear.network/group/' + encodeURIComponent(slug)
                            : 'https://2appear.network/group/?id=' + encodeURIComponent(groupId);
             var nm = (d.group && d.group.name) || 'this group';
+            var mayInvite = !!d.meIsOperator || !!d.meIsHost || (String((d.group && d.group.membersCanInvite) || '').trim().toLowerCase() === 'true' && !!meId);
             if (window.cwSharePanel) {
-              var _spb = window.cwSharePanel({ after: document.getElementById('gp-tools-list') || say || sb, url: url, title: nm, text: 'Join ' + nm + ' on 2Appear', onClose: function(){ sb.classList.remove('on'); sb.setAttribute('aria-pressed', 'false'); sb.style.display = 'inline-flex'; },
-                heading: 'Share this group', lede: 'Help share ' + nm + ' in the way you want.', fileName: (slug || 'group') + '-qr' });
-              if (_spb) { sb.classList.add('on'); sb.setAttribute('aria-pressed', 'true'); sb.style.display = 'none'; } else { sb.classList.remove('on'); sb.setAttribute('aria-pressed', 'false'); sb.style.display = 'inline-flex'; }
+              var _spb = window.cwSharePanel({ after: document.getElementById('gp-tools-list') || say || sb, url: url, title: nm, text: 'Join ' + nm + ' on 2Appear', noEmail: true,
+                onClose: function(){ sb.classList.remove('on'); sb.setAttribute('aria-expanded', 'false'); },
+                heading: 'Share this group', lede: 'Help share ' + nm + ' in the way you want.', fileName: (slug || 'group') + '-qr',
+                below: (mayInvite && window.cwShareInvite) ? function(){ return window.cwShareInvite({ GS_URL: GS_URL, groupId: String((d.group && d.group.groupId) || groupId), meId: meId, url: url, text: 'Join ' + nm + ' on 2Appear' }); } : null });
+              if (_spb) { sb.classList.add('on'); sb.setAttribute('aria-expanded', 'true'); } else { sb.classList.remove('on'); sb.setAttribute('aria-expanded', 'false'); }
               return;
             }
             try { navigator.clipboard.writeText(url).then(function(){ if (say) say.textContent = 'Link copied'; }, function(){ window.prompt('Copy this link', url); }); }
@@ -3270,6 +3271,6 @@ function gpRuleLine(gr){
 </script>
 <script>try{localStorage.removeItem('cw-super')}catch(e){}</script>
 <script src="/nav/required-answers.js?v=3"></script>
-<script src="/nav/topbar.js?v=7.02" defer></script>
+<script src="/nav/topbar.js?v=7.04" defer></script>
 </body>
 </html>
