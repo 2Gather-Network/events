@@ -1158,6 +1158,17 @@ html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-ins
     <div class="field">
       <label class="field-label" id="host-field-label">Event host name</label>
       <p class="field-help" id="host-field-share-hint" style="display:none;font-size:12px;color:var(--muted);margin:0 0 8px;">The person or organization running it. You are listed separately as the one sharing it.</p>
+      <div id="hc-radios" style="display:none;margin:0 0 8px;">
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:15px;cursor:pointer;margin:0 0 8px;line-height:1.4;"><input type="radio" name="hc-choice" value="me" checked onchange="_hcPick('me')" style="width:16px;height:16px;accent-color:var(--primary);margin-top:3px;flex-shrink:0;"><span>I'm the host</span></label>
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:15px;cursor:pointer;margin:0 0 8px;line-height:1.4;"><input type="radio" name="hc-choice" value="ob" onchange="_hcPick('ob')" style="width:16px;height:16px;accent-color:var(--primary);margin-top:3px;flex-shrink:0;"><span>I'm posting this event on behalf of someone else</span></label>
+        <div id="hc-ob" style="display:none;margin:4px 0 12px 24px;">
+          <label class="field-label" for="hc-first">Host's first name</label>
+          <input class="input" id="hc-first" placeholder="Ex: Dana" oninput="_hcSync()" autocomplete="off">
+          <label class="field-label" for="hc-email" style="margin-top:10px;">Host's email</label>
+          <input class="input" id="hc-email" type="email" placeholder="Ex: dana@example.org" oninput="_hcSync()" autocomplete="off">
+          <p style="font-size:13.5px;color:#1A2E42;background:#E8F2F9;border-radius:10px;padding:10px 14px;margin:10px 0 0;line-height:1.5;">They get an email to take over this event. Until they say yes, you manage it and their name does not show as host.</p>
+        </div>
+      </div>
       <input class="input" id="f-host" placeholder="First and last name - shown on the event" oninput="_hostTypedOver()">
       <button type="button" id="host-find-open" onclick="_openHostFind()" style="background:none;border:none;padding:0;margin-top:6px;font:inherit;font-size:12px;color:var(--cw-blue);font-weight:700;text-decoration:underline;cursor:pointer;">The host is someone else on the network</button>
       <div id="host-find-box" style="display:none;margin-top:8px;">
@@ -1288,12 +1299,11 @@ html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-ins
         <div id="group-link-info" style="display:none;"></div>
         <div id="bb-opt-row" style="display:flex;align-items:center;gap:6px;">
           <label id="share-opt-venue" style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;flex:1;">
-            <input type="checkbox" id="f-has-bb" style="width:16px;height:16px;accent-color:var(--primary);margin:0;flex-shrink:0;">
+            <input type="checkbox" id="f-has-bb" onchange="_lobbyWordsPaint()" style="width:16px;height:16px;accent-color:var(--primary);margin:0;flex-shrink:0;">
             <span>Turn on the lobby for this event</span>
           </label>
-          <button type="button" id="bulletin-info-btn" onclick="toggleBulletinInfo()" aria-label="What is the lobby?" aria-expanded="false" style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;background:none;border:0;cursor:pointer;padding:0;flex:none;"><span style="display:inline-flex;align-items:center;justify-content:center;border-radius:50%;width:22px;height:22px;padding:0;font:800 14px/1 'Nunito Sans',sans-serif;font-style:normal;border:1.5px solid #1F699E;background:#fff;color:#1F699E;">i</span></button>
         </div>
-        <div id="bulletin-info" style="display:none;font-size:13.5px;color:#1A2E42;background:#E8F2F9;border-radius:10px;padding:10px 14px;margin:0 0 2px 24px;line-height:1.5;">The lobby is where your guests can find and engage with other registered attendees they want to meet. This private space lives on 2Gather before and during the event. After the event closes, attendees can still engage with each other on 2Appear, based on their own set permissions.</div>
+        <div id="lobby-words" style="display:none;font-size:15px;color:#1A2E42;line-height:1.5;margin:8px 0 2px 24px;"><p style="margin:0 0 10px;">You will receive a QR code to share your lobby. This can be added to anything such as an online presentation, lanyards, flyers, or posters.</p><p style="margin:0;">Anyone who scans this QR code will receive an invite to add their name, photo, location, and language(s) spoken to enter your event lobby. They will also choose how they want to be seen when they enter.</p></div>
       </div>
     </div>
 
@@ -1777,6 +1787,42 @@ function closeChoiceModal() {
 
 let _choiceMethod = null;
 
+var _hcOnBehalf = false;
+function _hcShow() {
+  var r = document.getElementById("hc-radios"); if (!r) return;
+  var on = (typeof editingId === "undefined" || !editingId) && (!window._isSharing || _hcOnBehalf);
+  r.style.display = on ? "" : "none";
+}
+function _hcPick(v) {
+  var ob = v === "ob";
+  _hcOnBehalf = ob;
+  var box = document.getElementById("hc-ob"); if (box) box.style.display = ob ? "" : "none";
+  var hn = document.getElementById("f-host"), fo = document.getElementById("host-find-open"), hb = document.getElementById("hi-box");
+  if (ob) {
+    window._isSharing = true; applySharingMode(true);
+    if (hn) hn.style.display = "none"; if (fo) fo.style.display = "none";
+    _hcSync();
+  } else {
+    window._isSharing = false; applySharingMode(false);
+    if (hn) { hn.style.display = ""; hn.value = ""; } if (fo) fo.style.display = "";
+    var cb = document.getElementById("f-host-invite"); if (cb) cb.checked = false;
+    var he = document.getElementById("f-host-email"); if (he) he.value = "";
+    _fillPosterName();
+  }
+  _hcShow();
+  try { _hiPaint(); } catch (e) {}
+  if (ob && hb) hb.style.display = "none";
+}
+function _hcSync() {
+  if (!_hcOnBehalf) return;
+  var hn = document.getElementById("f-host"), he = document.getElementById("f-host-email"), cb = document.getElementById("f-host-invite");
+  var fn = String((document.getElementById("hc-first") || {}).value || "").trim(), em = String((document.getElementById("hc-email") || {}).value || "").trim();
+  if (hn) hn.value = fn; if (he) he.value = em; if (cb) cb.checked = !!(fn && em);
+  try { _hiPaint(); } catch (e) {}
+  var hb = document.getElementById("hi-box"); if (hb) hb.style.display = "none";
+}
+function _lobbyWordsPaint() { var c = document.getElementById("f-has-bb"), w = document.getElementById("lobby-words"); if (c && w) w.style.display = c.checked ? "" : "none"; }
+setInterval(function () { try { _lobbyWordsPaint(); } catch (e) {} }, 600);
 function applySharingMode(sharing) {
   var f = document.getElementById("registration-field");
   if (f) f.style.display = sharing ? "none" : "";
@@ -1798,10 +1844,12 @@ function applySharingMode(sharing) {
   var vis = document.getElementById("visibility-field");
   if (vis) vis.style.display = "";
   setInterestedEnabled("off");
+  try { _hcShow(); } catch (e) {}
 }
 
 function choiceSelectMethod(method) {
   _choiceMethod = method;
+  _hcOnBehalf = false; try { var _r0 = document.querySelector('input[name="hc-choice"][value="me"]'); if (_r0) _r0.checked = true; var _ob0 = document.getElementById('hc-ob'); if (_ob0) _ob0.style.display = 'none'; ['hc-first','hc-email'].forEach(function (i) { var x = document.getElementById(i); if (x) x.value = ''; }); var _fh0 = document.getElementById('f-host'); if (_fh0) _fh0.style.display = ''; } catch (e) {}
   window._isSharing = (method === "share");   
   applySharingMode(method === "share");      
   document.getElementById("choice-step-1").style.display = "none";
