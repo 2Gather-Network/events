@@ -2296,7 +2296,8 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   var body = $("cw-st-b"), msg = $("cw-seen-msg"), nx = $("cw-st-nx"), bk = $("cw-st-bk");
   var LV = ["Not shared", "Global", "Region", "Country", "State", "County", "City", "Neighborhood"];
   var FROM = [["bookmarked", "People I bookmarked"], ["match", "People I match with"], ["messaged", "People I messaged"], ["everyone", "All event guests"], ["none", "Nobody"]];
-  var STEPS = ["How you show at this event", "Share your location", "After the event"];
+  var STEPS = ["How you show on the attendee list", "Join the event lobby"];
+  var HASLB = String(ev.hasBB) === "true" || ev.hasBB === true, NSTEP = HASLB ? 2 : 1;
   var st = { step: 0, name: "full", photo: true, have: "", blob: null, img: "", lobby: false, match: false, level: "Not shared", text: "", postal: "", ok: false, prof: {},
     connect: true, others: true, from: { bookmarked: true, match: true }, onlyMine: false, mail: true, mine: true, same: false, done: false, lastWasReg: false };
   var me = ""; try { me = getMemberId() || ""; } catch (e) {}
@@ -2337,12 +2338,12 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   };
   var head = function () {
     var sp = $("cw-st-pr").children;
-    for (var i = 0; i < sp.length; i++) sp[i].className = (st.done || i <= st.step) ? "on" : "";
-    $("cw-st-pl").textContent = st.done ? "All 3 steps done" : "Step " + (st.step + 1) + " of 3: " + STEPS[st.step];
+    for (var i = 0; i < sp.length; i++) { sp[i].className = (st.done || i <= st.step) ? "on" : ""; sp[i].style.display = i < NSTEP ? "" : "none"; }
+    $("cw-st-pl").textContent = st.done ? "All " + NSTEP + " steps done" : "Step " + (st.step + 1) + " of " + NSTEP + ": " + STEPS[st.step];
     $("cw-st-t").textContent = st.done ? (st.lastWasReg ? "You’re registered for " + (ev.title || "this event") : "Your registration is updated") : ((reg ? "Register for " : "Edit your registration for ") + (ev.title || "this event"));
     bk.style.visibility = st.step === 0 && !st.done ? "hidden" : "visible";
     nx.disabled = false;
-    nx.textContent = st.done ? "Done" : st.step === 2 ? (reg ? "Finish registering" : "Save changes") : "Next";
+    nx.textContent = st.done ? "Done" : st.step === NSTEP - 1 ? (reg ? "Register" : "Save changes") : "Next";
     msg.style.color = "#7A2410"; msg.textContent = "";
   };
   var shrink = function (src, ok) {
@@ -2367,15 +2368,13 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   var s1 = function () {
     if (!st.profReady) { body.innerHTML = '<span class="cw-wait">Looking up your name and photo</span>'; nx.disabled = true; return; }
     nx.disabled = false;
-    if (!lobbyOk()) { st.lobby = false; }
-    if (!st.lobby) st.match = false;
     var hasLobby = String(ev.hasBB) === "true" || ev.hasBB === true;
     if (!hasLobby) st.lobby = false;
     st.match = st.lobby;
     var h = "";
     if (last && st.step === 0) h += '<label class="cw-same"><input type="checkbox" id="cw-st-same"' + (st.same ? " checked" : "") + ' style="margin-top:3px"><span>Use the same selections from my last event<span class="cw-sub">' + (st.same ? "Everything is filled in as you had it. Go through each screen, and if it looks good, you’re registered." : "Fills in every screen as you answered for your last event.") + '</span></span></label>';
-    if (hasLobby) {
-      h += '<div class="cw-box"><label class="cw-row"><input type="checkbox" id="cw-seen-lb"' + (st.lobby ? " checked" : "") + '><span>Show me in the lobby<span class="cw-sub">The lobby shows what other event attendees need, offer, and care about.</span></span></label>';
+    if (false) {
+      h += '<div class="cw-box"><label class="cw-row"><input type="checkbox" id="cw-seen-lb0"' + (st.lobby ? " checked" : "") + '><span>Show me in the lobby<span class="cw-sub">The lobby shows what other event attendees need, offer, and care about.</span></span></label>';
       if (st.lobby) {
         h += '<p class="cw-info">Everyone in this lobby sees your full name, photo, location and the languages you speak, and you are matched with other attendees.</p>';
         if (!(st.have || st.img)) { st.photo = true;
@@ -2389,10 +2388,10 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
       }
       h += '</div>';
     }
-    if (!st.lobby) {
-    h += '<div class="cw-box"><h3>How your name shows at this event' + (nameAs(st.name) ? ': ' + esc(nameAs(st.name)) : '') + '</h3>'
+    {
+    h += '<div class="cw-box"><h3>How should your name show on the attendee list?</h3>'
       + ["full", "short", "initials"].map(function (v, i) { var ex = nameAs(v); return '<label class="cw-row"><input type="radio" name="cw-seen-nm" value="' + v + '"' + (st.name === v ? " checked" : "") + '> <span>' + ["Full name", "First name and last initial", "Initials"][i] + (ex ? ' <span class="cw-ex">\u00b7 ' + esc(ex) + '</span>' : '') + '</span></label>'; }).join("")
-      + '<label class="cw-row"><input type="checkbox" id="cw-seen-pho"' + (st.photo ? " checked" : "") + '><span>Show my photo at this event</span></label>';
+      + '<label class="cw-row"><input type="checkbox" id="cw-seen-pho"' + (st.photo ? " checked" : "") + '><span>Show my photo on the attendee list</span></label>';
     if (st.photo) {
       var src = st.img || st.have;
       h += '<div class="cw-in"><div class="cw-imgf"><div class="cw-tile">' + (src ? '<img src="' + esc(src) + '" alt="">' : "&#128444;&#65039;") + '</div>'
@@ -2416,6 +2415,26 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
         shrink(v, function (r) { if (!r) { $("cw-st-imh").textContent = "That picture could not be read. Save it, then press Upload."; return; } s1(); });
       };
     }
+  };
+  var s2lb = function () {
+    var p = st.prof || {}, hasPho = !!(st.have || st.img);
+    var loc = String(p.location || "").trim(), lang = Array.isArray(p.languages) ? p.languages.join(", ") : String(p.languages || "").trim();
+    var h = '<div class="cw-box"><p class="cw-sub" style="margin:0 0 10px">The lobby is open before and during the event. Everyone in it is matched with other attendees.</p>'
+      + '<label class="cw-row"><input type="checkbox" id="cw-lb-join"' + (st.lobby ? " checked" : "") + '><span>Join the lobby</span></label>';
+    if (st.lobby) {
+      h += '<p class="cw-info">All four are needed to enter the lobby.</p>'
+        + '<p class="cw-sub" style="margin:8px 0 2px"><b>Name</b></p><p style="margin:0">' + esc(myName()) + '</p>'
+        + '<p class="cw-sub" style="margin:10px 0 2px"><b>Photo</b></p>'
+        + '<div class="cw-in"><div class="cw-imgf"><div class="cw-tile">' + (st.img || st.have ? '<img src="' + esc(st.img || st.have) + '" alt="">' : "&#128444;&#65039;") + '</div>'
+        + '<input type="text" id="cw-st-iml" placeholder="Paste an image, a link, or upload one" aria-label="Your profile photo"><button type="button" class="cw-up' + (hasPho ? '' : ' need') + '" id="cw-st-up">Upload</button><input type="file" id="cw-st-f" accept="image/*" hidden></div></div>'
+        + '<p class="cw-sub" style="margin:10px 0 2px"><b>Location</b></p>' + (loc ? '<p style="margin:0">' + esc(loc) + '</p>' : '<input type="text" id="cw-lb-loc" maxlength="80" value="' + esc(st.lbLoc || "") + '" aria-label="Location" style="width:100%;font:inherit;font-size:14px;border:1px solid var(--border);border-radius:8px;padding:6px 8px">')
+        + '<p class="cw-sub" style="margin:10px 0 2px"><b>Language(s)</b></p>' + (lang ? '<p style="margin:0">' + esc(lang) + '</p>' : '<input type="text" id="cw-lb-lang" maxlength="120" value="' + esc(st.lbLang || "") + '" aria-label="Language(s)" style="width:100%;font:inherit;font-size:14px;border:1px solid var(--border);border-radius:8px;padding:6px 8px">');
+    }
+    body.innerHTML = h + '</div>';
+    $("cw-lb-join").onchange = function () { st.lobby = this.checked; st.match = st.lobby; s2lb(); };
+    if ($("cw-lb-loc")) $("cw-lb-loc").oninput = function () { st.lbLoc = this.value; };
+    if ($("cw-lb-lang")) $("cw-lb-lang").oninput = function () { st.lbLang = this.value; };
+    if ($("cw-st-up")) { $("cw-st-up").onclick = function () { $("cw-st-f").click(); }; $("cw-st-f").onchange = function () { st.photo = true; takeFile(this.files && this.files[0]); }; }
   };
   var paintLv = function () {
     var h = '<div class="cw-box"><h3>Share your location?</h3><p class="cw-sub">At what level do other guests at this event see where you are?</p><div class="cw-pills">'
@@ -2463,16 +2482,22 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     $("cw-seen-me").onclick = function () { st.mine = !st.mine; s3(); };
   };
   var s4 = function () {
-    var nm = { full: "Full name", short: "First name and last initial", initials: "Initials" }[st.name];
-    body.innerHTML = (st.offNote ? '<p class="cw-info">' + esc(st.offNote) + '</p>' : '')
-      + '<div class="cw-sum">Your name: <b>' + esc(nameAs(st.name) || nm) + '</b><br>Your photo: <b>' + (st.photo && hasPhoto() ? "Shown" : "Not shown") + '</b><br>Lobby: <b>' + (st.lobby ? "On" : "Off") + '</b> · Match up: <b>' + (st.match ? "On" : "Off") + '</b><br>Location: <b>' + esc(st.level === "Not shared" ? "Not shared" : st.text) + '</b></div>'
-      + '<p class="cw-sub" style="margin-bottom:12px">Press Back to change anything. You can also change these any time from the event page.</p>'
-      + (ev.date && ev.date !== "TBD" ? '<button type="button" class="cw-b gh" id="cw-st-cal">Add to calendar</button>' : "");
+    var lobbyUrl = "https://2gather.network/attendees/?id=" + encodeURIComponent(ev.id);
+    var h = (st.offNote ? '<p class="cw-info">' + esc(st.offNote) + '</p>' : '');
+    if (HASLB && st.lobby) {
+      h += '<p style="margin:0 0 12px">You\u2019re in the lobby. You\u2019ll be matched with other attendees.</p>'
+        + '<a class="cw-b pri" href="' + esc(lobbyUrl) + '" style="display:inline-block;text-decoration:none;margin:0 8px 8px 0">Go to the lobby</a>';
+    } else if (HASLB) {
+      h += '<p style="margin:0 0 12px">You can join the lobby any time from this event\u2019s page. <a href="/event/?id=' + encodeURIComponent(ev.id) + '&reg=edit" style="color:#1F699E;font-weight:700">Join the lobby</a></p>';
+    }
+    h += (ev.date && ev.date !== "TBD" ? '<button type="button" class="cw-b gh" id="cw-st-cal">Add to calendar</button>' : "");
+    body.innerHTML = h;
     if ($("cw-st-cal")) $("cw-st-cal").onclick = function () { try { cwCalAsk(ev); var c = document.getElementById("cw-cal-ask"); if (c) c.style.zIndex = "2001"; } catch (e) {} };
+    if (HASLB && st.lobby) { nx.classList.remove("pri"); nx.classList.add("gh"); } else { nx.classList.remove("gh"); nx.classList.add("pri"); }
   };
-  var paint = function () { head(); if (st.done) s4(); else [s1, paintLv, s3][st.step](); try { body.scrollTop = 0; } catch (e) {} };
+  var paint = function () { head(); if (st.done) s4(); else [s1, s2lb][st.step](); try { body.scrollTop = 0; } catch (e) {} };
   var check = function () {
-    if (st.step === 0 && st.lobby && !(st.have || st.img)) return "Add a profile photo to show it at this event and join the lobby.";
+    if (st.step === 1 && st.lobby) { var _p = st.prof || {}; if (!(st.have || st.img || st.blob)) return "Add a profile photo to show it at this event and join the lobby."; if (!String(_p.location || "").trim() && !String(st.lbLoc || "").trim()) return "All four are needed to enter the lobby."; if (!(Array.isArray(_p.languages) ? _p.languages.length : String(_p.languages || "").trim()) && !String(st.lbLang || "").trim()) return "All four are needed to enter the lobby."; }
     if (st.step === 1 && st.level !== "Not shared") {
       if (!String(st.text).trim()) return st.level === "Neighborhood" ? "Type your neighborhood name." : "Type the place to show, or choose Not shared.";
       if (!st.ok) return "Answer Is that right? with Yes first.";
@@ -2493,10 +2518,12 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   };
   var save = function () {
     var from = Object.keys(st.from).filter(function (k) { return st.from[k]; });
-    var lb = lobbyOk() && st.lobby;
+    var lb = HASLB && st.lobby;
+    if (lb) { st.name = "full"; st.photo = true; var _pl = String((st.prof || {}).location || st.lbLoc || "").trim(); if (_pl) { st.level = "City"; st.text = (guess && guess("City")) || _pl; st.ok = true; } }
+    if (lb && String(st.lbLang || "").trim()) { try { fetch(GS_URL + "?action=saveAccount&appearId=" + encodeURIComponent(me) + "&secure=1&editToken=" + encodeURIComponent(tok) + "&languages=" + encodeURIComponent(String(st.lbLang).trim())); } catch (e) {} }
     return fetch(GS_URL + "?action=saveEventShare&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id)
       + "&seen=true" + (reg ? "&register=true" : "") + "&nameShown=" + encodeURIComponent(st.name) + "&photoShown=" + (st.photo && hasPhoto() ? "true" : "false")
-      + "&lobby=" + (lb ? "true" : "false") + "&matchUp=" + (lb && st.match ? "true" : "false")
+      + "&lobby=" + (lb ? "true" : "false") + "&matchUp=" + (lb ? "true" : "false")
       + "&invite=" + (st.others ? "true" : "false") + "&startGroup=" + (st.connect ? "true" : "false")
       + "&inviteFrom=" + encodeURIComponent(from.length ? from.join(",") : "none") + "&inviteEmail=" + (st.mail ? "true" : "false") + "&inviteMyEvents=" + (st.mine ? "true" : "false") + "&inviteMatchOnly=" + (st.from.everyone && st.onlyMine ? "true" : "false")
       + "&placeLevel=" + encodeURIComponent(st.level) + "&placeText=" + encodeURIComponent(st.text) + "&placePostal=" + encodeURIComponent(st.postal))
@@ -2507,12 +2534,12 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   nx.onclick = function () {
     if (st.done) { if (document.documentElement.classList.contains("cw-regpage")) { _cwRegPageBack(); return; } o.remove(); cwRegNote(ev, !st.firstReg); return; }
     var bad = check(); if (bad) { msg.textContent = bad; return; }
-    if (st.step < 2) { st.step++; paint(); return; }
+    if (st.step < NSTEP - 1) { st.step++; paint(); return; }
     if (preview) { msg.textContent = "This is a preview. Nothing was saved."; return; }
     nx.disabled = true; bk.disabled = true; msg.style.color = "#1F699E";
     msg.innerHTML = '<span class="cw-wait">' + (reg ? "Registering you" : "Saving your changes") + '</span>';
     var wasReg = reg;
-    var wantLobby = lobbyOk() && st.lobby;
+    var wantLobby = HASLB && st.lobby;
     savePhoto().then(save).then(function (d) {
       bk.disabled = false;
       st.offNote = "";
