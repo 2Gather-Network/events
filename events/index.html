@@ -1128,10 +1128,13 @@
         <label style="display:flex;align-items:flex-start;gap:8px;font-size:15px;cursor:pointer;margin:0 0 8px;line-height:1.4;"><input type="radio" name="hc-choice" value="me" checked onchange="_hcPick('me')" style="width:16px;height:16px;accent-color:var(--primary);margin-top:3px;flex-shrink:0;"><span>I'm the host</span></label>
         <label style="display:flex;align-items:flex-start;gap:8px;font-size:15px;cursor:pointer;margin:0 0 8px;line-height:1.4;"><input type="radio" name="hc-choice" value="ob" onchange="_hcPick('ob')" style="width:16px;height:16px;accent-color:var(--primary);margin-top:3px;flex-shrink:0;"><span>I'm posting this event on behalf of someone else</span></label>
         <div id="hc-ob" style="display:none;margin:4px 0 12px 24px;">
+          <div id="hc-found" style="display:none;margin:0 0 8px;"></div>
+          <div id="hc-fields">
           <label class="field-label" for="hc-first">Host's first name</label>
           <input class="input" id="hc-first" placeholder="Ex: Dana" oninput="_hcSync()" autocomplete="off">
           <label class="field-label" for="hc-email" style="margin-top:10px;">Host's email</label>
           <input class="input" id="hc-email" type="email" placeholder="Ex: dana@example.org" oninput="_hcSync()" autocomplete="off">
+          </div>
           <p style="font-size:13.5px;color:#1A2E42;background:#E8F2F9;border-radius:10px;padding:10px 14px;margin:10px 0 0;line-height:1.5;">They get an email to take over this event. Until they say yes, you manage it and their name does not show as host.</p>
         </div>
       </div>
@@ -1693,7 +1696,7 @@ function closeChoiceModal() {
 let _choiceMethod = null;
 
 var _hcOnBehalf = false, _hcPrevHost = null;
-function _hcReset() { _hcOnBehalf = false; _hcPrevHost = null; try { var r0 = document.querySelector('input[name="hc-choice"][value="me"]'); if (r0) r0.checked = true; var ob0 = document.getElementById("hc-ob"); if (ob0) ob0.style.display = "none"; ["hc-first","hc-email"].forEach(function (i) { var x = document.getElementById(i); if (x) x.value = ""; }); var fh0 = document.getElementById("f-host"); if (fh0) fh0.style.display = ""; } catch (e) {} }
+function _hcReset() { _hcOnBehalf = false; _hcPrevHost = null; window._hcPicHost = ""; window._hcMember = false; try { var fd = document.getElementById("hc-found"); if (fd) { fd.style.display = "none"; fd.innerHTML = ""; } var fl = document.getElementById("hc-fields"); if (fl) fl.style.display = ""; } catch (e) {} try { var r0 = document.querySelector('input[name="hc-choice"][value="me"]'); if (r0) r0.checked = true; var ob0 = document.getElementById("hc-ob"); if (ob0) ob0.style.display = "none"; ["hc-first","hc-email"].forEach(function (i) { var x = document.getElementById(i); if (x) x.value = ""; }); var fh0 = document.getElementById("f-host"); if (fh0) fh0.style.display = ""; } catch (e) {} }
 function _hcShow() {
   var r = document.getElementById("hc-radios"); if (!r) return;
   var on = !window._isSharing || _hcOnBehalf;
@@ -1709,7 +1712,10 @@ function _hcPick(v) {
     window._isSharing = true; applySharingMode(true);
     if (hn) hn.style.display = "none"; if (fo) fo.style.display = "none";
     _hcSync();
+    _hcLookup();
   } else {
+    window._hcMember = false; try { _hiState.code = ""; _hiState.name = ""; } catch (e) {}
+    var fd0 = document.getElementById("hc-found"); if (fd0) { fd0.style.display = "none"; fd0.innerHTML = ""; } var fl0 = document.getElementById("hc-fields"); if (fl0) fl0.style.display = "";
     window._isSharing = false; applySharingMode(false);
     if (hn) { hn.style.display = ""; hn.value = _hcPrevHost !== null ? _hcPrevHost : ""; } _hcPrevHost = null; if (fo) fo.style.display = "";
     var cb = document.getElementById("f-host-invite"); if (cb) cb.checked = false;
@@ -1720,8 +1726,36 @@ function _hcPick(v) {
   try { _hiPaint(); } catch (e) {}
   if (ob && hb) hb.style.display = "none";
 }
+function _hcLookup() {
+  var who = String(window._hcPicHost || "").trim(); if (!who) return;
+  var fn = document.getElementById("hc-first"); if (fn && !fn.value.trim()) { fn.value = who.split(/\s+/)[0]; _hcSync(); }
+  var fd = document.getElementById("hc-found"); if (!fd) return;
+  fd.style.display = ""; fd.innerHTML = '<span class="cw-loading">Looking in your groups</span>';
+  var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
+  fetch(GS_URL + "?action=searchMyPeople&appearId=" + encodeURIComponent(me) + "&q=" + encodeURIComponent(who))
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var p = (d && Array.isArray(d.people)) ? d.people.filter(function (x) { return String(x.name || "").trim().toLowerCase() === who.toLowerCase(); })[0] : null;
+      if (!p || !_hcOnBehalf) { fd.style.display = "none"; fd.innerHTML = ""; return; }
+      fd.innerHTML = '<div style="display:flex;align-items:center;gap:12px;border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;">' + _hpFace(p.photo, p.name)
+        + '<p style="flex:1;margin:0;font-size:15px;font-weight:700;color:var(--dark);">' + _hpEsc(p.name) + '</p>'
+        + '<button type="button" id="hc-invite-member" style="font-size:13px;font-weight:700;color:#fff;background:#1F699E;border:1.5px solid #1F699E;border-radius:20px;padding:6px 14px;cursor:pointer;font-family:inherit;white-space:nowrap;">Invite to be host</button></div>';
+      document.getElementById("hc-invite-member").onclick = function () {
+        window._hcMember = true;
+        var hn = document.getElementById("f-host"), hl = document.getElementById("f-hostlink"), cb = document.getElementById("f-host-invite");
+        if (hn) hn.value = p.name; if (hl) hl.value = p.pageLink || "";
+        try { _hiState.code = String(p.code || ""); _hiState.name = String(p.name || ""); } catch (e) {}
+        if (cb) cb.checked = true;
+        var fl = document.getElementById("hc-fields"); if (fl) fl.style.display = "none";
+        this.disabled = true; this.style.opacity = ".7";
+        try { formDirty = true; _hiPaint(); } catch (e) {}
+        var hb = document.getElementById("hi-box"); if (hb) hb.style.display = "none";
+      };
+    })
+    .catch(function () { fd.style.display = "none"; fd.innerHTML = ""; });
+}
 function _hcSync() {
-  if (!_hcOnBehalf) return;
+  if (!_hcOnBehalf || window._hcMember) return;
   var hn = document.getElementById("f-host"), he = document.getElementById("f-host-email"), cb = document.getElementById("f-host-invite");
   var fn = String((document.getElementById("hc-first") || {}).value || "").trim(), em = String((document.getElementById("hc-email") || {}).value || "").trim();
   if (hn) hn.value = fn; if (he) he.value = em; if (cb) cb.checked = !!(fn && em);
@@ -2391,7 +2425,7 @@ Return ONLY the JSON object, no explanation.`;
     openModal(true); 
     
     if (parsed.title) document.getElementById("f-title").value = parsed.title;
-    if (parsed.host && !window._isSharing) document.getElementById("f-host").value = parsed.host;
+    if (parsed.host && !window._isSharing) { window._hcPicHost = String(parsed.host).trim(); }
     if (parsed.org) { var _orgEl = document.getElementById("f-org"); if (_orgEl && !_orgEl.value) _orgEl.value = parsed.org; }
     if (parsed.date && parsed.yearStated === false) parsed.date = _resolveBareYear(parsed.date);
     if (parsed.date) setDateField(parsed.date);
