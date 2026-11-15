@@ -12,9 +12,9 @@
 -->
 <html lang="en">
 <head>
+<meta name="robots" content="noindex, nofollow">
   <script>try{var S='cw-signed-out-2026-09-20';if(localStorage.getItem(S)!=='1'){localStorage.setItem(S,'1');['cw-id','appear-id','cw-token','cw-super','cw-view-as','cw-view-as-name','cw-first','cw-photo','cw-photo-for','cw-photo-at','cw-lastEmail'].forEach(function(k){localStorage.removeItem(k)})}}catch(e){}</script>
 <meta charset="UTF-8">
-<meta name="robots" content="noindex, nofollow">
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <style>html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-inset-left, 0px); padding-right:env(safe-area-inset-right, 0px); }  .cw-ic.cw-ic { display:inline-block; overflow:hidden; width:18px; height:18px; font-size:0; line-height:0; vertical-align:-4px; margin:0 6px 0 0; padding:0; color:transparent; background-repeat:no-repeat; background-position:center; background-size:contain; }
@@ -237,7 +237,7 @@
       <div class="modal-title" style="margin-bottom:12px;">Please sign in to register for this event</div>
       <p style="font-size:14px;color:var(--muted);margin-bottom:20px;">Signing in brings your own profile with you, so the event knows who you are.</p>
       <div class="modal-actions">
-        <a role="link" tabindex="0" data-nav="https://appear.network/" id="ev-signin-btn" onclick="return _safeNavGo(this)" class="btn btn-primary" style="flex:1;justify-content:center;cursor:pointer;">Sign in or sign up</a>
+        <a role="link" tabindex="0" data-nav="/signin/" id="ev-signin-btn" onclick="return _safeNavGo(this)" class="btn btn-primary" style="flex:1;justify-content:center;cursor:pointer;">Sign in or sign up</a>
         <button class="btn btn-outline" onclick="closeRsvpModal()">Close</button>
       </div>
     </div>
@@ -261,7 +261,6 @@
     <p id="qr-event-title" style="font-size:13px;font-weight:700;color:var(--dark);margin:12px 0 4px;"></p>
     <p id="qr-short-url" style="font-size:12px;color:var(--muted);margin-bottom:16px;word-break:break-all;"></p>
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="downloadQr()">Download PNG</button>
       <button class="btn btn-outline" onclick="closeQrModal()">Close</button>
     </div>
   </div>
@@ -571,9 +570,15 @@ function _superViewer() {
   } catch (e) { return false; }
 }
 
+function _cwManageUrl() {
+  var ev = _currentEv || {}, id = String(new URLSearchParams(location.search).get('id') || ev.id || '');
+  if (/^recurring-.*-\d{4}-\d{2}-\d{2}$/.test(id) && ev.seriesId) id = String(ev.seriesId);
+  return 'https://2appear.network/myevents/event/?id=' + encodeURIComponent(id);
+}
 function openEditDirect() {
   const ev = _currentEv;
   if (!ev) return;
+  if (document.documentElement.classList.contains('cw-is-host')) { window.location.href = _cwManageUrl(); return; }
   const urlId = new URLSearchParams(window.location.search).get("id") || ev.id;
   const _dated = /^recurring-.*-\d{4}-\d{2}-\d{2}$/.test(String(urlId)) && ev.seriesId;
   const editUrl = _dated
@@ -1324,6 +1329,14 @@ function _paintSocialize() {
     || Number(_evS.socializerCount) > 0 || (Array.isArray(_evS.socializedBy) && _evS.socializedBy.length > 0);
   if (!_welcome && st !== 'yes') { b.style.display = 'none'; return; }
   var lab = b.querySelector('.cw-soc-label');
+  if (document.documentElement.classList.contains('cw-is-host')) {
+    if (lab) lab.textContent = 'Socialize this event';
+    b.classList.remove('btn-primary'); b.classList.add('btn-outline');
+    b.removeAttribute('data-nav'); b.removeAttribute('role');
+    b.onclick = function () { cwSocOpen(); };
+    b.style.display = '';
+    return;
+  }
   if (st === 'yes') {
     if (lab) lab.textContent = "You\u2019re socializing";
     b.classList.remove('btn-outline'); b.classList.add('btn-primary');
@@ -1472,7 +1485,7 @@ window.cwSocOpen = function () {
   _socListTouched = false;
   _socPanelBuilt = true;
   box.innerHTML = cwSocBoxHTML({
-    me: !!me, hosted: !!hosted, cancelled: !!ev.cancelled, ask: ask, listed: listed,
+    me: !!me, hosted: !!hosted, cancelled: !!ev.cancelled, ask: ask && !isHost, listed: listed,
     signinHTML: '<p class="cw-soc-q"><a role="link" tabindex="0" data-nav="' + esc(signin) + '" onclick="return _safeNavGo(this)" style="font-weight:700;cursor:pointer;">Sign in</a> to be listed as somebody helping spread it.</p>',
     on: { done: 'cwSocDone()', copy: "cwSocAct('copy')", share: "cwSocAct('share')", qr: "cwSocAct('qr')", list: 'cwSocList(this.checked)' },
     extra: (isHost ? '' :
@@ -1571,6 +1584,7 @@ function _socTell(m) {
 async function _socSave() {
   var ev = _currentEv;
   if (!ev || !ev.id || ev.cancelled) return;
+  try { if (document.documentElement.classList.contains('cw-is-host')) return; } catch (e) {}
   var w = _socWho();
   if (!w.real) return;                    
   if (w.viewing) { _socTell('You are looking at this as somebody else, so nothing was saved.'); return; }
@@ -2196,6 +2210,7 @@ function cwStepsShell(ev, reg) {
       + "#cw-seen-ask .cw-imgf{display:flex;align-items:center;gap:10px;border:1.5px solid #C9D6E2;background:#F6F9FC;border-radius:12px;padding:8px 10px;margin:6px 0 4px}"
       + "#cw-seen-ask .cw-tile{width:44px;height:44px;border-radius:10px;background:#DDE4EE;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;overflow:hidden}#cw-seen-ask .cw-tile img{width:100%;height:100%;object-fit:cover}"
       + "#cw-seen-ask .cw-imgf input{flex:1;border:0;background:transparent;font:inherit;font-size:14px;min-width:0;outline:none}"
+      + "#cw-seen-ask .cw-up.need{background:#1F699E;color:#fff}"
       + "#cw-seen-ask .cw-up{font:inherit;font-size:13px;font-weight:700;color:#1F699E;background:#fff;border:1.5px solid #1F699E;border-radius:16px;padding:6px 12px;white-space:nowrap;cursor:pointer}"
       + "#cw-seen-ask .cw-help{font-size:12.5px;color:var(--muted);margin:0 0 6px}"
       + "#cw-seen-ask .cw-info{background:#E8F2F9;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.5;color:#1A2E42;margin:6px 0 4px}"
@@ -2333,7 +2348,7 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     if (st.photo) {
       var src = st.img || st.have;
       h += '<div class="cw-in"><div class="cw-imgf"><div class="cw-tile">' + (src ? '<img src="' + esc(src) + '" alt="">' : "&#128444;&#65039;") + '</div>'
-        + '<input type="text" id="cw-st-iml" placeholder="Paste an image, a link, or upload one" aria-label="Your profile photo"><button type="button" class="cw-up" id="cw-st-up">Upload</button><input type="file" id="cw-st-f" accept="image/*" hidden></div>'
+        + '<input type="text" id="cw-st-iml" placeholder="Paste an image, a link, or upload one" aria-label="Your profile photo"><button type="button" class="cw-up' + (st.have || st.img ? '' : ' need') + '" id="cw-st-up">Upload</button><input type="file" id="cw-st-f" accept="image/*" hidden></div>'
         + '<p class="cw-help" id="cw-st-imh">' + (st.img ? "Ready. It becomes your profile photo when you " + (reg ? "finish registering." : "save your changes.") : (st.have ? "Your profile photo. A new one here changes it everywhere." : "Add a profile photo to show it at this event and join the lobby.")) + '</p></div>';
     }
     h += '</div>';
@@ -2887,7 +2902,7 @@ function _paintHostingBtn() {
     g.onclick = function (e) {
       try { e.preventDefault(); e.stopPropagation(); } catch (x) {}
       var _hid = (_currentEv && _currentEv.id) || "";
-      if (_hid) { location.href = "https://2gather.network/myevents/?id=" + encodeURIComponent(_hid) + "&show=rsvps&cb=" + Date.now(); }
+      if (_hid) { location.href = _cwManageUrl(); }
     };
     g.disabled = false;
     g.classList.remove("cw-rsvp-wait"); g.style.animation = "";
@@ -2901,6 +2916,11 @@ function _paintHostingBtn() {
     g.style.alignItems = "center";
     g.style.gap = "6px";
   });
+  try {
+    var _ic = document.querySelector('#card .cw-m2-icons');
+    var _hp = document.querySelector('#interest-btn, #cw-host-pill');
+    if (_ic && _hp && _hp.parentNode !== _ic) { _ic.insertBefore(_hp, _ic.firstChild); }
+  } catch (e) {}
   return true;
 }
 async function cancelRsvp(asked) {
@@ -3128,7 +3148,7 @@ async function init() {
             if (_oneCap) clearTimeout(_oneCap);
             if (one && one.event && one.event.row && String(one.event.row.id) === id) { ev = toEv(one.event.row); }
             else if (one && one.signinNeeded) { _signinLapsed = true; }
-            else if (!one || !one.event || one.status === "error") { _oneFailed = true; }
+            else if (!one || one.status === "error" || (!one.event && one.found !== false)) { _oneFailed = true; }
           } catch (e) { _oneFailed = true; }
         }
         if (_me && !ev) {
@@ -3178,7 +3198,7 @@ init();
 <script src="/nav/topbar.js?v=7.07" defer></script>
 <script>
 (function(){try{var b=document.getElementById('ev-signin-btn');
-if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}})();
+if(b){var h=location.pathname+location.search;b.setAttribute('data-nav',/appear\.network$/i.test(location.hostname)?'/signin/?next='+encodeURIComponent(h+(/[?&]choices=1\b/.test(h)?'':(h.indexOf('?')>-1?'&':'?')+'choices=1')):(window.CW_SIGNIN||'/signin/'));}}catch(e){}})();
 </script>
 
 <style>
@@ -3334,6 +3354,8 @@ if(b&&window.CW_SIGNIN){b.setAttribute('data-nav',window.CW_SIGNIN);}}catch(e){}
   
   .cw-m2-by, #cw-m2-bar, #cw-m2-foot { display:none; }
   html.cw-is-host #cancel-rsvp-area, html.cw-is-host #cw-seen-slot { display:none !important; }
+  html.cw-is-host #cw-m2-bar > #ev-edit-head { display:none !important; }
+  html.cw-is-host .cw-m2-icons > .ev-going-btn { flex:0 0 auto; height:36px; display:inline-flex !important; align-items:center; }
   @media (max-width:768px) {
     html.cw-look2 .cw-rl { display:flex !important; flex-direction:column; background:#fff; border-radius:16px;
                            padding:14px 16px 20px; gap:0; }
