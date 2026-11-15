@@ -43,7 +43,10 @@
       var q = String(find.value || '').trim().toLowerCase();
       ALL.filter(function(p){ return !q || String(p.name || '').toLowerCase().indexOf(q) > -1; }).forEach(function(p){
         var row = el('div', 'display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #DDE4EE;');
-        row.appendChild(el('span', 'font-size:14.5px;font-weight:700;color:#1A2E42;', p.name));
+        var nameBox = el('span', 'display:flex;flex-direction:column;');
+        nameBox.appendChild(el('span', 'font-size:14.5px;font-weight:700;color:#1A2E42;', p.name));
+        if (p.invitedAt) { var dt = new Date(p.invitedAt); nameBox.appendChild(el('span', 'font-size:12px;color:#4B5A6D;margin-top:1px;', 'Invited ' + dt.getDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.getMonth()])); }
+        row.appendChild(nameBox);
         if (p.done === 'Already in this group') { row.appendChild(el('span', 'font-size:13px;color:#2F3D4F;', p.done)); }
         else {
           var isInv = p.done === 'Invited' || p.done === 'Already invited';
@@ -75,7 +78,11 @@
           if (p.nudged) { box.appendChild(el('div', '', 'Nudge sent. You can send one nudge, and it has been used.')); }
           else {
             var nb = el('button', PILL, 'Send a nudge'); nb.type = 'button';
-            if (p.invitedAt && left > 0) { nb.disabled = true; nb.style.cssText += 'opacity:.55;cursor:default;'; box.appendChild(nb); box.appendChild(el('div', 'margin-top:6px;', 'You can send one nudge, 24 hours after the invitation.')); }
+            if (p.invitedAt && left > 0) {
+              var wm = el('div', 'margin-top:6px;');
+              nb.addEventListener('click', function(){ wm.textContent = 'You can send one nudge, 24 hours after the invitation.'; });
+              box.appendChild(nb); box.appendChild(wm);
+            }
             else {
               nb.addEventListener('click', function(){
                 nb.disabled = true;
