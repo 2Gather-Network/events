@@ -2339,9 +2339,27 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     nx.disabled = false;
     if (!lobbyOk()) { st.lobby = false; }
     if (!st.lobby) st.match = false;
-    var note = st.name === "initials" || !st.photo;
+    var hasLobby = String(ev.hasBB) === "true" || ev.hasBB === true;
+    if (!hasLobby) st.lobby = false;
+    st.match = st.lobby;
     var h = "";
     if (last && st.step === 0) h += '<label class="cw-same"><input type="checkbox" id="cw-st-same"' + (st.same ? " checked" : "") + ' style="margin-top:3px"><span>Use the same selections from my last event<span class="cw-sub">' + (st.same ? "Everything is filled in as you had it. Go through each screen, and if it looks good, you’re registered." : "Fills in every screen as you answered for your last event.") + '</span></span></label>';
+    if (hasLobby) {
+      h += '<div class="cw-box"><label class="cw-row"><input type="checkbox" id="cw-seen-lb"' + (st.lobby ? " checked" : "") + '><span>Show me in the lobby<span class="cw-sub">The lobby shows what other event attendees need, offer, and care about.</span></span></label>';
+      if (st.lobby) {
+        h += '<p class="cw-info">Everyone in this lobby sees your full name, photo, location and the languages you speak, and you are matched with other attendees.</p>';
+        if (!(st.have || st.img)) { st.photo = true;
+        if (st.photo) {
+          var src = st.img || st.have;
+          h += '<div class="cw-in"><div class="cw-imgf"><div class="cw-tile">' + (src ? '<img src="' + esc(src) + '" alt="">' : "&#128444;&#65039;") + '</div>'
+                + '<input type="text" id="cw-st-iml" placeholder="Paste an image, a link, or upload one" aria-label="Your profile photo"><button type="button" class="cw-up' + (st.have || st.img ? '' : ' need') + '" id="cw-st-up">Upload</button><input type="file" id="cw-st-f" accept="image/*" hidden></div>'
+                + '<p class="cw-help" id="cw-st-imh">' + (st.img ? "Ready. It becomes your profile photo when you " + (reg ? "finish registering." : "save your changes.") : (st.have ? "Your profile photo. A new one here changes it everywhere." : "Add a profile photo to show it at this event and join the lobby.")) + '</p></div>';
+        }
+        }
+      }
+      h += '</div>';
+    }
+    if (!st.lobby) {
     h += '<div class="cw-box"><h3>How your name shows at this event' + (nameAs(st.name) ? ': ' + esc(nameAs(st.name)) : '') + '</h3>'
       + ["full", "short", "initials"].map(function (v, i) { var ex = nameAs(v); return '<label class="cw-row"><input type="radio" name="cw-seen-nm" value="' + v + '"' + (st.name === v ? " checked" : "") + '> <span>' + ["Full name", "First name and last initial", "Initials"][i] + (ex ? ' <span class="cw-ex">\u00b7 ' + esc(ex) + '</span>' : '') + '</span></label>'; }).join("")
       + '<label class="cw-row"><input type="checkbox" id="cw-seen-pho"' + (st.photo ? " checked" : "") + '><span>Show my photo at this event</span></label>';
@@ -2352,15 +2370,11 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
         + '<p class="cw-help" id="cw-st-imh">' + (st.img ? "Ready. It becomes your profile photo when you " + (reg ? "finish registering." : "save your changes.") : (st.have ? "Your profile photo. A new one here changes it everywhere." : "Add a profile photo to show it at this event and join the lobby.")) + '</p></div>';
     }
     h += '</div>';
-    if (note) h += '<p class="cw-info">With initials or no photo, you can’t join the lobby and you won’t get matches for this event. Nobody can open your profile from this event either. To join the lobby, pick at least first name and last initial and show your photo.</p>';
-    var okL = lobbyOk();
-    h += '<div class="cw-box"><label class="cw-row' + (okL ? "" : " off") + '"><input type="checkbox" id="cw-seen-lb"' + (st.lobby ? " checked" : "") + (okL ? "" : " disabled") + '><span>Show me in the lobby<span class="cw-sub">The lobby shows what other event guests need, offer, and care about.</span></span></label>'
-      + '<label class="cw-row' + (st.lobby ? "" : " off") + '"><input type="checkbox" id="cw-seen-mu"' + (st.match ? " checked" : "") + (st.lobby ? "" : " disabled") + '><span>Turn on Match up<span class="cw-sub">Selecting \u201cShow me in the lobby\u201d is required to be matched with other guests.<br>See what you and other guests at this event need and offer. Only people who turn on Match up see each other’s matches.</span></span></label></div>';
+    }
     body.innerHTML = h;
     Array.prototype.forEach.call(body.querySelectorAll('input[name="cw-seen-nm"]'), function (r) { r.onchange = function () { st.name = r.value; s1(); }; });
-    $("cw-seen-pho").onchange = function () { st.photo = this.checked; s1(); };
-    $("cw-seen-lb").onchange = function () { st.lobby = this.checked; s1(); };
-    $("cw-seen-mu").onchange = function () { st.match = this.checked; };
+    if ($("cw-seen-pho")) $("cw-seen-pho").onchange = function () { st.photo = this.checked; s1(); };
+    if ($("cw-seen-lb")) $("cw-seen-lb").onchange = function () { st.lobby = this.checked; if (st.lobby) { st.name = "full"; st.photo = true; } st.match = st.lobby; s1(); };
     if ($("cw-st-same")) $("cw-st-same").onchange = function () { st.same = this.checked; if (st.same) fill(last); s1(); };
     if ($("cw-st-up")) {
       $("cw-st-up").onclick = function () { $("cw-st-f").click(); };
@@ -2428,6 +2442,7 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   };
   var paint = function () { head(); if (st.done) s4(); else [s1, paintLv, s3][st.step](); try { body.scrollTop = 0; } catch (e) {} };
   var check = function () {
+    if (st.step === 0 && st.lobby && !(st.have || st.img)) return "Add a profile photo to show it at this event and join the lobby.";
     if (st.step === 1 && st.level !== "Not shared") {
       if (!String(st.text).trim()) return st.level === "Neighborhood" ? "Type your neighborhood name." : "Type the place to show, or choose Not shared.";
       if (!st.ok) return "Answer Is that right? with Yes first.";
