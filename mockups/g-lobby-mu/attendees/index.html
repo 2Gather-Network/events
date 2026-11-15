@@ -698,6 +698,7 @@ async function loadMembers(){
       d.attendees.forEach(function(p){ processRow(p, p.appearId); });
       _meRegistered = (typeof d.meRegistered==='boolean') ? d.meRegistered : !!_myId;
       if(d.me && _meRegistered && !d.attendees.some(function(p){ return normId(p.appearId)===normId(d.me.appearId); })){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
+      if(_myId && !_meRegistered){ var _hd=await _muInfo(); if(!(_hd&&_hd.host===true)){ window.location.replace('https://2gather.network/event/?id='+encodeURIComponent(_eventId)); return; } }
       if(_myId && !_myData) await loadMyDataFallback();
       _boardShow();
       computeGlobals(); buildChips(); renderAll();
@@ -1719,10 +1720,15 @@ function updateHeaderButton(){
   }
   btn.style.display=_myData?'':'none';
 }
+function _muInfo(){
+  if(window._muP) return window._muP;
+  var t=''; try{ t=localStorage.getItem('cw-token')||''; }catch(e){}
+  window._muP=fetch(GS_URL+'?action=getEventPeople&matchup=1&appearId='+encodeURIComponent(_myId)+'&meToken='+encodeURIComponent(t)+'&eventId='+encodeURIComponent(_eventId)).then(function(r){return r.json();}).catch(function(){ return null; });
+  return window._muP;
+}
 function _loadMuOk(){
   if(window._muAsked) return; window._muAsked=true;
-  var t=''; try{ t=localStorage.getItem('cw-token')||''; }catch(e){}
-  fetch(GS_URL+'?action=getEventPeople&matchup=1&appearId='+encodeURIComponent(_myId)+'&meToken='+encodeURIComponent(t)+'&eventId='+encodeURIComponent(_eventId)).then(function(r){return r.json();}).then(function(d){ window._muOk=!!(d&&(d.on||d.host)); updateHeaderButton(); if(!window._muOk&&_matchMode){ try{ toggleMatches(); }catch(e){} } }).catch(function(){ window._muOk=false; updateHeaderButton(); });
+  _muInfo().then(function(d){ window._muOk=!!(d&&(d.on||d.host)); updateHeaderButton(); if(!window._muOk&&_matchMode){ try{ toggleMatches(); }catch(e){} } });
 }
 (async function init(){
   document.title=_groupId?'Group bulletin board':'Lobby · 2Gather';
