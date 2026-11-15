@@ -82,7 +82,7 @@
     } catch (e) {}
   }
   function tell(m) { var s = cur && cur.box.querySelector('#cw-soc-say'); if (s) { s.textContent = m || ''; s.hidden = !m; } }
-  function base() { return 'https://2gather.network/event/?id=' + encodeURIComponent(cur.ev.id); }
+  function base() { return (/(^|\.)2gather\.network$/i.test(location.hostname) ? 'https://2gather.network' : 'https://2appear.network') + '/event/?id=' + encodeURIComponent(cur.ev.id); }
   function link() {
     var u = cur.short || base();
     return (cur.listed && window.CW && CW.withRef) ? CW.withRef(u) : u;
@@ -169,7 +169,7 @@
       box.className = 'cw-soc-inline';
       box.addEventListener('click', function (e) { e.stopPropagation(); });
       cur = { card: card, btn: btn, box: box, ev: ev, listed: v === undefined ? true : v === 2, done: v !== undefined, short: null, saving: false, pending: false };
-      cur.shortJob = fetch(GS + '?action=getShortCode&id=' + encodeURIComponent(id)).then(function (r) { return r.json(); }).then(function (d) { if (d && d.status === 'ok' && d.code && cur && cur.ev.id === id) cur.short = 'https://go.2gather.network/' + d.code; }).catch(function () {});
+      cur.shortJob = fetch(GS + '?action=getShortCode&id=' + encodeURIComponent(id)).then(function (r) { return r.json(); }).then(function (d) { if (d && d.status === 'ok' && d.code && cur && cur.ev.id === id) cur.short = null; }).catch(function () {});
       box.innerHTML = cwSocBoxHTML({
         me: !!w.me, hosted: btn.getAttribute('data-hosted') === '1', cancelled: ev.cancelled, ask: !!w.me && !ev.cancelled, listed: cur.listed,
         signinHTML: '<p class="cw-soc-q"><a href="https://2gather.network/signin/" style="font-weight:700;">Sign in</a> to be listed as somebody helping spread it.</p>',
