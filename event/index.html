@@ -1107,6 +1107,7 @@ function applyRegisteredUI() {
   const confirmed = document.getElementById("interest-confirmed");
   if (confirmed) confirmed.style.display = "block";
   window._isRegistered = true;
+  try { _cwRegPageOpen(); } catch (e) {}
   try { _cwCrumbMid(); } catch (e) {}
   document.documentElement.classList.add("cw-registered");
   _paintBoard();
@@ -1673,6 +1674,7 @@ function applyUnregisteredUI() {
   const confirmed = document.getElementById("interest-confirmed");
   if (confirmed) confirmed.style.display = "none";
   window._isRegistered = false;
+  try { if (_cwRegPageOn()) _cwRegPageBack(); } catch (e) {}
   try { _cwCrumbMid(); } catch (e) {}
   document.documentElement.classList.remove("cw-registered");
   _paintBoard();
@@ -2153,6 +2155,17 @@ function cwSeenFetch(id) {
   var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
   return fetch(GS_URL + "?action=getEventSeen&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(id)).then(function (r) { return r.json(); });
 }
+function _cwRegPageOn() { return /[?&]reg=edit\b/.test(location.search); }
+function _cwRegPageBack() { var id = ""; try { id = String((_currentEv && _currentEv.id) || new URLSearchParams(location.search).get("id") || ""); } catch (e) {} location.href = "/event/?id=" + encodeURIComponent(id); }
+function _cwRegPageOpen() {
+  if (!_cwRegPageOn() || window._cwRegPageDone || typeof _currentEv === "undefined" || !_currentEv) return;
+  window._cwRegPageDone = true;
+  document.documentElement.classList.add("cw-regpage");
+  cwSeenOpen(_currentEv, false, false);
+  var o = document.getElementById("cw-seen-ask"), w = document.querySelector(".cw-tpl-wrap");
+  if (o && w) { w.insertBefore(o, w.firstChild); }
+  try { window.scrollTo(0, 0); } catch (e) {}
+}
 function cwSeenLinkShow(on, saved) {
   var slot = document.getElementById("cw-seen-slot");
   if (!slot) return;
@@ -2162,7 +2175,7 @@ function cwSeenLinkShow(on, saved) {
     a = document.createElement("button");
     a.type = "button"; a.id = "cw-seen-link";
     a.style.cssText = "display:inline-block;background:none;border:0;padding:6px 0;margin:8px 0;font:inherit;font-size:14px;font-weight:700;color:#1F699E;text-decoration:underline;cursor:pointer;";
-    a.onclick = function () { if (typeof _currentEv !== "undefined" && _currentEv) { cwSeenOpen(_currentEv, false, false); } };
+    a.onclick = function () { if (typeof _currentEv !== "undefined" && _currentEv) { location.href = "/event/?id=" + encodeURIComponent(_currentEv.id) + "&reg=edit"; } };
     slot.appendChild(a);
   }
   a.textContent = "Edit your registration";
@@ -2240,7 +2253,10 @@ function cwStepsShell(ev, reg) {
       + "#cw-seen-ask .cw-ex{color:var(--muted);font-weight:400}"
       + "#cw-seen-ask .cw-wait{display:inline-flex;align-items:center;background:#1F699E;color:#fff;font-size:13px;font-weight:700;padding:7px 16px;border-radius:20px;white-space:nowrap;animation:cw-breathe 1.6s ease-in-out infinite}"
       + "#cw-seen-ask .cw-box{border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin:0 0 12px}"
-      + "@media (max-width:640px){#cw-seen-ask{padding:0;align-items:flex-start}#cw-seen-ask .cw-pop{max-width:none;max-height:100%;border-radius:0 0 16px 16px}}";
+      + "@media (max-width:640px){#cw-seen-ask{padding:0;align-items:flex-start}#cw-seen-ask .cw-pop{max-width:none;max-height:100%;border-radius:0 0 16px 16px}}"
+      + "html.cw-regpage .cw-tpl-wrap > :not(#cw-seen-ask), html.cw-regpage #card{display:none !important}"
+      + "html.cw-regpage #cw-seen-ask{position:static;inset:auto;background:none;display:block;padding:0;z-index:auto}"
+      + "html.cw-regpage #cw-seen-ask .cw-pop{max-width:640px;margin:0 auto;max-height:none;box-shadow:none;border-radius:16px}";
     document.head.appendChild(cs);
   }
   var o = document.createElement("div");
@@ -2251,7 +2267,7 @@ function cwStepsShell(ev, reg) {
     + '<div class="cw-pb" id="cw-st-b"></div>'
     + '<div class="cw-pf"><button type="button" class="cw-b gh" id="cw-st-bk" style="visibility:hidden;">Back</button><p class="cw-msg" id="cw-seen-msg" role="status"></p><button type="button" class="cw-b pri" id="cw-st-nx" disabled>Next</button></div></div>';
   document.body.appendChild(o);
-  document.getElementById("cw-st-x").onclick = function () { o.remove(); };
+  document.getElementById("cw-st-x").onclick = function () { if (document.documentElement.classList.contains("cw-regpage")) { _cwRegPageBack(); return; } o.remove(); };
   o.addEventListener("click", function (e) { if (e.target === o) o.remove(); });
   return { el: o, body: document.getElementById("cw-st-b") };
 }
@@ -2268,7 +2284,7 @@ function cwRegNote(ev, edited) {
   slot.insertBefore(n, slot.firstChild);
   try { cwSeenLinkShow(false); } catch (e) {}
   document.getElementById("cw-reg-note-x").onclick = function () { n.remove(); try { cwSeenLinkShow(true, true); } catch (e) {} };
-  document.getElementById("cw-reg-note-ed").onclick = function (e) { e.preventDefault(); n.remove(); try { cwSeenLinkShow(true, true); } catch (e2) {} cwSeenOpen(ev, false, false); };
+  document.getElementById("cw-reg-note-ed").onclick = function (e) { e.preventDefault(); location.href = "/event/?id=" + encodeURIComponent(ev.id) + "&reg=edit"; };
   try { n.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
 }
 function cwSeenAsk(ev, preview, saved, fromRegister) {
@@ -2489,7 +2505,7 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   };
   bk.onclick = function () { if (st.done) { st.done = false; st.step = 2; } else if (st.step > 0) st.step--; paint(); };
   nx.onclick = function () {
-    if (st.done) { o.remove(); cwRegNote(ev, !st.firstReg); return; }
+    if (st.done) { if (document.documentElement.classList.contains("cw-regpage")) { _cwRegPageBack(); return; } o.remove(); cwRegNote(ev, !st.firstReg); return; }
     var bad = check(); if (bad) { msg.textContent = bad; return; }
     if (st.step < 2) { st.step++; paint(); return; }
     if (preview) { msg.textContent = "This is a preview. Nothing was saved."; return; }
