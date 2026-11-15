@@ -13,7 +13,7 @@
   }
   window.cwShareInvite = function(o){
     var wrap = el('div', 'margin-top:14px;padding-top:14px;border-top:1.5px solid #DDE4EE;');
-    var INNER = o.capsule !== 'plain';
+    var INNER = o.capsule === 'inner';
     var cap = el('div', INNER ? 'display:flex;gap:4px;border:1.5px solid #1F699E;border-radius:26px;padding:3px;background:#fff;' : 'display:flex;border:1.5px solid #1F699E;border-radius:24px;overflow:hidden;');
     var BS = INNER ? 'flex:1;font:inherit;font-size:13.5px;font-weight:700;padding:8px 6px;border:0;border-radius:22px;cursor:pointer;' : 'flex:1;font:inherit;font-size:13.5px;font-weight:700;padding:9px 6px;border:0;cursor:pointer;';
     var bNet = el('button', BS, 'Invite from my network');
@@ -46,16 +46,18 @@
         row.appendChild(el('span', 'font-size:14.5px;font-weight:700;color:#1A2E42;', p.name));
         if (p.done === 'Already in this group') { row.appendChild(el('span', 'font-size:13px;color:#2F3D4F;', p.done)); }
         else {
-          var b = el('button', PILL, p.done || 'Invite'); b.type = 'button';
-          if (p.done) { b.disabled = true; b.style.cursor = 'default'; }
-          b.addEventListener('click', function(){
+          var isInv = p.done === 'Invited' || p.done === 'Already invited';
+          var b = el('button', isInv ? PILL + 'background:#1F699E;color:#fff;' : PILL, isInv ? 'Edit invite' : (p.done || 'Invite')); b.type = 'button';
+          if (isInv) { b.setAttribute('aria-expanded', p.open ? 'true' : 'false'); b.addEventListener('click', function(){ p.open = !p.open; draw(); }); }
+          else if (p.done) { b.disabled = true; b.style.cursor = 'default'; }
+          if (!isInv && !p.done) b.addEventListener('click', function(){
             b.disabled = true; netSay.textContent = 'Sending…';
             fetch(o.GS_URL + '?action=inviteToGroup&groupId=' + encodeURIComponent(o.groupId) + '&invitedById=' + encodeURIComponent(o.meId) + '&appearIds=' + encodeURIComponent(p.appearId))
               .then(function(r){ return r.json(); })
               .then(function(d){
                 if (d && d.status === 'ok') {
                   var sentN = Number(d.sent || 0) > 0, mem = Number(d.alreadyMembers || 0) > 0;
-                  p.done = sentN ? 'Invited' : (mem ? 'Already in this group' : 'Already invited');
+                  p.done = sentN ? 'Invited' : (mem ? 'Already in this group' : 'Already invited'); if (sentN) p.invitedAt = Date.now();
                   draw();
                   netSay.textContent = sentN ? ('Invited ' + p.name + '. Pending until they answer.') : (mem ? (p.name + ' is already in this group.') : (p.name + ' was already invited. Pending until they answer.'));
                 }
@@ -66,6 +68,28 @@
           row.appendChild(b);
         }
         list.appendChild(row);
+        if (p.open && (p.done === 'Invited' || p.done === 'Already invited')) {
+          var box = el('div', 'padding:10px 12px;margin:0 0 8px;background:#F4F9FE;border:1.5px solid #C9DFF3;border-radius:12px;font-size:13.5px;color:#1A2E42;');
+          box.appendChild(el('div', 'font-weight:700;margin-bottom:6px;', p.name + ' was invited. Pending until they answer.'));
+          var wait = (o.nudgeAfterMs == null ? 86400000 : o.nudgeAfterMs), left = (p.invitedAt || 0) + wait - Date.now();
+          if (p.nudged) { box.appendChild(el('div', '', 'Nudge sent. You can send one nudge, and it has been used.')); }
+          else {
+            var nb = el('button', PILL, 'Send a nudge'); nb.type = 'button';
+            if (p.invitedAt && left > 0) { nb.disabled = true; nb.style.cssText += 'opacity:.55;cursor:default;'; box.appendChild(nb); box.appendChild(el('div', 'margin-top:6px;', 'You can send one nudge, 24 hours after the invitation.')); }
+            else {
+              nb.addEventListener('click', function(){
+                nb.disabled = true;
+                fetch(o.GS_URL + '?action=nudgeGroupInvite&groupId=' + encodeURIComponent(o.groupId) + '&invitedById=' + encodeURIComponent(o.meId) + '&appearId=' + encodeURIComponent(p.appearId))
+                  .then(function(r){ return r.json(); })
+                  .then(function(d){ if (d && d.status === 'ok') { p.nudged = true; draw(); netSay.textContent = 'Nudge sent to ' + p.name + '. That was your one nudge.'; } else { nb.disabled = false; netSay.textContent = (d && d.message) ? d.message : 'That did not go through. Try again.'; } })
+                  .catch(function(){ nb.disabled = false; netSay.textContent = 'Could not reach the server. Try again in a moment.'; });
+              });
+              box.appendChild(nb);
+              box.appendChild(el('div', 'margin-top:6px;', 'The nudge is the same invitation again, sent once.'));
+            }
+          }
+          list.appendChild(box);
+        }
       });
       if (!list.firstChild) netSay.textContent = ALL.length ? '' : 'You have not bookmarked anyone yet. Open somebody’s profile and press Bookmark, and they will show up here.';
     }
