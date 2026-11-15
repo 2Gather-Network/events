@@ -205,7 +205,7 @@
     el.style.textAlign = "center";
     if (step === 5) {
       clearInterval(tick);
-      el.innerHTML = 'This is taking longer than usual. <a href="https://2gather.network/support/?re=' + encodeURIComponent(location.href) + '" style="color:#fff;font-weight:700;text-decoration:underline;margin-left:4px;">Tell support</a>';
+      el.innerHTML = 'This is taking longer than usual. <a href="https://2gather.network/support/?re=' + encodeURIComponent(location.href.replace(/([?&])k=[^&#]*&?/, '$1').replace(/[?&](#|$)/, '$1')) + '" style="color:#fff;font-weight:700;text-decoration:underline;margin-left:4px;">Tell support</a>';
       return;
     }
     el.textContent = [
@@ -1708,6 +1708,7 @@ function _obMerge(keys) {
   try { var l = _obSeenList(); (keys || []).forEach(function (k) { k = String(k || ""); if (k && l.indexOf(k) < 0) l.push(k); }); localStorage.setItem("cw-ob-seen", JSON.stringify(l)); } catch (e) {}
 }
 function _obMark(k, eventId) {
+  try { if (window.CW && CW.me && CW.me().viewing) return; } catch (e) {}
   _obMerge([k]);
   var me = "";
   try { me = getMemberId() || ""; } catch (e) {}
@@ -1743,7 +1744,7 @@ function _calNote(btn) {
 }
 function addToCalendarById(id, btn) {
   if (!_currentEv || _currentEv.id !== id) return;
-  if (_currentEv.interestedEnabled === "optional" && !window._isRegistered && !_obSeen(CW_OB_CAL)) { _calNote(btn); return; }
+  if (_currentEv.interestedEnabled === "optional" && !window._isRegistered && !document.documentElement.classList.contains("cw-is-host") && !_obSeen(CW_OB_CAL)) { _calNote(btn); return; }
   _calNoteClose();
   cwCalAsk(_currentEv);
 }
@@ -3114,6 +3115,13 @@ async function init() {
         if (!_me && !(window.CW && CW.signedOutView && CW.signedOutView())) { try { _me = String(localStorage.getItem("cw-id") || localStorage.getItem("appear-id") || "").trim(); } catch (e) {} }
         if (_me) {
           try {
+            const _k = new URLSearchParams(location.search).get("k") || "";
+            if (/^[A-Za-z0-9_-]{6,40}\.[0-9a-f]{32}$/.test(_k)) {
+              await fetch(GS_URL + "?action=useEventKey&eventId=" + encodeURIComponent(id) + "&k=" + encodeURIComponent(_k) + "&appearId=" + encodeURIComponent(_me) + "&t=" + Date.now(), { referrerPolicy: "no-referrer" }).catch(function () {});
+              try { var _u = new URL(location.href); _u.searchParams.delete("k"); history.replaceState(history.state, "", _u.pathname + _u.search + _u.hash); } catch (x) {}
+            }
+          } catch (x) {}
+          try {
             let _oneAc = null, _oneCap = null;
             try { _oneAc = new AbortController(); _oneCap = setTimeout(function () { try { _oneAc.abort(); } catch (x) {} }, 45000); } catch (x) {}
             const oneRes = await fetch(GS_URL + "?action=getEventById&id=" + encodeURIComponent(id) + "&appearId=" + encodeURIComponent(_me) + "&nocache=1&t=" + Date.now(), _oneAc ? { signal: _oneAc.signal } : undefined);
@@ -3137,7 +3145,7 @@ async function init() {
     if (!ev && _oneFailed && !_signinLapsed) {
       document.getElementById("card").innerHTML = '<div class="error">This event did not load. The server is slow right now, so it may just need another try.'
         + '<br><br><a href="" onclick="location.reload();return false;" style="color:var(--primary);font-weight:700;">Try again</a>'
-        + ' &nbsp;·&nbsp; <a href="https://2gather.network/support/?re=' + encodeURIComponent(location.href) + '" style="color:var(--primary);font-weight:700;">Tell support</a></div>';
+        + ' &nbsp;·&nbsp; <a href="https://2gather.network/support/?re=' + encodeURIComponent(location.href.replace(/([?&])k=[^&#]*&?/, '$1').replace(/[?&](#|$)/, '$1')) + '" style="color:var(--primary);font-weight:700;">Tell support</a></div>';
       return;
     }
     if (!ev) { showError(_signinLapsed ? "Your sign-in has run out. Sign in again to see this event." : "Event not found."); return; }
