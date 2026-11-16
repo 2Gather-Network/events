@@ -122,7 +122,7 @@
       if (!d) { err.hidden = false; det.focus(); return; }
       if (!pending) { reset(); return; }
       pending.details = d;
-      pending.chip.textContent = pending.kind + ': ' + pending.name + ' · ' + d;
+      pending.chip.textContent = pending.kind + ': ' + pending.name + ' \u00B7 ' + d;
       var done = { kind: pending.kind, name: pending.name, details: d, chip: pending.chip };
       reset();
       if (opts.onDone) { opts.onDone({ kind: done.kind, name: done.name, details: done.details }, done.chip); }
