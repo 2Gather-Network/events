@@ -1516,6 +1516,16 @@
       out.innerHTML = '';
       if (q.length < 2) { return; }
       var seq = (++_faSeq);
+      if (!d.getElementById('cw-fa-style')) {
+        var _fs = d.createElement('style'); _fs.id = 'cw-fa-style';
+        _fs.textContent = '.cw-fa-pill{display:inline-flex;align-items:center;gap:8px;background:#1F699E;color:#fff;font-size:13px;font-weight:700;padding:8px 16px;border-radius:20px;white-space:nowrap;animation:cw-fa-breathe 1.6s ease-in-out infinite;}'
+          + '@keyframes cw-fa-breathe{0%,100%{opacity:1}50%{opacity:.62}}'
+          + '@media (prefers-reduced-motion: reduce){.cw-fa-pill{animation:none;}}';
+        d.head.appendChild(_fs);
+      }
+      var _fp = d.createElement('div'); _fp.style.cssText = 'padding:8px 2px;';
+      _fp.innerHTML = '<span class="cw-fa-pill">Loading information\u2026</span>';
+      out.appendChild(_fp);
       timer = setTimeout(function () {
         fetch(GS + '?action=findAnyone&appearId=' + encodeURIComponent(me.id)
               + '&meToken=' + encodeURIComponent(String(w.localStorage.getItem('cw-token') || ''))
@@ -1537,7 +1547,7 @@
               out.appendChild(note);
             }
           })
-          .catch(function () {});
+          .catch(function () { if (seq === _faSeq) { out.innerHTML = ''; } });
       }, 350);
     });
   }
