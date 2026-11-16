@@ -1488,7 +1488,17 @@ async function loadCategories() {
       if (_tc.length) { CATEGORIES = _tc; }
       else if (data.categories && data.categories.length) { CATEGORIES = data.categories; }
       if (data.rooms && data.rooms.length) { ROOMS = data.rooms; }
-      if (data.serving && data.serving.length) { SERVING = data.serving; }
+      if (data.serving && data.serving.length) {
+        SERVING = data.serving;
+        // The serving list on reference-data can arrive with the key column empty. A row with no key was dropped from the form, so
+        // the age keys added below were the only keyed rows and Career stage opened nothing. A row's key is now made from its label.
+        var _svKeys = { "community (all)": "community", "student": "students", "students": "students", "early career": "early-career", "mid-career": "mid-career", "senior professional": "senior", "late career / pre-retired": "late-career", "retired": "retired" };
+        SERVING = SERVING.map(function (x) {
+          if (x.key) return x;
+          var nm = String(x.label || "").replace(/[^\w\s\/\-()]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+          return Object.assign({}, x, { key: _svKeys[nm] || nm.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") });
+        });
+      }
       if (SERVING.length && !SERVING.some(function(x){ return /^age-/.test(x.key || ''); })) { [["age-20s","20's"],["age-30s","30's"],["age-40s","40's"],["age-50s","50's"],["age-60s","60's"],["age-70s","70's+"]].forEach(function(a){ SERVING.push({key:a[0],label:a[1],emoji:""}); }); }
       return;
     } catch(e) {
@@ -6047,8 +6057,9 @@ function _hpPaint() {
   var on = !window._isSharing;
   var show = function (id, yes) { var el = document.getElementById(id); if (el) el.style.display = yes ? "" : "none"; };
   box.style.display = on ? "" : "none";
-  inp.style.display = (!on || _hp.mode === "outside") ? "" : "none";
-  show("host-find-open", !on);
+  var _ob = (typeof _hcOnBehalf !== "undefined") && _hcOnBehalf;
+  inp.style.display = (_ob ? false : (!on || _hp.mode === "outside")) ? "" : "none";
+  show("host-find-open", !on && !_ob);
   if (on) show("host-find-box", false);
   if (!on) return;
   var name = inp.value.trim(), mine = _hpMine();
