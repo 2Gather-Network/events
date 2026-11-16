@@ -605,6 +605,61 @@ async function _recurOcc(){
     return {title:s.title||'',date:m[2],time:t,venue:s.venue||'',location:s.location||'',hostEmail:s.hostEmail||'',contactEmail:s.contactEmail||''};
   }catch(e){ return null; }
 }
+var _qrK=(function(){ var k=String(params.get('k')||'').trim().toLowerCase(); if(!/^[0-9a-f]{32}$/.test(k)) return ''; try{ var u=new URL(location.href); u.searchParams.delete('k'); history.replaceState(null,'',u.pathname+u.search+u.hash); }catch(e){} return k; })();
+function _qrTok(){ try{ return localStorage.getItem('cw-token')||''; }catch(e){ return ''; } }
+async function _qrJoinCard(){
+  var w=document.getElementById('board-wait'); if(!w) return;
+  if(!_myData) await loadMyDataFallback();
+  var me=_myData||{}, st={name:'full', img:'', blob:null, loc:'', lang:(me.languages||[]).join(', ')};
+  var FS='width:100%;box-sizing:border-box;height:44px;border:1.5px solid #c9d3e0;border-radius:10px;padding:0 12px;font-size:15px;font-family:inherit;';
+  var L='font-size:13.5px;font-weight:700;color:#2F3D4F;margin:14px 0 4px;';
+  var paint=function(msg){
+    var pic=st.img||me.photo||'';
+    w.innerHTML='<div style="background:#fff;border-radius:18px;padding:22px 20px;max-width:520px;margin:0 auto;color:#1a1a2e;line-height:1.5;">'
+      +'<h2 style="margin:0 0 6px;font-size:20px;">Enter the event lobby</h2>'
+      +'<p style="margin:0;">Everyone in this lobby sees your name, photo, location and language(s). Everyone in the lobby is matched with other attendees.</p>'
+      +'<p style="'+L+'">Name</p><select id="qr-name" style="'+FS+'"><option value="full">'+escHTML(String(me.name||''))+' (full name)</option><option value="short">First name and last initial</option></select>'
+      +'<p style="'+L+'">Photo</p><div style="display:flex;align-items:center;gap:10px;">'+(pic?'<img src="'+escHTML(pic)+'" alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">':'')
+      +'<button type="button" id="qr-up" class="btn-matches" style="background:#fff;color:#1F699E;">Upload</button><input type="file" id="qr-f" accept="image/*" hidden></div>'
+      +(me.photo?'':'<p style="font-size:13px;color:#2F3D4F;margin:4px 0 0;">Your photo will also be added to your profile.</p>')
+      +'<p style="'+L+'">Location</p><input type="text" id="qr-loc" maxlength="80" value="'+escHTML(st.loc)+'" aria-label="Location" style="'+FS+'">'
+      +'<p style="'+L+'">Language(s)</p><input type="text" id="qr-lang" maxlength="120" value="'+escHTML(st.lang)+'" aria-label="Language(s)" style="'+FS+'">'
+      +'<p style="font-size:13px;color:#2F3D4F;margin:4px 0 0;">Your languages are also saved to your profile.</p>'
+      +(msg?'<p role="alert" style="color:#B3261E;margin:12px 0 0;">'+escHTML(msg)+'</p>':'')
+      +'<div style="margin-top:18px;text-align:right;"><button type="button" id="qr-go" class="btn-matches">Enter the lobby</button></div></div>';
+    var g=function(i){ return document.getElementById(i); };
+    g('qr-name').value=st.name; g('qr-name').onchange=function(){ st.name=this.value; };
+    g('qr-loc').oninput=function(){ st.loc=this.value; }; g('qr-lang').oninput=function(){ st.lang=this.value; };
+    g('qr-up').onclick=function(){ g('qr-f').click(); };
+    g('qr-f').onchange=function(){ var f=this.files&&this.files[0]; if(!f) return; var im=new Image(); im.onload=function(){ var c=document.createElement('canvas'),k=Math.min(1,800/Math.max(im.width,im.height)); c.width=Math.round(im.width*k); c.height=Math.round(im.height*k); c.getContext('2d').drawImage(im,0,0,c.width,c.height); c.toBlob(function(b){ st.blob=b; st.img=c.toDataURL('image/jpeg',0.85); paint(); },'image/jpeg',0.85); }; im.src=URL.createObjectURL(f); };
+    g('qr-go').onclick=go;
+  };
+  var go=async function(){
+    var t=_qrTok(), lang=String(st.lang||'').trim(), loc=String(st.loc||'').trim();
+    if(!(me.photo||st.blob)||!loc||!lang){ paint('All four are needed to enter the lobby.'); return; }
+    document.getElementById('qr-go').disabled=true;
+    try{
+      if(st.blob){
+        var u=await (await fetch('https://cw-photos.jessieupp.workers.dev/upload?id='+encodeURIComponent(_myId),{method:'POST',headers:{'Content-Type':'image/jpeg','x-cw-token':t},body:st.blob})).json();
+        if(!u||u.status!=='ok'||!u.url) throw 'photo';
+        var a=await (await fetch(GS_URL+'?action=saveAccount&appearId='+encodeURIComponent(_myId)+'&secure=1&editToken='+encodeURIComponent(t)+'&guestPhotoURL='+encodeURIComponent(u.url))).json();
+        if(!a||a.status!=='ok') throw 'photo';
+        me.photo=u.url; st.blob=null;
+      }
+      if(lang!==(me.languages||[]).join(', ')){
+        var la=await (await fetch(GS_URL+'?action=saveAccount&appearId='+encodeURIComponent(_myId)+'&secure=1&editToken='+encodeURIComponent(t)+'&languages='+encodeURIComponent(lang.split(/\s*,\s*/).filter(Boolean).join('|')))).json();
+        if(!la||la.status!=='ok') throw 'lang';
+        me.languages=lang.split(/\s*,\s*/).filter(Boolean);
+      }
+      var d=await (await fetch(GS_URL+'?action=joinLobbyByKey&eventId='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId)+'&k='+encodeURIComponent(_qrK)+'&nameShown='+encodeURIComponent(st.name)+'&placeLevel=City&placeText='+encodeURIComponent(loc))).json();
+      if(d&&d.status==='ok'&&d.inLobby){ location.replace('/attendees/?id='+encodeURIComponent(_eventId)); return; }
+      var c=(d&&d.code)||'';
+      paint(c==='key'?'This code is no longer open. Ask the host for a new one.':c==='busy'?'Too many tries. Try again in an hour.':c==='place'?'Use a place name, not an address or number.':'All four are needed to enter the lobby.');
+    }catch(e){ paint(e==='photo'?'Your photo did not go up. Try again.':'This did not save. Try again.'); }
+  };
+  var p=document.getElementById('board-wait-pill'); if(p) p.style.display='none';
+  paint('');
+}
 async function loadEvent(){
   if(!_eventId) return;
   try{
@@ -715,6 +770,7 @@ async function loadMembers(){
       _meRegistered = (typeof d.meRegistered==='boolean') ? d.meRegistered : !!_myId;
       if(d.me && _meRegistered && !d.attendees.some(function(p){ return normId(p.appearId)===normId(d.me.appearId); })){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
       window._evManages=(d.meManages===true);
+      if(_myId && !_meRegistered && !window._evManages && _qrK){ _qrJoinCard(); return; }
       if(_myId && !_meRegistered && !window._evManages){ var _hd=await _muInfo(); if(!(_hd&&_hd.host===true)){ window.location.replace('https://2appear.network/event/?id='+encodeURIComponent(_eventId)); return; } }
       if(_myId && !_myData) await loadMyDataFallback();
       _boardShow();
