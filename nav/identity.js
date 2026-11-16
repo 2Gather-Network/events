@@ -5,7 +5,11 @@
   var WHO   = ['CWid', 'memberCard', 'appearId', 'me'];
   var KEEP  = ['cw-id', 'appear-id'];           
   var ANSWER_KEYS = ['cw-intro-answers:', 'cw-intro-pending:', 'cw-gadmin-', 'cw-lobby-'];
+  function clearViewMsgKeys() {
+    try { Object.keys(w.sessionStorage).forEach(function (k) { if (k.indexOf('cw-msg-view-') === 0) { w.sessionStorage.removeItem(k); } }); } catch (e) {}
+  }
   function clearAnswerCopies() {
+    clearViewMsgKeys();
     try { Object.keys(w.localStorage).forEach(function (k) { for (var j = 0; j < ANSWER_KEYS.length; j++) { if (k.indexOf(ANSWER_KEYS[j]) === 0) { w.localStorage.removeItem(k); } } }); } catch (e) {}
   }
   var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-photo-at', 'cw-token', 'cw-first',
@@ -664,6 +668,7 @@
     viewAs: function (id, name) {
       id = String(id || '').trim();
       ss(function () { w.sessionStorage.removeItem(OUT_KEY); });
+      if (!id) { clearViewMsgKeys(); }
       ls(function () {
         if (!id) { w.sessionStorage.removeItem(VIEW_KEY); w.sessionStorage.removeItem('cw-view-as-name'); }
         else { w.sessionStorage.setItem(VIEW_KEY, id); w.sessionStorage.setItem('cw-view-as-name', String(name || '')); }
@@ -671,6 +676,7 @@
       return id;
     },
     stopViewing: function () {
+      clearViewMsgKeys();
       ss(function () {
         w.sessionStorage.removeItem(VIEW_KEY);
         w.sessionStorage.removeItem('cw-view-as-name');
