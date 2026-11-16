@@ -1347,11 +1347,13 @@ function _paintSocialize() {
   if (!_welcome && st !== 'yes') { b.style.display = 'none'; return; }
   var lab = b.querySelector('.cw-soc-label');
   if (document.documentElement.classList.contains('cw-is-host')) {
-    if (lab) lab.textContent = 'Socialize this event';
-    b.classList.remove('btn-primary'); b.classList.add('btn-outline');
+    var _hs = _cwHostShared();
+    if (lab) lab.textContent = _hs ? "You\u2019re socializing" : 'Socialize this event';
+    if (_hs) { b.classList.remove('btn-outline'); b.classList.add('btn-primary'); } else { b.classList.remove('btn-primary'); b.classList.add('btn-outline'); }
     b.removeAttribute('data-nav'); b.removeAttribute('role');
     b.onclick = function () { cwSocOpen(); };
     b.style.display = '';
+    _cwHostedAnd();
     return;
   }
   if (st === 'yes') {
@@ -1493,7 +1495,7 @@ window.cwSocOpen = function () {
   var ask = !!me && !ev.cancelled;
   var signin = (window.CW_SIGNIN || 'https://2gather.network/signin/');
   var claim = 'https://2gather.network/support/?topic=claim-event&event=' + encodeURIComponent(String(ev.id));
-  var k = _evRoleKnown, isHost = !!(k && k.id === String(ev.id) && k.me === me && (k.role === 'host' || k.role === 'cohost'));
+  var k = _evRoleKnown, isHost = !!(k && k.id === String(ev.id) && k.me === me && k.hosts);
   var _known = !!(k && k.id === String(ev.id) && k.me === me);
   var _mineK = String(ev.id) + '|' + String(me);
   var _before = _known ? !!k.socializing : (!!me && _socMine()[_mineK] !== undefined);
@@ -1635,10 +1637,26 @@ function _socAlready() {
   if (!ev || !w.real) return false;
   return _socDoneFor === String(ev.id) + '|' + w.real || _socState() === 'yes';
 }
+function _cwHostShareKey() {
+  var k = _evRoleKnown, me = ''; try { me = getMemberId() || ''; } catch (e) {}
+  return (k && k.hosts && _currentEv) ? 'cw-host-shared|' + String(_currentEv.id) + '|' + me : '';
+}
+function _cwHostShared() { var key = _cwHostShareKey(); if (!key) return false; try { return localStorage.getItem(key) === '1'; } catch (e) { return false; } }
+function _cwHostedAnd() {
+  try {
+    var on = _cwHostShared();
+    document.querySelectorAll('#ev-host > p:first-child, #cw-m2-by').forEach(function (n) {
+      var t = n.firstChild; if (!t || t.nodeType !== 3) return;
+      if (on && /^Hosted by/.test(t.nodeValue)) { t.nodeValue = t.nodeValue.replace(/^Hosted by/, 'Hosted and socialized by'); }
+    });
+  } catch (e) {}
+}
 window.cwSocAct = function (what) {
   if (what === 'copy') { try { copyLink(); } catch (e) {} }
   else if (what === 'share') { try { share(); } catch (e) {} }
   else if (what === 'qr') { try { openQrModal(); } catch (e) {} }
+  var hk = _cwHostShareKey();
+  if (hk) { try { localStorage.setItem(hk, '1'); } catch (e) {} try { _cwHostedAnd(); _paintSocialize(); } catch (e) {} return; }
   if (!_socAlready()) { _socSave(); }
 };
 window.cwSocList = function (on) {
