@@ -4,7 +4,7 @@
 
   var WHO   = ['CWid', 'memberCard', 'appearId', 'me'];
   var KEEP  = ['cw-id', 'appear-id'];           
-  var ANSWER_KEYS = ['cw-intro-answers:', 'cw-intro-pending:', 'cw-gadmin-', 'cw-lobby-'];
+  var ANSWER_KEYS = ['cw-intro-answers:', 'cw-intro-pending:', 'cw-gadmin-', 'cw-lobby-', 'cw-board-'];
   function clearViewMsgKeys() {
     try { Object.keys(w.sessionStorage).forEach(function (k) { if (k.indexOf('cw-msg-view-') === 0) { w.sessionStorage.removeItem(k); } }); } catch (e) {}
   }
