@@ -168,13 +168,14 @@
       var box = document.createElement('div');
       box.className = 'cw-soc-inline';
       box.addEventListener('click', function (e) { e.stopPropagation(); });
-      cur = { card: card, btn: btn, box: box, ev: ev, listed: v === undefined ? true : v === 2, done: v !== undefined, short: null, saving: false, pending: false };
+      var isHost = btn.getAttribute('data-host') === '1';
+      cur = { host: isHost, card: card, btn: btn, box: box, ev: ev, listed: v === undefined ? true : v === 2, done: v !== undefined, short: null, saving: false, pending: false };
       cur.shortJob = fetch(GS + '?action=getShortCode&id=' + encodeURIComponent(id)).then(function (r) { return r.json(); }).then(function (d) { if (d && d.status === 'ok' && d.code && cur && cur.ev.id === id) cur.short = null; }).catch(function () {});
       box.innerHTML = cwSocBoxHTML({
-        me: !!w.me, hosted: btn.getAttribute('data-hosted') === '1', cancelled: ev.cancelled, ask: !!w.me && !ev.cancelled, listed: cur.listed,
+        me: !!w.me, hosted: btn.getAttribute('data-hosted') === '1', cancelled: ev.cancelled, ask: !!w.me && !ev.cancelled && !isHost, listed: cur.listed,
         signinHTML: '<p class="cw-soc-q"><a href="https://2gather.network/signin/" style="font-weight:700;">Sign in</a> to be listed as somebody helping spread it.</p>',
         on: { done: 'cwSocInline.close()', copy: "cwSocInline.act('copy', this)", share: "cwSocInline.act('share', this)", qr: "cwSocInline.act('qr', this)", list: 'cwSocInline.list(this.checked)' },
-        extra: (btn.getAttribute('data-soc') === '1' && !ev.cancelled && window.cwHostReqHTML)
+        extra: (!isHost && btn.getAttribute('data-soc') === '1' && !ev.cancelled && window.cwHostReqHTML)
           ? '<div class="cw-soc-hostq" style="margin:22px 0 0;font-size:13.5px;line-height:1.55;"><a role="button" tabindex="0" style="cursor:pointer;color:#1F699E;text-decoration:underline;" onclick="var m=this.nextElementSibling;m.hidden=!m.hidden;">Are you the host of this event?</a><div hidden style="margin:8px 0 0;">' + cwHostReqHTML(ev) + '</div></div>'
           : ''
       });
@@ -194,7 +195,7 @@
           navigator.share({ title: cur.ev.title || '2Gather event', url: url }).catch(function (err) { if (err && err.name !== 'AbortError') copyText(url, null); });
         } else { copyText(url, what === 'copy' ? btn : null); }
       }
-      if (cur && !cur.done) save();
+      if (cur && !cur.done && !cur.host) save();
     },
     list: function (on) {
       if (!cur) return;
