@@ -38,7 +38,7 @@
       var u = String(next || '');
       if (!u) return false;
       var path = u.split('#')[0].split('?')[0].replace(/^https?:\/\/[^/]+/, '');
-      return /^\/(group|groups|event|myevents|ikigai|commons)(\/|$)/.test(path);
+      return /^\/(group|groups|event|myevents|ikigai|commons|lobby|attendees)(\/|$)/.test(path);
     } catch (e) { return false; }
   }
 
