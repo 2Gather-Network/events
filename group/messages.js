@@ -448,7 +448,7 @@
       if (!text) { say(note, 'Write something first.', true); return; }
       send.disabled = true; say(note, '');
       var slow = setTimeout(function () { say(note, 'Still sending. The first message can take up to a minute.'); }, 12000);
-      api('/start', { body: { id: ctx.meId, token: token(), to: chosen.code, body: text } }).then(function (d) {
+      api('/start', { body: { id: ctx.meId, token: token(), to: chosen.code, body: text, event: (function(){ try { return String(new URLSearchParams(location.search).get('event') || '').slice(0, 64); } catch (e) { return ''; } })() } }).then(function (d) {
         clearTimeout(slow);
         send.disabled = false;
         if (again(d)) { return start().then(function () { send.onclick(); }); }
