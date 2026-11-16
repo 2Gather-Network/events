@@ -1,6 +1,6 @@
 (function(){
   var GS = "https://cw-api-gate.jessieupp.workers.dev";
-  var CSS = "#cwh-acts,#cwh-invite{order:4}"
+  var CSS = "#cwh-acts,#cwh-invite,#cwh-wait-acts{order:4}"
     + "@keyframes cwh-br{0%,100%{opacity:.4}50%{opacity:1}}.cwh-wait{font-size:14px;font-weight:700;color:#1F699E;animation:cwh-br 1.6s ease-in-out infinite}@media (prefers-reduced-motion:reduce){.cwh-wait{animation:none}}"
     + ".cwh-acts{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}"
     + ".cwh-b{background:#1F699E;color:#fff;border:0;border-radius:24px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;min-height:0}"
