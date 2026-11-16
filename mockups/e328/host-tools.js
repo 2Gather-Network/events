@@ -2,7 +2,7 @@
   var GS = "https://cw-api-gate.jessieupp.workers.dev";
   var CSS = "#cwh-acts,#cwh-invite,#cwh-wait-acts{order:4}"
     + "@keyframes cwh-br{0%,100%{opacity:.4}50%{opacity:1}}.cwh-wait{font-size:14px;font-weight:700;color:#1F699E;animation:cwh-br 1.6s ease-in-out infinite}@media (prefers-reduced-motion:reduce){.cwh-wait{animation:none}}"
-    + ".cwh-acts{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}"
+    + ".cwh-acts{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 14px}"
     + ".cwh-b{background:#1F699E;color:#fff;border:0;border-radius:24px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;min-height:0}"
     + ".cwh-b.on{background:#1F699E}.cwh-b:focus{outline:none}.cwh-b:focus-visible{outline:2px solid #1F699E;outline-offset:2px}"
     + "a.cwh-b,a.cwh-b:visited,a.cwh-b:hover{color:#fff !important;text-decoration:none !important}"
@@ -181,7 +181,7 @@
     if (!h1) return;
     if (!document.getElementById("cwh-css")) { var s = document.createElement("style"); s.id = "cwh-css"; s.textContent = CSS; document.head.appendChild(s); }
     var row = h1.closest(".evt-head-row") || h1.parentNode;
-    var w = el("p", "cwh-wait", "Loading this event\u2026"); w.id = "cwh-wait-acts"; w.style.margin = "0 0 12px";
+    var w = el("p", "cwh-wait", "Loading this event\u2026"); w.id = "cwh-wait-acts"; w.style.margin = "3px 0 12px";
     row.parentNode.insertBefore(w, row.nextSibling);
   }
   window.cwHostWait = function (on) {
