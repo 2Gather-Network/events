@@ -56,7 +56,7 @@
     if (!eid || !me() || viewing()) { done(""); return; }
     fetch(GS + "?action=getLobbyQr&eventId=" + encodeURIComponent(eid) + "&appearId=" + encodeURIComponent(me()) + "&meToken=" + encodeURIComponent(pass()) + "&t=" + Date.now())
       .then(function (r) { return r.json(); })
-      .then(function (d) { done(d && d.status === "ok" && d.on === true && d.k ? "https://2gather.network/attendees/?id=" + encodeURIComponent(eid) + "&k=" + encodeURIComponent(d.k) : ""); })
+      .then(function (d) { done(d && d.status === "ok" && d.on === true && d.k ? "https://2gather.network/lobby/?id=" + encodeURIComponent(eid) + "&k=" + encodeURIComponent(d.k) : ""); })
       .catch(function () { done(""); });
   }
   window.cwLobbyLink = cwLobbyLink;
@@ -112,11 +112,27 @@
         sc.onload = draw; sc.onerror = function () { p5.style.display = "none"; };
         document.head.appendChild(sc); return;
       }
-      new QRious({ element: cv, value: lf.value || link, size: 400, foreground: "#1A2E42", background: "#ffffff", level: "M" });
+      new QRious({ element: cv, value: link, size: 400, foreground: "#1A2E42", background: "#ffffff", level: "M" });
       p5.style.display = "";
     };
     draw();
-    if (!viewing()) cwLobbyLink(String(ev.id || ""), function (u) { if (!u || !document.body.contains(c)) return; lf.value = u; if (window.QRious) draw(); });
+    var p6 = el("div", "cwh-part"); p6.id = "cwh-lobby-qr"; p6.style.display = "none";
+    p6.appendChild(el("p", "cwh-fq", "2Gather lobby QR code"));
+    p6.appendChild(el("p", "cwh-help", "For the event lobby on 2Gather, separate from the event link above. People who scan it join your lobby."));
+    var l6r = el("div", "cwh-row"); var l6 = el("input", "cwh-field"); l6.readOnly = true; l6.setAttribute("aria-label", "The lobby link");
+    var l6c = el("button", "cwh-b", "Copy the link"); l6c.type = "button"; var l6s = el("div", "cwh-st");
+    l6r.appendChild(l6); l6r.appendChild(l6c); p6.appendChild(l6r); p6.appendChild(l6s);
+    var cv6 = document.createElement("canvas"); cv6.setAttribute("aria-label", "A code that opens the event lobby on 2Gather");
+    cv6.style.cssText = "width:180px;height:180px;border:1.5px solid #DDE4EE;border-radius:14px;background:#fff;padding:8px;margin-top:10px;";
+    p6.appendChild(cv6); c.appendChild(p6);
+    l6c.onclick = function () { copyPlain(l6.value, l6s); };
+    if (!viewing()) cwLobbyLink(String(ev.id || ""), function (u) {
+      if (!u || !document.body.contains(c)) return;
+      l6.value = u; p6.style.display = "";
+      var d6 = function () { if (!window.QRious) { setTimeout(d6, 300); return; } new QRious({ element: cv6, value: u, size: 400, foreground: "#1A2E42", background: "#ffffff", level: "M" }); };
+      d6();
+      try { if (/[?&]qr=1(&|$)/.test(location.search) && p6.scrollIntoView) p6.scrollIntoView({ block: "start" }); } catch (e) {}
+    });
     var attUrl = "https://2gather.network/mockups/e328/myevents/attendees/?id=" + encodeURIComponent(String(ev.id || ""));
     var load = function () {
       list.textContent = ""; lede.textContent = "";
