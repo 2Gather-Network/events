@@ -323,8 +323,10 @@
     $('cf-txt').textContent = 'Showing ' + shown.length + ' of ' + live.length + (CF.arch ? ' · Archived' : '') + on.map(function (k) { return ' · ' + CFN[k] + ': ' + CF[k].map(function (v) { return cfName(k, v); }).join(', '); }).join('');
     var box = $('list');
     box.innerHTML = '';
-    $('none').hidden = !!shown.length;
-    $('none').textContent = shown.length ? '' : (ALL.length ? 'Nobody here matches that.' : 'People you invite, meet at events or message land here by themselves.');
+    $('none').hidden = !!shown.length || !ALL.length;
+    $('none').textContent = shown.length || !ALL.length ? '' : 'Nobody here matches that.';
+    var oldE = document.getElementById('empty-contacts'); if (oldE) { oldE.parentNode.removeChild(oldE); }
+    if (!ALL.length) { var eb = emptyBox('contacts'); eb.id = 'empty-contacts'; $('list').parentNode.insertBefore(eb, $('list')); }
     shown.forEach(function (c) {
       var row = document.createElement('div'); row.className = 'row';
       var av = document.createElement('span'); av.className = 'av'; av.textContent = initials(c.name);
@@ -788,20 +790,39 @@
     Array.prototype.forEach.call(document.querySelectorAll('#ctabs .tab'), function (b) { b.classList.toggle('on', b.getAttribute('data-t') === k); });
     Array.prototype.forEach.call(document.querySelectorAll('[data-cp]'), function (p) { p.hidden = p.getAttribute('data-cp') !== k; });
   }
+  var EMPTY = {
+    contacts: ['When you join an event with matching turned on, your contacts appear here.', 'Find an event', 'https://2appear.network/events/'],
+    requests: ['When someone asks to connect with you, their request appears here.', 'Find people', 'https://2appear.network/network/'],
+    connected: ['When you and someone both agree to connect, they appear here.', 'Find people', 'https://2appear.network/network/'],
+    invited: ['When you invite someone to a group or an event, they appear here until they join.', [['Invite someone to your group', 'https://2appear.network/mygroups/'], ['Invite someone to your event', 'https://2appear.network/myevents/'], ['Socialize an event', 'https://2appear.network/events/']]],
+    events: ['When you bring an event over to 2Appear, the people you met there appear here.', 'Find an event', 'https://2appear.network/events/']
+  };
+  function emptyBox(k) {
+    var e = EMPTY[k], d = document.createElement('div'); d.className = 'notice';
+    var sp = document.createElement('span'); sp.appendChild(document.createTextNode('Nobody here yet. ' + e[0])); d.appendChild(sp);
+    var list = Array.isArray(e[1]) ? e[1] : [[e[1], e[2]]];
+    var acts = document.createElement('div'); acts.className = 'actions-row';
+    list.forEach(function (x, i) { var b = document.createElement('a'); b.href = x[1]; b.className = i ? 'btn ghost' : 'btn'; b.textContent = x[0]; acts.appendChild(b); });
+    d.appendChild(acts);
+    return d;
+  }
   function drawTabs() {
     var live = ALL.filter(function (c) { return !c.archived; });
     $('tn-contacts').textContent = live.length;
     var rq = $('cp-requests'); rq.innerHTML = '';
     TABS.requests.forEach(function (r) { rq.appendChild(personRow(r.name, [r.at ? 'Asked to join your network on ' + longDate(r.at) : ''])); });
+    if (!TABS.requests.length) { rq.appendChild(emptyBox('requests')); }
     $('tn-requests').textContent = TABS.requests.length ? TABS.requests.length + ' new' : '0';
     var cn = $('cp-connected'); cn.innerHTML = '';
     TABS.connected.forEach(function (r) { cn.appendChild(personRow(r.name, [])); });
+    if (!TABS.connected.length) { cn.appendChild(emptyBox('connected')); }
     $('tn-connected').textContent = TABS.connected.length;
     var iv = $('cp-invited'); iv.innerHTML = '';
     TABS.invited.forEach(function (r) {
       var line = (r.kind === 'group' ? 'Invited to groups' : 'Invited to event') + (r.at ? ' on ' + longDate(r.at) : '') + ' · not joined yet';
       iv.appendChild(personRow(r.first || r.email || '', [line, r.title, r.kind === 'group' ? r.email : ''], r.kind === 'group' ? 'Group invite' : 'Event invite'));
     });
+    if (!TABS.invited.length) { iv.appendChild(emptyBox('invited')); }
     $('tn-invited').textContent = TABS.invited.length;
     var ev = $('cp-events'); ev.innerHTML = '';
     var h = document.createElement('h2'); h.textContent = 'Attendees from my events'; ev.appendChild(h);
@@ -813,6 +834,7 @@
       var eh = document.createElement('div'); eh.className = 'evh'; eh.textContent = CARRIED[id]; ev.appendChild(eh);
       ppl.forEach(function (c) { ev.appendChild(personRow(c.name, [howLine(c)], landWord(c))); });
     });
+    if (!shown) { ev.appendChild(emptyBox('events')); }
     $('tn-events').textContent = shown;
   }
   var MSG_ROWS = [];
