@@ -172,7 +172,7 @@
     if (!ev || !isHost) { clear(); return; }
     if (!document.getElementById("cwh-css")) { var s = document.createElement("style"); s.id = "cwh-css"; s.textContent = CSS; document.head.appendChild(s); }
     var eid = String(ev.id || "");
-    try { if (me() && !viewing()) localStorage.setItem("cw-hosting|" + eid + "|" + me(), "1"); } catch (e) {}
+    try { if (me() && !viewing()) localStorage.setItem("cw-hosting|" + eid, String(me())); } catch (e) {}
     var h1 = document.querySelector("#card h1, .cw-rl-main h1");
     if (!h1) return;
     var row = h1.closest(".evt-head-row") || h1.parentNode;
@@ -185,7 +185,7 @@
       }
       var inv = el("button", "cwh-b"); inv.innerHTML = "<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" style=\"margin-right:6px;flex:0 0 auto\"><circle cx=\"9\" cy=\"8\" r=\"3.2\"/><path d=\"M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1\"/><circle cx=\"17\" cy=\"9\" r=\"2.5\"/><path d=\"M17.5 14.2A4.5 4.5 0 0 1 21.5 18.5V20\"/></svg>Invite people"; inv.type = "button"; inv.setAttribute("aria-expanded", "false"); acts.appendChild(inv);
       var attUrl = "https://2gather.network/mockups/e328/myevents/attendees/?id=" + encodeURIComponent(String(ev.id || ""));
-      var ma = el("a", "cwh-b"); ma.innerHTML = "<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" style=\"margin-right:6px;flex:0 0 auto\"><rect x=\"4\" y=\"5\" width=\"16\" height=\"14\" rx=\"2\"/><circle cx=\"9.5\" cy=\"11\" r=\"2\"/><path d=\"M6.5 16c.5-1.6 1.7-2.4 3-2.4s2.5.8 3 2.4\"/><path d=\"M14.5 10h3M14.5 14h3\"/></svg>Manage attendees"; ma.href = attUrl; ma.style.display = "none"; acts.appendChild(ma);
+      var ma = el("a", "cwh-b"); ma.innerHTML = "<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" style=\"margin-right:6px;flex:0 0 auto\"><rect x=\"4\" y=\"5\" width=\"16\" height=\"14\" rx=\"2\"/><circle cx=\"9.5\" cy=\"11\" r=\"2\"/><path d=\"M6.5 16c.5-1.6 1.7-2.4 3-2.4s2.5.8 3 2.4\"/><path d=\"M14.5 10h3M14.5 14h3\"/></svg>Manage attendees"; ma.href = attUrl;  acts.appendChild(ma);
       row.parentNode.insertBefore(acts, row.nextSibling);
       inv.onclick = function () {
         var open = document.getElementById("cwh-invite");
@@ -199,7 +199,6 @@
           if (state.id !== eid) return;
           var a = ((d && (d.attendees || d.people)) || []).filter(function (x) { return x && !x.isHost; });
           if (!a.length) return;
-          ma.style.display = "";
           var rail = document.querySelector(".cw-rl-rail");
           if (!rail || document.getElementById("cwh-att")) return;
           var box = el("div", "cwh-box"); box.id = "cwh-att";
