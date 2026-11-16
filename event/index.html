@@ -1093,6 +1093,7 @@ function _cwGoingLine(on) {
         var _ev = _currentEv, _hb = String(_ev.hasBB) === "true" || _ev.hasBB === true;
         if (_hb && getMemberId()) {
           cwSeenFetch(_ev.id).then(function (d) {
+            try { cwCarryAfter(_ev, d, l); } catch (e) {}
             if (!d || d.inLobby !== true || document.getElementById("cw-visit-2g")) return;
             var v = document.createElement("a");
             v.id = "cw-visit-2g"; v.href = "https://2gather.network/attendees/?id=" + encodeURIComponent(_ev.id);
@@ -2203,6 +2204,37 @@ function cwSeenFetch(id) {
   var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
   return fetch(GS_URL + "?action=getEventSeen&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(id)).then(function (r) { return r.json(); });
 }
+function cwCarryAfter(ev, d, at) {
+  if (!d || !d.registered || d.carryOver === "yes" || document.getElementById("cw-carry")) return;
+  var end = String((ev.endDate && ev.endDate > ev.date) ? ev.endDate : ev.date || "").slice(0, 10);
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(end) || !(new Date(end + "T00:00:00") < today)) return;
+  var viewing = false; try { viewing = !!(window.CW && ((CW.viewingAs && String(CW.viewingAs() || "").trim()) || (CW.me && CW.me().viewing))); } catch (e) {}
+  var box = document.createElement("div"); box.id = "cw-carry";
+  box.style.cssText = "background:#E8F2F9;border-radius:10px;padding:12px 14px;margin:12px 0 0;font-size:14px;line-height:1.5;color:#1A2E42;";
+  var p = document.createElement("p"); p.style.margin = "0 0 8px"; p.textContent = "When the event concludes, the lobby will close. You can still carry over all of your bookmarks and messages over to 2Appear so the event lives on. Would you like to bring over your info and continue engaging with event attendees?"; box.appendChild(p);
+  var row = document.createElement("div"); row.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;";
+  var cur = d.carryOver === "later" ? "later" : "";
+  var paint = function () { Array.prototype.forEach.call(row.children, function (b) { var on = b.getAttribute("data-co") === cur; b.setAttribute("aria-pressed", on ? "true" : "false"); b.style.background = on ? "#1F699E" : "#fff"; b.style.borderColor = on ? "#1F699E" : "#C9D6E2"; b.style.color = on ? "#fff" : "#1A2E42"; }); };
+  [["yes", "Yes immediately"], ["later", "Ask me after the event"]].forEach(function (c) {
+    var b = document.createElement("button"); b.type = "button"; b.setAttribute("data-co", c[0]); b.textContent = c[1];
+    b.style.cssText = "font:inherit;font-size:13.5px;padding:6px 13px;border-radius:999px;border:1.5px solid #C9D6E2;background:#fff;color:#1A2E42;cursor:pointer;";
+    if (viewing) { b.disabled = true; b.style.cursor = "default"; b.style.opacity = ".7"; }
+    b.onclick = function () {
+      if (viewing) return;
+      var was = cur; cur = c[0]; paint();
+      var me = ""; try { me = getMemberId() || ""; } catch (e) {}
+      var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
+      fetch(GS_URL + "?action=saveEventShare&carryOnly=1&carryOver=" + encodeURIComponent(c[0]) + "&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&eventId=" + encodeURIComponent(ev.id))
+        .then(function (r) { return r.json(); })
+        .then(function (r) { if (!r || r.status !== "ok") { cur = was; paint(); } })
+        .catch(function () { cur = was; paint(); });
+    };
+    row.appendChild(b);
+  });
+  box.appendChild(row); paint();
+  at.insertAdjacentElement("afterend", box);
+}
 function _cwRegPageOn() { return /[?&]reg=(edit|new)\b/.test(location.search); }
 function _cwRegPageNew() { return /[?&]reg=new\b/.test(location.search); }
 function _cwRegPageBack() { var id = ""; try { id = String((_currentEv && _currentEv.id) || new URLSearchParams(location.search).get("id") || ""); } catch (e) {} location.href = "/event/?id=" + encodeURIComponent(id); }
@@ -2367,6 +2399,7 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     if (s.inviteFrom) { st.from = {}; if (s.inviteFrom !== "none") String(s.inviteFrom).split(",").forEach(function (w) { st.from[w] = true; }); }
     else if (s.invite === true) st.from.everyone = true;
     st.onlyMine = s.inviteMatchOnly === true; st.mail = s.inviteEmail !== false; st.mine = s.inviteMyEvents !== false;
+    st.carry = (s.carryOver === "yes" || s.carryOver === "later") ? s.carryOver : "";
   };
   if (saved && saved.registered && (saved.answered || saved.nameShown)) fill(saved);
   var last = saved && saved.last && reg ? saved.last : null;
@@ -2527,6 +2560,8 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   var s3 = function () {
     var any = Object.keys(st.from).some(function (k) { return st.from[k]; });
     var h = '<div class="cw-box"><h3>After this event</h3>'
+      + (HASLB ? '<p style="margin:0 0 8px;line-height:1.5">When the event concludes, the lobby will close. You can still carry over all of your bookmarks and messages over to 2Appear so the event lives on. Would you like to bring over your info and continue engaging with event attendees?</p><div class="cw-pills" style="margin-bottom:12px">'
+        + [["yes", "Yes immediately"], ["later", "Ask me after the event"]].map(function (c) { return '<button type="button" class="cw-pill" data-co="' + c[0] + '" aria-pressed="' + (st.carry === c[0]) + '">' + c[1] + '</button>'; }).join("") + '</div>' : '')
       + '<label class="cw-row"><input type="checkbox" id="cw-seen-mk"' + (st.connect ? " checked" : "") + '><span>Let me connect with people I want to meet after this event</span></label>'
       + '<label class="cw-row"><input type="checkbox" id="cw-seen-inv"' + (st.others ? " checked" : "") + '><span>Let others connect with me after the event</span></label>'
       + '<h3 style="margin-top:12px">Who can invite me to their events from here?</h3><p class="cw-sub">Select all that apply.<button type="button" class="cw-ib" id="cw-st-ib" aria-expanded="' + (!!st.infoOpen) + '" aria-label="What each choice means">i</button></p>'
@@ -2545,6 +2580,7 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     Array.prototype.forEach.call(body.querySelectorAll("[data-fr]"), function (b) { b.onclick = function () { var k = b.getAttribute("data-fr"); if (k === "none") st.from = {}; else st.from[k] = !st.from[k]; s3(); }; });
     $("cw-seen-em").onclick = function () { st.mail = !st.mail; s3(); };
     $("cw-seen-me").onclick = function () { st.mine = !st.mine; s3(); };
+    Array.prototype.forEach.call(body.querySelectorAll("[data-co]"), function (b) { b.onclick = function () { st.carry = b.getAttribute("data-co"); s3(); }; });
   };
   var s4 = function () {
     var lobbyUrl = "https://2gather.network/attendees/?id=" + encodeURIComponent(ev.id);
@@ -2600,7 +2636,8 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
       + "&lobby=" + (lb ? "true" : "false") + "&matchUp=" + (lb ? "true" : "false")
       + "&invite=" + (st.others ? "true" : "false") + "&startGroup=" + (st.connect ? "true" : "false")
       + "&inviteFrom=" + encodeURIComponent(from.length ? from.join(",") : "none") + "&inviteEmail=" + (st.mail ? "true" : "false") + "&inviteMyEvents=" + (st.mine ? "true" : "false") + "&inviteMatchOnly=" + (st.from.everyone && st.onlyMine ? "true" : "false")
-      + "&placeLevel=" + encodeURIComponent(st.level) + "&placeText=" + encodeURIComponent(st.text) + "&placePostal=" + encodeURIComponent(st.postal))
+      + "&placeLevel=" + encodeURIComponent(st.level) + "&placeText=" + encodeURIComponent(st.text) + "&placePostal=" + encodeURIComponent(st.postal)
+      + (HASLB ? "&carryOver=" + encodeURIComponent(st.carry || "") : ""))
       .then(function (r) { return r.json(); })
       .then(function (d) { if (!d || d.status !== "ok") throw new Error((d && d.message) || "That did not save. Try again in a moment."); return d; });
   };
