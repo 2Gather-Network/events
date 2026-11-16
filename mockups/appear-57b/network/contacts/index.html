@@ -94,7 +94,7 @@
   #wait{margin:24px 0;}
   #wait[hidden],#head[hidden]{display:none;}
 </style>
-<script src="/nav/identity.js?v=66"></script>
+<script src="/nav/identity.js?v=68"></script>
 </head>
 <body>
 
@@ -222,7 +222,7 @@
   var SOURCE_WORD = { message: 'Messaged', bookmark: 'Bookmarked', eventInvite: 'Event invite', connect: 'Connected', card: 'Business card', event: 'Invited to host' };
   var CF = { ev: [], grp: [], tags: [], l: [], arch: false };
   var CFN = { ev: 'Past events', grp: 'Selected groups', tags: 'Tags', l: 'How they landed here' };
-  var PASTEV = [];
+  var PASTEV = [], CARRIED = {}, EVNOTES = [], SHARED = [];
 
   try { if (window.cwBreadcrumb) { window.cwBreadcrumb(document.getElementById('breadcrumb'), 'My contacts'); } } catch (e) {}
   try { if (window.cwProfileRail) { window.cwProfileRail({ wrap: document.getElementById('pane'), shape: 'network', active: 'contacts' }); } } catch (e) {}
@@ -287,7 +287,7 @@
       return ev ? 'You invited them to ' + ev.title : '';
     }
     if (c.sourceKind === 'connect') { return 'You connected on 2Appear'; }
-    if (c.sourceKind === 'message') { return c.groupName ? 'Messaged with ' + c.name + ' in ' + c.groupName : 'Messaged with ' + c.name; }
+    if (c.sourceKind === 'message') { return c.eventTitle ? 'Messaged with ' + c.name + ' at ' + c.eventTitle : c.groupName ? 'Messaged with ' + c.name + ' in ' + c.groupName : 'Messaged with ' + c.name; }
     return '';
   }
   function cfKey(c, k) {
@@ -336,6 +336,27 @@
       if (how) { var hl = document.createElement('div'); hl.className = 'line'; hl.textContent = c.sourceKind === 'message' ? how : how + ' · ' + (c.name || ''); who.appendChild(hl); }
       var more = [c.roleOrg, c.phone].filter(Boolean).join(' · ');
       if (more) { var ml = document.createElement('div'); ml.className = 'line'; ml.textContent = more; who.appendChild(ml); }
+      if (c.person) {
+        EVNOTES.forEach(function (n) {
+          if (n.person !== c.person || !n.note) { return; }
+          var t = CARRIED[n.eventId];
+          var nl = document.createElement('div'); nl.className = 'line'; nl.textContent = (t ? 'Note from ' + t + ': ' : 'Note: ') + n.note; who.appendChild(nl);
+        });
+      }
+      if (c.person) {
+        SHARED.forEach(function (x) {
+          if (x.person !== c.person) { return; }
+          var t = CARRIED[x.eventId];
+          var sl = document.createElement('div'); sl.className = 'line';
+          sl.appendChild(document.createTextNode((t ? 'Shared at ' + t : 'Shared') + ': '));
+          var bits = [];
+          if (x.phone) { bits.push(document.createTextNode(x.phone)); }
+          if (x.workEmail) { bits.push(document.createTextNode(x.workEmail)); }
+          if (x.site && /^https:\/\//i.test(x.site)) { var a = document.createElement('a'); a.href = x.site; a.rel = 'noopener noreferrer'; a.target = '_blank'; a.textContent = x.site.replace(/^https:\/\//i, ''); bits.push(a); }
+          bits.forEach(function (b, i) { if (i) { sl.appendChild(document.createTextNode(' · ')); } sl.appendChild(b); });
+          if (bits.length) { who.appendChild(sl); }
+        });
+      }
       var tg = tagsOf(c);
       if (tg.length) {
         var tb = document.createElement('div'); tb.className = 'pills'; tb.style.marginTop = '8px';
@@ -743,14 +764,15 @@
     var have = {};
     ALL.forEach(function (c) { if (c.person) { have[c.person] = c; } });
     (rows || []).forEach(function (m) {
-      if (!m || !m.code || !m.bothWritten || m.eventId || !String(m.name || '').trim()) { return; }
+      if (!m || !m.code || !m.bothWritten || !String(m.name || '').trim()) { return; }
+      if (m.eventId && !CARRIED.hasOwnProperty(m.eventId)) { return; }
       var c = have[m.code];
       if (c) {
         if (m.groupId && (c.groupIds || []).indexOf(m.groupId) < 0) { c.groupIds = (c.groupIds || []).concat([m.groupId]); }
         return;
       }
       c = { contactId: '', person: m.code, name: String(m.name), sourceKind: 'message', sourceId: '', addedAt: m.firstAt || '',
-            groupIds: m.groupId ? [m.groupId] : [], groupName: m.groupName || '', tag: '', msgOnly: true };
+            groupIds: m.groupId ? [m.groupId] : [], groupName: m.groupName || '', eventTitle: m.eventId ? CARRIED[m.eventId] : '', tag: '', msgOnly: true };
       have[m.code] = c; ALL.push(c);
     });
     ALL.sort(function (a, b) { return String(b.addedAt).localeCompare(String(a.addedAt)); });
@@ -767,7 +789,7 @@
     ask('getContacts', {}).then(function (d) {
       if (d && d.code === 'signin') { say('Sign in again to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
       if (!d || d.status !== 'ok') { say((d && d.message) || 'Your contacts did not load. Reload the page and it will try again.'); return; }
-      ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || [];
+      ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
       return loadMessaged().then(function () {
       say('');
       $('body').hidden = false;
