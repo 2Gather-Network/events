@@ -174,16 +174,23 @@
     return c;
   }
 
-  window.cwHostWait = function (on) {
-    var old = document.getElementById("cwh-wait-acts");
-    if (!on) { if (old) old.remove(); return; }
-    if (old || document.getElementById("cwh-acts")) return;
+  var waitTimer = null;
+  function waitPaint(){
+    if (document.getElementById("cwh-wait-acts") || document.getElementById("cwh-acts")) return;
     var h1 = document.querySelector("#card h1, .cw-rl-main h1");
     if (!h1) return;
     if (!document.getElementById("cwh-css")) { var s = document.createElement("style"); s.id = "cwh-css"; s.textContent = CSS; document.head.appendChild(s); }
     var row = h1.closest(".evt-head-row") || h1.parentNode;
     var w = el("p", "cwh-wait", "Loading this event\u2026"); w.id = "cwh-wait-acts"; w.style.margin = "0 0 12px";
     row.parentNode.insertBefore(w, row.nextSibling);
+  }
+  window.cwHostWait = function (on) {
+    if (waitTimer) { clearInterval(waitTimer); waitTimer = null; }
+    var old = document.getElementById("cwh-wait-acts");
+    if (!on) { if (old) old.remove(); return; }
+    waitPaint();
+    var n = 0;
+    waitTimer = setInterval(function () { waitPaint(); if (++n > 150) { clearInterval(waitTimer); waitTimer = null; } }, 100);
   };
 
   function clear(){
