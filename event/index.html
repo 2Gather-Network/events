@@ -2329,7 +2329,8 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   var LV = ["Not shared", "Global", "Region", "Country", "State", "County", "City", "Neighborhood"];
   var FROM = [["bookmarked", "People I bookmarked"], ["match", "People I match with"], ["messaged", "People I messaged"], ["everyone", "All event guests"], ["none", "Nobody"]];
   var HASLB = String(ev.hasBB) === "true" || ev.hasBB === true;
-  var flow = function () { var f = [s1]; if (HASLB) f.push(s2lb); if (!(HASLB && st.lobby)) f.push(paintLv); f.push(s3); return f; };
+  var editMode = !fromRegister;
+  var flow = function () { var f = editMode ? [] : [s1]; if (HASLB) f.push(s2lb); if (!(HASLB && st.lobby)) f.push(paintLv); f.push(s3); return f; };
   var stepName = function (fn) { return fn === s1 ? "How you show at this event" : fn === s2lb ? "Join the event on 2Gather" : fn === paintLv ? "Share your location" : "After the event"; };
   var nShow = function () { return flow().length + (HASLB && st.lobby ? 1 : 0); };
   var st = { step: 0, name: "full", photo: true, have: "", blob: null, img: "", lobby: false, match: false, level: "Not shared", text: "", postal: "", ok: false, prof: {},
@@ -2538,7 +2539,7 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
   };
   var sCal = function () { body.innerHTML = '<p style="margin:4px 0 0">Add this event to your calendar?</p>'; };
   var sLobby = function () { body.innerHTML = (st.offNote ? '<p class="cw-info">' + esc(st.offNote) + '</p>' : '') + '<p style="margin:4px 0 0">When visiting 2Gather, you\u2019ll be matched with other attendees.</p>'; };
-  var paint = function () { head(); if (st.done && st.phase === "cal") sCal(); else if (st.done && st.phase === "lobby") sLobby(); else if (st.done) s4(); else flow()[st.step](); try { body.scrollTop = 0; } catch (e) {} };
+  var paint = function () { head(); if (editMode && !st.profReady && !st.done) { body.innerHTML = '<span class="cw-wait">Looking up your choices</span>'; nx.disabled = true; return; } if (editMode && !HASLB) { st.lobby = false; st.match = false; } if (st.done && st.phase === "cal") sCal(); else if (st.done && st.phase === "lobby") sLobby(); else if (st.done) s4(); else flow()[st.step](); try { body.scrollTop = 0; } catch (e) {} };
   var finish = function () { if (document.documentElement.classList.contains("cw-regpage")) { _cwRegPageBack(); return; } o.remove(); cwRegNote(ev, !st.firstReg); };
   var afterCal = function () { if (HASLB && st.lobby) { st.phase = "lobby"; paint(); } else finish(); };
   var check = function () {
@@ -2619,8 +2620,8 @@ function cwSeenAsk(ev, preview, saved, fromRegister) {
     var it = (e.clipboardData && e.clipboardData.items) || [];
     for (var i = 0; i < it.length; i++) if (it[i].type.indexOf("image") === 0) { e.preventDefault(); takeFile(it[i].getAsFile()); return; }
   });
-  var waits = 0, ready = function () { waits++; if (waits >= 2 && !st.profReady) { st.profReady = true; if (st.step === 0 && !st.done) s1(); } };
-  setTimeout(function () { if (!st.profReady) { st.profReady = true; if (st.step === 0 && !st.done) s1(); } }, 9000);
+  var waits = 0, ready = function () { waits++; if (waits >= 2 && !st.profReady) { st.profReady = true; if (st.step === 0 && !st.done) paint(); } };
+  setTimeout(function () { if (!st.profReady) { st.profReady = true; if (st.step === 0 && !st.done) paint(); } }, 9000);
   if (preview && !me) { st.profReady = true; st.have = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23D6E6F5'/%3E%3C/svg%3E"; st.prof = { location: "Washington, United States", postal: "98201" }; }
   else if (me) {
     fetch(GS_URL + "?action=lookupProfile&appearId=" + encodeURIComponent(me)).then(function (r) { return r.json(); }).then(function (x) { if (x && x.found) { if (x.name) st.nm = x.name; if (x.photo && !st.have) st.have = x.photo; } }).catch(function () {}).then(ready);
