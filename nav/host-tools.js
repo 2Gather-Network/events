@@ -174,6 +174,18 @@
     return c;
   }
 
+  window.cwHostWait = function (on) {
+    var old = document.getElementById("cwh-wait-acts");
+    if (!on) { if (old) old.remove(); return; }
+    if (old || document.getElementById("cwh-acts")) return;
+    var h1 = document.querySelector("#card h1, .cw-rl-main h1");
+    if (!h1) return;
+    if (!document.getElementById("cwh-css")) { var s = document.createElement("style"); s.id = "cwh-css"; s.textContent = CSS; document.head.appendChild(s); }
+    var row = h1.closest(".evt-head-row") || h1.parentNode;
+    var w = el("p", "cwh-wait", "Loading this event\u2026"); w.id = "cwh-wait-acts"; w.style.margin = "0 0 12px";
+    row.parentNode.insertBefore(w, row.nextSibling);
+  };
+
   function clear(){
     ["cwh-acts", "cwh-invite", "cwh-att"].forEach(function (id) { var n = document.getElementById(id); if (n) n.remove(); });
     state.id = "";
