@@ -330,12 +330,31 @@
       })
       .catch(function () { return { ok: false }; });
   }
+  function turnOnAppearForGroups(id, token) {
+    var path = String(w.location.pathname || '');
+    if (!/^\/(group|groups|mygroups|network)(\/|$)/i.test(path) || viewingAs() || !id || !token) { return; }
+    var have = ls(function () { return w.localStorage.getItem('cw-enabled') || ''; }, '');
+    if (have.split('|').map(function (x) { return x.trim(); }).indexOf('Appear') > -1) { return; }
+    var key = 'cw-here-Appear-g-' + normalise(id);
+    if (ss(function () { return w.sessionStorage.getItem(key); }, '') === '1') { return; }
+    ss(function () { w.sessionStorage.setItem(key, '1'); });
+    w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=saveAccount&appearId=' + encodeURIComponent(id) + '&secure=1&editToken=' + encodeURIComponent(token) + '&enabledSolution=Appear', { referrerPolicy: 'no-referrer' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.status === 'ok' && d.enabledSolution) {
+          ls(function () { w.localStorage.setItem('cw-enabled', d.enabledSolution); });
+          jumpLog('on a group page, so Appear is turned on');
+          if (d.conductNeeded) { conductScreen('Appear', 'ask', ''); }
+        }
+      })
+      .catch(function () {});
+  }
   function conductScreen(nm, mode, from) {
     if (viewingAs()) { return; }
     var go = function () { if (w.CW_conduct) { w.CW_conduct(nm, mode, from); } };
     if (w.CW_conduct) { go(); return; }
     var s = w.document.createElement('script');
-    s.src = 'https://2gather.network/nav/conduct.js?v=1';
+    s.src = 'https://2gather.network/nav/conduct.js?v=4';
     s.onload = go;
     (w.document.head || w.document.documentElement).appendChild(s);
   }
@@ -517,7 +536,7 @@
     var key = normalise(found);
     var token = ls(function () { return w.localStorage.getItem('cw-token') || ''; }, '');
     var exp = parseInt(token.split('.')[1], 10) || 0;
-    if (token && exp > Date.now()) { turnOnHere(found, token); }
+    if (token && exp > Date.now()) { turnOnHere(found, token); turnOnAppearForGroups(found, token); }
     var enabled = ls(function () { return w.localStorage.getItem('cw-enabled') || ''; }, '');
     var mark = ls(function () { return JSON.parse(w.localStorage.getItem('cw-jump-mark') || 'null'); }, null);
     if (mark && mark.id === key && mark.exp === exp && String(mark.enabled || '') === enabled) { jumpLog('signed in here; service already told'); return; }
@@ -568,7 +587,8 @@
         ? ['/', '/signin', '/signup', '/signin-google', '/signout']
       : onBalance
         ? ['/', '/signin', '/signup', '/signin-google', '/signout']
-        : ['/signin', '/signup', '/signin-google', '/signout', '/event', '/events'];
+        : ['/signin', '/signup', '/signin-google', '/signout'];
+    var PUBLIC_EXACT = (!onCW && !onBalance) ? ['/event', '/event/', '/event/index.html', '/event.html', '/events', '/events/', '/events/index.html', '/events.html'] : [];
 
     var asked = ls(function () { return new URLSearchParams(w.location.search).get('lock'); }, null);
     if (asked !== null) {
@@ -583,6 +603,7 @@
     }
     if (ls(function () { return w.localStorage.getItem(LOCK_KEY); }, null) === '0') { return; }
 
+    if (PUBLIC_EXACT.indexOf(here) > -1) { return; }
     for (var i = 0; i < OPEN.length; i++) {
       if (here === OPEN[i] || here.indexOf(OPEN[i] + '/') === 0 || here.indexOf(OPEN[i] + '.') === 0) { return; }
     }
