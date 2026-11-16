@@ -1168,7 +1168,7 @@ html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-ins
           <label class="field-label" for="hc-email" style="margin-top:10px;">Host's email</label>
           <input class="input" id="hc-email" type="email" placeholder="Ex: dana@example.org" oninput="_hcSync()" autocomplete="off">
           </div>
-          <p style="font-size:13.5px;color:#1A2E42;background:#E8F2F9;border-radius:10px;padding:10px 14px;margin:10px 0 0;line-height:1.5;">They get an email to take over this event. Until they say yes, you manage it and their name does not show as host.</p>
+          <div id="hc-note-row" style="font-size:13.5px;color:#1A2E42;background:#E8F2F9;border-radius:10px;padding:10px 14px;margin:10px 0 0;line-height:1.5;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;"><span style="flex:1 1 220px;">They get an email to take over this event. Until they say yes, you manage it and their name does not show as host.</span><button type="button" id="hc-send-now" onclick="_hcSendNow()" style="display:none;background:#1F699E;color:#fff;border:0;border-radius:24px;padding:8px 16px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;flex:0 0 auto;">Send now</button></div><p id="hc-sent" style="display:none;font-size:13.5px;color:#1A2E42;margin:8px 0 0;line-height:1.5;"></p>
         </div>
       </div>
       <input class="input" id="f-host" placeholder="First and last name - shown on the event" oninput="_hostTypedOver()">
@@ -1808,6 +1808,40 @@ let _choiceMethod = null;
 
 var _hcOnBehalf = false, _hcPrevHost = null;
 function _hcReset() { _hcOnBehalf = false; _hcPrevHost = null; window._hcPicHost = ""; window._hcMember = false; try { var fd = document.getElementById("hc-found"); if (fd) { fd.style.display = "none"; fd.innerHTML = ""; } var fl = document.getElementById("hc-fields"); if (fl) fl.style.display = ""; } catch (e) {} try { var r0 = document.querySelector('input[name="hc-choice"][value="me"]'); if (r0) r0.checked = true; var ob0 = document.getElementById("hc-ob"); if (ob0) ob0.style.display = "none"; ["hc-first","hc-email"].forEach(function (i) { var x = document.getElementById(i); if (x) x.value = ""; }); var fh0 = document.getElementById("f-host"); if (fh0) fh0.style.display = ""; } catch (e) {} }
+
+var _HC_SENT_KEY = function () { return "cw-hc-sent|" + String(editingId || ""); };
+function _hcPaintSent() {
+  var b = document.getElementById("hc-send-now"), t = document.getElementById("hc-sent");
+  if (b) b.style.display = (typeof editingId !== "undefined" && editingId && _hcOnBehalf) ? "" : "none";
+  if (!t) return;
+  var sent = null; try { sent = JSON.parse(localStorage.getItem(_HC_SENT_KEY()) || "null"); } catch (e) {}
+  if (sent && sent.name) {
+    var d = ""; try { d = new Date(sent.at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); } catch (e) {}
+    t.textContent = "Sent to " + sent.name + " / " + sent.email + (d ? " on " + d : "");
+    t.style.display = "";
+  } else { t.style.display = "none"; t.textContent = ""; }
+}
+async function _hcSendNow() {
+  var b = document.getElementById("hc-send-now"), t = document.getElementById("hc-sent");
+  var fn = String((document.getElementById("hc-first") || {}).value || "").trim(), em = String((document.getElementById("hc-email") || {}).value || "").trim();
+  if (!editingId) return;
+  if (!fn || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { if (t) { t.style.display = ""; t.style.color = "#7A2410"; t.textContent = "Type their first name and email address first."; } return; }
+  if (b) { b.disabled = true; b.textContent = "Sending\u2026"; }
+  var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
+  var pass = (window.CW && CW.passParam) ? CW.passParam() : "";
+  var d = null;
+  try {
+    var r = await fetch(GS_URL + "?action=socialize&hostInvite=1&id=" + encodeURIComponent(editingId) + "&email=" + encodeURIComponent(em) + "&note=&hostCode=&appearId=" + encodeURIComponent(me) + pass + "&t=" + Date.now());
+    d = await r.json();
+  } catch (e) { d = { status: "error" }; }
+  if (b) { b.disabled = false; b.textContent = "Send now"; }
+  if (d && d.status === "ok") {
+    try { localStorage.setItem(_HC_SENT_KEY(), JSON.stringify({ name: fn, email: em, at: Date.now() })); } catch (e) {}
+    var cb = document.getElementById("f-host-invite"); if (cb) cb.checked = false;
+    if (t) t.style.color = "";
+    _hcPaintSent();
+  } else if (t) { t.style.display = ""; t.style.color = "#7A2410"; t.textContent = (d && d.message) || "That did not go out. Try again in a moment."; }
+}
 function _hcShow() {
   var r = document.getElementById("hc-radios"); if (!r) return;
   var on = !window._isSharing || _hcOnBehalf;
@@ -1820,6 +1854,7 @@ function _hcShow() {
     var _cf = document.getElementById("cohost-field"); if (_cf && _hide) _cf.style.display = "none";
     var _wc = document.getElementById("f-wants-cohosts"); if (_wc && _hide && _wc.checked) { _wc.checked = false; if (typeof _syncCoHostField === "function") _syncCoHostField(); }
     var _po = document.getElementById("host-profile-opt"); if (_po) _po.style.display = _hide ? "none" : "flex";
+    try { _hcPaintSent(); } catch (e) {}
     var _hp = document.getElementById("show-hostlink"); if (_hp && _hide && _hp.checked) { _hp.checked = false; if (typeof toggleLinkFields === "function") toggleLinkFields(); }
   } catch (e) {}
 }
