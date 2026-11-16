@@ -43,6 +43,9 @@
   .b{background:var(--brand);color:#fff;border:0;border-radius:24px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;}
   .say{font-size:14px;color:var(--soft);padding:12px 0;}
   .foot{font-size:12.5px;color:var(--muted);margin:14px 0 0;}
+  @keyframes br{0%,100%{opacity:.35}50%{opacity:1}}.breath{animation:br 1.6s ease-in-out infinite;}
+  .chip .n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:11px;margin-left:8px;padding:0 6px;font-size:13px;font-weight:800;background:var(--brand);color:#fff;}
+  .chip.on .n{background:#fff;color:var(--brand);}
 </style>
 <script src="/nav/identity.js?v=66"></script>
 </head>
@@ -52,7 +55,7 @@
   <p id="stale" style="display:none;color:#fff;font-size:13.5px;margin:-8px 0 12px;opacity:.9;">Updating information…</p>
   <div class="card">
     <h1 id="title"></h1>
-    <p class="sub" id="counts">Loading attendees</p>
+    <p class="sub" id="counts"><span class="breath">Loading…</span></p>
     <div id="body" style="display:none;">
       <div class="chips" id="chips"></div>
       <input class="search" id="q" type="search" placeholder="Search attendees" aria-label="Search attendees">
@@ -69,6 +72,7 @@
   var me = ''; try { me = (window.CW && CW.me && CW.me().id) || ''; } catch (e) {}
   var pass = ''; try { pass = (window.CW && CW.passParam) ? CW.passParam() : ''; } catch (e) {}
   var say = function (t) { $('counts').textContent = t; };
+  $('counts').innerHTML = '<span class="breath">Loading…</span>';
   if (!id) { say('Open this page from your event so we know which event to manage.'); return; }
   if (!me) { location.replace('https://2appear.network/signin/?next=' + encodeURIComponent(location.href)); return; }
   var series = /^recurring-/.test(id) ? '' : id;
@@ -84,8 +88,9 @@
     var t = String($('q').value || '').trim().toLowerCase();
     var on = rows.filter(function (r) { return r.inLobby; }).length;
     $('chips').innerHTML = '';
-    [['all', 'All ' + rows.length]].concat(hasBB ? [['on', 'On 2Gather ' + on], ['off', 'Not on 2Gather ' + (rows.length - on)]] : []).forEach(function (c) {
-      var b = document.createElement('button'); b.type = 'button'; b.className = 'chip' + (filter === c[0] ? ' on' : ''); b.textContent = c[1];
+    [['all', 'All', rows.length]].concat(hasBB ? [['on', 'On 2Gather', on], ['off', 'Not on 2Gather', rows.length - on]] : []).forEach(function (c) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'chip' + (filter === c[0] ? ' on' : ''); b.appendChild(document.createTextNode(c[1]));
+      var nn = document.createElement('span'); nn.className = 'n'; nn.textContent = String(c[2]); b.appendChild(nn);
       b.onclick = function () { filter = c[0]; paint(); }; $('chips').appendChild(b);
     });
     var list = rows.filter(function (r) { return filter === 'all' || (filter === 'on' ? r.inLobby : !r.inLobby); })
@@ -114,13 +119,13 @@
   function buttons() {
     var bt = $('btns'); bt.innerHTML = '';
     var inv = document.createElement('a'); inv.className = 'b'; inv.textContent = 'Invite people'; inv.href = evUrl; bt.appendChild(inv);
-    if (hasBB) { var go = document.createElement('a'); go.className = 'b'; go.textContent = 'Go to 2Gather'; go.href = 'https://2gather.network/attendees/?id=' + encodeURIComponent(id); bt.appendChild(go); }
+    if (hasBB) { var go = document.createElement('a'); go.className = 'b'; go.textContent = 'Start 2Gather'; go.href = 'https://2gather.network/attendees/?id=' + encodeURIComponent(id); bt.appendChild(go); }
   }
   try {
     var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
     if (saved && Array.isArray(saved.rows)) { rows = saved.rows; hasBB = !!saved.bb; showBody(saved.t || ''); buttons(); paint(); $('stale').style.display = ''; }
   } catch (e) {}
-  var role = series ? fetch(GS + '?action=getEventById&id=' + encodeURIComponent(series) + '&appearId=' + encodeURIComponent(me) + '&nocache=1').then(function (r) { return r.json(); }).catch(function () { return null; }) : Promise.resolve(null);
+  var role = Promise.resolve(null);
   var bundle = fetch(GS + '?action=eventBundle&id=' + encodeURIComponent(id) + '&t=' + Date.now()).then(function (r) { return r.json(); }).catch(function () { return {}; });
   var att = fetch(GS + '?action=getAttendees&eventId=' + encodeURIComponent(id) + '&appearId=' + encodeURIComponent(me) + pass).then(function (x) { return x.json(); });
   Promise.all([role, bundle, att]).then(function (a) {
@@ -131,7 +136,7 @@
     hasBB = row.hasBB === true || String(row.hasBB) === 'true' || row.hasHub === true || String(row.hasHub) === 'true';
     var d = a[2] || {}, at = d.attendees || [];
     var mayEdit = at.some(function (c) { return 'inLobby' in c; });
-    if (!mayEdit && !(Number(d.count) === 0 && series && (r === 'host' || r === 'cohost' || r === 'super'))) { try { localStorage.removeItem(KEY); } catch (e) {} location.replace(evUrl); return; }
+    if (!mayEdit && !(at.length === 0 && Number(d.count) === 0)) { try { localStorage.removeItem(KEY); } catch (e) {} location.replace(evUrl); return; }
     rows = at.map(function (c) { var em = String(c.email || '').trim(); return { name: String(c.name || '').trim(), seenAs: String(c.seenAs || '').trim(), photo: String(c.photo || '').trim(), inLobby: c.inLobby === true, at: c.registeredAt || '', isHost: c.isHost === true, place: String(c.place || '').trim(), email: /^[^\s@<>"'()]+@[^\s@<>"'()]+\.[A-Za-z]{2,}$/.test(em) ? em : '' }; });
     rows.sort(function (x, y) { return (x.isHost === y.isHost) ? x.name.localeCompare(y.name) : (x.isHost ? -1 : 1); });
     showBody(title); buttons(); paint(); $('stale').style.display = 'none';
