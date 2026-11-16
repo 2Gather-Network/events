@@ -3,7 +3,7 @@
   var CSS = "#cwh-acts,#cwh-invite{order:4}"
     + ".cwh-acts{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}"
     + ".cwh-b{background:#1F699E;color:#fff;border:0;border-radius:24px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;min-height:0}"
-    + ".cwh-b.on{background:#17577F}"
+    + ".cwh-b.on{background:#1F699E}.cwh-b:focus{outline:none}.cwh-b:focus-visible{outline:2px solid #1F699E;outline-offset:2px}"
     + "a.cwh-b,a.cwh-b:visited,a.cwh-b:hover{color:#fff !important;text-decoration:none !important}"
     + ".cwh-card{border:1.5px solid #DDE4EE;border-radius:14px;padding:16px 18px;margin:0 0 16px;background:#fff}"
     + ".cwh-card .cwh-pq{font-size:18px;font-weight:800;color:#1A2E42;margin:0 0 14px}"
