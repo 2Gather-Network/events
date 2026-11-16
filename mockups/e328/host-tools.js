@@ -1,6 +1,7 @@
 (function(){
   var GS = "https://cw-api-gate.jessieupp.workers.dev";
   var CSS = "#cwh-acts,#cwh-invite{order:4}"
+    + "@keyframes cwh-br{0%,100%{opacity:.4}50%{opacity:1}}.cwh-wait{font-size:14px;font-weight:700;color:#1F699E;animation:cwh-br 1.6s ease-in-out infinite}@media (prefers-reduced-motion:reduce){.cwh-wait{animation:none}}"
     + ".cwh-acts{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}"
     + ".cwh-b{background:#1F699E;color:#fff;border:0;border-radius:24px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;min-height:0}"
     + ".cwh-b.on{background:#1F699E}.cwh-b:focus{outline:none}.cwh-b:focus-visible{outline:2px solid #1F699E;outline-offset:2px}"
@@ -193,9 +194,18 @@
         var c = inviteCard(ev); acts.parentNode.insertBefore(c, acts.nextSibling); c._load();
         inv.classList.add("on"); inv.setAttribute("aria-expanded", "true");
       };
+      (function () {
+        var rail0 = document.querySelector(".cw-rl-rail");
+        if (!rail0 || document.getElementById("cwh-att") || document.getElementById("cwh-att-wait")) return;
+        var wb = el("div", "cwh-box"); wb.id = "cwh-att-wait"; wb.appendChild(el("span", "cwh-wait", "Loading\u2026"));
+        var f0 = rail0.querySelector(".ux105-box") || rail0.firstElementChild;
+        if (f0 && f0.nextSibling) rail0.insertBefore(wb, f0.nextSibling); else rail0.appendChild(wb);
+      })();
+      var dropWait = function () { var w = document.getElementById("cwh-att-wait"); if (w) w.remove(); };
       fetch(GS + "?action=getAttendees&eventId=" + encodeURIComponent(eid) + "&appearId=" + encodeURIComponent(me()) + "&nocache=1")
         .then(function (r) { return r.json(); })
         .then(function (d) {
+          dropWait();
           if (state.id !== eid) return;
           var a = ((d && (d.attendees || d.people)) || []).filter(function (x) { return x && !x.isHost; });
           if (!a.length) return;
@@ -208,7 +218,7 @@
           var first = rail.querySelector(".ux105-box") || rail.firstElementChild;
           if (first && first.nextSibling) rail.insertBefore(box, first.nextSibling); else rail.appendChild(box);
         })
-        .catch(function () {});
+        .catch(function () { dropWait(); });
     }
   };
 })();
