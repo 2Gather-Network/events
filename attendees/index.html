@@ -868,6 +868,22 @@ function _boardApply(d){
     computeGlobals(); buildChips(); renderAll();
     return true;
 }
+function _lobbyKey(){ return 'cw-lobby-'+_eventId+'-'+normId(_myId||''); }
+function _lobbyAsk(){ return GS_URL+'?action=getEventProfiles&eventId='+encodeURIComponent(_eventId)+(_myId?'&me='+encodeURIComponent(_myId):''); }
+function _lobbyKeep(d){ try{ localStorage.setItem(_lobbyKey(), JSON.stringify({at:Date.now(), d:d})); }catch(e){} }
+function _lobbyQuietRefresh(before){
+  var reKey='cw-lobby-re-'+_eventId;
+  fetch(_lobbyAsk()+'&t='+Date.now()).then(function(r){ return r.json(); }).then(function(d){
+    if(!d || !d.attendees) return;
+    var ok=(typeof d.meRegistered==='boolean' ? d.meRegistered : false) || d.meManages===true;
+    if(!ok){ try{ localStorage.removeItem(_lobbyKey()); }catch(e){} location.reload(); return; }
+    var now=JSON.stringify(d);
+    if(now===before){ try{ sessionStorage.removeItem(reKey); }catch(e){} return; }
+    _lobbyKeep(d);
+    try{ if(sessionStorage.getItem(reKey)) return; sessionStorage.setItem(reKey,'1'); }catch(e){}
+    location.reload();
+  }).catch(function(){});
+}
 async function loadMembers(){
   if(_groupId){ return loadGroupMembers(); }
   if(_qrK && _eventId && !_groupId){
@@ -877,8 +893,10 @@ async function loadMembers(){
   if(!_myId && _eventId){ window.location.replace('https://2appear.network/event/?id='+encodeURIComponent(_eventId)); return; }
   if(_myId && _eventId) _muInfo();
   try{
-    var res=await fetch(GS_URL+'?action=getEventProfiles&eventId='+encodeURIComponent(_eventId)+(_myId?'&me='+encodeURIComponent(_myId):''));
-    var d=await res.json();
+    var d=null, _lk=null;
+    if(_myId && !_qrK){ try{ _lk=JSON.parse(localStorage.getItem(_lobbyKey())||'null'); }catch(e){} if(!(_lk && _lk.d && _lk.d.attendees && (Date.now()-Number(_lk.at||0)) < 24*60*60*1000)) _lk=null; }
+    if(_lk){ d=_lk.d; }
+    else { var res=await fetch(_lobbyAsk()); d=await res.json(); }
     if(d && d.attendees){
       d.attendees.forEach(function(p){ _photoMap[normId(p.appearId)]={photo:p.photo||'',pageLink:p.pageLink||''}; });
       d.attendees.forEach(function(p){ processRow(p, p.appearId); });
@@ -891,6 +909,7 @@ async function loadMembers(){
       if(params.get('profile')==='1' && _myId && _meRegistered){ await loadMyDataFallback(); await _epCard(); return; }
       if(_myId && (_meRegistered || window._evManages) && params.get('p')){ var _pm=_members.filter(function(m){ return _cwCodeFor(m.appearId)===params.get('p'); })[0]; if(_pm){ await loadBookmarkedPeople(); if(await _avCard(_pm.appearId)) return; } }
       if(_myId && (_meRegistered || window._evManages) && params.get('bookmarks')==='1'){ await _bmCard(); return; }
+      if(_myId && (_meRegistered || window._evManages)){ if(_lk) _lobbyQuietRefresh(JSON.stringify(_lk.d)); else _lobbyKeep(d); }
       _boardShow();
       computeGlobals(); buildChips(); renderAll();
       return;
