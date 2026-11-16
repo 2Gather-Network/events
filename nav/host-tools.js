@@ -203,6 +203,7 @@
         var c = inviteCard(ev); acts.parentNode.insertBefore(c, acts.nextSibling); c._load();
         inv.classList.add("on"); inv.setAttribute("aria-expanded", "true");
       };
+      try { if (/[?&]qr=1(&|$)/.test(location.search) && !document.getElementById("cwh-invite")) { setTimeout(function () { inv.click(); var ic = document.getElementById("cwh-invite"); if (ic && ic.scrollIntoView) ic.scrollIntoView({ block: "start" }); }, 0); } } catch (e) {}
       fetch(GS + "?action=getAttendees&eventId=" + encodeURIComponent(eid) + "&appearId=" + encodeURIComponent(me()) + "&nocache=1")
         .then(function (r) { return r.json(); })
         .then(function (d) {
