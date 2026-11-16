@@ -54,9 +54,9 @@
   .note{font-size:13.5px;color:var(--soft);margin:8px 0 0;}
   #cw-prail-main{padding-top:12px;}
   #cw-prail-main h2{margin-top:0;}
-  .veil{position:fixed;inset:0;background:rgba(15,30,50,.45);display:flex;align-items:flex-start;justify-content:center;padding:30px 14px;overflow-y:auto;z-index:50;}
+  .veil{display:block;margin:0 0 18px;}
   .veil[hidden]{display:none;}
-  .sheet{background:#fff;border-radius:16px;width:100%;max-width:560px;padding:20px 22px 22px;box-shadow:0 12px 40px rgba(0,0,0,.25);}
+  .sheet{background:#fff;width:100%;max-width:640px;}
   .sh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
   .sh h2{margin:0;}
   .x{background:none;border:0;font-size:20px;line-height:1;color:var(--soft);cursor:pointer;padding:6px;}
@@ -70,6 +70,16 @@
   .card-box img{max-width:160px;max-height:110px;border-radius:8px;border:1px solid var(--line);display:block;}
   .card-box .hint{font-size:13px;color:var(--soft);}
   .card-box [hidden],.acts [hidden],.check[hidden]{display:none;}
+  .pill.other{background:#fff;border:1.5px solid #1F699E;color:#1F699E;font-weight:700;}
+  .pill.other[aria-pressed="true"]{background:#1F699E;color:#fff;}
+  .fill{background:var(--panel);border:1.5px solid var(--panel-line);border-radius:14px;padding:12px 14px;margin-top:10px;}
+  .fill p{font-size:13.5px;color:var(--soft);margin:0 0 10px;line-height:1.5;}
+  .fill .line2{display:flex;gap:8px;flex-wrap:wrap;}
+  .fill .line2 input{flex:1;min-width:180px;}
+  .fill .or{font-size:13px;color:var(--soft);text-align:center;margin:8px 0;}
+  .fill-msg{font-size:13.5px;margin:8px 0 0;}
+  .fill-msg[hidden],.sub-pick[hidden],#f-met[hidden]{display:none;}
+  .sub-pick{margin-top:8px;}
   .check{display:flex;align-items:center;gap:8px;font-size:14px;margin-top:16px;}
   .acts{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:22px;}
   .acts .left{margin-right:auto;}
@@ -78,29 +88,22 @@
   .confirm{background:#FFF6F5;border:1.5px solid #F3C9C4;border-radius:12px;padding:12px 14px;margin-top:16px;font-size:14px;}
   .confirm[hidden]{display:none;}
 </style>
-<script src="/nav/identity.js?v=61"></script>
+<script src="/nav/identity.js?v=66"></script>
 </head>
 <body>
 
 <div class="wrap">
   <div class="breadcrumb" id="breadcrumb"></div>
   <div id="pane">
-    <h2>My contacts</h2>
+    <h2>Relationship Management System</h2>
     <p class="sub" id="sub">Looking up your contacts.</p>
     <div id="body" hidden>
       <div class="notice"><span>Did you meet someone you want to reach again? Add them to save a reminder to follow up.</span><button class="btn" type="button" id="add">+ Add contact</button></div>
       <div class="tools" id="tools" hidden>
         <input type="search" id="find" autocomplete="off" placeholder="Search" aria-label="Search contacts" style="flex:1;min-width:180px;margin:0;">
-        <select id="filter" aria-label="Narrow the list">
-          <option value="all">All contacts</option>
-          <option value="Network">Network invite</option>
-          <option value="Event">Event invite</option>
-          <option value="Group">Group invite</option>
-          <option value="Meeting">Meeting invite</option>
-          <option value="Other">Other</option>
-          <option value="__archived">Archived</option>
-        </select>
+        <button class="btn ghost" type="button" id="filter">Filter</button>
       </div>
+      <div class="tools" id="cf-on" hidden><span class="note" id="cf-txt" style="flex:1;margin:0"></span><button class="btn ghost" type="button" id="cf-clear">Clear filter</button></div>
       <p class="none" id="none" hidden></p>
       <div id="list"></div>
       <p class="note" id="linknote" hidden></p>
@@ -109,8 +112,17 @@
 </div>
 
 <div class="veil" id="veil" hidden>
-  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="edit-h">
+  <div class="sheet" aria-labelledby="edit-h">
     <div class="sh"><h2 id="edit-h">Add contact</h2><button class="x" type="button" aria-label="Close" id="close">✕</button></div>
+    <div class="fill" id="fill">
+      <p>Paste a link to their page, or upload a picture of their business card. We'll fill in what we can for you to check.</p>
+      <div class="line2"><input type="url" id="fill-url" placeholder="Ex: their website or LinkedIn page" aria-label="Link to their page" autocomplete="off"><button class="btn ghost" type="button" id="fill-fetch">Fetch from link</button></div>
+      <div class="or">or</div>
+      <button class="btn ghost" type="button" id="fill-card" style="width:100%">Upload a picture of their card</button>
+      <input type="file" id="fill-file" accept="image/*" capture="environment" hidden>
+      <p class="fill-msg" id="fill-msg" hidden></p>
+      <p style="margin:10px 0 0;font-size:12.5px;">To read this, the picture or the page text is sent to an AI reading service.</p>
+    </div>
     <div class="field"><span class="q">Business card <span class="opt">(only you can see it)</span></span>
       <div class="card-box">
         <img id="card-img" alt="Their business card" hidden>
@@ -120,9 +132,9 @@
         <input type="file" id="card-file" accept="image/*" capture="environment" hidden>
       </div>
     </div>
-    <div class="field"><span class="q">Their photo <span class="opt">(only you can see it)</span></span>
+    <div class="field"><span class="q">Additional photo <span class="opt">(only you can see it)</span></span>
       <div class="card-box">
-        <img id="face-img" alt="Their photo" hidden>
+        <img id="face-img" alt="Additional photo" hidden>
         <button class="btn ghost" type="button" id="face-pick">Choose an image</button>
         <button class="btn ghost" type="button" id="face-drop" hidden>Remove the photo</button>
         <span class="hint" id="face-hint">Only you can see it. Take a photo of someone only with their OK.</span>
@@ -130,10 +142,13 @@
       </div>
     </div>
     <div class="field"><label for="f-name">Name</label><input type="text" id="f-name" maxlength="120" autocomplete="off"></div>
+    <div class="field"><label for="f-role">Role and organization</label><input type="text" id="f-role" maxlength="200" placeholder="Ex: Owner, Corner Café" autocomplete="off"></div>
     <div class="field"><label for="f-email">Email</label><input type="email" id="f-email" maxlength="254" autocomplete="off"></div>
     <div class="field"><label for="f-phone">Phone</label><input type="tel" id="f-phone" maxlength="40" autocomplete="off"></div>
     <div class="field"><span class="q">How I met this person</span><div class="pills" data-f="metHow" data-set="met"></div>
-      <input type="text" id="f-met" maxlength="200" placeholder="How did you meet?" aria-label="How did you meet?" autocomplete="off" hidden style="margin-top:8px"></div>
+      <select id="f-met-event" class="sub-pick" aria-label="Which event" hidden></select>
+      <select id="f-met-group" class="sub-pick" aria-label="Which group" hidden></select>
+      <input type="text" id="f-met" maxlength="200" placeholder="In your own words" aria-label="How did you meet, in your own words" autocomplete="off" hidden style="margin-top:8px"></div>
     <div class="field"><span class="q">How I want to follow up</span><div class="pills" data-f="followUpHow" data-set="how"></div></div>
     <div class="field"><span class="q">What type of invite I want to send</span><div class="pills" data-f="inviteType" data-set="invite"></div></div>
     <div class="field"><span class="q">I followed up with</span><div class="pills" data-f="followedUpWith" data-set="how"></div></div>
@@ -142,6 +157,14 @@
     <div class="field"><label for="f-tags">Tags</label><input type="text" id="f-tags" maxlength="200" placeholder="Ex: Conference, Partner" autocomplete="off"></div>
     <div class="field"><label for="f-url">URL</label><input type="url" id="f-url" maxlength="500" placeholder="Ex: https://their-site.org" autocomplete="off"></div>
     <div class="field"><label for="f-group">Group</label><select id="f-group"><option value="">None</option></select></div>
+    <div class="field"><label for="f-ask">What they asked for</label><textarea id="f-ask" rows="2" maxlength="1000" placeholder="Ex: an intro to a grant writer"></textarea></div>
+    <div class="field"><label for="f-remind">Remind me to reach out on</label><input type="date" id="f-remind"></div>
+    <details class="field" id="f-more"><summary class="q" style="cursor:pointer">More details</summary>
+      <div class="field"><span class="q">Relationship type</span><div class="pills" data-f="relationshipType" data-set="relationship"></div></div>
+      <div class="field"><span class="q">Status</span><div class="pills" data-f="status" data-set="status"></div></div>
+      <div class="field"><span class="q">Priority</span><div class="pills" data-f="priority" data-set="priority"></div></div>
+      <div class="field"><label for="f-last">Last contacted</label><input type="date" id="f-last"></div>
+    </details>
     <label class="check" id="arch-wrap" hidden><input type="checkbox" id="f-arch"> Archive this contact</label>
     <div class="confirm" id="confirm" hidden>
       <div id="confirm-text"></div>
@@ -156,19 +179,51 @@
   </div>
 </div>
 
-<script src="https://2gather.network/nav/profile-rail.js?v=23"></script>
+<div class="veil" id="addveil" hidden>
+  <div class="sheet" aria-labelledby="add-h">
+    <div class="sh"><h2 id="add-h">Add contact</h2><button class="x" type="button" aria-label="Close" id="add-close">✕</button></div>
+    <div class="acts" style="flex-direction:column;align-items:stretch">
+      <button class="btn" type="button" id="add-card">Take a photo of a card</button>
+      <button class="btn ghost" type="button" id="add-type">Type it in</button>
+    </div>
+    <p class="note" style="margin-top:12px">To read this, the picture or the page text is sent to an AI reading service.</p>
+  </div>
+</div>
+
+<div class="veil" id="fveil" hidden>
+  <div class="sheet" aria-labelledby="f-h">
+    <div class="sh"><h2 id="f-h">Filter</h2><button class="x" type="button" aria-label="Close" id="f-close">✕</button></div>
+    <div id="f-sets"></div>
+    <div class="acts"><button class="btn ghost left" type="button" id="cf-clr">Clear all</button><button class="btn" type="button" id="cf-done">Done</button></div>
+  </div>
+</div>
+
+<script src="https://2gather.network/nav/profile-rail.js?v=27"></script>
 <script>
   var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
   var PHOTOS = 'https://cw-photos.jessieupp.workers.dev';
   var HOW = ['Appear', 'Text', 'Call', 'Email'];
   var INVITE = [['Network', 'Network invite'], ['Event', 'Event invite'], ['Group', 'Group invite'], ['Meeting', 'Meeting invite'], ['Other', 'Other']];
-  var MET = [['Event', 'Event'], ['Online', 'Online'], ['Referral', 'Referral'], ['Other', 'Other']];
+  var MET = [['Event', 'Event'], ['Group', 'Group'], ['Online', 'Online'], ['Referral', 'Referral'], ['Other', '+ Other']];
   var INVITE_WORD = { Network: 'Network invite', Event: 'Event invite', Group: 'Group invite', Meeting: 'Meeting invite', Other: 'Other' };
+  var RELATIONSHIP = ['Potential team', 'Potential client', 'To be served', 'Partner', 'Other'];
+  var STATUS = ['To contact', 'Following up', 'Waiting on them', 'Scheduled', 'Connected', 'Parked'];
+  var PRIORITY = ['High', 'Medium', 'Low'];
+  var SOURCE_WORD = { bookmark: 'Bookmarked', eventInvite: 'Event invite', connect: 'Connected', card: 'Business card', event: 'Invited to host' };
+  var CF = { ev: [], grp: [], tags: [], l: [], arch: false };
+  var CFN = { ev: 'Past events', grp: 'Selected groups', tags: 'Tags', l: 'How they landed here' };
+  var PASTEV = [];
 
   try { if (window.cwBreadcrumb) { window.cwBreadcrumb(document.getElementById('breadcrumb'), 'My contacts'); } } catch (e) {}
   try { if (window.cwProfileRail) { window.cwProfileRail({ wrap: document.getElementById('pane'), shape: 'network', active: 'contacts' }); } } catch (e) {}
 
-  var ME = '', ALL = [], GROUPS = [], EDIT = null, BUSY = false, SENDING = 0;
+  ['veil', 'addveil', 'fveil'].forEach(function (id) { var v = document.getElementById(id), p = document.getElementById('pane'); if (v && p) { p.appendChild(v); } });
+  function onlyPanel(id) {
+    ['veil', 'addveil', 'fveil'].forEach(function (x) { document.getElementById(x).hidden = x !== id; });
+    document.getElementById('body').hidden = !!id;
+    if (id) { window.scrollTo(0, 0); }
+  }
+  var ME = '', ALL = [], GROUPS = [], EVENTS = [], EDIT = null, BUSY = false, SENDING = 0;
   var PIC = { card: { id: '', url: '', blank: 'A photo of their card', remove: 'Remove the card' }, face: { id: '', url: '', blank: 'Only you can see it. Take a photo of someone only with their OK.', remove: 'Remove the photo' } };
   try { var _m = CW.me(); ME = _m && _m.id ? String(_m.id).trim() : ''; } catch (e) {}
 
@@ -204,40 +259,126 @@
     return mo[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + ' at ' + t;
   }
 
+  function tagsOf(c) { return String(c.tag || '').split(',').map(function (t) { return t.trim(); }).filter(Boolean); }
+  function landWord(c) {
+    if (c.inviteType) { return c.inviteType.split('|').map(function (k) { return INVITE_WORD[k] || k; }).join(' · '); }
+    return SOURCE_WORD[c.sourceKind] || '';
+  }
+  function howLine(c) {
+    if (c.metHow) { return c.metHow; }
+    if (c.sourceKind === 'bookmark') {
+      var bev = c.sourceId ? PASTEV.filter(function (e) { return e.eventId === c.sourceId; })[0] : null;
+      return bev ? 'Bookmarked at ' + bev.title : 'You bookmarked their page on 2Appear';
+    }
+    if (c.sourceKind === 'eventInvite') {
+      var ev = PASTEV.filter(function (e) { return e.eventId === c.sourceId; })[0];
+      return ev ? 'You invited them to ' + ev.title : '';
+    }
+    if (c.sourceKind === 'connect') { return 'You connected on 2Appear'; }
+    return '';
+  }
+  function cfKey(c, k) {
+    if (k === 'tags') { return tagsOf(c); }
+    if (k === 'ev') { return (c.sourceKind === 'eventInvite' || c.sourceKind === 'event' || c.sourceKind === 'bookmark') && c.sourceId ? [c.sourceId] : []; }
+    if (k === 'grp') { return c.groupIds || (c.groupId ? [c.groupId] : []); }
+    var w = landWord(c); return w ? [w] : [];
+  }
+  function cpass(c) {
+    return ['ev', 'grp', 'tags', 'l'].every(function (k) {
+      if (!CF[k].length) { return true; }
+      return cfKey(c, k).some(function (v) { return CF[k].indexOf(v) > -1; });
+    });
+  }
+  function cfName(k, v) {
+    if (k === 'ev') { var e = PASTEV.filter(function (x) { return x.eventId === v; })[0]; return e ? e.title : v; }
+    if (k === 'grp') { var g = GROUPS.filter(function (x) { return x.groupId === v; })[0]; return g ? (g.name || 'A group of yours') : v; }
+    return v;
+  }
+
   function draw() {
     var q = String($('find').value || '').trim().toLowerCase();
-    var mode = $('filter').value || 'all';
-    var shown = ALL.filter(function (c) {
-      if (mode === '__archived') { if (!c.archived) { return false; } }
-      else { if (c.archived) { return false; } if (mode !== 'all' && c.inviteType.split('|').indexOf(mode) < 0) { return false; } }
+    var live = ALL.filter(function (c) { return CF.arch ? c.archived : !c.archived; });
+    var shown = live.filter(function (c) {
+      if (!cpass(c)) { return false; }
       if (!q) { return true; }
-      return [c.name, c.email, c.phone, c.metHow, c.tag, c.notes].join(' ').toLowerCase().indexOf(q) > -1;
+      return [c.name, c.email, c.phone, c.metHow, c.tag, c.notes, c.roleOrg].join(' ').toLowerCase().indexOf(q) > -1;
     });
+    var on = ['ev', 'grp', 'tags', 'l'].filter(function (k) { return CF[k].length; });
+    $('cf-on').hidden = !on.length && !CF.arch;
+    $('cf-txt').textContent = 'Showing ' + shown.length + ' of ' + live.length + (CF.arch ? ' · Archived' : '') + on.map(function (k) { return ' · ' + CFN[k] + ': ' + CF[k].map(function (v) { return cfName(k, v); }).join(', '); }).join('');
     var box = $('list');
     box.innerHTML = '';
     $('none').hidden = !!shown.length;
-    $('none').textContent = shown.length ? '' : (ALL.length ? 'Nobody here matches that.' : 'No contacts yet. Press + Add contact to save your first one.');
+    $('none').textContent = shown.length ? '' : (ALL.length ? 'Nobody here matches that.' : 'People you invite, meet at events or message land here by themselves.');
     shown.forEach(function (c) {
       var row = document.createElement('div'); row.className = 'row';
       var av = document.createElement('span'); av.className = 'av'; av.textContent = initials(c.name);
       var who = document.createElement('div'); who.className = 'who';
-      var kind = c.inviteType ? c.inviteType.split('|').map(function (k) { return INVITE_WORD[k] || k; }).join(' · ') : (c.sourceKind === 'event' ? 'Invited to host' : '');
+      var kind = landWord(c);
       if (kind) { var lb = document.createElement('span'); lb.className = 'lbl'; lb.textContent = kind; who.appendChild(lb); }
-      var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = c.name || 'No name';
-      who.appendChild(nm);
       var when = added(c.addedAt);
-      if (when) { var ln = document.createElement('div'); ln.className = 'line'; ln.textContent = 'Added ' + (c.name || 'them') + ' on ' + when; who.appendChild(ln); }
-      if (c.tag) { var tg = document.createElement('div'); tg.className = 'line'; tg.textContent = c.tag; who.appendChild(tg); }
+      var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = when ? 'Added ' + (c.name || 'them') + ' on ' + when : (c.name || 'No name');
+      who.appendChild(nm);
+      var how = howLine(c);
+      if (how) { var hl = document.createElement('div'); hl.className = 'line'; hl.textContent = how + ' · ' + (c.name || ''); who.appendChild(hl); }
+      var more = [c.roleOrg, c.phone].filter(Boolean).join(' · ');
+      if (more) { var ml = document.createElement('div'); ml.className = 'line'; ml.textContent = more; who.appendChild(ml); }
+      var tg = tagsOf(c);
+      if (tg.length) {
+        var tb = document.createElement('div'); tb.className = 'pills'; tb.style.marginTop = '8px';
+        tg.forEach(function (t) {
+          var b = document.createElement('button'); b.type = 'button'; b.className = 'pill'; b.textContent = t;
+          b.setAttribute('aria-pressed', CF.tags.length === 1 && CF.tags[0] === t ? 'true' : 'false');
+          b.onclick = function () { var only = CF.tags.length === 1 && CF.tags[0] === t; CF = { ev: [], grp: [], tags: only ? [] : [t], l: [], arch: CF.arch }; draw(); };
+          tb.appendChild(b);
+        });
+        who.appendChild(tb);
+      }
       var acts = document.createElement('div'); acts.className = 'actions-row';
       var ed = document.createElement('button'); ed.type = 'button'; ed.className = 'btn ghost'; ed.textContent = 'Edit';
       ed.onclick = function () { openForm(c); };
+      var nt = document.createElement('button'); nt.type = 'button'; nt.className = 'btn ghost'; nt.textContent = 'Add a note';
+      nt.onclick = function () { openForm(c); setTimeout(function () { try { $('f-notes').focus(); } catch (e) {} }, 40); };
       var lk = document.createElement('button'); lk.type = 'button'; lk.className = 'btn ghost'; lk.textContent = 'Link';
       lk.onclick = function () { copyLink(c, lk); };
-      acts.appendChild(ed); acts.appendChild(lk);
+      acts.appendChild(ed); acts.appendChild(nt); acts.appendChild(lk);
       row.appendChild(av); row.appendChild(who); row.appendChild(acts);
       box.appendChild(row);
     });
   }
+
+  function filterOpen() {
+    var box = $('f-sets'); box.innerHTML = '';
+    var live = ALL.filter(function (c) { return !c.archived; });
+    ['ev', 'grp', 'tags', 'l'].forEach(function (k) {
+      var vals = [];
+      if (k === 'ev') { PASTEV.forEach(function (e) { vals.push(e.eventId); }); }
+      else if (k === 'grp') { GROUPS.forEach(function (g) { vals.push(g.groupId); }); }
+      else { live.forEach(function (c) { cfKey(c, k).forEach(function (v) { if (vals.indexOf(v) < 0) { vals.push(v); } }); }); }
+      if (!vals.length) { return; }
+      var f = document.createElement('div'); f.className = 'field';
+      var q = document.createElement('span'); q.className = 'q'; q.textContent = CFN[k]; f.appendChild(q);
+      vals.forEach(function (v) {
+        var l = document.createElement('label'); l.className = 'check'; l.style.marginTop = '8px';
+        var i = document.createElement('input'); i.type = 'checkbox'; i.value = v; i.setAttribute('data-k', k); i.checked = CF[k].indexOf(v) > -1;
+        l.appendChild(i); l.appendChild(document.createTextNode(' ' + cfName(k, v))); f.appendChild(l);
+      });
+      box.appendChild(f);
+    });
+    var al = document.createElement('label'); al.className = 'check';
+    var ai = document.createElement('input'); ai.type = 'checkbox'; ai.id = 'cf-arch'; ai.checked = CF.arch;
+    al.appendChild(ai); al.appendChild(document.createTextNode(' Archived')); box.appendChild(al);
+    onlyPanel('fveil');
+  }
+  $('filter').onclick = filterOpen;
+  $('f-close').onclick = function () { onlyPanel(''); };
+  $('cf-clr').onclick = function () { Array.prototype.forEach.call($('f-sets').querySelectorAll('input'), function (i) { i.checked = false; }); };
+  $('cf-done').onclick = function () {
+    CF = { ev: [], grp: [], tags: [], l: [], arch: !!($('cf-arch') && $('cf-arch').checked) };
+    Array.prototype.forEach.call($('f-sets').querySelectorAll('input[data-k]:checked'), function (i) { CF[i.getAttribute('data-k')].push(i.value); });
+    onlyPanel(''); draw();
+  };
+  $('cf-clear').onclick = function () { CF = { ev: [], grp: [], tags: [], l: [], arch: false }; draw(); };
 
   var MY_LINK = null;
   function copyLink(c, btn) {
@@ -262,37 +403,61 @@
   function pills() {
     Array.prototype.forEach.call(document.querySelectorAll('.pills'), function (box) {
       var kind = box.getAttribute('data-set');
-      var set = kind === 'how' ? HOW.map(function (h) { return [h, h]; }) : kind === 'met' ? MET : INVITE;
+      var one = function (l) { return l.map(function (h) { return [h, h]; }); };
+      var set = kind === 'how' ? one(HOW) : kind === 'met' ? MET : kind === 'relationship' ? one(RELATIONSHIP) : kind === 'status' ? one(STATUS) : kind === 'priority' ? one(PRIORITY) : INVITE;
       box.innerHTML = '';
       set.forEach(function (it) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'pill'; b.textContent = it[1];
         b.setAttribute('data-v', it[0]); b.setAttribute('aria-pressed', 'false');
+        if (kind === 'met' && it[0] === 'Other') { b.className = 'pill other'; }
         b.onclick = function () {
           var on = b.getAttribute('aria-pressed') === 'true';
           Array.prototype.forEach.call(box.children, function (x) { x.setAttribute('aria-pressed', 'false'); });
           b.setAttribute('aria-pressed', on ? 'false' : 'true');
-          if (kind === 'met') { metOther(!on && it[0] === 'Other'); }
+          if (kind === 'met') { metShow(on ? '' : it[0]); }
         };
         box.appendChild(b);
       });
     });
   }
-  function metOther(open) {
+  function metFill(sel, list, key, word) {
+    sel.innerHTML = '';
+    var first = document.createElement('option'); first.value = '';
+    first.textContent = list.length ? 'Pick the ' + word : 'You have no ' + word + 's yet';
+    sel.appendChild(first);
+    list.forEach(function (x) {
+      var o = document.createElement('option'); o.value = x[key];
+      o.textContent = x.title || x.name || ('A ' + word + ' of yours');
+      if (x.date) { o.textContent += ' · ' + x.date; }
+      sel.appendChild(o);
+    });
+  }
+  function metShow(v) {
+    $('f-met-event').hidden = v !== 'Event';
+    $('f-met-group').hidden = v !== 'Group';
     var t = $('f-met');
-    t.hidden = !open;
-    if (open) { setTimeout(function () { try { t.focus(); } catch (e) {} }, 20); } else { t.value = ''; }
+    t.hidden = v !== 'Other';
+    if (v !== 'Other') { t.value = ''; }
+    if (v === 'Other') { setTimeout(function () { try { t.focus(); } catch (e) {} }, 20); }
   }
   function metGet() {
     var v = pillsGet('metHow');
     if (v !== 'Other') { return v; }
     return String($('f-met').value || '').trim() || 'Other';
   }
-  function metSet(v) {
-    v = String(v || '').trim();
-    var known = ['Event', 'Online', 'Referral'];
-    if (!v) { pillsSet('metHow', ''); metOther(false); return; }
-    if (known.indexOf(v) > -1) { pillsSet('metHow', v); metOther(false); return; }
-    pillsSet('metHow', 'Other'); metOther(true);
+  function metSet(c) {
+    metFill($('f-met-event'), EVENTS, 'eventId', 'event');
+    metFill($('f-met-group'), GROUPS, 'groupId', 'group');
+    var v = String((c && c.metHow) || '').trim();
+    var known = ['Event', 'Group', 'Online', 'Referral'];
+    if (!v) { pillsSet('metHow', ''); metShow(''); return; }
+    if (known.indexOf(v) > -1) {
+      pillsSet('metHow', v); metShow(v);
+      if (v === 'Event') { $('f-met-event').value = (c && c.metEventId) || ''; }
+      if (v === 'Group') { $('f-met-group').value = (c && c.metGroupId) || ''; }
+      return;
+    }
+    pillsSet('metHow', 'Other'); metShow('Other');
     $('f-met').value = v === 'Other' ? '' : v;
   }
   function pillsGet(f) {
@@ -351,6 +516,18 @@
     });
   }
 
+  function sendPic(slot, blob) {
+    $(slot + '-hint').textContent = 'Sending the picture';
+    SENDING++; $('save').disabled = true;
+    var done = function () { SENDING = Math.max(0, SENDING - 1); if (!SENDING && !BUSY) { $('save').disabled = false; } };
+    fetch(PHOTOS + '/upload-card', { method: 'POST', headers: { 'Content-Type': 'image/jpeg', 'x-cw-id': ME, 'x-cw-token': token() }, body: blob })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        done();
+        if (d && d.status === 'ok' && d.id) { showPic(slot, d.id); }
+        else { $(slot + '-hint').textContent = (d && d.message) || 'The picture did not send. Try again.'; }
+      }).catch(function () { done(); $(slot + '-hint').textContent = 'The picture did not send. Try again.'; });
+  }
   ['card', 'face'].forEach(function (slot) {
     $(slot + '-pick').onclick = function () { $(slot + '-file').click(); };
     $(slot + '-drop').onclick = function () { showPic(slot, ''); };
@@ -358,50 +535,133 @@
       var f = this.files && this.files[0];
       this.value = '';
       if (!f) { return; }
-      $(slot + '-hint').textContent = 'Sending the picture';
-      SENDING++; $('save').disabled = true;
-      var done = function () { SENDING = Math.max(0, SENDING - 1); if (!SENDING && !BUSY) { $('save').disabled = false; } };
-      shrink(f).then(function (blob) {
-        return fetch(PHOTOS + '/upload-card', { method: 'POST', headers: { 'Content-Type': 'image/jpeg', 'x-cw-id': ME, 'x-cw-token': token() }, body: blob })
-          .then(function (r) { return r.json(); });
-      }).then(function (d) {
-        done();
-        if (d && d.status === 'ok' && d.id) { showPic(slot, d.id); }
-        else { $(slot + '-hint').textContent = (d && d.message) || 'The picture did not send. Try again.'; }
-      }).catch(function () { done(); $(slot + '-hint').textContent = 'The picture did not send. Try again.'; });
+      shrink(f).then(function (blob) { sendPic(slot, blob); }).catch(function () { $(slot + '-hint').textContent = 'That picture could not be read. Try another one.'; });
     };
   });
+
+  var READER = 'https://findatime.jessieupp.workers.dev/';
+  var READ_MAX_EDGE = 1568;
+  function fillSay(t, bad) { var m = $('fill-msg'); m.hidden = !t; m.textContent = t || ''; m.className = 'fill-msg' + (bad ? ' bad' : ''); m.style.color = bad ? 'var(--bad)' : ''; }
+  function blockedPage(text) {
+    var t = String(text || '').trim();
+    if (t.length < 80) { return true; }
+    return t.length < 2000 && /just a moment|enable javascript and cookies|checking your browser|verify you are human|attention required|are you a robot|access denied|captcha|sign in to linkedin|join linkedin|log in or sign up/i.test(t);
+  }
+  function readBusy(on) { $('fill-fetch').disabled = on; $('fill-card').disabled = on; $('save').disabled = on || SENDING > 0; }
+
+  function readContact(text, image, link) {
+    var prompt = 'Extract one person\'s contact details from this ' + (image ? 'picture of a business card' : 'page') + '. Use only what is written. Never invent or guess a name, email, phone or link: if it is not there, use null. Return ONLY a JSON object with these keys:\n' +
+      '{\n  "name": "the person\'s full name",\n  "email": "their email",\n  "phone": "their phone number as printed",\n  "website": "their own website or profile link",\n  "organization": "where they work or the organization named",\n  "role": "their job title or role"\n}\n\n' +
+      (image ? 'The card is in the image above. Read every word on it, including small print.\n\n' : '') +
+      'Text to read:\n' + (text || '(none - use the image)') + '\n\nReturn ONLY the JSON object, no explanation.';
+    var content = image ? [{ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } }, { type: 'text', text: prompt }] : prompt;
+    return fetch(READER, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 600, messages: [{ role: 'user', content: content }] }) })
+      .then(function (r) { if (!r.ok) { throw new Error('read'); } return r.json(); })
+      .then(function (data) {
+        var out = (data && data.content && data.content[0] && data.content[0].text) || '';
+        var m = out.match(/```(?:json)?\s*([\s\S]*?)```/); if (m) { out = m[1]; }
+        var got = JSON.parse(out.trim());
+        if (!got || typeof got !== 'object') { throw new Error('none'); }
+        var filled = [];
+        var put = function (id, v, word) { v = String(v == null ? '' : v).trim(); if (!v || v === 'null') { return; } var el = $(id); if (String(el.value || '').trim()) { return; } el.value = v; filled.push(word); };
+        put('f-name', got.name, 'name');
+        put('f-email', got.email, 'email');
+        put('f-phone', got.phone, 'phone');
+        put('f-url', /^https?:\/\//i.test(String(got.website || '')) ? got.website : (link || ''), 'link');
+        var work = [got.role, got.organization].map(function (x) { return String(x == null || x === 'null' ? '' : x).trim(); }).filter(Boolean).join(', ');
+        if (work && !String($('f-role').value || '').trim()) { $('f-role').value = work; filled.push('where they work'); }
+        fillSay(filled.length ? (FROM_CARD && image ? 'Filled in from the card. Check each one and add what the photo missed.' : 'Filled in ' + filled.join(', ') + '. Check them before you press Submit.') : 'Nothing new to fill in. Everything it found is already in the form.');
+      });
+  }
+
+  $('fill-fetch').onclick = function () {
+    var url = String($('fill-url').value || '').trim();
+    if (!/^https?:\/\/.+/i.test(url)) { fillSay('Please paste a full link starting with http.', true); return; }
+    readBusy(true); fillSay('Reading the link');
+    fetch(READER, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var text = String((data && data.text) || '').trim();
+        if (!text || (data && data.error)) { throw new Error('read'); }
+        if (blockedPage(text)) { readBusy(false); fillSay('That site would not let us read the page. LinkedIn often does this. Upload a picture of their card, or type the details in.', true); return; }
+        return readContact(text, null, url).then(function () { readBusy(false); });
+      })
+      .catch(function () { readBusy(false); fillSay('Could not read that link. Upload a picture of their card, or type the details in.', true); });
+  };
+
+  $('fill-card').onclick = function () { $('fill-file').click(); };
+  $('fill-file').onchange = function () {
+    var file = this.files && this.files[0];
+    this.value = '';
+    if (!file) { return; }
+    readBusy(true); fillSay('Reading the card');
+    var reader = new FileReader();
+    reader.onerror = function () { readBusy(false); fillSay('That picture could not be read. Try another one.', true); };
+    reader.onload = function () {
+      var img = new Image();
+      img.onerror = function () { readBusy(false); fillSay('That picture could not be read. Try another one.', true); };
+      img.onload = function () {
+        var scale = Math.min(1, READ_MAX_EDGE / Math.max(img.width, img.height));
+        var w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+        var canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+        var dataUrl;
+        try { dataUrl = canvas.toDataURL('image/jpeg', 0.85); } catch (e) { readBusy(false); fillSay('That picture could not be read. Try another one.', true); return; }
+        var image = { mediaType: 'image/jpeg', data: dataUrl.split(',')[1] || '' };
+        canvas.toBlob(function (blob) { if (blob) { sendPic('card', blob); } }, 'image/jpeg', 0.82);
+        readContact('', image, '').then(function () { readBusy(false); })
+          .catch(function () { readBusy(false); fillSay('Could not read the card. The picture is kept as their business card, so type the details in.', true); });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
 
   function openForm(c) {
     EDIT = c || null;
     $('edit-h').textContent = c ? 'Edit contact' : 'Add contact';
     $('f-name').value = c ? c.name : '';
+    $('f-name').disabled = !!(c && c.person);
+    $('f-role').value = c ? (c.roleOrg || '') : '';
+    $('f-ask').value = c ? (c.askedFor || '') : '';
+    $('f-remind').value = c ? (c.remindOn || '') : '';
+    $('f-last').value = c ? (c.lastContacted || '') : '';
+    pillsSet('relationshipType', c ? (c.relationshipType || '') : '');
+    pillsSet('status', c ? (c.status || '') : '');
+    pillsSet('priority', c ? (c.priority || '') : '');
+    $('f-more').open = !!(c && (c.relationshipType || c.status || c.priority || c.lastContacted));
     $('f-email').value = c ? c.email : '';
     $('f-phone').value = c ? c.phone : '';
     $('f-notes').value = c ? c.notes : '';
     $('f-tags').value = c ? c.tag : '';
     $('f-url').value = c ? c.url : '';
-    metSet(c ? c.metHow : '');
+    metSet(c);
     pillsSet('followUpHow', c ? c.followUpHow : '');
     pillsSet('inviteType', c ? c.inviteType : '');
     pillsSet('followedUpWith', c ? c.followedUpWith : '');
     pillsSet('extended', c ? c.extended : '');
     fillGroups(c ? c.groupId : '');
-    $('arch-wrap').hidden = !c;
+    $('arch-wrap').hidden = !c || !c.contactId;
     $('f-arch').checked = !!(c && c.archived);
-    $('del').hidden = !c;
+    $('del').hidden = !c || !c.contactId;
     $('confirm').hidden = true;
+    $('fill-url').value = ''; fillSay('');
     msg('');
     showPic('card', c ? c.cardPhoto : '');
     showPic('face', c ? c.facePhoto : '');
-    $('veil').hidden = false;
+    onlyPanel('veil');
     setTimeout(function () { try { $('f-name').focus(); } catch (e) {} }, 30);
   }
-  function closeForm() { $('veil').hidden = true; EDIT = null; showPic('card', ''); showPic('face', ''); }
-  $('add').onclick = function () { openForm(null); };
+  function closeForm() { onlyPanel(''); EDIT = null; FROM_CARD = false; showPic('card', ''); showPic('face', ''); }
+  var FROM_CARD = false;
+  $('add').onclick = function () { onlyPanel('addveil'); };
+  $('add-close').onclick = function () { onlyPanel(''); };
+  $('add-type').onclick = function () { FROM_CARD = false; openForm(null); };
+  $('add-card').onclick = function () { FROM_CARD = true; openForm(null); $('fill-file').click(); };
   $('close').onclick = closeForm;
   $('cancel').onclick = closeForm;
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('veil').hidden) { closeForm(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && (!$('veil').hidden || !$('addveil').hidden || !$('fveil').hidden)) { closeForm(); } });
 
   function landed(d, okText) {
     BUSY = false; $('save').disabled = false; $('confirm-yes').disabled = false;
@@ -418,16 +678,21 @@
   $('save').onclick = function () {
     if (BUSY || SENDING) { return; }
     var name = String($('f-name').value || '').trim();
-    if (!name) { msg('Add a name. It is the only thing a contact needs.', true); $('f-name').focus(); return; }
+    var person = EDIT && EDIT.person ? EDIT.person : '';
+    if (!name && !person) { msg('Add a name. It is the only thing a contact needs.', true); $('f-name').focus(); return; }
     BUSY = true; $('save').disabled = true; msg('Saving');
     var p = {
-      name: name, email: $('f-email').value, phone: $('f-phone').value, metHow: metGet(),
+      name: name, email: $('f-email').value, phone: $('f-phone').value, metHow: metGet(), metEventId: pillsGet('metHow') === 'Event' ? $('f-met-event').value : '', metGroupId: pillsGet('metHow') === 'Group' ? $('f-met-group').value : '',
       followUpHow: pillsGet('followUpHow'), inviteType: pillsGet('inviteType'),
       followedUpWith: pillsGet('followedUpWith'), extended: pillsGet('extended'),
       notes: $('f-notes').value, tag: $('f-tags').value, url: $('f-url').value,
-      groupId: $('f-group').value, cardPhoto: PIC.card.id, facePhoto: PIC.face.id, archived: $('f-arch').checked ? 'true' : ''
+      groupId: $('f-group').value, cardPhoto: PIC.card.id, facePhoto: PIC.face.id, archived: $('f-arch').checked ? 'true' : '',
+      roleOrg: $('f-role').value, askedFor: $('f-ask').value, remindOn: $('f-remind').value, lastContacted: $('f-last').value,
+      relationshipType: pillsGet('relationshipType'), status: pillsGet('status'), priority: pillsGet('priority'),
+      fromCard: FROM_CARD ? '1' : ''
     };
-    if (EDIT) { p.contactId = EDIT.contactId; }
+    if (EDIT && EDIT.contactId) { p.contactId = EDIT.contactId; }
+    if (person) { p.person = person; delete p.name; }
     var was = !!EDIT;
     send('saveContact', p).then(function (d) { landed(d, was ? 'Saved.' : name + ' is saved.'); })
       .catch(function () { BUSY = false; $('save').disabled = false; msg('That did not save. Check your connection and press Submit again.', true); });
@@ -447,7 +712,6 @@
   };
 
   $('find').oninput = draw;
-  $('filter').onchange = draw;
   pills();
 
   (function start() {
@@ -455,7 +719,7 @@
     ask('getContacts', {}).then(function (d) {
       if (d && d.code === 'signin') { say('Sign in again to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
       if (!d || d.status !== 'ok') { say((d && d.message) || 'Your contacts did not load. Reload the page and it will try again.'); return; }
-      ALL = d.contacts || []; GROUPS = d.groups || [];
+      ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || [];
       say('');
       $('body').hidden = false;
       $('tools').hidden = !ALL.length;
@@ -464,6 +728,6 @@
   })();
 </script>
 
-<script src="/nav/topbar.js?v=7.02" defer></script>
+<script src="/nav/topbar.js?v=7.07" defer></script>
 </body>
 </html>
