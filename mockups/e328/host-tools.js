@@ -52,6 +52,15 @@
 
   var state = { id: "", invite: null, sentLoaded: false };
 
+  function cwLobbyLink(eid, done){
+    if (!eid || !me() || viewing()) { done(""); return; }
+    fetch(GS + "?action=getLobbyQr&eventId=" + encodeURIComponent(eid) + "&appearId=" + encodeURIComponent(me()) + "&meToken=" + encodeURIComponent(pass()) + "&t=" + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (d) { done(d && d.status === "ok" && d.on === true && d.k ? "https://2gather.network/attendees/?id=" + encodeURIComponent(eid) + "&k=" + encodeURIComponent(d.k) : ""); })
+      .catch(function () { done(""); });
+  }
+  window.cwLobbyLink = cwLobbyLink;
+
   function inviteCard(ev){
     var eid = seriesId(ev), title = String(ev.title || "Your event"), link = "https://2appear.network/event/?id=" + encodeURIComponent(String(ev.id || ""));
     var c = el("div", "cwh-card"); c.id = "cwh-invite";
@@ -103,10 +112,11 @@
         sc.onload = draw; sc.onerror = function () { p5.style.display = "none"; };
         document.head.appendChild(sc); return;
       }
-      new QRious({ element: cv, value: link, size: 400, foreground: "#1A2E42", background: "#ffffff", level: "M" });
+      new QRious({ element: cv, value: lf.value || link, size: 400, foreground: "#1A2E42", background: "#ffffff", level: "M" });
       p5.style.display = "";
     };
     draw();
+    if (!viewing()) cwLobbyLink(String(ev.id || ""), function (u) { if (!u || !document.body.contains(c)) return; lf.value = u; if (window.QRious) draw(); });
     var attUrl = "https://2gather.network/mockups/e328/myevents/attendees/?id=" + encodeURIComponent(String(ev.id || ""));
     var load = function () {
       list.textContent = ""; lede.textContent = "";
@@ -164,6 +174,18 @@
     return c;
   }
 
+  window.cwHostWait = function (on) {
+    var old = document.getElementById("cwh-wait-acts");
+    if (!on) { if (old) old.remove(); return; }
+    if (old || document.getElementById("cwh-acts")) return;
+    var h1 = document.querySelector("#card h1, .cw-rl-main h1");
+    if (!h1) return;
+    if (!document.getElementById("cwh-css")) { var s = document.createElement("style"); s.id = "cwh-css"; s.textContent = CSS; document.head.appendChild(s); }
+    var row = h1.closest(".evt-head-row") || h1.parentNode;
+    var w = el("p", "cwh-wait", "Loading this event\u2026"); w.id = "cwh-wait-acts"; w.style.margin = "0 0 12px";
+    row.parentNode.insertBefore(w, row.nextSibling);
+  };
+
   function clear(){
     ["cwh-acts", "cwh-invite", "cwh-att"].forEach(function (id) { var n = document.getElementById(id); if (n) n.remove(); });
     state.id = "";
@@ -194,6 +216,7 @@
         var c = inviteCard(ev); acts.parentNode.insertBefore(c, acts.nextSibling); c._load();
         inv.classList.add("on"); inv.setAttribute("aria-expanded", "true");
       };
+      try { if (/[?&]qr=1(&|$)/.test(location.search) && !document.getElementById("cwh-invite")) { setTimeout(function () { inv.click(); var ic = document.getElementById("cwh-invite"); if (ic && ic.scrollIntoView) ic.scrollIntoView({ block: "start" }); }, 0); } } catch (e) {}
       (function () {
         var rail0 = document.querySelector(".cw-rl-rail");
         if (!rail0 || document.getElementById("cwh-att") || document.getElementById("cwh-att-wait")) return;
