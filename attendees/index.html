@@ -665,17 +665,19 @@ async function _qrJoinCard(){
     if(!(me.photo||st.blob)||!loc||!lang){ paint('All four are needed to enter the lobby.'); return; }
     document.getElementById('qr-go').disabled=true;
     try{
+      var _sv='', _pu='';
       if(st.blob){
         var u=await (await fetch('https://cw-photos.jessieupp.workers.dev/upload?id='+encodeURIComponent(_myId),{method:'POST',headers:{'Content-Type':'image/jpeg','x-cw-token':t},body:st.blob})).json();
         if(!u||u.status!=='ok'||!u.url) throw 'photo';
-        var a=await (await fetch(GS_URL+'?action=saveAccount&appearId='+encodeURIComponent(_myId)+'&secure=1&editToken='+encodeURIComponent(t)+'&guestPhotoURL='+encodeURIComponent(u.url))).json();
-        if(!a||a.status!=='ok') throw 'photo';
-        me.photo=u.url; st.blob=null;
+        _pu=u.url; _sv+='&guestPhotoURL='+encodeURIComponent(u.url);
       }
-      if(lang!==(me.languages||[]).join(', ')){
-        var la=await (await fetch(GS_URL+'?action=saveAccount&appearId='+encodeURIComponent(_myId)+'&secure=1&editToken='+encodeURIComponent(t)+'&languages='+encodeURIComponent(lang.split(/\s*,\s*/).filter(Boolean).join('|')))).json();
-        if(!la||la.status!=='ok') throw 'lang';
-        me.languages=lang.split(/\s*,\s*/).filter(Boolean);
+      var _ln=lang!==(me.languages||[]).join(', ');
+      if(_ln) _sv+='&languages='+encodeURIComponent(lang.split(/\s*,\s*/).filter(Boolean).join('|'));
+      if(_sv){
+        var a=await (await fetch(GS_URL+'?action=saveAccount&appearId='+encodeURIComponent(_myId)+'&secure=1&editToken='+encodeURIComponent(t)+_sv)).json();
+        if(!a||a.status!=='ok') throw (_pu?'photo':'lang');
+        if(_pu){ me.photo=_pu; st.blob=null; }
+        if(_ln) me.languages=lang.split(/\s*,\s*/).filter(Boolean);
       }
       var d=await (await fetch(GS_URL+'?action=joinLobbyByKey&eventId='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId)+'&k='+encodeURIComponent(_qrK)+'&nameShown='+encodeURIComponent(st.name)+'&placeLevel=City&placeText='+encodeURIComponent(loc))).json();
       if(d&&d.status==='ok'&&d.inLobby){ try{ sessionStorage.setItem('cw-joined-'+_eventId,'1'); sessionStorage.setItem('cw-joinok-'+_eventId,String(Date.now())); }catch(e){} location.replace('/attendees/?id='+encodeURIComponent(_eventId)); return; }
