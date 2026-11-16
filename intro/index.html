@@ -243,6 +243,55 @@
     return w;
   }
 
+
+  function gpAfterEvId(){ try { var n = new URL(new URLSearchParams(location.search).get('next') || '', location.origin); return String(n.searchParams.get('id') || '').trim(); } catch (e) { return ''; } }
+  function gpAfterBlock(){
+    var eid = gpAfterEvId(); if (!eid) return null;
+    var key = 'cw-after-' + eid, st = { carry: '', connect: false, others: false, from: {}, onlyMine: false, mail: false, mine: false, infoOpen: false };
+    try { var was = JSON.parse(localStorage.getItem(key) || 'null'); if (was && typeof was === 'object') { for (var k in was) st[k] = was[k]; } } catch (e) {}
+    var keep = function(){ try { localStorage.setItem(key, JSON.stringify(st)); } catch (e) {} };
+    if (!document.getElementById('cw-after-css')) {
+      var cs = document.createElement('style'); cs.id = 'cw-after-css';
+      cs.textContent = '#cw-after h3{font-size:16px;font-weight:700;color:#1A2E42;margin:0 0 4px}'
+        + '#cw-after .cw-sub{display:block;font-size:13px;color:#2F3D4F;margin:2px 0 0;line-height:1.45}'
+        + '#cw-after .cw-row{display:flex;align-items:flex-start;gap:10px;font-size:15px;color:#1A2E42;padding:7px 0}#cw-after .cw-row input{margin-top:4px}'
+        + '#cw-after .cw-pills{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}'
+        + '#cw-after .cw-pill{font:inherit;font-size:13.5px;padding:6px 13px;border-radius:999px;border:1.5px solid #C9D6E2;background:#fff;color:#1A2E42;cursor:pointer}#cw-after .cw-pill[aria-pressed=true]{background:#1F699E;border-color:#1F699E;color:#fff;font-weight:700}'
+        + '#cw-after .cw-tr{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:15px;color:#1A2E42;padding:7px 0}'
+        + "#cw-after .cw-sw{position:relative;width:42px;height:24px;border-radius:12px;background:#C6CDD8;border:0;cursor:pointer;flex-shrink:0;padding:0}#cw-after .cw-sw::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}#cw-after .cw-sw[aria-checked=true]{background:#1F699E}#cw-after .cw-sw[aria-checked=true]::after{left:21px}"
+        + '#cw-after .cw-ib{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;border:1.5px solid #1F699E;background:#fff;color:#1F699E;font:700 12px/1 inherit;margin-left:6px;cursor:pointer;padding:0}'
+        + '#cw-after .cw-ibox{background:#E8F2F9;border:1.5px solid #B9D3EA;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.55;color:#1A2E42;margin:6px 0 8px}#cw-after .cw-ibox p{margin:0 0 4px}';
+      document.head.appendChild(cs);
+    }
+    var FROM = [["bookmarked", "People I bookmarked"], ["match", "People I match with"], ["messaged", "People I messaged"], ["everyone", "All event attendees"], ["none", "Nobody"]];
+    var w = document.createElement('div'); w.id = 'cw-after';
+    var paint = function(){
+      var any = Object.keys(st.from).some(function (k) { return st.from[k]; });
+      w.innerHTML = '<div style="font-size:17px;font-weight:800;color:#1A2E42;margin-bottom:2px;">After this event</div>'
+        + '<p style="margin:0 0 8px;line-height:1.5">When the event concludes, the lobby will close. You can still carry over all of your bookmarks and messages over to 2Appear so the event lives on. Would you like to bring over your info and continue engaging with event attendees?</p><div class="cw-pills" style="margin-bottom:12px">'
+        + [["yes", "Yes immediately"], ["later", "Ask me after the event"]].map(function (c) { return '<button type="button" class="cw-pill" data-co="' + c[0] + '" aria-pressed="' + (st.carry === c[0]) + '">' + c[1] + '</button>'; }).join("") + '</div>'
+        + '<label class="cw-row"><input type="checkbox" id="cw-af-mk"' + (st.connect ? " checked" : "") + '><span>Let me connect with people I want to meet after this event</span></label>'
+        + '<label class="cw-row"><input type="checkbox" id="cw-af-inv"' + (st.others ? " checked" : "") + '><span>Let others connect with me after the event</span></label>'
+        + '<h3 style="margin-top:12px">Who can invite me to their events from here?</h3><p class="cw-sub">Select all that apply.<button type="button" class="cw-ib" id="cw-af-ib" aria-expanded="' + (!!st.infoOpen) + '" aria-label="What each choice means">i</button></p>'
+        + (st.infoOpen ? '<div class="cw-ibox"><p><b>People I bookmarked</b>: people I saved at this event.</p><p><b>People I match with</b>: people who share a need, an offer or an interest with me at this event.</p><p><b>People I messaged</b>: people I have sent a message to.</p><p><b>All event attendees</b>: anyone registered for this event.</p></div>' : '')
+        + '<div class="cw-pills">' + FROM.map(function (f) { var on = f[0] === "none" ? !any : !!st.from[f[0]]; return '<button type="button" class="cw-pill" data-fr="' + f[0] + '" aria-pressed="' + on + '">' + f[1] + '</button>'; }).join("") + '</div>'
+        + (st.from.everyone ? '<label class="cw-row"><input type="checkbox" id="cw-af-om"' + (st.onlyMine ? " checked" : "") + '><span>Only share events that match my interests</span></label>' : "")
+        + '<h3 style="margin-top:14px">How do I hear about an event invite from other event attendees?</h3>'
+        + '<div class="cw-tr"><span>Email me</span><button type="button" class="cw-sw" role="switch" id="cw-af-em" aria-checked="' + st.mail + '" aria-label="Email me about event invites"></button></div>'
+        + '<div class="cw-tr"><span>Show it in My events</span><button type="button" class="cw-sw" role="switch" id="cw-af-me" aria-checked="' + st.mine + '" aria-label="Show event invites in My events"></button></div>';
+      var g = function(i){ return w.querySelector('#' + i); };
+      g('cw-af-mk').onchange = function(){ st.connect = this.checked; keep(); };
+      g('cw-af-inv').onchange = function(){ st.others = this.checked; keep(); };
+      if (g('cw-af-om')) g('cw-af-om').onchange = function(){ st.onlyMine = this.checked; keep(); };
+      g('cw-af-ib').onclick = function(){ st.infoOpen = !st.infoOpen; paint(); };
+      Array.prototype.forEach.call(w.querySelectorAll('[data-fr]'), function (b) { b.onclick = function () { var k = b.getAttribute('data-fr'); if (k === 'none') st.from = {}; else st.from[k] = !st.from[k]; keep(); paint(); }; });
+      g('cw-af-em').onclick = function(){ st.mail = !st.mail; keep(); paint(); };
+      g('cw-af-me').onclick = function(){ st.mine = !st.mine; keep(); paint(); };
+      Array.prototype.forEach.call(w.querySelectorAll('[data-co]'), function (b) { b.onclick = function () { st.carry = b.getAttribute('data-co'); keep(); paint(); }; });
+    };
+    paint(); keep();
+    return w;
+  }
   function gpLanguagesBlock(){
     var picker = gpPickRow(GP_LANGS, _gpLangPicked, 0, function(w){ return GP_NATIVE[w] || w; });
     var wrap = document.createElement('div');
@@ -1356,8 +1405,9 @@
       }
     });
     blocks.tz = gpTzBlock();
+    if (/[?&]for=event\b/.test(location.search)) { var _ab = gpAfterBlock(); if (_ab) blocks.after = _ab; }
     blocks.ready = gpReadyBlock();
-    var ORDER = [['photo', 'Required'], ['lang', 'Required'], ['loc', 'Required'], ['tz', ''], ['ready', ''], ['groupInterests', 'Required · at least one'], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Optional'], ['introSkills', 'Required · at least one'], ['introOffer', 'Optional'], ['thanks', 'Required'], ['introNeed', 'Optional']];
+    var ORDER = [['photo', 'Required'], ['lang', 'Required'], ['loc', 'Required'], ['tz', ''], ['ready', ''], ['groupInterests', 'Required · at least one'], ['introEnjoy', 'Required · at least one'], ['introValues', 'Required · at least one'], ['methods', 'Optional'], ['introSkills', 'Required · at least one'], ['introOffer', 'Optional'], ['thanks', 'Required'], ['introNeed', 'Optional'], ['after', '']];
     ORDER.forEach(function(o, i){
       var b = blocks[o[0]]; if (!b) return;
       b.setAttribute('data-k', o[0]);
@@ -1801,6 +1851,7 @@
   if (window.GP_JOINING) { STEPS = STEPS.filter(function(s){ return s.slug === 'start'; }); }
   var forEvent = q.get('for') === 'event';
   if (forEvent) { STEPS.forEach(function(s){ if (s.slug === 'skills') s.keys = ['introSkills']; }); }
+  if (forEvent) { var _so = ['start', 'cares', 'skills', 'joys', 'offer', 'seeking']; STEPS.sort(function(a, b){ return _so.indexOf(a.slug) - _so.indexOf(b.slug); }); if (gpAfterEvId()) STEPS.push({ slug: 'after', rail: 'After this event', keys: ['after'] }); }
   if (!forGroup && !forEvent && !window.GP_JOINING) { STEPS.splice(1, 0, { slug: 'timezone', rail: '', keys: ['tz'] }, { slug: 'ready', rail: '', keys: ['ready'] }); }
   var backTo = !!q.get('next') && (forGroup || forEvent);
   var ix = -1;
