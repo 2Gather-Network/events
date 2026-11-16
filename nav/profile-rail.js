@@ -170,6 +170,7 @@
 
     var seg = document.createElement('div'); seg.className = 'cw-prail-seg';
     [['My events', 'https://2gather.network/myevents/'], ['My groups', 'https://2gather.network/mygroups/']].forEach(function (t) {
+      if (t[0] === 'My events' && /(^|\.)2gather\.network$/i.test(location.hostname)) { return; }
       var a = document.createElement('a');
       a.setAttribute('role', 'link'); a.tabIndex = 0; a.textContent = t[0];
       a.onclick = function () { return go(t[1]); };
