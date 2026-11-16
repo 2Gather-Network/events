@@ -797,25 +797,26 @@ function _boardAsk(){
   return fetch(GS_URL+'?action=getGroupBundle&groupId='+encodeURIComponent(_groupId)+(_myId?'&me='+encodeURIComponent(_myId):'')+'&t='+Date.now())
     .then(function(r){ return r.json(); });
 }
-function _boardKeep(d){ try{ localStorage.setItem(_boardKey(), JSON.stringify({at:Date.now(), d:d})); }catch(e){} }
+function _boardViewing(){ try{ var m=window.CW&&window.CW.me&&window.CW.me(); return !!(m&&m.viewing); }catch(e){ return false; } }
+function _boardPasses(d){ return !!(d && d.group && ((d.me && (d.attendees||[]).some(function(p){ return normId(p.appearId)===normId(d.me.appearId); })) || d.meIsHost===true || d.meIsOperator===true)); }
+function _boardKeep(d){ if(_boardViewing() || !_boardPasses(d)) return; try{ localStorage.setItem(_boardKey(), JSON.stringify({at:Date.now(), d:d})); }catch(e){} }
 function _boardQuietRefresh(before){
   var reKey='cw-board-re-'+_groupId;
   _boardAsk().then(function(d){
     if(!d || !d.group) return;
     var now=JSON.stringify(d);
     if(now===before){ try{ sessionStorage.removeItem(reKey); }catch(e){} return; }
-    var meIn=!!(d.me && (d.attendees||[]).some(function(p){ return normId(p.appearId)===normId(d.me.appearId); }));
-    if(meIn || d.meIsHost===true || d.meIsOperator===true) _boardKeep(d);
+    if(_boardPasses(d)) _boardKeep(d);
     else { try{ localStorage.removeItem(_boardKey()); }catch(e){} }
     try{ if(sessionStorage.getItem(reKey)) return; sessionStorage.setItem(reKey,'1'); }catch(e){}
     location.reload();
   }).catch(function(){});
 }
 async function loadGroupMembers(){
-  if(_myId && !loadGroupMembers._again){
+  if(_myId && !loadGroupMembers._again && !_boardViewing()){
     var kept=null;
     try{ kept=JSON.parse(localStorage.getItem(_boardKey())||'null'); }catch(e){}
-    if(kept && kept.d && kept.d.group && (Date.now()-Number(kept.at||0)) < 7*24*60*60*1000){
+    if(kept && kept.d && kept.d.group && (Date.now()-Number(kept.at||0)) < 24*60*60*1000){
       try{
         if(_boardApply(kept.d)){ _boardQuietRefresh(JSON.stringify(kept.d)); return; }
       }catch(e){}
