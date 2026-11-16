@@ -52,7 +52,7 @@
   var state = { id: "", invite: null, sentLoaded: false };
 
   function inviteCard(ev){
-    var eid = String(ev.id || ""), title = String(ev.title || "Your event"), link = "https://2appear.network/event/?id=" + encodeURIComponent(eid);
+    var eid = seriesId(ev), title = String(ev.title || "Your event"), link = "https://2appear.network/event/?id=" + encodeURIComponent(String(ev.id || ""));
     var c = el("div", "cwh-card"); c.id = "cwh-invite";
     c.appendChild(el("h2", "cwh-pq", "Invite people to " + title));
     var p1 = el("div", "cwh-part");
