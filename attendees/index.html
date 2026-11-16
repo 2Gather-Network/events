@@ -681,6 +681,50 @@ async function _qrJoinCard(){
   var p=document.getElementById('board-wait-pill'); if(p) p.style.display='none';
   paint('');
 }
+var _EP_STEPS={need:'needs',offer:'offerings',enjoy:'joys',cares:'cares'};
+async function _epCard(){
+  var w=document.getElementById('board-wait'); if(!w) return;
+  if(!_myData) await loadMyDataFallback();
+  var me=_myData||{}, st={phone:'',site:'',email:'',say:''};
+  try{
+    var r=await (await fetch(GS_URL+'?action=getEventContacts&ev='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId))).json();
+    ((r&&r.people)||[]).forEach(function(p){ if(normId(p.appearId)===normId(_myId)){ st.phone=p.phone||''; st.site=p.site||''; st.email=p.workEmail||''; } });
+  }catch(e){}
+  var here=location.pathname+'?id='+encodeURIComponent(_eventId)+'&profile=1';
+  var go=function(k){ return 'https://2gather.network/ikigai/?step='+_EP_STEPS[k]+'&from=group&groupName='+encodeURIComponent(String(window._evTitle||'the event'))+'&next='+encodeURIComponent('https://2gather.network'+here); };
+  var FS='width:100%;box-sizing:border-box;height:44px;border:1.5px solid #c9d3e0;border-radius:10px;padding:0 12px;font-size:15px;font-family:inherit;';
+  var H='font-size:16px;font-weight:800;margin:22px 0 8px;';
+  var row=function(k,label,vals){
+    var list=(vals||[]).slice(0,12).map(function(x){ return escHTML(String(x.name||x.item||x)); }).join(', ');
+    return '<div style="border-top:1px solid #e6ebf3;padding:12px 0;display:flex;gap:12px;align-items:flex-start;justify-content:space-between;"><div><div style="font-weight:700;">'+label+'</div><div style="color:#2F3D4F;font-size:14px;">'+(list||'Nothing added yet.')+'</div></div><a class="mp-btn" href="'+go(k)+'">Edit</a></div>';
+  };
+  var fld=function(id,label,val,type){ return '<p style="font-size:13.5px;font-weight:700;color:#2F3D4F;margin:14px 0 4px;">'+label+'</p><input type="'+type+'" id="'+id+'" maxlength="200" value="'+escHTML(val)+'" aria-label="'+label+'" style="'+FS+'">'; };
+  w.innerHTML='<div style="background:#fff;border-radius:18px;padding:22px 20px;max-width:620px;margin:0 auto;color:#1a1a2e;line-height:1.5;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;"><h2 style="margin:0;font-size:20px;">My event profile</h2><button type="button" id="ep-done" class="btn-matches">Done</button></div>'
+    +'<p style="margin:8px 0 0;">Whatever you share here is what other attendees can see. After the event, you’ll be able to continue to engage with other attendees.</p>'
+    +'<p style="margin:6px 0 0;font-size:13.5px;color:#2F3D4F;">Changes here update your profile everywhere.</p>'
+    +'<h3 style="'+H+'">Get to know me</h3>'
+    +row('need','What I need',me.needs)+row('offer','What I offer',me.skills)+row('enjoy','What I enjoy',me.interests)+row('cares','My cares',me.values)
+    +'<h3 style="'+H+'">Contact me</h3>'
+    +fld('ep-ph','Phone',st.phone,'tel')+fld('ep-si','Portfolio or website',st.site,'url')+fld('ep-em','Work email',st.email,'email')
+    +'<p id="ep-say" role="status" style="font-size:13px;color:#2F3D4F;margin:10px 0 0;min-height:18px;"></p></div>';
+  var g=function(i){ return document.getElementById(i); };
+  var say=function(t){ g('ep-say').textContent=t; };
+  var save=async function(){
+    st.phone=g('ep-ph').value.trim(); st.site=g('ep-si').value.trim(); st.email=g('ep-em').value.trim();
+    say('Saving…');
+    try{
+      var d=await (await fetch(GS_URL+'?action=saveEventContact&eventId='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId)+'&phone='+encodeURIComponent(st.phone)+'&site='+encodeURIComponent(st.site)+'&workEmail='+encodeURIComponent(st.email))).json();
+      if(d&&d.status==='ok'){ say('Saved.'); return true; }
+      var c=(d&&d.code)||'';
+      say(c==='phone'?'Use a phone number.':c==='site'?'Use a website that starts with https://':c==='email'?'Use an email address.':c==='notRegistered'?'Join the lobby first.':'This did not save. Try again.');
+    }catch(e){ say('This did not save. Try again.'); }
+    return false;
+  };
+  ['ep-ph','ep-si','ep-em'].forEach(function(i){ g(i).onchange=save; });
+  g('ep-done').onclick=async function(){ var ok=await save(); if(ok) location.href='/attendees/?id='+encodeURIComponent(_eventId); };
+  var p=document.getElementById('board-wait-pill'); if(p) p.style.display='none';
+}
 async function loadEvent(){
   if(!_eventId) return;
   try{
@@ -796,6 +840,7 @@ async function loadMembers(){
       if(_myId && !_meRegistered && !window._evManages && _qrK){ _qrJoinCard(); return; }
       if(_myId && !_meRegistered && !window._evManages){ var _hd=await _muInfo(); if(!(_hd&&_hd.host===true)){ window.location.replace('https://2appear.network/event/?id='+encodeURIComponent(_eventId)); return; } }
       if(_myId && !_myData) await loadMyDataFallback();
+      if(params.get('profile')==='1' && _myId && _meRegistered){ await loadMyDataFallback(); await _epCard(); return; }
       _boardShow();
       computeGlobals(); buildChips(); renderAll();
       return;
