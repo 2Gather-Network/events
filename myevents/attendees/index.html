@@ -76,7 +76,7 @@
   $('crumb-ev').style.cursor = 'pointer'; $('crumb-ev').onclick = function () { location.href = evUrl; };
   $('crumb-att').style.cursor = 'pointer'; $('crumb-att').onclick = function () { location.href = 'https://2gather.network/event/people/?id=' + encodeURIComponent(id); };
   var KEY = 'cw-att-view|' + id + '|' + me;
-  function saveView(title, bb) { try { localStorage.setItem(KEY, JSON.stringify({ t: title, bb: bb, rows: rows })); } catch (e) {} }
+  function saveView(title, bb) { try { localStorage.setItem(KEY, JSON.stringify({ t: title, bb: bb, rows: rows.map(function (r) { var c = Object.assign({}, r); delete c.email; return c; }) })); } catch (e) {} }
   function showBody(title) { $('title').textContent = title; $('crumb-ev').textContent = title; document.title = title + ' · Manage attendees'; $('body').style.display = ''; }
   var rows = [], filter = 'all', hasBB = false;
   function fmt(d) { try { return new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch (e) { return ''; } }
@@ -101,6 +101,8 @@
       var meta = document.createElement('div'); meta.className = 'meta';
       meta.textContent = [r.seenAs ? 'Shows as ' + r.seenAs : '', r.at ? 'Registered ' + fmt(r.at) : '', r.isHost ? 'Host' : ''].filter(String).join(' \u00b7 ');
       mid.appendChild(nm); mid.appendChild(meta);
+      if (r.place) { var pl = document.createElement('div'); pl.className = 'meta'; pl.textContent = r.place; mid.appendChild(pl); }
+      if (r.email) { var ea = document.createElement('a'); ea.className = 'meta'; ea.style.cssText = 'display:inline-block;color:#1F699E;'; ea.href = 'mailto:' + encodeURIComponent(r.email).replace(/%40/g, '@'); ea.textContent = r.email; mid.appendChild(ea); }
       row.appendChild(av); row.appendChild(mid);
       if (hasBB && r.inLobby) { var p = document.createElement('span'); p.className = 'pill'; p.textContent = 'On 2Gather'; row.appendChild(p); }
       $('list').appendChild(row);
@@ -120,7 +122,7 @@
   } catch (e) {}
   var role = series ? fetch(GS + '?action=getEventById&id=' + encodeURIComponent(series) + '&appearId=' + encodeURIComponent(me) + '&nocache=1').then(function (r) { return r.json(); }).catch(function () { return null; }) : Promise.resolve(null);
   var bundle = fetch(GS + '?action=eventBundle&id=' + encodeURIComponent(id) + '&t=' + Date.now()).then(function (r) { return r.json(); }).catch(function () { return {}; });
-  var att = fetch(GS + '?action=getAttendees&eventId=' + encodeURIComponent(id) + '&appearId=' + encodeURIComponent(me) + '&noContact=1' + pass).then(function (x) { return x.json(); });
+  var att = fetch(GS + '?action=getAttendees&eventId=' + encodeURIComponent(id) + '&appearId=' + encodeURIComponent(me) + pass).then(function (x) { return x.json(); });
   Promise.all([role, bundle, att]).then(function (a) {
     var ev = (a[0] && a[0].event) || {}, r = ev.myRole || 'visitor';
     var evs = (a[1] && a[1].events) || [], sid = /^recurring-/.test(id) ? null : id;
@@ -131,7 +133,7 @@
     var mayEdit = series ? (r === 'host' || r === 'cohost' || r === 'super') : at.some(function (c) { return 'inLobby' in c; });
     if (series && at.length && !at.some(function (c) { return 'inLobby' in c; })) mayEdit = false;
     if (!mayEdit && !(Number(d.count) === 0 && series && (r === 'host' || r === 'cohost' || r === 'super'))) { try { localStorage.removeItem(KEY); } catch (e) {} location.replace(evUrl); return; }
-    rows = at.map(function (c) { return { name: String(c.name || '').trim(), seenAs: String(c.seenAs || '').trim(), photo: String(c.photo || '').trim(), inLobby: c.inLobby === true, at: c.registeredAt || '', isHost: c.isHost === true }; });
+    rows = at.map(function (c) { var em = String(c.email || '').trim(); return { name: String(c.name || '').trim(), seenAs: String(c.seenAs || '').trim(), photo: String(c.photo || '').trim(), inLobby: c.inLobby === true, at: c.registeredAt || '', isHost: c.isHost === true, place: String(c.place || '').trim(), email: /^[^\s@<>"'()]+@[^\s@<>"'()]+\.[A-Za-z]{2,}$/.test(em) ? em : '' }; });
     rows.sort(function (x, y) { return (x.isHost === y.isHost) ? x.name.localeCompare(y.name) : (x.isHost ? -1 : 1); });
     showBody(title); buttons(); paint(); $('stale').style.display = 'none';
     saveView(title, hasBB);
