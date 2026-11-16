@@ -92,6 +92,12 @@
   @keyframes cw-breathe{0%,100%{opacity:1}50%{opacity:.62}}
   @media (prefers-reduced-motion: reduce){ .cw-loading{animation:none;} }
   #wait{margin:24px 0;}
+  .seg{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap;}
+  .tab{flex:1;min-width:110px;background:#fff;color:var(--brand);border:1.5px solid #C9D6E2;border-radius:9px;font-family:inherit;font-size:13px;font-weight:700;padding:8px 6px;cursor:pointer;line-height:1.25;}
+  .tab.on{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .tab span{display:block;font-size:12px;font-weight:600;opacity:.8;}
+  [data-cp][hidden]{display:none;}
+  .evh{font-size:16px;font-weight:800;margin:18px 0 6px;color:var(--ink);}
   #wait[hidden],#head[hidden]{display:none;}
 </style>
 <script src="/nav/identity.js?v=68"></script>
@@ -309,6 +315,7 @@
   }
 
   function draw() {
+    if ($('ctabs')) { drawTabs(); }
     var q = String($('find').value || '').trim().toLowerCase();
     var live = ALL.filter(function (c) { return CF.arch ? c.archived : !c.archived; });
     var shown = live.filter(function (c) {
@@ -757,6 +764,62 @@
       .then(function (r) { return r.json(); })
       .then(function (d) { if (!d || d.status !== 'ok' || !d.session) { throw new Error('no'); } try { sessionStorage.setItem(k, d.session); } catch (e) {} return d.session; });
   }
+  var TABS = { connected: [], requests: [], invited: [] }, CUR_TAB = 'contacts';
+  var TAB_NAMES = [['contacts', 'Contacts'], ['requests', 'Requests'], ['connected', 'Connected'], ['invited', 'Invited'], ['events', 'From my events']];
+  function longDate(at) { var d = new Date(String(at || '')); if (isNaN(d.getTime())) { return ''; } var mo = ['January','February','March','April','May','June','July','August','September','October','November','December']; return mo[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); }
+  function personRow(name, lines, lbl) {
+    var row = document.createElement('div'); row.className = 'row';
+    var av = document.createElement('span'); av.className = 'av'; av.textContent = initials(name);
+    var who = document.createElement('div'); who.className = 'who';
+    if (lbl) { var lb = document.createElement('span'); lb.className = 'lbl'; lb.textContent = lbl; who.appendChild(lb); }
+    var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = name; who.appendChild(nm);
+    lines.forEach(function (t) { if (!t) { return; } var l = document.createElement('div'); l.className = 'line'; l.textContent = t; who.appendChild(l); });
+    row.appendChild(av); row.appendChild(who); return row;
+  }
+  function buildTabs() {
+    var body = $('body'), cp = document.createElement('div'); cp.setAttribute('data-cp', 'contacts');
+    while (body.firstChild) { cp.appendChild(body.firstChild); }
+    var seg = document.createElement('div'); seg.className = 'seg'; seg.id = 'ctabs';
+    TAB_NAMES.forEach(function (t) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'tab' + (t[0] === 'contacts' ? ' on' : ''); b.setAttribute('data-t', t[0]);
+      b.appendChild(document.createTextNode(t[1])); var n = document.createElement('span'); n.id = 'tn-' + t[0]; b.appendChild(n);
+      b.onclick = function () { showTab(t[0]); }; seg.appendChild(b);
+    });
+    body.appendChild(seg); body.appendChild(cp);
+    ['requests', 'connected', 'invited', 'events'].forEach(function (k) { var d = document.createElement('div'); d.setAttribute('data-cp', k); d.id = 'cp-' + k; d.hidden = true; body.appendChild(d); });
+  }
+  function showTab(k) {
+    CUR_TAB = k;
+    Array.prototype.forEach.call(document.querySelectorAll('#ctabs .tab'), function (b) { b.classList.toggle('on', b.getAttribute('data-t') === k); });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-cp]'), function (p) { p.hidden = p.getAttribute('data-cp') !== k; });
+  }
+  function drawTabs() {
+    var live = ALL.filter(function (c) { return !c.archived; });
+    $('tn-contacts').textContent = live.length;
+    var rq = $('cp-requests'); rq.innerHTML = '';
+    TABS.requests.forEach(function (r) { rq.appendChild(personRow(r.name, [r.at ? 'Asked to join your network on ' + longDate(r.at) : ''])); });
+    $('tn-requests').textContent = TABS.requests.length ? TABS.requests.length + ' new' : '0';
+    var cn = $('cp-connected'); cn.innerHTML = '';
+    TABS.connected.forEach(function (r) { cn.appendChild(personRow(r.name, [])); });
+    $('tn-connected').textContent = TABS.connected.length;
+    var iv = $('cp-invited'); iv.innerHTML = '';
+    TABS.invited.forEach(function (r) {
+      var line = (r.kind === 'group' ? 'Invited to groups' : 'Invited to event') + (r.at ? ' on ' + longDate(r.at) : '') + ' · not joined yet';
+      iv.appendChild(personRow(r.first || r.email || '', [line, r.title, r.kind === 'group' ? r.email : ''], r.kind === 'group' ? 'Group invite' : 'Event invite'));
+    });
+    $('tn-invited').textContent = TABS.invited.length;
+    var ev = $('cp-events'); ev.innerHTML = '';
+    var h = document.createElement('h2'); h.textContent = 'Attendees from my events'; ev.appendChild(h);
+    var ids = Object.keys(CARRIED), shown = 0;
+    ids.forEach(function (id) {
+      var ppl = live.filter(function (c) { return (c.sourceId === id && (c.sourceKind === 'bookmark' || c.sourceKind === 'eventInvite' || c.sourceKind === 'event')) || (c.sourceKind === 'message' && c.eventTitle && c.eventTitle === CARRIED[id]) || EVNOTES.some(function (n) { return n.person === c.person && n.eventId === id; }); });
+      if (!ppl.length) { return; }
+      shown++;
+      var eh = document.createElement('div'); eh.className = 'evh'; eh.textContent = CARRIED[id]; ev.appendChild(eh);
+      ppl.forEach(function (c) { ev.appendChild(personRow(c.name, [howLine(c)], landWord(c))); });
+    });
+    $('tn-events').textContent = shown;
+  }
   var MSG_ROWS = [];
   function addMessaged(rows) {
     MSG_ROWS = rows || MSG_ROWS;
@@ -796,9 +859,10 @@
     ask('getContacts', {}).then(function (d) {
       if (d && d.code === 'signin') { say('Sign in again to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
       if (!d || d.status !== 'ok') { say((d && d.message) || 'Your contacts did not load. Reload the page and it will try again.'); return; }
-      ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
+      ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
       return loadMessaged().then(function () {
       say('');
+      if (!$('ctabs')) { buildTabs(); }
       $('body').hidden = false;
       $('tools').hidden = !ALL.length;
       draw();
