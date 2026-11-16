@@ -48,7 +48,8 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="crumb"><a data-nav="https://2appear.network/myevents/" onclick="location.href=this.getAttribute('data-nav')">My events</a> / <a data-nav="https://2appear.network/myevents/?pane=hosting" onclick="location.href=this.getAttribute('data-nav')">Hosting</a> / <a id="crumb-ev"></a> / <b>Manage attendees</b></div>
+  <div class="crumb"><a id="crumb-ev"></a> / <a id="crumb-att">Attendees</a> / <b>Manage</b></div>
+  <p id="stale" style="display:none;color:#fff;font-size:13.5px;margin:-8px 0 12px;opacity:.9;">Updating information…</p>
   <div class="card">
     <h1 id="title"></h1>
     <p class="sub" id="counts">Loading attendees</p>
@@ -72,7 +73,11 @@
   if (!me) { location.replace('https://2appear.network/signin/?next=' + encodeURIComponent(location.href)); return; }
   var series = /^recurring-/.test(id) ? '' : id;
   var evUrl = 'https://2appear.network/event/?id=' + encodeURIComponent(id);
-  $('crumb-ev').setAttribute('data-nav', evUrl); $('crumb-ev').style.cursor = 'pointer'; $('crumb-ev').onclick = function () { location.href = evUrl; };
+  $('crumb-ev').style.cursor = 'pointer'; $('crumb-ev').onclick = function () { location.href = evUrl; };
+  $('crumb-att').style.cursor = 'pointer'; $('crumb-att').onclick = function () { location.href = 'https://2gather.network/event/people/?id=' + encodeURIComponent(id); };
+  var KEY = 'cw-att-view|' + id + '|' + me;
+  function saveView(title, bb) { try { localStorage.setItem(KEY, JSON.stringify({ t: title, bb: bb, rows: rows })); } catch (e) {} }
+  function showBody(title) { $('title').textContent = title; $('crumb-ev').textContent = title; document.title = title + ' · Manage attendees'; $('body').style.display = ''; }
   var rows = [], filter = 'all', hasBB = false;
   function fmt(d) { try { return new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch (e) { return ''; } }
   function paint() {
@@ -104,30 +109,33 @@
     say(regs + ' registered' + (hasBB ? ' \u00b7 ' + on + ' on 2Gather' : ''));
   }
   $('q').oninput = paint;
-  var role = fetch(GS + '?action=getEventById&id=' + encodeURIComponent(series || id) + '&appearId=' + encodeURIComponent(me) + '&nocache=1').then(function (r) { return r.json(); });
+  function buttons() {
+    var bt = $('btns'); bt.innerHTML = '';
+    var inv = document.createElement('a'); inv.className = 'b'; inv.textContent = 'Invite people'; inv.href = evUrl; bt.appendChild(inv);
+    if (hasBB) { var go = document.createElement('a'); go.className = 'b'; go.textContent = 'Go to 2Gather'; go.href = 'https://2gather.network/attendees/?id=' + encodeURIComponent(id); bt.appendChild(go); }
+  }
+  try {
+    var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (saved && Array.isArray(saved.rows)) { rows = saved.rows; hasBB = !!saved.bb; showBody(saved.t || ''); buttons(); paint(); $('stale').style.display = ''; }
+  } catch (e) {}
+  var role = series ? fetch(GS + '?action=getEventById&id=' + encodeURIComponent(series) + '&appearId=' + encodeURIComponent(me) + '&nocache=1').then(function (r) { return r.json(); }).catch(function () { return null; }) : Promise.resolve(null);
   var bundle = fetch(GS + '?action=eventBundle&id=' + encodeURIComponent(id) + '&t=' + Date.now()).then(function (r) { return r.json(); }).catch(function () { return {}; });
-  Promise.all([role, bundle]).then(function (a) {
+  var att = fetch(GS + '?action=getAttendees&eventId=' + encodeURIComponent(id) + '&appearId=' + encodeURIComponent(me) + '&noContact=1' + pass).then(function (x) { return x.json(); });
+  Promise.all([role, bundle, att]).then(function (a) {
     var ev = (a[0] && a[0].event) || {}, r = ev.myRole || 'visitor';
     var evs = (a[1] && a[1].events) || [], sid = /^recurring-/.test(id) ? null : id;
     var row = evs.filter(function (x) { return String(x.id) === id || (!sid && /^rec-/.test(String(x.id))); })[0] || ev.row || {};
     var title = String(row.title || (ev.row && ev.row.title) || 'Your event');
     hasBB = row.hasBB === true || String(row.hasBB) === 'true' || row.hasHub === true || String(row.hasHub) === 'true';
-    $('title').textContent = title; $('crumb-ev').textContent = title; document.title = title + ' · Manage attendees';
-    if (series && !(r === 'host' || r === 'cohost' || r === 'super')) { say('Only the hosts of this event can manage it.'); return; }
-    return fetch(GS + '?action=getAttendees&eventId=' + encodeURIComponent(id) + '&appearId=' + encodeURIComponent(me) + '&noContact=1' + pass)
-      .then(function (x) { return x.json(); })
-      .then(function (d) {
-        var at = (d && d.attendees) || [];
-        if (!at.length && Number(d && d.count) > 0) { say('Only the hosts of this event can manage it.'); return; }
-        rows = at.map(function (c) { return { name: String(c.name || '').trim(), seenAs: String(c.seenAs || '').trim(), photo: String(c.photo || '').trim(), inLobby: c.inLobby === true, at: c.registeredAt || '', isHost: c.isHost === true }; });
-        rows.sort(function (x, y) { return (x.isHost === y.isHost) ? x.name.localeCompare(y.name) : (x.isHost ? -1 : 1); });
-        $('body').style.display = '';
-        var bt = $('btns');
-        var inv = document.createElement('a'); inv.className = 'b'; inv.textContent = 'Invite people'; inv.href = evUrl; bt.appendChild(inv);
-        if (hasBB) { var go = document.createElement('a'); go.className = 'b'; go.textContent = 'Go to 2Gather'; go.href = 'https://2gather.network/attendees/?id=' + encodeURIComponent(id); bt.appendChild(go); }
-        paint();
-      });
-  }).catch(function () { say('This page could not load. Try again in a moment.'); });
+    var d = a[2] || {}, at = d.attendees || [];
+    var mayEdit = series ? (r === 'host' || r === 'cohost' || r === 'super') : at.some(function (c) { return 'inLobby' in c; });
+    if (series && at.length && !at.some(function (c) { return 'inLobby' in c; })) mayEdit = false;
+    if (!mayEdit && !(Number(d.count) === 0 && series && (r === 'host' || r === 'cohost' || r === 'super'))) { try { localStorage.removeItem(KEY); } catch (e) {} location.replace(evUrl); return; }
+    rows = at.map(function (c) { return { name: String(c.name || '').trim(), seenAs: String(c.seenAs || '').trim(), photo: String(c.photo || '').trim(), inLobby: c.inLobby === true, at: c.registeredAt || '', isHost: c.isHost === true }; });
+    rows.sort(function (x, y) { return (x.isHost === y.isHost) ? x.name.localeCompare(y.name) : (x.isHost ? -1 : 1); });
+    showBody(title); buttons(); paint(); $('stale').style.display = 'none';
+    saveView(title, hasBB);
+  }).catch(function () { if ($('stale').style.display === 'none') say('This page could not load. Try again in a moment.'); });
 })();
 </script>
 <script src="/nav/topbar.js?v=7.07" defer></script>
