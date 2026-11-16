@@ -725,6 +725,48 @@ async function _epCard(){
   g('ep-done').onclick=async function(){ var ok=await save(); if(ok) location.href='/attendees/?id='+encodeURIComponent(_eventId); };
   var p=document.getElementById('board-wait-pill'); if(p) p.style.display='none';
 }
+function _avBox(inner){ return '<div style="background:#fff;border-radius:18px;padding:22px 20px;max-width:620px;margin:0 auto;color:#1a1a2e;line-height:1.5;">'+inner+'</div>'; }
+function _avBack(){ return '<div style="margin-top:18px;"><button type="button" class="cw-back" id="av-back">Back</button></div>'; }
+function _avWire(){ var b=document.getElementById('av-back'); if(b) b.onclick=function(){ location.href=location.pathname+'?id='+encodeURIComponent(_eventId); }; var p=document.getElementById('board-wait-pill'); if(p) p.style.display='none'; }
+function _avList(v){ return (v||[]).slice(0,12).map(function(x){ return escHTML(String((x&&(x.item||x.name))||x)); }).join(', '); }
+async function _avCard(pid){
+  var w=document.getElementById('board-wait'); if(!w) return false;
+  var m=_memberFor(pid); if(!m||normId(pid)===normId(_myId)) return false;
+  var nm=String(m.name||'').trim(), c={}, note='', bm=!!_bmPeople[normId(pid)];
+  try{ var r=await (await fetch(GS_URL+'?action=getEventContacts&ev='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId))).json(); ((r&&r.people)||[]).forEach(function(p){ if(normId(p.appearId)===normId(pid)) c=p; }); }catch(e){}
+  try{ var n=await (await fetch(GS_URL+'?action=getEventNotes&ev='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId))).json(); ((n&&n.notes)||[]).forEach(function(x){ if(normId(x.subjectId)===normId(pid)) note=x.note||''; }); }catch(e){}
+  var H='font-size:16px;font-weight:800;margin:20px 0 6px;', R=function(l,v){ return v?'<div style="padding:6px 0;"><div style="font-weight:700;">'+l+'</div><div style="color:#2F3D4F;">'+v+'</div></div>':''; };
+  var site=/^https:\/\//i.test(String(c.site||''))?String(c.site):'';
+  var paint=function(say){
+    w.innerHTML=_avBox('<div style="display:flex;align-items:center;gap:12px;">'+(m.photo?'<img src="'+escHTML(m.photo)+'" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;">':'')+'<h2 style="margin:0;font-size:20px;">'+escHTML(nm)+'</h2></div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;"><a class="mp-btn primary" href="/messages/?to='+encodeURIComponent(pid)+'">Message me</a><button type="button" class="mp-btn" id="av-bm"'+(bm?' disabled':'')+'>Bookmark</button><button type="button" class="mp-btn" id="av-nt">Add a note</button></div>'
+      +'<div id="av-note" style="display:none;margin-top:12px;"><p style="font-size:13.5px;font-weight:700;margin:0 0 4px;">Your note about '+escHTML(nm)+'</p><textarea id="av-tx" maxlength="1000" style="width:100%;box-sizing:border-box;min-height:90px;border:1.5px solid #c9d3e0;border-radius:10px;padding:10px 12px;font:inherit;">'+escHTML(note)+'</textarea><p style="font-size:13px;color:#2F3D4F;margin:4px 0 8px;">Only you can see your notes.</p><button type="button" class="btn-matches" id="av-sv">Save note</button></div>'
+      +(say?'<p role="status" style="font-size:13px;color:#2F3D4F;margin:8px 0 0;">'+escHTML(say)+'</p>':'')
+      +'<h3 style="'+H+'">Get to know me</h3>'+R('What I need',_avList(m.needs))+R('What I offer',_avList(m.skills))+R('What I enjoy',_avList(m.interests))+R('My cares',_avList(m.values))
+      +((c.phone||site||c.workEmail)?'<h3 style="'+H+'">Contact me</h3>'+R('Phone',escHTML(c.phone||''))+(site?'<div style="padding:6px 0;"><div style="font-weight:700;">Portfolio or website</div><a href="'+escHTML(site)+'" target="_blank" rel="noopener noreferrer" style="color:#1F699E;">'+escHTML(site.replace(/^https:\/\//i,''))+'</a></div>':'')+R('Work email',escHTML(c.workEmail||'')):'')
+      +'<p style="font-size:13px;color:#2F3D4F;margin:18px 0 0;">After the event, if you open a 2Appear account, '+escHTML(nm)+', your note and your messages go into your contacts.</p>'+_avBack());
+    var g=function(i){ return document.getElementById(i); };
+    g('av-nt').onclick=function(){ g('av-note').style.display=''; g('av-tx').focus(); };
+    if(note) g('av-note').style.display='';
+    g('av-bm').onclick=function(){ var t=this; t.disabled=true; fetch(GS_URL+'?action=saveBookmark&from='+encodeURIComponent(_myId)+'&to='+encodeURIComponent(pid)+'&sourceKind=Event&sourceID='+encodeURIComponent(_eventId)).then(function(){ bm=true; _bmPeople[normId(pid)]=1; paint('Bookmarked.'); }).catch(function(){ t.disabled=false; paint('This did not save. Try again.'); }); };
+    g('av-sv').onclick=function(){ note=g('av-tx').value.trim(); this.disabled=true; fetch(GS_URL+'?action=saveEventNote&eventId='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId)+'&subjectId='+encodeURIComponent(pid)+'&note='+encodeURIComponent(note)).then(function(r){ return r.json(); }).then(function(d){ paint(d&&d.status==='ok'?'Saved.':'This did not save. Try again.'); }).catch(function(){ paint('This did not save. Try again.'); }); };
+    _avWire();
+  };
+  paint('');
+  return true;
+}
+async function _bmCard(){
+  var w=document.getElementById('board-wait'); if(!w) return;
+  var ids={};
+  try{ var r=await (await fetch(GS_URL+'?action=getBookmarks&appearId='+encodeURIComponent(_myId))).json();
+    ((r&&r.bookmarks)||[]).forEach(function(b){ if(!b||!b.appearId) return; if(b.sourceKind!==undefined&&!(String(b.sourceKind)==='Event'&&String(b.sourceID||'')===String(_eventId))) return; ids[normId(b.appearId)]=1; }); }catch(e){}
+  var list=_members.filter(function(m){ return ids[normId(m.appearId)]&&normId(m.appearId)!==normId(_myId); });
+  var t=escHTML(String(window._evTitle||'this event'));
+  w.innerHTML=_avBox('<h2 style="margin:0;font-size:20px;">My bookmarks</h2><p style="margin:6px 0 12px;">People you bookmarked at '+t+'. Only for this event.</p>'
+    +(list.length?list.map(function(m){ return '<a href="'+location.pathname+'?id='+encodeURIComponent(_eventId)+'&person='+encodeURIComponent(m.appearId)+'" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #e6ebf3;color:#1a1a2e;text-decoration:none;">'+(m.photo?'<img src="'+escHTML(m.photo)+'" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">':'')+'<span style="font-weight:700;">'+escHTML(m.name||'')+'</span></a>'; }).join(''):'<p style="color:#2F3D4F;">You haven’t bookmarked anyone at this event yet.</p>')
+    +_avBack());
+  _avWire();
+}
 async function loadEvent(){
   if(!_eventId) return;
   try{
@@ -841,6 +883,8 @@ async function loadMembers(){
       if(_myId && !_meRegistered && !window._evManages){ var _hd=await _muInfo(); if(!(_hd&&_hd.host===true)){ window.location.replace('https://2appear.network/event/?id='+encodeURIComponent(_eventId)); return; } }
       if(_myId && !_myData) await loadMyDataFallback();
       if(params.get('profile')==='1' && _myId && _meRegistered){ await loadMyDataFallback(); await _epCard(); return; }
+      if(_myId && (_meRegistered || window._evManages) && params.get('person')){ await loadBookmarkedPeople(); if(await _avCard(params.get('person'))) return; }
+      if(_myId && (_meRegistered || window._evManages) && params.get('bookmarks')==='1'){ await _bmCard(); return; }
       _boardShow();
       computeGlobals(); buildChips(); renderAll();
       return;
@@ -1375,7 +1419,8 @@ function _bmHereCount(){ var n=0; _members.forEach(function(m){ if(_bmPeople[nor
 function _bmSwitchHTML(){
   var n=_bmHereCount(); if(!n && !_bmOnly) return '';
   return '<button type="button" class="bm-people-switch'+(_bmOnly?' on':'')+'" onclick="toggleBmPeople()" role="switch" aria-checked="'+(_bmOnly?'true':'false')+'">'
-    +'<span class="bm-track"><span class="bm-knob"></span></span>Show bookmarked</button>';
+    +'<span class="bm-track"><span class="bm-knob"></span></span>Show bookmarked</button>'
+    +((_eventId&&!_groupId)?'<a class="mp-btn" href="'+location.pathname+'?id='+encodeURIComponent(_eventId)+'&bookmarks=1" style="margin-left:8px;text-decoration:none;">View bookmarks</a>':'');
 }
 window.toggleBmPeople=function(){ _bmOnly=!_bmOnly; _shuffledMembers=null; renderGuestPhotos(); renderAll(); };
 async function loadBookmarkedPeople(){
@@ -1414,6 +1459,7 @@ window.toggleHubQR=function(){
   if(show){ try{ window.scrollTo({top:0,behavior:'smooth'}); }catch(e){ window.scrollTo(0,0); } }
 };
 window.openProfile=function(appearId,pageLink){
+  if(appearId && _eventId && !_groupId){ window.location.href=location.pathname+'?id='+encodeURIComponent(_eventId)+'&person='+encodeURIComponent(appearId); return; }
   if(appearId) window.location.href=_profileUrl(appearId);
 };
 
