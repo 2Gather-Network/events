@@ -1014,7 +1014,7 @@ function render(ev) {
       <div class="actions" style="margin-bottom:16px;">
         ${ev.date && ev.date !== "TBD" && !ev.cancelled ? `<button class="btn btn-outline cw-cal-btn${ev.interestedEnabled === "required" ? " cw-req" : ""}" onclick="addToCalendarById('${ev.id}', this)" aria-expanded="false" style="gap:6px;"><span class="cw-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></span><span>Add to calendar</span></button>` : ""}
         <a class="btn btn-outline" id="getknow-btn" href="https://2gather.network/event/people/?id=${encodeURIComponent(ev.id)}" style="gap:6px;">👥 Get to know</a>
-        <button type="button" class="btn btn-outline cw-soc-btn" id="cw-soc-btn" onclick="cwSocOpen()" style="display:none;"><span class="cw-ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5v5h3.2L14 18.5v-13L6.2 9.5z"/><path d="M6.2 14.5l1.2 4.2a1.2 1.2 0 0 0 1.2.9h.4a1.2 1.2 0 0 0 1.1-1.6L9.4 16.2"/><path d="M17 9.3a3.8 3.8 0 0 1 0 5.4"/><path d="M19.6 6.8a7.4 7.4 0 0 1 0 10.4"/></svg></span><span class="cw-soc-label">Socialize this event</span></button>
+        <button type="button" class="btn btn-outline cw-soc-btn" id="cw-soc-btn" onclick="cwSocOpen()" style="display:none;"><span class="cw-ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5v5h3.2L14 18.5v-13L6.2 9.5z"/><path d="M6.2 14.5l1.2 4.2a1.2 1.2 0 0 0 1.2.9h.4a1.2 1.2 0 0 0 1.1-1.6L9.4 16.2"/><path d="M17 9.3a3.8 3.8 0 0 1 0 5.4"/><path d="M19.6 6.8a7.4 7.4 0 0 1 0 10.4"/></svg></span><span class="cw-soc-label">Spread the word</span></button>
         <button class="btn btn-outline copy-btn-el cw-share-old" onclick="copyLink()">🔗 Copy link</button>
         ${!ev.cancelled ? `<button class="btn btn-outline cw-share-old" onclick="share()" ontouchstart="share()" style="touch-action:manipulation;-webkit-tap-highlight-color:transparent;padding:10px 14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>` : ""}
         <button class="btn btn-outline cw-share-old" onclick="openQrModal()" title="Get QR code" style="padding:10px 14px;">⊞ QR</button>
@@ -1081,7 +1081,28 @@ function _cwGoingLine(on) {
   var row = h && (h.closest(".evt-head-row") || h.parentNode);
   if (on && row && !document.documentElement.classList.contains("cw-is-host")) {
     if (!l) { l = document.createElement("p"); l.id = "cw-going-line"; l.style.cssText = "margin:0 0 12px;font-size:15px;font-weight:700;color:#1A2E42;"; row.parentNode.insertBefore(l, row.nextSibling); }
-    l.textContent = "You\u2019re going!";
+    if (!l.dataset.cwRsvp) {
+      l.dataset.cwRsvp = "1";
+      l.textContent = "You\u2019re going! ";
+      var ed = document.createElement("a");
+      ed.href = "/event/?id=" + encodeURIComponent((_currentEv && _currentEv.id) || "") + "&reg=edit";
+      ed.textContent = "Edit your RSVP";
+      ed.style.cssText = "font-weight:700;font-size:14px;color:#1F699E;text-decoration:underline;margin-left:6px;";
+      l.appendChild(ed);
+      try {
+        var _ev = _currentEv, _hb = String(_ev.hasBB) === "true" || _ev.hasBB === true;
+        if (_hb && getMemberId()) {
+          cwSeenFetch(_ev.id).then(function (d) {
+            if (!d || d.inLobby !== true || document.getElementById("cw-visit-2g")) return;
+            var v = document.createElement("a");
+            v.id = "cw-visit-2g"; v.href = "https://2gather.network/attendees/?id=" + encodeURIComponent(_ev.id);
+            v.textContent = "Visit 2Gather";
+            v.style.cssText = "display:inline-flex;align-items:center;height:36px;margin:8px 0 0;background:#1F699E;color:#fff;border-radius:24px;padding:0 16px;font-size:13px;font-weight:700;text-decoration:none;";
+            var wrap = document.createElement("div"); wrap.appendChild(v); l.insertAdjacentElement("afterend", wrap);
+          }).catch(function () {});
+        }
+      } catch (e) {}
+    }
   } else if (l) { l.remove(); }
 }
 function applyRegisteredUI() {
@@ -1348,7 +1369,7 @@ function _paintSocialize() {
   var lab = b.querySelector('.cw-soc-label');
   if (document.documentElement.classList.contains('cw-is-host')) {
     var _hs = _cwHostShared();
-    if (lab) lab.textContent = _hs ? "You\u2019re socializing" : 'Socialize this event';
+    if (lab) lab.textContent = _hs ? "You\u2019re socializing" : 'Spread the word';
     if (_hs) { b.classList.remove('btn-outline'); b.classList.add('btn-primary'); } else { b.classList.remove('btn-primary'); b.classList.add('btn-outline'); }
     b.removeAttribute('data-nav'); b.removeAttribute('role');
     b.onclick = function () { cwSocOpen(); };
@@ -1380,7 +1401,7 @@ function _paintSocialize() {
     }
   } else {
     var _meL = ''; try { _meL = getMemberId() || ''; } catch (e) {}
-    if (lab) lab.textContent = _meL ? 'Socialize this event' : 'Share this event';
+    if (lab) lab.textContent = _meL ? 'Spread the word' : 'Share this event';
     b.classList.remove('btn-primary'); b.classList.add('btn-outline');
     b.removeAttribute('data-nav'); b.removeAttribute('role');
     b.onclick = function () { cwSocOpen(); };
@@ -4079,7 +4100,7 @@ if(b){var h=location.pathname+location.search;b.setAttribute('data-nav',/appear\
       }
       if (bmb && bmb.parentNode !== icons) { icons.insertBefore(bmb, icons.firstChild); }
       if (bmb) { bmb.setAttribute('aria-label', bmb.textContent || 'Bookmark'); bmb.title = bmb.textContent || 'Bookmark'; }
-      if (socb) { var sl = socb.querySelector('.cw-soc-label'); socb.title = sl ? sl.textContent : 'Socialize this event'; socb.setAttribute('aria-label', socb.title); }
+      if (socb) { var sl = socb.querySelector('.cw-soc-label'); socb.title = sl ? sl.textContent : 'Spread the word'; socb.setAttribute('aria-label', socb.title); }
       var rs = document.getElementById('interest-btn') || document.querySelector('#cw-m2-bar > .ev-going-btn.cw-rsvp');
       if (rs && !rs.classList.contains('ev-pay-btn') && rs.parentNode !== icons) {
         if (socb && socb.parentNode === icons) { icons.insertBefore(rs, socb); } else { icons.appendChild(rs); }
