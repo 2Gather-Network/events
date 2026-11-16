@@ -118,7 +118,8 @@
     draw();
     var p6 = el("div", "cwh-part"); p6.id = "cwh-lobby-qr"; p6.style.display = "none";
     p6.appendChild(el("p", "cwh-fq", "2Gather lobby QR code"));
-    p6.appendChild(el("p", "cwh-help", "For the event lobby on 2Gather, separate from the event link above. People who scan it join your lobby."));
+    p6.appendChild(el("p", "cwh-help", "Share 2Gather before and during the event so attendees can join the lobby and get to know more about each other. This could be on a flyer, presentation slide, a table card, or a lanyard."));
+    p6.appendChild(el("p", "cwh-help", "To share the calendar event so people can learn about it and add it to their calendar, use the event link above."));
     var l6r = el("div", "cwh-row"); var l6 = el("input", "cwh-field"); l6.readOnly = true; l6.setAttribute("aria-label", "The lobby link");
     var l6c = el("button", "cwh-b", "Copy the link"); l6c.type = "button"; var l6s = el("div", "cwh-st");
     l6r.appendChild(l6); l6r.appendChild(l6c); p6.appendChild(l6r); p6.appendChild(l6s);
