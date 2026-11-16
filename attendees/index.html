@@ -513,8 +513,29 @@ window.addEventListener('popstate', function(){
   try{ window.scrollTo(0,0); }catch(e){}
 });
 
+var _fromEvent=(function(){
+  if(_groupId||!_eventId) return false;
+  var k='cw-lobby-from-'+_eventId, yes=false;
+  try{ yes=/^https:\/\/2appear\.network\//.test(document.referrer||'')||params.get('from')==='event'; }catch(e){}
+  try{ if(yes) sessionStorage.setItem(k,'1'); else yes=sessionStorage.getItem(k)==='1'; }catch(e){}
+  return yes;
+})();
 function paintCrumbs(){
   var el=document.getElementById('hub-crumbs'); if(!el) return;
+  if(!_groupId && _fromEvent){
+    var esep='<span aria-hidden="true">\u203A</span>';
+    var eparts=['<a href="https://2appear.network/event/?id='+encodeURIComponent(_eventId)+'">'+escHTML(String(window._evTitle||'').trim()||'Event')+'</a>'];
+    if(_matchMode || _expanded){
+      eparts.push('<a href="'+location.pathname+'?id='+encodeURIComponent(_eventId)+'" onclick="return goHub(event)">Lobby</a>');
+      eparts.push('<span class="now">'+escHTML(_matchMode?'My matches':(SECTION_META[_expanded]&&SECTION_META[_expanded].title)||_expanded)+'</span>');
+    } else {
+      eparts.push('<span class="now">Lobby</span>');
+    }
+    el.innerHTML=eparts.join(' '+esep+' ');
+    var eband=document.getElementById('hub-crumbs-band');
+    if(eband) eband.innerHTML=eparts.join(' <span class="sep" aria-hidden="true">/</span> ');
+    return;
+  }
   if(!_groupId){ el.innerHTML=''; return; }
   var name=String(window._groupName||'').trim()||'This group';
   var gh='https://2appear.network/group/?id='+encodeURIComponent(_groupId)+'&look=board';
@@ -671,7 +692,9 @@ async function loadEvent(){
     var _hb=document.getElementById('hub-help-btn'); if(_hb) _hb.style.display=window._hostEmail?'':'none';
     var titleEl=document.getElementById('event-title');
     var metaEl=document.getElementById('event-meta');
+    window._evTitle=ev.title||'';
     if(titleEl) titleEl.textContent = ev.title ? ('Event: ' + ev.title) : 'Event';
+    try{ paintCrumbs(); }catch(e){}
     var bits=[];
     try{var _pd=String(ev.date||'').trim();if(_pd&&_pd.toUpperCase()!=='TBD'){var _px=new Date(_pd.length>10?_pd:_pd+'T00:00:00'),_pt=new Date();_pt.setHours(0,0,0,0);window._evPast=!isNaN(_px)&&_px<_pt;if(window._evPast)renderProfileCta();}}catch(e){}
     var when=[fmtDate(ev.date),String(ev.time||'').trim()].filter(Boolean).join(' · ');
