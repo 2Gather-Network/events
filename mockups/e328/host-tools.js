@@ -106,7 +106,7 @@
       p5.style.display = "";
     };
     draw();
-    var attUrl = "https://2appear.network/mockups/e328/myevents/attendees/?id=" + encodeURIComponent(String(ev.id || ""));
+    var attUrl = "https://2gather.network/mockups/e328/myevents/attendees/?id=" + encodeURIComponent(String(ev.id || ""));
     var load = function () {
       list.textContent = ""; lede.textContent = "";
       var w = el("div", "cwh-st", "Looking up your invitations…"); list.appendChild(w);
@@ -184,7 +184,7 @@
         var lb = el("a", "cwh-b"); lb.innerHTML = "<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" style=\"margin-left:1px;margin-right:4px;flex:0 0 auto\"><path d=\"M10 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h4\"/><path d=\"M13 8l4 4-4 4\"/><path d=\"M8 12h9\"/></svg>Start 2Gather"; lb.href = "https://2gather.network/attendees/?id=" + encodeURIComponent(eid); acts.appendChild(lb);
       }
       var inv = el("button", "cwh-b"); inv.innerHTML = "<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" style=\"margin-right:6px;flex:0 0 auto\"><circle cx=\"9\" cy=\"8\" r=\"3.2\"/><path d=\"M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1\"/><circle cx=\"17\" cy=\"9\" r=\"2.5\"/><path d=\"M17.5 14.2A4.5 4.5 0 0 1 21.5 18.5V20\"/></svg>Invite people"; inv.type = "button"; inv.setAttribute("aria-expanded", "false"); acts.appendChild(inv);
-      var attUrl = "https://2appear.network/mockups/e328/myevents/attendees/?id=" + encodeURIComponent(String(ev.id || ""));
+      var attUrl = "https://2gather.network/mockups/e328/myevents/attendees/?id=" + encodeURIComponent(String(ev.id || ""));
       var ma = el("a", "cwh-b"); ma.innerHTML = "<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" style=\"margin-right:6px;flex:0 0 auto\"><rect x=\"4\" y=\"5\" width=\"16\" height=\"14\" rx=\"2\"/><circle cx=\"9.5\" cy=\"11\" r=\"2\"/><path d=\"M6.5 16c.5-1.6 1.7-2.4 3-2.4s2.5.8 3 2.4\"/><path d=\"M14.5 10h3M14.5 14h3\"/></svg>Manage attendees"; ma.href = attUrl; ma.style.display = "none"; acts.appendChild(ma);
       row.parentNode.insertBefore(acts, row.nextSibling);
       inv.onclick = function () {
