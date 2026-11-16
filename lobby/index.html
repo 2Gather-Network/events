@@ -677,7 +677,7 @@ async function _qrJoinCard(){
         me.languages=lang.split(/\s*,\s*/).filter(Boolean);
       }
       var d=await (await fetch(GS_URL+'?action=joinLobbyByKey&eventId='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId)+'&k='+encodeURIComponent(_qrK)+'&nameShown='+encodeURIComponent(st.name)+'&placeLevel=City&placeText='+encodeURIComponent(loc))).json();
-      if(d&&d.status==='ok'&&d.inLobby){ try{ sessionStorage.setItem('cw-joined-'+_eventId,'1'); }catch(e){} location.replace('/lobby/?id='+encodeURIComponent(_eventId)); return; }
+      if(d&&d.status==='ok'&&d.inLobby){ try{ sessionStorage.setItem('cw-joined-'+_eventId,'1'); sessionStorage.setItem('cw-joinok-'+_eventId,String(Date.now())); }catch(e){} location.replace(location.pathname+'?id='+encodeURIComponent(_eventId)); return; }
       var c=(d&&d.code)||'';
       paint(c==='key'?'This code is no longer open. Ask the host for a new one.':c==='busy'?'Too many tries. Try again in an hour.':c==='place'?'Use a place name, not an address or number.':'All four are needed to enter the lobby.');
     }catch(e){ paint(e==='photo'?'Your photo did not go up. Try again.':'This did not save. Try again.'); }
@@ -874,6 +874,7 @@ function _boardApply(d){
 function _lobbyViewing(){ try{ return !!(window.CW&&CW.me&&CW.me().viewing)||!!(window.CW&&CW.viewingAs&&CW.viewingAs()); }catch(e){ return true; } }
 function _lobbyKey(){ return 'cw-lobby-'+_eventId+'-'+normId(_myId||''); }
 function _lobbyAsk(){ var fresh=false; try{ fresh=sessionStorage.getItem('cw-joined-'+_eventId)==='1'; if(fresh) sessionStorage.removeItem('cw-joined-'+_eventId); }catch(e){} return GS_URL+'?action=getEventProfiles&eventId='+encodeURIComponent(_eventId)+(_myId?'&me='+encodeURIComponent(_myId):'')+(fresh?'&nocache=1&t='+Date.now():''); }
+function _justJoined(){ try{ var t=Number(sessionStorage.getItem('cw-joinok-'+_eventId)||0); return !!t && (Date.now()-t)<10*60*1000; }catch(e){ return false; } }
 function _lobbyKeep(d){ if(_lobbyViewing()) return; try{ localStorage.setItem(_lobbyKey(), JSON.stringify({at:Date.now(), d:d})); }catch(e){} }
 function _lobbyQuietRefresh(before){
   var reKey='cw-lobby-re-'+_eventId;
@@ -904,6 +905,7 @@ async function loadMembers(){
     try{ _muInfo(); window._lobbyP=fetch(_lobbyAsk()); }catch(e){}
     try{ var _ck0=await (await fetch(GS_URL+'?action=checkLobbyKey&ev='+encodeURIComponent(_eventId)+'&k='+encodeURIComponent(_qrK))).json(); if(_ck0&&_ck0.status==='ok'&&_ck0.open===false){ var _w0=document.getElementById('board-wait'),_p0=document.getElementById('board-wait-pill'); if(_p0) _p0.style.display='none'; if(_w0){ _w0.innerHTML='<div style="background:#fff;border-radius:18px;padding:22px 20px;max-width:520px;margin:0 auto;color:#1a1a2e;line-height:1.5;"><p role="alert" style="margin:0;">This code is no longer open. Ask the host for a new one.</p></div>'; } return; } window._qrEarly=true; _qrJoinCard(); }catch(e){}
   }
+  if(!_myId && _eventId && _justJoined()){ for(var _wi=0;_wi<16&&!_myId;_wi++){ await new Promise(function(r){ setTimeout(r,500); }); try{ _myId=String((CW.me()||{}).id||'').trim(); }catch(e){} } }
   if(!_myId && _eventId){ window.location.replace('https://2appear.network/event/?id='+encodeURIComponent(_eventId)); return; }
   if(_myId && _eventId) _muInfo();
   try{
@@ -918,13 +920,14 @@ async function loadMembers(){
       if(d.me && _meRegistered && !d.attendees.some(function(p){ return normId(p.appearId)===normId(d.me.appearId); })){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
       window._evManages=(d.meManages===true);
       if(_myId && !_meRegistered && !window._evManages && _qrK){ if(!window._qrEarly) _qrJoinCard(); return; }
+      if(_myId && !_meRegistered && !window._evManages && _justJoined()){ for(var _ri=0;_ri<3&&!_meRegistered;_ri++){ await new Promise(function(r){ setTimeout(r,3000); }); try{ var _rd=await (await fetch(GS_URL+'?action=getEventProfiles&eventId='+encodeURIComponent(_eventId)+'&me='+encodeURIComponent(_myId)+'&nocache=1&t='+Date.now())).json(); if(_rd&&_rd.attendees&&_rd.meRegistered===true){ d=_rd; _meRegistered=true; d.attendees.forEach(function(p){ if(!_photoMap[normId(p.appearId)]){ _photoMap[normId(p.appearId)]={photo:p.photo||'',pageLink:p.pageLink||''}; processRow(p, p.appearId); } }); } }catch(e){} } if(!_meRegistered) _meRegistered=true; if(d.me && !d.attendees.some(function(p){ return normId(p.appearId)===normId(d.me.appearId); })){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); } }
       if(_myId && !_meRegistered && !window._evManages){ var _hd=await _muInfo(); if(!(_hd&&_hd.host===true)){ window.location.replace('https://2appear.network/event/?id='+encodeURIComponent(_eventId)); return; } }
       if(_myId && !_myData) await loadMyDataFallback();
       if(params.get('profile')==='1' && _myId && _meRegistered){ await loadMyDataFallback(); await _epCard(); return; }
       if(_myId && (_meRegistered || window._evManages) && params.get('p')){ var _pm=_members.filter(function(m){ return _cwCodeFor(m.appearId)===params.get('p'); })[0]; if(_pm){ await loadBookmarkedPeople(); if(await _avCard(_pm.appearId)) return; } }
       if(_myId && (_meRegistered || window._evManages) && params.get('bookmarks')==='1'){ await _bmCard(); return; }
       if(_myId && (_meRegistered || window._evManages)){ if(_lk) _lobbyQuietRefresh(JSON.stringify(_lk.d)); else _lobbyKeep(d); }
-      if(_myId && _meRegistered && d.meInLobby===false) _joinNote();
+      if(_myId && _meRegistered && d.meInLobby===false && !_justJoined()) _joinNote();
       _boardShow();
       computeGlobals(); buildChips(); renderAll();
       return;
