@@ -87,6 +87,12 @@
   .msg.bad{color:var(--bad);}
   .confirm{background:#FFF6F5;border:1.5px solid #F3C9C4;border-radius:12px;padding:12px 14px;margin-top:16px;font-size:14px;}
   .confirm[hidden]{display:none;}
+  .cw-loading{display:inline-flex;align-items:center;background:var(--brand);color:#fff;font-size:14px;font-weight:700;padding:10px 20px;border-radius:22px;animation:cw-breathe 1.6s ease-in-out infinite;}
+  .cw-loading.stopped{animation:none;}
+  @keyframes cw-breathe{0%,100%{opacity:1}50%{opacity:.62}}
+  @media (prefers-reduced-motion: reduce){ .cw-loading{animation:none;} }
+  #wait{margin:24px 0;}
+  #wait[hidden],#head[hidden]{display:none;}
 </style>
 <script src="/nav/identity.js?v=66"></script>
 </head>
@@ -95,8 +101,11 @@
 <div class="wrap">
   <div class="breadcrumb" id="breadcrumb"></div>
   <div id="pane">
+    <div id="wait"><span class="cw-loading">Loading information...</span></div>
+    <div id="head" hidden>
     <h2>Relationship Management System</h2>
-    <p class="sub" id="sub">Looking up your contacts.</p>
+    <p class="sub" id="sub"></p>
+    </div>
     <div id="body" hidden>
       <div class="notice"><span>Did you meet someone you want to reach again? Add them to save a reminder to follow up.</span><button class="btn" type="button" id="add">+ Add contact</button></div>
       <div class="tools" id="tools" hidden>
@@ -209,7 +218,8 @@
   var RELATIONSHIP = ['Potential team', 'Potential client', 'To be served', 'Partner', 'Other'];
   var STATUS = ['To contact', 'Following up', 'Waiting on them', 'Scheduled', 'Connected', 'Parked'];
   var PRIORITY = ['High', 'Medium', 'Low'];
-  var SOURCE_WORD = { bookmark: 'Bookmarked', eventInvite: 'Event invite', connect: 'Connected', card: 'Business card', event: 'Invited to host' };
+  var MSG_API = 'https://cw-messages.jessieupp.workers.dev';
+  var SOURCE_WORD = { message: 'Messaged', bookmark: 'Bookmarked', eventInvite: 'Event invite', connect: 'Connected', card: 'Business card', event: 'Invited to host' };
   var CF = { ev: [], grp: [], tags: [], l: [], arch: false };
   var CFN = { ev: 'Past events', grp: 'Selected groups', tags: 'Tags', l: 'How they landed here' };
   var PASTEV = [];
@@ -217,7 +227,7 @@
   try { if (window.cwBreadcrumb) { window.cwBreadcrumb(document.getElementById('breadcrumb'), 'My contacts'); } } catch (e) {}
   try { if (window.cwProfileRail) { window.cwProfileRail({ wrap: document.getElementById('pane'), shape: 'network', active: 'contacts' }); } } catch (e) {}
 
-  ['veil', 'addveil', 'fveil'].forEach(function (id) { var v = document.getElementById(id), p = document.getElementById('pane'); if (v && p) { p.appendChild(v); } });
+  ['veil', 'addveil', 'fveil'].forEach(function (id) { var v = document.getElementById(id), b = document.getElementById('body'); if (v && b && b.parentNode) { b.parentNode.appendChild(v); } });
   function onlyPanel(id) {
     ['veil', 'addveil', 'fveil'].forEach(function (x) { document.getElementById(x).hidden = x !== id; });
     document.getElementById('body').hidden = !!id;
@@ -240,7 +250,9 @@
     return fetch(GS_URL + '?action=' + action + '&meToken=&t=' + Date.now(), { method: 'POST', cache: 'no-store', referrerPolicy: 'no-referrer', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json(); });
   }
+  function ready() { $('wait').hidden = true; $('head').hidden = false; }
   function say(text, link) {
+    ready();
     var s = $('sub');
     s.textContent = text || '';
     if (link) { var a = document.createElement('a'); a.href = link[1]; a.textContent = link[0]; s.appendChild(document.createTextNode(' ')); s.appendChild(a); }
@@ -275,6 +287,7 @@
       return ev ? 'You invited them to ' + ev.title : '';
     }
     if (c.sourceKind === 'connect') { return 'You connected on 2Appear'; }
+    if (c.sourceKind === 'message') { return c.groupName ? 'Messaged with ' + c.name + ' in ' + c.groupName : 'Messaged with ' + c.name; }
     return '';
   }
   function cfKey(c, k) {
@@ -320,7 +333,7 @@
       var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = when ? 'Added ' + (c.name || 'them') + ' on ' + when : (c.name || 'No name');
       who.appendChild(nm);
       var how = howLine(c);
-      if (how) { var hl = document.createElement('div'); hl.className = 'line'; hl.textContent = how + ' · ' + (c.name || ''); who.appendChild(hl); }
+      if (how) { var hl = document.createElement('div'); hl.className = 'line'; hl.textContent = c.sourceKind === 'message' ? how : how + ' · ' + (c.name || ''); who.appendChild(hl); }
       var more = [c.roleOrg, c.phone].filter(Boolean).join(' · ');
       if (more) { var ml = document.createElement('div'); ml.className = 'line'; ml.textContent = more; who.appendChild(ml); }
       var tg = tagsOf(c);
@@ -341,7 +354,8 @@
       nt.onclick = function () { openForm(c); setTimeout(function () { try { $('f-notes').focus(); } catch (e) {} }, 40); };
       var lk = document.createElement('button'); lk.type = 'button'; lk.className = 'btn ghost'; lk.textContent = 'Link';
       lk.onclick = function () { copyLink(c, lk); };
-      acts.appendChild(ed); acts.appendChild(nt); acts.appendChild(lk);
+      if (!c.msgOnly) { acts.appendChild(ed); acts.appendChild(nt); }
+      acts.appendChild(lk);
       row.appendChild(av); row.appendChild(who); row.appendChild(acts);
       box.appendChild(row);
     });
@@ -667,6 +681,7 @@
     BUSY = false; $('save').disabled = false; $('confirm-yes').disabled = false;
     if (d && d.status === 'ok') {
       ALL = d.contacts || [];
+      addMessaged();
       closeForm(); $('tools').hidden = !ALL.length; draw();
       say(okText);
       return;
@@ -714,20 +729,55 @@
   $('find').oninput = draw;
   pills();
 
+  function msgSession() {
+    var k = 'cw-msg-session-' + ME;
+    try { var kept = sessionStorage.getItem(k) || ''; if (kept && parseInt(kept.split('.')[1] || '0', 10) > Date.now() + 60000) { return Promise.resolve(kept); } } catch (e) {}
+    return fetch(MSG_API + '/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: ME, token: token() }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (!d || d.status !== 'ok' || !d.session) { throw new Error('no'); } try { sessionStorage.setItem(k, d.session); } catch (e) {} return d.session; });
+  }
+  var MSG_ROWS = [];
+  function addMessaged(rows) {
+    MSG_ROWS = rows || MSG_ROWS;
+    rows = MSG_ROWS;
+    var have = {};
+    ALL.forEach(function (c) { if (c.person) { have[c.person] = c; } });
+    (rows || []).forEach(function (m) {
+      if (!m || !m.code || !m.bothWritten || m.eventId || !String(m.name || '').trim()) { return; }
+      var c = have[m.code];
+      if (c) {
+        if (m.groupId && (c.groupIds || []).indexOf(m.groupId) < 0) { c.groupIds = (c.groupIds || []).concat([m.groupId]); }
+        return;
+      }
+      c = { contactId: '', person: m.code, name: String(m.name), sourceKind: 'message', sourceId: '', addedAt: m.firstAt || '',
+            groupIds: m.groupId ? [m.groupId] : [], groupName: m.groupName || '', tag: '', msgOnly: true };
+      have[m.code] = c; ALL.push(c);
+    });
+    ALL.sort(function (a, b) { return String(b.addedAt).localeCompare(String(a.addedAt)); });
+  }
+  function loadMessaged() {
+    return msgSession().then(function (sk) {
+      return fetch(MSG_API + '/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-msg-session': sk }, body: '{}' })
+        .then(function (r) { return r.json(); });
+    }).then(function (d) { addMessaged(d && d.contacts); }).catch(function () {});
+  }
+
   (function start() {
     if (!ME) { say('Sign in to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
     ask('getContacts', {}).then(function (d) {
       if (d && d.code === 'signin') { say('Sign in again to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
       if (!d || d.status !== 'ok') { say((d && d.message) || 'Your contacts did not load. Reload the page and it will try again.'); return; }
       ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || [];
+      return loadMessaged().then(function () {
       say('');
       $('body').hidden = false;
       $('tools').hidden = !ALL.length;
       draw();
+      });
     }).catch(function () { say('Your contacts did not load. Reload the page and it will try again.'); });
   })();
 </script>
 
-<script src="/nav/topbar.js?v=7.07" defer></script>
+<script src="/nav/topbar.js?v=7.08" defer></script>
 </body>
 </html>
