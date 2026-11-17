@@ -887,6 +887,7 @@ function _lobbyViewing(){ try{ return !!(window.CW&&CW.me&&CW.me().viewing)||!!(
 function _lobbyKey(){ return 'cw-lobby-'+_eventId+'-'+normId(_myId||''); }
 function _lobbyAsk(){ var fresh=false; try{ fresh=sessionStorage.getItem('cw-joined-'+_eventId)==='1'; if(fresh) sessionStorage.removeItem('cw-joined-'+_eventId); }catch(e){} return GS_URL+'?action=getEventProfiles&eventId='+encodeURIComponent(_eventId)+(_myId?'&me='+encodeURIComponent(_myId):'')+(fresh?'&nocache=1&t='+Date.now():''); }
 function _justJoined(){ try{ var t=Number(sessionStorage.getItem('cw-joinok-'+_eventId)||0); return !!t && (Date.now()-t)<10*60*1000; }catch(e){ return false; } }
+function _lobbyBackToQr(){ try{ var k=String(localStorage.getItem('cw-lobby-k-'+_eventId)||''); if(!_qrK && /^[0-9a-f]{32}$/.test(k)){ location.replace(location.pathname+'?id='+encodeURIComponent(_eventId)+'&k='+encodeURIComponent(k)); return true; } }catch(e){} return false; }
 function _lobbyKeep(d){ if(_lobbyViewing()) return; try{ localStorage.setItem(_lobbyKey(), JSON.stringify({at:Date.now(), d:d})); }catch(e){} }
 function _lobbyQuietRefresh(before){
   var reKey='cw-lobby-re-'+_eventId;
@@ -904,15 +905,16 @@ function _lobbyQuietRefresh(before){
 async function loadMembers(){
   if(_groupId){ return loadGroupMembers(); }
   if(_myId && _eventId){ try{ window._mdP=window._mdP||loadMyDataFallback(); }catch(e){} }
-  if(_myId && !_qrK && _eventId && !_lobbyViewing()){ var _hk0='cw-host-k-'+_eventId+'-'+normId(_myId), _hs0=false, _in0=false; try{ _hs0=sessionStorage.getItem(_hk0)==='1'; var _kc=JSON.parse(localStorage.getItem(_lobbyKey())||'null'); _in0=!!(_kc&&_kc.d&&_kc.d.meInLobby===true); }catch(e){} if(!_hs0 && !_in0) window._hqP=fetch(GS_URL+'?action=getLobbyQr&eventId='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId)+'&meToken='+encodeURIComponent(_qrTok())+'&t='+Date.now()).then(function(r){ return r.json(); }).catch(function(){ return null; }); }
+  if(_myId && !_qrK && _eventId && !_lobbyViewing()){ var _hk0='cw-host-k-'+_eventId+'-'+normId(_myId), _hs0=false, _in0=false; try{ var _kc=JSON.parse(localStorage.getItem(_lobbyKey())||'null'); _in0=!!(_kc&&_kc.d&&_kc.d.meInLobby===true); }catch(e){} if(!_hs0 && !_in0) window._hqP=fetch(GS_URL+'?action=getLobbyQr&eventId='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId)+'&meToken='+encodeURIComponent(_qrTok())+'&t='+Date.now()).then(function(r){ return r.json(); }).catch(function(){ return null; }); }
   if(_qrK && _eventId && !_groupId){
     if(!_myId) return;
+    try{ localStorage.setItem('cw-lobby-k-'+_eventId,_qrK); }catch(e){}
     _qrStrip();
     try{ _muInfo(); window._lobbyP=fetch(_lobbyAsk()); }catch(e){}
     try{ var _ck0=await (await fetch(GS_URL+'?action=checkLobbyKey&ev='+encodeURIComponent(_eventId)+'&k='+encodeURIComponent(_qrK))).json(); if(_ck0&&_ck0.status==='ok'&&_ck0.open===false){ var _w0=document.getElementById('board-wait'),_p0=document.getElementById('board-wait-pill'); if(_p0) _p0.style.display='none'; if(_w0){ _w0.innerHTML='<div style="background:#fff;border-radius:18px;padding:22px 20px;max-width:520px;margin:0 auto;color:#1a1a2e;line-height:1.5;"><p role="alert" style="margin:0;">This code is no longer open. Ask the host for a new one.</p></div>'; } return; } window._qrEarly=true; _qrJoinCard(); }catch(e){}
   }
   if(!_myId && _eventId && _justJoined()){ for(var _wi=0;_wi<16&&!_myId;_wi++){ await new Promise(function(r){ setTimeout(r,500); }); try{ _myId=String((CW.me()||{}).id||'').trim(); }catch(e){} } }
-  if(!_myId && _eventId){ window.location.replace('https://2appear.network/event/?id='+encodeURIComponent(_eventId)); return; }
+  if(!_myId && _eventId){ if(_lobbyBackToQr()) return; window.location.replace('https://2appear.network/event/?id='+encodeURIComponent(_eventId)); return; }
   if(_myId && _eventId) _muInfo();
   try{
     var d=null, _lk=null;
@@ -925,10 +927,10 @@ async function loadMembers(){
       _meRegistered = (typeof d.meRegistered==='boolean') ? d.meRegistered : !!_myId;
       if(d.me && _meRegistered && !d.attendees.some(function(p){ return normId(p.appearId)===normId(d.me.appearId); })){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); }
       window._evManages=(d.meManages===true);
-      if(_myId && !_qrK && d.meInLobby!==true && !_lobbyViewing()){ var _hk='cw-host-k-'+_eventId+'-'+normId(_myId), _hs=false; try{ _hs=sessionStorage.getItem(_hk)==='1'; }catch(e){} if(!_hs){ try{ var _hq=await (window._hqP||fetch(GS_URL+'?action=getLobbyQr&eventId='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId)+'&meToken='+encodeURIComponent(_qrTok())+'&t='+Date.now()).then(function(r){ return r.json(); })); if(_hq&&_hq.status==='ok'&&_hq.on&&_hq.k){ try{ sessionStorage.setItem(_hk,'1'); }catch(e){} location.replace(location.pathname+'?id='+encodeURIComponent(_eventId)+'&k='+encodeURIComponent(_hq.k)); return; } }catch(e){} } }
+      if(_myId && !_qrK && d.meInLobby!==true && !_lobbyViewing()){ var _hk='cw-host-k-'+_eventId+'-'+normId(_myId), _hs=false;  if(!_hs){ try{ var _hq=await (window._hqP||fetch(GS_URL+'?action=getLobbyQr&eventId='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId)+'&meToken='+encodeURIComponent(_qrTok())+'&t='+Date.now()).then(function(r){ return r.json(); })); if(_hq&&_hq.status==='ok'&&_hq.on&&_hq.k){ try{ sessionStorage.setItem(_hk,'1'); }catch(e){} location.replace(location.pathname+'?id='+encodeURIComponent(_eventId)+'&k='+encodeURIComponent(_hq.k)); return; } }catch(e){} } }
       if(_myId && _qrK && (!_meRegistered || d.meInLobby===false)){ if(!window._qrEarly) _qrJoinCard(); return; }
       if(_myId && !_meRegistered && !window._evManages && _justJoined()){ for(var _ri=0;_ri<3&&!_meRegistered;_ri++){ await new Promise(function(r){ setTimeout(r,3000); }); try{ var _rd=await (await fetch(GS_URL+'?action=getEventProfiles&eventId='+encodeURIComponent(_eventId)+'&me='+encodeURIComponent(_myId)+'&nocache=1&t='+Date.now())).json(); if(_rd&&_rd.attendees&&_rd.meRegistered===true){ d=_rd; _meRegistered=true; d.attendees.forEach(function(p){ if(!_photoMap[normId(p.appearId)]){ _photoMap[normId(p.appearId)]={photo:p.photo||'',pageLink:p.pageLink||''}; processRow(p, p.appearId); } }); } }catch(e){} } if(!_meRegistered) _meRegistered=true; if(d.me && !d.attendees.some(function(p){ return normId(p.appearId)===normId(d.me.appearId); })){ if(!_photoMap[normId(d.me.appearId)]) _photoMap[normId(d.me.appearId)]={photo:d.me.photo||'',pageLink:d.me.pageLink||''}; processRow(d.me, d.me.appearId); } }
-      if(_myId && !_meRegistered && !window._evManages){ var _hd=await _muInfo(); if(!(_hd&&_hd.host===true)){ window.location.replace('https://2appear.network/event/?id='+encodeURIComponent(_eventId)); return; } }
+      if(_myId && !_meRegistered && !window._evManages){ var _hd=await _muInfo(); if(!(_hd&&_hd.host===true)){ if(_lobbyBackToQr()) return; window.location.replace('https://2appear.network/event/?id='+encodeURIComponent(_eventId)); return; } }
       if(_myId && !_myData) await (window._mdP||loadMyDataFallback());
       if(params.get('profile')==='1' && _myId && _meRegistered){ await (window._mdP||loadMyDataFallback()); await _epCard(); return; }
       if(_myId && (_meRegistered || window._evManages) && params.get('p')){ var _pm=_members.filter(function(m){ return _cwCodeFor(m.appearId)===params.get('p'); })[0]; if(_pm){ await loadBookmarkedPeople(); if(await _avCard(_pm.appearId)) return; } }
