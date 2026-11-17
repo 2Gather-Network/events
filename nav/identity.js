@@ -354,6 +354,7 @@
   }
   function conductScreen(nm, mode, from) {
     if (viewingAs()) { return; }
+    if (mode === 'carry' && !(nm === 'Appear' && from === 'Gather')) { return; }
     var go = function () { if (w.CW_conduct) { w.CW_conduct(nm, mode, from); } };
     if (w.CW_conduct) { go(); return; }
     var s = w.document.createElement('script');
