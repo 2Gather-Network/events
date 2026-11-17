@@ -306,6 +306,10 @@
         .catch(function () { _tbHush('getMyInvites', 5); });
     } catch (e) {}
   }
+  function myIkigaiUrl() {
+    return (onAppear() ? '' : 'https://2gather.network') + '/ikigai/?step=interests';
+  }
+
   function myProfileUrl() {
     try {
       var norm = function (x) { return String(x || '').split('.').join('').toLowerCase(); };
@@ -513,7 +517,7 @@
     function fillMine() {
       var mine = '';
       if (onBalance()) {
-        if (firstMinDone()) { mine += anchor('My profile', '/ikigai/?step=joys', 'cwtb-item'); }
+        if (firstMinDone()) { mine += anchor('My profile', '/ikigai/?step=interests', 'cwtb-item'); }
         mine += otherSitesHtml();
         mine += anchor('My account', '/account/', 'cwtb-item');
         mine += anchor('Support', '/support/', 'cwtb-item');
@@ -522,7 +526,7 @@
       }
       if (onAppear()) {
         mine += anchor('My messages', '/messages/',   'cwtb-item');
-        mine += anchor('My profile',  myProfileUrl(), 'cwtb-item');
+        mine += anchor('My profile',  myIkigaiUrl(), 'cwtb-item');
         mine += anchor('My events',   '/myevents/', 'cwtb-item');
         mine += anchor('My groups',   carryLink('https://2appear.network/mygroups/'), 'cwtb-item');
         mine += anchor('My network',  carryLink('https://2appear.network/network/'),  'cwtb-item');
@@ -538,7 +542,7 @@
         mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
         return mine;
       }
-      mine += anchor('My profile', myProfileUrl(), 'cwtb-item');
+      mine += anchor('My profile', myIkigaiUrl(), 'cwtb-item');
       var ap = onAppear();
       mine += anchor('My messages', ap ? '/messages/' : 'https://2gather.network/messages', 'cwtb-item');
       mine += otherSitesHtml();
