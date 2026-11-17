@@ -94,10 +94,13 @@
   .tab.on{background:var(--brand);color:#fff;border-color:var(--brand);}
   .tab span{display:block;font-size:12px;font-weight:600;opacity:.8;}
   [data-cp][hidden]{display:none;}
+  .av img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;}
+  .row.bm{flex-wrap:wrap;}
+  @media(max-width:600px){.row.bm .actions-row{width:100%;}.row.bm .actions-row .btn{flex:1;text-align:center;}}
   .evh{font-size:16px;font-weight:800;margin:18px 0 6px;color:var(--ink);}
   #wait[hidden],#head[hidden]{display:none;}
 </style>
-<script src="/nav/identity.js?v=68"></script>
+<script src="/nav/identity.js?v=69"></script>
 </head>
 <body>
 
@@ -762,7 +765,7 @@
       .then(function (d) { if (!d || d.status !== 'ok' || !d.session) { throw new Error('no'); } try { sessionStorage.setItem(k, d.session); } catch (e) {} return d.session; });
   }
   var TABS = { connected: [], requests: [], invited: [] }, CUR_TAB = 'contacts';
-  var TAB_NAMES = [['contacts', 'Contacts'], ['requests', 'Requests'], ['connected', 'Connected'], ['invited', 'Invited'], ['events', 'From my events']];
+  var TAB_NAMES = [['contacts', 'Contacts'], ['bookmarks', 'Bookmarks'], ['requests', 'Requests'], ['connected', 'Connected'], ['invited', 'Invited'], ['events', 'From my events']];
   function longDate(at) { var d = new Date(String(at || '')); if (isNaN(d.getTime())) { return ''; } var mo = ['January','February','March','April','May','June','July','August','September','October','November','December']; return mo[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); }
   function personRow(name, lines, lbl) {
     var row = document.createElement('div'); row.className = 'row';
@@ -783,7 +786,7 @@
       b.onclick = function () { showTab(t[0]); }; seg.appendChild(b);
     });
     body.appendChild(seg); body.appendChild(cp);
-    ['requests', 'connected', 'invited', 'events'].forEach(function (k) { var d = document.createElement('div'); d.setAttribute('data-cp', k); d.id = 'cp-' + k; d.hidden = true; body.appendChild(d); });
+    ['bookmarks', 'requests', 'connected', 'invited', 'events'].forEach(function (k) { var d = document.createElement('div'); d.setAttribute('data-cp', k); d.id = 'cp-' + k; d.hidden = true; body.appendChild(d); });
   }
   function showTab(k) {
     CUR_TAB = k;
@@ -809,6 +812,25 @@
   function drawTabs() {
     var live = ALL.filter(function (c) { return !c.archived; });
     $('tn-contacts').textContent = live.length;
+    var bk = $('cp-bookmarks'); bk.innerHTML = '';
+    BMARKS.forEach(function (p) {
+      var name = String(p.name || '').trim() || 'Someone';
+      var row = personRow(name, [bmWhere(p), bmCommon(p)], ''); row.className = 'row bm';
+      var photo = String(p.photo || '').trim();
+      if (/^https:\/\//i.test(photo)) { var av = row.querySelector('.av'); av.textContent = ''; var im = document.createElement('img'); im.alt = ''; im.src = photo; av.appendChild(im); }
+      var acts = document.createElement('div'); acts.className = 'actions-row';
+      var m = document.createElement('a'); m.className = 'btn'; m.textContent = 'Send message'; m.href = '/messages/?to=' + encodeURIComponent(String(p.appearId || '')); acts.appendChild(m);
+      var g = document.createElement('a'); g.className = 'btn ghost'; g.textContent = 'View profile';
+      var v = String(p.vanity || '').trim();
+      g.href = v ? 'https://2gather.network/hi/' + encodeURIComponent(v) : 'https://2gather.network/hi/?v=' + encodeURIComponent(String(p.appearId || '').trim().replace(/^c:/i, ''));
+      acts.appendChild(g); row.appendChild(acts); bk.appendChild(row);
+    });
+    if (!BMARKS.length) {
+      var nb = document.createElement('div'); nb.className = 'notice';
+      var ns = document.createElement('span'); ns.appendChild(document.createTextNode('You have not bookmarked anyone yet. Open somebody\u2019s profile and press ')); var bb = document.createElement('b'); bb.textContent = 'Bookmark'; ns.appendChild(bb); ns.appendChild(document.createTextNode(', and they will show up here.'));
+      nb.appendChild(ns); bk.appendChild(nb);
+    }
+    $('tn-bookmarks').textContent = BMARKS.length;
     var rq = $('cp-requests'); rq.innerHTML = '';
     TABS.requests.forEach(function (r) { rq.appendChild(personRow(r.name, [r.at ? 'Asked to join your network on ' + longDate(r.at) : ''])); });
     if (!TABS.requests.length) { rq.appendChild(emptyBox('requests')); }
@@ -836,6 +858,23 @@
     });
     if (!shown) { ev.appendChild(emptyBox('events')); }
     $('tn-events').textContent = shown;
+  }
+  var BMARKS = [];
+  function bmWhere(p) {
+    var kind = String((p && p.sourceKind) || ''), title = String((p && p.sourceTitle) || '').trim(), where = '';
+    if (kind === 'Group') { where = title ? 'at ' + title : 'in a group'; } else if (kind === 'Event') { where = title ? 'at ' + title : 'at an event'; }
+    var d = new Date(String((p && p.at) || '')), when = '';
+    if (!isNaN(d.getTime())) { var mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; when = d.getDate() + ' ' + mo[d.getMonth()] + ' ' + d.getFullYear(); }
+    if (!where && !when) { return ''; }
+    return 'Bookmarked' + (where ? ' ' + where : '') + (when ? ' on ' + when : '');
+  }
+  function bmCommon(p) { var n = ((p && p.groups) || []).length; return n ? n + (n === 1 ? ' group' : ' groups') + ' in common: ' + p.groups.join(' / ') : ''; }
+  function loadBookmarks() {
+    return ask('getBookmarks', {}).then(function (d) {
+      var mine = {}; [ME].forEach(function (x) { x = String(x || '').split('.').join('').trim().toLowerCase(); if (x) { mine[x] = 1; } });
+      BMARKS = ((d && d.bookmarks) || []).filter(function (p) { return !mine[String(p.appearId || '').split('.').join('').trim().toLowerCase()]; });
+      draw();
+    }).catch(function () {});
   }
   var MSG_ROWS = [];
   function addMessaged(rows) {
@@ -883,6 +922,7 @@
       $('tools').hidden = !ALL.length;
       draw();
       loadMessaged().then(function () { $('tools').hidden = !ALL.length; draw(); });
+      loadBookmarks();
     }).catch(function () { say('Your contacts did not load. Reload the page and it will try again.'); });
   })();
 </script>
