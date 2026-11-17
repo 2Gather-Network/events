@@ -94,9 +94,19 @@
   .tab.on{background:var(--brand);color:#fff;border-color:var(--brand);}
   .tab span{display:block;font-size:12px;font-weight:600;opacity:.8;}
   [data-cp][hidden]{display:none;}
-  .av img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;}
-  .row.bm{flex-wrap:wrap;}
-  @media(max-width:600px){.row.bm .actions-row{width:100%;}.row.bm .actions-row .btn{flex:1;text-align:center;}}
+  details.fsec{background:#F7F9FC;border-radius:12px;padding:11px 14px;margin:0 0 8px;font-size:15px;font-weight:700;}
+  details.fsec summary{display:flex;justify-content:space-between;align-items:center;cursor:pointer;list-style:none;}
+  details.fsec summary::-webkit-details-marker{display:none;}
+  details.fsec[open] .chev{transform:rotate(90deg);}
+  details.fsec .chev{font-size:18px;transition:transform .15s;}
+  details.fsec .check{font-weight:400;}
+  .head-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px;}
+  .head-row h2{margin:0;}
+  .bmsw{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;color:var(--ink);}
+  .sw{position:relative;width:42px;height:24px;border-radius:12px;background:#C6CDD8;border:0;cursor:pointer;flex-shrink:0;padding:0;}
+  .sw::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s;}
+  .sw[aria-checked="true"]{background:var(--brand);}
+  .sw[aria-checked="true"]::after{left:21px;}
   .evh{font-size:16px;font-weight:800;margin:18px 0 6px;color:var(--ink);}
   #wait[hidden],#head[hidden]{display:none;}
 </style>
@@ -109,7 +119,7 @@
   <div id="wait"><span class="cw-loading">Loading information...</span></div>
   <div id="pane" class="waiting">
     <div id="head" hidden>
-    <h2>Relationship Management System</h2>
+    <div class="head-row"><h2>Relationship Management System</h2><label class="bmsw"><span id="bm-lbl">Show bookmarks</span><button class="sw" type="button" role="switch" aria-checked="false" aria-labelledby="bm-lbl" id="bm-sw"></button></label></div>
     <p class="sub" id="sub"></p>
     </div>
     <div id="body" hidden>
@@ -226,7 +236,7 @@
   var MSG_API = 'https://cw-messages.jessieupp.workers.dev';
   var SOURCE_WORD = { message: 'Messaged', bookmark: 'Bookmarked', eventInvite: 'Event invite', connect: 'Connected', card: 'Business card', event: 'Invited to host' };
   var CF = { ev: [], grp: [], tags: [], l: [], arch: false };
-  var CFN = { ev: 'Past events', grp: 'Selected groups', tags: 'Tags', l: 'How they landed here' };
+  var CFN = { ev: 'From my events', grp: 'From my groups', tags: 'Tags', l: 'How they landed here' };
   var PASTEV = [], CARRIED = {}, EVNOTES = [], SHARED = [];
 
   try { if (window.cwBreadcrumb) { window.cwBreadcrumb(document.getElementById('breadcrumb'), 'My contacts'); } } catch (e) {}
@@ -315,7 +325,7 @@
   function draw() {
     if ($('ctabs')) { drawTabs(); }
     var q = String($('find').value || '').trim().toLowerCase();
-    var live = ALL.filter(function (c) { return CF.arch ? c.archived : !c.archived; });
+    var live = ALL.filter(function (c) { return (CF.arch ? c.archived : !c.archived) && bmPass(c); });
     var shown = live.filter(function (c) {
       if (!cpass(c)) { return false; }
       if (!q) { return true; }
@@ -398,12 +408,22 @@
       else if (k === 'grp') { GROUPS.forEach(function (g) { vals.push(g.groupId); }); }
       else { live.forEach(function (c) { cfKey(c, k).forEach(function (v) { if (vals.indexOf(v) < 0) { vals.push(v); } }); }); }
       if (!vals.length) { return; }
-      var f = document.createElement('div'); f.className = 'field';
-      var q = document.createElement('span'); q.className = 'q'; q.textContent = CFN[k]; f.appendChild(q);
+      var big = k === 'ev' || k === 'grp';
+      var f = document.createElement(big ? 'details' : 'div'); f.className = big ? 'fsec' : 'field';
+      var q;
+      if (big) { f.open = CF[k].length > 0; q = document.createElement('summary'); q.appendChild(document.createTextNode(CFN[k])); var ch = document.createElement('span'); ch.className = 'chev'; ch.textContent = '\u203A'; q.appendChild(ch); }
+      else { q = document.createElement('span'); q.className = 'q'; q.textContent = CFN[k]; }
+      f.appendChild(q);
+      var rows = [];
+      if (big) {
+        var se = document.createElement('input'); se.type = 'search'; se.placeholder = 'Search'; se.setAttribute('aria-label', 'Search ' + CFN[k]); se.style.margin = '10px 0 4px';
+        se.oninput = function () { var t = se.value.trim().toLowerCase(); rows.forEach(function (r) { r.hidden = !!t && r.textContent.toLowerCase().indexOf(t) < 0; }); };
+        f.appendChild(se);
+      }
       vals.forEach(function (v) {
         var l = document.createElement('label'); l.className = 'check'; l.style.marginTop = '8px';
         var i = document.createElement('input'); i.type = 'checkbox'; i.value = v; i.setAttribute('data-k', k); i.checked = CF[k].indexOf(v) > -1;
-        l.appendChild(i); l.appendChild(document.createTextNode(' ' + cfName(k, v))); f.appendChild(l);
+        l.appendChild(i); l.appendChild(document.createTextNode(' ' + cfName(k, v))); f.appendChild(l); rows.push(l);
       });
       box.appendChild(f);
     });
@@ -754,6 +774,7 @@
       .catch(function () { BUSY = false; $('confirm-yes').disabled = false; msg('That did not delete. Try again.', true); });
   };
 
+  $('bm-sw').onclick = function () { BMON = this.getAttribute('aria-checked') !== 'true'; this.setAttribute('aria-checked', BMON ? 'true' : 'false'); draw(); };
   $('find').oninput = draw;
   pills();
 
@@ -765,7 +786,7 @@
       .then(function (d) { if (!d || d.status !== 'ok' || !d.session) { throw new Error('no'); } try { sessionStorage.setItem(k, d.session); } catch (e) {} return d.session; });
   }
   var TABS = { connected: [], requests: [], invited: [] }, CUR_TAB = 'contacts';
-  var TAB_NAMES = [['contacts', 'Contacts'], ['bookmarks', 'Bookmarks'], ['requests', 'Requests'], ['connected', 'Connected'], ['invited', 'Invited'], ['events', 'From my events']];
+  var TAB_NAMES = [['contacts', 'Contacts'], ['invited', 'Invited'], ['requests', 'Requests'], ['connected', 'Connected'], ['events', 'From my events']];
   function longDate(at) { var d = new Date(String(at || '')); if (isNaN(d.getTime())) { return ''; } var mo = ['January','February','March','April','May','June','July','August','September','October','November','December']; return mo[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); }
   function personRow(name, lines, lbl) {
     var row = document.createElement('div'); row.className = 'row';
@@ -786,7 +807,7 @@
       b.onclick = function () { showTab(t[0]); }; seg.appendChild(b);
     });
     body.appendChild(seg); body.appendChild(cp);
-    ['bookmarks', 'requests', 'connected', 'invited', 'events'].forEach(function (k) { var d = document.createElement('div'); d.setAttribute('data-cp', k); d.id = 'cp-' + k; d.hidden = true; body.appendChild(d); });
+    ['requests', 'connected', 'invited', 'events'].forEach(function (k) { var d = document.createElement('div'); d.setAttribute('data-cp', k); d.id = 'cp-' + k; d.hidden = true; body.appendChild(d); });
   }
   function showTab(k) {
     CUR_TAB = k;
@@ -810,42 +831,24 @@
     return d;
   }
   function drawTabs() {
-    var live = ALL.filter(function (c) { return !c.archived; });
+    var live = ALL.filter(function (c) { return !c.archived && bmPass(c); });
     $('tn-contacts').textContent = live.length;
-    var bk = $('cp-bookmarks'); bk.innerHTML = '';
-    BMARKS.forEach(function (p) {
-      var name = String(p.name || '').trim() || 'Someone';
-      var row = personRow(name, [bmWhere(p), bmCommon(p)], ''); row.className = 'row bm';
-      var photo = String(p.photo || '').trim();
-      if (/^https:\/\//i.test(photo)) { var av = row.querySelector('.av'); av.textContent = ''; var im = document.createElement('img'); im.alt = ''; im.src = photo; av.appendChild(im); }
-      var acts = document.createElement('div'); acts.className = 'actions-row';
-      var m = document.createElement('a'); m.className = 'btn'; m.textContent = 'Send message'; m.href = '/messages/?to=' + encodeURIComponent(String(p.appearId || '')); acts.appendChild(m);
-      var g = document.createElement('a'); g.className = 'btn ghost'; g.textContent = 'View profile';
-      var v = String(p.vanity || '').trim();
-      g.href = v ? 'https://2gather.network/hi/' + encodeURIComponent(v) : 'https://2gather.network/hi/?v=' + encodeURIComponent(String(p.appearId || '').trim().replace(/^c:/i, ''));
-      acts.appendChild(g); row.appendChild(acts); bk.appendChild(row);
-    });
-    if (!BMARKS.length) {
-      var nb = document.createElement('div'); nb.className = 'notice';
-      var ns = document.createElement('span'); ns.appendChild(document.createTextNode('You have not bookmarked anyone yet. Open somebody\u2019s profile and press ')); var bb = document.createElement('b'); bb.textContent = 'Bookmark'; ns.appendChild(bb); ns.appendChild(document.createTextNode(', and they will show up here.'));
-      nb.appendChild(ns); bk.appendChild(nb);
-    }
-    $('tn-bookmarks').textContent = BMARKS.length;
     var rq = $('cp-requests'); rq.innerHTML = '';
-    TABS.requests.forEach(function (r) { rq.appendChild(personRow(r.name, [r.at ? 'Asked to join your network on ' + longDate(r.at) : ''])); });
-    if (!TABS.requests.length) { rq.appendChild(emptyBox('requests')); }
-    $('tn-requests').textContent = TABS.requests.length ? TABS.requests.length + ' new' : '0';
+    var T = { requests: TABS.requests.filter(bmPass), connected: TABS.connected.filter(bmPass), invited: TABS.invited.filter(bmPass) };
+    T.requests.forEach(function (r) { rq.appendChild(personRow(r.name, [r.at ? 'Asked to join your network on ' + longDate(r.at) : ''])); });
+    if (!T.requests.length) { rq.appendChild(emptyBox('requests')); }
+    $('tn-requests').textContent = T.requests.length ? T.requests.length + ' new' : '0';
     var cn = $('cp-connected'); cn.innerHTML = '';
-    TABS.connected.forEach(function (r) { cn.appendChild(personRow(r.name, [])); });
-    if (!TABS.connected.length) { cn.appendChild(emptyBox('connected')); }
-    $('tn-connected').textContent = TABS.connected.length;
+    T.connected.forEach(function (r) { cn.appendChild(personRow(r.name, [])); });
+    if (!T.connected.length) { cn.appendChild(emptyBox('connected')); }
+    $('tn-connected').textContent = T.connected.length;
     var iv = $('cp-invited'); iv.innerHTML = '';
-    TABS.invited.forEach(function (r) {
+    T.invited.forEach(function (r) {
       var line = (r.kind === 'group' ? 'Invited to groups' : 'Invited to event') + (r.at ? ' on ' + longDate(r.at) : '') + ' · not joined yet';
       iv.appendChild(personRow(r.first || r.email || '', [line, r.title, r.kind === 'group' ? r.email : ''], r.kind === 'group' ? 'Group invite' : 'Event invite'));
     });
-    if (!TABS.invited.length) { iv.appendChild(emptyBox('invited')); }
-    $('tn-invited').textContent = TABS.invited.length;
+    if (!T.invited.length) { iv.appendChild(emptyBox('invited')); }
+    $('tn-invited').textContent = T.invited.length;
     var ev = $('cp-events'); ev.innerHTML = '';
     var h = document.createElement('h2'); h.textContent = 'Attendees from my events'; ev.appendChild(h);
     var ids = Object.keys(CARRIED), shown = 0;
@@ -859,23 +862,8 @@
     if (!shown) { ev.appendChild(emptyBox('events')); }
     $('tn-events').textContent = shown;
   }
-  var BMARKS = [];
-  function bmWhere(p) {
-    var kind = String((p && p.sourceKind) || ''), title = String((p && p.sourceTitle) || '').trim(), where = '';
-    if (kind === 'Group') { where = title ? 'at ' + title : 'in a group'; } else if (kind === 'Event') { where = title ? 'at ' + title : 'at an event'; }
-    var d = new Date(String((p && p.at) || '')), when = '';
-    if (!isNaN(d.getTime())) { var mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; when = d.getDate() + ' ' + mo[d.getMonth()] + ' ' + d.getFullYear(); }
-    if (!where && !when) { return ''; }
-    return 'Bookmarked' + (where ? ' ' + where : '') + (when ? ' on ' + when : '');
-  }
-  function bmCommon(p) { var n = ((p && p.groups) || []).length; return n ? n + (n === 1 ? ' group' : ' groups') + ' in common: ' + p.groups.join(' / ') : ''; }
-  function loadBookmarks() {
-    return ask('getBookmarks', {}).then(function (d) {
-      var mine = {}; [ME].forEach(function (x) { x = String(x || '').split('.').join('').trim().toLowerCase(); if (x) { mine[x] = 1; } });
-      BMARKS = ((d && d.bookmarks) || []).filter(function (p) { return !mine[String(p.appearId || '').split('.').join('').trim().toLowerCase()]; });
-      draw();
-    }).catch(function () {});
-  }
+  var BMON = false;
+  function bmPass(c) { return !BMON || !!(c && c.bookmarked); }
   var MSG_ROWS = [];
   function addMessaged(rows) {
     MSG_ROWS = rows || MSG_ROWS;
@@ -922,7 +910,6 @@
       $('tools').hidden = !ALL.length;
       draw();
       loadMessaged().then(function () { $('tools').hidden = !ALL.length; draw(); });
-      loadBookmarks();
     }).catch(function () { say('Your contacts did not load. Reload the page and it will try again.'); });
   })();
 </script>
