@@ -744,6 +744,32 @@ async function _epCard(){
   g('ep-done').onclick=async function(){ var ok=await save(); if(ok) location.href='/lobby/?id='+encodeURIComponent(_eventId); };
   var p=document.getElementById('board-wait-pill'); if(p) p.style.display='none';
 }
+
+function _closedCard(){
+  var w=document.getElementById('board-wait'); if(!w) return false;
+  var t=escHTML(String(window._evTitle||'the event')), bx=function(h){ return '<div style="background:#fff;border-radius:18px;padding:22px 20px;max-width:620px;margin:16px auto;color:#1a1a2e;line-height:1.5;">'+h+'</div>'; };
+  var RAD='display:flex;align-items:flex-start;gap:10px;padding:8px 0;font-size:15px;cursor:pointer;', DONE='margin-top:18px;text-align:right;';
+  var tok=''; try{ tok=localStorage.getItem('cw-token')||''; }catch(e){}
+  var say=function(h){ w.innerHTML=bx(h); document.documentElement.classList.add('board-loading'); var p=document.getElementById('board-wait-pill'); if(p) p.style.display='none'; try{ window.scrollTo(0,0); }catch(e){} };
+  var carry=function(v){ return fetch(GS_URL+'?action=saveEventShare&carryOnly=1&carryOver='+v+'&appearId='+encodeURIComponent(_myId)+'&meToken='+encodeURIComponent(tok)+'&eventId='+encodeURIComponent(_eventId),{keepalive:true}).then(function(r){ return r.json(); }).catch(function(){ return null; }); };
+  var thanks=function(){ say('<h2 style="margin:0 0 6px;font-size:20px;">Thank you for joining '+t+'</h2>'); };
+  var ask=function(msg){
+    say('<h2 style="margin:0 0 6px;font-size:20px;">Thank you for joining '+t+'</h2>'
+      +'<p style="margin:0 0 10px;">The event lobby is now closed. Do you want to take what you saved here to 2Appear?</p>'
+      +'<label style="'+RAD+'"><input type="radio" name="cl-co" value="yes" style="margin-top:5px;"><span>Yes, please carry over my info (bookmarks, messages, notes)</span></label>'
+      +'<label style="'+RAD+'"><input type="radio" name="cl-co" value="no" style="margin-top:5px;"><span>I’ll pass, thank you</span></label>'
+      +(msg?'<p role="alert" style="color:#B3261E;margin:10px 0 0;">'+escHTML(msg)+'</p>':'')
+      +'<div style="'+DONE+'"><button type="button" class="btn-matches" id="cl-done">Done</button></div>');
+    document.getElementById('cl-done').onclick=function(){
+      var r=document.querySelector('input[name="cl-co"]:checked'); if(!r){ ask('Choose one.'); return; }
+      this.disabled=true;
+      if(r.value==='yes'){ carry('yes').then(function(){ location.href='https://2appear.network/network/bookmarks/?event='+encodeURIComponent(_eventId); }); }
+      else { carry('no'); thanks(); }
+    };
+  };
+  ask('');
+  return true;
+}
 function _avBox(inner){ return '<div style="background:#fff;border-radius:18px;padding:22px 20px;max-width:620px;margin:0 auto;color:#1a1a2e;line-height:1.5;">'+inner+'</div>'; }
 function _avBack(){ return '<div style="margin-top:18px;"><button type="button" class="cw-back" id="av-back">Back</button></div>'; }
 function _avWire(){ var b=document.getElementById('av-back'); if(b) b.onclick=function(){ if(window._boardReady){ try{ history.replaceState(null,'',location.pathname+'?id='+encodeURIComponent(_eventId)); }catch(e){} document.documentElement.classList.remove('board-loading'); return; } location.href=location.pathname+'?id='+encodeURIComponent(_eventId); }; var p=document.getElementById('board-wait-pill'); if(p) p.style.display='none'; }
@@ -803,6 +829,7 @@ async function loadEvent(){
     if(titleEl) titleEl.textContent = ev.title ? ('Event: ' + ev.title) : 'Event';
     try{ paintCrumbs(); }catch(e){}
     var bits=[];
+    try{ var _ld=String((ev.endDate&&String(ev.endDate)>String(ev.date))?ev.endDate:ev.date||'').slice(0,10); if(/^\d{4}-\d{2}-\d{2}$/.test(_ld)){ var _t0=new Date(); _t0.setHours(0,0,0,0); window._evClosed=new Date(_ld+'T00:00:00')<_t0; } }catch(e){}
     try{var _pd=String(ev.date||'').trim();if(_pd&&_pd.toUpperCase()!=='TBD'){var _px=new Date(_pd.length>10?_pd:_pd+'T00:00:00'),_pt=new Date();_pt.setHours(0,0,0,0);window._evPast=!isNaN(_px)&&_px<_pt;if(window._evPast)renderProfileCta();}}catch(e){}
     var when=[fmtDate(ev.date),String(ev.time||'').trim()].filter(Boolean).join(' · ');
     var where=[String(ev.venue||'').trim(),String(ev.location||'').trim()].filter(Boolean).join(', ');
@@ -2004,9 +2031,11 @@ function _loadMuOk(){
   var _sb=document.getElementById('hub-share-btn'); if(_sb && _eventId!=='m97sjwa3') _sb.style.display='none';   
   if(!_myId){ var _tb=document.querySelector('.top-bar'); if(_tb) _tb.style.display='none'; }   
   renderHubNav();                                          
-  loadEvent();                                             
+  var _evP=loadEvent();                                    
   var enrich=Promise.all([loadRefData(), loadCategories()]); 
   await loadMembers();                                     
+  try{ await _evP; }catch(e){}
+  if(window._evClosed && _myId && !_groupId && _eventId && !params.get('keep')){ if(_closedCard()) return; }
   loadBookmarkedPeople();                                  
   if(_myId && !_myData && !_groupId){ try{ await (window._mdP||loadMyDataFallback()); }catch(e){} }
   renderProfileCta();                                      
