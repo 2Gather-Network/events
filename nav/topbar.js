@@ -484,7 +484,7 @@
     function jumpIsOn() { return !!(window.CW && window.CW.jumpOn && window.CW.jumpOn()); }
     function appearSection() {
       var items = [{ label: 'My groups', url: carryLink('https://2appear.network/mygroups/') }];
-      items.push({ label: 'My network', url: carryLink('https://2appear.network/network/') });
+      items.push({ label: 'My network', url: carryLink('https://2appear.network/network/contacts/') });
       return { key: 'appear', label: '2Appear', items: items };
     }
     function enabledElsewhere() {
@@ -529,7 +529,7 @@
         mine += anchor('My profile',  myIkigaiUrl(), 'cwtb-item');
         mine += anchor('My events',   '/myevents/', 'cwtb-item');
         mine += anchor('My groups',   carryLink('https://2appear.network/mygroups/'), 'cwtb-item');
-        mine += anchor('My network',  carryLink('https://2appear.network/network/'),  'cwtb-item');
+        mine += anchor('My network',  carryLink('https://2appear.network/network/contacts/'),  'cwtb-item');
         mine += anchor('Calendar',    '/events/', 'cwtb-item');
         mine += anchor('Account',     '/account/', 'cwtb-item');
         mine += anchor('Support',     '/support/', 'cwtb-item');
