@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" class="board-loading">
 <head>
-<meta name="robots" content="noindex,nofollow">
 <script>try{var S='cw-signed-out-2026-09-20';if(localStorage.getItem(S)!=='1'){localStorage.setItem(S,'1');['cw-id','appear-id','cw-token','cw-super','cw-view-as','cw-view-as-name','cw-first','cw-photo','cw-photo-for','cw-photo-at','cw-lastEmail'].forEach(function(k){localStorage.removeItem(k)})}}catch(e){}</script>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow">
@@ -754,6 +753,38 @@ function _closedCard(){
   var say=function(h){ w.innerHTML=bx(h); document.documentElement.classList.add('board-loading'); var p=document.getElementById('board-wait-pill'); if(p) p.style.display='none'; try{ window.scrollTo(0,0); }catch(e){} };
   var carry=function(v){ return fetch(GS_URL+'?action=saveEventShare&carryOnly=1&carryOver='+v+'&appearId='+encodeURIComponent(_myId)+'&meToken='+encodeURIComponent(tok)+'&eventId='+encodeURIComponent(_eventId),{keepalive:true}).then(function(r){ return r.json(); }).catch(function(){ return null; }); };
   var thanks=function(){ say('<h2 style="margin:0 0 6px;font-size:20px;">Thank you for joining '+t+'</h2>'); };
+  var call=function(q){ return fetch(GS_URL+'?'+q+'&appearId='+encodeURIComponent(_myId)+'&meToken='+encodeURIComponent(tok)+'&eventId='+encodeURIComponent(_eventId)).then(function(r){ return r.json(); }).catch(function(){ return null; }); };
+  var hostNote=function(msg){
+    say('<h2 style="margin:0 0 6px;font-size:20px;">Thank you</h2>'
+      +'<p style="margin:0 0 10px;">Please let the host know about your experience anytime here.</p>'
+      +'<textarea id="cl-fb" maxlength="2000" style="width:100%;box-sizing:border-box;min-height:110px;border:1.5px solid #DDE3EA;border-radius:12px;padding:10px 12px;font:inherit;font-size:14px;color:#1A2E42;"></textarea>'
+      +(msg?'<p role="status" style="margin:10px 0 0;font-size:13.5px;color:#2F3D4F;">'+escHTML(msg)+'</p>':'')
+      +'<div style="'+DONE+'"><button type="button" class="btn-matches" id="cl-fb-send">Send to the host</button></div>');
+    document.getElementById('cl-fb-send').onclick=function(){
+      var b=this, tx=String(document.getElementById('cl-fb').value||'').trim(); if(!tx) return;
+      b.disabled=true;
+      call('action=sendHostFeedback&message='+encodeURIComponent(tx)).then(function(d){
+        if(d&&d.status==='ok'){ hostNote('Sent to the host.'); return; }
+        b.disabled=false; var st=document.createElement('p'); st.setAttribute('role','alert'); st.style.cssText='color:#B3261E;margin:10px 0 0;'; st.textContent=(d&&d.message)||'That did not send. Try again.'; b.parentNode.parentNode.insertBefore(st,b.parentNode);
+      });
+    };
+  };
+  var emailAsk=function(msg){
+    say('<p style="margin:0 0 10px;">If you change your mind later, we can email you a link back to this page.</p>'
+      +'<label style="'+RAD+'"><input type="radio" name="cl-em" value="yes" style="margin-top:5px;"><span>Yes, email me the link</span></label>'
+      +'<label style="'+RAD+'"><input type="radio" name="cl-em" value="no" style="margin-top:5px;"><span>No, thank you</span></label>'
+      +(msg?'<p role="alert" style="color:#B3261E;margin:10px 0 0;">'+escHTML(msg)+'</p>':'')
+      +'<div style="'+DONE+'"><button type="button" class="btn-matches" id="cl-em-done">Done</button></div>');
+    document.getElementById('cl-em-done').onclick=function(){
+      var r=document.querySelector('input[name="cl-em"]:checked'); if(!r){ emailAsk('Choose one.'); return; }
+      this.disabled=true;
+      if(r.value==='no'){ hostNote(''); return; }
+      call('action=emailLobbyLink').then(function(d){
+        if(d&&d.status==='ok'&&d.sent){ say('<p style="margin:0 0 10px;">We sent the link to your email.</p><h2 style="margin:0;font-size:20px;">Thank you for joining '+t+'</h2>'); return; }
+        emailAsk((d&&d.message)||'That did not send. Try again.');
+      });
+    };
+  };
   var ask=function(msg){
     say('<h2 style="margin:0 0 6px;font-size:20px;">Thank you for joining '+t+'</h2>'
       +'<p style="margin:0 0 10px;">The event lobby is now closed. Do you want to take what you saved here to 2Appear?</p>'
@@ -765,7 +796,7 @@ function _closedCard(){
       var r=document.querySelector('input[name="cl-co"]:checked'); if(!r){ ask('Choose one.'); return; }
       this.disabled=true;
       if(r.value==='yes'){ say('<h2 style="margin:0 0 6px;font-size:20px;">Thank you for joining '+t+'</h2><p style="margin:0;">You will now be redirected and will land on 2Appear.</p>'); var _t0=Date.now(); carry('yes').then(function(){ setTimeout(function(){ location.href='https://2appear.network/welcome/'; }, Math.max(0, 2500-(Date.now()-_t0))); }); }
-      else { carry('no'); try{ localStorage.setItem('cw-ev-pass-'+_eventId+'-'+normId(_myId),'1'); }catch(e){} thanks(); }
+      else { carry('no'); try{ localStorage.setItem('cw-ev-pass-'+_eventId+'-'+normId(_myId),'1'); }catch(e){} emailAsk(''); }
     };
   };
   var _passed=false; try{ _passed=localStorage.getItem('cw-ev-pass-'+_eventId+'-'+normId(_myId))==='1'; }catch(e){}
