@@ -1998,18 +1998,36 @@ async function submitSocializer() {
 }
 
 var _pasteMode = "";
-function _aiConsentGiven() { try { return localStorage.getItem("cw-ai-consent") === "yes"; } catch (e) { return false; } }
+var _aiYes = false, _aiChecked = false;
+function _aiConsentGiven() { return _aiYes; }
+function _aiTok() { try { return localStorage.getItem("cw-token") || ""; } catch (e) { return ""; } }
+function _aiLoad() {
+  _aiYes = false; _aiChecked = false;
+  var me = getRealMemberId();
+  if (!me) { _aiChecked = true; return Promise.resolve(); }
+  return fetch(GS_URL + "?action=contactCardKey&ai=1&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(_aiTok()) + "&t=" + Date.now(), { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { _aiYes = !!(d && d.status === "ok" && d.aiRead === true); })
+    .catch(function () { _aiYes = false; })
+    .then(function () { _aiChecked = true; });
+}
 function aiConsentAgree() {
-  try { localStorage.setItem("cw-ai-consent", "yes"); } catch (e) {}
-  _pasteLayout();
+  var me = getRealMemberId(), pe = document.getElementById("parse-error");
+  fetch(GS_URL + "?action=saveContact&meToken=&t=" + Date.now(), { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "saveContact", appearId: me, meToken: _aiTok(), aiConsent: "1" }) })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.status === "ok" && d.aiConsent) { _aiYes = true; _pasteLayout(); }
+      else { pe.textContent = "That did not save. Try again."; pe.style.display = "block"; }
+    })
+    .catch(function () { pe.textContent = "That did not save. Try again."; pe.style.display = "block"; });
 }
 function _pasteLayout() {
-  var m = _pasteMode, need = (m === "link" || m === "upload") && !_aiConsentGiven();
+  var m = _pasteMode, asks = (m === "link" || m === "upload"), wait = asks && !_aiChecked, need = asks && _aiChecked && !_aiConsentGiven();
   var q = function (id) { return document.getElementById(id); };
   q("ai-consent").style.display = need ? "block" : "none";
-  q("pm-link-part").style.display = (!need && m !== "upload") ? "block" : "none";
-  q("pm-upload-part").style.display = (!need && m !== "link") ? "block" : "none";
-  q("pm-actions").style.display = need ? "none" : "flex";
+  q("pm-link-part").style.display = (!wait && !need && m !== "upload") ? "block" : "none";
+  q("pm-upload-part").style.display = (!wait && !need && m !== "link") ? "block" : "none";
+  q("pm-actions").style.display = (wait || need) ? "none" : "flex";
   var pe = q("parse-error"); if (pe) pe.style.display = "none";
 }
 function choiceAddMethod(m) {
@@ -2018,7 +2036,7 @@ function choiceAddMethod(m) {
   openPasteModal(m);
 }
 function openPasteModal(mode) {
-  _pasteMode = mode || "";
+  _pasteMode = mode || "link";
   document.getElementById("paste-text").value = "";
   document.getElementById("parse-error").style.display = "none";
   document.getElementById("parsing-status").style.display = "none";
@@ -2029,7 +2047,7 @@ function openPasteModal(mode) {
   if (_bc) _bc.style.display = (typeof _signedInSuper === "function" && _signedInSuper()) ? "block" : "none";
   document.getElementById("paste-modal").classList.add("open");
   _pasteLayout();
-  if (_pasteMode !== "upload" && _aiConsentGiven()) setTimeout(() => { var u = document.getElementById(_pasteMode === "link" ? "paste-url" : "paste-text"); if (u) u.focus(); }, 100);
+  _aiLoad().then(function () { _pasteLayout(); if (_pasteMode === "link" && _aiConsentGiven()) { var u = document.getElementById("paste-url"); if (u) u.focus(); } });
 }
 
 function closePasteModal() {
@@ -2177,7 +2195,7 @@ async function fetchEventFromUrl() {
     const res = await fetch(WORKER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url })
+      body: JSON.stringify({ url: url, ai: "contacts", appearId: getRealMemberId(), meToken: _aiTok() })
     });
     const data = await res.json();
     const text = (data && data.text || "").trim();
@@ -2564,7 +2582,8 @@ Return ONLY the JSON object, no explanation.`;
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 1000,
-        messages: [{ role: "user", content: userContent }]
+        messages: [{ role: "user", content: userContent }],
+        ai: "contacts", appearId: getRealMemberId(), meToken: _aiTok()
       })
     });
     
