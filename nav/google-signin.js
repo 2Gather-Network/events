@@ -127,6 +127,7 @@
         slot.insertBefore(w, slot.querySelector('.cw-g-or'));
       }
       w.style.display = on ? 'flex' : 'none';
+      if (on) { var so = document.getElementById('say1'); if (so) { so.style.display = 'none'; so.textContent = ''; } }
 
       var or = slot.querySelector('.cw-g-or');
       if (or) { if (on) { or.setAttribute('data-cw-g-was', or.style.display || ''); or.style.display = 'none'; }
