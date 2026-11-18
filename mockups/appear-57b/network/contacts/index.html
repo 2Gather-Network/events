@@ -70,6 +70,7 @@
   .card-box{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
   .card-box img{max-width:160px;max-height:110px;border-radius:8px;border:1px solid var(--line);display:block;}
   .card-box .hint{font-size:13px;color:var(--soft);}
+  .field[hidden]{display:none;}
   .ibox{display:flex;align-items:center;gap:10px;width:100%;border:1.5px solid #C9DFF3;border-radius:12px;background:#fff;padding:8px 10px;}
   .itile{width:44px;height:44px;border-radius:10px;background:#DDE4EE;display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden;}
   .itile svg{width:22px;height:22px;fill:none;stroke:#1F699E;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
@@ -196,17 +197,17 @@
       <div id="fill-ai" hidden>
       <div class="line2"><input type="url" id="fill-url" placeholder="Ex: their website or LinkedIn page" aria-label="Link to their page" autocomplete="off"><button class="btn ghost" type="button" id="fill-fetch">Fetch from link</button></div>
       <div class="or">or</div>
-      <div class="ibox"><span class="itile"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span><span class="itxt">A photo of their card</span></div><div class="iunder"><button class="btn-o" type="button" id="fill-card">Upload a picture of their card</button></div>
+      <div class="ibox"><span class="itile" id="fill-tile"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span><span class="itxt">A photo of their card</span></div><div class="iunder"><button class="btn-o" type="button" id="fill-card">Upload a picture of their card</button></div>
       <input type="file" id="fill-file" accept="image/*" capture="environment" hidden>
       <p class="fill-msg" id="fill-msg" hidden></p>
       </div>
     </div>
-    <div class="field"><span class="q">Business card <span class="opt">(only you can see it)</span></span>
+    <div class="field" hidden><span class="q">Business card <span class="opt">(only you can see it)</span></span>
       <div class="ibox"><span class="itile"><svg viewBox="0 0 24 24" aria-hidden="true" id="card-icon"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><img id="card-img" alt="Their business card" hidden></span><span class="itxt" id="card-hint">A photo of their card</span></div>
         <div class="iunder"><button class="btn-o" type="button" id="card-drop" hidden>Remove the card</button><button class="btn-o" type="button" id="card-pick">Add image</button></div>
         <input type="file" id="card-file" accept="image/*" capture="environment" hidden>
     </div>
-    <div class="field"><span class="q">Additional photo <span class="opt">(only you can see it)</span></span>
+    <div class="field" hidden><span class="q">Additional photo <span class="opt">(only you can see it)</span></span>
       <div class="ibox"><span class="itile"><svg viewBox="0 0 24 24" aria-hidden="true" id="face-icon"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><img id="face-img" alt="Additional photo" hidden></span><span class="itxt" id="face-hint">Only you can see it. Take a photo of someone only with their OK.</span></div>
         <div class="iunder"><button class="btn-o" type="button" id="face-drop" hidden>Remove the photo</button><button class="btn-o" type="button" id="face-pick">Add image</button></div>
         <input type="file" id="face-file" accept="image/*" capture="user" hidden>
@@ -679,13 +680,15 @@
     if (P.url) { try { URL.revokeObjectURL(P.url); } catch (e) {} P.url = ''; }
     var img = $(slot + '-img');
     img.hidden = true; img.removeAttribute('src'); $(slot + '-icon').hidden = false;
+    if (slot === 'card') { try { var ft = $('fill-tile'), fi = ft.querySelector('img'); if (fi) { fi.remove(); } ft.querySelector('svg').hidden = false; } catch (e) {} }
     $(slot + '-drop').hidden = !P.id;
     $(slot + '-pick').textContent = P.id ? 'Change image' : 'Add image';
     $(slot + '-hint').textContent = P.id ? 'Loading the picture' : P.blank;
     if (!P.id) { return; }
     fetch(PHOTOS + '/c/' + encodeURIComponent(P.id), { cache: 'no-store', headers: { 'x-cw-id': ME, 'x-cw-token': token() } })
       .then(function (r) { if (!r.ok) { throw new Error('nf'); } return r.blob(); })
-      .then(function (b) { if (id !== P.id) { return; } P.url = URL.createObjectURL(b); img.src = P.url; img.hidden = false; $(slot + '-icon').hidden = true; $(slot + '-hint').textContent = slot === 'face' ? 'Only you can see it.' : ''; })
+      .then(function (b) { if (id !== P.id) { return; } P.url = URL.createObjectURL(b); img.src = P.url; img.hidden = false; $(slot + '-icon').hidden = true;
+        if (slot === 'card') { try { var ft2 = $('fill-tile'), fi2 = ft2.querySelector('img') || document.createElement('img'); fi2.alt = 'Their card'; fi2.src = P.url; if (!fi2.parentNode) { ft2.appendChild(fi2); } ft2.querySelector('svg').hidden = true; } catch (e) {} } $(slot + '-hint').textContent = slot === 'face' ? 'Only you can see it.' : ''; })
       .catch(function () { if (id === P.id) { $(slot + '-hint').textContent = 'The picture did not load. It is still saved.'; } });
   }
 
@@ -788,6 +791,8 @@
     var file = this.files && this.files[0];
     this.value = '';
     if (!file) { return; }
+    try { var tl = $('fill-tile'), pv = tl.querySelector('img') || document.createElement('img'); pv.alt = 'Their card'; pv.src = URL.createObjectURL(file); if (!pv.parentNode) { tl.appendChild(pv); } var sv = tl.querySelector('svg'); if (sv) { sv.hidden = true; } } catch (e) {}
+    shrink(file).then(function (blob) { sendPic('card', blob); }).catch(function () {});
     readBusy(true); fillSay('Reading the card');
     var reader = new FileReader();
     reader.onerror = function () { readBusy(false); fillSay('That picture could not be read. Try another one.', true); };
