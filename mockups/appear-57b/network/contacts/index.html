@@ -247,7 +247,7 @@
     document.getElementById('body').hidden = !!id;
     if (id) { window.scrollTo(0, 0); }
   }
-  var ME = '', HOSTS = true, ALL = [], GROUPS = [], EVENTS = [], EDIT = null, BUSY = false, SENDING = 0;
+  var ME = '', HOSTS = true, BMCODE = {}, ALL = [], GROUPS = [], EVENTS = [], EDIT = null, BUSY = false, SENDING = 0;
   var PIC = { card: { id: '', url: '', blank: 'A photo of their card', remove: 'Remove the card' }, face: { id: '', url: '', blank: 'Only you can see it. Take a photo of someone only with their OK.', remove: 'Remove the photo' } };
   try { var _m = CW.me(); ME = _m && _m.id ? String(_m.id).trim() : ''; } catch (e) {}
 
@@ -394,7 +394,7 @@
       nt.onclick = function () { openForm(c); setTimeout(function () { try { $('f-notes').focus(); } catch (e) {} }, 40); };
       var lk = document.createElement('button'); lk.type = 'button'; lk.className = 'btn ghost'; lk.textContent = 'Link';
       lk.onclick = function () { copyLink(c, lk); };
-      if (!c.msgOnly) { acts.appendChild(ed); acts.appendChild(nt); }
+      acts.appendChild(ed); acts.appendChild(nt);
       acts.appendChild(lk);
       row.appendChild(av); row.appendChild(who); row.appendChild(acts);
       box.appendChild(row);
@@ -760,7 +760,10 @@
     if (EDIT && EDIT.contactId) { p.contactId = EDIT.contactId; }
     if (person) { p.person = person; delete p.name; }
     var was = !!EDIT;
-    send('saveContact', p).then(function (d) { landed(d, was ? 'Saved.' : name + ' is saved.'); })
+    var keep = EDIT && EDIT.msgOnly && person ? msgSession().then(function (sk) {
+      return fetch(MSG_API + '/contacts/keep', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-msg-session': sk }, body: JSON.stringify({ code: person }) });
+    }).catch(function () {}) : Promise.resolve();
+    keep.then(function () { return send('saveContact', p); }).then(function (d) { landed(d, was ? 'Saved.' : name + ' is saved.'); })
       .catch(function () { BUSY = false; $('save').disabled = false; msg('That did not save. Check your connection and press Submit again.', true); });
   };
 
@@ -916,10 +919,16 @@
     }).catch(function () { BM_LOADED = true; draw(); });
   }
   function bmPass(c) { return !BMON || !!(c && c.bookmarked); }
-  var MSG_ROWS = [];
+  var MSG_ROWS = [], MSG_OK = false;
   function addMessaged(rows) {
+    if (Array.isArray(rows)) { MSG_OK = true; }
     MSG_ROWS = rows || MSG_ROWS;
     rows = MSG_ROWS;
+    if (MSG_OK) {
+      var talk = {};
+      (rows || []).forEach(function (m) { if (m && m.code && m.bothWritten) { talk[m.code] = 1; } });
+      ALL = ALL.filter(function (c) { return !(c.sourceKind === 'message' && c.contactId && c.person && !talk[c.person]); });
+    }
     var have = {};
     ALL.forEach(function (c) { if (c.person) { have[c.person] = c; } });
     (rows || []).forEach(function (m) {
@@ -931,7 +940,7 @@
         return;
       }
       c = { contactId: '', person: m.code, name: String(m.name), sourceKind: 'message', sourceId: '', addedAt: m.firstAt || '',
-            groupIds: m.groupId ? [m.groupId] : [], groupName: m.groupName || '', eventTitle: m.eventId ? CARRIED[m.eventId] : '', tag: '', msgOnly: true };
+            groupIds: m.groupId ? [m.groupId] : [], groupName: m.groupName || '', eventTitle: m.eventId ? CARRIED[m.eventId] : '', tag: '', msgOnly: true, bookmarked: !!BMCODE[m.code] };
       have[m.code] = c; ALL.push(c);
     });
     (rows || []).forEach(function (m) {
@@ -955,7 +964,7 @@
     ask('getContacts', {}).then(function (d) {
       if (d && d.code === 'signin') { say('Sign in again to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
       if (!d || d.status !== 'ok') { say((d && d.message) || 'Your contacts did not load. Reload the page and it will try again.'); return; }
-      HOSTS = d.hostsEvents !== false; ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
+      HOSTS = d.hostsEvents !== false; BMCODE = {}; (d.bookmarkedPeople || []).forEach(function (x) { BMCODE[String(x)] = 1; }); ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
       say('');
       if (!$('ctabs')) { buildTabs(); }
       $('body').hidden = false;
