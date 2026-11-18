@@ -116,6 +116,14 @@
   .pill.other[aria-pressed="true"]{background:#1F699E;color:#fff;}
   .field.two{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   @media(max-width:600px){.field.two{grid-template-columns:1fr;}}
+  .addrow{display:flex;align-items:center;gap:10px;margin-top:8px;}
+  .addrow[hidden],.enter[hidden]{display:none;}
+  .addf{flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:44px;background:#fff;border:1.5px solid #C9DFF3;border-radius:12px;padding:0 12px;}
+  .addf input{border:0;background:transparent;padding:0;height:100%;flex:1;min-width:0;outline:none;}
+  .enter{width:20px;height:20px;flex:none;}
+  .btn-sm{font-family:inherit;font-size:13px;font-weight:700;padding:7px 14px;border-radius:24px;border:0;background:#1F699E;color:#fff;cursor:pointer;flex:none;}
+  #met-own{margin-top:8px;}
+  #met-own:empty{display:none;}
   .ox{background:none;border:0;color:var(--soft);font-size:16px;line-height:1;padding:4px 6px;margin-left:-6px;cursor:pointer;}
   .fill{background:var(--panel);border:1.5px solid var(--panel-line);border-radius:14px;padding:12px 14px;margin-top:10px;}
   .fill p{font-size:13.5px;color:var(--soft);margin:0 0 10px;line-height:1.5;}
@@ -219,7 +227,8 @@
     <div class="field"><span class="q">How I met this person</span><div class="pills" data-f="metHow" data-set="met"></div>
       <select id="f-met-event" class="sub-pick" aria-label="Which event" hidden></select>
       <select id="f-met-group" class="sub-pick" aria-label="Which group" hidden></select>
-      <input type="text" id="f-met" maxlength="200" placeholder="In your own words" aria-label="How did you meet, in your own words" autocomplete="off" hidden style="margin-top:8px"></div>
+      <div class="addrow" id="met-add" hidden><div class="addf"><input type="text" id="f-met" maxlength="200" placeholder="In your own words" aria-label="How did you meet, in your own words" autocomplete="off"><svg class="enter" id="met-enter" hidden viewBox="0 0 24 24" fill="none" stroke="#5A6878" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 5v6a3 3 0 0 1-3 3H5"/><path d="M9 10l-4 4 4 4"/></svg></div><button type="button" class="btn-sm" id="met-addbtn">Add</button></div>
+      <div class="pills" id="met-own"></div></div>
     <div class="field"><span class="q">How I want to follow up</span><div class="pills" data-f="followUpHow" data-set="how"></div></div>
     <div class="field"><span class="q">What type of invite I want to send</span><div class="pills" data-f="inviteType" data-set="invite"></div></div>
     <div class="field"><span class="q">I followed up with</span><div class="pills" data-f="followedUpWith" data-set="how"></div></div>
@@ -267,8 +276,14 @@
   var INVITE = [['Network', 'Network invite'], ['Event', 'Event invite'], ['Group', 'Group invite'], ['Meeting', 'Meeting invite'], ['Other', '+ Other']];
   var MET = [['Event', 'Event'], ['Group', 'Group'], ['Online', 'Online'], ['Referral', 'Referral']];
   var OWN_KEY = 'cw-rms-own-met';
-  function ownMet() { try { var a = JSON.parse(localStorage.getItem(OWN_KEY) || '[]'); return Array.isArray(a) ? a.filter(function (x) { return typeof x === 'string' && x.trim(); }).slice(0, 30) : []; } catch (e) { return []; } }
-  function ownMetSave(a) { try { localStorage.setItem(OWN_KEY, JSON.stringify(a)); } catch (e) {} }
+  var OWN_MEM = null;
+  function ownMet() {
+    if (OWN_MEM) { return OWN_MEM.slice(); }
+    var a = []; try { a = JSON.parse(localStorage.getItem(OWN_KEY) || '[]'); } catch (e) { a = []; }
+    OWN_MEM = Array.isArray(a) ? a.filter(function (x) { return typeof x === 'string' && x.trim(); }).slice(0, 30) : [];
+    return OWN_MEM.slice();
+  }
+  function ownMetSave(a) { OWN_MEM = a.slice(0, 30); try { localStorage.setItem(OWN_KEY, JSON.stringify(OWN_MEM)); } catch (e) {} }
   function ownMetAdd(v) {
     v = String(v || '').trim(); if (!v || v === 'Other') { return; }
     var known = MET.map(function (m) { return m[0].toLowerCase(); });
@@ -586,7 +601,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('.pills[data-set]'), function (box) {
       var kind = box.getAttribute('data-set');
       var one = function (l) { return l.map(function (h) { return [h, h]; }); };
-      var set = kind === 'how' ? one(HOW) : kind === 'met' ? MET.concat(ownMet().map(function (x) { return [x, x, 'own']; })).concat([['Other', '+ Other']]) : kind === 'relationship' ? one(RELATIONSHIP) : kind === 'status' ? one(STATUS) : kind === 'priority' ? one(PRIORITY) : INVITE;
+      var set = kind === 'how' ? one(HOW) : kind === 'met' ? MET.concat([['Other', '+ Other']]) : kind === 'relationship' ? one(RELATIONSHIP) : kind === 'status' ? one(STATUS) : kind === 'priority' ? one(PRIORITY) : INVITE;
       box.innerHTML = '';
       set.forEach(function (it) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'pill'; b.textContent = it[1];
@@ -599,16 +614,6 @@
           if (kind === 'met') { metShow(on ? '' : it[0]); }
         };
         box.appendChild(b);
-        if (it[2] === 'own') {
-          var ox = document.createElement('button'); ox.type = 'button'; ox.className = 'ox'; ox.textContent = '\u00d7';
-          ox.setAttribute('aria-label', 'Stop remembering ' + it[1]);
-          ox.onclick = function () {
-            var keep = metGet();
-            ownMetSave(ownMet().filter(function (x) { return x !== it[0]; }));
-            pills(); metSet({ metHow: keep === it[0] ? '' : keep });
-          };
-          box.appendChild(ox);
-        }
       });
     });
   }
@@ -628,22 +633,42 @@
     $('f-met-event').hidden = v !== 'Event';
     $('f-met-group').hidden = v !== 'Group';
     var t = $('f-met');
-    t.hidden = v !== 'Other';
-    if (v !== 'Other') { t.value = ''; }
+    $('met-add').hidden = v !== 'Other';
+    if (v !== 'Other') { t.value = ''; MET_OWN_SEL = ''; metOwnDraw(); }
     if (v === 'Other') { setTimeout(function () { try { t.focus(); } catch (e) {} }, 20); }
   }
+  var MET_OWN_SEL = '';
+  function metOwnDraw() {
+    var box = $('met-own'); box.innerHTML = '';
+    ownMet().forEach(function (x) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'pill'; b.textContent = x;
+      b.setAttribute('aria-pressed', MET_OWN_SEL === x ? 'true' : 'false');
+      b.onclick = function () { var on = MET_OWN_SEL === x; MET_OWN_SEL = on ? '' : x; pillsSet('metHow', on ? '' : 'Other'); metShow(on ? '' : 'Other'); MET_OWN_SEL = on ? '' : x; metOwnDraw(); };
+      var ox = document.createElement('button'); ox.type = 'button'; ox.className = 'ox'; ox.textContent = '\u00d7'; ox.setAttribute('aria-label', 'Stop remembering ' + x);
+      ox.onclick = function () { ownMetSave(ownMet().filter(function (y) { return y !== x; })); if (MET_OWN_SEL === x) { MET_OWN_SEL = ''; } metOwnDraw(); };
+      box.appendChild(b); box.appendChild(ox);
+    });
+  }
+  function metAddTyped() {
+    var t = $('f-met'), v = String(t.value || '').trim();
+    if (!v) { return; }
+    ownMetAdd(v); MET_OWN_SEL = v; t.value = ''; $('met-enter').hidden = true; metOwnDraw();
+  }
+  $('met-addbtn').onclick = metAddTyped;
+  $('f-met').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); metAddTyped(); } });
+  $('f-met').addEventListener('input', function () { $('met-enter').hidden = !String(this.value || '').trim(); });
   function metGet() {
     var v = pillsGet('metHow');
     if (v !== 'Other') { return v; }
     var typed = String($('f-met').value || '').trim();
-    return typed || 'Other';
+    return MET_OWN_SEL || typed || 'Other';
   }
   function metSet(c) {
     metFill($('f-met-event'), EVENTS, 'eventId', 'event');
     metFill($('f-met-group'), GROUPS, 'groupId', 'group');
     var v = String((c && c.metHow) || '').trim();
-    var known = ['Event', 'Group', 'Online', 'Referral'].concat(ownMet());
-    if (!v) { pillsSet('metHow', ''); metShow(''); return; }
+    var known = ['Event', 'Group', 'Online', 'Referral'];
+    if (!v) { pillsSet('metHow', ''); metShow(''); metOwnDraw(); return; }
     if (known.indexOf(v) > -1) {
       pillsSet('metHow', v); metShow(v);
       if (v === 'Event') { $('f-met-event').value = (c && c.metEventId) || ''; }
@@ -651,7 +676,7 @@
       return;
     }
     pillsSet('metHow', 'Other'); metShow('Other');
-    $('f-met').value = v === 'Other' ? '' : v;
+    if (v !== 'Other') { ownMetAdd(v); MET_OWN_SEL = v; } $('f-met').value = ''; metOwnDraw();
   }
   function pillsGet(f) {
     var box = document.querySelector('.pills[data-f="' + f + '"]'), out = [];
@@ -910,7 +935,7 @@
   }
 
   $('save').onclick = function () {
-    if (pillsGet('metHow') === 'Other') { ownMetAdd($('f-met').value); }
+    if (pillsGet('metHow') === 'Other' && String($('f-met').value || '').trim()) { metAddTyped(); }
     if (BUSY || SENDING) { return; }
     var name = String($('f-name').value || '').trim();
     var person = EDIT && EDIT.person ? EDIT.person : '';
