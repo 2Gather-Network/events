@@ -142,7 +142,7 @@
       chip.style.padding = '10px 20px';
       chip.style.borderRadius = '22px';
       chip.style.fontSize = '14px';
-      chip.style.fontWeight = '700';
+      chip.style.fontWeight = '400';
       chip.style.position = 'fixed';
       chip.style.left = '50%';
       chip.style.top = '50%';
