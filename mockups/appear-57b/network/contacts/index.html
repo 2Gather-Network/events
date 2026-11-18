@@ -28,7 +28,7 @@
   h2{font-size:21px;font-weight:800;margin:18px 0 16px;color:var(--ink);}
   .sub{font-size:14.5px;color:var(--soft);margin:0 0 18px;line-height:1.6;}
   .sub a{color:var(--brand);font-weight:700;}
-  input[type=text],input[type=email],input[type=tel],input[type=url],input[type=search],textarea{width:100%;padding:10px 14px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:14px;background:#F7F9FC;color:var(--ink);}
+  input[type=text],input[type=email],input[type=tel],input[type=url],input[type=search],input[type=date],textarea{width:100%;padding:10px 14px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:14px;background:#F7F9FC;color:var(--ink);}
   textarea{resize:vertical;min-height:80px;line-height:1.5;}
   input:focus,textarea:focus{outline:0;border-color:#1F699E;box-shadow:0 0 0 3px rgba(31,105,158,.18);}
   select{appearance:none;-webkit-appearance:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%231F699E' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 12px center;border:1.5px solid var(--line);border-radius:10px;padding:9px 34px 9px 12px;font-family:inherit;font-size:14px;color:var(--ink);cursor:pointer;}
@@ -80,6 +80,8 @@
   .btn .pen{vertical-align:-3px;margin-right:6px;}
   .row.ct{flex-wrap:wrap;}
   .row.ct .who{flex:1 1 0;min-width:0;}
+  input[type=date]{max-width:260px;min-height:44px;}
+  .dq{margin-top:8px;}
   .rmenu{flex-basis:100%;display:flex;justify-content:flex-end;}
   .rmenu[hidden],.rnote[hidden]{display:none;}
   .rnote{flex-basis:100%;margin:10px 0 0;}
@@ -206,13 +208,12 @@
     <div class="field"><label for="f-url">URL</label><input type="url" id="f-url" maxlength="500" placeholder="Ex: https://their-site.org" autocomplete="off"></div>
     <div class="field"><label for="f-group">Group</label><select id="f-group"><option value="">None</option></select></div>
     <div class="field"><label for="f-ask">What they asked for</label><textarea id="f-ask" rows="2" maxlength="1000" placeholder="Ex: an intro to a grant writer"></textarea></div>
-    <div class="field"><label for="f-remind">Remind me to reach out on</label><input type="date" id="f-remind"></div>
-    <details class="field" id="f-more"><summary class="q" style="cursor:pointer">More details</summary>
-      <div class="field"><span class="q">Relationship type</span><div class="pills" data-f="relationshipType" data-set="relationship"></div></div>
-      <div class="field"><span class="q">Status</span><div class="pills" data-f="status" data-set="status"></div></div>
-      <div class="field"><span class="q">Priority</span><div class="pills" data-f="priority" data-set="priority"></div></div>
-      <div class="field"><label for="f-last">Last contacted</label><input type="date" id="f-last"></div>
-    </details>
+    <div class="field"><label for="f-remind">Remind me to reach out on</label><input type="date" id="f-remind">
+      <div class="pills dq" data-for="f-remind"><button type="button" class="pill" data-add="1">Tomorrow</button><button type="button" class="pill" data-add="7">Next week</button><button type="button" class="pill" data-add="m1">One month from now</button></div></div>
+    <div class="field"><span class="q">Relationship type</span><div class="pills" data-f="relationshipType" data-set="relationship"></div></div>
+    <div class="field"><span class="q">Status</span><div class="pills" data-f="status" data-set="status"></div></div>
+    <div class="field"><span class="q">Priority</span><div class="pills" data-f="priority" data-set="priority"></div></div>
+    <div class="field"><label for="f-last">Last contacted</label><input type="date" id="f-last"><p class="note" id="f-last-auto" hidden></p></div>
     <label class="check" id="arch-wrap" hidden><input type="checkbox" id="f-arch"> Archive this contact</label>
     <div class="confirm" id="confirm" hidden>
       <div id="confirm-text"></div>
@@ -514,7 +515,7 @@
   }
 
   function pills() {
-    Array.prototype.forEach.call(document.querySelectorAll('.pills'), function (box) {
+    Array.prototype.forEach.call(document.querySelectorAll('.pills[data-set]'), function (box) {
       var kind = box.getAttribute('data-set');
       var one = function (l) { return l.map(function (h) { return [h, h]; }); };
       var set = kind === 'how' ? one(HOW) : kind === 'met' ? MET : kind === 'relationship' ? one(RELATIONSHIP) : kind === 'status' ? one(STATUS) : kind === 'priority' ? one(PRIORITY) : INVITE;
@@ -739,11 +740,14 @@
     $('f-role').value = c ? (c.roleOrg || '') : '';
     $('f-ask').value = c ? (c.askedFor || '') : '';
     $('f-remind').value = c ? (c.remindOn || '') : '';
-    $('f-last').value = c ? (c.lastContacted || '') : '';
+    var auto = c ? lastTouch(c) : '';
+    $('f-last').value = c ? (c.lastContacted || auto || '') : '';
+    $('f-last-auto').hidden = !(c && !c.lastContacted && auto);
+    $('f-last-auto').textContent = 'Filled in from your activity on 2Appear. Change it if you reached them another way.';
+    formOrder(!!c);
     pillsSet('relationshipType', c ? (c.relationshipType || '') : '');
     pillsSet('status', c ? (c.status || '') : '');
     pillsSet('priority', c ? (c.priority || '') : '');
-    $('f-more').open = !!(c && (c.relationshipType || c.status || c.priority || c.lastContacted));
     $('f-email').value = c ? (c.email || '') : '';
     $('f-phone').value = c ? (c.phone || '') : '';
     $('f-notes').value = c ? (c.notes || '') : '';
@@ -766,6 +770,33 @@
     onlyPanel('veil');
     setTimeout(function () { try { $('f-name').focus(); } catch (e) {} }, 30);
   }
+  var FORM_KEYS = ['f-name', 'status', 'priority', 'f-remind', 'f-notes', 'followUpHow', 'followedUpWith', 'f-ask', 'f-last', 'relationshipType',
+                   'metHow', 'inviteType', 'extended', 'f-role', 'f-email', 'f-phone', 'f-tags', 'f-url', 'f-group', 'card-pick', 'face-pick', 'fill'];
+  var FORM_FIRST = null;
+  function formBox(k) { var el = $(k) || document.querySelector('[data-f="' + k + '"]'); return el ? (el.id === 'fill' ? el : el.closest('.field')) : null; }
+  function formOrder(editing) {
+    var anchor = $('arch-wrap'), parent = anchor.parentNode;
+    if (!FORM_FIRST) { FORM_FIRST = Array.prototype.slice.call(parent.children).filter(function (n) { return n.classList.contains('field') || n.id === 'fill'; }); }
+    var order = editing ? FORM_KEYS.map(formBox).filter(Boolean) : FORM_FIRST;
+    FORM_FIRST.forEach(function (n) { if (order.indexOf(n) < 0) { order.push(n); } });
+    order.forEach(function (n) { parent.insertBefore(n, anchor); });
+  }
+  function isoDay(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function lastTouch(c) {
+    var best = 0;
+    var take = function (v) { var t = typeof v === 'number' ? v : Date.parse(v || ''); if (t && !isNaN(t) && t <= Date.now() && t > best) { best = t; } };
+    if (c.sourceKind === 'eventInvite' || c.sourceKind === 'connect' || c.sourceKind === 'message') { take(c.addedAt); }
+    (MSG_ROWS || []).forEach(function (m) { if (m && m.code && m.code === c.person && m.bothWritten) { take(m.lastAt || m.firstAt); } });
+    return best ? isoDay(new Date(best)) : '';
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.dq'), function (g) {
+    g.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button'); if (!b) { return; }
+      var d = new Date(), a = b.getAttribute('data-add');
+      if (a === 'm1') { d.setMonth(d.getMonth() + 1); } else { d.setDate(d.getDate() + parseInt(a, 10)); }
+      $(g.getAttribute('data-for')).value = isoDay(d);
+    });
+  });
   function closeForm() { onlyPanel(''); EDIT = null; FROM_CARD = false; showPic('card', ''); showPic('face', ''); }
   var FROM_CARD = false;
   $('add').onclick = function () { onlyPanel('addveil'); };
