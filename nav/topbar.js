@@ -307,7 +307,7 @@
     } catch (e) {}
   }
   function myIkigaiUrl() {
-    return (onAppear() ? '' : 'https://2gather.network') + '/ikigai/?step=interests';
+    return (onAppear() ? '' : 'https://2gather.network') + '/ikigai/interests';
   }
 
   function myProfileUrl() {
@@ -517,7 +517,7 @@
     function fillMine() {
       var mine = '';
       if (onBalance()) {
-        if (firstMinDone()) { mine += anchor('My profile', '/ikigai/?step=interests', 'cwtb-item'); }
+        if (firstMinDone()) { mine += anchor('My profile', '/ikigai/interests', 'cwtb-item'); }
         mine += otherSitesHtml();
         mine += anchor('My account', '/account/', 'cwtb-item');
         mine += anchor('Support', '/support/', 'cwtb-item');
