@@ -83,6 +83,9 @@
   input[type=date]{display:block;width:100%;max-width:260px;height:38px;padding:0 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-family:inherit;font-size:14px;color:var(--ink);}
   @media(max-width:767px){input[type=date]{font-size:16px;}}
   .dq{margin-top:8px;}
+  .ai-ask{margin:0 0 12px;}
+  .ai-ask[hidden],#fill-ai[hidden],#add-card[hidden]{display:none;}
+  .ai-ask p{margin:0 0 10px;}
   .rmenu{flex-basis:100%;display:flex;justify-content:flex-end;}
   .rmenu[hidden],.rnote[hidden]{display:none;}
   .rnote{flex-basis:100%;margin:10px 0 0;}
@@ -167,12 +170,14 @@
     <div class="sh"><h2 id="edit-h">Add contact</h2><button class="x" type="button" aria-label="Close" id="close">✕</button></div>
     <div class="fill" id="fill">
       <p>Paste a link to their page, or upload a picture of their business card. We'll fill in what we can for you to check.</p>
+      <div class="ai-ask" hidden><p>To use this, the image (or link) uses AI to parse this information and that is the only job it does.</p><button class="btn" type="button" data-ai-yes>I agree</button></div>
+      <div id="fill-ai" hidden>
       <div class="line2"><input type="url" id="fill-url" placeholder="Ex: their website or LinkedIn page" aria-label="Link to their page" autocomplete="off"><button class="btn ghost" type="button" id="fill-fetch">Fetch from link</button></div>
       <div class="or">or</div>
       <button class="btn ghost" type="button" id="fill-card" style="width:100%">Upload a picture of their card</button>
       <input type="file" id="fill-file" accept="image/*" capture="environment" hidden>
       <p class="fill-msg" id="fill-msg" hidden></p>
-      <p style="margin:10px 0 0;font-size:12.5px;">To read this, the picture or the page text is sent to an AI reading service.</p>
+      </div>
     </div>
     <div class="field"><span class="q">Business card <span class="opt">(only you can see it)</span></span>
       <div class="card-box">
@@ -232,11 +237,11 @@
 <div class="veil" id="addveil" hidden>
   <div class="sheet" aria-labelledby="add-h">
     <div class="sh"><h2 id="add-h">Add contact</h2><button class="x" type="button" aria-label="Close" id="add-close">✕</button></div>
+    <div class="ai-ask" hidden><p>To use this, the image (or link) uses AI to parse this information and that is the only job it does.</p><button class="btn" type="button" data-ai-yes>I agree</button></div>
     <div class="acts" style="flex-direction:column;align-items:stretch">
-      <button class="btn" type="button" id="add-card">Take a photo of a card</button>
+      <button class="btn" type="button" id="add-card" hidden>Take a photo of a card</button>
       <button class="btn ghost" type="button" id="add-type">Type it in</button>
     </div>
-    <p class="note" style="margin-top:12px">To read this, the picture or the page text is sent to an AI reading service.</p>
   </div>
 </div>
 
@@ -264,7 +269,7 @@
     document.getElementById('body').hidden = !!id;
     if (id) { window.scrollTo(0, 0); }
   }
-  var ME = '', HOSTS = true, BMCODE = {}, ALL = [], GROUPS = [], EVENTS = [], EDIT = null, BUSY = false, SENDING = 0;
+  var ME = '', HOSTS = true, AIOK = false, BMCODE = {}, ALL = [], GROUPS = [], EVENTS = [], EDIT = null, BUSY = false, SENDING = 0;
   var PIC = { card: { id: '', url: '', blank: 'A photo of their card', remove: 'Remove the card' }, face: { id: '', url: '', blank: 'Only you can see it. Take a photo of someone only with their OK.', remove: 'Remove the photo' } };
   try { var _m = CW.me(); ME = _m && _m.id ? String(_m.id).trim() : ''; } catch (e) {}
 
@@ -477,6 +482,21 @@
   $('cf-clear').onclick = function () { CF = { ev: [], grp: [], tags: [], l: [], arch: false }; draw(); };
 
   var MY_LINK = null;
+  function aiDraw() {
+    Array.prototype.forEach.call(document.querySelectorAll('.ai-ask'), function (x) { x.hidden = AIOK; });
+    $('fill-ai').hidden = !AIOK; $('add-card').hidden = !AIOK;
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ai-yes]'), function (b) {
+    b.onclick = function () {
+      if (BUSY) { return; }
+      BUSY = true; b.disabled = true;
+      send('saveContact', { aiConsent: '1' }).then(function (d) {
+        BUSY = false; b.disabled = false;
+        if (d && d.status === 'ok' && d.aiConsent) { AIOK = true; aiDraw(); return; }
+        say((d && d.message) || 'That did not save. Try again.');
+      }).catch(function () { BUSY = false; b.disabled = false; say('That did not save. Check your connection and try again.'); });
+    };
+  });
   function saveNoteInline(c, text, btn, out) {
     if (BUSY || SENDING) { return; }
     BUSY = true; btn.disabled = true; out.textContent = 'Saving';
@@ -671,7 +691,7 @@
       'Text to read:\n' + (text || '(none - use the image)') + '\n\nReturn ONLY the JSON object, no explanation.';
     var content = image ? [{ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } }, { type: 'text', text: prompt }] : prompt;
     return fetch(READER, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 600, messages: [{ role: 'user', content: content }] }) })
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 600, messages: [{ role: 'user', content: content }], ai: 'contacts', appearId: ME, meToken: token() }) })
       .then(function (r) { if (!r.ok) { throw new Error('read'); } return r.json(); })
       .then(function (data) {
         var out = (data && data.content && data.content[0] && data.content[0].text) || '';
@@ -694,7 +714,7 @@
     var url = String($('fill-url').value || '').trim();
     if (!/^https?:\/\/.+/i.test(url)) { fillSay('Please paste a full link starting with http.', true); return; }
     readBusy(true); fillSay('Reading the link');
-    fetch(READER, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) })
+    fetch(READER, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url, ai: 'contacts', appearId: ME, meToken: token() }) })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var text = String((data && data.text) || '').trim();
@@ -1044,7 +1064,7 @@
     ask('getContacts', {}).then(function (d) {
       if (d && d.code === 'signin') { say('Sign in again to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
       if (!d || d.status !== 'ok') { say((d && d.message) || 'Your contacts did not load. Reload the page and it will try again.'); return; }
-      HOSTS = d.hostsEvents !== false; BMCODE = {}; (d.bookmarkedPeople || []).forEach(function (x) { BMCODE[String(x)] = 1; }); ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
+      HOSTS = d.hostsEvents !== false; AIOK = d.aiConsent === true; aiDraw(); BMCODE = {}; (d.bookmarkedPeople || []).forEach(function (x) { BMCODE[String(x)] = 1; }); ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
       say('');
       if (!$('ctabs')) { buildTabs(); }
       $('body').hidden = false;
