@@ -1798,19 +1798,35 @@
   function delPanel(word){
     var fs = (st.fits[lc(word)] || []).filter(function(f){ return DEL_AS[f]; });
     var q = el('div', 'tagask'), r = el('div', 'cbtns');
-    var t = el('p', 'tagq', fs.length ? 'Delete \u201C' + word + '\u201D from your database of topics, or delete this as ' + fs.map(function(f){ return DEL_AS[f]; }).join(' or ') + '?' : 'Are you sure you want to delete this?');
     q.setAttribute('role', 'alert');
-    var yes = el('button', 'btn', fs.length ? 'Delete from my topics' : 'Yes, delete'); yes.type = 'button';
-    yes.addEventListener('click', function(){ st.delAsk = ''; var i = mineIx(word); if (i > -1) { dropMine(i); } toParent({ ao: 'dropword', word: word }); drawAll(); });
-    r.appendChild(yes);
+    if (!fs.length) {
+      q.appendChild(el('p', 'tagq', 'Are you sure you want to delete this?'));
+      var y0 = el('button', 'btn', 'Yes, delete'); y0.type = 'button';
+      y0.addEventListener('click', function(){ st.delAsk = ''; var i0 = mineIx(word); if (i0 > -1) { dropMine(i0); } toParent({ ao: 'dropword', word: word }); drawAll(); });
+      var n0 = el('button', 'btn ghost', 'Keep it'); n0.type = 'button';
+      n0.addEventListener('click', function(){ st.delAsk = ''; drawAll(); });
+      r.appendChild(y0); r.appendChild(n0); q.appendChild(r); return q;
+    }
+    q.appendChild(el('p', 'tagq', 'Delete \u201C' + word + '\u201D from your database of topics, or delete it as:'));
+    var boxes = [], whole = null, go = el('button', 'btn', 'Delete'); go.type = 'button';
+    var sync = function(){ var any = whole.checked || boxes.some(function(b){ return b.cb.checked; }); go.disabled = !any; go.style.opacity = any ? '' : '.5'; };
     fs.forEach(function(f){
-      var only = el('button', 'btn', 'Delete as ' + DEL_AS[f]); only.type = 'button';
-      only.addEventListener('click', function(){ st.delAsk = ''; setFit(word, f, false); drawAll(); });
-      r.appendChild(only);
+      var lab = el('label', 'cway'), cb = document.createElement('input'); cb.type = 'checkbox';
+      cb.addEventListener('change', function(){ if (cb.checked && boxes.every(function(b){ return b.cb.checked; })) { whole.checked = true; } if (!cb.checked) { whole.checked = false; } sync(); });
+      lab.appendChild(cb); lab.appendChild(document.createTextNode(' As ' + DEL_AS[f])); q.appendChild(lab); boxes.push({ f: f, cb: cb });
+    });
+    var wl = el('label', 'cway'); whole = document.createElement('input'); whole.type = 'checkbox';
+    whole.addEventListener('change', function(){ boxes.forEach(function(b){ b.cb.checked = whole.checked; }); sync(); });
+    wl.appendChild(whole); wl.appendChild(document.createTextNode(' The whole card, from my topics')); q.appendChild(wl);
+    go.addEventListener('click', function(){
+      st.delAsk = '';
+      if (whole.checked) { var i = mineIx(word); if (i > -1) { dropMine(i); } toParent({ ao: 'dropword', word: word }); }
+      else { boxes.forEach(function(b){ if (b.cb.checked) { setFit(word, b.f, false); } }); }
+      drawAll();
     });
     var no = el('button', 'btn ghost', 'Keep it'); no.type = 'button';
     no.addEventListener('click', function(){ st.delAsk = ''; drawAll(); });
-    r.appendChild(no); q.appendChild(t); q.appendChild(r); return q;
+    r.appendChild(go); r.appendChild(no); q.appendChild(r); sync(); return q;
   }
   function askDelete(word){
     st.delAsk = word; st.more = ''; drawAll();
