@@ -57,7 +57,10 @@
   .ticket .notes{margin-top:10px;display:flex;flex-direction:column;gap:8px;}
   .ticket .note{background:var(--panel);border:1px solid var(--panel-line);border-radius:10px;padding:8px 12px;}
   .ticket .note p{font-size:14px;margin:2px 0 0;}
-  .ticket .addrow{margin-top:10px;}
+  .ticket .addrow{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .ticket .addrow .pill{margin:0;}
+  .ticket .addrow .pill[disabled]{opacity:.55;cursor:default;}
+  .mailto{font-size:14px;color:var(--ink);}
   .pill{background:#fff;color:var(--brand);border:1.5px solid var(--brand);border-radius:20px;padding:6px 14px;
         font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
   .addbox{margin-top:10px;display:flex;flex-direction:column;gap:10px;}
@@ -195,18 +198,22 @@
         + '<span class="when">Owner: ' + ownerOf(t.page) + ' chat</span>'
         + '<span class="state">' + esc(t.status || 'open') + '</span>'
         + '<span class="when">' + esc(when(t.date)) + '</span>'
-        + '<button type="button" class="act">' + (isOpen(t.status) ? 'Close ticket' : 'Reopen') + '</button></div>'
+        + '</div>'
         + (t.email ? '<div class="mail"><a href="mailto:' + esc(t.email) + '">' + esc(t.email) + '</a></div>' : '')
         + (t.page ? '<div class="from">From <a href="' + esc(t.page) + '">' + esc(t.page) + '</a></div>' : '')
         + '<p>' + esc(t.message) + '</p>'
         + (t.imageId ? '<div class="pic"></div>' : '')
         + notesHtml(t.notes)
-        + '<div class="addrow"><button type="button" class="pill add">Add info</button></div>';
+        + '<div class="addrow"><button type="button" class="pill act">' + (isOpen(t.status) ? 'Close ticket' : 'Reopen') + '</button>'
+        + '<button type="button" class="pill add">Add info</button>'
+        + (t.email ? '<button type="button" class="pill mailbtn">Email</button>' : '') + '</div>';
       list.appendChild(el);
       if (t.imageId) picture(el.querySelector('.pic'), t.imageId);
       Array.prototype.forEach.call(el.querySelectorAll('.note .npic'), function (b) { picture(b, b.getAttribute('data-id')); });
       var add = el.querySelector('.add');
       add.addEventListener('click', function () { openAdd(t, el, add); });
+      var mb = el.querySelector('.mailbtn');
+      if (mb) { mb.addEventListener('click', function () { openMail(t, el, mb); }); }
       var btn = el.querySelector('.act');
       btn.addEventListener('click', function () { setState(t, btn, el); });
     });
@@ -253,7 +260,7 @@
     addBtn.parentNode.classList.add('hide');
     var box = document.createElement('div');
     box.className = 'addbox';
-    box.innerHTML = '<textarea aria-label="Add info to this ticket" placeholder="Write what you found or what happens next."></textarea>'
+    box.innerHTML = '<textarea aria-label="Add info to this ticket" maxlength="4000" placeholder="Write what you found or what happens next."></textarea>'
       + '<div class="pic-box"><div class="thumb">' + PICTURE + '</div>'
       + '<input type="url" aria-label="Picture link" placeholder="Paste an image, a link, or upload one">'
       + '<label class="pic-up">Upload<input type="file" accept="image/jpeg,image/png,image/webp" hidden></label></div>'
@@ -303,10 +310,7 @@
             .then(function (d) { if (d && d.status === 'ok' && d.id) return d.id; throw new Error('The picture did not go through.'); })
         : Promise.resolve('');
       up.then(function (imageId) {
-        return fetch(GS + '?action=addSupportTicketNote&ticketId=' + encodeURIComponent(t.id)
-          + '&note=' + encodeURIComponent(words.slice(0, 4000)) + (imageId ? '&imageId=' + encodeURIComponent(imageId) : '')
-          + '&appearId=' + encodeURIComponent(me) + '&t=' + Date.now())
-          .then(function (r) { return r.json(); });
+        return postJson('addSupportTicketNote', { ticketId: t.id, note: words.slice(0, 4000), imageId: imageId || '', appearId: me, me: me, meToken: token() });
       }).then(function (d) {
         if (!d || d.status !== 'ok') throw new Error((d && d.message) || 'Nothing changed.');
         t.notes = d.notes || [];
@@ -315,6 +319,47 @@
         save.disabled = false; save.textContent = 'Save';
         err('That did not save. ' + ((e && e.message) || '') + ' Press Save again.');
       });
+    });
+    text.focus();
+  }
+
+  function postJson(action, obj) {
+    return fetch(GS + '?action=' + action + '&t=' + Date.now(), {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(obj)
+    }).then(function (r) { return r.json(); });
+  }
+
+  function openMail(t, el, mailBtn) {
+    if (el.querySelector('.addbox')) return;
+    var row = mailBtn.parentNode;
+    row.classList.add('hide');
+    var box = document.createElement('div');
+    box.className = 'addbox';
+    box.innerHTML = '<div class="mailto"></div>'
+      + '<textarea aria-label="Email to the person who wrote in" maxlength="3000" placeholder="Write your reply."></textarea>'
+      + '<div class="actions"><button type="button" class="cancel">Cancel</button><button type="button" class="save">Send</button></div>';
+    box.querySelector('.mailto').textContent = 'This goes by email to ' + (t.name || 'the person') + ' at ' + t.email + ', the address on file. It starts with "Hi ' + (String(t.name || '').trim().split(/\s+/)[0] || 'there') + '," and is sent from the support address.';
+    el.appendChild(box);
+    var text = box.querySelector('textarea'), send = box.querySelector('.save');
+    function err(m) {
+      var old = box.querySelector('.err'); if (old) old.remove();
+      if (!m) return;
+      var n = document.createElement('div'); n.className = 'err'; n.textContent = m; box.appendChild(n);
+    }
+    box.querySelector('.cancel').addEventListener('click', function () { box.remove(); row.classList.remove('hide'); });
+    send.addEventListener('click', function () {
+      var words = String(text.value || '').trim();
+      if (!words) { err('Write your reply first.'); return; }
+      send.disabled = true; send.textContent = 'Sending'; err('');
+      postJson('emailSupportTicket', { ticketId: t.id, message: words.slice(0, 3000), appearId: me, me: me, meToken: token() })
+        .then(function (d) {
+          if (!d || d.status !== 'ok') throw new Error((d && d.message) || 'Nothing was sent.');
+          if (d.notes) { t.notes = d.notes; }
+          draw();
+        }).catch(function (e) {
+          send.disabled = false; send.textContent = 'Send';
+          err('That did not send. ' + ((e && e.message) || '') + ' Press Send again.');
+        });
     });
     text.focus();
   }
