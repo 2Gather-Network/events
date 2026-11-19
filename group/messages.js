@@ -1133,7 +1133,7 @@
   function scTitle(c) { return c.name || scNames(c.people, false, 0) || 'Chat'; }
   function scRowOf(m) { return { id: m.id, mine: m.mine, name: m.from, role: '', body: m.body, at: m.at, photo: m.photo, removed: false }; }
   function scGroupPeople(gid) {
-    return start().then(function () { return fetch(SC_GATE + '?action=getGroupBundle&groupId=' + encodeURIComponent(gid) + '&me=' + encodeURIComponent(ctx.meId)); })
+    return start().then(function () { return fetch(SC_GATE + '?action=getGroupBundle&codes=1&groupId=' + encodeURIComponent(gid) + '&me=' + encodeURIComponent(ctx.meId)); })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var ppl = ((d && d.attendees) || []).filter(function (p) { return p && p.code; }).map(function (p) {
