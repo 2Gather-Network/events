@@ -13,7 +13,7 @@
     try { Object.keys(w.localStorage).forEach(function (k) { for (var j = 0; j < ANSWER_KEYS.length; j++) { if (k.indexOf(ANSWER_KEYS[j]) === 0) { w.localStorage.removeItem(k); } } }); } catch (e) {}
   }
   var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-photo-at', 'cw-token', 'cw-first',
-               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-super-for', 'cw-lastEmail', 'cw-enabled', 'cw-jump-mark', 'cw-jump-known'];
+               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-super-for', 'cw-lastEmail', 'cw-enabled', 'cw-jump-mark', 'cw-jump-known', 'cw-invite', 'cw-rms-bm-last'];
   var VIEW_KEY = 'cw-view-as';
   var OUT_KEY = 'cw-view-out';
 
