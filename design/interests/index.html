@@ -1540,7 +1540,7 @@
     }
     if (!st.fitShut) {
       var fb = el('div', 'qbox'); fb.appendChild(el('div', 'qq', 'How does it fit you?'));
-      var fr = el('div', 'row'); fb.appendChild(fr); fr.appendChild(el('span', 'pill on fixed', 'I\u2019m interested in it'));
+      var fr = el('div', 'row'); fb.appendChild(fr); fr.appendChild(el('span', 'pill on fixed', 'I\u2019m interested in it')); fb.appendChild(el('div', 'qhint', 'It stays on your cards. To take it off, delete the card.'));
       FITS.forEach(function(f){
         var on = (st.fits[lc(m.word)] || []).indexOf(f[0]) > -1, b = el('button', 'pill' + (on ? ' on' : ''), f[1]); b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false');
         b.addEventListener('click', function(){ var wasOn = b.classList.contains('on'); setFit(m.word, f[0], !wasOn); if (f[0] === 'skill' && !wasOn) { st.moreTab = 'skill'; } drawCards(); });
@@ -1588,7 +1588,7 @@
     c.appendChild(pane);
     var mstrip = el('div', 'mstrip'); var mcs = csRows(mstrip, getA(m.word), m.word, function(a){ putA(m.word, a); }, el); c.appendChild(mstrip);
     var row = el('div', 'cbtns'), dn = el('button', 'btn small', 'Done'); dn.type = 'button';
-    dn.addEventListener('click', function(){ if (lvMissing(m.word)) { st.moreTab = 'skill'; drawCards(); return; } st.more = ''; endPend(); drawCards(); });
+    dn.addEventListener('click', function(){ if (lvMissing(m.word)) { st.moreTab = 'skill'; drawCards(); try { var ml = document.querySelector('.misslv'); if (ml && ml.scrollIntoView) { ml.scrollIntoView({ block: 'center' }); } } catch (e) {} return; } st.more = ''; endPend(); drawCards(); });
     row.appendChild(dn); pendCancel(row); c.appendChild(row);
     return c;
   }
@@ -1794,10 +1794,25 @@
     var row = el('div', 'row'); box.appendChild(row);
     return row;
   }
+  function delPanel(word){
+    var seeks = (st.fits[lc(word)] || []).indexOf('seek') > -1;
+    var q = el('div', 'tagask'), t = el('p', 'tagq', seeks ? 'Delete \u201C' + word + '\u201D from everything, or only from your needs?' : 'Are you sure you want to delete this?'), r = el('div', 'cbtns');
+    q.setAttribute('role', 'alert');
+    var yes = el('button', 'btn', seeks ? 'Delete from everything' : 'Yes, delete'); yes.type = 'button';
+    yes.addEventListener('click', function(){ st.delAsk = ''; var i = mineIx(word); if (i > -1) { dropMine(i); } toParent({ ao: 'dropword', word: word }); drawAll(); });
+    r.appendChild(yes);
+    if (seeks) {
+      var onlyN = el('button', 'btn', 'Only from my needs'); onlyN.type = 'button';
+      onlyN.addEventListener('click', function(){ st.delAsk = ''; setFit(word, 'seek', false); drawAll(); });
+      r.appendChild(onlyN);
+    }
+    var no = el('button', 'btn ghost', 'Keep it'); no.type = 'button';
+    no.addEventListener('click', function(){ st.delAsk = ''; drawAll(); });
+    r.appendChild(no); q.appendChild(t); q.appendChild(r); return q;
+  }
   function askDelete(word){
-    if (!window.confirm('Are you sure you want to delete this?')) { return; }
-    var i = mineIx(word); if (i > -1) { dropMine(i); }
-     toParent({ ao: 'dropword', word: word }); 
+    st.delAsk = word; st.more = ''; drawAll();
+    try { var dp = document.querySelector('.tagask[data-del]'); if (dp && dp.scrollIntoView) { dp.scrollIntoView({ block: 'center' }); } } catch (e) {}
   }
   function isCompact(){ try { return window.localStorage.getItem('ao-compact') !== '0'; } catch (e) { return true; } }
   function setCompact(v){ try { window.localStorage.setItem('ao-compact', v ? '1' : '0'); } catch (e) {} }
@@ -1907,6 +1922,7 @@
      loadEmo(); 
     var box = els.cards; box.innerHTML = '';
     st.pendCat = false;
+    if (st.delAsk && has(st.delAsk)) { var dpn = delPanel(st.delAsk); dpn.setAttribute('data-del', '1'); box.appendChild(dpn); }
     var pendM = drawPend();
     var allItems = function(){ return listItems().filter(function(m){ return m !== pendM; }); };
     if (!allItems().length) return;
