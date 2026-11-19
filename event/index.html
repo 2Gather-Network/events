@@ -134,6 +134,9 @@
     .cw-dt-field { box-sizing:border-box; width:100%; height:38px; border:1.5px solid #C9DFF3; border-radius:12px; background:#fff; padding:0 10px; font-family:inherit; font-size:14px; font-weight:400; color:#1A2E42; }
     .cw-dt-pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
     .cw-dt-pill { background:#fff; color:#1F699E; border:1.5px solid #1F699E; border-radius:24px; font-family:inherit; font-size:13px; font-weight:700; padding:7px 14px; cursor:pointer; }
+    .cw-dt-q { font-size:14px; font-weight:700; color:#1A2E42; margin:14px 0 8px; }
+    .cw-dt-yn { display:flex; flex-wrap:wrap; gap:8px; }
+    .cw-dt-pill.on { background:#1F699E; color:#fff; }
     .cw-dt-say { font-size:13px; color:#2F3D4F; margin:10px 0 0; }
     .cw-dt-say.bad { color:#c0392b; }
     .cw-dt-foot { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:14px; }
@@ -603,6 +606,22 @@ function _cwManageUrl() {
 }
 function _cwDtDay(iso, n) { var d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function _cwDtSay(m, bad) { var el = document.getElementById("cw-dt-say"); if (!el) return; el.textContent = m || ""; el.hidden = !m; el.classList.toggle("bad", !!bad); }
+var _cwDtYes = false;
+function cwDtAsk(yes) {
+  _cwDtYes = !!yes;
+  var y = document.getElementById("cw-dt-yes"), n = document.getElementById("cw-dt-no");
+  if (y) y.classList.toggle("on", _cwDtYes);
+  if (n) n.classList.toggle("on", !_cwDtYes);
+}
+function cwDtChanged() {
+  var ev = _currentEv, a = document.getElementById("cw-dt-ask");
+  if (!ev || !a) return;
+  var regs = ev.interestedEnabled && ev.interestedEnabled !== "off";
+  var d = document.getElementById("cw-dt-date").value, s = document.getElementById("cw-dt-start").value, e = document.getElementById("cw-dt-end").value;
+  var changed = d !== String(ev.date || "") || s !== String(ev.time || "") || e !== String(ev.endtime || "");
+  a.hidden = !(regs && changed);
+  if (a.hidden) cwDtAsk(false);
+}
 function cwDtOpen() {
   var ev = _currentEv, p = document.getElementById("cw-dt-panel"), b = document.getElementById("cw-dt-edit");
   if (!ev || !p) return;
@@ -611,6 +630,10 @@ function cwDtOpen() {
   document.getElementById("cw-dt-start").value = ev.time || "";
   document.getElementById("cw-dt-end").value = ev.endtime || "";
   _cwDtSay("");
+  cwDtAsk(false);
+  var dn = document.getElementById("cw-dt-done"); if (dn) dn.hidden = true;
+  ["cw-dt-date", "cw-dt-start", "cw-dt-end"].forEach(function (id) { var el = document.getElementById(id); if (el) { el.oninput = cwDtChanged; el.onchange = cwDtChanged; } });
+  cwDtChanged();
   p.hidden = false;
   if (b) b.setAttribute("aria-expanded", "true");
 }
@@ -622,6 +645,7 @@ function cwDtClose() {
 function cwDtPick(n) {
   var d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + n);
   document.getElementById("cw-dt-date").value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  cwDtChanged();
 }
 async function cwDtSave() {
   var ev = _currentEv;
@@ -651,10 +675,24 @@ async function cwDtSave() {
   if (btn) btn.disabled = false;
   if (!ok) { _cwDtSay("That did not save. Try again.", true); return; }
   try { sessionStorage.setItem("cw-wrote-at", String(Date.now())); } catch (e) {}
+  var was = fmtDate(ev.date, ev.time, ev.endtime, ev.endDate);
+  var wantMail = _cwDtYes;
   ev.date = date; ev.time = start; ev.endtime = end; ev.endDate = endDate;
   var t = document.getElementById("ev-when-text");
   if (t) t.textContent = fmtDate(ev.date, ev.time, ev.endtime, ev.endDate);
   cwDtClose();
+  var dn = document.getElementById("cw-dt-done");
+  if (dn) { dn.textContent = "Saved."; dn.hidden = false; }
+  if (!wantMail) return;
+  if (dn) dn.textContent = "Saved. Emailing your registrants…";
+  var sent = null;
+  try {
+    var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
+    var r2 = await fetch(GS_URL + "?action=emailRegistrantsOfChange&t=" + Date.now(), { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appearId: w.real, meToken: tok, eventId: String(ev.id), kind: "time", was: was }) });
+    var d2 = JSON.parse(await r2.text());
+    if (d2 && d2.status === "ok") sent = Number(d2.sent) || 0;
+  } catch (e) { sent = null; }
+  if (dn) dn.textContent = sent === null ? "Saved. The email did not send." : (sent === 0 ? "Saved. Nobody to email." : "Saved. Emailed " + sent + (sent === 1 ? " person." : " people."));
 }
 
 function cwDuplicate() {
@@ -976,13 +1014,17 @@ function render(ev) {
   const _payOn = !!(ev.paymentlink && sl.includes("paymentlink"));
   const _canEditWhen = !ev.cancelled && ev.date && !ev.recurFreq && !/^(recurring-|rec-)/.test(String(ev.id || "")) && ev.hostType !== "socializer";
   const _whenEditHTML = _canEditWhen ? `<button type="button" class="cw-dt-edit" id="cw-dt-edit" onclick="cwDtOpen()" aria-expanded="false" aria-controls="cw-dt-panel">Edit</button>` : "";
-  const _whenPanelHTML = _canEditWhen ? `<div class="cw-dt-panel" id="cw-dt-panel" hidden>
+  const _whenPanelHTML = _canEditWhen ? `<p class="cw-dt-say" id="cw-dt-done" role="status" hidden></p><div class="cw-dt-panel" id="cw-dt-panel" hidden>
       <div class="cw-dt-row">
         <div class="cw-dt-col"><label class="cw-dt-lab" for="cw-dt-date">Date</label><input type="date" class="cw-dt-field" id="cw-dt-date"></div>
         <div class="cw-dt-col"><label class="cw-dt-lab" for="cw-dt-start">Starts</label><input type="time" class="cw-dt-field" id="cw-dt-start"></div>
         <div class="cw-dt-col"><label class="cw-dt-lab" for="cw-dt-end">Ends</label><input type="time" class="cw-dt-field" id="cw-dt-end"></div>
       </div>
       <div class="cw-dt-pills"><button type="button" class="cw-dt-pill" onclick="cwDtPick(1)">Tomorrow</button><button type="button" class="cw-dt-pill" onclick="cwDtPick(7)">Next week</button><button type="button" class="cw-dt-pill" onclick="cwDtPick(30)">One month from now</button></div>
+      <div class="cw-dt-ask" id="cw-dt-ask" hidden>
+        <p class="cw-dt-q">Do you want to email your event registrants about the new time?</p>
+        <div class="cw-dt-yn"><button type="button" class="cw-dt-pill" id="cw-dt-yes" onclick="cwDtAsk(true)">Yes email everyone</button><button type="button" class="cw-dt-pill on" id="cw-dt-no" onclick="cwDtAsk(false)">No just save it</button></div>
+      </div>
       <p class="cw-dt-say" id="cw-dt-say" role="status" hidden></p>
       <div class="cw-dt-foot"><button type="button" class="cw-dt-pill" onclick="cwDtClose()">Cancel</button><button type="button" class="cw-dt-save" id="cw-dt-save" onclick="cwDtSave()">Save</button></div>
     </div>` : "";
