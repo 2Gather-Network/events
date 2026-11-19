@@ -9146,7 +9146,7 @@ function selectInterestSuggestion(val) {
     });
     return Object.keys(byEvent).filter(function (eid) { return !byEvent[eid].cancelled; });
   }
-  var _extraAttend = {}, _extraAsked = {};
+  var _extraAttend = {}, _extraAsked = {}, _extraPending = 0;
   function _loadMissingAttending() {
     if (_regIds === null || !_feedIn || _regFailed || _feedFailed) return;
     var me = ''; try { me = getRealMemberId() || ''; } catch (e) {}
@@ -9157,6 +9157,7 @@ function selectInterestSuggestion(val) {
     }).slice(0, 20);
     if (!todo.length) return;
     todo.forEach(function (k) { _extraAsked[k] = 1; });
+    _extraPending += todo.length;
     Promise.all(todo.map(function (k) {
       return fetch(GS_URL + '?action=getEventById&id=' + encodeURIComponent(k) + '&appearId=' + encodeURIComponent(me) + '&nocache=1&t=' + Date.now())
         .then(function (r) { return r.json(); })
@@ -9168,6 +9169,7 @@ function selectInterestSuggestion(val) {
         })
         .catch(function () {});
     })).then(function () {
+      _extraPending = Math.max(0, _extraPending - todo.length);
       try { paintCounts(allRows); } catch (e) {}
       try { if (pane === 'attending') { paintRail(allRows, selId); } } catch (e) {}
     });
@@ -9192,7 +9194,7 @@ function selectInterestSuggestion(val) {
       if (p === 'attending' || p === 'all') {
         if (p === 'all' && !_isOperator) return;
         var got = (p === 'all') ? _calendarRows() : _attendingRows();
-        b.textContent = got ? got.length : '\u00a0';
+        b.textContent = (got && !(p === 'attending' && _extraPending > 0)) ? got.length : '\u00a0';
         return;
       }
       b.textContent = rows.filter(function (r) { return inPane(r, p); }).length;
