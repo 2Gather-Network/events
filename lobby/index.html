@@ -374,12 +374,15 @@ html .cw-back:hover,html .cw-back:focus{background:#EEF2F7;}
 var GS_URL='https://cw-api-gate.jessieupp.workers.dev';
 function _cwCodeFor(id){
   if (/^c:[0-9a-z]{6}$/i.test(String(id || ''))) return String(id).slice(2).toLowerCase();
+  if (/^k:/i.test(String(id || ''))) return '';
   var v = String(id || '').split('.').join('').toLowerCase();
   if (!v) return '';
   var h = 5381;
   for (var i = 0; i < v.length; i++) { h = ((h * 33) ^ v.charCodeAt(i)) >>> 0; }
   return ('000000' + h.toString(36)).slice(-6);
 }
+function _pk(id){ var q=String(id||''); return /^k:/i.test(q)?q.toLowerCase():_cwCodeFor(q); }
+function _bmTo(id){ var q=String(id||''); if(/^k:/i.test(q)) return ''; var c=/^c:/i.test(q)?_cwCodeFor(q):''; return c?'&toCode='+encodeURIComponent(c):'&to='+encodeURIComponent(q); }
 var PROFILE_URL='https://2gather.network/hi/?v=';
 function _profileUrl(appearId){
   var c=_cwCodeFor(appearId||'');
@@ -778,7 +781,7 @@ function _avList(v){ return (v||[]).slice(0,12).map(function(x){ return escHTML(
 async function _avCard(pid){
   var w=document.getElementById('board-wait'); if(!w) return false;
   var m=_memberFor(pid); if(!m||normId(pid)===normId(_myId)) return false;
-  var nm=String(m.name||'').trim(); if(!nm||/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(nm)||normId(nm)===normId(pid)){ nm='This attendee'; (function(){ try{ var _cd=((window._codeById||{})[normId(pid)])||_cwCodeFor(pid); var _look=function(_mu){ var got=''; ((_mu&&_mu.people)||[]).forEach(function(p){ if(p&&p.code===_cd&&p.name) got=p.name; }); return got; }; var _g0=_look(window._muRes); if(_g0){ nm=_g0; m.name=_g0; } else { _muInfo().then(function(_mu){ var got=_look(_mu); if(got){ m.name=got; setTimeout(function(){ var h=document.querySelector('#board-wait h2'); if(h&&h.textContent==='This attendee') h.textContent=got; },0); } }); } }catch(e){} })(); } var c={}, note='', bm=!!_bmPeople[normId(pid)];
+  var nm=String(m.name||'').trim(); if(!nm||/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(nm)||normId(nm)===normId(pid)){ nm='This attendee'; (function(){ try{ var _cd=((window._codeById||{})[normId(pid)])||_cwCodeFor(pid); var _look=function(_mu){ var got=''; ((_mu&&_mu.people)||[]).forEach(function(p){ if(p&&p.code===_cd&&p.name) got=p.name; }); return got; }; var _g0=_look(window._muRes); if(_g0){ nm=_g0; m.name=_g0; } else { _muInfo().then(function(_mu){ var got=_look(_mu); if(got){ m.name=got; setTimeout(function(){ var h=document.querySelector('#board-wait h2'); if(h&&h.textContent==='This attendee') h.textContent=got; },0); } }); } }catch(e){} })(); } var c={}, note='', bm=!!_bmPeople[_pk(pid)];
   var _cP=fetch(GS_URL+'?action=getEventContacts&ev='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId)).then(function(r){ return r.json(); }).catch(function(){ return null; });
   var _nP=fetch(GS_URL+'?action=getEventNotes&ev='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId)).then(function(r){ return r.json(); }).catch(function(){ return null; });
   var H='font-size:16px;font-weight:800;margin:20px 0 6px;', R=function(l,v){ return v?'<div style="padding:6px 0;"><div style="font-weight:700;">'+l+'</div><div style="color:#2F3D4F;">'+v+'</div></div>':''; };
@@ -794,20 +797,20 @@ async function _avCard(pid){
     var g=function(i){ return document.getElementById(i); };
     g('av-nt').onclick=function(){ g('av-note').style.display=''; g('av-tx').focus(); };
     if(note) g('av-note').style.display='';
-    g('av-bm').onclick=function(){ var t=this; t.disabled=true; t.textContent='Bookmarked'; t.style.cssText='background:#1F699E;color:#fff;border-color:#1F699E;opacity:1;'; fetch(GS_URL+'?action=saveBookmark&from='+encodeURIComponent(_myId)+'&to='+encodeURIComponent(pid)+'&sourceKind=Event&sourceID='+encodeURIComponent(_eventId)).then(function(r){ return r.json(); }).then(function(d){ if(d&&(d.status==='ok'||d.ok||d.saved)){ bm=true; _bmPeople[normId(pid)]=1; paint(''); } else { t.disabled=false; paint('This did not save. Try again.'); } }).catch(function(){ t.disabled=false; paint('This did not save. Try again.'); }); };
+    g('av-bm').onclick=function(){ var t=this; t.disabled=true; t.textContent='Bookmarked'; t.style.cssText='background:#1F699E;color:#fff;border-color:#1F699E;opacity:1;'; fetch(GS_URL+'?action=saveBookmark&from='+encodeURIComponent(_myId)+_bmTo(pid)+'&sourceKind=Event&sourceID='+encodeURIComponent(_eventId)).then(function(r){ return r.json(); }).then(function(d){ if(d&&(d.status==='ok'||d.ok||d.saved)){ bm=true; _bmPeople[_pk(pid)]=1; paint(''); } else { t.disabled=false; paint('This did not save. Try again.'); } }).catch(function(){ t.disabled=false; paint('This did not save. Try again.'); }); };
     g('av-sv').onclick=function(){ note=g('av-tx').value.trim(); this.disabled=true; fetch(GS_URL+'?action=saveEventNote&eventId='+encodeURIComponent(_eventId)+'&appearId='+encodeURIComponent(_myId)+'&subjectId='+encodeURIComponent(pid)+'&note='+encodeURIComponent(note)).then(function(r){ return r.json(); }).then(function(d){ paint(d&&d.status==='ok'?'Saved.':'This did not save. Try again.'); }).catch(function(){ paint('This did not save. Try again.'); }); };
     _avWire();
   };
   paint('');
-  Promise.all([_cP,_nP]).then(function(a){ var r=a[0], n=a[1], got=false; ((r&&r.people)||[]).forEach(function(p){ if(normId(p.appearId)===normId(pid)){ c=p; got=true; } }); ((n&&n.notes)||[]).forEach(function(x){ if(normId(x.subjectId)===normId(pid)){ note=x.note||''; got=true; } }); site=/^https:\/\//i.test(String(c.site||''))?String(c.site):''; var tx=document.getElementById('av-tx'), nb=document.getElementById('av-note'); if(got && document.getElementById('av-bm') && !(tx&&tx.value) && !(nb&&nb.style.display!=='none')) paint(''); });
+  Promise.all([_cP,_nP]).then(function(a){ var r=a[0], n=a[1], got=false; ((r&&r.people)||[]).forEach(function(p){ if(_pk(p.appearId)===_pk(pid)){ c=p; got=true; } }); ((n&&n.notes)||[]).forEach(function(x){ if(_pk(x.subjectId)===_pk(pid)){ note=x.note||''; got=true; } }); site=/^https:\/\//i.test(String(c.site||''))?String(c.site):''; var tx=document.getElementById('av-tx'), nb=document.getElementById('av-note'); if(got && document.getElementById('av-bm') && !(tx&&tx.value) && !(nb&&nb.style.display!=='none')) paint(''); });
   return true;
 }
 async function _bmCard(){
   var w=document.getElementById('board-wait'); if(!w) return;
   var ids={};
   try{ var r=await (await fetch(GS_URL+'?action=getBookmarks&appearId='+encodeURIComponent(_myId))).json();
-    ((r&&r.bookmarks)||[]).forEach(function(b){ if(!b||!b.appearId) return; if(b.sourceKind!==undefined&&!(String(b.sourceKind)==='Event'&&String(b.sourceID||'')===String(_eventId))) return; ids[normId(b.appearId)]=1; }); }catch(e){}
-  var list=_members.filter(function(m){ return ids[normId(m.appearId)]&&normId(m.appearId)!==normId(_myId); });
+    ((r&&r.bookmarks)||[]).forEach(function(b){ if(!b||!b.appearId) return; if(b.sourceKind!==undefined&&!(String(b.sourceKind)==='Event'&&String(b.sourceID||'')===String(_eventId))) return; ids[_pk(b.appearId)]=1; }); }catch(e){}
+  var list=_members.filter(function(m){ return ids[_pk(m.appearId)]&&_pk(m.appearId)!==_pk(_myId); });
   var t=escHTML(String(window._evTitle||'this event'));
   w.innerHTML=_avBox('<h2 style="margin:0;font-size:20px;">My bookmarks</h2><p style="margin:6px 0 12px;">People you bookmarked at '+t+'. Only for this event.</p>'
     +(list.length?list.map(function(m){ return '<a href="'+location.pathname+'?id='+encodeURIComponent(_eventId)+'&p='+encodeURIComponent(_cwCodeFor(m.appearId))+'" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #e6ebf3;color:#1a1a2e;text-decoration:none;">'+(m.photo?'<img src="'+escHTML(m.photo)+'" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">':'')+'<span style="font-weight:700;">'+escHTML(m.name||'')+'</span></a>'; }).join(''):'<p style="color:#2F3D4F;">You haven’t bookmarked anyone at this event yet.</p>')
@@ -1498,7 +1501,7 @@ function renderMatchesPanel(){
       +'<div class="mp-body"><div class="mp-name">'+escHTML(m.name)+'</div><div class="mp-list">'+items+'</div></div>'
       +'<div class="mp-actions">'
         +'<a class="mp-btn primary" role="link" tabindex="0" data-nav="'+escHTML(_profileUrlFor(m))+'" title="'+escHTML(m.name||m.appearId||'View profile')+'" onclick="return _safeNavGo(this)">Visit profile</a>'
-        +(_bmPeople[normId(m.appearId)]?'<button type="button" class="mp-btn bm-on" disabled aria-label="Bookmarked"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;margin:-2px auto;"><path d="M18 7v14l-6 -4l-6 4v-14a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4z"/></svg></button>':'<button class="mp-btn" onclick="bookmarkMatch(this,\''+escHTML(m.appearId)+'\')">Bookmark</button>')
+        +(_bmPeople[_pk(m.appearId)]?'<button type="button" class="mp-btn bm-on" disabled aria-label="Bookmarked"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;margin:-2px auto;"><path d="M18 7v14l-6 -4l-6 4v-14a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4z"/></svg></button>':'<button class="mp-btn" onclick="bookmarkMatch(this,\''+escHTML(m.appearId)+'\')">Bookmark</button>')
       +'</div>'
     +'</div>';
   }).join('');
@@ -1508,7 +1511,7 @@ function renderMatchesPanel(){
 }
 window.filterMatches=function(q){ _matchesQ=(q||'').toLowerCase().trim(); renderMatchesPanel(); };
 var _bmPeople={}, _bmOnly=false;
-function _bmHereCount(){ var n=0; _members.forEach(function(m){ if(_bmPeople[normId(m.appearId)] && normId(m.appearId)!==normId(_myId)) n++; }); return n; }
+function _bmHereCount(){ var n=0; _members.forEach(function(m){ if(_bmPeople[_pk(m.appearId)] && normId(m.appearId)!==normId(_myId)) n++; }); return n; }
 function _bmSwitchHTML(){
   var n=_bmHereCount(); if(!n && !_bmOnly) return '';
   return '<button type="button" class="bm-people-switch'+(_bmOnly?' on':'')+'" onclick="toggleBmPeople()" role="switch" aria-checked="'+(_bmOnly?'true':'false')+'">'
@@ -1522,7 +1525,7 @@ async function loadBookmarkedPeople(){
     var r=await fetch(GS_URL+'?action=getBookmarks&appearId='+encodeURIComponent(_myId));
     var d=await r.json();
     if(d && Array.isArray(d.bookmarks)){
-      _bmPeople={}; d.bookmarks.forEach(function(b){ if(b && b.appearId) _bmPeople[normId(b.appearId)]=1; });
+      _bmPeople={}; d.bookmarks.forEach(function(b){ if(b && b.appearId) _bmPeople[_pk(b.appearId)]=1; });
       renderGuestPhotos();
       try{ renderMatchesPanel(); }catch(e){}
     }
@@ -1533,8 +1536,8 @@ window.bookmarkMatch=function(btn, theirId){
   var orig=btn.textContent;
   var _origHTML=btn.innerHTML, _origCls=btn.className; btn.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;margin:-2px auto;"><path d="M18 7v14l-6 -4l-6 4v-14a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4z"/></svg>'; btn.className='mp-btn bm-on'; btn.setAttribute('aria-label','Bookmarked'); btn.disabled=true;
   var _src=_groupId?'&sourceKind=Group&sourceID='+encodeURIComponent(window._cwBoardGroupId||_groupId):(_eventId?'&sourceKind=Event&sourceID='+encodeURIComponent(_eventId):'');
-  fetch(GS_URL+'?action=saveBookmark&from='+encodeURIComponent(_myId)+'&to='+encodeURIComponent(theirId)+_src)
-    .then(function(){ btn.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;margin:-2px auto;"><path d="M18 7v14l-6 -4l-6 4v-14a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4z"/></svg>'; btn.className='mp-btn bm-on'; btn.setAttribute('aria-label','Bookmarked'); _bmPeople[normId(theirId)]=1; renderGuestPhotos(); })
+  fetch(GS_URL+'?action=saveBookmark&from='+encodeURIComponent(_myId)+_bmTo(theirId)+_src)
+    .then(function(){ btn.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;margin:-2px auto;"><path d="M18 7v14l-6 -4l-6 4v-14a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4z"/></svg>'; btn.className='mp-btn bm-on'; btn.setAttribute('aria-label','Bookmarked'); _bmPeople[_pk(theirId)]=1; renderGuestPhotos(); })
     .catch(function(){ btn.innerHTML=_origHTML; btn.className=_origCls; btn.removeAttribute('aria-label'); btn.disabled=false; });
 };
 
@@ -1559,7 +1562,7 @@ window.openProfile=function(appearId,pageLink){
 };
 
 function _memberFor(id){ var k=normId(id); for(var i=0;i<_members.length;i++){ if(normId(_members[i].appearId)===k) return _members[i]; } return null; }
-function _personShown(id){ return !_bmOnly || !!_bmPeople[normId(id)]; }
+function _personShown(id){ return !_bmOnly || !!_bmPeople[_pk(id)]; }
 function _chipPasses(en, needsMode){
   if(!_personShown(en.member && en.member.appearId)) return false;
   if(!_searchQ) return true;
