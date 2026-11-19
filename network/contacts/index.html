@@ -389,15 +389,31 @@
   var HOW = ['Appear', 'Text', 'Call', 'Email'];
   var INVITE = [['Network', 'Network invite'], ['Event', 'Event invite'], ['Group', 'Group invite'], ['Meeting', 'Meeting invite'], ['Other', '+ Other']];
   var MET = [['Event', 'Event'], ['Group', 'Group'], ['Online', 'Online'], ['Referral', 'Referral']];
-  var OWN_KEY = 'cw-rms-own-met';
-  var OWN_MEM = null;
-  function ownMet() {
-    if (OWN_MEM) { return OWN_MEM.slice(); }
-    var a = []; try { a = JSON.parse(localStorage.getItem(OWN_KEY) || '[]'); } catch (e) { a = []; }
-    OWN_MEM = Array.isArray(a) ? a.filter(function (x) { return typeof x === 'string' && x.trim(); }).slice(0, 30) : [];
-    return OWN_MEM.slice();
+  var CL = null, CL_T = 0;
+  function lsList(key) { var a = []; try { a = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { a = []; } return Array.isArray(a) ? a.filter(function (x) { return typeof x === 'string' && x.trim(); }) : []; }
+  function clEmpty(c) { return !c || (!(c.met || []).length && !((c.st || {}).own || []).length && !((c.st || {}).gone || []).length && !((c.rt || {}).own || []).length && !((c.rt || {}).gone || []).length && !((c.fu || {}).own || []).length); }
+  function clUse(c) {
+    CL = c || { met: [], st: { own: [], gone: [] }, rt: { own: [], gone: [] }, fu: { own: [] } };
+    if (clEmpty(CL)) {
+      var old = { met: lsList('cw-rms-own-met'), st: { own: lsList('cw-rms-st-own'), gone: lsList('cw-rms-st-gone') }, rt: { own: lsList('cw-rms-rt-own'), gone: lsList('cw-rms-rt-gone') }, fu: { own: lsList('cw-rms-fu-own') } };
+      if (!clEmpty(old)) { CL = old; clSave(); }
+    }
+    OWN_MEM = (CL.met || []).slice(); OLS = {};
   }
-  function ownMetSave(a) { OWN_MEM = a.slice(0, 30); try { localStorage.setItem(OWN_KEY, JSON.stringify(OWN_MEM)); } catch (e) {} }
+  function clSave() {
+    if (!CL) { return; }
+    CL.met = (OWN_MEM || []).slice(0, 40);
+    ['st', 'rt', 'fu'].forEach(function (k) { if (OLS[k]) { CL[k] = { own: OLS[k].own.slice(0, 40), gone: (OLS[k].gone || []).slice(0, 40) }; } });
+    clearTimeout(CL_T);
+    CL_T = setTimeout(function () {
+      send('saveContact', { choiceLists: JSON.stringify(CL) }).then(function (d) {
+        if (d && d.status === 'ok') { ['cw-rms-own-met', 'cw-rms-st-own', 'cw-rms-st-gone', 'cw-rms-rt-own', 'cw-rms-rt-gone', 'cw-rms-fu-own', 'cw-rms-fu-gone', 'cw-rms-own-rt'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} }); }
+      }).catch(function () {});
+    }, 700);
+  }
+  var OWN_MEM = null;
+  function ownMet() { return (OWN_MEM || []).slice(); }
+  function ownMetSave(a) { OWN_MEM = a.slice(0, 40); clSave(); }
   function ownMetAdd(v) {
     v = String(v || '').trim(); if (!v || v === 'Other') { return; }
     var known = MET.map(function (m) { return m[0].toLowerCase(); });
@@ -1167,11 +1183,10 @@
     rt: { key: 'rt', ideas: ['Client', 'Partner', 'Team member', 'Potential partner', 'Job candidate'], single: true }
   };
   var OLS = {};
-  function olLoad(k, part) { var a = []; try { a = JSON.parse(localStorage.getItem('cw-rms-' + k + '-' + part) || '[]'); } catch (e) { a = []; } return Array.isArray(a) ? a.filter(function (x) { return typeof x === 'string' && x.trim(); }).slice(0, 40) : []; }
-  function olStore(k, part, a) { try { localStorage.setItem('cw-rms-' + k + '-' + part, JSON.stringify(a.slice(0, 40))); } catch (e) {} }
+  function olLoad(k, part) { var a = CL && CL[k] ? CL[k][part] : []; return Array.isArray(a) ? a.slice(0, 40) : []; }
   function ol(k) { if (!OLS[k]) { OLS[k] = { own: olLoad(k, 'own'), gone: olLoad(k, 'gone'), sel: [], show: false }; } return OLS[k]; }
   function olHas(a, v) { return a.some(function (x) { return x.toLowerCase() === String(v).toLowerCase(); }); }
-  function olSave(k) { var S = ol(k); olStore(k, 'own', S.own); olStore(k, 'gone', S.gone); }
+  function olSave(k) { ol(k); clSave(); }
   function olPick(k, v) {
     var S = ol(k), C = OLC[k];
     if (olHas(S.sel, v)) { S.sel = S.sel.filter(function (x) { return x.toLowerCase() !== v.toLowerCase(); }); }
@@ -1498,7 +1513,7 @@
     ask('getContacts', {}).then(function (d) {
       if (d && d.code === 'signin') { say('Sign in again to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
       if (!d || d.status !== 'ok') { say((d && d.message) || 'Your contacts did not load. Reload the page and it will try again.'); return; }
-      HOSTS = d.hostsEvents !== false; AIOK = d.aiConsent === true; aiDraw(); BMCODE = {}; (d.bookmarkedPeople || []).forEach(function (x) { BMCODE[String(x)] = 1; }); ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
+      HOSTS = d.hostsEvents !== false; clUse(d.choiceLists); AIOK = d.aiConsent === true; aiDraw(); BMCODE = {}; (d.bookmarkedPeople || []).forEach(function (x) { BMCODE[String(x)] = 1; }); ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
       say('');
       if (!$('ctabs')) { buildTabs(); }
       $('body').hidden = false;
