@@ -417,6 +417,8 @@ html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-ins
   html.cw-mepane .me-card-acts { display:flex; gap:8px; margin-top:auto; padding-top:10px; }
   html.cw-mepane .me-card-btn { flex:1; font:inherit; font-size:13px; font-weight:700; padding:7px 10px; border-radius:18px; cursor:pointer; background:#fff; color:#1F699E; border:1.5px solid #1F699E; white-space:nowrap; }
   html.cw-mepane .me-card-btn.on { background:#1F699E; color:#fff; }
+  .rc-pill { background:#fff; color:#1F699E; border:1.5px solid #1F699E; border-radius:24px; font-family:inherit; font-size:13px; font-weight:700; padding:7px 14px; cursor:pointer; }
+  .rc-pill.on { background:#1F699E; color:#fff; }
   html.cw-mepane .me-card-more { display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding-top:8px; }
   html.cw-mepane .me-card-more a, html.cw-mepane .me-card-more button { font:inherit; font-size:13px; color:#1F699E; background:none; border:0; padding:0; text-decoration:underline; cursor:pointer; text-align:left; }
   html.cw-mepane .me-card-pill { font-size:13px; font-weight:600; color:#1F699E; background:#EAF2F8; border-radius:14px; padding:4px 11px; }
@@ -1453,6 +1455,13 @@ html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-ins
       </div>
     </div>
 
+    <div id="rc-ask" style="display:none;margin:0 0 16px;padding:14px 16px;background:#fff;border:1.5px solid #C9DFF3;border-radius:14px;">
+      <p id="rc-q" style="font-size:14px;font-weight:700;color:#1A2E42;margin:0 0 8px;"></p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button type="button" class="rc-pill" id="rc-yes" onclick="_rcSet(true)">Yes email everyone</button>
+        <button type="button" class="rc-pill on" id="rc-no" onclick="_rcSet(false)">No just save it</button>
+      </div>
+    </div>
     <p class="error-msg" id="post-error" style="text-align:right;"></p>
     <div class="conflict-warning" id="conflict-warning"></div>
 
@@ -4111,6 +4120,73 @@ function restoreDraft() {
 
 function clearDraft() { localStorage.removeItem(DRAFT_KEY); }
 
+var _rcYes = false;
+function _rcDay(v) { var t = String(v || "").trim(); return /^\d{4}-\d{2}-\d{2}/.test(t) ? t.slice(0, 10) : t; }
+function _rcVal(id) { var el = document.getElementById(id); return el ? String(el.value || "").trim() : ""; }
+function _rcKinds() {
+  var ev = _evLoaded;
+  if (!editingId || !ev || String(ev.recurFreq || "") || String(editingId).indexOf("rec") === 0) return [];
+  if (!ev.interestedEnabled || String(ev.interestedEnabled).toLowerCase() === "off") return [];
+  var out = [];
+  var cc = document.getElementById("f-cancelled");
+  if (cc && cc.checked && !ev.cancelled) return ["cancelled"];
+  if (ev.cancelled) return [];
+  if (_rcVal("f-date") !== _rcDay(ev.date) || _rcVal("f-time") !== String(ev.time || "") || _rcVal("f-endtime") !== String(ev.endtime || "")) out.push("time");
+  if (_rcVal("f-location") !== String(ev.location || "").trim() || _rcVal("f-venue") !== String(ev.venue || "").trim()) out.push("place");
+  var ml = _rcVal("f-meetinglink"), rm = String(selectedRoom || "");
+  if ((hostingOption === "own" && ml !== String(ev.meetinglink || "").trim()) || (hostingOption === "db" && rm !== String(ev.room || ""))) out.push("link");
+  return out;
+}
+function _rcPaint() {
+  var box = document.getElementById("rc-ask"), q = document.getElementById("rc-q");
+  if (!box || !q) return;
+  var k = [];
+  try { k = _rcKinds(); } catch (e) { k = []; }
+  if (!k.length) { box.style.display = "none"; _rcSet(false); return; }
+  var about = k[0] === "cancelled" ? "the cancellation" : "the new " + k.join(", ").replace(/, ([^,]*)$/, " and $1");
+  q.textContent = "Do you want to email your event registrants about " + about + "?";
+  box.style.display = "block";
+}
+function _rcSet(yes) {
+  _rcYes = !!yes;
+  var y = document.getElementById("rc-yes"), n = document.getElementById("rc-no");
+  if (y) y.classList.toggle("on", _rcYes);
+  if (n) n.classList.toggle("on", !_rcYes);
+}
+function _rcPlan() {
+  var k = []; try { k = _rcKinds(); } catch (e) { k = []; }
+  var ev = _evLoaded || {};
+  var wasPlace = [String(ev.venue || "").trim(), String(ev.location || "").trim()].filter(Boolean).join(", ");
+  var wasTime = "";
+  try {
+    var d0 = _rcDay(ev.date);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d0)) {
+      wasTime = new Date(d0 + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      if (ev.time) {
+        wasTime += " \u00b7 " + new Date(d0 + "T" + ev.time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+        if (ev.endtime) wasTime += " - " + new Date(d0 + "T" + ev.endtime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      }
+    }
+  } catch (e) { wasTime = ""; }
+  return { yes: _rcYes && k.length > 0, kinds: k, was: { time: wasTime, place: wasPlace } };
+}
+async function _rcSend(eventId, plan) {
+  var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
+  var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
+  var total = 0, failed = false;
+  for (var i = 0; i < plan.kinds.length; i++) {
+    try {
+      var r = await fetch(GS_URL + "?action=emailRegistrantsOfChange&t=" + Date.now(), { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appearId: me, meToken: tok, eventId: String(eventId), kind: plan.kinds[i], was: plan.was[plan.kinds[i]] || "" }) });
+      var d = JSON.parse(await r.text());
+      if (d && d.status === "ok") { total += Number(d.sent) || 0; } else { failed = true; }
+    } catch (e) { failed = true; }
+  }
+  try { showToast(failed ? "Saved. The email did not send." : (total === 0 ? "Saved. Nobody to email." : "Saved. Emailed " + total + (total === 1 ? " person." : " people."))); } catch (e) {}
+}
+document.addEventListener("input", function () { _rcPaint(); }, true);
+document.addEventListener("change", function () { _rcPaint(); }, true);
+document.addEventListener("click", function (ev) { if (ev.target && ev.target.closest && ev.target.closest("#post-modal")) { setTimeout(_rcPaint, 0); } }, true);
+
 var _dupSrcTitle = "";
 function _postLabel() { return window._dupMode ? "Post duplicate event" : "Post event"; }
 function _dupOrder(on) {
@@ -4150,7 +4226,7 @@ function _makeDuplicate() {
 
 function openModal(skipDraft = false) {
   formDirty = false;
-  try { _dupOff(); } catch (e) {}
+  try { _dupOff(); _rcSet(false); } catch (e) {}
   try { _hpReset(); } catch (e) {}
   try { document.documentElement.classList.remove("cw-edit-min"); } catch (e) {}
   editingId = null; selectedCats = new Set(); selectedRoom = null; selectedFormat = null; hostingOption = null;
@@ -6137,7 +6213,7 @@ function cancelForm() {
   closeModal();
   if (id) { location.href = 'https://2gather.network/event/?id=' + encodeURIComponent(String(id)); }
 }
-function closeModal() { formDirty = false; try { _dupOff(); } catch (e) {} document.getElementById("post-modal").classList.remove("open"); try { if (window._cwUnmountForm) window._cwUnmountForm(); } catch (e) {} _seriesFreqOnLoad = null; selectedExchangeTypes = new Set(); recurFreq = null; clearEditDraft(); const rc = document.getElementById("f-recurring"); if (rc) rc.checked = false; const rw = document.getElementById("recurring-freq-wrap"); if (rw) rw.style.display = "none"; const cb = document.getElementById("clone-btn"); if (cb) cb.textContent = "⧉ Clone"; const cw = document.getElementById("clone-count-wrap"); if (cw) cw.style.display = "none"; }
+function closeModal() { formDirty = false; try { _dupOff(); _rcSet(false); var _ra = document.getElementById("rc-ask"); if (_ra) _ra.style.display = "none"; } catch (e) {} document.getElementById("post-modal").classList.remove("open"); try { if (window._cwUnmountForm) window._cwUnmountForm(); } catch (e) {} _seriesFreqOnLoad = null; selectedExchangeTypes = new Set(); recurFreq = null; clearEditDraft(); const rc = document.getElementById("f-recurring"); if (rc) rc.checked = false; const rw = document.getElementById("recurring-freq-wrap"); if (rw) rw.style.display = "none"; const cb = document.getElementById("clone-btn"); if (cb) cb.textContent = "⧉ Clone"; const cw = document.getElementById("clone-count-wrap"); if (cw) cw.style.display = "none"; }
 
 (function() {
   window.addEventListener("beforeunload", function (e) {
@@ -6792,6 +6868,7 @@ async function submitEvent() {
       const idx = events.findIndex(e => e.id === editingId);
       const savedId = editingId;
       const beforeEv = idx > -1 ? { ...events[idx] } : null;
+      const _rcPlanNow = _rcPlan();
       const updatedEv = idx > -1 ? { ...events[idx], ...eventData } : null;
       if (updatedEv && _hcOnBehalf) updatedEv.hostType = "socializer";
       if (updatedEv) events[idx] = updatedEv;
@@ -6825,6 +6902,7 @@ async function submitEvent() {
           return;
         }
         try { await _hiSend(savedId); } catch (e) {}
+        if (_rcPlanNow.yes) { try { await _rcSend(savedId, _rcPlanNow); } catch (e) {} }
         var _coverRes = null;
         try { _coverRes = await _sendCover(savedId); } catch (e) { _coverRes = { ok: false, message: "The picture did not upload. Press Save changes again." }; }
         if (_coverRes && _coverRes.ok === false) { _saying.stop(); clearEditDraft(); _coverFailed(_coverRes, _saveBtn, _saveWas, errEl); return; }
