@@ -63,6 +63,8 @@
   .rq-grp{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);margin:18px 0 0;}
   .rq-txt{box-sizing:border-box;width:100%;height:38px;border:1.5px solid var(--panel-line);border-radius:12px;padding:0 12px;font-family:inherit;font-size:15px;margin:6px 0 4px;background:#fff;color:var(--ink);}
   .who .name.plain{font-weight:400;}
+  .stat{display:inline-block;margin-left:10px;font-size:14px;font-weight:600;color:var(--ink);white-space:nowrap;}
+  .stat .mk{margin-right:5px;}
   .pending{display:inline-block;margin-top:6px;border:1.5px solid #9AA9B8;color:var(--ink);background:#fff;border-radius:22px;padding:4px 12px;font-size:13px;font-weight:600;}
   .row .av img{width:100%;height:100%;object-fit:cover;display:block;}
   .rq-box{flex:1;min-width:0;}
@@ -579,20 +581,17 @@
       var kind = landWord(c);
       if (kind) { var lb = document.createElement('span'); lb.className = 'lbl'; lb.textContent = kind; who.appendChild(lb); }
       var when = added(c.addedAt);
-      var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = when ? 'Added ' + (c.name || 'them') + ' on ' + when : (c.name || 'No name');
+      var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = c.name || 'No name';
       var mk = document.createElement('span'); mk.className = 'mk';
-      if (c.person) {
-        if (CONNECTED[String(c.person)]) {
-          mk.title = 'Connected'; mk.setAttribute('role', 'img'); mk.setAttribute('aria-label', 'Connected');
-          mk.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21v-9" stroke="#2E7D32" stroke-width="2.2"/><path d="M12 12c0-4 3-6 7-6 0 4-3 6-7 6z" fill="#66BB6A" stroke="#2E7D32" stroke-width="1.2"/><path d="M12 16c0-3-2-5-6-5 0 3 2 5 6 5z" fill="#4CAF50" stroke="#2E7D32" stroke-width="1.2"/></svg>';
-        }
-      } else {
+      if (!c.person) {
         mk.title = 'Not on 2Appear'; mk.setAttribute('role', 'img'); mk.setAttribute('aria-label', 'Not on 2Appear');
         mk.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#1F699E"/><path d="M12 7v10M7 12h10" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
+        nm.insertBefore(mk, nm.firstChild);
       }
-      if (mk.firstChild) { nm.insertBefore(mk, nm.firstChild); }
       nm.className = 'name plain';
+      if (c.person) { nm.appendChild(statusEl(!!CONNECTED[String(c.person)])); }
       who.appendChild(nm);
+      if (when) { var dl = document.createElement('div'); dl.className = 'line'; dl.textContent = 'Added ' + (c.name || 'them') + ' on ' + when; who.appendChild(dl); }
       var ak = c.person ? ASKED[String(c.person)] : null;
       if (ak && ak.answeredAt) {
         var sh = (ak.reasons || []).concat(ak.reasonText ? ['\u201C' + ak.reasonText + '\u201D'] : []);
@@ -638,7 +637,8 @@
           if (bits.length) { who.appendChild(sl); }
         });
       }
-      var tg = tagsOf(c);
+      invitedAs(c, who);
+      var tg = tagsOf(c).filter(function (t) { return !/^invited as/i.test(t); });
       if (tg.length) {
         var tb = document.createElement('div'); tb.className = 'pills'; tb.style.marginTop = '8px';
         tg.forEach(function (t) {
@@ -1519,6 +1519,14 @@
     row.appendChild(av); row.appendChild(box); return row;
   }
   var CONNECTED = {};
+  function statusEl(conn) {
+    var st = document.createElement('span'); st.className = 'stat';
+    var ic = document.createElement('span'); ic.className = 'mk'; ic.setAttribute('role', 'img'); ic.setAttribute('aria-hidden', 'true'); ic.innerHTML = conn ? MARK.tree : MARK.plant;
+    st.appendChild(ic); st.appendChild(document.createTextNode(conn ? 'Connected' : 'Open to connection')); return st;
+  }
+  function invitedAs(cc, who) {
+    tagsOf(cc || {}).filter(function (t) { return /^invited as/i.test(t); }).forEach(function (t) { var l = document.createElement('div'); l.className = 'line'; l.textContent = t; who.appendChild(l); });
+  }
   var RQE = { step: 'first', see: '' }, ASKED = {};
   function rqEmpty() {
     var d = document.createElement('div'); d.className = 'notice'; d.style.display = 'block';
@@ -1539,6 +1547,7 @@
     return d;
   }
   function drawTabs() {
+    CONNECTED = {}; TABS.connected.forEach(function (r) { if (r.person) { CONNECTED[String(r.person)] = 1; } });
     var live = ALL.filter(function (c) { return !c.archived && bmPass(c); });
     $('tn-contacts').textContent = CONTACTS_LOADED ? live.length : '';
     var bk = $('bm-list'); bk.innerHTML = '';
@@ -1566,6 +1575,8 @@
     BM.forEach(function (p) {
       var name = String(p.name || '').trim() || 'Someone';
       var row = personRow(name, [bmWhere(p)], ''); row.className = 'row bm';
+      if (p.code) { row.querySelector('.name').appendChild(statusEl(!!CONNECTED[String(p.code)])); }
+      invitedAs(p.code ? ALL.filter(function (x) { return x.person === String(p.code); })[0] : null, row.querySelector('.who'));
       var cm = bmCommon(p);
       if (cm) {
         var cl = document.createElement('div'); cl.className = 'line';
@@ -1627,11 +1638,10 @@
     if (rqSaid.length) { var gl = document.createElement('p'); gl.className = 'rq-grp'; gl.textContent = 'Not now'; rq.appendChild(gl); rqSaid.forEach(function (r) { rq.appendChild(rqRow(r, rqSt(r))); }); }
     if (!T.requests.length) { rq.appendChild(rqEmpty()); }
     var rn = $('rq-n'); if (rn) { rn.textContent = rqNew.length; rn.hidden = !rqNew.length; }
-    CONNECTED = {}; TABS.connected.forEach(function (r) { if (r.person) { CONNECTED[String(r.person)] = 1; } });
     var cn = $('cp-connected'); cn.innerHTML = '';
     T.connected.forEach(function (r) {
       var cc = ALL.filter(function (x) { return x.person && x.person === r.person; })[0];
-      cn.appendChild(cc ? contactRow(cc) : personRow(r.name, [], ''));
+      var crow = cc ? contactRow(cc) : personRow(r.name, [], ''); if (!cc) { crow.querySelector('.name').appendChild(statusEl(true)); } cn.appendChild(crow);
     });
     if (!T.connected.length) { cn.appendChild(emptyBox('connected')); }
     $('tn-connected').textContent = T.connected.length;
