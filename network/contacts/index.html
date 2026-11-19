@@ -1522,7 +1522,7 @@
   }
   function drawTabs() {
     var live = ALL.filter(function (c) { return !c.archived && bmPass(c); });
-    $('tn-contacts').textContent = live.length;
+    $('tn-contacts').textContent = CONTACTS_LOADED ? live.length : '';
     var bk = $('bm-list'); bk.innerHTML = '';
     if (!BM_LOADED) { var lw = document.createElement('p'); lw.className = 'bm-wait'; lw.textContent = 'Loading information...'; bk.appendChild(lw); }
     var bq =String($('bm-find').value || '').trim().toLowerCase(), bg = $('bm-filter').value || 'all', bo = $('bm-sort').value || 'at';
@@ -1612,9 +1612,13 @@
       var mine = {}; [ME].forEach(function (x) { x = String(x || '').split('.').join('').trim().toLowerCase(); if (x) { mine[x] = 1; } });
       BMARKS = ((d && d.bookmarks) || []).filter(function (p) { return !mine[String(p.appearId || '').split('.').join('').trim().toLowerCase()]; });
       if (d && Array.isArray(d.bookmarks)) { bmSave(); }
+      if (d && Array.isArray(d.bookmarks) && BM_EARLY && !CONTACTS_LOADED && !$('ctabs')) {
+        say(''); buildTabs(); showTab('bookmarks'); $('body').hidden = false;
+      }
       BM_LOADED = true; draw();
     }).catch(function () { BM_LOADED = true; draw(); });
   }
+  var CONTACTS_LOADED = false, BM_EARLY = false;
   var BM_KEY = 'cw-rms-bm-last';
   function bmViewing() { try { var m = CW.me(); return !!(m && m.viewing); } catch (e) { return true; } }
   function bmSave() {
@@ -1670,18 +1674,19 @@
   (function start() {
     try { var q0 = new URLSearchParams(location.search), w0 = String(q0.get('tab') || ''); if (TAB_NAMES.some(function (t) { return t[0] === w0; })) { q0.delete('tab'); var s0 = q0.toString(); history.replaceState(null, '', '/network/' + w0 + (s0 ? '?' + s0 : '') + location.hash); } else if (/^\/network\/contacts\/?$/.test(location.pathname)) { history.replaceState(null, '', '/network/contacts' + location.search + location.hash); } } catch (e) {}
     if (!ME) { say('Sign in to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
+    if (/^\/network\/bookmarks\/?$/.test(location.pathname)) { BM_EARLY = true; loadBookmarks(); }
     ask('getContacts', {}).then(function (d) {
       if (d && d.code === 'signin') { say('Sign in again to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
       if (!d || d.status !== 'ok') { say((d && d.message) || 'Your contacts did not load. Reload the page and it will try again.'); return; }
       HOSTS = d.hostsEvents !== false; clUse(d.choiceLists); AIOK = d.aiConsent === true; aiDraw(); BMCODE = {}; (d.bookmarkedPeople || []).forEach(function (x) { BMCODE[String(x)] = 1; }); ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; ASKED = {}; ((d.tabs && d.tabs.asked) || []).forEach(function (a) { if (a && a.person) { ASKED[String(a.person)] = a; } }); SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
-      say('');
+      say(''); CONTACTS_LOADED = true;
       if (!BM_LOADED) { bmLast(); }
       if (!$('ctabs')) { buildTabs(); var t0 = 'contacts'; try { t0 = String(new URLSearchParams(location.search).get('tab') || 'contacts'); } catch (e) {} showTab(TAB_NAMES.some(function (t) { return t[0] === t0; }) ? t0 : 'contacts'); }
       $('body').hidden = false;
       $('tools').hidden = !ALL.length;
       draw();
       loadMessaged().then(function () { $('tools').hidden = !ALL.length; draw(); });
-      loadBookmarks();
+      if (!BM_EARLY) { loadBookmarks(); }
     }).catch(function () { say('Your contacts did not load. Reload the page and it will try again.'); });
   })();
 </script>
