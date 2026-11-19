@@ -75,6 +75,7 @@
   .oopt:focus{outline:2px solid #1F699E;outline-offset:-2px;}
   .oopt svg{width:18px;height:18px;flex:none;fill:none;stroke:#1F699E;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;}
   .ph-only{display:none !important;}
+  .ibtn[hidden]{display:none !important;}
   .hacts{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
   .rqn[hidden]{display:none;}
   #pane.stale .row .actions-row,#pane.stale .row .ibtn,#pane.stale #rq-btn .rqn{visibility:hidden;}
@@ -1800,18 +1801,20 @@
       var ipm = document.createElement('div'); ipm.className = 'pm'; imenu.appendChild(ipm);
       var ipn = document.createElement('div'); ipn.className = 'pmn'; ipn.textContent = r.first || r.email || 'Someone'; ipm.appendChild(ipn);
       var iout = document.createElement('div'); iout.className = 'line'; iout.hidden = true;
-      [['msg', 'Send gentle nudge', 'nudge'], ['pen', 'Remove invite', 'remove']].forEach(function (x) {
+      var acts0 = [];
+      if (r.kind === 'group' && r.groupId && r.inviteId && !bmViewing()) { acts0.push(['pen', 'Remove invite', 'remove']); }
+      acts0.forEach(function (x) {
         var it = menuItem(x[0], x[1], '');
         it.onclick = function () {
           imenu.hidden = true; idots.setAttribute('aria-expanded', 'false');
-          send('inviteAction', { what: x[2], kind: r.kind, person: r.person || '', email: r.email || '', at: r.at || '' }).then(function (d) {
-            if (!d || d.status !== 'ok') { throw new Error(d && d.message ? d.message : ''); }
-            if (x[2] === 'remove') { TABS.invited = TABS.invited.filter(function (y) { return y !== r; }); drawTabs(); return; }
-            iout.style.color = ''; iout.textContent = 'Nudge sent.'; iout.hidden = false;
-          }).catch(function (e) { iout.style.color = 'var(--bad)'; iout.textContent = (e && e.message && !/fetch|network/i.test(e.message)) ? e.message : 'That did not save. Check your connection and try again.'; iout.hidden = false; });
+          ask('deleteInviteSent', { groupId: r.groupId, hostAppearId: ME, sessionToken: token(), inviteId: r.inviteId }).then(function (d) {
+            if (!d || d.status !== 'ok' || !d.removed) { throw new Error(''); }
+            TABS.invited = TABS.invited.filter(function (y) { return y !== r; }); drawTabs();
+          }).catch(function () { iout.style.color = 'var(--bad)'; iout.textContent = 'That did not save. Check your connection and try again.'; iout.hidden = false; });
         };
         ipm.appendChild(it);
       });
+      if (!acts0.length) { idots.hidden = true; }
       idots.onclick = function () { var open = imenu.hidden; imenu.hidden = !open; idots.setAttribute('aria-expanded', open ? 'true' : 'false'); };
       irow.querySelector('.who').appendChild(iout); irow.appendChild(imenu);
       var ph = r.photo || (r.person ? ((ALL.filter(function (x) { return x.person === r.person; })[0] || {}).photo || '') : '');
