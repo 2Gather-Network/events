@@ -1569,7 +1569,7 @@
     if (st.err) { var er = rqNote(st.err); er.style.color = 'var(--bad)'; box.appendChild(er); }
     row.appendChild(av); row.appendChild(box); return row;
   }
-  var CONNECTED = {};
+  var CONNECTED = {}, NUDGE_ON = false;
   var OWN_PIC = {};
   function ownPhoto(av, id) {
     var put = function (u) { var im = document.createElement('img'); im.alt = ''; im.src = u; av.textContent = ''; av.appendChild(im); };
@@ -1803,11 +1803,19 @@
       var ipn = document.createElement('div'); ipn.className = 'pmn'; ipn.textContent = r.first || r.email || 'Someone'; ipm.appendChild(ipn);
       var iout = document.createElement('div'); iout.className = 'line'; iout.hidden = true;
       var acts0 = [];
+      if (NUDGE_ON && !r.accepted && r.kind === 'group' && r.groupId && r.inviteId && !bmViewing()) { acts0.push(['msg', 'Send gentle nudge', 'nudge']); }
       if (r.kind === 'group' && r.groupId && r.inviteId && !bmViewing()) { acts0.push(['pen', 'Remove invite', 'remove']); }
       acts0.forEach(function (x) {
         var it = menuItem(x[0], x[1], '');
         it.onclick = function () {
           imenu.hidden = true; idots.setAttribute('aria-expanded', 'false');
+          if (x[2] === 'nudge') {
+            send('nudgeInvite', { groupId: r.groupId, inviteId: r.inviteId }).then(function (d) {
+              if (!d || d.status !== 'ok') { throw new Error(d && d.message ? d.message : ''); }
+              iout.style.color = ''; iout.textContent = 'Nudge sent.'; iout.hidden = false;
+            }).catch(function (e) { iout.style.color = 'var(--bad)'; iout.textContent = (e && e.message && !/fetch|network/i.test(e.message)) ? e.message : 'That did not send. Check your connection and try again.'; iout.hidden = false; });
+            return;
+          }
           ask('deleteInviteSent', { groupId: r.groupId, hostAppearId: ME, sessionToken: token(), inviteId: r.inviteId }).then(function (d) {
             if (!d || d.status !== 'ok' || !d.removed) { throw new Error(''); }
             TABS.invited = TABS.invited.filter(function (y) { return y !== r; }); drawTabs();
