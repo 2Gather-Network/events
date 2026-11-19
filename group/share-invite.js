@@ -125,6 +125,7 @@
     secNew.appendChild(el('div', 'font-weight:800;font-size:15px;color:#1A2E42;margin-bottom:4px;', 'Send it for them'));
     secNew.appendChild(el('p', 'font-size:13.5px;color:#2F3D4F;margin:0 0 10px;', 'The same words, sent from 2Gather to one address.'));
     var first = el('input', FIELD); first.type = 'text'; first.placeholder = 'their first name'; first.maxLength = 40; first.setAttribute('aria-label', 'their first name');
+    var last = el('input', FIELD); last.type = 'text'; last.placeholder = 'their last name (optional)'; last.maxLength = 60; last.setAttribute('aria-label', 'their last name (optional)');
     var mail = el('input', FIELD); mail.type = 'email'; mail.placeholder = 'their email address'; mail.setAttribute('aria-label', 'their email address');
     var btns = el('div', 'display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;');
     var send = el('button', 'font:inherit;font-size:14px;font-weight:700;color:#fff;background:#1F699E;border:1.5px solid #1F699E;border-radius:24px;padding:10px 18px;cursor:pointer;', 'Send the invitation'); send.type = 'button';
@@ -135,18 +136,18 @@
       btns.appendChild(txt);
     }
     var newSay = el('div', 'font-size:13px;color:#2F3D4F;margin-top:8px;'); newSay.setAttribute('role', 'status');
-    secNew.appendChild(first); secNew.appendChild(mail); secNew.appendChild(btns); secNew.appendChild(newSay);
+    secNew.appendChild(first); secNew.appendChild(last); secNew.appendChild(mail); secNew.appendChild(btns); secNew.appendChild(newSay);
     send.addEventListener('click', function(){
       var to = String(mail.value || '').trim();
       if (!to) { newSay.textContent = 'Type their email address.'; return; }
       if (/[,;\s]/.test(to) || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) { newSay.textContent = 'Type one email address, like name@example.com.'; return; }
       send.disabled = true; newSay.textContent = 'Sending…';
-      fetch(o.GS_URL + '?action=sendGroupInvite&groupId=' + encodeURIComponent(o.groupId) + '&hostAppearId=' + encodeURIComponent(o.meId) + '&sessionToken=' + encodeURIComponent(adminTok(o.groupId, o.meId)) + '&toEmail=' + encodeURIComponent(to) + '&toName=' + encodeURIComponent(String(first.value || '').trim()))
+      fetch(o.GS_URL + '?action=sendGroupInvite&groupId=' + encodeURIComponent(o.groupId) + '&hostAppearId=' + encodeURIComponent(o.meId) + '&sessionToken=' + encodeURIComponent(adminTok(o.groupId, o.meId)) + '&toEmail=' + encodeURIComponent(to) + '&toName=' + encodeURIComponent(String(first.value || '').trim()) + '&toLast=' + encodeURIComponent(String(last.value || '').trim()))
         .then(function(r){ return r.json(); })
         .then(function(d){
           send.disabled = false;
-          if (d && d.status === 'ok' && d.already && d.message) { newSay.textContent = d.message; mail.value = ''; first.value = ''; }
-          else if (d && d.status === 'ok') { newSay.textContent = 'Invited ' + (String(first.value || '').trim() || to) + '. Invitation sent to ' + to + '. Pending until they answer.'; mail.value = ''; first.value = ''; }
+          if (d && d.status === 'ok' && d.already && d.message) { newSay.textContent = d.message; mail.value = ''; first.value = ''; last.value = ''; }
+          else if (d && d.status === 'ok') { newSay.textContent = 'Invited ' + (String(first.value || '').trim() || to) + '. Invitation sent to ' + to + '. Pending until they answer.'; mail.value = ''; first.value = ''; last.value = ''; }
           else { newSay.textContent = (d && d.message) ? d.message : 'That did not go through. Try again.'; }
         })
         .catch(function(){ send.disabled = false; newSay.textContent = 'Could not reach the server. Try again in a moment.'; });
