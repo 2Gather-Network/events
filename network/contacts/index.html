@@ -772,7 +772,8 @@
   };
   $('cf-clear').onclick = function () { CF = { ev: [], grp: [], tags: [], l: [], arch: false }; draw(); };
 
-  var MY_LINK = null;
+  var MY_LINK = null, CONSENT_P = null;
+  function cardPick() { FROM_CARD = true; ADD_WAY = ''; $('fill-file').click(); openForm(null); aiDraw(); }
   var ADD_WAY = '';
   function aiDraw() {
     Array.prototype.forEach.call(document.querySelectorAll('.ai-ask'), function (x) { x.hidden = AIOK; });
@@ -784,13 +785,13 @@
   }
   Array.prototype.forEach.call(document.querySelectorAll('[data-ai-yes]'), function (b) {
     b.onclick = function () {
-      if (BUSY) { return; }
-      BUSY = true; b.disabled = true;
-      send('saveContact', { aiConsent: '1' }).then(function (d) {
-        BUSY = false; b.disabled = false;
-        if (d && d.status === 'ok' && d.aiConsent) { AIOK = true; aiDraw(); return; }
-        say((d && d.message) || 'That did not save. Try again.');
-      }).catch(function () { BUSY = false; b.disabled = false; say('That did not save. Check your connection and try again.'); });
+      if (AIOK) { return; }
+      AIOK = true; aiDraw();
+      CONSENT_P = send('saveContact', { aiConsent: '1' }).then(function (d) {
+        if (d && d.status === 'ok' && d.aiConsent) { return true; }
+        AIOK = false; aiDraw(); say((d && d.message) || 'That did not save. Try again.'); return false;
+      }).catch(function () { AIOK = false; aiDraw(); say('That did not save. Check your connection and try again.'); return false; });
+      if (ADD_WAY === 'pic' && b.closest('#add-ai')) { cardPick(); }
     };
   });
   var MICON = {
@@ -1024,6 +1025,7 @@
   function readBusy(on) { $('fill-fetch').disabled = on; $('fill-card').disabled = on; $('save').disabled = on || SENDING > 0; }
 
   function readContact(text, image, link) {
+    if (CONSENT_P) { var p0 = CONSENT_P; return p0.then(function (ok) { CONSENT_P = null; if (!ok) { throw new Error('consent'); } return readContact(text, image, link); }); }
     var prompt = 'Extract one person\'s contact details from this ' + (image ? 'picture of a business card' : 'page') + '. Use only what is written. Never invent or guess a name, email, phone or link: if it is not there, use null. Return ONLY a JSON object with these keys:\n' +
       '{\n  "name": "the person\'s full name",\n  "email": "their email",\n  "phone": "their phone number as printed",\n  "website": "their own website or profile link",\n  "organization": "where they work or the organization named",\n  "role": "their job title or role"\n}\n\n' +
       (image ? 'The card is in the image above. Read every word on it, including small print.\n\n' : '') +
@@ -1367,8 +1369,8 @@
   $('add').onclick = function () { onlyPanel('addveil'); };
   $('add-close').onclick = function () { ADD_WAY = ''; aiDraw(); onlyPanel(''); };
   $('add-type').onclick = function () { FROM_CARD = false; ADD_WAY = ''; aiDraw(); openForm(null); };
-  Array.prototype.forEach.call(document.querySelectorAll('#add-ways [data-way]'), function (b) { b.onclick = function () { var w = b.getAttribute('data-way'); ADD_WAY = ADD_WAY === w ? '' : w; aiDraw(); }; });
-  $('add-card').onclick = function () { FROM_CARD = true; openForm(null); $('fill-file').click(); };
+  Array.prototype.forEach.call(document.querySelectorAll('#add-ways [data-way]'), function (b) { b.onclick = function () { var w = b.getAttribute('data-way'); if (w === 'pic' && AIOK) { cardPick(); return; } ADD_WAY = ADD_WAY === w ? '' : w; aiDraw(); }; });
+  $('add-card').onclick = cardPick;
   $('add-fetch').onclick = function () { var u = String($('add-url').value || '').trim(); FROM_CARD = false; openForm(null); $('fill-url').value = u; $('fill-fetch').click(); };
   $('close').onclick = closeForm;
   $('cancel').onclick = closeForm;
