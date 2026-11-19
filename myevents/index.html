@@ -417,6 +417,8 @@ html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-ins
   html.cw-mepane .me-card-acts { display:flex; gap:8px; margin-top:auto; padding-top:10px; }
   html.cw-mepane .me-card-btn { flex:1; font:inherit; font-size:13px; font-weight:700; padding:7px 10px; border-radius:18px; cursor:pointer; background:#fff; color:#1F699E; border:1.5px solid #1F699E; white-space:nowrap; }
   html.cw-mepane .me-card-btn.on { background:#1F699E; color:#fff; }
+  html.cw-mepane .me-card-more { display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding-top:8px; }
+  html.cw-mepane .me-card-more a, html.cw-mepane .me-card-more button { font:inherit; font-size:13px; color:#1F699E; background:none; border:0; padding:0; text-decoration:underline; cursor:pointer; text-align:left; }
   html.cw-mepane .me-card-pill { font-size:13px; font-weight:600; color:#1F699E; background:#EAF2F8; border-radius:14px; padding:4px 11px; }
   .manage-row { display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:#fff; border:1.5px solid var(--primary); font:inherit; padding:7px 10px 7px 7px; border-radius:10px; cursor:pointer; color:var(--dark); margin-bottom:6px; }
   .manage-row:last-child { margin-bottom:0; }
@@ -999,6 +1001,8 @@ html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-ins
     </div>
 
     <div class="modal-scroll-body">
+
+    <div id="dup-note" style="display:none;margin:0 0 16px;padding:14px 16px;background:#fff;border:1.5px solid #C9DFF3;border-radius:14px;font-size:14px;line-height:1.5;color:#1A2E42;"></div>
 
     <div id="registrations-panel" style="display:none;margin-bottom:20px;padding:14px 16px;background:#fff;border-radius:10px;border:1px solid #BFDBFE;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
@@ -4107,8 +4111,46 @@ function restoreDraft() {
 
 function clearDraft() { localStorage.removeItem(DRAFT_KEY); }
 
+var _dupSrcTitle = "";
+function _postLabel() { return window._dupMode ? "Post duplicate event" : "Post event"; }
+function _dupOrder(on) {
+  var t = document.getElementById("f-title"), v = document.getElementById("visibility-field");
+  var tf = t && t.closest ? t.closest(".field") : null;
+  if (!tf || !v || !v.parentNode) return;
+  if (on) { v.parentNode.insertBefore(tf, v); } else { v.after(tf); }
+}
+function _dupOff() {
+  window._dupMode = false;
+  var n = document.getElementById("dup-note"); if (n) { n.style.display = "none"; n.textContent = ""; }
+  try { _dupOrder(false); } catch (e) {}
+}
+function _makeDuplicate() {
+  var src = document.getElementById("f-title").value.trim();
+  editingId = null; _evLoaded = null; _evTouched = {};
+  window._dupMode = true;
+  _dupSrcTitle = src;
+  try { document.documentElement.classList.remove("cw-edit-min"); } catch (e) {}
+  try { _hcReset(); } catch (e) {}
+  setDateField("");
+  var ed = document.getElementById("f-end-date"); if (ed) ed.value = "";
+  var pc = document.getElementById("f-passcode"); if (pc) pc.value = "";
+  ["delete-btn","clone-btn","cancel-section","registrations-panel","potluck-edit-panel","cancel-occurrence-field","occurrence-note-field"].forEach(function (id) { var el = document.getElementById(id); if (el) el.style.display = "none"; });
+  var rn = document.getElementById("recur-edit-note"); if (rn) rn.style.display = "none";
+  var vb = document.getElementById("view-event-btn"); if (vb) vb.style.display = "none";
+  var cc = document.getElementById("f-cancelled"); if (cc) cc.checked = false;
+  _potluckEditList = [];
+  document.getElementById("modal-title").textContent = "Duplicate event";
+  document.getElementById("submit-btn").textContent = "Post duplicate event";
+  var note = document.getElementById("dup-note");
+  if (note) { note.textContent = "Making your new event. Everything is filled in from " + (src || "your past event") + ". Check the title, then pick the new date."; note.style.display = "block"; }
+  _dupOrder(true);
+  formDirty = false;
+  try { document.getElementById("f-title").scrollIntoView({ block: "center" }); } catch (e) {}
+}
+
 function openModal(skipDraft = false) {
   formDirty = false;
+  try { _dupOff(); } catch (e) {}
   try { _hpReset(); } catch (e) {}
   try { document.documentElement.classList.remove("cw-edit-min"); } catch (e) {}
   editingId = null; selectedCats = new Set(); selectedRoom = null; selectedFormat = null; hostingOption = null;
@@ -6095,7 +6137,7 @@ function cancelForm() {
   closeModal();
   if (id) { location.href = 'https://2gather.network/event/?id=' + encodeURIComponent(String(id)); }
 }
-function closeModal() { formDirty = false; document.getElementById("post-modal").classList.remove("open"); try { if (window._cwUnmountForm) window._cwUnmountForm(); } catch (e) {} _seriesFreqOnLoad = null; selectedExchangeTypes = new Set(); recurFreq = null; clearEditDraft(); const rc = document.getElementById("f-recurring"); if (rc) rc.checked = false; const rw = document.getElementById("recurring-freq-wrap"); if (rw) rw.style.display = "none"; const cb = document.getElementById("clone-btn"); if (cb) cb.textContent = "⧉ Clone"; const cw = document.getElementById("clone-count-wrap"); if (cw) cw.style.display = "none"; }
+function closeModal() { formDirty = false; try { _dupOff(); } catch (e) {} document.getElementById("post-modal").classList.remove("open"); try { if (window._cwUnmountForm) window._cwUnmountForm(); } catch (e) {} _seriesFreqOnLoad = null; selectedExchangeTypes = new Set(); recurFreq = null; clearEditDraft(); const rc = document.getElementById("f-recurring"); if (rc) rc.checked = false; const rw = document.getElementById("recurring-freq-wrap"); if (rw) rw.style.display = "none"; const cb = document.getElementById("clone-btn"); if (cb) cb.textContent = "⧉ Clone"; const cw = document.getElementById("clone-count-wrap"); if (cw) cw.style.display = "none"; }
 
 (function() {
   window.addEventListener("beforeunload", function (e) {
@@ -6812,7 +6854,7 @@ async function submitEvent() {
         window._isSharing = false;
         clearDraft(); clearEditDraft(); closeModal(); renderEvents();
         showToast("Posted " + _days.length + " daily event" + (_days.length===1?"":"s") + ".");
-        if (_sb) { _sb.disabled = false; _sb.textContent = "Post event"; }
+        if (_sb) { _sb.disabled = false; _sb.textContent = _postLabel(); }
       })();
       return;
     }
@@ -6835,7 +6877,7 @@ async function submitEvent() {
       if (failed || !ans || ans.status !== "ok") {
         events = events.filter(function (x) { return x.id !== newId; });
         window._isSharing = _wasSharing;
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Post event"; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = _postLabel(); }
         errEl.textContent = cut
           ? "The answer never came back \u2014 it was still going after nearly two minutes, so the connection was cut. It may well have posted. Open My events and check before pressing Post event again."
           : failed
@@ -8606,8 +8648,8 @@ function selectInterestSuggestion(val) {
     if (railW >= 240 && railW <= 520) { document.documentElement.style.setProperty('--rail', railW + 'px'); }
   } catch (e) {}
 
-  var wantId = '';
-  try { wantId = (new URLSearchParams(location.search).get('id') || '').trim(); } catch (e) {}
+  var wantId = '', wantDup = false;
+  try { wantId = (new URLSearchParams(location.search).get('id') || '').trim(); wantDup = new URLSearchParams(location.search).get('duplicate') === '1'; } catch (e) {}
   if (!wantId) {
     try {
       var _said = sessionStorage.getItem('cw-me-said');
@@ -8809,7 +8851,7 @@ function selectInterestSuggestion(val) {
   var _q = '', _sort = 'new';
   try {
     _q = sessionStorage.getItem('cw-me-q') || '';
-    var _s0 = sessionStorage.getItem('cw-me-sort');
+    var _s0 = localStorage.getItem('cw-me-sort');
     if (_s0 && /^(new|upd|soon|late|az)$/.test(_s0)) { _sort = _s0; }
   } catch (e) {}
   (function () {
@@ -8832,7 +8874,7 @@ function selectInterestSuggestion(val) {
   window.manageSort = function (v) {
     _sort = v || 'new';
     _sortTitle();
-    try { sessionStorage.setItem('cw-me-sort', _sort); } catch (e) {}
+    try { localStorage.setItem('cw-me-sort', _sort); } catch (e) {}
     paintRail(allRows, selId);
   };
 
@@ -9073,7 +9115,11 @@ function selectInterestSuggestion(val) {
     var acts = '<span class="me-card-acts">'
       + (_mine ? '<button type="button" class="me-card-btn on" onclick="event.stopPropagation();location.href=\'https://2gather.network/myevents/?id=' + _id + '\'">Edit event</button>' : '')
       + '<button type="button" class="me-card-btn" onclick="event.stopPropagation();location.href=\'https://2gather.network/event/?id=' + _id + '\'">View event</button>'
-      + '</span>';
+      + '</span>'
+      + ((pane === 'hosting' && !isSocialized(r) && !r.recurFreq && !isUpcoming(r))
+        ? '<span class="me-card-more"><a href="/myevents/invite/?id=' + _id + '" onclick="event.stopPropagation()">Follow up and invite attendees</a>'
+          + '<button type="button" onclick="event.stopPropagation();location.href=\'/myevents/?id=' + _id + '&duplicate=1\'">Duplicate this event</button></span>'
+        : '');
     return '<div class="manage-row me-card">'
          + '<div class="mrow-img">' + (r.imageUrl ? '<img src="' + e(String(r.imageUrl)) + '" alt="" loading="lazy" onerror="this.remove()">' : '') + '</div>'
          + '<b class="me-card-t">' + e(r.title || 'Untitled') + '</b>'
@@ -9116,10 +9162,17 @@ function selectInterestSuggestion(val) {
     paintRail(allRows, selId);
   }
   var _showPast = false, _pastHidden = 0;
-  try { _showPast = sessionStorage.getItem('cw-me-past') === '1'; } catch (e) {}
+  function _pastOn() {
+    var v = null;
+    try { v = localStorage.getItem('cw-me-past-' + pane); } catch (e) {}
+    if (v === '1') return true;
+    if (v === '0') return false;
+    return pane === 'hosting';
+  }
+  _showPast = _pastOn();
   window.toggleShowPastMine = function () {
-    _showPast = !_showPast;
-    try { sessionStorage.setItem('cw-me-past', _showPast ? '1' : '0'); } catch (e) {}
+    _showPast = !_pastOn();
+    try { localStorage.setItem('cw-me-past-' + pane, _showPast ? '1' : '0'); } catch (e) {}
     paintRail(allRows, selId);
   };
   function _paintPastBtn() {
@@ -9268,6 +9321,7 @@ function selectInterestSuggestion(val) {
     list.appendChild(b);
   }
   function paintRail(rows, sel) {
+    _showPast = _pastOn();
     try { (rows || []).forEach(function (r, i) { if (r && typeof r === 'object') { r._pos = i; } }); } catch (e) {}
     _paintRailRows(rows, sel); _paintFold(); _railLimit();
   }
@@ -9583,7 +9637,7 @@ function selectInterestSuggestion(val) {
             _useFresh(ev1.row);
           } catch (e) {}
           mountForm();
-          try { loadEditForm(wantId); quiet(); } catch (e) {}
+          try { loadEditForm(wantId); if (wantDup) { _makeDuplicate(); } quiet(); } catch (e) {}
         } else if (ev1 && ev1.myRole === 'visitor') {
           say('That event belongs to somebody else, so the form did not open.');
         }
@@ -9659,7 +9713,7 @@ function selectInterestSuggestion(val) {
     var already = document.getElementById('post-modal');
     if (already && already.classList.contains('cw-mounted')) { return; }   
     mountForm();
-    try { loadEditForm(wantId); } catch (e) { say('The form could not be opened. Reload and try again.'); return; }
+    try { loadEditForm(wantId); if (wantDup) { _makeDuplicate(); } } catch (e) { say('The form could not be opened. Reload and try again.'); return; }
     quiet();
   })();
 })();

@@ -122,6 +122,25 @@
     .btn:hover { opacity: 0.85; }
     .btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
     .btn-outline { background: transparent; border-color: var(--border); color: var(--dark); }
+    .cw-dup-btn { display:none; align-items:center; background:#fff; color:#1F699E; border:1.5px solid #1F699E; border-radius:24px; font-family:inherit; font-size:13px; font-weight:700; line-height:1; padding:7px 16px; cursor:pointer; white-space:nowrap; }
+    html.cw-is-host .cw-dup-btn { display:inline-flex; }
+    .cw-dt-edit { display:none; align-items:center; background:#fff; color:#1F699E; border:1.5px solid #1F699E; border-radius:24px; font-family:inherit; font-size:13px; font-weight:700; line-height:1; padding:5px 14px; cursor:pointer; white-space:nowrap; }
+    html.cw-is-host .cw-dt-edit { display:inline-flex; }
+    .cw-dt-panel { display:none; margin:2px 0 12px; padding:14px 16px; background:#fff; border:1.5px solid #C9DFF3; border-radius:14px; max-width:560px; }
+    html.cw-is-host .cw-dt-panel:not([hidden]) { display:block; }
+    .cw-dt-row { display:flex; flex-wrap:wrap; gap:10px 12px; }
+    .cw-dt-col { display:flex; flex-direction:column; gap:4px; flex:1 1 140px; max-width:260px; }
+    .cw-dt-lab { font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:#2F3D4F; }
+    .cw-dt-field { box-sizing:border-box; width:100%; height:38px; border:1.5px solid #C9DFF3; border-radius:12px; background:#fff; padding:0 10px; font-family:inherit; font-size:14px; font-weight:400; color:#1A2E42; }
+    .cw-dt-pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .cw-dt-pill { background:#fff; color:#1F699E; border:1.5px solid #1F699E; border-radius:24px; font-family:inherit; font-size:13px; font-weight:700; padding:7px 14px; cursor:pointer; }
+    .cw-dt-say { font-size:13px; color:#2F3D4F; margin:10px 0 0; }
+    .cw-dt-say.bad { color:#c0392b; }
+    .cw-dt-foot { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:14px; }
+    .cw-dt-save { background:#1F699E; color:#fff; border:1.5px solid #1F699E; border-radius:24px; font-family:inherit; font-size:15px; font-weight:700; padding:11px 22px; min-height:44px; cursor:pointer; }
+    .cw-dt-save[disabled] { opacity:.6; cursor:default; }
+    @media (max-width:768px) { .cw-dt-field { font-size:16px; } }
+
     .back-link {
       display: inline-flex; align-items: center; gap: 6px;
       font-size: 13px; color: var(--muted); text-decoration: none; padding: 0 0 12px 0;
@@ -582,6 +601,67 @@ function _cwManageUrl() {
   if (/^recurring-.*-\d{4}-\d{2}-\d{2}$/.test(id) && ev.seriesId) id = String(ev.seriesId);
   return 'https://2appear.network/myevents/?id=' + encodeURIComponent(id);
 }
+function _cwDtDay(iso, n) { var d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function _cwDtSay(m, bad) { var el = document.getElementById("cw-dt-say"); if (!el) return; el.textContent = m || ""; el.hidden = !m; el.classList.toggle("bad", !!bad); }
+function cwDtOpen() {
+  var ev = _currentEv, p = document.getElementById("cw-dt-panel"), b = document.getElementById("cw-dt-edit");
+  if (!ev || !p) return;
+  if (!p.hidden) { cwDtClose(); return; }
+  document.getElementById("cw-dt-date").value = /^\d{4}-\d{2}-\d{2}$/.test(String(ev.date || "")) ? ev.date : "";
+  document.getElementById("cw-dt-start").value = ev.time || "";
+  document.getElementById("cw-dt-end").value = ev.endtime || "";
+  _cwDtSay("");
+  p.hidden = false;
+  if (b) b.setAttribute("aria-expanded", "true");
+}
+function cwDtClose() {
+  var p = document.getElementById("cw-dt-panel"), b = document.getElementById("cw-dt-edit");
+  if (p) p.hidden = true;
+  if (b) b.setAttribute("aria-expanded", "false");
+}
+function cwDtPick(n) {
+  var d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + n);
+  document.getElementById("cw-dt-date").value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+async function cwDtSave() {
+  var ev = _currentEv;
+  if (!ev || !ev.id) return;
+  var w = _socWho();
+  if (!w.real) { _cwDtSay("Sign in to change the date or time.", true); return; }
+  if (w.viewing) { _cwDtSay("You are looking at this as somebody else, so nothing was saved.", true); return; }
+  var date = document.getElementById("cw-dt-date").value, start = document.getElementById("cw-dt-start").value, end = document.getElementById("cw-dt-end").value;
+  if (!date) { _cwDtSay("Pick a date.", true); return; }
+  if (start && end && end <= start) { _cwDtSay("The end time comes after the start time.", true); return; }
+  var endDate = ev.endDate || "";
+  if (endDate && /^\d{4}-\d{2}-\d{2}$/.test(String(ev.date || ""))) {
+    var span = Math.round((new Date(endDate + "T12:00:00") - new Date(ev.date + "T12:00:00")) / 86400000);
+    endDate = span > 0 ? _cwDtDay(date, span) : "";
+  }
+  var row = { id: String(ev.id), date: date, startTime: start, endTime: end };
+  if (endDate || ev.endDate) row.endDate = endDate;
+  var btn = document.getElementById("cw-dt-save");
+  if (btn) btn.disabled = true;
+  _cwDtSay("Saving…");
+  var ok = false;
+  try {
+    var r = await fetch(GS_URL + "?action=update&event=" + encodeURIComponent(JSON.stringify(row)) + "&appearId=" + encodeURIComponent(w.real) + "&actingAs=" + encodeURIComponent(w.real));
+    var d = JSON.parse(await r.text());
+    ok = !!(d && d.status === "ok");
+  } catch (e) { ok = false; }
+  if (btn) btn.disabled = false;
+  if (!ok) { _cwDtSay("That did not save. Try again.", true); return; }
+  try { sessionStorage.setItem("cw-wrote-at", String(Date.now())); } catch (e) {}
+  ev.date = date; ev.time = start; ev.endtime = end; ev.endDate = endDate;
+  var t = document.getElementById("ev-when-text");
+  if (t) t.textContent = fmtDate(ev.date, ev.time, ev.endtime, ev.endDate);
+  cwDtClose();
+}
+
+function cwDuplicate() {
+  var ev = _currentEv;
+  if (!ev || !ev.id) return;
+  window.location.href = window.location.origin + "/myevents/?id=" + encodeURIComponent(String(ev.id)) + "&duplicate=1";
+}
 function openEditDirect() {
   const ev = _currentEv;
   if (!ev) return;
@@ -894,10 +974,22 @@ function render(ev) {
 
   const sl = ev.showLinks||"";
   const _payOn = !!(ev.paymentlink && sl.includes("paymentlink"));
+  const _canEditWhen = !ev.cancelled && ev.date && !ev.recurFreq && !/^(recurring-|rec-)/.test(String(ev.id || "")) && ev.hostType !== "socializer";
+  const _whenEditHTML = _canEditWhen ? `<button type="button" class="cw-dt-edit" id="cw-dt-edit" onclick="cwDtOpen()" aria-expanded="false" aria-controls="cw-dt-panel">Edit</button>` : "";
+  const _whenPanelHTML = _canEditWhen ? `<div class="cw-dt-panel" id="cw-dt-panel" hidden>
+      <div class="cw-dt-row">
+        <div class="cw-dt-col"><label class="cw-dt-lab" for="cw-dt-date">Date</label><input type="date" class="cw-dt-field" id="cw-dt-date"></div>
+        <div class="cw-dt-col"><label class="cw-dt-lab" for="cw-dt-start">Starts</label><input type="time" class="cw-dt-field" id="cw-dt-start"></div>
+        <div class="cw-dt-col"><label class="cw-dt-lab" for="cw-dt-end">Ends</label><input type="time" class="cw-dt-field" id="cw-dt-end"></div>
+      </div>
+      <div class="cw-dt-pills"><button type="button" class="cw-dt-pill" onclick="cwDtPick(1)">Tomorrow</button><button type="button" class="cw-dt-pill" onclick="cwDtPick(7)">Next week</button><button type="button" class="cw-dt-pill" onclick="cwDtPick(30)">One month from now</button></div>
+      <p class="cw-dt-say" id="cw-dt-say" role="status" hidden></p>
+      <div class="cw-dt-foot"><button type="button" class="cw-dt-pill" onclick="cwDtClose()">Cancel</button><button type="button" class="cw-dt-save" id="cw-dt-save" onclick="cwDtSave()">Save</button></div>
+    </div>` : "";
   const lines = [
     fmtBadge ? `<div class="ev-fmt-line" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-bottom:4px;">${fmtBadge}</div>` : "",
     ev.date
-      ? `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;"><div style="font-size:14px;font-weight:600;color:var(--dark);flex:0 1 auto;min-width:0;">${esc(fmtDate(ev.date,ev.time,ev.endtime,ev.endDate))}</div>${recurBadge}</div>`
+      ? `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;flex-wrap:wrap;"><div id="ev-when-text" style="font-size:14px;font-weight:600;color:var(--dark);flex:0 1 auto;min-width:0;">${esc(fmtDate(ev.date,ev.time,ev.endtime,ev.endDate))}</div>${recurBadge}${_whenEditHTML}</div>${_whenPanelHTML}`
       : (recurBadge ? `<div style="display:flex;margin-bottom:6px;">${recurBadge}</div>` : ""),
     _recurSay ? `<div id="ev-recur-say" ${_recurSayOpen ? "" : "hidden"} style="font-size:14px;color:#374151;margin:-2px 0 6px;">${esc(_recurSay)}</div>` : "",
     meetingRoomLine,
@@ -957,6 +1049,10 @@ function render(ev) {
     ? `<button class="cw-edit-btn cw-edit-head" id="ev-edit-head" onclick="openEditDirect()" title="Edit this event" style="display:none;margin-left:auto;background:#1F699E;border:1.5px solid #1F699E;color:#fff;font-weight:700;font-size:13px;padding:6px 16px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:inherit;">Edit</button>`
     : "";
 
+  const dupHeadHTML = (isPast && !ev.recurFreq && !/^(recurring-|rec-)/.test(String(ev.id || "")) && ev.hostType !== "socializer")
+    ? `<button type="button" class="cw-dup-btn" id="ev-dup-head" onclick="cwDuplicate()">Duplicate this event</button>`
+    : "";
+
   const payHeadHTML = _payOn
     ? `<a class="ev-pay-btn" href="${esc(ev.paymentlink)}" rel="noopener" style="background:#1A2E42;border:1.5px solid #1A2E42;color:#fff;font-weight:700;font-size:13px;padding:7px 16px;border-radius:20px;white-space:nowrap;text-decoration:none;font-family:inherit;">Register</a>`
     : "";
@@ -1005,7 +1101,7 @@ function render(ev) {
         <h1 style="margin:0;flex:1;min-width:0;">${esc(ev.title)}</h1>
         <div class="evt-head-btns" style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
           <div class="ev-head-slot">${payHeadHTML}${_payOn ? "" : interestHeaderHTML}${bookmarkHTML}</div>
-          <div class="ev-head-acts">${editHeadHTML}</div>
+          <div class="ev-head-acts">${dupHeadHTML}${editHeadHTML}</div>
         </div>
       </div>
       <div style="margin-bottom:8px;">${engagementSection}</div>
