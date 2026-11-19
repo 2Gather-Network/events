@@ -1017,6 +1017,14 @@ html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-ins
 
     <div class="modal-scroll-body">
 
+    <div id="cw-next-steps" hidden style="margin:0 0 16px;padding:14px 16px;background:#fff;border:1.5px solid #DDE4EE;border-radius:14px;">
+      <p style="font-size:15px;font-weight:700;color:#1A2E42;margin:0 0 10px;">What would you like to do next?</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <a class="rc-pill" id="cw-next-group" href="#" style="text-decoration:none;">Start a new group</a>
+        <a class="rc-pill" id="cw-next-dup" href="#" style="text-decoration:none;">Duplicate an event</a>
+        <button type="button" class="rc-pill" onclick="openPostEvent()">Build a new event</button>
+      </div>
+    </div>
     <div id="dup-note" style="display:none;margin:0 0 16px;padding:14px 16px;background:#fff;border:1.5px solid #C9DFF3;border-radius:14px;font-size:14px;line-height:1.5;color:#1A2E42;"></div>
 
     <div id="registrations-panel" style="display:none;margin-bottom:20px;padding:14px 16px;background:#fff;border-radius:10px;border:1px solid #BFDBFE;">
@@ -1789,6 +1797,22 @@ const GS_URL = "https://cw-api-gate.jessieupp.workers.dev";
 
 const WORKER_URL = "https://findatime.jessieupp.workers.dev/";
 
+function _paintNextSteps(ev, found) {
+  var box = document.getElementById("cw-next-steps");
+  if (!box) return;
+  box.hidden = true;
+  if (!ev || !ev.id || (found && found.isRecurring) || ev.cancelled) return;
+  if (document.documentElement.classList.contains("cw-dup")) return;
+  if (/^(rec-|recurring-|cancelled-|occ-)/.test(String(ev.id))) return;
+  var last = String(ev.endDate && ev.endDate > ev.date ? ev.endDate : ev.date || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(last)) return;
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  if (!(new Date(last + "T00:00:00") < today)) return;
+  var id = encodeURIComponent(String(ev.id));
+  document.getElementById("cw-next-group").href = "https://2appear.network/groups/create?fromEvent=" + id + "&ok=1&t=" + encodeURIComponent(String(ev.title || "").slice(0, 120));
+  document.getElementById("cw-next-dup").href = "/myevents/?id=" + id + "&duplicate=1";
+  box.hidden = false;
+}
 function openPostEvent() {
   if (window.self !== window.top) {
     try { window.top.location.href = "https://2gather.network/events?action=post"; } catch(e) {}
@@ -2779,6 +2803,7 @@ function sheetToEv(row) {
   const isRecurring = String(row.id).startsWith("rec-") || !!(row.recurFreq);
   return { eventCreatedDate: row.eventCreatedDate || row.createdAt || "", eventUpdatedDate: row.eventUpdatedDate || row.updatedAt || "",
     id: String(row.id || ""), title: row.title || "",
+    occTimes: row.occTimes || null,
     categories: row.categories ? String(row.categories).split(",").filter(Boolean) : [],
     date: parseSheetDate(row.date), endDate: row.endDate ? parseSheetDate(row.endDate) : "", time: parseSheetTime(row.startTime), endtime: parseSheetTime(row.endTime),
     dayOfWeek: parseInt(row.dayOfWeek) || 0,
@@ -4306,6 +4331,7 @@ function openModal(skipDraft = false) {
   const dImgEl = document.getElementById("f-detail-image-url"); if(dImgEl) dImgEl.value = "";
   const regPanel = document.getElementById("registrations-panel");
   if (regPanel) regPanel.style.display = "none";
+  { const _ns = document.getElementById("cw-next-steps"); if (_ns) _ns.hidden = true; }
   setVisibility("public");
   setInterestedEnabled("off");   
   setSharedNotesEnabled(false);
@@ -4508,6 +4534,7 @@ function loadEditForm(id) {
   try { _fillPosterName(); } catch (e) {}
   fixModalForMobile();
   document.getElementById("post-error").style.display = "none";
+  try { _paintNextSteps(ev, found); } catch (e) {}
   const panel = document.getElementById("registrations-panel");
   const list = document.getElementById("registrations-list");
   const count = document.getElementById("registrations-count");
@@ -7577,7 +7604,8 @@ function getNextOccurrences(template, count) {
     if (_end && d > _end) break;   
     const dateStr = d.toISOString().split("T")[0];
     const slug    = template.title.toLowerCase().replace(/\s+/g,"-");
-    results.push({ ...template, id:`recurring-${slug}-${dateStr}`, seriesId:template.id, date:dateStr, passcode:"", going:0, recurring:true });
+    const _oid = `recurring-${slug}-${dateStr}`, _ot = template.occTimes && template.occTimes[_oid];
+    results.push({ ...template, id:_oid, seriesId:template.id, date:(_ot && _ot.date) ? _ot.date : dateStr, ...(_ot ? { time:_ot.startTime || "", endtime:_ot.endTime || "", occMoved:true } : {}), passcode:"", going:0, recurring:true });
     d.setDate(d.getDate() + step);
   }
   return results;
