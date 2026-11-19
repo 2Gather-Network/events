@@ -56,6 +56,14 @@
   #pane h2{margin-top:0;}
   .hrow{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px;}
   .hrow h2{margin:0;}
+  .row.rq .av{width:58px;height:58px;border-radius:12px;overflow:hidden;}
+  .row.rq{align-items:flex-start;}
+  .rq-q{font-size:15px;font-weight:700;margin:12px 0 8px;color:var(--ink);}
+  .rq-act{display:flex;justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap;}
+  .rq-grp{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);margin:18px 0 0;}
+  .rq-txt{box-sizing:border-box;width:100%;height:38px;border:1.5px solid var(--panel-line);border-radius:12px;padding:0 12px;font-family:inherit;font-size:15px;margin:6px 0 4px;background:#fff;color:var(--ink);}
+  .rq-box{flex:1;min-width:0;}
+  .rq-info{background:var(--panel);border:1.5px solid var(--panel-line);border-radius:12px;padding:10px 12px;font-size:14.5px;line-height:1.45;margin-top:8px;color:var(--ink);}
   .rqn{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;margin-left:8px;border-radius:10px;background:var(--brand);color:#fff;font-size:12px;font-weight:700;}
   @media(max-width:600px){#pane{padding:18px 16px 22px;}}
   .veil{display:block;margin:0 0 18px;}
@@ -577,6 +585,14 @@
       }
       nm.insertBefore(mk, nm.firstChild);
       who.appendChild(nm);
+      var ak = c.person ? ASKED[String(c.person)] : null;
+      if (ak && ak.answeredAt) {
+        var sh = (ak.reasons || []).concat(ak.reasonText ? ['\u201C' + ak.reasonText + '\u201D'] : []);
+        var nmw = String(c.name || '').split(' ')[0] || 'They';
+        var ib = document.createElement('div'); ib.className = 'rq-info';
+        ib.textContent = 'On ' + longDate(ak.answeredAt) + ', ' + nmw + ' said Not now' + (sh.length ? ' and shared: ' + sh.join(', ') : '.');
+        who.appendChild(ib);
+      }
       var how = howLine(c);
       if (how) { var hl = document.createElement('div'); hl.className = 'line'; hl.textContent = how; who.appendChild(hl); }
       var nt0 = String(c.notes || '').replace(/\s+/g, ' ').trim();
@@ -1415,6 +1431,95 @@
     d.appendChild(acts);
     return d;
   }
+
+  var RQ = {}, RQ_REASONS = ['Timing', 'Fit', 'Scope', 'Focus'];
+  function rqSt(r) { var k = String(r.person || r.name); if (!RQ[k]) { RQ[k] = { mode: r.answeredAt ? 'said' : 'new', tell: null, picks: (r.reasons || []).slice(), other: '', otherOn: false, at: r.answeredAt || '', text: r.reasonText || '' }; } return RQ[k]; }
+  function rqSave(r, kind, st, undo) {
+    var p = { person: r.person, answer: kind };
+    if (kind === 'notnow') { p.tell = st.tell ? '1' : ''; p.reasons = st.tell ? st.picks.join('|') : ''; p.reasonText = st.text; }
+    st.err = '';
+    return send('answerRequest', p).then(function (d) {
+      if (d && d.status === 'ok') { return; }
+      throw new Error(d && d.message ? d.message : 'That did not save. Check your connection and try again.');
+    }).catch(function (e) { undo(); st.err = String(e && e.message && !/fetch|network/i.test(e.message) ? e.message : 'That did not save. Check your connection and try again.'); drawTabs(); });
+  }
+  function rqNote(t, cls) { var n = document.createElement('div'); n.className = cls || 'line'; n.textContent = t; return n; }
+  function rqPills(list, on, multi, pick) {
+    var box = document.createElement('div'); box.className = 'pills';
+    list.forEach(function (w) { var b = document.createElement('button'); b.type = 'button'; b.className = 'pill'; b.textContent = w; b.setAttribute('aria-pressed', on(w) ? 'true' : 'false'); b.onclick = function () { pick(w); }; box.appendChild(b); });
+    return box;
+  }
+  function rqAsk(t) { var q = document.createElement('p'); q.className = 'rq-q'; q.textContent = t; return q; }
+  function rqRow(r, st, who) {
+    var row = document.createElement('div'); row.className = 'row rq';
+    var av = document.createElement('span'); av.className = 'av'; av.textContent = initials(r.name);
+    if (/^https:\/\//i.test(String(r.photo || ''))) { var im = document.createElement('img'); im.alt = ''; im.src = String(r.photo); im.onerror = function () { av.textContent = initials(r.name); }; av.textContent = ''; av.appendChild(im); }
+    var box = document.createElement('div'); box.className = 'rq-box';
+    var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = r.name; box.appendChild(nm);
+    var l1 = document.createElement('div'); l1.className = 'line'; l1.textContent = r.at ? 'Asked to join your network on ' + longDate(r.at) : ''; if (r.at) { box.appendChild(l1); }
+    if (r.where) { var l2 = document.createElement('div'); l2.className = 'line'; l2.textContent = 'Where you met: ' + r.where; box.appendChild(l2); }
+    var first = String(r.name || '').split(' ')[0] || 'them';
+    var again = function () { drawTabs(); };
+    var accept = function () { var was = TABS.requests.slice(); rqSave(r, 'accept', st, function () { TABS.requests = was; }); TABS.requests = TABS.requests.filter(function (x) { return x !== r; }); again(); };
+    var mailLine = rqNote('When you accept, you and ' + first + ' will see each other\u2019s email.');
+    if (st.mode === 'said') {
+      var said = String(st.picks.length || st.text ? 'On ' + longDate(st.at) + ', you said Not now and shared: ' + st.picks.concat(st.text ? ['“' + st.text + '”'] : []).join(', ') : 'On ' + longDate(st.at) + ', you said Not now.');
+      var l3 = document.createElement('div'); l3.className = 'line'; l3.textContent = said; box.appendChild(l3);
+      var a2 = document.createElement('div'); a2.className = 'rq-act';
+      var ed = document.createElement('button'); ed.type = 'button'; ed.className = 'btn ghost'; ed.textContent = 'Edit'; ed.onclick = function () { st.mode = 'ask'; st.tell = st.picks.length || st.text ? true : null; st.otherOn = !!st.text; st.other = st.text; again(); };
+      var ac = document.createElement('button'); ac.type = 'button'; ac.className = 'btn'; ac.textContent = 'Accept'; ac.onclick = accept;
+      box.appendChild(mailLine); a2.appendChild(ed); a2.appendChild(ac); box.appendChild(a2);
+    } else if (st.mode === 'ask') {
+      box.appendChild(rqAsk('Would you like to tell ' + first + ' why?'));
+      box.appendChild(rqPills(['Yes', 'No'], function (w) { return st.tell === (w === 'Yes'); }, false, function (w) { st.tell = w === 'Yes'; again(); }));
+      if (st.tell === false) { box.appendChild(rqNote(first + ' will see that you said Not now, with no reason.')); }
+      if (st.tell) {
+        box.appendChild(rqAsk('Pick any that fit'));
+        box.appendChild(rqPills(RQ_REASONS.concat(['+ Other']), function (w) { return w === '+ Other' ? st.otherOn : st.picks.indexOf(w) > -1; }, true, function (w) {
+          if (w === '+ Other') { st.otherOn = !st.otherOn; } else { var i = st.picks.indexOf(w); if (i > -1) { st.picks.splice(i, 1); } else { st.picks.push(w); } }
+          again();
+        }));
+        box.appendChild(rqNote(first + ' will see that you said Not now and the reasons you share here.'));
+        if (st.otherOn) { var tx = document.createElement('input'); tx.type = 'text'; tx.className = 'rq-txt'; tx.maxLength = 300; tx.placeholder = 'Type your reason'; tx.setAttribute('aria-label', 'Type your reason'); tx.value = st.other; tx.oninput = function () { st.other = tx.value; }; box.appendChild(tx); }
+      }
+      var a3 = document.createElement('div'); a3.className = 'rq-act';
+      var dn = document.createElement('button'); dn.type = 'button'; dn.className = 'btn'; dn.textContent = 'Done'; dn.disabled = st.tell === null;
+      dn.onclick = function () {
+        var before = { picks: st.picks.slice(), text: st.text, at: st.at, mode: st.at ? 'said' : 'new' };
+        if (!st.tell) { st.picks = []; st.other = ''; st.otherOn = false; }
+        st.text = st.tell && st.otherOn ? String(st.other || '').trim() : '';
+        st.at = new Date().toISOString(); st.mode = 'said';
+        rqSave(r, 'notnow', st, function () { st.picks = before.picks; st.text = before.text; st.at = before.at; st.mode = 'ask'; }); again();
+      };
+      a3.appendChild(dn); box.appendChild(a3);
+    } else {
+      var a1 = document.createElement('div'); a1.className = 'rq-act';
+      var nn = document.createElement('button'); nn.type = 'button'; nn.className = 'btn ghost'; nn.textContent = 'Not now'; nn.onclick = function () { st.mode = 'ask'; st.tell = null; again(); };
+      var ay = document.createElement('button'); ay.type = 'button'; ay.className = 'btn'; ay.textContent = 'Accept'; ay.onclick = accept;
+      box.appendChild(mailLine); a1.appendChild(nn); a1.appendChild(ay); box.appendChild(a1);
+    }
+    if (st.err) { var er = rqNote(st.err); er.style.color = 'var(--bad)'; box.appendChild(er); }
+    row.appendChild(av); row.appendChild(box); return row;
+  }
+  var RQE = { step: 'first', see: '' }, ASKED = {};
+  function rqEmpty() {
+    var d = document.createElement('div'); d.className = 'notice'; d.style.display = 'block';
+    var again = function () { drawTabs(); };
+    var add = function (t) { d.appendChild(rqAsk(t)); };
+    var pl = function (list, on, pick) { d.appendChild(rqPills(list, on, false, pick)); };
+    var p0 = document.createElement('p'); p0.className = 'rq-q'; p0.style.marginTop = '0'; p0.textContent = 'None yet. Would you like to start receiving requests to connect, or would you like to look around first?'; d.appendChild(p0);
+    pl(['Start receiving requests', 'Look around first'], function (w) { return (RQE.step === 'start') === (w === 'Start receiving requests') && RQE.step !== 'first'; }, function (w) { RQE.step = w === 'Start receiving requests' ? 'start' : 'look'; again(); });
+    if (RQE.step === 'start') {
+      var sc = document.createElement('p'); sc.className = 'line'; sc.style.marginTop = '10px'; sc.textContent = 'Choosing who may ask you to connect is coming soon.'; d.appendChild(sc);
+    } else if (RQE.step === 'look') {
+      add('What would you like to see?'); pl(['Events', 'People', 'Groups'], function (w) { return RQE.see === w; }, function (w) { RQE.see = w; again(); });
+      var go = function (list) { add('How would you like to begin?'); var a = document.createElement('div'); a.className = 'actions-row'; list.forEach(function (x, i) { var b = document.createElement('a'); b.href = x[1]; b.className = i ? 'btn ghost' : 'btn'; b.textContent = x[0]; a.appendChild(b); }); d.appendChild(a); };
+      if (RQE.see === 'Events') { go([['See the calendar', 'https://2appear.network/events/'], ['Post an event', 'https://2appear.network/myevents/']].filter(function (x) { return HOSTS || x[1] !== 'https://2appear.network/myevents/'; })); }
+      if (RQE.see === 'People') { var pc = document.createElement('p'); pc.className = 'line'; pc.style.marginTop = '10px'; pc.textContent = 'People is coming soon.'; d.appendChild(pc); }
+      if (RQE.see === 'Groups') { go([['Use my invite passcode to join a group', 'https://2appear.network/groups/'], ['Create a group', 'https://2appear.network/mygroups/']]); }
+    }
+    return d;
+  }
   function drawTabs() {
     var live = ALL.filter(function (c) { return !c.archived && bmPass(c); });
     $('tn-contacts').textContent = live.length;
@@ -1470,9 +1575,11 @@
     $('tn-bookmarks').textContent = BM_LOADED || BMARKS.length ? BMARKS.length : '';
     var rq = $('cp-requests'); rq.innerHTML = '';
     var T = { requests: TABS.requests.filter(bmPass), connected: TABS.connected.filter(bmPass), invited: TABS.invited.filter(bmPass) };
-    T.requests.forEach(function (r) { rq.appendChild(personRow(r.name, [r.at ? 'Asked to join your network on ' + longDate(r.at) : ''])); });
-    if (!T.requests.length) { rq.appendChild(emptyBox('requests')); }
-    var rn = $('rq-n'); if (rn) { rn.textContent = T.requests.length; rn.hidden = !T.requests.length; }
+    var rqNew = T.requests.filter(function (r) { return rqSt(r).mode !== 'said'; }), rqSaid = T.requests.filter(function (r) { return rqSt(r).mode === 'said'; });
+    rqNew.forEach(function (r) { rq.appendChild(rqRow(r, rqSt(r))); });
+    if (rqSaid.length) { var gl = document.createElement('p'); gl.className = 'rq-grp'; gl.textContent = 'Not now'; rq.appendChild(gl); rqSaid.forEach(function (r) { rq.appendChild(rqRow(r, rqSt(r))); }); }
+    if (!T.requests.length) { rq.appendChild(rqEmpty()); }
+    var rn = $('rq-n'); if (rn) { rn.textContent = rqNew.length; rn.hidden = !rqNew.length; }
     var cn = $('cp-connected'); cn.innerHTML = '';
     T.connected.forEach(function (r) { cn.appendChild(personRow(r.name, [])); });
     if (!T.connected.length) { cn.appendChild(emptyBox('connected')); }
@@ -1566,7 +1673,7 @@
     ask('getContacts', {}).then(function (d) {
       if (d && d.code === 'signin') { say('Sign in again to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
       if (!d || d.status !== 'ok') { say((d && d.message) || 'Your contacts did not load. Reload the page and it will try again.'); return; }
-      HOSTS = d.hostsEvents !== false; clUse(d.choiceLists); AIOK = d.aiConsent === true; aiDraw(); BMCODE = {}; (d.bookmarkedPeople || []).forEach(function (x) { BMCODE[String(x)] = 1; }); ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
+      HOSTS = d.hostsEvents !== false; clUse(d.choiceLists); AIOK = d.aiConsent === true; aiDraw(); BMCODE = {}; (d.bookmarkedPeople || []).forEach(function (x) { BMCODE[String(x)] = 1; }); ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; ASKED = {}; ((d.tabs && d.tabs.asked) || []).forEach(function (a) { if (a && a.person) { ASKED[String(a.person)] = a; } }); SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
       say('');
       if (!BM_LOADED) { bmLast(); }
       if (!$('ctabs')) { buildTabs(); var t0 = 'contacts'; try { t0 = String(new URLSearchParams(location.search).get('tab') || 'contacts'); } catch (e) {} showTab(TAB_NAMES.some(function (t) { return t[0] === t0; }) ? t0 : 'contacts'); }
