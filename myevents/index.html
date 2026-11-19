@@ -9146,9 +9146,36 @@ function selectInterestSuggestion(val) {
     });
     return Object.keys(byEvent).filter(function (eid) { return !byEvent[eid].cancelled; });
   }
+  var _extraAttend = {}, _extraAsked = {};
+  function _loadMissingAttending() {
+    if (_regIds === null || !_feedIn || _regFailed || _feedFailed) return;
+    var me = ''; try { me = getRealMemberId() || ''; } catch (e) {}
+    if (!me) return;
+    var m = _idMaps();
+    var todo = _regIds.filter(function (k) {
+      return !_extraAsked[k] && !m.mine[k] && !m.feed[k] && k.indexOf('recurring-') !== 0 && k.indexOf('rec-') !== 0 && k.indexOf('cancelled-') !== 0;
+    }).slice(0, 20);
+    if (!todo.length) return;
+    todo.forEach(function (k) { _extraAsked[k] = 1; });
+    Promise.all(todo.map(function (k) {
+      return fetch(GS_URL + '?action=getEventById&id=' + encodeURIComponent(k) + '&appearId=' + encodeURIComponent(me) + '&nocache=1&t=' + Date.now())
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var e = d && d.event;
+          if (!e || !e.id || !e.title) return;
+          if (e.row && String(e.row.cancelled || '').trim().toLowerCase() === 'true') return;
+          _extraAttend[k] = e.row ? sheetToEv(e.row) : { id: String(e.id), title: e.title, date: e.date, time: e.time, location: e.location, venue: e.venue };
+        })
+        .catch(function () {});
+    })).then(function () {
+      try { paintCounts(allRows); } catch (e) {}
+      try { if (pane === 'attending') { paintRail(allRows, selId); } } catch (e) {}
+    });
+  }
   function _attendingRows() {
     if (_regFailed || _feedFailed) return false;
     if (_regIds === null || !_feedIn) return null;
+    try { _loadMissingAttending(); } catch (e) {}
     var m = _idMaps(), tpl = _recurringTemplates();
     var out = [];
     _regIds.forEach(function (k) {
@@ -9321,12 +9348,13 @@ function selectInterestSuggestion(val) {
       (typeof events !== 'undefined' ? events : []).concat(typeof RECURRING_EVENTS !== 'undefined' ? RECURRING_EVENTS : [])
         .forEach(function (r) { if (r && r.id) feed[String(r.id).trim()] = r; });
     } catch (e) {}
-    return { mine: mine, feed: feed };
+    return { mine: mine, feed: feed, extra: _extraAttend };
   }
   function _listedFor(k, m, tpl) {
     var slugOf = function (t) { return String(t || '').toLowerCase().replace(/\s+/g, '-'); };
     var r = m.mine[k], pub = false;
     if (!r && m.feed[k]) { r = m.feed[k]; pub = true; }
+    if (!r && m.extra && m.extra[k]) { r = m.extra[k]; pub = true; }
     if (!r && k.indexOf('recurring-') === 0 && !m.feed['cancelled-' + k]) {
       var slug = k.replace(/^recurring-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
       var t = tpl.filter(function (x) { return x.id === 'rec-' + slug || slugOf(x.title) === slug; })[0];
