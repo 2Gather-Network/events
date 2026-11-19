@@ -285,6 +285,8 @@
       <div class="notice" style="justify-content:flex-end"><button class="btn" type="button" id="add">+ Add contact</button></div>
       <div class="tools" id="tools" hidden>
         <input type="search" id="find" autocomplete="off" placeholder="Search" aria-label="Search contacts" style="flex:1;min-width:180px;margin:0;">
+        <select id="ct-group" aria-label="Narrow by group"><option value="all">All groups</option></select>
+        <select id="ct-sort" aria-label="Order them"><option value="at">Newest to oldest</option><option value="name">Name A to Z</option></select>
         <button class="btn ghost" type="button" id="filter">Filter</button>
       </div>
       <div class="fdrop" id="fveil" hidden>
@@ -558,11 +560,16 @@
     if ($('ctabs')) { drawTabs(); }
     var q = String($('find').value || '').trim().toLowerCase();
     var live = ALL.filter(function (c) { return (CF.arch ? c.archived : !c.archived) && bmPass(c); });
+    fillGroups($('ct-group'), uniqSort([].concat.apply([], live.map(groupNamesOf))));
+    var cg = $('ct-group').value || 'all', co = $('ct-sort').value || 'at';
+    live = live.slice();
     var shown = live.filter(function (c) {
       if (!cpass(c)) { return false; }
+      if (cg !== 'all' && groupNamesOf(c).indexOf(cg) < 0) { return false; }
       if (!q) { return true; }
       return [c.name, c.email, c.phone, c.metHow, c.tag, c.notes, c.roleOrg, c.organization].join(' ').toLowerCase().indexOf(q) > -1;
     });
+    if (co === 'name') { shown.sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || '')); }); }
     var on = ['ev', 'grp', 'tags', 'l'].filter(function (k) { return CF[k].length; });
     $('cf-on').hidden = !on.length && !CF.arch;
     $('cf-txt').textContent = 'Showing ' + shown.length + ' of ' + live.length + (CF.arch ? ' · Archived' : '') + on.map(function (k) { return ' · ' + CFN[k] + ': ' + CF[k].map(function (v) { return cfName(k, v); }).join(', '); }).join('');
@@ -753,6 +760,7 @@
     msg: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
     share: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>',
+    bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
     plant: '<path d="M12 21v-9"/><path d="M12 12c0-4 3-6 7-6 0 4-3 6-7 6z"/><path d="M12 16c0-3-2-5-6-5 0 3 2 5 6 5z"/>',
     pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>'
   };
@@ -1382,7 +1390,7 @@
       .catch(function () { BUSY = false; $('confirm-yes').disabled = false; msg('That did not delete. Try again.', true); });
   };
 
-  $('find').oninput = draw;
+  $('find').oninput = draw; $('ct-group').onchange = draw; $('ct-sort').onchange = draw;
   pills();
 
   function msgSession() {
@@ -1418,6 +1426,7 @@
     ['bookmarks', 'requests', 'connected', 'invited'].forEach(function (k) { var d = document.createElement('div'); d.setAttribute('data-cp', k); d.id = 'cp-' + k; d.hidden = true; body.appendChild(d); });
     var bt = document.createElement('div'); bt.className = 'tools'; bt.id = 'bm-tools';
     bt.innerHTML = '<input type="text" id="bm-find" autocomplete="off" placeholder="Search by name\u2026" aria-label="Search by name" style="flex:1;min-width:180px;margin:0;"><select id="bm-filter" aria-label="Narrow by group"><option value="all">All groups</option></select><select id="bm-sort" aria-label="Order them"><option value="at">Newest to oldest</option><option value="name">Name A to Z</option></select>';
+    ['connected', 'invited'].forEach(function (k) { var tb = toolsBar(k.slice(0, 2)); $('cp-' + k).appendChild(tb); var lst = document.createElement('div'); lst.id = k.slice(0, 2) + '-list'; $('cp-' + k).appendChild(lst); tb.querySelector('input').oninput = draw; Array.prototype.forEach.call(tb.querySelectorAll('select'), function (x) { x.onchange = draw; }); });
     var bl = document.createElement('div'); bl.id = 'bm-list';
     $('cp-bookmarks').appendChild(bt); $('cp-bookmarks').appendChild(bl);
     $('bm-find').oninput = function () { draw(); };
@@ -1519,6 +1528,28 @@
     row.appendChild(av); row.appendChild(box); return row;
   }
   var CONNECTED = {};
+  function fillGroups(sel, names) {
+    var key = names.join('|'); if (sel.getAttribute('data-k') === key) { return; }
+    var cur = sel.value; while (sel.options.length > 1) { sel.remove(1); }
+    names.forEach(function (n) { var o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
+    sel.setAttribute('data-k', key); sel.value = cur; if (sel.value !== cur) { sel.value = 'all'; }
+  }
+  function uniqSort(list) { var seen = {}, out = []; list.forEach(function (n) { if (n && !seen[n]) { seen[n] = 1; out.push(n); } }); return out.sort(function (a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); }); }
+  function groupNamesOf(c) { var out = []; (c && c.person ? (c.groupIds || []) : []).forEach(function (gid) { var g = GROUPS.filter(function (x) { return x.groupId === gid; })[0]; if (g && g.name) { out.push(g.name); } }); return out; }
+  function toolsBar(pre) {
+    var t = document.createElement('div'); t.className = 'tools'; t.id = pre + '-tools';
+    t.innerHTML = '<input type="text" id="' + pre + '-find" autocomplete="off" placeholder="Search by name\u2026" aria-label="Search by name" style="flex:1;min-width:180px;margin:0;"><select id="' + pre + '-filter" aria-label="Narrow by group"><option value="all">All groups</option></select><select id="' + pre + '-sort" aria-label="Order them"><option value="at">Newest to oldest</option><option value="name">Name A to Z</option></select>';
+    return t;
+  }
+  function tabPick(list, pre, groupsOf, atOf, nameOf) {
+    var q = String($(pre + '-find').value || '').trim().toLowerCase(), g = $(pre + '-filter').value || 'all', o = $(pre + '-sort').value || 'at';
+    fillGroups($(pre + '-filter'), uniqSort([].concat.apply([], list.map(groupsOf))));
+    g = $(pre + '-filter').value || 'all';
+    var out = list.filter(function (r) { return (!q || String(nameOf(r) || '').toLowerCase().indexOf(q) > -1) && (g === 'all' || groupsOf(r).indexOf(g) > -1); });
+    if (o === 'name') { out.sort(function (a, b) { return String(nameOf(a) || '').localeCompare(String(nameOf(b) || '')); }); }
+    else { out.sort(function (a, b) { return String(atOf(b) || '').localeCompare(String(atOf(a) || '')); }); }
+    return out;
+  }
   function statusEl(conn) {
     var st = document.createElement('span'); st.className = 'stat';
     var ic = document.createElement('span'); ic.className = 'mk'; ic.setAttribute('role', 'img'); ic.setAttribute('aria-hidden', 'true'); ic.innerHTML = conn ? MARK.tree : MARK.plant;
@@ -1606,6 +1637,18 @@
       pm.appendChild(menuItem('user', 'See profile', g.href));
       pm.appendChild(menuItem('share', 'Make an intro', g.href + '#intro'));
       pm.appendChild(menuItem('plant', 'Show appreciation', g.href + '#appreciation'));
+      if (!bmViewing() && p.code) {
+        var rm = menuItem('bookmark', 'Remove bookmark', ''); pm.appendChild(rm);
+        var rmOut = document.createElement('div'); rmOut.className = 'line'; rmOut.hidden = true;
+        rm.onclick = function () {
+          menu.hidden = true; dots.setAttribute('aria-expanded', 'false');
+          ask('saveBookmark', { from: ME, toCode: String(p.code), remove: 'true' }).then(function (d) {
+            if (!d || d.status !== 'ok') { throw new Error('no'); }
+            BMARKS = BMARKS.filter(function (x) { return x !== p; }); bmSave(); draw();
+          }).catch(function () { rmOut.style.color = 'var(--bad)'; rmOut.textContent = 'That did not save. Check your connection and try again.'; rmOut.hidden = false; });
+        };
+        row.querySelector('.who').appendChild(rmOut);
+      }
       row.classList.add('ct');
       row.appendChild(acts); row.appendChild(menu);
       var cc = p.code ? ALL.filter(function (x) { return x.person === String(p.code); })[0] : null;
@@ -1636,15 +1679,20 @@
     if (rqSaid.length) { var gl = document.createElement('p'); gl.className = 'rq-grp'; gl.textContent = 'Not now'; rq.appendChild(gl); rqSaid.forEach(function (r) { rq.appendChild(rqRow(r, rqSt(r))); }); }
     if (!T.requests.length) { rq.appendChild(rqEmpty()); }
     var rn = $('rq-n'); if (rn) { rn.textContent = rqNew.length; rn.hidden = !rqNew.length; }
-    var cn = $('cp-connected'); cn.innerHTML = '';
-    T.connected.forEach(function (r) {
+    var cn = $('co-list'); cn.innerHTML = '';
+    var CO = tabPick(T.connected, 'co', function (r) { var cc = ALL.filter(function (x) { return x.person && x.person === r.person; })[0]; return groupNamesOf(cc); }, function (r) { return r.at; }, function (r) { return r.name; });
+    $('co-tools').hidden = !T.connected.length;
+    CO.forEach(function (r) {
       var cc = ALL.filter(function (x) { return x.person && x.person === r.person; })[0];
       var crow = cc ? contactRow(cc) : personRow(r.name, [], ''); if (!cc) { crow.querySelector('.name').appendChild(statusEl(true)); } cn.appendChild(crow);
     });
+    if (T.connected.length && !CO.length) { var nc = document.createElement('p'); nc.className = 'none'; nc.textContent = 'Nobody here matches that.'; cn.appendChild(nc); }
     if (!T.connected.length) { cn.appendChild(emptyBox('connected')); }
     $('tn-connected').textContent = T.connected.length;
-    var iv = $('cp-invited'); iv.innerHTML = '';
-    T.invited.forEach(function (r) {
+    var iv = $('in-list'); iv.innerHTML = '';
+    var IV = tabPick(T.invited, 'in', function (r) { return r.kind === 'group' && r.title ? [r.title] : []; }, function (r) { return r.at; }, function (r) { return r.first || r.email; });
+    $('in-tools').hidden = !T.invited.length;
+    IV.forEach(function (r) {
       var line = 'Invited to ' + (r.title || (r.kind === 'group' ? 'groups' : 'event')) + (r.at ? ' on ' + longDate(r.at) : '');
       var irow = personRow(r.first || r.email || '', [line, r.kind === 'group' ? r.email : ''], '');
       var pd = document.createElement('span'); pd.className = 'pending'; pd.textContent = 'Pending';
@@ -1674,6 +1722,7 @@
       if (/^https:\/\//i.test(String(ph))) { var iav = irow.querySelector('.av'); var iim = document.createElement('img'); iim.alt = ''; iim.src = String(ph); iim.onerror = function () { iav.textContent = initials(r.first || r.email || ''); }; iav.textContent = ''; iav.appendChild(iim); }
       iv.appendChild(irow);
     });
+    if (T.invited.length && !IV.length) { var ni = document.createElement('p'); ni.className = 'none'; ni.textContent = 'Nobody here matches that.'; iv.appendChild(ni); }
     if (!T.invited.length) { iv.appendChild(emptyBox('invited')); }
     $('tn-invited').textContent = T.invited.length;
   }
@@ -1703,7 +1752,7 @@
       BM_LOADED = true; draw();
     }).catch(function () { BM_LOADED = true; draw(); });
   }
-  var CONTACTS_LOADED = false, BM_EARLY = false;
+  var CONTACTS_LOADED = false, BM_EARLY = false, T_START = Date.now();
   var BM_KEY = 'cw-rms-bm-last';
   function bmViewing() { try { var m = CW.me(); return !!(m && m.viewing); } catch (e) { return true; } }
   function bmSave() {
@@ -1765,6 +1814,7 @@
       if (!d || d.status !== 'ok') { say((d && d.message) || 'Your contacts did not load. Reload the page and it will try again.'); return; }
       HOSTS = d.hostsEvents !== false; clUse(d.choiceLists); AIOK = d.aiConsent === true; aiDraw(); BMCODE = {}; (d.bookmarkedPeople || []).forEach(function (x) { BMCODE[String(x)] = 1; }); ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; ASKED = {}; ((d.tabs && d.tabs.asked) || []).forEach(function (a) { if (a && a.person) { ASKED[String(a.person)] = a; } }); SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
       say(''); CONTACTS_LOADED = true;
+      if (/[?&]timing=1/.test(location.search) && d.ms) { try { var tl = document.createElement('p'); tl.className = 'sub'; tl.textContent = 'Load time in milliseconds: ' + JSON.stringify(d.ms) + ', page total ' + (Date.now() - T_START); $('head').appendChild(tl); } catch (e) {} }
       if (!BM_LOADED) { bmLast(); }
       if (!$('ctabs')) { buildTabs(); var t0 = 'contacts'; try { t0 = String(new URLSearchParams(location.search).get('tab') || 'contacts'); } catch (e) {} showTab(TAB_NAMES.some(function (t) { return t[0] === t0; }) ? t0 : 'contacts'); }
       $('body').hidden = false;
