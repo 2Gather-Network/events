@@ -142,7 +142,7 @@
       if (!to) { newSay.textContent = 'Type their email address.'; return; }
       if (/[,;\s]/.test(to) || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) { newSay.textContent = 'Type one email address, like name@example.com.'; return; }
       send.disabled = true; newSay.textContent = 'Sending…';
-      fetch(o.GS_URL + '?action=sendGroupInvite&groupId=' + encodeURIComponent(o.groupId) + '&hostAppearId=' + encodeURIComponent(o.meId) + '&sessionToken=' + encodeURIComponent(adminTok(o.groupId, o.meId)) + '&toEmail=' + encodeURIComponent(to) + '&toName=' + encodeURIComponent(String(first.value || '').trim()) + '&toLast=' + encodeURIComponent(String(last.value || '').trim()))
+      fetch(o.GS_URL + '?action=sendGroupInvite&t=' + Date.now(), { method: 'POST', cache: 'no-store', referrerPolicy: 'no-referrer', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sendGroupInvite', groupId: o.groupId, hostAppearId: o.meId, sessionToken: adminTok(o.groupId, o.meId), toEmail: to, toName: String(first.value || '').trim(), toLast: String(last.value || '').trim() }) })
         .then(function(r){ return r.json(); })
         .then(function(d){
           send.disabled = false;
