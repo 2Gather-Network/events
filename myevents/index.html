@@ -1229,7 +1229,7 @@ html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-ins
         <div id="cohost-list" style="display:flex;flex-direction:column;gap:6px;"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
           <input class="input" id="f-cohost-email" type="email" placeholder="Example: sam@example.com" style="flex:1;min-width:180px;">
-          <button type="button" onclick="_addCoHost()" style="background:#fff;border:1.5px solid var(--cw-blue);color:var(--cw-blue);border-radius:20px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">Add co-host</button>
+          <button type="button" onclick="_addCoHost()" style="background:#fff;border:1.5px solid var(--cw-blue);color:var(--cw-blue);border-radius:20px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">Invite as co-host</button>
         </div>
         <p id="cohost-stat" style="display:none;font-size:12px;margin:6px 0 0;line-height:1.5;"></p>
       </div>
@@ -4232,7 +4232,7 @@ function openModal(skipDraft = false) {
   try { _dupOff(); _rcSet(false); } catch (e) {}
   try { _hpReset(); } catch (e) {}
   try { document.documentElement.classList.remove("cw-edit-min"); } catch (e) {}
-  editingId = null; selectedCats = new Set(); selectedRoom = null; selectedFormat = null; hostingOption = null;
+  editingId = null; selectedCats = new Set(); selectedRoom = null; selectedFormat = null; hostingOption = null; _coHostWaiting = [];
   ["virtual","inperson","both"].forEach(f => document.getElementById("fmt-"+f).classList.remove("selected"));
   document.getElementById("hopt-db").classList.remove("selected");
   document.getElementById("hopt-own").classList.remove("selected");
@@ -4685,7 +4685,7 @@ function loadEditForm(id) {
 
     _coHostAdds = [];
     _coHostNames = String(ev.coHostNames || "").split("|").map(function (x) { return x.trim(); }).filter(Boolean);
-    try { _renderCoHosts(); _coStat("", false); } catch (e) {}
+    try { _coHostWaiting = []; _renderCoHosts(); _coStat("", false); _loadCoHostInvites(ev.id || editingId); } catch (e) {}
 
     try { _coverBlob = null; _coverPreview(ev.imageUrl || ""); } catch (e) {}
     var _cfn = document.getElementById("cover-file-name"); if (_cfn) _cfn.textContent = "";
@@ -5415,6 +5415,16 @@ function _rememberPosterName(name) {
 }
 var _coHostAdds = [];      
 var _coHostNames = [];     
+var _coHostWaiting = [];
+function _loadCoHostInvites(eid) {
+  _coHostWaiting = [];
+  if (!eid) { _renderCoHosts(); return; }
+  var me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
+  fetch(GS_URL + "?action=getCoHostInvites&eventId=" + encodeURIComponent(eid) + "&appearId=" + encodeURIComponent(me) + "&t=" + Date.now())
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (eid !== editingId) return; _coHostWaiting = (d && d.status === "ok" && d.invites) ? d.invites : []; _renderCoHosts(); })
+    .catch(function () {});
+}
 
 function _coStat(msg, ok) {
   var el = document.getElementById("cohost-stat");
@@ -5437,8 +5447,14 @@ function _renderCoHosts() {
   });
   _coHostAdds.forEach(function (c, i) {
     rows.push('<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px;padding:6px 10px;background:var(--light);border-radius:8px;">'
-      + '<span>' + esc(c.name) + '</span>'
+      + '<span>' + esc(c.name) + ' <span style="color:var(--muted);font-size:12px;">Will be invited when you post</span></span>'
       + '<button type="button" onclick="_dropPendingCoHost(' + i + ')" aria-label="Remove ' + esc(c.name) + '" style="background:none;border:none;cursor:pointer;font-size:15px;line-height:1;color:var(--muted);padding:2px 4px;">×</button>'
+      + '</div>');
+  });
+  _coHostWaiting.forEach(function (w) {
+    rows.push('<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px;padding:6px 10px;background:var(--light);border-radius:8px;">'
+      + '<span>' + esc(w.name) + '</span>'
+      + '<span style="color:var(--muted);font-size:12px;">' + (w.state === "waiting" ? "Invited, waiting for a yes" : "Not accepted") + '</span>'
       + '</div>');
   });
   host.innerHTML = rows.join("");
@@ -5487,7 +5503,7 @@ function _addCoHost() {
       if (!editingId) {
         _coHostAdds.push({ email: email, name: d.name });
         _renderCoHosts();
-        _coStat(d.name + " goes on when you post.", true);
+        _coStat(d.name + " will be invited when you post.", true);
         return;
       }
       var me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
@@ -5497,7 +5513,10 @@ function _addCoHost() {
         .then(function (r2) { return r2.json(); })
         .then(function (d2) {
           if (!d2 || d2.status !== "ok") { _coStat((d2 && d2.message) || "That did not go through.", false); return; }
-          _coHostNames.push(d.name); _renderCoHosts(); _coStat(d.name + " can now edit this event.", true);
+          if (d2.invited) { _coHostWaiting.push({ name: d.name, state: "waiting" }); _renderCoHosts(); _coStat("We sent " + d.name + " an invitation. " + d.name + " can edit this event after saying yes.", true); return; }
+          if (d2.waiting) { _coStat(d.name + " has not answered yet.", false); return; }
+          if (d2.limit) { _coStat(d2.limit, false); return; }
+          _coStat("You cannot invite " + d.name + " to this event right now.", false);
         })
         .catch(function () { _coStat("That did not go through.", false); });
     })
