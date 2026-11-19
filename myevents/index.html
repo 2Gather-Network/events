@@ -1227,10 +1227,10 @@ html { padding-top:env(safe-area-inset-top, 0px); padding-left:env(safe-area-ins
       <div class="field" id="cohost-field" style="margin-top:14px;display:none;">
         <label class="field-label">Co-hosts</label>
         <div id="cohost-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-        <div style="margin-top:8px;">
-          <input class="input" id="f-cohost-name" type="text" autocomplete="off" placeholder="Type a name" oninput="_coSearch()" style="width:100%;max-width:360px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+          <input class="input" id="f-cohost-email" type="email" placeholder="Example: sam@example.com" style="flex:1;min-width:180px;">
+          <button type="button" onclick="_addCoHost()" style="background:#fff;border:1.5px solid var(--cw-blue);color:var(--cw-blue);border-radius:20px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">Add co-host</button>
         </div>
-        <div id="cohost-results" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;"></div>
         <p id="cohost-stat" style="display:none;font-size:12px;margin:6px 0 0;line-height:1.5;"></p>
       </div>
 
@@ -5431,13 +5431,13 @@ function _renderCoHosts() {
   var rows = [];
   _coHostNames.forEach(function (nm, i) {
     rows.push('<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px;padding:6px 10px;background:var(--light);border-radius:8px;">'
-      + '<span style="display:flex;align-items:center;gap:10px;">' + _hpFace(_coFaces[String(nm).toLowerCase()] || "", nm) + esc(nm) + '</span>'
+      + '<span>' + esc(nm) + '</span>'
       + '<button type="button" onclick="_removeCoHost(' + i + ')" aria-label="Remove ' + esc(nm) + '" style="background:none;border:none;cursor:pointer;font-size:15px;line-height:1;color:var(--muted);padding:2px 4px;">×</button>'
       + '</div>');
   });
   _coHostAdds.forEach(function (c, i) {
     rows.push('<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px;padding:6px 10px;background:var(--light);border-radius:8px;">'
-      + '<span style="display:flex;align-items:center;gap:10px;">' + _hpFace(c.photo || "", c.name) + esc(c.name) + '</span>'
+      + '<span>' + esc(c.name) + '</span>'
       + '<button type="button" onclick="_dropPendingCoHost(' + i + ')" aria-label="Remove ' + esc(c.name) + '" style="background:none;border:none;cursor:pointer;font-size:15px;line-height:1;color:var(--muted);padding:2px 4px;">×</button>'
       + '</div>');
   });
@@ -5470,77 +5470,36 @@ function _syncCoHostField() {
   var on = already || !!(want && want.checked);
   row.style.display = on ? "" : "none";
   if (want && already && !want.checked) { want.checked = true; }
-  if (!on) { var e = document.getElementById("f-cohost-name"); if (e) e.value = ""; }
+  if (!on) { var e = document.getElementById("f-cohost-email"); if (e) e.value = ""; }
 }
 window._syncCoHostField = _syncCoHostField;
 
-var _coFaces = {};
-var _coContacts = null;
-var _coTimer = null;
-var _coShown = [];
-function _coLoadContacts() {
-  if (_coContacts !== null) return Promise.resolve(_coContacts);
-  var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
-  var tok = ""; try { tok = localStorage.getItem("cw-token") || ""; } catch (e) {}
-  return fetch(GS_URL + "?action=getContacts&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(tok) + "&t=" + Date.now())
+function _addCoHost() {
+  var inp = document.getElementById("f-cohost-email");
+  var email = inp ? String(inp.value || "").trim() : "";
+  if (!email || email.indexOf("@") === -1) { _coStat("Type their email address.", false); return; }
+  _coStat("Looking…", false);
+  fetch(GS_URL + "?action=findHostByEmail&email=" + encodeURIComponent(email) + "&appearId=" + encodeURIComponent((typeof getRealMemberId === "function" ? getRealMemberId() : "") || "") + "&t=" + Date.now())
     .then(function (r) { return r.json(); })
-    .then(function (d) { _coContacts = (d && d.status === "ok" && Array.isArray(d.contacts)) ? d.contacts : []; return _coContacts; })
-    .catch(function () { _coContacts = []; return _coContacts; });
-}
-function _coSearch() {
-  clearTimeout(_coTimer);
-  _coTimer = setTimeout(_coRun, 250);
-}
-function _coRun() {
-  var inp = document.getElementById("f-cohost-name"), box = document.getElementById("cohost-results");
-  if (!inp || !box) return;
-  var q = String(inp.value || "").trim().toLowerCase();
-  if (q.length < 2) { box.innerHTML = ""; _coShown = []; return; }
-  var me = ""; try { me = getRealMemberId() || ""; } catch (e) {}
-  var have = {};
-  _coHostNames.concat(_coHostAdds.map(function (c) { return c.name; })).forEach(function (n) { have[String(n).toLowerCase()] = 1; });
-  var mem = fetch(GS_URL + "?action=searchMyPeople&appearId=" + encodeURIComponent(me) + "&q=" + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (d) { return (d && Array.isArray(d.people)) ? d.people : []; }).catch(function () { return []; });
-  Promise.all([_coLoadContacts(), mem]).then(function (got) {
-    if (String(inp.value || "").trim().toLowerCase() !== q) return;
-    var out = [], seen = {};
-    got[1].forEach(function (p) {
-      var nm = String(p.name || "").trim(), k = nm.toLowerCase();
-      if (!nm || !p.code || seen[k] || have[k]) return;
-      seen[k] = 1; out.push({ name: nm, photo: String(p.photo || ""), code: String(p.code), email: "", from: "on 2Appear" });
-    });
-    got[0].forEach(function (c) {
-      var nm = String(c.name || "").trim(), k = nm.toLowerCase(), em = String(c.email || "").trim();
-      if (!nm || !em || k.indexOf(q) < 0 || seen[k] || have[k]) return;
-      seen[k] = 1; out.push({ name: nm, photo: "", code: "", email: em, from: "from your contacts" });
-    });
-    _coShown = out.slice(0, 8);
-    if (!_coShown.length) { box.innerHTML = '<p style="font-size:13px;color:var(--muted);margin:0;">Nobody found. Try another name.</p>'; return; }
-    box.innerHTML = _coShown.map(function (p, i) {
-      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 10px;background:#fff;border:1.5px solid var(--border);border-radius:12px;">'
-        + '<span style="display:flex;align-items:center;gap:10px;min-width:0;">' + _hpFace(p.photo, p.name) + '<span style="font-size:14px;font-weight:700;overflow-wrap:anywhere;">' + esc(p.name) + '<br><span style="font-size:12px;font-weight:400;color:var(--muted);">' + esc(p.from) + '</span></span></span>'
-        + '<button type="button" onclick="_coPick(' + i + ')" style="background:#1F699E;border:1.5px solid #1F699E;color:#fff;border-radius:24px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">Add</button></div>';
-    }).join("");
-  });
-}
-function _coPick(i) {
-  var p = _coShown[i]; if (!p) return;
-  var inp = document.getElementById("f-cohost-name"), box = document.getElementById("cohost-results");
-  var done = function () { if (inp) inp.value = ""; if (box) box.innerHTML = ""; _coShown = []; };
-  _coFaces[String(p.name).toLowerCase()] = p.photo || "";
-  if (!editingId) {
-    _coHostAdds.push({ email: p.email, code: p.code, name: p.name, photo: p.photo });
-    done(); _renderCoHosts(); _coStat(p.name + " goes on when you post.", true);
-    return;
-  }
-  var me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
-  _coStat("Adding…", false);
-  fetch(GS_URL + "?action=setEventCoHosts&op=add" + (p.code ? "&codes=" + encodeURIComponent(p.code) : "&emails=" + encodeURIComponent(p.email))
-        + "&eventId=" + encodeURIComponent(editingId) + "&appearId=" + encodeURIComponent(me))
-    .then(function (r2) { return r2.json(); })
-    .then(function (d2) {
-      if (!d2 || d2.status !== "ok") { _coStat((d2 && d2.message) || "That did not go through.", false); return; }
-      if (d2.notFound && d2.notFound.length) { _coStat(p.name + " is not on 2Appear yet.", false); return; }
-      done(); _coHostNames.push(p.name); _renderCoHosts(); _coStat(p.name + " can now edit this event.", true);
+    .then(function (d) {
+      if (!d || !d.found || !d.name) { _coStat("Nobody here answers to that address.", false); return; }
+      if (inp) inp.value = "";
+      if (!editingId) {
+        _coHostAdds.push({ email: email, name: d.name });
+        _renderCoHosts();
+        _coStat(d.name + " goes on when you post.", true);
+        return;
+      }
+      var me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
+      _coStat("Adding…", false);
+      fetch(GS_URL + "?action=setEventCoHosts&op=add&emails=" + encodeURIComponent(email)
+            + "&eventId=" + encodeURIComponent(editingId) + "&appearId=" + encodeURIComponent(me))
+        .then(function (r2) { return r2.json(); })
+        .then(function (d2) {
+          if (!d2 || d2.status !== "ok") { _coStat((d2 && d2.message) || "That did not go through.", false); return; }
+          _coHostNames.push(d.name); _renderCoHosts(); _coStat(d.name + " can now edit this event.", true);
+        })
+        .catch(function () { _coStat("That did not go through.", false); });
     })
     .catch(function () { _coStat("That did not go through.", false); });
 }
@@ -5548,10 +5507,9 @@ function _coPick(i) {
 function _sendCoHosts(eventId) {
   if (!_coHostAdds.length || !eventId) return;
   var me = (typeof getRealMemberId === "function") ? (getRealMemberId() || "") : "";
-  var emails = _coHostAdds.filter(function (c) { return !c.code; }).map(function (c) { return c.email; }).join("|");
-  var codes = _coHostAdds.filter(function (c) { return c.code; }).map(function (c) { return c.code; }).join("|");
+  var emails = _coHostAdds.map(function (c) { return c.email; }).join("|");
   _coHostAdds = [];
-  return fetch(GS_URL + "?action=setEventCoHosts&op=set&emails=" + encodeURIComponent(emails) + "&codes=" + encodeURIComponent(codes)
+  return fetch(GS_URL + "?action=setEventCoHosts&op=set&emails=" + encodeURIComponent(emails)
         + "&eventId=" + encodeURIComponent(eventId) + "&appearId=" + encodeURIComponent(me))
     .catch(function () {});
 }
