@@ -65,6 +65,10 @@
   .who .name.plain{font-weight:400;}
   .stat-w{margin-left:0;}
   .ph-only{display:none !important;}
+  .hacts{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .rqn[hidden]{display:none;}
+  #pane.stale .row .actions-row,#pane.stale .row .ibtn,#pane.stale #add,#pane.stale #rq-btn .rqn{visibility:hidden;}
+  #ct-refresh[hidden]{display:none;}
   @media(max-width:600px){
     .row.ct{display:grid;grid-template-columns:48px minmax(0,1fr) auto;column-gap:12px;row-gap:4px;align-items:start;}
     .row.ct > .av{grid-column:1;grid-row:1;width:48px;height:48px;border-radius:12px;font-size:16px;align-self:center;}
@@ -296,11 +300,11 @@
   <div id="wait"><span class="cw-loading">Loading information...</span></div>
   <div id="pane" class="waiting">
     <div id="head" hidden>
-    <div class="hrow"><h2>Relationship Management System</h2><button class="btn ghost" type="button" id="rq-btn">Requests<span class="rqn" id="rq-n" hidden></span></button></div>
+    <div class="hrow"><h2>Relationship Management System</h2><div class="hacts"><button class="btn ghost" type="button" id="rq-btn">Requests<span class="rqn" id="rq-n" hidden></span></button><button class="btn" type="button" id="add">+ Add contact</button></div></div>
     <p class="sub" id="sub"></p>
+    <p class="bm-wait" id="ct-refresh" hidden>Loading information...</p>
     </div>
     <div id="body" hidden>
-      <div class="notice" style="justify-content:flex-end"><button class="btn" type="button" id="add">+ Add contact</button></div>
       <div class="tools" id="tools" hidden>
         <input type="search" id="find" autocomplete="off" placeholder="Search" aria-label="Search contacts" style="flex:1;min-width:180px;margin:0;">
         <select id="ct-group" aria-label="Narrow by group"><option value="all">All groups</option></select>
@@ -1778,11 +1782,30 @@
   function bmSave() {
     if (bmViewing()) { return; }
     var keep = BMARKS.filter(function (p) { return p.code; }).map(function (p) { return { name: p.name || '', photo: p.photo || '', vanity: p.vanity || '', code: p.code, sourceKind: p.sourceKind || '', sourceTitle: p.sourceTitle || '', at: p.at || '', groups: p.groups || [] }; });
-    try { localStorage.setItem(BM_KEY, JSON.stringify({ who: ME, list: keep })); } catch (e) {}
+    lastPut('list', keep);
+  }
+  function lastGet() { try { var s = JSON.parse(localStorage.getItem(BM_KEY) || 'null'); if (s && s.who === ME) { return s; } localStorage.removeItem(BM_KEY); } catch (e) {} return null; }
+  function lastPut(k, v) { if (bmViewing()) { return; } try { var s = lastGet() || { who: ME }; s.who = ME; s[k] = v; localStorage.setItem(BM_KEY, JSON.stringify(s)); } catch (e) {} }
+  function ctSave(d) {
+    var keep = (d.contacts || []).filter(function (c) { return !c.archived; }).map(function (c) {
+      return { name: c.name || '', photo: /^https:\/\//i.test(String(c.photo || '')) ? c.photo : '', person: c.person || '', addedAt: c.addedAt || '', sourceKind: c.sourceKind || '',
+               groupIds: c.groupIds || [], tag: tagsOf(c).filter(function (t) { return /^invited as/i.test(t); }).join(', ') };
+    });
+    var t = d.tabs || {};
+    lastPut('ct', { contacts: keep, groups: (d.groups || []).map(function (g) { return { groupId: g.groupId, name: g.name }; }),
+      connected: (t.connected || []).map(function (r) { return { person: r.person || '', name: r.name || '', at: r.at || '' }; }),
+      invited: (t.invited || []).map(function (r) { return { kind: r.kind, person: r.person || '', first: r.first || '', title: r.title || '', at: r.at || '' }; }) });
+  }
+  function ctLast() {
+    if (bmViewing()) { return false; }
+    var s = lastGet(), c = s && s.ct;
+    if (!c || !Array.isArray(c.contacts)) { return false; }
+    ALL = c.contacts; GROUPS = c.groups || []; TABS = { connected: c.connected || [], requests: [], invited: c.invited || [] };
+    return true;
   }
   function bmLast() {
     if (bmViewing()) { return; }
-    try { var s = JSON.parse(localStorage.getItem(BM_KEY) || 'null'); if (s && s.who === ME && Array.isArray(s.list)) { BMARKS = s.list; } else { localStorage.removeItem(BM_KEY); } } catch (e) {}
+    var s = lastGet(); if (s && Array.isArray(s.list)) { BMARKS = s.list; }
   }
   function bmPass(c) { return !BMON || !!(c && c.bookmarked); }
   var MSG_ROWS = [], MSG_OK = false;
@@ -1829,11 +1852,18 @@
     try { var q0 = new URLSearchParams(location.search), w0 = String(q0.get('tab') || ''); if (TAB_NAMES.some(function (t) { return t[0] === w0; })) { q0.delete('tab'); var s0 = q0.toString(); history.replaceState(null, '', '/network/' + w0 + (s0 ? '?' + s0 : '') + location.hash); } else if (/^\/network\/contacts\/?$/.test(location.pathname)) { history.replaceState(null, '', '/network/contacts' + location.search + location.hash); } } catch (e) {}
     if (!ME) { say('Sign in to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
     if (/^\/network\/bookmarks\/?$/.test(location.pathname)) { BM_EARLY = true; loadBookmarks(); }
+    if (ctLast()) {
+      say(''); CONTACTS_LOADED = true; $('pane').classList.add('stale'); $('ct-refresh').hidden = false;
+      if (!BM_LOADED) { bmLast(); }
+      if (!$('ctabs')) { buildTabs(); var tl0 = 'contacts'; try { tl0 = String(new URLSearchParams(location.search).get('tab') || (location.pathname.split('/')[2] || 'contacts')); } catch (e) {} showTab(TAB_NAMES.some(function (t) { return t[0] === tl0; }) ? tl0 : 'contacts'); }
+      $('body').hidden = false; $('tools').hidden = !ALL.length; draw();
+    }
     ask('getContacts', {}).then(function (d) {
+      $('pane').classList.remove('stale'); $('ct-refresh').hidden = true;
       if (d && d.code === 'signin') { say('Sign in again to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
       if (!d || d.status !== 'ok') { say((d && d.message) || 'Your contacts did not load. Reload the page and it will try again.'); return; }
       HOSTS = d.hostsEvents !== false; clUse(d.choiceLists); AIOK = d.aiConsent === true; aiDraw(); BMCODE = {}; (d.bookmarkedPeople || []).forEach(function (x) { BMCODE[String(x)] = 1; }); ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; ASKED = {}; ((d.tabs && d.tabs.asked) || []).forEach(function (a) { if (a && a.person) { ASKED[String(a.person)] = a; } }); SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
-      say(''); CONTACTS_LOADED = true;
+      say(''); CONTACTS_LOADED = true; ctSave(d);
       if (/[?&]timing=1/.test(location.search) && d.ms) { try { var tl = document.createElement('p'); tl.className = 'sub'; tl.textContent = 'Load time in milliseconds: ' + JSON.stringify(d.ms) + ', page total ' + (Date.now() - T_START); $('head').appendChild(tl); } catch (e) {} }
       if (!BM_LOADED) { bmLast(); }
       if (!$('ctabs')) { buildTabs(); var t0 = 'contacts'; try { t0 = String(new URLSearchParams(location.search).get('tab') || 'contacts'); } catch (e) {} showTab(TAB_NAMES.some(function (t) { return t[0] === t0; }) ? t0 : 'contacts'); }
@@ -1842,7 +1872,7 @@
       draw();
       loadMessaged().then(function () { $('tools').hidden = !ALL.length; draw(); });
       if (!BM_EARLY) { loadBookmarks(); }
-    }).catch(function () { say('Your contacts did not load. Reload the page and it will try again.'); });
+    }).catch(function () { $('pane').classList.remove('stale'); $('ct-refresh').hidden = true; say('Your contacts did not load. Reload the page and it will try again.'); });
   })();
 </script>
 
