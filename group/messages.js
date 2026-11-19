@@ -415,7 +415,7 @@
       var wp = el('div', 'margin:6px 0 12px;');
       wp.appendChild(waitPill('Opening your conversation\u2026'));
       box.insertBefore(wp, field);
-      api('/who', { body: { id: ctx.meId, token: token(), to: pick } }).then(function (d) {
+      api('/who', { body: { id: ctx.meId, token: token(), to: pick, event: (function(){ try { return String(new URLSearchParams(location.search).get('event') || '').slice(0, 64); } catch (e) { return ''; } })() } }).then(function (d) {
         if (again(d)) return start().then(function () { drawNew(pick); });
         wp.remove();
         if (d && d.status === 'ok' && d.allowed && d.threadId) { drawThread(d.threadId); return; }
