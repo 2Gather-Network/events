@@ -88,7 +88,7 @@
   .stat{display:inline-block;margin-left:10px;font-size:14px;font-weight:600;color:var(--ink);white-space:nowrap;}
   .stat .mk{margin-right:5px;}
   .pending{display:inline-block;margin-left:auto;flex:none;border:1.5px solid #9AA9B8;color:var(--ink);background:#fff;border-radius:22px;padding:4px 12px;font-size:13px;font-weight:600;}
-  .row .av{width:64px;height:64px;border-radius:12px;overflow:hidden;font-size:20px;}
+  .row .av{width:64px;height:64px;border-radius:12px;overflow:hidden;font-size:0;}
   .row .av img{width:100%;height:100%;object-fit:cover;display:block;border-radius:0;}
   .rq-box{flex:1;min-width:0;}
   .rq-info{background:var(--panel);border:1.5px solid var(--panel-line);border-radius:12px;padding:10px 12px;font-size:14.5px;line-height:1.45;margin-top:8px;color:var(--ink);}
@@ -606,6 +606,7 @@
   function contactRow(c) {
       var row = document.createElement('div'); row.className = 'row';
       var av = document.createElement('span'); av.className = 'av'; av.textContent = initials(c.name);
+      if (!/^https:\/\//i.test(String(c.photo || '')) && (c.facePhoto || c.cardPhoto)) { ownPhoto(av, String(c.facePhoto || c.cardPhoto)); }
       if (/^https:\/\//i.test(String(c.photo || ''))) { var im0 = document.createElement('img'); im0.alt = ''; im0.src = String(c.photo); im0.onerror = function () { av.textContent = initials(c.name); }; av.textContent = ''; av.appendChild(im0); }
       var who = document.createElement('div'); who.className = 'who';
       var kind = landWord(c);
@@ -1551,6 +1552,15 @@
     row.appendChild(av); row.appendChild(box); return row;
   }
   var CONNECTED = {};
+  var OWN_PIC = {};
+  function ownPhoto(av, id) {
+    var put = function (u) { var im = document.createElement('img'); im.alt = ''; im.src = u; av.textContent = ''; av.appendChild(im); };
+    if (OWN_PIC[id]) { if (OWN_PIC[id] !== 'x') { put(OWN_PIC[id]); } return; }
+    fetch(PHOTOS + '/c/' + encodeURIComponent(id), { cache: 'force-cache', headers: { 'x-cw-id': ME, 'x-cw-token': token() } })
+      .then(function (r) { if (!r.ok) { throw new Error('nf'); } return r.blob(); })
+      .then(function (b) { OWN_PIC[id] = URL.createObjectURL(b); put(OWN_PIC[id]); })
+      .catch(function () { OWN_PIC[id] = 'x'; });
+  }
   function fillGroups(sel, names) {
     var key = names.join('|'); if (sel.getAttribute('data-k') === key) { return; }
     var cur = sel.value; while (sel.options.length > 1) { sel.remove(1); }
@@ -1721,7 +1731,8 @@
       var irow = personRow(iname, [r.kind === 'group' ? r.email : ''], '');
       var il = document.createElement('div'); il.className = 'line';
       il.appendChild(document.createTextNode(iname + ' invited to ' + (r.kind === 'group' ? 'Group: ' : 'Event: ')));
-      var ib = document.createElement('b'); ib.textContent = r.title || (r.kind === 'group' ? 'a group' : 'an event'); il.appendChild(ib);
+      var ib = document.createElement('b'); ib.textContent = r.title || (r.kind === 'group' ? 'a group' : 'an event');
+      if (r.kind === 'group' && r.groupId) { var ia = document.createElement('a'); ia.href = 'https://2appear.network/group/?id=' + encodeURIComponent(r.groupId); ia.style.color = 'inherit'; ia.appendChild(ib); il.appendChild(ia); } else { il.appendChild(ib); }
       if (r.at) { il.appendChild(document.createTextNode(' on ' + longDate(r.at))); }
       var iw = irow.querySelector('.who'); iw.insertBefore(il, iw.querySelector('.line'));
       var pd = document.createElement('span'); pd.className = 'pending'; pd.textContent = 'Pending';
