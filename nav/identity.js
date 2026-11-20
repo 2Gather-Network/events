@@ -610,8 +610,16 @@
     if (PUBLIC_EXACT.indexOf(here) > -1) { return; }
     if (onAppear && /^\/(hi|me)(\/|\/index\.html)?$/.test(here)) {
       var pubQ = String(w.location.search || '').replace(/^\?/, '');
-      var pubP = ls(function () { return String(new URLSearchParams(pubQ).get('p') || '').trim(); }, '');
-      if (/^[0-9a-z]{6}$/i.test(pubP)) { return; }
+      var pubOk = ls(function () {
+        var u = new URLSearchParams(pubQ), ok = /^[0-9a-z]{6}$/i.test(String(u.get('p') || '').trim());
+        u.forEach(function (v, k) {
+          if (k === 'p' || k === 'cb') { return; }
+          if (k === 'hi' && /^[a-z0-9._-]{1,60}$/i.test(v)) { return; }
+          ok = false;
+        });
+        return ok && u.getAll('p').length === 1;
+      }, false);
+      if (pubOk) { return; }
       if (/^\/hi/.test(here) && pubQ && (/^[^=&]+=?$/.test(pubQ) || /^name=[^&]+$/.test(pubQ))) { return; }
     }
     for (var i = 0; i < OPEN.length; i++) {
