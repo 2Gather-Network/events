@@ -35,6 +35,7 @@
   html.gp-loading #gp-wait .cw-loading{background:#fff;color:#1F699E;}
   .gp-qtitle{font-family:inherit !important;font-size:17px !important;font-weight:800 !important;line-height:1.35 !important;letter-spacing:0 !important;text-transform:none !important;}
   #gp-intro-status:empty{display:none !important;}
+html.gp-pub-asking .card > :not(#gp-pub-ask){display:none !important;}
 </style>
   <script>
   (function () {
@@ -63,6 +64,15 @@
 <div class="wrap">
   <a class="crumb" id="intro-back" role="link" tabindex="0">&lsaquo; Back</a>
   <div class="card">
+    <div id="gp-pub-ask" style="display:none;">
+      <div style="font-size:22px;font-weight:800;color:#1A2E42;margin:0 0 10px;">Do you want to turn on your public profile?</div>
+      <p style="font-size:14.5px;color:#2F3D4F;margin:0 0 20px;line-height:1.55;">Your public profile starts off. If you turn it on, anyone with your profile link can see what you choose to show. Search engines are told not to list it, but you can choose to share your public page, so anyone with the link can view it. You can turn it off or on again any time under <a href="https://2appear.network/account/#permissions" style="color:#1F699E;font-weight:700;">Account permissions</a>.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:420px;">
+        <button type="button" id="gp-pub-yes" style="font:inherit;font-size:15px;font-weight:700;padding:12px 24px;border-radius:24px;border:1.5px solid #1F699E;background:#1F699E;color:#fff;cursor:pointer;">Yes, turn on my public profile</button>
+        <button type="button" id="gp-pub-no" style="font:inherit;font-size:15px;font-weight:700;padding:12px 24px;border-radius:24px;border:1.5px solid #C9DFF3;background:#fff;color:#1F699E;cursor:pointer;">Not now, keep it hidden</button>
+      </div>
+      <div id="gp-pub-say" style="font-size:13.5px;color:#7A2410;margin-top:12px;min-height:18px;"></div>
+    </div>
     <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:0 0 6px;">
       <div style="font-size:22px;font-weight:800;color:#1A2E42;" id="gp-intro-title">Before you go in</div>
       <a id="gp-my-profile" role="link" tabindex="0" style="margin-left:auto;font:inherit;font-size:14px;font-weight:700;padding:8px 16px;border-radius:24px;border:1.5px solid #1F699E;background:#1F699E;color:#fff;text-decoration:none;cursor:pointer;white-space:nowrap;">View public profile</a>
@@ -5323,6 +5333,25 @@
     }
   }
 
+  function gpPublicAsk(v){
+    var box = document.getElementById('gp-pub-ask'); if (!box) return;
+    var blank = String(v == null ? '' : v).trim() === '';
+    var show = blank && !gpViewingSomebodyElse() && !!meId;
+    box.style.display = show ? '' : 'none';
+    document.documentElement.classList.toggle('gp-pub-asking', show);
+    if (!show) return;
+    var answer = function(on){
+      var y = document.getElementById('gp-pub-yes'), n = document.getElementById('gp-pub-no'), say = document.getElementById('gp-pub-say');
+      y.disabled = true; n.disabled = true; say.textContent = '';
+      fetch(GS_URL + '?action=savePermissions&appearId=' + encodeURIComponent(meId) + '&audience=public&publicOn=' + (on ? 'true' : 'false'))
+        .then(function(r){ return r.json(); }).then(function(d){
+          if (d && d.status === 'ok') { try { gpPermLoad(d.permissions || [], on); } catch (e) {} gpPublicAsk(on ? 'TRUE' : 'FALSE'); return; }
+          y.disabled = false; n.disabled = false; say.textContent = 'That did not save. Press it again to try once more.';
+        }).catch(function(){ y.disabled = false; n.disabled = false; say.textContent = 'That did not save. Press it again to try once more.'; });
+    };
+    document.getElementById('gp-pub-yes').onclick = function(){ answer(true); };
+    document.getElementById('gp-pub-no').onclick = function(){ answer(false); };
+  }
   function gpViewingSomebodyElse(){
     try { return !!(window.CW && CW.me && CW.me().viewing); } catch (e) { return false; }
   }
@@ -7286,7 +7315,8 @@
           var _bal = String(have.seekingBalance || '').trim().toLowerCase();
           window._gpBal = _bal === 'true' ? true : (_bal === 'false' ? false : null);
           try { if (window._gpPaintBalance) window._gpPaintBalance(); } catch (e) {}
-          gpPermLoad(have.permissions || [], String(have.visPublic || '').trim().toLowerCase() !== 'false');
+          gpPermLoad(have.permissions || [], String(have.visPublic || '').trim().toLowerCase() === 'true');
+          try { gpPublicAsk(have.visPublic); } catch (e) {}
         window._gpHaveNames = {};
         String(have.haves || '').split('|').forEach(function(h){
           var n = String(h).split(':')[0].trim().replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
