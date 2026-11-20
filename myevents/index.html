@@ -9187,17 +9187,51 @@ function selectInterestSuggestion(val) {
     return out;
   }
 
+  function _pastOnFor(p) {
+    var v = null;
+    try { v = localStorage.getItem('cw-me-past-' + p); } catch (e) {}
+    if (v === '1') return true;
+    if (v === '0') return false;
+    return p === 'hosting';
+  }
+  function _shownCount(p, rows) {
+    var keep = _showPast, past = (p === pane) ? _showPast : _pastOnFor(p), list;
+    try {
+      if (p === 'attending' || p === 'all') {
+        if (p === 'attending' && _extraPending > 0) return null;
+        if (p === 'attending' && p === pane && _showBookmarked) {
+          var bm = _bookmarkedRows();
+          if (bm.length) { list = bm; }
+        }
+        if (!list) {
+          _showPast = past;
+          list = (p === 'all') ? _calendarRows() : _attendingRows();
+          if (!Array.isArray(list)) return null;
+          if (p === 'attending' && !past) { list = list.filter(isUpcoming); }
+        }
+      } else {
+        list = rows.filter(function (r) { return inPane(r, p); });
+        if (p === pane && _showCancelled && p === 'hosting' && _cancelledRows.length) {
+          list = list.concat(_cancelledRows.filter(function (r) { return inPane(r, p) || r.cancelled; }));
+        }
+        list = list.filter(function (r) { return inPane(r, p) || r.cancelled; });
+        if (!past) { list = list.filter(isUpcoming); }
+      }
+      if (_q.trim()) {
+        var needle = _q.trim().toLowerCase();
+        list = list.filter(function (r) { return matchesQuery(r, needle); });
+      }
+      return list.length;
+    } finally { _showPast = keep; }
+  }
+
   function paintCounts(rows) {
     ['attending', 'hosting', 'socialized', 'all'].forEach(function (p) {
       var b = document.querySelector('.manage-tab[data-pane="' + p + '"] span');
       if (!b) return;
-      if (p === 'attending' || p === 'all') {
-        if (p === 'all' && !_isOperator) return;
-        var got = (p === 'all') ? _calendarRows() : _attendingRows();
-        b.textContent = (got && !(p === 'attending' && _extraPending > 0)) ? got.length : '\u00a0';
-        return;
-      }
-      b.textContent = rows.filter(function (r) { return inPane(r, p); }).length;
+      if (p === 'all' && !_isOperator) return;
+      var n = _shownCount(p, rows);
+      b.textContent = (n === null) ? '\u00a0' : n;
     });
     try { _paintPaneSay(pane); } catch (e) {}
   }
