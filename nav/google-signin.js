@@ -96,7 +96,10 @@
 
     var credential = '';
     function ask(action, extra) {
-      return fetch(GS_URL + '?action=' + action + '&credential=' + encodeURIComponent(credential) + (extra || '') + refParam())
+      var site = '';
+      try { var hn = String(location.hostname || ''); site = /(^|\.)2appear\.network$/.test(hn) ? '2appear' : (/(^|\.)2balance\.network$/.test(hn) ? '2balance' : (/(^|\.)creating\.works$/.test(hn) ? 'creatingworks' : '')); } catch (e) {}
+      var fromBit = (site && String(extra || '').indexOf('from=') < 0) ? '&from=' + site : '';
+      return fetch(GS_URL + '?action=' + action + '&credential=' + encodeURIComponent(credential) + (extra || '') + fromBit + refParam())
         .then(function (r) { return r.json(); });
     }
     function handle(resp) {
