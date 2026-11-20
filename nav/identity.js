@@ -608,6 +608,12 @@
     if (ls(function () { return w.localStorage.getItem(LOCK_KEY); }, null) === '0') { return; }
 
     if (PUBLIC_EXACT.indexOf(here) > -1) { return; }
+    if (onAppear && /^\/(hi|me)(\/|\/index\.html)?$/.test(here)) {
+      var pubQ = String(w.location.search || '').replace(/^\?/, '');
+      var pubP = ls(function () { return String(new URLSearchParams(pubQ).get('p') || '').trim(); }, '');
+      if (/^[0-9a-z]{6}$/i.test(pubP)) { return; }
+      if (/^\/hi/.test(here) && pubQ && (/^[^=&]+=?$/.test(pubQ) || /^name=[^&]+$/.test(pubQ))) { return; }
+    }
     for (var i = 0; i < OPEN.length; i++) {
       if (here === OPEN[i] || here.indexOf(OPEN[i] + '/') === 0 || here.indexOf(OPEN[i] + '.') === 0) { return; }
     }
