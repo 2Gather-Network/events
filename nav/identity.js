@@ -578,6 +578,29 @@
     }, 1500);
   })();
 
+  (function renewSignIn() {
+    if (!found || viewingAs()) { return; }
+    var tok = ls(function () { return String(w.localStorage.getItem('cw-token') || ''); }, '');
+    var exp = parseInt(tok.split('.')[1], 10) || 0, left = exp - Date.now();
+    if (!exp || left < 60000 || left > 7 * 24 * 3600 * 1000) { return; }
+    var TRY_KEY = 'cw-renew-try', last = ls(function () { return parseInt(w.localStorage.getItem(TRY_KEY) || '0', 10) || 0; }, 0);
+    if (Date.now() - last < 10 * 60 * 1000) { return; }
+    ls(function () { w.localStorage.setItem(TRY_KEY, String(Date.now())); });
+    var id = ls(function () { return String(w.localStorage.getItem('cw-id') || w.localStorage.getItem('appear-id') || ''); }, '');
+    if (!id || !w.fetch) { return; }
+    w.fetch('https://cw-api-gate.jessieupp.workers.dev?action=renewSignin&appearId=' + encodeURIComponent(id))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.status !== 'ok' || d.renewed !== true || !d.editToken) { return; }
+        var ne = parseInt(String(d.editToken).split('.')[1], 10) || 0;
+        if (!ne || ne <= exp) { return; }
+        ls(function () {
+          if (String(w.localStorage.getItem('cw-token') || '') === tok) { w.localStorage.setItem('cw-token', d.editToken); }
+        });
+      })
+      .catch(function () {});
+  })();
+
   (function wall() {
     if (w._cwJumping) { return; }
     var here = String(w.location.pathname || '/');
