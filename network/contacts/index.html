@@ -115,6 +115,27 @@
   .hacts .btn[hidden]{display:none;}
   .hacts .plus{font-size:16px;margin-right:4px;line-height:1;}
   .row.tap{cursor:pointer;}
+  #cview .cv-back{background:none;border:0;padding:6px 0;margin:0 0 4px;font-family:inherit;font-size:14px;font-weight:700;color:var(--brand);cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  #cview .cv-back svg{width:18px;height:18px;}
+  #cview .cv-head{display:flex;gap:14px;align-items:flex-start;margin-top:4px;}
+  #cview .cv-av{width:64px;height:64px;border-radius:14px;flex:none;overflow:hidden;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;background:linear-gradient(135deg,#7DD3FC,#1F699E);}
+  #cview .cv-av img{width:100%;height:100%;object-fit:cover;}
+  #cview .cv-who{flex:1;min-width:0;}
+  #cview .cv-name{font-size:20px;font-weight:800;line-height:1.25;overflow-wrap:anywhere;}
+  #cview .cv-edit{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 20px;border-radius:24px;font-size:15px;flex:none;}
+  #cview .cv-edit svg,#cview .cv-acts svg{width:18px;height:18px;flex:none;}
+  #cview .cv-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+  #cview .cv-acts .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;white-space:nowrap;}
+  #cview .cv-sec{border-top:1px solid var(--line);margin-top:18px;padding-top:14px;}
+  #cview .cv-sec h3{font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--soft);margin:0 0 8px;}
+  #cview .cv-f{margin:0 0 12px;}
+  #cview .cv-l{font-size:13px;font-weight:700;color:var(--soft);}
+  #cview .cv-v{font-size:15px;line-height:1.5;overflow-wrap:anywhere;white-space:pre-wrap;}
+  #cview .cv-v a{color:var(--brand);}
+  #cview .cv-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+  #cview .cv-added{font-size:14px;color:var(--soft);line-height:1.5;}
+  @media(min-width:700px){#cview .cv-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;}}
+  @media(max-width:699px){#cview .cv-head{flex-wrap:wrap;}#cview .cv-edit{width:100%;order:3;}#cview .cv-acts .btn{flex:1 1 calc(50% - 4px);padding:0 4px;}}
   #edit-added{font-size:14px;color:var(--muted);margin:0 0 10px;}
   @media(max-width:600px){#pane{padding:18px 16px 22px;}}
   .veil{display:block;margin:0 0 18px;}
@@ -346,6 +367,8 @@
   </div>
 </div>
 
+<div class="veil" id="cview" hidden></div>
+
 <div class="veil" id="veil" hidden>
   <div class="sheet" aria-labelledby="edit-h">
     <div class="sh"><h2 id="edit-h">Add contact</h2><button class="x" type="button" aria-label="Close" id="close">✕</button></div>
@@ -521,9 +544,9 @@
 
   try { if (window.cwBreadcrumb) { window.cwBreadcrumb(document.getElementById('breadcrumb'), 'My contacts'); } } catch (e) {}
 
-  ['veil', 'addveil'].forEach(function (id) { var v = document.getElementById(id), b = document.getElementById('body'); if (v && b && b.parentNode) { b.parentNode.appendChild(v); } });
+  ['veil', 'addveil', 'cview'].forEach(function (id) { var v = document.getElementById(id), b = document.getElementById('body'); if (v && b && b.parentNode) { b.parentNode.appendChild(v); } });
   function onlyPanel(id) {
-    ['veil', 'addveil'].forEach(function (x) { document.getElementById(x).hidden = x !== id; });
+    ['veil', 'addveil', 'cview'].forEach(function (x) { document.getElementById(x).hidden = x !== id; });
     document.getElementById('body').hidden = !!id;
     if (id) { window.scrollTo(0, 0); }
   }
@@ -736,7 +759,7 @@
       row.classList.add('ct');
       row.appendChild(av); row.appendChild(who); row.appendChild(acts); row.appendChild(menu); row.appendChild(box2);
       row.classList.add('tap');
-      row.addEventListener('click', function (ev) { if (ev.target.closest('a,button,input,select,textarea,label,.rmenu,.pills')) { return; } openForm(c); });
+      row.addEventListener('click', function (ev) { if (ev.target.closest('a,button,input,select,textarea,label,.rmenu,.pills')) { return; } openView(c); });
       return row;
   }
 
@@ -1377,9 +1400,62 @@
       box.appendChild(d);
     }
   }
-  function closeForm() { onlyPanel(''); EDIT = null; FROM_CARD = false; showPic('card', ''); showPic('face', ''); }
+  var VIEWING = null;
+  function cvIcon(d) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; }
+  function openView(c) {
+    VIEWING = c;
+    var box = $('cview'); box.innerHTML = '';
+    var el = function (t, cls, txt) { var e = document.createElement(t); if (cls) { e.className = cls; } if (txt != null) { e.textContent = txt; } return e; };
+    var back = el('button', 'cv-back'); back.type = 'button'; back.innerHTML = cvIcon('<path d="M15 5l-7 7 7 7"/>'); back.appendChild(document.createTextNode('Back'));
+    back.onclick = function () { VIEWING = null; onlyPanel(''); };
+    box.appendChild(back);
+    var head = el('div', 'cv-head');
+    var av = el('div', 'cv-av', initials(c.name || ''));
+    if (/^https:\/\//i.test(String(c.photo || ''))) { var im = document.createElement('img'); im.alt = ''; im.src = String(c.photo); im.onerror = function () { av.textContent = initials(c.name || ''); im.remove(); }; av.textContent = ''; av.appendChild(im); }
+    else if (c.facePhoto || c.cardPhoto) { ownPhoto(av, String(c.facePhoto || c.cardPhoto)); }
+    var who = el('div', 'cv-who'); var nm = el('div', 'cv-name', c.name || 'No name'); who.appendChild(nm);
+    if (c.person) { nm.appendChild(statusEl(!!CONNECTED[String(c.person)])); }
+    head.appendChild(av); head.appendChild(who);
+    var ed = el('button', 'btn cv-edit'); ed.type = 'button'; ed.innerHTML = cvIcon('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>'); ed.appendChild(document.createTextNode('Edit contact'));
+    ed.onclick = function () { openForm(c); };
+    head.appendChild(ed); box.appendChild(head);
+    if (c.person) {
+      var prof = '/hi/?v=' + encodeURIComponent(c.person);
+      var acts = el('div', 'cv-acts');
+      [['Send message', '/messages/?to=' + encodeURIComponent('c:' + c.person), '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"/>'],
+       ['See profile', prof, '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>'],
+       ['Make an intro', prof + '#intro', '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>'],
+       ['Show appreciation', prof + '#appreciation', '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>']].forEach(function (a) {
+        var b = el('a', 'btn ghost'); b.href = a[1]; b.innerHTML = cvIcon(a[2]); b.appendChild(document.createTextNode(a[0])); acts.appendChild(b);
+      });
+      box.appendChild(acts);
+    }
+    var F = function (l, v) { var f = el('div', 'cv-f'); f.appendChild(el('div', 'cv-l', l)); var vv = el('div', 'cv-v'); if (typeof v === 'string') { vv.textContent = v; } else { vv.appendChild(v); } f.appendChild(vv); return f; };
+    var has = function (v) { return String(v == null ? '' : v).trim() !== ''; };
+    var sec = function (h, nodes, grid) { nodes = nodes.filter(Boolean); if (!nodes.length) { return; } var s = el('div', 'cv-sec'); s.appendChild(el('h3', '', h)); var g = grid ? el('div', 'cv-grid') : s; nodes.forEach(function (n) { g.appendChild(n); }); if (grid) { s.appendChild(g); } box.appendChild(s); };
+    var link = function (href, txt) { var a = document.createElement('a'); a.href = href; a.rel = 'noopener noreferrer'; a.textContent = txt; return a; };
+    var one = function (l, v) { return has(v) ? F(l, String(v)) : null; };
+    sec('About', [one('Role', c.roleOrg), one('Organization', c.organization), has(c.email) ? F('Email', link('mailto:' + c.email, c.email)) : null, has(c.phone) ? F('Phone', link('tel:' + c.phone, c.phone)) : null,
+      has(c.url) && /^https?:\/\//i.test(c.url) ? F('URL', link(c.url, c.url.replace(/^https?:\/\//i, ''))) : null], true);
+    var know = [one('How you met', howLine(c))];
+    var gn = []; (c.person ? (c.groupIds || []) : []).forEach(function (gid) { var g = GROUPS.filter(function (x) { return x.groupId === gid; })[0]; if (g && g.name && gn.indexOf(g.name) < 0) { gn.push(g.name); } });
+    var cints = (c.person && Array.isArray(c.interests)) ? c.interests : [];
+    if (gn.length || cints.length) { know.push(F('In common', bmCommon({ groups: gn, interests: cints }) + ': ' + gn.concat(cints).join(' / '))); }
+    tagsOf(c).filter(function (t) { return /^invited as/i.test(t); }).forEach(function (t) { know.push(F('Invited', t)); });
+    sec('How you know them', know);
+    var tg = tagsOf(c).filter(function (t) { return !/^invited as/i.test(t); });
+    var tgn = null;
+    if (tg.length) { tgn = el('div', 'cv-f'); tgn.appendChild(el('div', 'cv-l', 'Tags')); var tw = el('div', 'cv-tags'); tg.forEach(function (t) { tw.appendChild(el('span', 'pill', t)); }); tgn.appendChild(tw); }
+    var lc = c.lastContacted || lastTouch(c);
+    sec('Follow up', [one('Notes', c.notes), one('What they asked for', c.askedFor), has(lc) ? F('Last contacted', longDate(lc) || String(lc)) : null, has(c.remindOn) ? F('Remind me to reach out on', longDate(c.remindOn) || String(c.remindOn)) : null, tgn], true);
+    var aw = c.addedAt ? added(c.addedAt) : '';
+    if (aw) { var ad = el('div', 'cv-sec'); ad.appendChild(el('div', 'cv-added', 'Added ' + (c.name || 'them') + ' on ' + aw)); box.appendChild(ad); }
+    onlyPanel('cview');
+  }
+  function closeForm() { var v = VIEWING; onlyPanel(''); EDIT = null; FROM_CARD = false; showPic('card', ''); showPic('face', '');
+    if (v) { var fresh = v.contactId ? ALL.filter(function (x) { return x.contactId === v.contactId; })[0] : v; if (fresh) { openView(fresh); } else { VIEWING = null; } } }
   var FROM_CARD = false;
-  $('add').onclick = function () { onlyPanel('addveil'); };
+  $('add').onclick = function () { VIEWING = null; onlyPanel('addveil'); };
   $('add-close').onclick = function () { ADD_WAY = ''; aiDraw(); onlyPanel(''); };
   $('add-type').onclick = function () { FROM_CARD = false; ADD_WAY = ''; aiDraw(); openForm(null); };
   Array.prototype.forEach.call(document.querySelectorAll('#add-ways [data-way]'), function (b) { b.onclick = function () { var w = b.getAttribute('data-way'); if (w === 'pic' && AIOK) { cardPick(); return; } ADD_WAY = ADD_WAY === w ? '' : w; aiDraw(); }; });
@@ -1387,7 +1463,7 @@
   $('add-fetch').onclick = function () { var u = String($('add-url').value || '').trim(); FROM_CARD = false; openForm(null); $('fill-url').value = u; $('fill-fetch').click(); };
   $('close').onclick = closeForm;
   $('cancel').onclick = closeForm;
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && (!$('veil').hidden || !$('addveil').hidden)) { closeForm(); } if (e.key === 'Escape' && !$('fveil').hidden) { $('fveil').hidden = true; } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && (!$('veil').hidden || !$('addveil').hidden)) { closeForm(); } else if (e.key === 'Escape' && !$('cview').hidden) { VIEWING = null; onlyPanel(''); } if (e.key === 'Escape' && !$('fveil').hidden) { $('fveil').hidden = true; } });
 
   function landed(d, okText) {
     BUSY = false; $('save').disabled = false; $('confirm-yes').disabled = false;
