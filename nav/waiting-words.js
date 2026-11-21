@@ -119,6 +119,7 @@
   }
   function oneChip() {
     if (!d.body) { return; }
+    if (chip && !d.documentElement.contains(chip)) { chip = null; }
     var src = sources();
     if (!src.length) {
       if (chip && chip.parentNode) { chip.parentNode.removeChild(chip); }
