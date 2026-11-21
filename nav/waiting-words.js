@@ -120,6 +120,12 @@
   function oneChip() {
     if (!d.body) { return; }
     if (chip && !d.documentElement.contains(chip)) { chip = null; }
+    if (!d.getElementById('cw-onechip-early') && (d.head || d.documentElement)) {
+      var es = d.createElement('style');
+      es.id = 'cw-onechip-early';
+      es.textContent = '.cw-loading:not(.cw-onechip):not(.cw-loading-shown){visibility:hidden !important}';
+      (d.head || d.documentElement).appendChild(es);
+    }
     var src = sources();
     if (!src.length) {
       if (chip && chip.parentNode) { chip.parentNode.removeChild(chip); }
