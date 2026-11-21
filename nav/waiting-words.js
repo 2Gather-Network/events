@@ -101,7 +101,7 @@
       if (!d.getElementById('cw-onechip-style')) {
         var st = d.createElement('style');
         st.id = 'cw-onechip-style';
-        st.textContent = 'html.cw-waiting body > *:not(#cw-topbar):not(#cw-viewas):not(#cw-viewas-pick):not(.cw-onechip){visibility:hidden !important}';
+        st.textContent = 'html.cw-waiting body > *:not(.cw-onechip){visibility:hidden !important}';
         d.head.appendChild(st);
       }
       h.classList.add('cw-waiting');
