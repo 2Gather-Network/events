@@ -747,26 +747,8 @@
       var menu = document.createElement('div'); menu.className = 'rmenu'; menu.hidden = true;
       var pm = document.createElement('div'); pm.className = 'pm'; menu.appendChild(pm);
       var pmn = document.createElement('div'); pmn.className = 'pmn'; pmn.textContent = c.name || 'Someone'; pm.appendChild(pmn);
-      var edm = menuItem('pen', 'Edit contact', ''); edm.className += ' ph-only'; edm.onclick = function () { menu.hidden = true; dots.setAttribute('aria-expanded', 'false'); openForm(c); }; pm.appendChild(edm);
-      if (c.person) {
-        var prof = '/hi/?v=' + encodeURIComponent(c.person);
-        pm.appendChild(menuItem('msg', 'Send message', '/messages/?to=' + encodeURIComponent('c:' + c.person)));
-        pm.appendChild(menuItem('user', 'See profile', prof));
-        pm.appendChild(menuItem('share', 'Make an intro', prof + '#intro'));
-        pm.appendChild(menuItem('plant', 'Show appreciation', prof + '#appreciation'));
-      }
-      var nt = noteItem(); pm.appendChild(nt);
-      var box2 = document.createElement('div'); box2.className = 'rnote'; box2.hidden = true;
-      var ta = document.createElement('textarea'); ta.maxLength = 2000; ta.setAttribute('aria-label', 'Note'); box2.appendChild(ta);
-      var nrow = document.createElement('div'); nrow.className = 'actions-row';
-      var nsave = document.createElement('button'); nsave.type = 'button'; nsave.className = 'btn'; nsave.textContent = 'Save';
-      var ncancel = document.createElement('button'); ncancel.type = 'button'; ncancel.className = 'btn ghost'; ncancel.textContent = 'Cancel';
-      var nmsg = document.createElement('span'); nmsg.className = 'note'; nmsg.style.margin = '0';
-      nrow.appendChild(nsave); nrow.appendChild(ncancel); nrow.appendChild(nmsg); box2.appendChild(nrow);
-      dots.onclick = function () { var open = menu.hidden; menu.hidden = !open; dots.setAttribute('aria-expanded', open ? 'true' : 'false'); };
-      nt.onclick = function () { menu.hidden = true; dots.setAttribute('aria-expanded', 'false'); ta.value = c.notes || ''; nmsg.textContent = ''; box2.hidden = false; ta.focus(); };
-      ncancel.onclick = function () { box2.hidden = true; };
-      nsave.onclick = function () { saveNoteInline(c, ta.value, nsave, nmsg); };
+      var mmc = menuFor({ pm: pm, menu: menu, dots: dots, row: row, name: c.name, code: c.person || '', cc: c, who: who });
+      var box2 = mmc.box2;
       row.classList.add('ct');
       row.appendChild(av); row.appendChild(who); row.appendChild(acts); row.appendChild(menu); row.appendChild(box2);
       row.classList.add('tap');
@@ -848,8 +830,63 @@
     share: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>',
     bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
     plant: '<path d="M12 21v-9"/><path d="M12 12c0-4 3-6 7-6 0 4-3 6-7 6z"/><path d="M12 16c0-3-2-5-6-5 0 3 2 5 6 5z"/>',
+    card: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M14 10h4M14 14h4M6 16c.7-1.5 2-2 3-2s2.3.5 3 2"/>',
     pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>'
   };
+  function menuFor(o) {
+    var pm = o.pm, menu = o.menu, dots = o.dots, row = o.row;
+    var close = function () { menu.hidden = true; dots.setAttribute('aria-expanded', 'false'); };
+    dots.onclick = function () { var open = menu.hidden; menu.hidden = !open; dots.setAttribute('aria-expanded', open ? 'true' : 'false'); };
+    var cc = o.cc || null, code = String(o.code || '');
+    var sy = cc || { name: o.name || '', person: code, photo: o.photo || '', groupIds: [], tag: '', sourceKind: 'bookmark' };
+    var prof = o.prof || ('/hi/?v=' + encodeURIComponent(code));
+    var box2 = null;
+    if (code) { pm.appendChild(menuItem('msg', 'Send message', o.msgHref || ('/messages/?to=' + encodeURIComponent('c:' + code)))); }
+    if (cc) {
+      var nt = noteItem(); pm.appendChild(nt);
+      box2 = document.createElement('div'); box2.className = 'rnote'; box2.hidden = true;
+      var ta = document.createElement('textarea'); ta.maxLength = 2000; ta.setAttribute('aria-label', 'Note'); box2.appendChild(ta);
+      var nrow = document.createElement('div'); nrow.className = 'actions-row';
+      var nsave = document.createElement('button'); nsave.type = 'button'; nsave.className = 'btn'; nsave.textContent = 'Save';
+      var ncancel = document.createElement('button'); ncancel.type = 'button'; ncancel.className = 'btn ghost'; ncancel.textContent = 'Cancel';
+      var nmsg = document.createElement('span'); nmsg.className = 'note'; nmsg.style.margin = '0';
+      nrow.appendChild(nsave); nrow.appendChild(ncancel); nrow.appendChild(nmsg); box2.appendChild(nrow);
+      nt.onclick = function () { close(); ta.value = cc.notes || ''; nmsg.textContent = ''; box2.hidden = false; ta.focus(); };
+      ncancel.onclick = function () { box2.hidden = true; };
+      nsave.onclick = function () { saveNoteInline(cc, ta.value, nsave, nmsg); };
+    }
+    var sc = menuItem('card', 'See contact', ''); sc.onclick = function () { close(); openView(sy); }; pm.appendChild(sc);
+    var ec = menuItem('pen', 'Edit contact', ''); ec.onclick = function () { close(); openForm(sy); }; pm.appendChild(ec);
+    if (code) {
+      pm.appendChild(menuItem('user', 'See profile', prof));
+      pm.appendChild(menuItem('share', 'Make an intro', prof + '#intro'));
+      pm.appendChild(menuItem('plant', 'Show appreciation', prof + '#appreciation'));
+    }
+    if (code && (o.bm || BMCODE[code]) && !bmViewing()) {
+      var rm = menuItem('bookmark', 'Remove bookmark', ''); pm.appendChild(rm);
+      var rmOut = document.createElement('div'); rmOut.className = 'line'; rmOut.hidden = true;
+      rm.onclick = function () {
+        close();
+        ask('saveBookmark', { from: ME, toCode: code, remove: 'true' }).then(function (d) {
+          if (!d || d.status !== 'ok') { throw new Error('no'); }
+          delete BMCODE[code]; BMARKS = BMARKS.filter(function (x) { return String(x.code || '') !== code; }); bmSave(); draw();
+        }).catch(function () { rmOut.style.color = 'var(--bad)'; rmOut.textContent = 'That did not save. Check your connection and try again.'; rmOut.hidden = false; });
+      };
+      var wh = o.who || row.querySelector('.who'); if (wh) { wh.appendChild(rmOut); }
+    }
+    return { box2: box2 };
+  }
+  function addMenuToRow(row, name, code, cc, photo) {
+    var acts = document.createElement('div'); acts.className = 'actions-row';
+    var dots = document.createElement('button'); dots.type = 'button'; dots.className = 'ibtn'; dots.setAttribute('aria-label', 'More'); dots.setAttribute('aria-expanded', 'false');
+    dots.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="#1F699E" stroke="#1F699E" stroke-width="2" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>';
+    acts.appendChild(dots);
+    var menu = document.createElement('div'); menu.className = 'rmenu'; menu.hidden = true;
+    var pm = document.createElement('div'); pm.className = 'pm'; menu.appendChild(pm);
+    var pmn = document.createElement('div'); pmn.className = 'pmn'; pmn.textContent = name || 'Someone'; pm.appendChild(pmn);
+    var mm = menuFor({ pm: pm, menu: menu, dots: dots, row: row, name: name, code: code, cc: cc, photo: photo });
+    row.classList.add('ct'); row.appendChild(acts); row.appendChild(menu); if (mm.box2) { row.appendChild(mm.box2); }
+  }
   function noteItem() {
     var a = menuItem('pen', 'Add a note', ''); var sv = a.querySelector('svg');
     sv.innerHTML = '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>';
@@ -1845,39 +1882,11 @@
       var menu = document.createElement('div'); menu.className = 'rmenu'; menu.hidden = true;
       var pm = document.createElement('div'); pm.className = 'pm'; menu.appendChild(pm);
       var pmn = document.createElement('div'); pmn.className = 'pmn'; pmn.textContent = name; pm.appendChild(pmn);
-      pm.appendChild(menuItem('msg', 'Send message', msgHref));
-      pm.appendChild(menuItem('user', 'See profile', g.href));
-      pm.appendChild(menuItem('share', 'Make an intro', g.href + '#intro'));
-      pm.appendChild(menuItem('plant', 'Show appreciation', g.href + '#appreciation'));
-      if (!bmViewing() && p.code) {
-        var rm = menuItem('bookmark', 'Remove bookmark', ''); pm.appendChild(rm);
-        var rmOut = document.createElement('div'); rmOut.className = 'line'; rmOut.hidden = true;
-        rm.onclick = function () {
-          menu.hidden = true; dots.setAttribute('aria-expanded', 'false');
-          ask('saveBookmark', { from: ME, toCode: String(p.code), remove: 'true' }).then(function (d) {
-            if (!d || d.status !== 'ok') { throw new Error('no'); }
-            BMARKS = BMARKS.filter(function (x) { return x !== p; }); bmSave(); draw();
-          }).catch(function () { rmOut.style.color = 'var(--bad)'; rmOut.textContent = 'That did not save. Check your connection and try again.'; rmOut.hidden = false; });
-        };
-        row.querySelector('.who').appendChild(rmOut);
-      }
       row.classList.add('ct');
       row.appendChild(acts); row.appendChild(menu);
       var cc = p.code ? ALL.filter(function (x) { return x.person === String(p.code); })[0] : null;
-      if (cc) {
-        var nt = noteItem(); pm.appendChild(nt);
-        var box2 = document.createElement('div'); box2.className = 'rnote'; box2.hidden = true;
-        var ta = document.createElement('textarea'); ta.maxLength = 2000; ta.setAttribute('aria-label', 'Note'); box2.appendChild(ta);
-        var nrow = document.createElement('div'); nrow.className = 'actions-row';
-        var nsave = document.createElement('button'); nsave.type = 'button'; nsave.className = 'btn'; nsave.textContent = 'Save';
-        var ncancel = document.createElement('button'); ncancel.type = 'button'; ncancel.className = 'btn ghost'; ncancel.textContent = 'Cancel';
-        var nmsg = document.createElement('span'); nmsg.className = 'note'; nmsg.style.margin = '0';
-        nrow.appendChild(nsave); nrow.appendChild(ncancel); nrow.appendChild(nmsg); box2.appendChild(nrow);
-        nt.onclick = function () { menu.hidden = true; dots.setAttribute('aria-expanded', 'false'); ta.value = cc.notes || ''; nmsg.textContent = ''; box2.hidden = false; ta.focus(); };
-        ncancel.onclick = function () { box2.hidden = true; };
-        nsave.onclick = function () { saveNoteInline(cc, ta.value, nsave, nmsg); };
-        row.appendChild(box2);
-      }
+      var mmb = menuFor({ pm: pm, menu: menu, dots: dots, row: row, name: name, code: p.code ? String(p.code) : '', cc: cc, photo: photo, prof: g.href, msgHref: msgHref, bm: true });
+      if (mmb.box2) { row.appendChild(mmb.box2); }
       dots.onclick = function () { var open = menu.hidden; menu.hidden = !open; dots.setAttribute('aria-expanded', open ? 'true' : 'false'); };
       bk.appendChild(row);
     });
@@ -1897,7 +1906,7 @@
     $('co-tools').hidden = !T.connected.length;
     CO.forEach(function (r) {
       var cc = ALL.filter(function (x) { return x.person && x.person === r.person; })[0];
-      var crow = cc ? contactRow(cc) : personRow(r.name, [], ''); if (!cc) { crow.querySelector('.name').appendChild(statusEl(true)); } cn.appendChild(crow);
+      var crow = cc ? contactRow(cc) : personRow(r.name, [], ''); if (!cc) { crow.querySelector('.name').appendChild(statusEl(true)); addMenuToRow(crow, r.name || '', r.person ? String(r.person) : '', null, r.photo || ''); } cn.appendChild(crow);
     });
     if (T.connected.length && !CO.length) { var nc = document.createElement('p'); nc.className = 'none'; nc.textContent = 'Nobody here matches that.'; cn.appendChild(nc); }
     if (!T.connected.length) { cn.appendChild(emptyBox('connected')); }
@@ -1924,6 +1933,9 @@
       var ipm = document.createElement('div'); ipm.className = 'pm'; imenu.appendChild(ipm);
       var ipn = document.createElement('div'); ipn.className = 'pmn'; ipn.textContent = r.first || r.email || 'Someone'; ipm.appendChild(ipn);
       var iout = document.createElement('div'); iout.className = 'line'; iout.hidden = true;
+      var icc = r.person ? ALL.filter(function (x) { return x.person === String(r.person); })[0] : null;
+      var mmi = menuFor({ pm: ipm, menu: imenu, dots: idots, row: irow, name: iname, code: r.person ? String(r.person) : '', cc: icc, photo: r.photo || '' });
+      if (mmi.box2) { irow.appendChild(mmi.box2); }
       var acts0 = [];
       if (NUDGE_ON && !r.accepted && r.kind === 'group' && r.groupId && r.inviteId && !bmViewing()) { acts0.push(['msg', 'Send gentle nudge', 'nudge']); }
       if (r.kind === 'group' && r.groupId && r.inviteId && !bmViewing()) { acts0.push(['pen', 'Remove invite', 'remove']); }
@@ -1945,7 +1957,6 @@
         };
         ipm.appendChild(it);
       });
-      if (!acts0.length) { idots.hidden = true; }
       idots.onclick = function () { var open = imenu.hidden; imenu.hidden = !open; idots.setAttribute('aria-expanded', open ? 'true' : 'false'); };
       irow.querySelector('.who').appendChild(iout); irow.appendChild(imenu);
       var ph = r.photo || (r.person ? ((ALL.filter(function (x) { return x.person === r.person; })[0] || {}).photo || '') : '');
