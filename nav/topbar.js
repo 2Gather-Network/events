@@ -1195,12 +1195,10 @@
 
   w.CW_ADMIN_HIDDEN = false;
 
-  var FOLD_KEY = 'cw-admin-folded';
-  function folded() { return ls(function () { return w.localStorage.getItem(FOLD_KEY) === '1'; }, false); }
+  var _adminOpen = false;
+  function folded() { return !_adminOpen; }
   function setFolded(v) {
-    ls(function () {
-      if (v) { w.localStorage.setItem(FOLD_KEY, '1'); } else { w.localStorage.removeItem(FOLD_KEY); }
-    });
+    _adminOpen = !v;
     drawAdminBar();
   }
 
