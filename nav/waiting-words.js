@@ -160,7 +160,9 @@
       chip.style.display = 'inline-flex';
       chip.style.alignItems = 'center';
       chip.style.whiteSpace = 'nowrap';
-      chip.textContent = chipLine((firstText && firstText.get(src[0])) || src[0].textContent);
+      var carry = String(w.__cwCarryText || '');
+      w.__cwCarryText = '';
+      chip.textContent = carry || chipLine((firstText && firstText.get(src[0])) || src[0].textContent);
       d.body.appendChild(chip);
     }
     for (var k = 0; k < src.length; k++) { src[k].style.visibility = 'hidden'; }
