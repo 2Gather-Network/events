@@ -632,6 +632,31 @@ function _cwDtPlace() {
   var nv = v ? v.value.trim() : "", na = a ? a.value.trim() : "";
   return { venue: nv, location: na, changed: !!v && (nv !== String(ev.venue || "").trim() || na !== String(ev.location || "").trim()) };
 }
+function _cwDtRep() {
+  var r = document.getElementById("cw-dt-rep"), e = document.getElementById("cw-dt-recend"), ev = _currentEv || {};
+  var was = String(ev.recurFreq || "weekly"), wend = String(ev.recurEnd || "");
+  if (!r || !e || document.getElementById("cw-dt-reprow").hidden) return { freq: was, end: wend, changed: false };
+  var nf = r.value, ne = e.value || "";
+  return { freq: nf, end: ne, changed: nf !== was || ne !== wend };
+}
+function _cwDtSeriesChanged() { return _cwDtPlace().changed || _cwDtRep().changed; }
+function _cwDtRepPreview() {
+  var el = document.getElementById("cw-dt-reppreview"), r = _cwDtRep();
+  if (!el) return;
+  var t = r.changed ? _recurWords(Object.assign({}, _currentEv, { recurFreq: r.freq })) : "";
+  el.textContent = t; el.hidden = !t;
+}
+function _cwDtRepPaint() {
+  var ev = _currentEv, r = _cwDtRep();
+  if (!ev || !r.changed) return;
+  ev.recurFreq = r.freq; ev.recurEnd = r.end;
+  var f = String(r.freq).toLowerCase();
+  var line = f.indexOf("annually") === 0 ? "Repeats every year" : f.indexOf("monthly") === 0 ? "Repeats every month" : f === "biweekly" ? "Repeats every two weeks" : "Repeats every week";
+  var chip = document.querySelector("#ev-meta .ev-recur-chip");
+  if (chip) chip.textContent = line;
+  var say = document.getElementById("ev-recur-say");
+  if (say) say.textContent = _recurWords(ev);
+}
 function _cwDtTimeChanged() {
   var ev = _currentEv || {};
   return document.getElementById("cw-dt-date").value !== String(ev.date || "") || document.getElementById("cw-dt-start").value !== String(ev.time || "") || document.getElementById("cw-dt-end").value !== String(ev.endtime || "");
@@ -639,6 +664,8 @@ function _cwDtTimeChanged() {
 async function _cwDtPlaceSave(id, w) {
   var pl = _cwDtPlace();
   var row = { id: String(id), venue: pl.venue, location: pl.location };
+  var rp = _cwDtRep();
+  if (rp.changed) { row.recurFreq = rp.freq; row.recurEnd = rp.end; }
   try {
     var r = await fetch(GS_URL + "?action=update&event=" + encodeURIComponent(JSON.stringify(row)) + "&appearId=" + encodeURIComponent(w.real) + "&actingAs=" + encodeURIComponent(w.real));
     var d = JSON.parse(await r.text());
@@ -682,7 +709,16 @@ function cwDtOpen() {
   document.getElementById("cw-dt-venue").value = ev.venue || "";
   document.getElementById("cw-dt-addr").value = ev.location || "";
   if (pr) pr.hidden = ev.format === "virtual";
-  if (ph) ph.hidden = ev.format === "virtual" || !/^recurring-/.test(String(ev.id || ""));
+  var isSer = /^recurring-/.test(String(ev.id || "")) && String(ev.seriesId || "").indexOf("rec-") === 0;
+  if (ph) ph.hidden = !isSer;
+  var rr = document.getElementById("cw-dt-reprow");
+  if (rr) {
+    rr.hidden = !isSer;
+    var fv = String(ev.recurFreq || "weekly"), sel = document.getElementById("cw-dt-rep");
+    if (sel) { if (!sel.querySelector('option[value="' + fv + '"]')) { sel.insertAdjacentHTML("beforeend", '<option value="' + fv + '">' + fv + '</option>'); } sel.value = fv; sel.onchange = _cwDtRepPreview; }
+    var ee = document.getElementById("cw-dt-recend"); if (ee) { ee.value = /^\d{4}-\d{2}-\d{2}$/.test(String(ev.recurEnd || "")) ? ev.recurEnd : ""; ee.onchange = _cwDtRepPreview; ee.oninput = _cwDtRepPreview; }
+  }
+  _cwDtRepPreview();
   _cwDtSay("");
   cwDtAsk(false);
   var dn = document.getElementById("cw-dt-done"); if (dn) dn.hidden = true;
@@ -705,18 +741,20 @@ async function cwDtSave() {
     var dq = document.getElementById("cw-dt-date").value, sq = document.getElementById("cw-dt-start").value, eq = document.getElementById("cw-dt-end").value;
     if (!dq) { _cwDtSay("Pick a date.", true); return; }
     if (sq && eq && eq <= sq) { _cwDtSay("The end time comes after the start time.", true); return; }
+    var _rpv = _cwDtRep();
+    if (_rpv.end && dq && _rpv.end < dq) { _cwDtSay("The last day comes on or after this date.", true); return; }
     if (!_cwDtTimeChanged()) {
       var wp = _socWho();
-      if (!wp.real) { _cwDtSay("Sign in to change the place.", true); return; }
+      if (!wp.real) { _cwDtSay("Sign in to change the series.", true); return; }
       if (wp.viewing) { _cwDtSay("You are looking at this as somebody else, so nothing was saved.", true); return; }
-      if (!_cwDtPlace().changed) { cwDtClose(); return; }
+      if (!_cwDtSeriesChanged()) { cwDtClose(); return; }
       var pb = document.getElementById("cw-dt-save"); if (pb) pb.disabled = true;
       _cwDtSay("Saving…");
       var pok = await _cwDtPlaceSave(String(ev.seriesId), wp);
       if (pb) pb.disabled = false;
       if (!pok) { _cwDtSay("That did not save. Try again.", true); return; }
       try { sessionStorage.setItem("cw-wrote-at", String(Date.now())); } catch (e) {}
-      _cwDtPlacePaint(); cwDtClose();
+      _cwDtPlacePaint(); _cwDtRepPaint(); cwDtClose();
       var pd = document.getElementById("cw-dt-done"); if (pd) { pd.textContent = "Saved."; pd.hidden = false; }
       return;
     }
@@ -790,10 +828,10 @@ async function cwDtSaveOcc(mode) {
   } catch (e) { ok = false; }
   if (btn) btn.disabled = false;
   if (!ok) { _cwDtSay(msg || "That did not save. Try again.", true); return; }
-  if (_cwDtPlace().changed) {
+  if (_cwDtSeriesChanged()) {
     var pok2 = await _cwDtPlaceSave(String(ev.seriesId), w);
     if (!pok2) { _cwDtSay("The time saved, but the place did not. Try again.", true); return; }
-    _cwDtPlacePaint();
+    _cwDtPlacePaint(); _cwDtRepPaint();
   }
   try { sessionStorage.setItem("cw-wrote-at", String(Date.now())); } catch (e) {}
   var was = fmtDate(ev.date, ev.time, ev.endtime, ev.endDate);
@@ -1198,7 +1236,12 @@ function render(ev) {
         <div class="cw-dt-col" style="max-width:none;flex:1 1 200px;"><label class="cw-dt-lab" for="cw-dt-venue">Venue</label><input type="text" class="cw-dt-field" id="cw-dt-venue" maxlength="120" autocomplete="off"></div>
         <div class="cw-dt-col" style="max-width:none;flex:1 1 200px;"><label class="cw-dt-lab" for="cw-dt-addr">Address</label><input type="text" class="cw-dt-field" id="cw-dt-addr" maxlength="200" autocomplete="off"></div>
       </div>
-      <p class="cw-dt-hint" id="cw-dt-placehint" hidden>Place changes apply to the whole series.</p>
+      <div class="cw-dt-row" id="cw-dt-reprow" style="margin-top:10px;" hidden>
+        <div class="cw-dt-col" style="max-width:none;flex:1 1 200px;"><label class="cw-dt-lab" for="cw-dt-rep">Repeats</label><select class="cw-dt-field" id="cw-dt-rep"><option value="weekly">Every week</option><option value="biweekly">Every two weeks</option><option value="monthly">Every month, same date</option><option value="monthlyNth">Every month, same weekday</option><option value="annually">Every year, same date</option><option value="annuallyNth">Every year, same weekday</option></select></div>
+        <div class="cw-dt-col" style="max-width:none;flex:1 1 200px;"><label class="cw-dt-lab" for="cw-dt-recend">Last day</label><input type="date" class="cw-dt-field" id="cw-dt-recend"></div>
+      </div>
+      <p class="cw-dt-hint" id="cw-dt-reppreview" hidden></p>
+      <p class="cw-dt-hint" id="cw-dt-placehint" hidden>Place and repeat changes apply to the whole series.</p>
       <div class="cw-dt-ask" id="cw-dt-which" hidden>
         <p class="cw-dt-q">Would you like to edit just this date or the whole series?</p>
         <div class="cw-dt-yn"><button type="button" class="cw-dt-pill" onclick="cwDtSaveOcc('one')">This date</button><button type="button" class="cw-dt-pill" onclick="cwDtSaveOcc('series')">Whole series</button></div>
@@ -3645,6 +3688,7 @@ async function init() {
         ev.id = occId;
         ev.date = nextDate;
         ev.seriesId = tmpl.id;   
+        ev.recurEnd = String(tmpl.recurEnd || '').slice(0, 10);
         _occApply(ev, tmpl, occId);
         const cancelRow = allRows.find(r => String(r.id) === "cancelled-" + occId);
         if (cancelRow) ev.cancelled = true;
@@ -3679,6 +3723,7 @@ async function init() {
         ev.id = id;
         ev.date = dateStr;
         ev.seriesId = recurMatch.id;   
+        try { ev.recurEnd = String((allRows.find(r => String(r.id) === String(recurMatch.id)) || {}).recurEnd || '').slice(0, 10); } catch (e) { ev.recurEnd = ''; }
         _occApply(ev, allRows.find(r => String(r.id) === String(recurMatch.id)), id);
         const cancelRow = allRows.find(r => String(r.id) === "cancelled-" + id);
         if (cancelRow) ev.cancelled = true;
