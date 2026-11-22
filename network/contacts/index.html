@@ -583,6 +583,7 @@
   try { var _m = CW.me(); ME = _m && _m.id ? String(_m.id).trim() : ''; } catch (e) {}
 
   function $(id) { return document.getElementById(id); }
+  function realId() { try { var r = window.CW && typeof CW.realMe === 'function' ? String(CW.realMe().id || '').trim() : ''; if (r) { return r; } } catch (e) {} return ME; }
   function token() { try { return localStorage.getItem('cw-token') || ''; } catch (e) { return ''; } }
   function ask(action, params) {
     var u = GS_URL + '?action=' + action + '&appearId=' + encodeURIComponent(ME) + '&meToken=' + encodeURIComponent(token());
@@ -1145,8 +1146,8 @@
       'Text to read:\n' + (text || '(none - use the image)') + '\n\nReturn ONLY the JSON object, no explanation.';
     var content = image ? [{ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } }, { type: 'text', text: prompt }] : prompt;
     return fetch(READER, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 600, messages: [{ role: 'user', content: content }], ai: 'contacts', appearId: ME, meToken: token() }) })
-      .then(function (r) { if (!r.ok) { throw new Error('read'); } return r.json(); })
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 600, messages: [{ role: 'user', content: content }], ai: 'contacts', appearId: realId(), meToken: token() }) })
+      .then(function (r) { if (!r.ok) { throw new Error('read ' + r.status); } return r.json(); })
       .then(function (data) {
         var out = (data && data.content && data.content[0] && data.content[0].text) || '';
         var m = out.match(/```(?:json)?\s*([\s\S]*?)```/); if (m) { out = m[1]; }
@@ -1169,7 +1170,7 @@
     var url = String($('fill-url').value || '').trim();
     if (!/^https?:\/\/.+/i.test(url)) { fillSay('Please paste a full link starting with http.', true); return; }
     readBusy(true); fillSay('Reading the link');
-    fetch(READER, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url, ai: 'contacts', appearId: ME, meToken: token() }) })
+    fetch(READER, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url, ai: 'contacts', appearId: realId(), meToken: token() }) })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var text = String((data && data.text) || '').trim();
@@ -1203,7 +1204,7 @@
         var image = { mediaType: 'image/jpeg', data: dataUrl.split(',')[1] || '' };
         canvas.toBlob(function (blob) { if (blob) { sendPic('card', blob); } }, 'image/jpeg', 0.82);
         readContact('', image, '').then(function () { readBusy(false); })
-          .catch(function () { readBusy(false); fillSay('Could not read the card. The picture is kept as their business card, so type the details in.', true); });
+          .catch(function (e) { readBusy(false); fillSay('Could not read the card (' + String(e && e.message || 'error').slice(0, 40) + '). The picture is kept as their business card, so type the details in.', true); });
       };
       img.src = reader.result;
     };
