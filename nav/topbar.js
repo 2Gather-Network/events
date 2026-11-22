@@ -514,6 +514,9 @@
       });
       return out;
     }
+    function superLine() {
+      return (onAppear() && window.CW_SUPER_OK === true) ? anchor('All pages', '/all/', 'cwtb-item') : '';
+    }
     function fillMine() {
       var mine = '';
       if (onBalance()) {
@@ -521,7 +524,7 @@
         mine += otherSitesHtml();
         mine += anchor('My account', '/account/', 'cwtb-item');
         mine += anchor('Support', '/support/', 'cwtb-item');
-        mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
+        mine += superLine(); mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
         return mine;
       }
       if (onAppear()) {
@@ -533,13 +536,13 @@
         mine += anchor('Calendar',    '/events/', 'cwtb-item');
         mine += anchor('Account',     '/account/', 'cwtb-item');
         mine += anchor('Support',     '/support/', 'cwtb-item');
-        mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
+        mine += superLine(); mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
         return mine;
       }
       if ((window.location.hostname || '').toLowerCase().indexOf('2gather.network') > -1) {
         mine += anchor('Account',     link(ACCOUNT, 'CWid'), 'cwtb-item');
         mine += anchor('Support',     link(SUPPORT, 'memberCard'), 'cwtb-item');
-        mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
+        mine += superLine(); mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
         return mine;
       }
       mine += anchor('My profile', myIkigaiUrl(), 'cwtb-item');
@@ -548,7 +551,7 @@
       mine += otherSitesHtml();
       mine += anchor('My account', ap ? '/account/' : link(ACCOUNT,  'CWid'),       'cwtb-item');
       mine += anchor('Support',    ap ? '/support/' : link(SUPPORT,  'memberCard'), 'cwtb-item');
-      mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
+      mine += superLine(); mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
       return mine;
     }
 
@@ -1567,12 +1570,14 @@
   }
   var CW_ADMIN_OFF = false;
   if (CW_ADMIN_OFF) {
+    w.CW_SUPER_KNOWN = true;
     ls(function () { w.localStorage.removeItem('cw-super'); });
     return;
   }
 
   var realMeId = (function () { try { return String((w.CW && w.CW.realMe && w.CW.realMe().id) || me.id || ''); } catch (e) { return String(me.id || ''); } })();
   if (!provenSelf(realMeId)) {
+    w.CW_SUPER_KNOWN = true;
     ls(function () { w.localStorage.removeItem('cw-super'); });
     return;
   }
@@ -1582,7 +1587,8 @@
   var fresh = mine && (Date.now() - (stamp.at || 0)) < 3600000 && (stamp.yes !== true || typeof stamp.op === 'boolean');
   if (!mine) { ls(function () { w.localStorage.removeItem('cw-super'); w.localStorage.removeItem('cw-super-for'); }); }
   if (mine) { ls(function () { w.localStorage.setItem('cw-super', stamp.yes === true ? 'yes' : 'no'); }); }
-  if (mine && stamp.yes === true) { superOk = true; operatorOk = stamp.op === true; drawAdminBar(); }
+  if (mine && stamp.yes === true) { superOk = true; w.CW_SUPER_OK = true; w.CW_SUPER_KNOWN = true; operatorOk = stamp.op === true; drawAdminBar(); }
+  if (fresh && stamp.yes !== true) { w.CW_SUPER_KNOWN = true; w.CW_SUPER_OK = false; }
   if (fresh) { return; }
   fetch(GS + '?action=amISuper&appearId=' + encodeURIComponent(realMeId)
         + '&meToken=' + encodeURIComponent(String(w.localStorage.getItem('cw-token') || '')))
@@ -1592,8 +1598,8 @@
       var yes = !!dd.isSuper;
       var opYes = yes && dd.isOperator === true;
       ls(function () { w.localStorage.setItem('cw-super', yes ? 'yes' : 'no'); w.localStorage.setItem('cw-super-for', JSON.stringify({ v: 3, who: whoKey, yes: yes, op: opYes, at: Date.now() })); });
-      if (yes) { superOk = true; operatorOk = opYes; drawAdminBar(); if (w._cwViewPending) { var _vp = w._cwViewPending; w._cwViewPending = null; _vp(); } }
-      else { superOk = false; var had = d.getElementById('cw-viewas'); if (had) { had.remove(); } var hadF = d.getElementById('cw-viewas-folded'); if (hadF) { hadF.remove(); } }
+      w.CW_SUPER_KNOWN = true; if (yes) { superOk = true; w.CW_SUPER_OK = true; operatorOk = opYes; drawAdminBar(); if (w._cwViewPending) { var _vp = w._cwViewPending; w._cwViewPending = null; _vp(); } }
+      else { superOk = false; w.CW_SUPER_OK = false; var had = d.getElementById('cw-viewas'); if (had) { had.remove(); } var hadF = d.getElementById('cw-viewas-folded'); if (hadF) { hadF.remove(); } }
     })
     .catch(function () {});
 })(window, document);
