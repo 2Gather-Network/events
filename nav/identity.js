@@ -114,6 +114,7 @@
   }
   var stored = fromDevice();
   if (stored && !proven(stored)) {
+    ls(function () { var _lg = JSON.parse(w.localStorage.getItem('cw-jump-log') || '[]'); _lg.push(new Date().toLocaleTimeString() + ' /' + String(w.location.pathname || '/').split('/')[1] + ' this device held a sign-in that was past its time or did not match; cleared it'); w.localStorage.setItem('cw-jump-log', JSON.stringify(_lg.slice(-14))); w.console.info('[sign-in check] ' + _lg[_lg.length - 1]); });
     ls(function () { for (var ci = 0; ci < CLEAR.length; ci++) { w.localStorage.removeItem(CLEAR[ci]); } clearAnswerCopies(); });
     stored = '';
   }
@@ -167,7 +168,7 @@
       var asked = '';
       try { asked = (typeof out === 'string') ? out : (out && out.url) || ''; } catch (e) {}
       return p.then(function (r) {
-        try { if (r && r.headers && r.headers.get('X-CW-Signin') === '1' && namesMe(asked)) { signInAgain(); } } catch (e) {}
+        try { if (r && r.headers && r.headers.get('X-CW-Signin') === '1' && namesMe(asked)) { signInAgain(asked); } } catch (e) {}
         return r;
       });
     };
@@ -179,12 +180,13 @@
       for (var i = 0; i < keys.length; i++) { if (normalise(q.get(keys[i]) || '') === mine) { return true; } }
       return false;
     }
-    function signInAgain() {
+    function signInAgain(asked0) {
       if (w._cwSignInAgain) { return; }
       var path = String(w.location.pathname || '/');
       if (/^\/(signin|signup|signin-google)(\/|$)/.test(path)) { return; }
       if (viewingAs()) { jumpLog('a call was refused while viewing as someone; nothing signed out'); return; }
       w._cwSignInAgain = true;
+      jumpLog('a call was refused: ' + String(asked0 || '').replace(/^https?:\/\/[^?]*\?/, '').split('&').filter(function (x) { return /^(action)=/.test(x); }).join(''));
       var fresh = parseInt(ls(function () { return w.localStorage.getItem('cw-jump-arrived'); }, '') || '0', 10) || 0;
       var who = ls(function () { return w.localStorage.getItem('cw-id') || w.localStorage.getItem('appear-id') || ''; }, '');
       var tok = ls(function () { return w.localStorage.getItem('cw-token') || ''; }, '');
@@ -842,6 +844,7 @@
       return true;
     },
     forget: function () {
+      ls(function () { var _lg = JSON.parse(w.localStorage.getItem('cw-jump-log') || '[]'); var _st = String((new Error()).stack || '').split('\n').slice(2, 4).join(' <- ').replace(/https?:\/\/[^\s)]*\//g, ''); _lg.push(new Date().toLocaleTimeString() + ' /' + String(w.location.pathname || '/').split('/')[1] + ' signed out on this device by ' + _st); w.localStorage.setItem('cw-jump-log', JSON.stringify(_lg.slice(-14))); w.console.info('[sign-in check] ' + _lg[_lg.length - 1]); });
       ls(function () {
         for (var i = 0; i < CLEAR.length; i++) { w.localStorage.removeItem(CLEAR[i]); }
         ss(function () {
