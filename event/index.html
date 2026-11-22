@@ -139,6 +139,7 @@
     .cw-dt-row { display:flex; flex-wrap:wrap; gap:10px 12px; }
     .cw-dt-col { display:flex; flex-direction:column; gap:4px; flex:1 1 140px; max-width:260px; }
     .cw-dt-lab { font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:#2F3D4F; }
+    .cw-dt-hint { font-size:13px; color:#6B7A8D; margin:0 0 8px; }
     .cw-dt-field { box-sizing:border-box; width:100%; height:38px; border:1.5px solid #C9DFF3; border-radius:12px; background:#fff; padding:0 10px; font-family:inherit; font-size:14px; font-weight:400; color:#1A2E42; }
     .cw-dt-pill { background:#fff; color:#1F699E; border:1.5px solid #1F699E; border-radius:24px; font-family:inherit; font-size:13px; font-weight:700; padding:7px 14px; cursor:pointer; }
     .cw-dt-q { font-size:14px; font-weight:700; color:#1A2E42; margin:14px 0 8px; }
@@ -626,6 +627,41 @@ function cwDtAsk(yes) {
   if (y) y.classList.toggle("on", _cwDtYes);
   if (n) n.classList.toggle("on", !_cwDtYes);
 }
+function _cwDtPlace() {
+  var v = document.getElementById("cw-dt-venue"), a = document.getElementById("cw-dt-addr"), ev = _currentEv || {};
+  var nv = v ? v.value.trim() : "", na = a ? a.value.trim() : "";
+  return { venue: nv, location: na, changed: !!v && (nv !== String(ev.venue || "").trim() || na !== String(ev.location || "").trim()) };
+}
+function _cwDtTimeChanged() {
+  var ev = _currentEv || {};
+  return document.getElementById("cw-dt-date").value !== String(ev.date || "") || document.getElementById("cw-dt-start").value !== String(ev.time || "") || document.getElementById("cw-dt-end").value !== String(ev.endtime || "");
+}
+async function _cwDtPlaceSave(id, w) {
+  var pl = _cwDtPlace();
+  var row = { id: String(id), venue: pl.venue, location: pl.location };
+  try {
+    var r = await fetch(GS_URL + "?action=update&event=" + encodeURIComponent(JSON.stringify(row)) + "&appearId=" + encodeURIComponent(w.real) + "&actingAs=" + encodeURIComponent(w.real));
+    var d = JSON.parse(await r.text());
+    return !!(d && d.status === "ok");
+  } catch (e) { return false; }
+}
+function _cwDtPlacePaint() {
+  var ev = _currentEv, pl = _cwDtPlace();
+  if (!ev) return;
+  ev.venue = pl.venue; ev.location = pl.location;
+  var el = document.querySelector("#ev-meta .ev-place");
+  var parts = pl.location.split(",").map(function (t) { return t.trim(); }).filter(Boolean), city = "";
+  for (var i = 1; i < parts.length; i++) { if (/^[A-Z]{2}(\s+\d{5}(-\d{4})?)?$/.test(parts[i])) { city = parts[i - 1]; break; } }
+  var text = pl.venue ? (pl.venue + (city && pl.venue.toLowerCase().indexOf(city.toLowerCase()) < 0 ? ", " + city : "")) : pl.location;
+  if (!el) return;
+  el.textContent = "";
+  if (!text) return;
+  if (pl.location) {
+    var a = document.createElement("a");
+    a.href = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(pl.venue ? pl.venue + ", " + pl.location : pl.location);
+    a.rel = "noopener"; a.textContent = text; el.appendChild(a);
+  } else { el.textContent = text; }
+}
 function cwDtChanged() {
   var ev = _currentEv, a = document.getElementById("cw-dt-ask");
   if (!ev || !a) return;
@@ -642,6 +678,11 @@ function cwDtOpen() {
   document.getElementById("cw-dt-date").value = /^\d{4}-\d{2}-\d{2}$/.test(String(ev.date || "")) ? ev.date : "";
   document.getElementById("cw-dt-start").value = ev.time || "";
   document.getElementById("cw-dt-end").value = ev.endtime || "";
+  var pr = document.getElementById("cw-dt-placerow"), ph = document.getElementById("cw-dt-placehint");
+  document.getElementById("cw-dt-venue").value = ev.venue || "";
+  document.getElementById("cw-dt-addr").value = ev.location || "";
+  if (pr) pr.hidden = ev.format === "virtual";
+  if (ph) ph.hidden = ev.format === "virtual" || !/^recurring-/.test(String(ev.id || ""));
   _cwDtSay("");
   cwDtAsk(false);
   var dn = document.getElementById("cw-dt-done"); if (dn) dn.hidden = true;
@@ -664,6 +705,21 @@ async function cwDtSave() {
     var dq = document.getElementById("cw-dt-date").value, sq = document.getElementById("cw-dt-start").value, eq = document.getElementById("cw-dt-end").value;
     if (!dq) { _cwDtSay("Pick a date.", true); return; }
     if (sq && eq && eq <= sq) { _cwDtSay("The end time comes after the start time.", true); return; }
+    if (!_cwDtTimeChanged()) {
+      var wp = _socWho();
+      if (!wp.real) { _cwDtSay("Sign in to change the place.", true); return; }
+      if (wp.viewing) { _cwDtSay("You are looking at this as somebody else, so nothing was saved.", true); return; }
+      if (!_cwDtPlace().changed) { cwDtClose(); return; }
+      var pb = document.getElementById("cw-dt-save"); if (pb) pb.disabled = true;
+      _cwDtSay("Saving…");
+      var pok = await _cwDtPlaceSave(String(ev.seriesId), wp);
+      if (pb) pb.disabled = false;
+      if (!pok) { _cwDtSay("That did not save. Try again.", true); return; }
+      try { sessionStorage.setItem("cw-wrote-at", String(Date.now())); } catch (e) {}
+      _cwDtPlacePaint(); cwDtClose();
+      var pd = document.getElementById("cw-dt-done"); if (pd) { pd.textContent = "Saved."; pd.hidden = false; }
+      return;
+    }
     if (wq) { wq.hidden = false; _cwDtSay(""); }
     return;
   }
@@ -680,6 +736,8 @@ async function cwDtSave() {
   }
   var row = { id: String(ev.id), date: date, startTime: start, endTime: end };
   if (endDate || ev.endDate) row.endDate = endDate;
+  var plc = _cwDtPlace();
+  if (plc.changed) { row.venue = plc.venue; row.location = plc.location; }
   var btn = document.getElementById("cw-dt-save");
   if (btn) btn.disabled = true;
   _cwDtSay("Saving…");
@@ -695,6 +753,7 @@ async function cwDtSave() {
   var was = fmtDate(ev.date, ev.time, ev.endtime, ev.endDate);
   var wantMail = _cwDtYes;
   ev.date = date; ev.time = start; ev.endtime = end; ev.endDate = endDate;
+  if (plc.changed) { _cwDtPlacePaint(); }
   var t = document.getElementById("ev-when-text");
   if (t) t.textContent = fmtDate(ev.date, ev.time, ev.endtime, ev.endDate);
   cwDtClose();
@@ -731,6 +790,11 @@ async function cwDtSaveOcc(mode) {
   } catch (e) { ok = false; }
   if (btn) btn.disabled = false;
   if (!ok) { _cwDtSay(msg || "That did not save. Try again.", true); return; }
+  if (_cwDtPlace().changed) {
+    var pok2 = await _cwDtPlaceSave(String(ev.seriesId), w);
+    if (!pok2) { _cwDtSay("The time saved, but the place did not. Try again.", true); return; }
+    _cwDtPlacePaint();
+  }
   try { sessionStorage.setItem("cw-wrote-at", String(Date.now())); } catch (e) {}
   var was = fmtDate(ev.date, ev.time, ev.endtime, ev.endDate);
   var wantMail = _cwDtYes;
@@ -1130,6 +1194,11 @@ function render(ev) {
         <div class="cw-dt-col"><label class="cw-dt-lab" for="cw-dt-start">Starts</label><input type="time" class="cw-dt-field" id="cw-dt-start"></div>
         <div class="cw-dt-col"><label class="cw-dt-lab" for="cw-dt-end">Ends</label><input type="time" class="cw-dt-field" id="cw-dt-end"></div>
       </div>
+      <div class="cw-dt-row" id="cw-dt-placerow" style="margin-top:10px;">
+        <div class="cw-dt-col" style="max-width:none;flex:1 1 200px;"><label class="cw-dt-lab" for="cw-dt-venue">Venue</label><input type="text" class="cw-dt-field" id="cw-dt-venue" maxlength="120" autocomplete="off"></div>
+        <div class="cw-dt-col" style="max-width:none;flex:1 1 200px;"><label class="cw-dt-lab" for="cw-dt-addr">Address</label><input type="text" class="cw-dt-field" id="cw-dt-addr" maxlength="200" autocomplete="off"></div>
+      </div>
+      <p class="cw-dt-hint" id="cw-dt-placehint" hidden>Place changes apply to the whole series.</p>
       <div class="cw-dt-ask" id="cw-dt-which" hidden>
         <p class="cw-dt-q">Would you like to edit just this date or the whole series?</p>
         <div class="cw-dt-yn"><button type="button" class="cw-dt-pill" onclick="cwDtSaveOcc('one')">This date</button><button type="button" class="cw-dt-pill" onclick="cwDtSaveOcc('series')">Whole series</button></div>
@@ -4498,6 +4567,10 @@ html.cw-tplview #ux237-pills .ev-recur-chip, html.cw-tplview .cw-rl-rail .ux105-
 html.cw-tplview #ux237-pills .ev-recur-chip::before { content:""; width:19px; height:19px; flex:0 0 19px; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231F699E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 2l4 4-4 4'/%3E%3Cpath d='M3 11V9a3 3 0 0 1 3-3h15'/%3E%3Cpath d='M7 22l-4-4 4-4'/%3E%3Cpath d='M21 13v2a3 3 0 0 1-3 3H3'/%3E%3C/svg%3E") center/16px 16px no-repeat; }
 html.cw-tplview .ux105-box #ux237-pills { margin:0 0 6px; }
 html.cw-tplview #ev-meta > div:empty { display:none !important; }
+html.cw-is-host #cw-m2-bar > .cw-dt-edit { display:inline-flex !important; margin-left:auto !important; flex:0 0 34px !important; width:34px !important; height:34px !important; min-height:0 !important; padding:0 !important; border-radius:50% !important; border:1.5px solid #1F699E !important; background:#fff !important; position:static !important; }
+html.cw-is-host #cw-m2-bar > .cw-dt-edit { align-items:center !important; justify-content:center !important; box-sizing:border-box !important; height:34px !important; max-height:34px !important; }
+html.cw-is-host #cw-m2-bar > .cw-dt-edit svg { display:block !important; width:16px !important; height:16px !important; min-width:16px !important; flex:0 0 16px !important; margin:0 !important; }
+html.cw-is-host #cw-m2-bar > .cw-dt-edit::before, html.cw-is-host #cw-m2-bar > .cw-dt-edit::after { display:none !important; content:none !important; }
 .cw-m2-icons > .ev-star { display:inline-flex !important; align-items:center; justify-content:center; box-sizing:border-box; width:36px; height:36px; flex:0 0 36px; margin:0 8px 0 0; border:1.5px solid #DDE4EE; border-radius:50%; background:#fff; vertical-align:middle; }
 html.cw-look2 .cw-m2-icons > .ev-star { width:36px; height:36px; flex:0 0 36px; margin:0; border:1.5px solid #DDE4EE; }
 .cw-m2-icons > .ev-star svg, html.cw-look2 .cw-m2-icons > .ev-star svg { width:18px; height:18px; }
@@ -4604,6 +4677,10 @@ html.cw-look2 .cw-m2-icons { display:flex; align-items:center; gap:8px; margin-l
         if (_star.style.display === 'none') { _star.style.display = ''; }
         _star.removeAttribute('data-ux105-hid');
       }
+      try {
+        var _dtb = document.getElementById('cw-dt-edit'), _dbar = document.getElementById('cw-m2-bar');
+        if (_dtb && _dbar && _dbar.querySelector('.cw-cal-btn') && _dtb.parentNode !== _dbar) { _dbar.appendChild(_dtb); }
+      } catch (e) {}
       var _meta = document.getElementById('ev-meta');
       if (_meta) {
         var _when = _meta.querySelector('.cw-m2-when');
@@ -4614,6 +4691,8 @@ html.cw-look2 .cw-m2-icons { display:flex; align-items:center; gap:8px; margin-l
           if (!_pl) { _pl = document.createElement('div'); _pl.id = 'ux237-pills'; _when.parentNode.insertBefore(_pl, _when.nextSibling); }
           if (_fl) { while (_fl.firstChild) { _pl.appendChild(_fl.firstChild); } _fl.style.display = 'none'; }
           if (_chip && _chip.parentNode !== _pl) { _pl.appendChild(_chip); }
+          var _say = document.getElementById('ev-recur-say');
+          if (_say && _pl.nextSibling !== _say) { _pl.parentNode.insertBefore(_say, _pl.nextSibling); }
         }
       }
       var crumbNow = document.querySelector('.cw-crumb > span');
