@@ -185,41 +185,43 @@
       if (/^\/(signin|signup|signin-google)(\/|$)/.test(path)) { return; }
       if (viewingAs()) { jumpLog('a call was refused while viewing as someone; nothing signed out'); return; }
       w._cwSignInAgain = true;
-      if (jumpOn()) {
-        var fresh = parseInt(ls(function () { return w.localStorage.getItem('cw-jump-arrived'); }, '') || '0', 10) || 0;
-        var who = ls(function () { return w.localStorage.getItem('cw-id') || w.localStorage.getItem('appear-id') || ''; }, '');
-        var tok = ls(function () { return w.localStorage.getItem('cw-token') || ''; }, '');
-        if (Date.now() - fresh <= 2 * 60 * 1000 && who && tok) {
-          w.setTimeout(function () {
-            orig.call(w, 'https://cw-api-gate.jessieupp.workers.dev?action=getPermissions&appearId=' + encodeURIComponent(who) + '&meToken=' + encodeURIComponent(tok) + '&nocache=' + Date.now(), { referrerPolicy: 'no-referrer' })
-              .then(function (r2) {
-                if (r2 && r2.headers && r2.headers.get('X-CW-Signin') === '1') {
-                  jumpLog('the sign-in the service gave was refused twice; signing out every site here');
-                  endedEverywhere();
-                } else {
-                  w._cwSignInAgain = false;
-                  jumpLog('one refused answer, the second was fine; staying signed in');
-                }
-              })
-              .catch(function () { w._cwSignInAgain = false; jumpLog('one refused answer, the second did not arrive; staying signed in'); });
-          }, 2000);
-          return;
+      var fresh = parseInt(ls(function () { return w.localStorage.getItem('cw-jump-arrived'); }, '') || '0', 10) || 0;
+      var who = ls(function () { return w.localStorage.getItem('cw-id') || w.localStorage.getItem('appear-id') || ''; }, '');
+      var tok = ls(function () { return w.localStorage.getItem('cw-token') || ''; }, '');
+      var justArrived = jumpOn() && Date.now() - fresh <= 2 * 60 * 1000;
+      function leave() {
+        try { if (w.CW && w.CW.forget) { w.CW.forget(); } } catch (e) {}
+        var onCW = String(w.location.hostname || '').indexOf('creating.works') >= 0;
+        var back = path + String(w.location.search || '') + String(w.location.hash || '').replace(/^#cwview=.*$/, '');
+        if (jumpOn()) {
+          var arrived = parseInt(ls(function () { return w.localStorage.getItem('cw-jump-arrived'); }, '') || '0', 10) || 0;
+          ls(function () { w.localStorage.removeItem('cw-jump-known'); });
+          if (Date.now() - arrived > 2 * 60 * 1000) {
+            ls(function () { w.localStorage.removeItem('cw-jump-wait'); });
+            w.location.replace(back);
+            return;
+          }
+          ls(function () { w.localStorage.setItem('cw-jump-wait', String(Date.now() + 30 * 60 * 1000)); });
         }
+        w.location.replace(onCW ? '/' : '/signin/?next=' + encodeURIComponent(back));
       }
-      try { if (w.CW && w.CW.forget) { w.CW.forget(); } } catch (e) {}
-      var onCW = String(w.location.hostname || '').indexOf('creating.works') >= 0;
-      var back = path + String(w.location.search || '') + String(w.location.hash || '').replace(/^#cwview=.*$/, '');
-      if (jumpOn()) {
-        var arrived = parseInt(ls(function () { return w.localStorage.getItem('cw-jump-arrived'); }, '') || '0', 10) || 0;
-        ls(function () { w.localStorage.removeItem('cw-jump-known'); });
-        if (Date.now() - arrived > 2 * 60 * 1000) {
-          ls(function () { w.localStorage.removeItem('cw-jump-wait'); });
-          w.location.replace(back);
-          return;
-        }
-        ls(function () { w.localStorage.setItem('cw-jump-wait', String(Date.now() + 30 * 60 * 1000)); });
+      if (who && tok) {
+        w.setTimeout(function () {
+          orig.call(w, 'https://cw-api-gate.jessieupp.workers.dev?action=getPermissions&appearId=' + encodeURIComponent(who) + '&meToken=' + encodeURIComponent(tok) + '&nocache=' + Date.now(), { referrerPolicy: 'no-referrer' })
+            .then(function (r2) {
+              if (r2 && r2.headers && r2.headers.get('X-CW-Signin') === '1') {
+                jumpLog('the sign-in the service gave was refused twice; signing out');
+                if (justArrived) { endedEverywhere(); } else { leave(); }
+              } else {
+                w._cwSignInAgain = false;
+                jumpLog('one refused answer, the second was fine; staying signed in');
+              }
+            })
+            .catch(function () { w._cwSignInAgain = false; jumpLog('one refused answer, the second did not arrive; staying signed in'); });
+        }, justArrived ? 2000 : 1000);
+        return;
       }
-      w.location.replace(onCW ? '/' : '/signin/?next=' + encodeURIComponent(back));
+      leave();
     }
   })();
 
