@@ -1587,7 +1587,7 @@
   var fresh = mine && (Date.now() - (stamp.at || 0)) < 3600000 && (stamp.yes !== true || typeof stamp.op === 'boolean');
   if (!mine) { ls(function () { w.localStorage.removeItem('cw-super'); w.localStorage.removeItem('cw-super-for'); }); }
   if (mine) { ls(function () { w.localStorage.setItem('cw-super', stamp.yes === true ? 'yes' : 'no'); }); }
-  if (mine && stamp.yes === true) { superOk = true; w.CW_SUPER_OK = true; w.CW_SUPER_KNOWN = true; operatorOk = stamp.op === true; drawAdminBar(); }
+  if (mine && stamp.yes === true) { superOk = true; w.CW_SUPER_OK = true; w.CW_SUPER_KNOWN = true; operatorOk = stamp.op === true; w.CW_OPERATOR_OK = operatorOk; drawAdminBar(); }
   if (fresh && stamp.yes !== true) { w.CW_SUPER_KNOWN = true; w.CW_SUPER_OK = false; }
   if (fresh) { return; }
   fetch(GS + '?action=amISuper&appearId=' + encodeURIComponent(realMeId)
@@ -1598,7 +1598,7 @@
       var yes = !!dd.isSuper;
       var opYes = yes && dd.isOperator === true;
       ls(function () { w.localStorage.setItem('cw-super', yes ? 'yes' : 'no'); w.localStorage.setItem('cw-super-for', JSON.stringify({ v: 3, who: whoKey, yes: yes, op: opYes, at: Date.now() })); });
-      w.CW_SUPER_KNOWN = true; if (yes) { superOk = true; w.CW_SUPER_OK = true; operatorOk = opYes; drawAdminBar(); if (w._cwViewPending) { var _vp = w._cwViewPending; w._cwViewPending = null; _vp(); } }
+      w.CW_SUPER_KNOWN = true; if (yes) { superOk = true; w.CW_SUPER_OK = true; operatorOk = opYes; w.CW_OPERATOR_OK = opYes; drawAdminBar(); if (w._cwViewPending) { var _vp = w._cwViewPending; w._cwViewPending = null; _vp(); } }
       else { superOk = false; w.CW_SUPER_OK = false; var had = d.getElementById('cw-viewas'); if (had) { had.remove(); } var hadF = d.getElementById('cw-viewas-folded'); if (hadF) { hadF.remove(); } }
     })
     .catch(function () {});
