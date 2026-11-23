@@ -159,9 +159,14 @@
   #introveil .sheet label,#introveil .sheet .q{font-weight:800;}
   #introveil #in-who,#introveil #in-msg{font-weight:400;}
   #introveil #in-list[hidden]{display:none;}
+  #introveil .in-pair{display:flex;align-items:center;gap:14px;margin:0 0 14px;}
+  #introveil #in-pair .in-av{width:64px;height:64px;border-radius:14px;flex:none;overflow:hidden;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;background:linear-gradient(135deg,#7DD3FC,#1F699E);}
+  #introveil .in-pair .in-av img{width:100%;height:100%;object-fit:cover;}
+  #introveil #in-pair .in-av.in-q{background:#fff;border:1.5px dashed #1F699E;color:#1F699E;}
+  #introveil #in-pair .in-arrow.in-arrow{font-size:28px;font-weight:800;color:#1F699E;line-height:1;}
   #introveil #in-msg{min-height:0;height:64px;}
-  #introveil #in-prev{padding:8px 12px;}
-  #introveil #in-prev p{margin:0 0 6px;line-height:1.4;}
+  #introveil #in-prev{padding:14px 16px;}
+  #introveil #in-prev p{margin:0 0 14px;line-height:1.55;}
   @media(max-width:600px){#introveil .sheet *:not(.btn):not(.btn-o){font-size:16px;}}
   .sheet{background:#fff;width:100%;}
   .sh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
@@ -395,8 +400,14 @@
 
 <div class="veil" id="introveil" hidden>
   <div class="sheet" aria-labelledby="in-h">
+    <div class="in-pair" id="in-pair" aria-hidden="true"></div>
     <p class="in-t" id="in-lede"></p>
-    <div class="field"><label for="in-who">Introduce them to someone in your contacts:</label><input type="search" id="in-who" maxlength="100" autocomplete="off" aria-controls="in-list"><div id="in-list" role="listbox" hidden></div></div>
+    <div class="field"><label for="in-who">Introduce them to someone in your contacts:</label><input type="search" id="in-who" maxlength="100" autocomplete="off" aria-controls="in-list" placeholder="🔍 Search my contacts"><div id="in-list" role="listbox" hidden></div></div>
+    <div id="in-new" hidden>
+      <div class="field"><label for="in-name">Name</label><input type="text" id="in-name" maxlength="100" autocomplete="off"></div>
+      <div class="field"><label for="in-email">Email</label><input type="email" id="in-email" maxlength="200" autocomplete="off"></div>
+      <p class="in-t">They will be added to your contacts.</p>
+    </div>
     <div class="field"><label for="in-msg">Introduction message:</label><textarea id="in-msg" rows="2" maxlength="1000" placeholder="Optional. Add a line of your own."></textarea></div>
     <p class="in-t" id="in-rule">Introductions are for connecting people, not for selling or advertising.</p>
     <div class="field"><span class="q">What each of them will receive via email:</span><div class="rnote" id="in-prev" style="line-height:1.55;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;"></div></div>
@@ -1600,15 +1611,28 @@
   function openIntro(c) {
     INTRO_FOR = c; var nm = c.name || 'them';
     $('in-lede').textContent = 'Who would you like to introduce ' + nm + ' to within your contacts? Each of them will get an email asking if they want to be introduced. Nothing is shared until both say yes.';
-    INTRO_TO = null; $('in-who').value = ''; $('in-list').hidden = true;
+    INTRO_TO = null; $('in-who').value = ''; $('in-list').hidden = true; $('in-new').hidden = true; $('in-name').value = ''; $('in-email').value = '';
     $('in-msg').value = ''; $('in-say').hidden = true;
     introPrev(); onlyPanel('introveil');
   }
+  function introAv(x) {
+    var d = document.createElement('div'); d.className = 'in-av'; d.textContent = initials((x && x.name) || '');
+    if (x && /^https:\/\//i.test(String(x.photo || ''))) { var im = document.createElement('img'); im.alt = ''; im.src = String(x.photo); im.onerror = function () { im.remove(); d.textContent = initials(x.name || ''); }; d.textContent = ''; d.appendChild(im); }
+    else if (x && (x.facePhoto || x.cardPhoto)) { try { ownPhoto(d, String(x.facePhoto || x.cardPhoto)); } catch (e) {} }
+    return d;
+  }
+  function introPair() {
+    var box = $('in-pair'); box.innerHTML = ''; if (!INTRO_FOR) { return; }
+    box.appendChild(introAv(INTRO_FOR));
+    var ar = document.createElement('span'); ar.className = 'in-arrow'; ar.textContent = INTRO_TO ? '\u2194' : '\u2192'; box.appendChild(ar);
+    if (INTRO_TO) { box.appendChild(introAv(INTRO_TO)); } else { var q = document.createElement('div'); q.className = 'in-av in-q'; q.textContent = '?'; box.appendChild(q); }
+  }
   function introPrev() {
+    introPair();
     var c = INTRO_FOR; if (!c) { return; }
     var first = function (n) { return String(n || '').trim().split(/\s+/)[0] || '...'; };
     var typed = String($('in-msg').value || '').trim();
-    var me = ''; try { me = String((CW.me() || {}).name || '').trim(); } catch (e) {}
+    var me = introMe();
     var who = INTRO_TO ? INTRO_TO.name : '...';
     var box = $('in-prev'); box.innerHTML = box.style.whiteSpace = '';
     var para = function (parent, txt) { var q = document.createElement('p'); q.textContent = txt; parent.appendChild(q); return q; };
@@ -1631,16 +1655,27 @@
     var q = String($('in-who').value || '').trim().toLowerCase(), box = $('in-list'), c = INTRO_FOR; box.innerHTML = '';
     if (!c || !q) { box.hidden = true; return; }
     var hits = ALL.filter(function (x) { return x.name && x !== c && (x.person ? x.person !== c.person : (introEmail(x) && x.contactId !== c.contactId)) && !x.archived && String(x.name).toLowerCase().indexOf(q) > -1; }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); }).slice(0, 8);
-    if (!hits.length) { var n = document.createElement('p'); n.className = 'in-t'; n.style.margin = '6px 0 0'; n.textContent = 'Nobody in your contacts matches that.'; box.appendChild(n); box.hidden = false; return; }
+    if (!hits.length) { var n = document.createElement('p'); n.className = 'in-t'; n.style.margin = '6px 0 0'; n.textContent = 'Nobody in your contacts matches that. Press Enter to add them.'; box.appendChild(n); box.hidden = false; return; }
     hits.forEach(function (x) { var b = document.createElement('button'); b.type = 'button'; b.className = 'btn-o'; b.setAttribute('role', 'option'); b.style.cssText = 'display:block;width:100%;text-align:left;margin:6px 0 0;border-radius:12px;'; b.textContent = x.name; b.onclick = function () { INTRO_TO = x; $('in-who').value = x.name; box.hidden = true; introPrev(); }; box.appendChild(b); });
     box.hidden = false;
   }
-  $('in-who').oninput = function () { INTRO_TO = null; introList(); introPrev(); };
+  $('in-who').oninput = function () { INTRO_TO = null; $('in-new').hidden = true; introList(); introPrev(); };
+  $('in-who').onkeydown = function (ev) {
+    if (ev.key !== 'Enter') { return; }
+    ev.preventDefault();
+    var b = $('in-list').querySelector('button');
+    if (b) { b.click(); return; }
+    var q = String($('in-who').value || '').trim(); if (!q) { return; }
+    $('in-list').hidden = true; $('in-name').value = q; $('in-email').value = ''; $('in-new').hidden = false; $('in-email').focus();
+    INTRO_TO = { name: q, typed: true }; introPrev();
+  };
+  $('in-name').oninput = function () { if (INTRO_TO && INTRO_TO.typed) { INTRO_TO.name = String(this.value || '').trim(); introPrev(); } };
   $('in-msg').oninput = introPrev;
   $('in-cancel').onclick = function () { var c = INTRO_FOR; INTRO_FOR = null; if (c) { openView(c); } else { onlyPanel(''); } };
+  function introMe() { try { var n = String(window.CW_NAME || localStorage.getItem('cw-name') || '').trim(), f = String(localStorage.getItem('cw-name-for') || '').trim(); return n && (!f || f === realId()) ? n : String((CW.me() || {}).name || '').trim(); } catch (e) { return ''; } }
   function introEmail(x) { var e = String((x && x.email) || '').trim(); return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : ''; }
   function introMailto(to, other) {
-    var me = ''; try { me = String((CW.me() || {}).name || '').trim(); } catch (e) {}
+    var me = introMe();
     var first = String(to.name || '').trim().split(/\s+/)[0] || '';
     var note = String($('in-msg').value || '').trim();
     var body = 'Hello ' + first + ',\n\nI would like to introduce you to ' + String(other.name || '').trim() + '. I think there is potential for connection.\n\n' + (note ? note + '\n\n' : '') + 'Would you like this introduction? Reply to let me know. Nothing about you is shared unless you both say yes.\n\n' + me;
@@ -1657,6 +1692,21 @@
     if (!A || !B) { say.textContent = 'Choose a person first.'; return; }
     if (bmViewing()) { say.textContent = 'You cannot make an introduction while viewing as someone.'; return; }
     if (/(https?:\/\/|www\.)/i.test(note)) { say.textContent = 'Introductions cannot include links.'; return; }
+    if (B.typed) {
+      var tn = String($('in-name').value || '').trim(), te = String($('in-email').value || '').trim();
+      if (!tn) { say.textContent = 'Add their name first.'; return; }
+      if (!introEmail({ email: te })) { say.textContent = 'Add their email first.'; return; }
+      if (INTRO_BUSY) { return; }
+      INTRO_BUSY = true; $('in-send').disabled = true; say.textContent = 'Sending';
+      send('saveContact', { name: tn, email: te }).then(function (d) {
+        INTRO_BUSY = false; $('in-send').disabled = false;
+        if (!d || d.status !== 'ok' || !d.contactId) { say.textContent = 'That did not send. Try again in a moment.'; return; }
+        ALL = d.contacts || ALL; try { addMessaged(); draw(); } catch (e) {}
+        INTRO_TO = ALL.filter(function (x) { return x.contactId === d.contactId; })[0] || { contactId: d.contactId, name: tn, email: te };
+        $('in-new').hidden = true; $('in-who').value = INTRO_TO.name; $('in-send').onclick();
+      }).catch(function () { INTRO_BUSY = false; $('in-send').disabled = false; say.textContent = 'That did not send. Try again in a moment.'; });
+      return;
+    }
     if (!A.person && !B.person) { say.textContent = 'Neither of them is on 2Appear, so the introduction goes from your own email. Send each of them this email:'; introMailBtn(A, B); introMailBtn(B, A); return; }
     if (INTRO_BUSY) { return; }
     var on = A.person ? A : B, off = A.person ? B : A, params = { a: 'c:' + on.person, note: note, realMe: realId() };
