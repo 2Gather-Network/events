@@ -11,10 +11,12 @@
 
   function dot() {
     if (d.getElementById('cw-ban-dot')) { return; }
-    var b = el('button', 'position:fixed;right:16px;bottom:16px;z-index:9000;width:22px;height:22px;padding:0;border:0;border-radius:50%;background:#E24B4A;cursor:pointer;');
+    var b = el('button', 'display:block;margin:0 0 0 auto;width:28px;height:28px;padding:0;border:0;border-radius:50%;background:#fff;cursor:pointer;position:relative;');
     b.id = 'cw-ban-dot'; b.type = 'button'; b.setAttribute('aria-label', 'Ban someone'); b.title = 'Ban someone';
+    b.appendChild(el('span', 'position:absolute;left:8px;top:8px;width:12px;height:12px;border-radius:50%;background:#E24B4A;'));
     b.onclick = open;
-    d.body.appendChild(b);
+    var host = d.querySelector('.wrap') || d.body;
+    host.appendChild(b);
   }
 
   function open() {
