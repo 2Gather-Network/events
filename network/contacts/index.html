@@ -1139,17 +1139,28 @@
   }
   function readBusy(on) { $('fill-fetch').disabled = on; $('fill-card').disabled = on; $('save').disabled = on || SENDING > 0; }
 
+  function askRead(body) {
+    return fetch(READER, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ model: 'claude-haiku-4-5-20251001', ai: 'contacts', appearId: realId(), meToken: token() }, body)) })
+      .then(function (r) { if (!r.ok) { throw new Error('read ' + r.status); } return r.json(); });
+  }
+  function uprightFirst(image) {
+    if (!image || !image.views) { return Promise.resolve(image); }
+    var parts = [];
+    image.views.forEach(function (v, i) { parts.push({ type: 'text', text: 'Picture ' + (i + 1) + ':' }); parts.push({ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: v } }); });
+    parts.push({ type: 'text', text: 'These four pictures show the same card turned four ways. In only one of them is the writing upright and easy to read left to right. Answer with only that picture number: 1, 2, 3 or 4.' });
+    return askRead({ max_tokens: 5, messages: [{ role: 'user', content: parts }] }).then(function (d) {
+      var t = String((d && d.content && d.content[0] && d.content[0].text) || ''), m = t.match(/[1-4]/), k = m ? Number(m[0]) - 1 : 0;
+      return { mediaType: image.mediaType, data: k ? image.rot(k * 90) : image.data };
+    }).catch(function () { return { mediaType: image.mediaType, data: image.data }; });
+  }
   function readContact(text, image, link) {
     if (CONSENT_P) { var p0 = CONSENT_P; return p0.then(function (ok) { CONSENT_P = null; if (!ok) { throw new Error('consent'); } return readContact(text, image, link); }); }
+    if (image && image.views) { var im0 = image; image = null; return uprightFirst(im0).then(function (im1) { return readContact(text, im1, link); }); }
     var prompt = 'Extract one person\'s contact details from this ' + (image ? 'picture of a business card' : 'page') + '. Use only what is written. Never invent or guess a name, email, phone or link: if it is not there, use null. Return ONLY a JSON object with these keys:\n' +
       '{\n  "name": "the person\'s full name",\n  "email": "their email",\n  "phone": "their phone number as printed",\n  "website": "their own website or profile link",\n  "organization": "where they work or the organization named",\n  "role": "their job title or role"\n}\n\n' +
       (image ? 'The card is in the image above. It may be sideways or upside down: turn it in your mind and read every word on it, including small print. Copy names, emails and numbers letter for letter.\n\n' : '') +
       'Text to read:\n' + (text || '(none - use the image)') + '\n\nReturn ONLY the JSON object, no explanation.';
-    var content = prompt;
-    if (image && image.views) {
-      content = []; image.views.forEach(function (v, i) { content.push({ type: 'text', text: 'Picture ' + (i + 1) + ':' }); content.push({ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: v } }); });
-      content.push({ type: 'text', text: prompt.replace('The card is in the image above. It may be sideways or upside down: turn it in your mind and read every word on it, including small print.', 'The four pictures above are the same card turned four ways. Only one has the text upright. Read the card from that one, including small print.') });
-    } else if (image) { content = [{ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } }, { type: 'text', text: prompt }]; }
+    var content = image ? [{ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } }, { type: 'text', text: prompt }] : prompt;
     return fetch(READER, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 600, messages: [{ role: 'user', content: content }], ai: 'contacts', appearId: realId(), meToken: token() }) })
       .then(function (r) { if (!r.ok) { throw new Error('read ' + r.status); } return r.json(); })
@@ -1209,8 +1220,9 @@
         try { dataUrl = canvas.toDataURL('image/jpeg', 0.85); } catch (e) { readBusy(false); fillSay('That picture could not be read. Try another one.', true); return; }
         var image = { mediaType: 'image/jpeg', data: dataUrl.split(',')[1] || '' };
         try {
-          var VE = 1100, vs = Math.min(1, VE / Math.max(img.width, img.height)), vw = Math.max(1, Math.round(img.width * vs)), vh = Math.max(1, Math.round(img.height * vs));
-          image.views = [0, 90, 180, 270].map(function (deg) { var c2 = document.createElement('canvas'), odd = deg % 180; c2.width = odd ? vh : vw; c2.height = odd ? vw : vh; var x2 = c2.getContext('2d'); x2.fillStyle = '#fff'; x2.fillRect(0, 0, c2.width, c2.height); x2.translate(c2.width / 2, c2.height / 2); x2.rotate(deg * Math.PI / 180); x2.drawImage(img, -vw / 2, -vh / 2, vw, vh); return c2.toDataURL("image/jpeg", 0.8).split(',')[1] || ''; });
+          var rotTo = function (deg, edge) { var sc = Math.min(1, edge / Math.max(img.width, img.height)), vw = Math.max(1, Math.round(img.width * sc)), vh = Math.max(1, Math.round(img.height * sc)); var c2 = document.createElement('canvas'), odd = deg % 180; c2.width = odd ? vh : vw; c2.height = odd ? vw : vh; var x2 = c2.getContext('2d'); x2.fillStyle = '#fff'; x2.fillRect(0, 0, c2.width, c2.height); x2.translate(c2.width / 2, c2.height / 2); x2.rotate(deg * Math.PI / 180); x2.drawImage(img, -vw / 2, -vh / 2, vw, vh); return c2.toDataURL('image/jpeg', 0.85).split(',')[1] || ''; };
+          image.views = [0, 90, 180, 270].map(function (d) { return rotTo(d, 400); });
+          image.rot = function (d) { return rotTo(d, READ_MAX_EDGE); };
         } catch (e) { delete image.views; }
         readContact('', image, '').then(function () { readBusy(false); })
           .catch(function (e) { readBusy(false); fillSay('Could not read the card (' + String(e && e.message || 'error').slice(0, 40) + '). The picture is kept as their business card, so type the details in.', true); });
