@@ -469,6 +469,7 @@
     if (!onSignIn && /^\/(carry|signout|signin-google)(\/|$)/.test(here)) { return; }
     if (signedOutView() || viewingAs()) { jumpLog('stopped: viewing as someone'); return; }
     var now = Date.now();
+    if (found) { ls(function () { w.localStorage.removeItem('cw-out-here'); }); }
     function newState() {
       var a = new Uint8Array(16);
       w.crypto.getRandomValues(a);
@@ -501,7 +502,8 @@
 
     if (!found) {
       var tabAsked = ss(function () { return w.sessionStorage.getItem('cw-jump-tab-asked') === '1'; }, true);
-      if (fromSibling && tabAsked) { tabAsked = false; jumpLog('arrived from another of our sites; asking the service again'); }
+      var outHere = num('cw-out-here');
+      if (fromSibling && tabAsked && !(outHere && now - outHere < WAIT_MS)) { tabAsked = false; jumpLog('arrived from another of our sites; asking the service again'); }
       if (num('cw-jump-wait') > now && tabAsked && !reloaded && outBack) {
         ls(function () { w.localStorage.removeItem('cw-out-show'); });
         jumpLog('signed out on another site; showing the signed-out page');
