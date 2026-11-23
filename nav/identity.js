@@ -480,7 +480,6 @@
     var reloaded = ls(function () { var e = w.performance.getEntriesByType('navigation')[0]; return !!e && e.type === 'reload'; }, false);
     var fromSibling = ls(function () {
       var r = new URL(w.document.referrer || 'about:blank'), h = String(r.hostname || '').toLowerCase();
-      if (w.localStorage.getItem('cw-sib-test') !== '1') { return false; }
       return !!JUMP_SITE[h] && h !== String(w.location.hostname || '').toLowerCase() && !/^\/(signout|signin|carry)(\/|$)/.test(r.pathname);
     }, false);
     var comeBack = here + String(w.location.search || '') + String(w.location.hash || '');
