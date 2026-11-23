@@ -384,6 +384,22 @@
 
 <div class="veil" id="cview" hidden></div>
 
+<div class="veil" id="introveil" hidden>
+  <div class="sheet" aria-labelledby="in-h">
+    <div class="sh"><h2 id="in-h">Make an introduction</h2></div>
+    <p class="line" id="in-lede"></p>
+    <div class="field"><label for="in-who">Introduce them to someone in your contacts</label><select id="in-who"><option value="">Choose a person</option></select></div>
+    <div class="field"><label for="in-email">Not in your contacts? Introduce them to someone outside 2Appear (enter email)</label><input type="email" id="in-email" maxlength="200" autocomplete="off"></div>
+    <div class="field"><label for="in-msg">Introduction message</label><textarea id="in-msg" rows="4" maxlength="1000" placeholder="I wanted to introduce you two as I think there is potential for collaboration. Please let me know if anything comes of it!"></textarea></div>
+    <div class="field"><span class="q">What each of them will receive by email</span><div class="rnote" id="in-prev" style="white-space:pre-wrap;font-size:14px;line-height:1.55;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;"></div></div>
+    <p class="msg" id="in-say" hidden></p>
+    <div class="acts">
+      <button class="btn ghost" type="button" id="in-cancel">Cancel</button>
+      <button class="btn" type="button" id="in-send">Send introduction</button>
+    </div>
+  </div>
+</div>
+
 <div class="veil" id="veil" hidden>
   <div class="sheet" aria-labelledby="edit-h">
     <div class="sh"><h2 id="edit-h">Add contact</h2><button class="x" type="button" aria-label="Close" id="close">✕</button></div>
@@ -567,11 +583,11 @@
   var PASTEV = [], CARRIED = {}, EVNOTES = [], SHARED = [];
 
 
-  ['veil', 'addveil', 'cview'].forEach(function (id) { var v = document.getElementById(id), b = document.getElementById('body'); if (v && b && b.parentNode) { b.parentNode.appendChild(v); } });
+  ['veil', 'addveil', 'cview', 'introveil'].forEach(function (id) { var v = document.getElementById(id), b = document.getElementById('body'); if (v && b && b.parentNode) { b.parentNode.appendChild(v); } });
   document.getElementById('cv-bback').onclick = function () { if (!document.getElementById('cview').hidden) { VIEWING = null; onlyPanel(''); } else { ADD_WAY = ''; ADD_FILE = null; aiDraw(); } };
   function syncBack() { var cb = document.getElementById('cv-bottom'); if (cb) { cb.hidden = !(!document.getElementById('cview').hidden || (!document.getElementById('addveil').hidden && ADD_WAY === 'pic')); } }
   function onlyPanel(id) {
-    ['veil', 'addveil', 'cview'].forEach(function (x) { document.getElementById(x).hidden = x !== id; });
+    ['veil', 'addveil', 'cview', 'introveil'].forEach(function (x) { document.getElementById(x).hidden = x !== id; });
     document.getElementById('body').hidden = !!id;
     drawCrumb(id);
     syncBack();
@@ -583,8 +599,8 @@
   try { var _m = CW.me(); ME = _m && _m.id ? String(_m.id).trim() : ''; } catch (e) {}
 
   function $(id) { return document.getElementById(id); }
-  var INTRO_ON = false;
-  function panelOpen() { return !$('veil').hidden || !$('addveil').hidden || !$('cview').hidden; }
+  var INTRO_ON = false, APPR_ON = false, INTRO_FOR = null;
+  function panelOpen() { return !$('veil').hidden || !$('addveil').hidden || !$('cview').hidden || !$('introveil').hidden; }
   function realId() { try { var r = window.CW && typeof CW.realMe === 'function' ? String(CW.realMe().id || '').trim() : ''; if (r) { return r; } } catch (e) {} return ME; }
   function token() { try { return localStorage.getItem('cw-token') || ''; } catch (e) { return ''; } }
   function ask(action, params) {
@@ -880,7 +896,8 @@
     var ec = menuItem('pen', 'Edit contact', ''); ec.onclick = function () { close(); openForm(sy); }; pm.appendChild(ec);
     if (code) {
       pm.appendChild(menuItem('user', 'See profile', prof));
-      if (INTRO_ON) { pm.appendChild(menuItem('share', 'Make an intro', prof + '#intro')); pm.appendChild(menuItem('plant', 'Show appreciation', prof + '#appreciation')); }
+      if (INTRO_ON) { var mi = menuItem('share', 'Make an intro', ''); mi.onclick = function () { close(); openIntro(sy); }; pm.appendChild(mi); }
+      if (APPR_ON) { pm.appendChild(menuItem('plant', 'Show appreciation', prof + '#appreciation')); }
     }
     if (code && o.bm && !bmViewing()) {
       var rm = menuItem('bookmark', 'Remove bookmark', ''); pm.appendChild(rm);
@@ -1504,7 +1521,7 @@
   function drawCrumb(id) {
     var el = document.getElementById('breadcrumb'); if (!el) { return; }
     el.innerHTML = '';
-    var c = id === 'cview' ? VIEWING : (id === 'veil' ? EDIT : null);
+    var c = id === 'cview' ? VIEWING : (id === 'veil' ? EDIT : (id === 'introveil' ? INTRO_FOR : null));
     if (!c) { return; }
     var nm = c.name || 'No name';
     var link = function (txt, fn) { var a = document.createElement('a'); a.className = 'crumb-link'; a.textContent = txt; a.setAttribute('role', 'link'); a.tabIndex = 0; a.href = '#'; a.onclick = function (ev) { ev.preventDefault(); fn(); }; el.appendChild(a); };
@@ -1512,6 +1529,7 @@
     var now = function (txt) { var n = document.createElement('span'); n.className = 'now'; n.textContent = txt; el.appendChild(n); };
     link('My contacts', function () { VIEWING = null; onlyPanel(''); }); sep();
     if (id === 'cview') { now(nm); return; }
+    if (id === 'introveil') { link(nm, function () { openView(c); }); sep(); now('Make an introduction'); return; }
     link(nm, function () { openView(c); }); sep(); now('Edit');
   }
   function cvIcon(d) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; }
@@ -1537,8 +1555,8 @@
       [['Send message', '/messages/?to=' + encodeURIComponent('c:' + c.person), '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"/>'],
        ['See profile', prof, '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>'],
        ['Make an intro', prof + '#intro', '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>'],
-       ['Show appreciation', prof + '#appreciation', '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>']].filter(function (a) { return INTRO_ON || (a[0] !== 'Make an intro' && a[0] !== 'Show appreciation'); }).forEach(function (a) {
-        var b = el('a', 'btn ghost'); b.href = a[1]; b.innerHTML = cvIcon(a[2]); b.appendChild(document.createTextNode(a[0])); acts.appendChild(b);
+       ['Show appreciation', prof + '#appreciation', '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>']].filter(function (a) { return (a[0] === 'Make an intro' ? INTRO_ON : (a[0] === 'Show appreciation' ? APPR_ON : true)); }).forEach(function (a) {
+        var b = el('a', 'btn ghost'); b.href = a[1]; b.innerHTML = cvIcon(a[2]); b.appendChild(document.createTextNode(a[0])); if (a[0] === 'Make an intro') { b.href = '#'; b.onclick = function (ev) { ev.preventDefault(); openIntro(c); }; } acts.appendChild(b);
       });
       box.appendChild(acts);
     }
@@ -1564,6 +1582,33 @@
     if (aw) { var ad = el('div', 'cv-sec'); ad.appendChild(el('div', 'cv-added', 'Added ' + (c.name || 'them') + ' on ' + aw)); box.appendChild(ad); }
     onlyPanel('cview');
   }
+  function openIntro(c) {
+    INTRO_FOR = c; var nm = c.name || 'them';
+    $('in-lede').textContent = 'Who would you like to introduce ' + nm + ' to within your contacts? Both people will receive an email and you will be copied.';
+    var sel = $('in-who'); sel.innerHTML = ''; var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Choose a person'; sel.appendChild(o0);
+    ALL.filter(function (x) { return x.person && x.name && x !== c && x.person !== c.person; }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); }).forEach(function (x) { var o = document.createElement('option'); o.value = x.person; o.textContent = x.name; sel.appendChild(o); });
+    $('in-email').value = ''; $('in-msg').value = ''; $('in-say').hidden = true;
+    introPrev(); onlyPanel('introveil');
+  }
+  function introPrev() {
+    var c = INTRO_FOR; if (!c) { return; }
+    var sel = $('in-who'), other = sel.selectedIndex > 0 ? sel.options[sel.selectedIndex].textContent : (String($('in-email').value || '').trim() || '...');
+    var first = function (n) { return String(n || '').trim().split(/\s+/)[0] || '...'; };
+    var msg = String($('in-msg').value || '').trim() || $('in-msg').placeholder;
+    var me = ''; try { me = String((CW.me() || {}).name || '').trim(); } catch (e) {}
+    $('in-prev').textContent = 'Hello ' + first(c.name) + ' and ' + first(other) + ',\n\n' + msg + '\n\nRegards,\n' + (me || 'you');
+  }
+  $('in-who').onchange = function () { if (this.value) { $('in-email').value = ''; } introPrev(); };
+  $('in-email').oninput = function () { if (this.value) { $('in-who').selectedIndex = 0; } introPrev(); };
+  $('in-msg').oninput = introPrev;
+  $('in-cancel').onclick = function () { var c = INTRO_FOR; INTRO_FOR = null; if (c) { openView(c); } else { onlyPanel(''); } };
+  $('in-send').onclick = function () {
+    var say = $('in-say'), sel = $('in-who'), em = String($('in-email').value || '').trim();
+    say.hidden = false;
+    if (sel.selectedIndex < 1 && !em) { say.textContent = 'Choose a person or enter an email first.'; return; }
+    if (sel.selectedIndex < 1 && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { say.textContent = 'That email address does not look right.'; return; }
+    say.textContent = 'This is a test. Nothing was sent.';
+  };
   function closeForm() { var v = VIEWING; onlyPanel(''); EDIT = null; FROM_CARD = false; showPic('card', ''); showPic('face', '');
     if (v) { var fresh = v.contactId ? ALL.filter(function (x) { return x.contactId === v.contactId; })[0] : v; if (fresh) { openView(fresh); } else { VIEWING = null; } } }
   var FROM_CARD = false;
