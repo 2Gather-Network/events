@@ -11,12 +11,8 @@
 
   function dot() {
     if (d.getElementById('cw-ban-dot')) { return; }
-    var b = el('button', 'position:fixed;right:16px;bottom:16px;z-index:9000;display:inline-flex;align-items:center;gap:8px;'
-      + 'background:#fff;border:1.5px solid #F09595;border-radius:20px;padding:6px 12px;cursor:pointer;'
-      + 'font:700 13px/1.2 "Nunito Sans","DM Sans",system-ui,sans-serif;color:' + RED + ';');
-    b.id = 'cw-ban-dot'; b.type = 'button'; b.setAttribute('aria-label', 'Ban someone');
-    b.appendChild(el('span', 'width:12px;height:12px;border-radius:50%;background:#E24B4A;display:inline-block;'));
-    b.appendChild(d.createTextNode('Ban someone'));
+    var b = el('button', 'position:fixed;right:16px;bottom:16px;z-index:9000;width:22px;height:22px;padding:0;border:0;border-radius:50%;background:#E24B4A;cursor:pointer;');
+    b.id = 'cw-ban-dot'; b.type = 'button'; b.setAttribute('aria-label', 'Ban someone'); b.title = 'Ban someone';
     b.onclick = open;
     d.body.appendChild(b);
   }
