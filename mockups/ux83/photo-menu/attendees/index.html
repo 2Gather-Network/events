@@ -402,7 +402,7 @@ html .cw-back:hover,html .cw-back:focus{background:#EEF2F7;}
  <p class="gr-q">What came of it?</p>
  <div class="gr-pills" data-gr="resultsCreated"></div>
  <p style="margin:12px 0 0"><button class="gr-lk" type="button" id="gr-more">+ Add the role they played and what they shared</button></p>
- <div id="gr-moreb" hidden><p class="gr-q">How did they show up for you in this instance?</p><div class="gr-pills" data-gr="roleThisTime"></div></div>
+ <div id="gr-moreb" hidden><p class="gr-q">How did they show up for you in this instance?</p><div class="gr-pills" data-gr="roleThisTime"></div><p class="gr-q">What expertise did they share, if any?</p><div class="gr-pills" id="gr-exp"></div><input type="search" id="gr-exp-q" placeholder="Search all expertise" aria-label="Search all expertise" style="margin-top:10px"><div class="gr-pills" id="gr-exp-hits" style="margin-top:8px"></div></div>
  <p class="gr-q" id="gr-notelbl">Private message - visible only to them:</p><textarea id="gr-note" maxlength="1000" aria-labelledby="gr-notelbl"></textarea>
  <div class="gr-box">🌱 This recognition generates an email to both of you. Your message only goes to them. It is never shown on the board.</div>
  <div class="gr-foot"><button class="gr-btn solid" type="button" id="gr-send">Send thanks</button><button class="gr-lk" type="button" id="gr-cancel">Cancel</button></div>
@@ -648,6 +648,9 @@ async function loadRefData(){
   try{
     var res=await fetch(GS_URL+'?action=getReferenceData');
     var d=await res.json();
+    window._grExpDom=(d.domains||[]).map(function(r){ return String(r&&r.item!==undefined?r.item:r).trim(); }).filter(Boolean);
+    window._grExpAll=window._grExpDom.concat((d.skills||[]).map(function(r){ return String(r&&r.item!==undefined?r.item:r).trim(); }).filter(Boolean));
+    try{ _grExpPaint(); }catch(e){}
     ['skills','recreation','values','domains'].forEach(function(k){
       (d[k]||[]).forEach(function(r){
         if(!r.item) return;
@@ -924,8 +927,30 @@ function _grAddNow(name,vals){
 function _grReset(){
   _grTo=''; var _nl=document.getElementById('gr-notelbl'); if(_nl) _nl.textContent='Private message - visible only to them:'; document.getElementById('gr-who').value=''; document.getElementById('gr-who').hidden=false; document.getElementById('gr-people').hidden=false; document.getElementById('gr-chosen').hidden=true;
   document.querySelectorAll('#gr-form [data-gr] .gr-pill').forEach(function(b){ b.setAttribute('aria-pressed','false'); });
-  document.getElementById('gr-note').value=''; document.getElementById('gr-moreb').hidden=true; _grPeoplePaint();
+  document.getElementById('gr-note').value=''; document.getElementById('gr-moreb').hidden=true; _grExp={}; var _xq=document.getElementById('gr-exp-q'); if(_xq) _xq.value=''; try{ _grExpPaint(); }catch(e){} _grPeoplePaint();
 }
+var _grExp={};
+function _grExpPaint(){
+  var box=document.getElementById('gr-exp'); if(!box) return;
+  var dom=window._grExpDom||[], low={}; dom.forEach(function(v){ low[v.toLowerCase()]=1; });
+  var extra=Object.keys(_grExp).filter(function(v){ return _grExp[v] && !low[v.toLowerCase()]; });
+  box.innerHTML=dom.concat(extra).map(function(v){ return '<button class="gr-pill" type="button" data-x="'+escHTML(v)+'" aria-pressed="'+(_grExp[v]?'true':'false')+'">'+escHTML(v)+'</button>'; }).join('');
+  _grExpHits();
+}
+function _grExpHits(){
+  var hb=document.getElementById('gr-exp-hits'), qi=document.getElementById('gr-exp-q'); if(!hb||!qi) return;
+  var q=String(qi.value||'').replace(/\|/g,' ').trim().slice(0,60), ql=q.toLowerCase(); if(!ql){ hb.innerHTML=''; return; }
+  var seen={}, exact=false, hits=(window._grExpAll||[]).filter(function(v){ var l=v.toLowerCase(); if(seen[l]) return false; seen[l]=1; if(l===ql) exact=true; return l.indexOf(ql)>-1; }).slice(0,12);
+  var h=hits.map(function(v){ return '<button class="gr-pill" type="button" data-xa="'+escHTML(v)+'">'+escHTML(v)+'</button>'; }).join('');
+  if(!exact && q.length>1) h+='<button class="gr-pill" type="button" data-xa="'+escHTML(q)+'">Add \u201C'+escHTML(q)+'\u201D</button>';
+  hb.innerHTML=h;
+}
+document.addEventListener('input',function(e){ if(e.target&&e.target.id==='gr-exp-q') _grExpHits(); });
+document.addEventListener('click',function(e){
+  var t=e.target&&e.target.closest?e.target.closest('[data-x],[data-xa]'):null; if(!t||!t.closest('#gr')) return;
+  if(t.hasAttribute('data-x')){ var v=t.getAttribute('data-x'); _grExp[v]=!_grExp[v]; t.setAttribute('aria-pressed',_grExp[v]?'true':'false'); return; }
+  var a=t.getAttribute('data-xa'); _grExp[a]=true; var qi=document.getElementById('gr-exp-q'); if(qi) qi.value=''; _grExpPaint();
+});
 function _grSay(t){ var m=document.getElementById('gr-msg'); m.textContent=t; m.hidden=!t; }
 document.addEventListener('input',function(e){ if(e.target&&e.target.id==='gr-who') _grPeoplePaint(); });
 document.addEventListener('click',function(e){
@@ -959,7 +984,7 @@ document.addEventListener('click',function(e){
     if(!_grTo){ _grSay('Pick who you are thanking.'); return; }
     if(!pick('showedUpAs')){ _grSay('Pick how they showed up for you.'); return; }
     _grBusy=true; t.disabled=true; _grSay('Sending your thanks…');
-    fetch(GS_URL+'?action=giveGratitude&t='+Date.now(),{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'giveGratitude',appearId:_myId||'',meToken:_grTok(),groupId:_groupId,receiverId:_grTo,showedUpAs:pick('showedUpAs'),resultsCreated:pick('resultsCreated'),roleThisTime:pick('roleThisTime'),privateNote:document.getElementById('gr-note').value||''})})
+    fetch(GS_URL+'?action=giveGratitude&t='+Date.now(),{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'giveGratitude',appearId:_myId||'',meToken:_grTok(),groupId:_groupId,receiverId:_grTo,showedUpAs:pick('showedUpAs'),resultsCreated:pick('resultsCreated'),roleThisTime:pick('roleThisTime'),expertiseShared:Object.keys(_grExp).filter(function(v){ return _grExp[v]; }).slice(0,12).join('|'),privateNote:document.getElementById('gr-note').value||''})})
       .then(function(r){ return r.json(); }).then(function(d){
         if(d&&d.status==='ok'){ var _to=_grTo, _nm=document.getElementById('gr-chip').textContent, _vs=pick('showedUpAs').split('|'); _grReset(); _grAddNow(_nm,_vs); _grSay('Sent. It shows on the group board now.'); _grLoad(1); if(d.key){ fetch(GS_URL+'?action=mailGratitude&'+_grQs()+'&receiverId='+encodeURIComponent(_to)+'&key='+encodeURIComponent(d.key)).catch(function(){}); } }
         else _grSay((d&&d.message)||'That did not send. Try again.');
