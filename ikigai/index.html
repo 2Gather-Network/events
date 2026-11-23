@@ -137,7 +137,7 @@ html.gp-pub-asking .card > :not(#gp-pub-ask){display:none !important;}
   var GP_AVATAR = (params.get('avatar') || '') === '1';
   var GP_NEW_ORDER = [0, 1, 3, 2, 5, 4];
   var GP_NEW_LABELS = { 0: 'About you', 1: 'Joys', 2: 'Skills', 3: 'Cares', 4: 'Needs', 5: 'Offerings' };
-  function gpNewOrder(){ return GP_NEW_ORDER.filter(function(n){ return n !== GP_INT || gpIntOn(); }).concat([GP_LAST]); }
+  function gpNewOrder(){ return GP_NEW_ORDER.filter(function(n){ return (n !== GP_INT || gpIntOn()) && !(n === 0 && window._gpAboutHide === true); }).concat([GP_LAST]); }
   var GP_OTHER = (function(){ var v = parseInt(params.get('other'), 10); return (v >= 1 && v <= 4) ? v : 0; })();
   var GP_PURPOSE_TRY = (function(){ var v = String(params.get('purpose') || '').toLowerCase(); if (v === 'a' || v === 'b') return v; return (v === '0' || v === 'off') ? '' : 'c'; })();
   var GP_VALUE_WORDS = [
@@ -6440,6 +6440,16 @@ html.gp-pub-asking .card > :not(#gp-pub-ask){display:none !important;}
     { label: 'One language',             head: 'Which languages do you speak?', step: 0, done: function(){ return gpHasLang(); } },
     { label: 'One thing you care about', head: 'What do you care about?',       step: 3, done: function(){ return gpAnswered('introValues'); } }
   ];
+  function gpAboutCheck(){
+    try {
+      if (window._gpAboutHide === true || !window._gpLoaded || window._gpLoadFailed || GP_EDIT) { return; }
+      if (_gpStep === 0 && window._gpAboutSeen === true) { return; }
+      if (!gpReqStepDone(0)) { window._gpAboutSeen = true; return; }
+      window._gpAboutHide = true;
+      try { gpRailPaint(); } catch (e) {}
+      if (_gpStep === 0) { gpShowStep(gpLanding()); }
+    } catch (e) {}
+  }
   function gpReqStepDone(n){ return GP_REQ_ITEMS.filter(function(r){ return r.step === n; }).every(function(r){ return r.done(); }); }
   function gpReqPaint(){
     var box = document.getElementById('gp-intro-qs'); if (!box) return;
@@ -7349,6 +7359,7 @@ html.gp-pub-asking .card > :not(#gp-pub-ask){display:none !important;}
         if (gpLocString(_gpLoc)) any = true;
         window._gpDrawn = true;
         if (fresh) { window._gpLoaded = true; }
+        if (fresh) { [0, 1500, 4000].forEach(function(ms){ window.setTimeout(gpAboutCheck, ms); }); }
         if (fresh) { gpDetailsFromServer(have.answerDetails); gpWordsLoad(); }
         if (any || fresh) { gpRenderIntro(use); }
         if (fresh && window._gpWantedSave) { window._gpWantedSave = false; var _st = document.getElementById('gp-intro-status'); if (_st) _st.textContent = ''; gpQuietSave(); }
