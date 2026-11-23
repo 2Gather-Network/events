@@ -398,8 +398,10 @@
     <p class="in-t" id="in-lede"></p>
     <div class="field"><label for="in-who">Introduce them to someone in your contacts:</label><input type="search" id="in-who" maxlength="100" autocomplete="off" aria-controls="in-list"><div id="in-list" role="listbox" hidden></div></div>
     <div class="field"><label for="in-msg">Introduction message:</label><textarea id="in-msg" rows="2" maxlength="1000" placeholder="Optional. Add a line of your own."></textarea></div>
+    <p class="in-t" id="in-rule">Introductions are for connecting people, not for selling or advertising.</p>
     <div class="field"><span class="q">What each of them will receive via email:</span><div class="rnote" id="in-prev" style="line-height:1.55;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;"></div></div>
     <p class="msg" id="in-say" hidden></p>
+    <div class="acts" id="in-mails" hidden></div>
     <div class="acts">
       <button class="btn ghost" type="button" id="in-cancel">Cancel</button>
       <button class="btn" type="button" id="in-send">Email both people</button>
@@ -906,6 +908,7 @@
       if (INTRO_ON) { var mi = menuItem('share', 'Make an intro', ''); mi.onclick = function () { close(); openIntro(sy); }; pm.appendChild(mi); }
       if (APPR_ON) { pm.appendChild(menuItem('plant', 'Show appreciation', prof + '#appreciation')); }
     }
+    if (!code && INTRO_ON && cc && introEmail(cc)) { var mo = menuItem('share', 'Make an intro', ''); mo.onclick = function () { close(); openIntro(sy); }; pm.appendChild(mo); }
     if (code && o.bm && !bmViewing()) {
       var rm = menuItem('bookmark', 'Remove bookmark', ''); pm.appendChild(rm);
       var rmOut = document.createElement('div'); rmOut.className = 'line'; rmOut.hidden = true;
@@ -1566,6 +1569,11 @@
         var b = el('a', 'btn ghost'); b.href = a[1]; b.innerHTML = cvIcon(a[2]); b.appendChild(document.createTextNode(a[0])); if (a[0] === 'Make an intro') { b.href = '#'; b.onclick = function (ev) { ev.preventDefault(); openIntro(c); }; } acts.appendChild(b);
       });
       box.appendChild(acts);
+    } else if (INTRO_ON && introEmail(c)) {
+      var acts2 = el('div', 'cv-acts'), b2 = el('a', 'btn ghost'); b2.href = '#';
+      b2.innerHTML = cvIcon('<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>');
+      b2.appendChild(document.createTextNode('Make an intro')); b2.onclick = function (ev) { ev.preventDefault(); openIntro(c); };
+      acts2.appendChild(b2); box.appendChild(acts2);
     }
     var F = function (l, v) { var f = el('div', 'cv-f'); f.appendChild(el('div', 'cv-l', l)); var vv = el('div', 'cv-v'); if (typeof v === 'string') { vv.textContent = v; } else { vv.appendChild(v); } f.appendChild(vv); return f; };
     var has = function (v) { return String(v == null ? '' : v).trim() !== ''; };
@@ -1622,7 +1630,7 @@
   function introList() {
     var q = String($('in-who').value || '').trim().toLowerCase(), box = $('in-list'), c = INTRO_FOR; box.innerHTML = '';
     if (!c || !q) { box.hidden = true; return; }
-    var hits = ALL.filter(function (x) { return x.person && x.name && x !== c && x.person !== c.person && String(x.name).toLowerCase().indexOf(q) > -1; }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); }).slice(0, 8);
+    var hits = ALL.filter(function (x) { return x.name && x !== c && (x.person ? x.person !== c.person : (introEmail(x) && x.contactId !== c.contactId)) && !x.archived && String(x.name).toLowerCase().indexOf(q) > -1; }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); }).slice(0, 8);
     if (!hits.length) { var n = document.createElement('p'); n.className = 'in-t'; n.style.margin = '6px 0 0'; n.textContent = 'Nobody in your contacts matches that.'; box.appendChild(n); box.hidden = false; return; }
     hits.forEach(function (x) { var b = document.createElement('button'); b.type = 'button'; b.className = 'btn-o'; b.setAttribute('role', 'option'); b.style.cssText = 'display:block;width:100%;text-align:left;margin:6px 0 0;border-radius:12px;'; b.textContent = x.name; b.onclick = function () { INTRO_TO = x; $('in-who').value = x.name; box.hidden = true; introPrev(); }; box.appendChild(b); });
     box.hidden = false;
@@ -1630,11 +1638,37 @@
   $('in-who').oninput = function () { INTRO_TO = null; introList(); introPrev(); };
   $('in-msg').oninput = introPrev;
   $('in-cancel').onclick = function () { var c = INTRO_FOR; INTRO_FOR = null; if (c) { openView(c); } else { onlyPanel(''); } };
+  function introEmail(x) { var e = String((x && x.email) || '').trim(); return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : ''; }
+  function introMailto(to, other) {
+    var me = ''; try { me = String((CW.me() || {}).name || '').trim(); } catch (e) {}
+    var first = String(to.name || '').trim().split(/\s+/)[0] || '';
+    var note = String($('in-msg').value || '').trim();
+    var body = 'Hello ' + first + ',\n\nI would like to introduce you to ' + String(other.name || '').trim() + '. I think there is potential for connection.\n\n' + (note ? note + '\n\n' : '') + 'Would you like this introduction? Reply to let me know. Nothing about you is shared unless you both say yes.\n\n' + me;
+    return 'mailto:' + encodeURIComponent(introEmail(to)) + '?subject=' + encodeURIComponent('An introduction to ' + String(other.name || '').trim()) + '&body=' + encodeURIComponent(body);
+  }
+  function introMailBtn(to, other) {
+    var a = document.createElement('a'); a.className = 'btn ghost'; a.href = introMailto(to, other); a.textContent = 'Email ' + String(to.name || '').trim();
+    $('in-mails').appendChild(a); $('in-mails').hidden = false;
+  }
+  var INTRO_BUSY = false;
   $('in-send').onclick = function () {
-    var say = $('in-say');
-    say.hidden = false;
-    if (!INTRO_TO) { say.textContent = 'Choose a person first.'; return; }
-    say.textContent = 'This is a test. Nothing was sent.';
+    var say = $('in-say'), A = INTRO_FOR, B = INTRO_TO, note = String($('in-msg').value || '').trim();
+    say.hidden = false; $('in-mails').innerHTML = ''; $('in-mails').hidden = true;
+    if (!A || !B) { say.textContent = 'Choose a person first.'; return; }
+    if (bmViewing()) { say.textContent = 'You cannot make an introduction while viewing as someone.'; return; }
+    if (/(https?:\/\/|www\.)/i.test(note)) { say.textContent = 'Introductions cannot include links.'; return; }
+    if (!A.person && !B.person) { say.textContent = 'Neither of them is on 2Appear, so the introduction goes from your own email. Send each of them this email:'; introMailBtn(A, B); introMailBtn(B, A); return; }
+    if (INTRO_BUSY) { return; }
+    var on = A.person ? A : B, off = A.person ? B : A, params = { a: 'c:' + on.person, note: note };
+    if (off.person) { params.b = 'c:' + off.person; } else { params.bContact = off.contactId || ''; }
+    INTRO_BUSY = true; $('in-send').disabled = true; say.textContent = 'Sending';
+    send('makeIntro', params).then(function (d) {
+      INTRO_BUSY = false; $('in-send').disabled = false;
+      if (!d || d.status !== 'ok') { say.textContent = (d && (d.code === 'link' || d.code === 'busy' || d.code === 'signin') && d.message) || 'We could not send this one.'; return; }
+      if (off.person) { say.textContent = 'Sent. Each of them got an email asking if they want this introduction.'; return; }
+      say.textContent = on.name + ' got an email asking if they want this introduction. ' + off.name + ' is not on 2Appear, so send them this email from your own email:';
+      introMailBtn(off, on);
+    }).catch(function () { INTRO_BUSY = false; $('in-send').disabled = false; say.textContent = 'That did not send. Try again in a moment.'; });
   };
   function closeForm() { var v = VIEWING; onlyPanel(''); EDIT = null; FROM_CARD = false; showPic('card', ''); showPic('face', '');
     if (v) { var fresh = v.contactId ? ALL.filter(function (x) { return x.contactId === v.contactId; })[0] : v; if (fresh) { openView(fresh); } else { VIEWING = null; } } }

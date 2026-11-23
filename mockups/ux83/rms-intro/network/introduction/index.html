@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- Copyright 2026 DayBalancer LLC. All rights reserved. -->
+<meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-store, max-age=0">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Introduction · 2Appear</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌱</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,700;6..12,800&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#1F699E;--ink:#1A2E42;--soft:#2F3D4F;--line:#DDE4EE;--brand:#1F699E;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);font-family:'Nunito Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);}
+  .wrap{max-width:640px;margin:0 auto;padding:24px 16px 60px;}
+  .card{background:#fff;border-radius:16px;padding:24px 22px;}
+  .card p{font-size:16px;line-height:1.55;margin:0 0 12px;}
+  .note{border-left:3px solid var(--line);padding-left:12px;white-space:pre-wrap;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 22px;border-radius:24px;font:700 15px 'Nunito Sans',sans-serif;border:1.5px solid var(--brand);background:var(--brand);color:#fff;cursor:pointer;margin:0 0 14px;}
+  .btn.ghost{background:#fff;color:var(--brand);}
+  .btn[disabled]{opacity:.6;cursor:default;}
+  .check{display:flex;gap:8px;align-items:center;font-size:15px;margin:0 0 14px;}
+  .small{display:flex;flex-wrap:wrap;gap:18px;border-top:1px solid var(--line);padding-top:14px;margin-top:6px;}
+  .lk{background:none;border:0;padding:0;font:600 14px 'Nunito Sans',sans-serif;color:var(--brand);text-decoration:underline;cursor:pointer;}
+  .say{font-weight:700;}
+  [hidden]{display:none !important;}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+  <p id="wait">Looking up this introduction</p>
+  <div id="ask" hidden>
+    <p>Hello,</p>
+    <p id="who"></p>
+    <p class="note" id="note" hidden></p>
+    <p>If both of you say yes, you are sent an email introduction.</p>
+    <p>Would you like this introduction?</p>
+    <label class="check" id="ph-wrap" hidden><input type="checkbox" id="ph"> Also share my phone number</label>
+    <button class="btn" type="button" id="yes">Yes please!</button>
+    <p>If you'd rather not receive this intro, choose “No thanks” and nothing is shared.</p>
+    <button class="btn ghost" type="button" id="no">No thanks</button>
+    <div class="small"><button class="lk" type="button" id="stop">Don't send me introductions</button><button class="lk" type="button" id="report">Report this</button></div>
+  </div>
+  <p class="say" id="done" hidden></p>
+</div></div>
+<script>
+(function () {
+  var GATE = 'https://cw-api-gate.jessieupp.workers.dev';
+  var $ = function (id) { return document.getElementById(id); };
+  var key = '';
+  try { var m = String(location.hash || '').match(/[#&]k=([0-9a-f]{64})/i); key = m ? m[1].toLowerCase() : ''; history.replaceState(null, '', location.pathname); } catch (e) {}
+  var WORDS = {
+    yes: 'Thank you. If they say yes too, you will both get an email introduction.',
+    no: 'Thank you. Nothing is shared.',
+    stop: 'Thank you. You will not be sent introductions. Nothing is shared.',
+    report: 'Thank you for telling us. Nothing is shared.',
+    gone: 'This introduction is closed.',
+    fail: 'That did not save. Try again in a moment.'
+  };
+  function post(action, body) {
+    return fetch(GATE + '?action=' + action, { method: 'POST', cache: 'no-store', referrerPolicy: 'no-referrer', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json(); });
+  }
+  function end(words) { $('wait').hidden = true; $('ask').hidden = true; $('done').textContent = words; $('done').hidden = false; }
+  if (!key) { end(WORDS.gone); return; }
+  post('introView', { key: key }).then(function (d) {
+    if (!d || d.status !== 'ok') { end(WORDS.gone); return; }
+    if (d.answered) { end(d.answered === 'yes' ? WORDS.yes : WORDS.no); return; }
+    $('who').textContent = String(d.introducer || 'Someone') + ' would like to introduce you to ' + String(d.other || 'someone') + '. They think there is potential for connection.';
+    if (d.note) { $('note').textContent = '“' + String(d.note) + '”'; $('note').hidden = false; }
+    $('ph-wrap').hidden = !d.hasPhone;
+    $('wait').hidden = true; $('ask').hidden = false;
+  }).catch(function () { end(WORDS.fail); });
+  var busy = false;
+  function answer(a) {
+    if (busy) { return; } busy = true;
+    ['yes', 'no', 'stop', 'report'].forEach(function (b) { $(b).disabled = true; });
+    post('introAnswer', { key: key, answer: a, phone: a === 'yes' && $('ph').checked ? '1' : '' }).then(function (d) {
+      if (d && d.status === 'ok') { end(WORDS[a]); return; }
+      if (d && d.code === 'gone') { end(WORDS.gone); return; }
+      busy = false; ['yes', 'no', 'stop', 'report'].forEach(function (b) { $(b).disabled = false; }); $('done').textContent = WORDS.fail; $('done').hidden = false;
+    }).catch(function () { busy = false; ['yes', 'no', 'stop', 'report'].forEach(function (b) { $(b).disabled = false; }); $('done').textContent = WORDS.fail; $('done').hidden = false; });
+  }
+  ['yes', 'no', 'stop', 'report'].forEach(function (b) { $(b).onclick = function () { answer(b); }; });
+})();
+</script>
+</body>
+</html>
