@@ -160,7 +160,8 @@
   #introveil #in-who,#introveil #in-msg{font-weight:400;}
   #introveil #in-list[hidden]{display:none;}
   #introveil #in-send[hidden]{display:none;}
-  #introveil #in-off[hidden],#introveil #in-prev-f[hidden]{display:none;}
+  #introveil #in-off[hidden],#introveil #in-prev-f[hidden],#introveil #in-plan[hidden]{display:none;}
+  #introveil .in-scr .check{display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px;}
   #introveil .in-scr{border:1.5px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0 0;}
   #introveil .in-scr textarea{width:100%;min-height:220px;margin:8px 0 10px;background:#fff;}
   #introveil .in-pair{display:flex;align-items:center;gap:14px;margin:0 0 14px;}
@@ -413,6 +414,7 @@
       <p class="in-t" id="in-saved">They will be added to your contacts.</p>
     </div>
     <div class="field"><label for="in-msg">Introduction message:</label><textarea id="in-msg" rows="2" maxlength="1000" placeholder="Optional. Add a line of your own."></textarea></div>
+    <p class="in-t" id="in-plan" hidden></p>
     <div class="field" id="in-prev-f"><span class="q" id="in-prev-q">What each of them will receive via email:</span><div class="rnote" id="in-prev" style="line-height:1.55;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;"></div></div>
     <div id="in-off" hidden><p class="in-t" id="in-off-t"></p><div id="in-scripts"></div></div>
     <p class="msg" id="in-say" hidden></p>
@@ -1614,7 +1616,7 @@
   function openIntro(c) {
     INTRO_FOR = c; var nm = c.name || 'them';
     $('in-who-l').textContent = 'Introduce ' + nm + ' to someone in your contacts:';
-    $('in-lede').textContent = 'Who would you like to introduce ' + nm + ' to within your contacts? Each of them will get an email asking if they want to be introduced. Nothing is shared until both say yes.';
+    $('in-lede').textContent = 'Who would you like to introduce ' + nm + ' to? Each person is asked first, and nothing is shared until both say yes.';
     INTRO_TO = null; $('in-who').value = ''; $('in-list').hidden = true; $('in-new').hidden = true; $('in-name').value = ''; $('in-email').value = '';
     $('in-msg').value = ''; $('in-say').hidden = true;
     introPrev(); onlyPanel('introveil');
@@ -1697,7 +1699,11 @@
   function introScript(to, other) {
     var box = document.createElement('div'); box.className = 'in-scr';
     var l = document.createElement('div'); l.className = 'q'; l.textContent = 'Send to ' + String(to.name || '').trim() + (introEmail(to) ? ' (' + introEmail(to) + ')' : ''); box.appendChild(l);
-    var ta = document.createElement('textarea'); ta.readOnly = true; ta.value = introScriptText(to, other); box.appendChild(ta);
+    var ta = document.createElement('textarea'); ta.readOnly = true; box.appendChild(ta);
+    var lab = document.createElement('label'); lab.className = 'check'; var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true;
+    lab.appendChild(cb); lab.appendChild(document.createTextNode(' Add an invitation to join 2Appear')); box.insertBefore(lab, ta);
+    var fill = function () { var t = introScriptText(to, other); if (cb.checked) { var k = t.lastIndexOf('\n\n'); t = t.slice(0, k) + '\n\nIf you join 2Appear, I can make introductions for you there: https://2appear.network/' + t.slice(k); } ta.value = t; };
+    cb.onchange = fill; fill();
     var b = document.createElement('button'); b.type = 'button'; b.className = 'btn-o'; b.textContent = 'Copy';
     b.onclick = function () {
       var done = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 2000); };
@@ -1707,7 +1713,14 @@
     $('in-scripts').appendChild(box);
   }
   function introOff() {
-    var A = INTRO_FOR, B = introWho(INTRO_TO), off = $('in-off');
+    var A = INTRO_FOR, B = introWho(INTRO_TO), off = $('in-off'), plan = $('in-plan');
+    var fn = function (x) { return String((x && x.name) || '').trim().split(/\s+/)[0]; };
+    plan.hidden = true;
+    if (A && B && (A.person || B.person) && !(B.typed && !introEmail(B))) {
+      plan.textContent = A.person && B.person ? 'We\u2019ll email ' + fn(A) + ' and ' + fn(B) + ' and ask if they want this introduction.' : 'We\u2019ll email ' + fn(A.person ? A : B) + ' and ask if they want this introduction.';
+      plan.hidden = false;
+    }
+    $('in-prev-q').textContent = A && B && !!A.person !== !!B.person ? 'What ' + fn(A.person ? A : B) + ' will receive via email:' : 'What each of them will receive via email:';
     $('in-scripts').innerHTML = '';
     $('in-saved').hidden = !(A && A.person);
     if (!A || !B) { off.hidden = true; $('in-prev-f').hidden = false; return; }
