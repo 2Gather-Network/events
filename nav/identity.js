@@ -477,6 +477,10 @@
     function num(k) { return parseInt(ls(function () { return w.localStorage.getItem(k); }, '') || '0', 10) || 0; }
 
     var reloaded = ls(function () { var e = w.performance.getEntriesByType('navigation')[0]; return !!e && e.type === 'reload'; }, false);
+    var fromSibling = ls(function () {
+      var r = new URL(w.document.referrer || 'about:blank'), h = String(r.hostname || '').toLowerCase();
+      return !!JUMP_SITE[h] && h !== String(w.location.hostname || '').toLowerCase() && !/^\/(signout|signin|carry)(\/|$)/.test(r.pathname);
+    }, false);
     var comeBack = here + String(w.location.search || '') + String(w.location.hash || '');
     var outBack = '';
     if (ls(function () { return w.localStorage.getItem('cw-out-show'); }, '') === '1') {
@@ -497,6 +501,7 @@
 
     if (!found) {
       var tabAsked = ss(function () { return w.sessionStorage.getItem('cw-jump-tab-asked') === '1'; }, true);
+      if (fromSibling && tabAsked) { tabAsked = false; jumpLog('arrived from another of our sites; asking the service again'); }
       if (num('cw-jump-wait') > now && tabAsked && !reloaded && outBack) {
         ls(function () { w.localStorage.removeItem('cw-out-show'); });
         jumpLog('signed out on another site; showing the signed-out page');
