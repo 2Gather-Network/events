@@ -160,6 +160,9 @@
   #introveil #in-who,#introveil #in-msg{font-weight:400;}
   #introveil #in-list[hidden]{display:none;}
   #introveil #in-send[hidden]{display:none;}
+  #introveil #in-off[hidden],#introveil #in-prev-f[hidden]{display:none;}
+  #introveil .in-scr{border:1.5px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0 0;}
+  #introveil .in-scr textarea{width:100%;min-height:220px;margin:8px 0 10px;background:#fff;}
   #introveil .in-pair{display:flex;align-items:center;gap:14px;margin:0 0 14px;}
   #introveil #in-pair .in-av{width:64px;height:64px;border-radius:14px;flex:none;overflow:hidden;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;background:linear-gradient(135deg,#7DD3FC,#1F699E);}
   #introveil .in-pair .in-av img{width:100%;height:100%;object-fit:cover;}
@@ -407,13 +410,13 @@
     <div id="in-new" hidden>
       <div class="field"><label for="in-name">Name</label><input type="text" id="in-name" maxlength="100" autocomplete="off"></div>
       <div class="field"><label for="in-email">Email</label><input type="email" id="in-email" maxlength="200" autocomplete="off"></div>
-      <p class="in-t">They will be added to your contacts.</p>
+      <p class="in-t" id="in-saved">They will be added to your contacts.</p>
     </div>
     <div class="field"><label for="in-msg">Introduction message:</label><textarea id="in-msg" rows="2" maxlength="1000" placeholder="Optional. Add a line of your own."></textarea></div>
     <p class="in-t" id="in-rule">Introductions are for connecting people, not for selling or advertising.</p>
-    <div class="field"><span class="q">What each of them will receive via email:</span><div class="rnote" id="in-prev" style="line-height:1.55;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;"></div></div>
+    <div class="field" id="in-prev-f"><span class="q" id="in-prev-q">What each of them will receive via email:</span><div class="rnote" id="in-prev" style="line-height:1.55;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;"></div></div>
+    <div id="in-off" hidden><p class="in-t" id="in-off-t"></p><div id="in-scripts"></div></div>
     <p class="msg" id="in-say" hidden></p>
-    <div class="acts" id="in-mails" hidden></div>
     <div class="acts">
       <button class="btn ghost" type="button" id="in-cancel">Cancel</button>
       <button class="btn" type="button" id="in-send" hidden>Email both people</button>
@@ -1628,10 +1631,11 @@
     if (!A || !B || (B.typed && !introEmail({ email: $('in-email').value }))) { b.hidden = true; return; }
     b.hidden = false;
     var onA = !!A.person, onB = !!B.person;
-    b.textContent = onA && onB ? 'Email both people' : (onA || onB ? 'Email ' + String((onA ? A : B).name || '').trim().split(/\s+/)[0] + ' and write to ' + String((onA ? B : A).name || '').trim().split(/\s+/)[0] : 'Write the emails');
+    if (!onA && !onB) { b.hidden = true; return; }
+    b.textContent = onA && onB ? 'Email both people' : 'Email ' + String((onA ? A : B).name || '').trim().split(/\s+/)[0];
   }
   function introPair() {
-    introBtn();
+    introBtn(); introOff();
     var box = $('in-pair'); box.innerHTML = ''; if (!INTRO_FOR) { return; }
     box.appendChild(introAv(INTRO_FOR));
     var ar = document.createElement('span'); ar.className = 'in-arrow'; ar.textContent = INTRO_TO ? '\u2194' : '\u2192'; box.appendChild(ar);
@@ -1679,27 +1683,53 @@
     $('in-list').hidden = true; $('in-name').value = q; $('in-email').value = ''; $('in-new').hidden = false; $('in-email').focus();
     INTRO_TO = { name: q, typed: true }; introPrev();
   };
-  $('in-email').oninput = introBtn;
+  $('in-email').oninput = function () { introBtn(); introOff(); };
   $('in-name').oninput = function () { if (INTRO_TO && INTRO_TO.typed) { INTRO_TO.name = String(this.value || '').trim(); introPrev(); } };
   $('in-msg').oninput = introPrev;
   $('in-cancel').onclick = function () { var c = INTRO_FOR; INTRO_FOR = null; if (c) { openView(c); } else { onlyPanel(''); } };
   function introMe() { try { var n = String(window.CW_NAME || localStorage.getItem('cw-name') || '').trim(), f = String(localStorage.getItem('cw-name-for') || '').trim(); return n && (!f || f === realId()) ? n : String((CW.me() || {}).name || '').trim(); } catch (e) { return ''; } }
   function introEmail(x) { var e = String((x && x.email) || '').trim(); return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : ''; }
-  function introMailto(to, other) {
-    var me = introMe();
+  function introWho(x) { return x && x.typed ? { name: String($('in-name').value || '').trim(), email: String($('in-email').value || '').trim(), typed: true } : x; }
+  function introScriptText(to, other) {
     var first = String(to.name || '').trim().split(/\s+/)[0] || '';
     var note = String($('in-msg').value || '').trim();
-    var body = 'Hello ' + first + ',\n\nI would like to introduce you to ' + String(other.name || '').trim() + '. I think there is potential for connection.\n\n' + (note ? note + '\n\n' : '') + 'Would you like this introduction? Reply to let me know. Nothing about you is shared unless you both say yes.\n\n' + me;
-    return 'mailto:' + encodeURIComponent(introEmail(to)) + '?subject=' + encodeURIComponent('An introduction to ' + String(other.name || '').trim()) + '&body=' + encodeURIComponent(body);
+    return 'Subject: An introduction to ' + String(other.name || '').trim() + '\n\nHello ' + first + ',\n\nI would like to introduce you to ' + String(other.name || '').trim() + '. I think there is potential for connection.\n\n' + (note ? note + '\n\n' : '') + 'Would you like this introduction? Reply to let me know. Nothing about you is shared unless you both say yes.\n\n' + introMe();
   }
-  function introMailBtn(to, other) {
-    var a = document.createElement('a'); a.className = 'btn ghost'; a.href = introMailto(to, other); a.textContent = 'Email ' + String(to.name || '').trim();
-    $('in-mails').appendChild(a); $('in-mails').hidden = false;
+  function introScript(to, other) {
+    var box = document.createElement('div'); box.className = 'in-scr';
+    var l = document.createElement('div'); l.className = 'q'; l.textContent = 'Send to ' + String(to.name || '').trim() + (introEmail(to) ? ' (' + introEmail(to) + ')' : ''); box.appendChild(l);
+    var ta = document.createElement('textarea'); ta.readOnly = true; ta.value = introScriptText(to, other); box.appendChild(ta);
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'btn-o'; b.textContent = 'Copy';
+    b.onclick = function () {
+      var done = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 2000); };
+      try { navigator.clipboard.writeText(ta.value).then(done, function () { ta.select(); document.execCommand('copy'); done(); }); } catch (e) { ta.select(); try { document.execCommand('copy'); done(); } catch (e2) {} }
+    };
+    box.appendChild(b);
+    $('in-scripts').appendChild(box);
+  }
+  function introOff() {
+    var A = INTRO_FOR, B = introWho(INTRO_TO), off = $('in-off');
+    $('in-scripts').innerHTML = '';
+    $('in-saved').hidden = !(A && A.person);
+    if (!A || !B) { off.hidden = true; $('in-prev-f').hidden = false; return; }
+    var onA = !!A.person, onB = !!B.person;
+    $('in-prev-f').hidden = !onA && !onB;
+    if (onA && onB) { off.hidden = true; return; }
+    if (B.typed && !introEmail(B)) { off.hidden = true; return; }
+    if (!onA && !onB) {
+      $('in-off-t').textContent = 'Neither of them are on 2Appear, so we can’t email them for you. We only email people who have agreed to hear from us. To make it easier, a script is available for you to copy below and adjust to send from your own email.';
+      introScript(A, B); introScript(B, A);
+    } else {
+      var outP = onA ? B : A, inP = onA ? A : B;
+      $('in-off-t').textContent = String(outP.name || '').trim() + ' isn’t on 2Appear, so we can’t email them for you. We only email people who have agreed to hear from us. To make it easier, a script is available for you to copy below and adjust to send from your own email.';
+      introScript(outP, inP);
+    }
+    off.hidden = false;
   }
   var INTRO_BUSY = false;
   $('in-send').onclick = function () {
     var say = $('in-say'), A = INTRO_FOR, B = INTRO_TO, note = String($('in-msg').value || '').trim();
-    say.hidden = false; $('in-mails').innerHTML = ''; $('in-mails').hidden = true;
+    say.hidden = false;
     if (!A || !B) { say.textContent = 'Choose a person first.'; return; }
     if (bmViewing()) { say.textContent = 'You cannot make an introduction while viewing as someone.'; return; }
     if (/(https?:\/\/|www\.)/i.test(note)) { say.textContent = 'Introductions cannot include links.'; return; }
@@ -1718,7 +1748,7 @@
       }).catch(function () { INTRO_BUSY = false; $('in-send').disabled = false; say.textContent = 'That did not send. Try again in a moment.'; });
       return;
     }
-    if (!A.person && !B.person) { say.textContent = 'Neither of them is on 2Appear, so the introduction goes from your own email. Send each of them this email:'; introMailBtn(A, B); introMailBtn(B, A); return; }
+    if (!A.person && !B.person) { return; }
     if (INTRO_BUSY) { return; }
     var on = A.person ? A : B, off = A.person ? B : A, params = { a: 'c:' + on.person, note: note, realMe: realId() };
     if (off.person) { params.b = 'c:' + off.person; } else { params.bContact = off.contactId || ''; }
@@ -1727,8 +1757,7 @@
       INTRO_BUSY = false; $('in-send').disabled = false;
       if (!d || d.status !== 'ok') { say.textContent = (d && (d.code === 'link' || d.code === 'busy' || d.code === 'signin') && d.message) || 'We could not send this one.'; return; }
       if (off.person) { say.textContent = 'Sent. Each of them got an email asking if they want this introduction.'; return; }
-      say.textContent = on.name + ' got an email asking if they want this introduction. ' + off.name + ' is not on 2Appear, so send them this email from your own email:';
-      introMailBtn(off, on);
+      say.textContent = 'Sent. ' + on.name + ' got an email asking if they want this introduction.';
     }).catch(function () { INTRO_BUSY = false; $('in-send').disabled = false; say.textContent = 'That did not send. Try again in a moment.'; });
   };
   function closeForm() { var v = VIEWING; onlyPanel(''); EDIT = null; FROM_CARD = false; showPic('card', ''); showPic('face', '');
