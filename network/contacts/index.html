@@ -1209,10 +1209,9 @@
         try { dataUrl = canvas.toDataURL('image/jpeg', 0.85); } catch (e) { readBusy(false); fillSay('That picture could not be read. Try another one.', true); return; }
         var image = { mediaType: 'image/jpeg', data: dataUrl.split(',')[1] || '' };
         try {
-          var VE = 1000, vs = Math.min(1, VE / Math.max(img.width, img.height)), vw = Math.max(1, Math.round(img.width * vs)), vh = Math.max(1, Math.round(img.height * vs));
-          image.views = [0, 90, 180, 270].map(function (deg) { var c2 = document.createElement('canvas'), odd = deg % 180; c2.width = odd ? vh : vw; c2.height = odd ? vw : vh; var x2 = c2.getContext('2d'); x2.fillStyle = '#fff'; x2.fillRect(0, 0, c2.width, c2.height); x2.translate(c2.width / 2, c2.height / 2); x2.rotate(deg * Math.PI / 180); x2.drawImage(img, -vw / 2, -vh / 2, vw, vh); return c2.toDataURL('image/jpeg', 0.85).split(',')[1] || ''; });
+          var VE = 800, vs = Math.min(1, VE / Math.max(img.width, img.height)), vw = Math.max(1, Math.round(img.width * vs)), vh = Math.max(1, Math.round(img.height * vs));
+          image.views = [0, 90, 180, 270].map(function (deg) { var c2 = document.createElement('canvas'), odd = deg % 180; c2.width = odd ? vh : vw; c2.height = odd ? vw : vh; var x2 = c2.getContext('2d'); x2.fillStyle = '#fff'; x2.fillRect(0, 0, c2.width, c2.height); x2.translate(c2.width / 2, c2.height / 2); x2.rotate(deg * Math.PI / 180); x2.drawImage(img, -vw / 2, -vh / 2, vw, vh); return c2.toDataURL('image/jpeg', 0.75).split(',')[1] || ''; });
         } catch (e) { delete image.views; }
-        canvas.toBlob(function (blob) { if (blob) { sendPic('card', blob); } }, 'image/jpeg', 0.82);
         readContact('', image, '').then(function () { readBusy(false); })
           .catch(function (e) { readBusy(false); fillSay('Could not read the card (' + String(e && e.message || 'error').slice(0, 40) + '). The picture is kept as their business card, so type the details in.', true); });
       };
@@ -1576,7 +1575,7 @@
     ADD_FILE = null; FROM_CARD = true; ADD_WAY = ''; openForm(null); aiDraw();
     $('fill-file').onchange.call({ files: [f], value: '' });
   }
-  $('add-fill').onclick = function () { if (AIOK) { doFill(); } else { $('add-dec-btns').hidden = true; $('add-dec-ai').hidden = false; } };
+  $('add-fill').onclick = function () { AIP.then(function () { if (AIOK) { doFill(); } else { $('add-dec-btns').hidden = true; $('add-dec-ai').hidden = false; } }); };
   $('add-attach').onclick = function () {
     var f = ADD_FILE; if (!f) { return; }
     ADD_FILE = null; FROM_CARD = false; ADD_WAY = ''; openForm(null); aiDraw();
@@ -2118,6 +2117,14 @@
     }).then(function (d) { addMessaged(d && d.contacts); }).catch(function () {});
   }
 
+  var AIP = Promise.resolve();
+  (function earlyConsent() {
+    var me = realId(); if (!me) { return; }
+    AIP = fetch(GS_URL + '?action=contactCardKey&ai=1&appearId=' + encodeURIComponent(me) + '&meToken=' + encodeURIComponent(token()) + '&t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.status === 'ok' && d.aiRead === true) { AIOK = true; aiDraw(); } })
+      .catch(function () {});
+  })();
   (function start() {
     try { var q0 = new URLSearchParams(location.search), w0 = String(q0.get('tab') || ''); if (TAB_NAMES.some(function (t) { return t[0] === w0; })) { q0.delete('tab'); var s0 = q0.toString(); history.replaceState(null, '', '/network/' + w0 + (s0 ? '?' + s0 : '') + location.hash); } else if (/^\/network\/contacts\/?$/.test(location.pathname)) { history.replaceState(null, '', '/network/contacts' + location.search + location.hash); } } catch (e) {}
     if (!ME) { say('Sign in to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
@@ -2132,7 +2139,7 @@
       $('pane').classList.remove('stale'); $('ct-refresh').hidden = true;
       if (d && d.code === 'signin') { say('Sign in again to see your contacts.', ['Sign in', 'https://2gather.network/signin/']); return; }
       if (!d || d.status !== 'ok') { say((d && d.message) || 'Your contacts did not load. Reload the page and it will try again.'); return; }
-      HOSTS = d.hostsEvents !== false; clUse(d.choiceLists); AIOK = d.aiConsent === true; aiDraw(); BMCODE = {}; (d.bookmarkedPeople || []).forEach(function (x) { BMCODE[String(x)] = 1; }); ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; ASKED = {}; ((d.tabs && d.tabs.asked) || []).forEach(function (a) { if (a && a.person) { ASKED[String(a.person)] = a; } }); SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
+      HOSTS = d.hostsEvents !== false; clUse(d.choiceLists); AIOK = d.aiConsent === true || AIOK; aiDraw(); BMCODE = {}; (d.bookmarkedPeople || []).forEach(function (x) { BMCODE[String(x)] = 1; }); ALL = d.contacts || []; GROUPS = d.groups || []; EVENTS = d.events || []; PASTEV = d.pastEvents || []; EVNOTES = d.eventNotes || []; TABS = d.tabs || TABS; ASKED = {}; ((d.tabs && d.tabs.asked) || []).forEach(function (a) { if (a && a.person) { ASKED[String(a.person)] = a; } }); SHARED = d.sharedDetails || []; CARRIED = {}; (d.carriedEvents || []).forEach(function (e) { if (e && e.eventId) { CARRIED[e.eventId] = String(e.title || ''); } });
       say(''); CONTACTS_LOADED = true; ctSave(d);
       if (/[?&]timing=1/.test(location.search) && d.ms) { try { var tl = document.createElement('p'); tl.className = 'sub'; tl.textContent = 'Load time in milliseconds: ' + JSON.stringify(d.ms) + ', page total ' + (Date.now() - T_START); $('head').appendChild(tl); } catch (e) {} }
       if (!BM_LOADED) { bmLast(); }
