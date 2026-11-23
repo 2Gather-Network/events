@@ -126,7 +126,7 @@ html.gp-pub-asking .card > :not(#gp-pub-ask){display:none !important;}
   var GP_CQ = '';
   var GP_OPEN_Q = String(params.get('open') || '').trim();
   var GP_PATH_STEP = (function(){
-    var m = String(window.location.pathname || '').match(/^\/ikigai\/([A-Za-z-]+)\/?$/);
+    var m = String(window.location.pathname || '').match(/^\/ikigai\/(?:skills\/)?([A-Za-z-]+)\/?$/);
     return m ? (m[1].toLowerCase() === 'offers' ? 'offerings' : m[1]) : '';
   })();
   if (GP_PATH_STEP === 'permissions' || (params.get('step') || '') === 'permissions') {
@@ -3023,7 +3023,7 @@ html.gp-pub-asking .card > :not(#gp-pub-ask){display:none !important;}
       var slug = (n === 0 && document.documentElement.classList.contains('gp-loading')) ? '' : gpStepSlug(n);
       if (/^(2gather|2appear|2balance)\.network$/.test(window.location.hostname) && /^\/ikigai(\/|$)/.test(window.location.pathname)) {
         u.searchParams.delete('step');
-        window.history.replaceState({}, '', '/ikigai/' + slug + (u.searchParams.toString() ? '?' + u.searchParams.toString() : '') + u.hash);
+        window.history.replaceState({}, '', '/ikigai/' + (n === GP_WORK ? 'skills/' : '') + slug + (u.searchParams.toString() ? '?' + u.searchParams.toString() : '') + u.hash);
         return;
       }
       if (slug) { u.searchParams.set('step', slug); } else { u.searchParams.delete('step'); }
@@ -3036,6 +3036,7 @@ html.gp-pub-asking .card > :not(#gp-pub-ask){display:none !important;}
     if (gpSkipped(n)) { var _fwd = n > _gpStep; while (n > 0 && n < GP_LAST && gpSkipped(n)) n += _fwd ? 1 : -1; }
     _gpStep = Math.max(0, Math.min(GP_STEP_TITLES.length - 1, n));
     if (_gpStep === GP_WORK) { var _ws = document.getElementById('gp-work-step'), _sb = document.getElementById('gp-sectors-block'), _wk = document.getElementById('gp-offer-work'); if (_ws && _sb && _wk && _wk.parentNode === _ws) { _ws.insertBefore(_sb, _wk.nextSibling); } }
+    if (_gpStep === GP_WORK) { var _ws2 = document.getElementById('gp-work-step'); if (_ws2 && !document.getElementById('gp-otw-back')) { _ws2.insertBefore(gpPillRow('gp-otw-back', 'Back to skills', function(){ gpShowStep(GP_STEP_TITLES.indexOf('Skills')); }), _ws2.firstChild); } }
     var all = document.querySelectorAll('[data-gp-step]');
     Array.prototype.forEach.call(all, function(el){
       el.style.display = (String(el.getAttribute('data-gp-step')) === String(_gpStep)) ? '' : 'none';
@@ -3094,16 +3095,18 @@ html.gp-pub-asking .card > :not(#gp-pub-ask){display:none !important;}
     wrap.insertBefore(fold.box, wrap.firstChild);
     if (tag) { tag.style.margin = '18px 0 0'; fold.body.appendChild(tag); }
     if (key === 'introSkills' && GP_WORK > -1 && !wrap.querySelector('#gp-otw-pill')) {
-      var otwRow = document.createElement('div'); otwRow.style.cssText = 'margin:0 0 12px;';
-      var otwB = document.createElement('button'); otwB.type = 'button'; otwB.id = 'gp-otw-pill';
-      otwB.textContent = 'Open to work';
-      otwB.style.cssText = 'font:inherit;font-size:13px;font-weight:700;padding:5px 10px;border-radius:20px;border:1.5px solid #DDE4EE;background:#fff;color:#1A2E42;cursor:pointer;line-height:1.3;';
-      otwB.onmouseover = function(){ otwB.style.background = '#EEF1F5'; };
-      otwB.onmouseout = function(){ otwB.style.background = '#fff'; };
-      otwB.onclick = function(){ gpShowStep(GP_WORK); };
-      otwRow.appendChild(otwB);
-      wrap.insertBefore(otwRow, wrap.firstChild);
+      wrap.insertBefore(gpPillRow('gp-otw-pill', 'Open to work', function(){ gpShowStep(GP_WORK); }), wrap.firstChild);
     }
+  }
+  function gpPillRow(id, words, go){
+    var row = document.createElement('div'); row.style.cssText = 'margin:0 0 12px;';
+    var b = document.createElement('button'); b.type = 'button'; b.id = id; b.textContent = words;
+    b.style.cssText = 'font:inherit;font-size:13px;font-weight:700;padding:5px 10px;border-radius:20px;border:1.5px solid #DDE4EE;background:#fff;color:#1A2E42;cursor:pointer;line-height:1.3;';
+    b.onmouseover = function(){ b.style.background = '#EEF1F5'; };
+    b.onmouseout = function(){ b.style.background = '#fff'; };
+    b.onclick = go;
+    row.appendChild(b);
+    return row;
   }
   function gpFoldBar(key, head){
     var box = document.createElement('div');
@@ -3284,10 +3287,19 @@ html.gp-pub-asking .card > :not(#gp-pub-ask){display:none !important;}
   }
   var GP_HOW = [['lived','Lived it'],['volunteered','Volunteered'],['workedas','Worked as it'],['studied','Studied it'],['credentialed','Credentialed'],['titled','Held the title'],['selftaught','Self-taught'],['trained','Trained'],['guide','Guide']];
   function gpHowOf(key, word){ return gpSplitWork(gpOrigFor(key, word)).how; }
+  function gpIsLevelPart(x){
+    var bits = String(x || '').split(',').map(function(b){ return b.trim(); }).filter(Boolean);
+    return bits.length > 0 && bits.every(gpIsLevelWord);
+  }
+  function gpPadParts(parts){
+    if (parts.length === 2 && gpIsLevelPart(parts[1])) { parts = [parts[0], '', parts[1]]; }
+    while (parts.length < 3) { parts.push(''); }
+    return parts;
+  }
   function gpSetHow(key, word, list){
     if (!_gpOrig[key]) { _gpOrig[key] = {}; }
     var w = gpSplitWork(gpOrigFor(key, word)), parts = w.body.split(':'), kw = String(word).toLowerCase();
-    while (parts.length < 3) { parts.push(''); }
+    parts = gpPadParts(parts);
     var keep = GP_HOW.map(function(h){ return h[0]; }).filter(function(c){ return list.indexOf(c) > -1; });
     _gpOrig[key][kw] = parts.join(':') + gpBuildMarks(w, { how: keep });
     _gpOrigEdited[key + '|' + kw] = _gpOrig[key][kw];
@@ -3355,6 +3367,7 @@ html.gp-pub-asking .card > :not(#gp-pub-ask){display:none !important;}
     var parts = w.body.split(':');
     var lvl = levels.join(',');
     if (parts.length === 1) { parts.push(lvl); }
+    else if (parts.length === 2 && String(parts[1] || '').trim() && !gpIsLevelPart(parts[1])) { parts.push(lvl); }
     else { parts[parts.length - 1] = lvl; }
     _gpOrig[key][String(word).toLowerCase()] = parts.join(':') + w.work;
     _gpOrigEdited[key + '|' + String(word).toLowerCase()] = _gpOrig[key][String(word).toLowerCase()];
@@ -3385,7 +3398,7 @@ html.gp-pub-asking .card > :not(#gp-pub-ask){display:none !important;}
     if (!_gpOrig[key]) { _gpOrig[key] = {}; }
     var w = gpSplitWork(gpOrigFor(key, word));
     var parts = w.body.split(':');
-    while (parts.length < 3) { parts.push(''); }
+    parts = gpPadParts(parts);
     parts[1] = cat;
     _gpOrig[key][String(word).toLowerCase()] = parts.slice(0, 3).join(':') + w.work;
     _gpOrigEdited[key + '|' + String(word).toLowerCase()] = _gpOrig[key][String(word).toLowerCase()];
