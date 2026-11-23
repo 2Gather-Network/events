@@ -852,7 +852,7 @@
       return true;
     },
     forget: function () {
-      ls(function () { var _lg = JSON.parse(w.localStorage.getItem('cw-jump-log') || '[]'); var _st = String((new Error()).stack || '').split('\n').slice(2, 4).join(' <- ').replace(/https?:\/\/[^\s)]*\//g, ''); _lg.push(new Date().toLocaleTimeString() + ' /' + String(w.location.pathname || '/').split('/')[1] + ' signed out on this device by ' + _st); w.localStorage.setItem('cw-jump-log', JSON.stringify(_lg.slice(-14))); w.console.info('[sign-in check] ' + _lg[_lg.length - 1]); });
+      ls(function () { var _lg = JSON.parse(w.localStorage.getItem('cw-jump-log') || '[]'); var _st = String((new Error()).stack || '').split('\n').slice(2, 8).join(' <- ').replace(/https?:\/\/[^\s)]*\//g, '').replace(/\?[^:\s)]*/g, '').replace(/\s+/g, ' '); _lg.push(new Date().toLocaleTimeString() + ' /' + String(w.location.pathname || '/').split('/')[1] + ' signed out on this device by ' + _st); w.localStorage.setItem('cw-jump-log', JSON.stringify(_lg.slice(-14))); w.console.info('[sign-in check] ' + _lg[_lg.length - 1]); });
       ls(function () {
         for (var i = 0; i < CLEAR.length; i++) { w.localStorage.removeItem(CLEAR[i]); }
         ss(function () {
