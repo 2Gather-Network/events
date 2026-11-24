@@ -1,0 +1,140 @@
+<!doctype html>
+<html>
+<head>
+<!-- Copyright 2026 DayBalancer LLC. All rights reserved. -->
+<meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-store, max-age=0">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Send appreciation · 2Appear</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--bg:#1F699E;--ink:#1A2E42;--line:#DDE4EE;--brand:#1F699E;--bad:#B42318;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);font-family:'Nunito Sans','DM Sans','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);}
+  .wrap{max-width:760px;margin:0 auto;padding:24px 20px 60px;}
+  .breadcrumb{color:#fff;font-size:15px;font-weight:500;margin-bottom:22px;opacity:.92;}
+  .breadcrumb a{color:#fff;text-decoration:none;}
+  .breadcrumb a:hover{text-decoration:underline;}
+  .breadcrumb .now{font-weight:800;}
+  .gr-card{background:#fff;border-radius:18px;padding:18px;color:#1A2E42}
+  .gr-card h3{margin:0 0 6px;font-size:20px}
+  .gr-hint{font-size:13.5px;color:#4B5A6D;margin:0 0 10px}
+  .gr-q{font-weight:800;font-size:15px;margin:14px 0 6px}
+  .gr-pills{display:flex;flex-wrap:wrap;gap:8px}
+  .gr-pill{font:inherit;font-size:13px;font-weight:400;line-height:1.3;padding:7px 14px;border-radius:24px;border:1.5px solid #1F699E;background:#fff;color:#1F699E;cursor:pointer;min-height:34px}
+  .gr-pill:hover{background:#EEF2F7}
+  .gr-pill[aria-pressed=true],.gr-pill[aria-pressed=true]:hover{background:#1F699E;color:#fff;border-color:#1F699E}
+  .gr-card textarea{width:100%;font:600 14px 'Nunito Sans',sans-serif;padding:10px 14px;border:1.5px solid #DDE4EE;border-radius:12px;background:#fff;color:#1A2E42;resize:vertical;min-height:80px}
+  .gr-chip{display:inline-flex;align-items:center;padding:6px 14px;border:1.5px solid #1F699E;background:#fff;border-radius:24px;font-weight:700;margin-bottom:8px}
+  .gr-box{background:#EEF1F5;border:1.5px solid #DDE4EE;border-radius:12px;padding:10px 12px;font-size:13.5px;margin:10px 0}
+  .gr-foot{display:flex;gap:12px;align-items:center;margin-top:16px}
+  .gr-btn{font:inherit;font-size:13px;font-weight:700;line-height:1.3;padding:7px 14px;border-radius:24px;border:1.5px solid #1F699E;background:#1F699E;color:#fff;cursor:pointer;min-height:34px}
+  .gr-btn[disabled]{opacity:.6;cursor:default}
+  .gr-lk{font:inherit;font-size:14px;font-weight:700;color:#1F699E;background:none;border:0;cursor:pointer;text-decoration:underline}
+  .gr-msg{margin:10px 0 0;font-size:14px}
+  [hidden]{display:none !important}
+  .wait{color:#fff;font-size:14px}
+</style>
+<script src="/nav/identity.js?v=72"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="breadcrumb" id="crumb"></div>
+  <p class="wait" id="wait">One moment, I'm looking.</p>
+  <div class="gr-card" id="form" hidden>
+    <h3>Send appreciation</h3>
+    <p class="gr-hint">Big or small. They get an email. It shows on their profile only after they say yes.</p>
+    <p class="gr-q" style="margin-top:6px">Who are you appreciating?</p>
+    <div><span class="gr-chip" id="chip"></span></div>
+    <p class="gr-q">How did they show up for you?</p>
+    <p class="gr-hint" style="margin:0 0 8px">Pick any that fit.</p>
+    <div class="gr-pills" data-gr="showedUpAs"></div>
+    <p class="gr-q">What came of it?</p>
+    <div class="gr-pills" data-gr="resultsCreated"></div>
+    <p style="margin:12px 0 0"><button class="gr-lk" type="button" id="more">+ Add the role they played</button></p>
+    <div id="moreb" hidden>
+      <p class="gr-q">How did they show up for you in this instance?</p>
+      <div class="gr-pills" data-gr="roleThisTime"></div>
+    </div>
+    <p class="gr-q" id="notelbl">Private message - visible only to them:</p>
+    <textarea id="note" maxlength="1000" aria-labelledby="notelbl"></textarea>
+    <div class="gr-box">This recognition generates an email to them. Your message only goes to them. It is never shown on their profile.</div>
+    <div class="gr-foot"><button class="gr-btn" type="button" id="send">Send thanks</button><button class="gr-lk" type="button" id="cancel">Cancel</button></div>
+    <p class="gr-msg" id="msg" role="status" hidden></p>
+  </div>
+</div>
+<script>
+(function () {
+  var GS_URL = 'https://cw-api-gate.jessieupp.workers.dev';
+  var OPT = {
+    showedUpAs: ['Connector', 'Motivator', 'Guide', 'Believer', 'Collaborator', 'Challenger', 'Supporter', 'Provider'],
+    resultsCreated: ['Clarity gained', 'Felt more settled', 'Inspired', 'Time saved', 'Skill built', 'Met someone new', 'Problem solved'],
+    roleThisTime: ['Mentor', 'Advisor', 'Feedback giver', 'Volunteer', 'Partner', 'Coach']
+  };
+  function $(id) { return document.getElementById(id); }
+  function token() { try { return localStorage.getItem('cw-token') || ''; } catch (e) { return ''; } }
+  var ME = '', CODE = '', BUSY = false;
+  try { var m = CW.me(); ME = m && m.id ? String(m.id).trim() : ''; } catch (e) {}
+  function viewing() { try { var v = CW.me(); return !!(v && v.viewing); } catch (e) { return true; } }
+  var qp = new URLSearchParams(location.search);
+  CODE = String(qp.get('c') || '').replace(/^c:/i, '').trim();
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  function say(t) { var s = $('msg'); s.textContent = t; s.hidden = !t; }
+  function backHref() { return '/network/contacts/'; }
+  function crumb(name) {
+    var c = $('crumb');
+    c.innerHTML = '<a href="/dashboard/">Dashboard</a> / <a href="/network/">Network</a> / <a href="' + backHref() + '">Contacts</a> / <span class="now"></span>';
+    c.querySelector('.now').textContent = name ? (name + ' / Appreciation') : 'Appreciation';
+  }
+  function paintPills() {
+    Object.keys(OPT).forEach(function (k) {
+      var el = document.querySelector('[data-gr="' + k + '"]'); if (!el) { return; }
+      el.innerHTML = '';
+      OPT[k].forEach(function (v) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'gr-pill'; b.setAttribute('aria-pressed', 'false'); b.setAttribute('data-v', v); b.textContent = v;
+        b.onclick = function () { b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); };
+        el.appendChild(b);
+      });
+    });
+  }
+  function pick(k) {
+    return Array.prototype.map.call(document.querySelectorAll('[data-gr="' + k + '"] .gr-pill[aria-pressed=true]'), function (b) { return b.getAttribute('data-v'); }).join('|');
+  }
+  function show(name) {
+    crumb(name);
+    $('wait').hidden = true; $('form').hidden = false;
+    $('chip').textContent = name || 'This person';
+    paintPills();
+  }
+  function start() {
+    crumb('');
+    if (!ME || !CODE) { $('wait').textContent = 'Open this from a person in your Contacts.'; return; }
+    if (viewing()) { $('wait').textContent = 'Appreciation can only be sent as yourself.'; return; }
+    fetch(GS_URL + '?action=getContacts&appearId=' + encodeURIComponent(ME) + '&meToken=' + encodeURIComponent(token()) + '&t=' + Date.now(), { cache: 'no-store', referrerPolicy: 'no-referrer' })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        var list = (d && (d.contacts || d.items)) || [], nm = '';
+        list.forEach(function (x) { if (x && String(x.person || '').replace(/^c:/i, '') === CODE) { nm = String(x.name || ''); } });
+        show(nm);
+      }).catch(function () { show(''); });
+  }
+  $('more').onclick = function () { $('moreb').hidden = false; $('more').hidden = true; };
+  $('cancel').onclick = function () { location.href = backHref(); };
+  $('send').onclick = function () {
+    if (BUSY || viewing()) { return; }
+    if (!pick('showedUpAs')) { say('Pick how they showed up for you.'); return; }
+    BUSY = true; $('send').disabled = true; say('Sending your thanks…');
+    fetch(GS_URL + '?action=giveGratitude&meToken=&t=' + Date.now(), {
+      method: 'POST', cache: 'no-store', referrerPolicy: 'no-referrer', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'giveGratitude', appearId: ME, meToken: token(), receiverId: 'c:' + CODE, showedUpAs: pick('showedUpAs'), resultsCreated: pick('resultsCreated'), roleThisTime: pick('roleThisTime'), privateNote: $('note').value })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.status === 'ok') { say('Sent. They get an email. It shows on their profile only after they say yes.'); $('send').hidden = true; }
+      else { say((d && d.message) || 'That did not send. Try again.'); $('send').disabled = false; }
+    }).catch(function () { say('That did not send. Try again.'); $('send').disabled = false; })
+      .then(function () { BUSY = false; });
+  };
+  start();
+})();
+</script>
+</body>
+</html>
