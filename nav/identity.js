@@ -13,13 +13,29 @@
     try { Object.keys(w.localStorage).forEach(function (k) { for (var j = 0; j < ANSWER_KEYS.length; j++) { if (k.indexOf(ANSWER_KEYS[j]) === 0) { w.localStorage.removeItem(k); } } }); } catch (e) {}
   }
   var CLEAR = ['cw-id', 'appear-id', 'cw-photo', 'cw-photo-for', 'cw-photo-at', 'cw-token', 'cw-first',
-               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-super-for', 'cw-lastEmail', 'cw-enabled', 'cw-jump-mark', 'cw-jump-known', 'cw-invite', 'cw-rms-bm-last'];
+               'cw-view-as', 'cw-view-as-name', 'cw-super', 'cw-super-for', 'cw-lastEmail', 'cw-enabled', 'cw-jump-mark', 'cw-jump-known', 'cw-invite', 'cw-rms-bm-last', 'cw-name', 'cw-name-for', 'cw-name-at', 'cw-vanity', 'cw-vanity-for', 'cw-conduct', 'cw-commons-me', 'cw-ls-who'];
   var VIEW_KEY = 'cw-view-as';
   var OUT_KEY = 'cw-view-out';
 
   function ls(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
   function ss(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
   ls(function () { w.localStorage.removeItem('cw-view-as'); w.localStorage.removeItem('cw-view-as-name'); });
+  ls(function () {
+    var L = w.localStorage, n = function (x) { return String(x || '').split('.').join('').toLowerCase().trim(); };
+    var who = n(L.getItem('cw-id') || L.getItem('appear-id'));
+    var was = n(L.getItem('cw-ls-who'));
+    var gone = function (keys) { for (var i = 0; i < keys.length; i++) { L.removeItem(keys[i]); } };
+    var nameFor = n(L.getItem('cw-name-for'));
+    if ((nameFor && nameFor !== who) || (!nameFor && L.getItem('cw-name'))) { gone(['cw-name', 'cw-name-for', 'cw-name-at', 'cw-first']); }
+    var vanFor = n(L.getItem('cw-vanity-for'));
+    if ((vanFor && vanFor !== who) || (!vanFor && L.getItem('cw-vanity'))) { gone(['cw-vanity', 'cw-vanity-for']); }
+    var photoFor = n(L.getItem('cw-photo-for'));
+    if ((photoFor && photoFor !== who) || (!photoFor && L.getItem('cw-photo'))) { gone(['cw-photo', 'cw-photo-for', 'cw-photo-at']); }
+    var face = null; try { face = JSON.parse(L.getItem('cw-commons-me') || 'null'); } catch (e) { face = 'bad'; }
+    if (face && (face === 'bad' || n(face.appearId) !== who)) { L.removeItem('cw-commons-me'); }
+    if (was && who && was !== who) { gone(['cw-first', 'cw-conduct', 'cw-commons-me', 'cw-enabled', 'cw-invite', 'cw-rms-bm-last']); }
+    if (who) { L.setItem('cw-ls-who', who); }
+  });
 
   function normalise(v) {
     return String(v == null ? '' : v).replace(/\./g, '').trim().toLowerCase();

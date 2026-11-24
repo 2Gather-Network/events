@@ -187,7 +187,7 @@
       pProf.then(function (pr) {
         pr = pr || {};
         if (state) { state.profile = (pr.found && pr.data) ? pr.data : {}; state.loading = false; }
-        if (pr.found && pr.name) { try { localStorage.setItem('cw-name', String(pr.name)); } catch (e) {} }
+        if (pr.found && pr.name) { try { localStorage.setItem('cw-name', String(pr.name)); localStorage.setItem('cw-name-for', String(ctx.meId || '')); localStorage.setItem('cw-name-at', String(Date.now())); } catch (e) {} }
         draw();
       });
     }).catch(function () { box.textContent = 'We could not read your permissions just now. Reload the page to try again.'; });
