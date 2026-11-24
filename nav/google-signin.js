@@ -82,6 +82,7 @@
 
   window.cwGoogleMount = function (opts) {
     if (!wanted()) return;
+    var justOut = /[?&]out=1(&|$)/.test(String(window.location.search || ''));
     styles();
     var slot = opts && opts.slot;
     if (!slot) return;
@@ -219,7 +220,6 @@
         var w = Math.min(400, Math.max(200, Math.round(slot.getBoundingClientRect().width || 320)));
         google.accounts.id.renderButton(slot.querySelector('.cw-g-btn'),
           { theme: 'outline', size: 'large', shape: 'pill', text: opts.mode === 'signup' ? 'signup_with' : 'continue_with', width: w });
-        var justOut = /[?&]out=1(&|$)/.test(String(window.location.search || ''));
         if (justOut) { try { google.accounts.id.disableAutoSelect(); } catch (e) {} }
         else if (opts.mode === 'signin') { try { google.accounts.id.prompt(); } catch (e) {} }
       } catch (e) { say('Google sign-in did not load. Use the emailed code.'); }
