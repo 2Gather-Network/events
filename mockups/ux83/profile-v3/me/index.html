@@ -3462,7 +3462,7 @@
       var P0=(!isAdd&&PEND[key+'|'+old.toLowerCase()])||{};
       var modeInit=oldLv.indexOf('Fan')>-1?'Fan':(P0.mode||''), mode=modeInit;
       var fanKeep=oldLv.filter(function(x){ return x!=='Fan'&&L.list.indexOf(x)>-1; });
-      var shadow=!!P0.shadow, intern=!!P0.intern, comp=P0.comp||'';
+      var O=Object.assign({},P0.off||{}), C=Object.assign({},P0.comp||{}), refreshO=null;
       var hOld=!isAdd&&t.classList.contains('v2-hasheart'), heart=hOld;
       oldLv.forEach(function(x){ if(L.list.indexOf(x)>-1) pick[x]=1; });
       t.classList.add('v2-qe-open'); try{ frame(); }catch(e){}
@@ -3483,16 +3483,18 @@
       var lvlWrap=el('div','v2-qe-grp'); lvlWrap.appendChild(lvl); f.appendChild(lvlWrap);
       var heartB=null;
       if(isSk){ heartB=el('button','v2-qe-chip v2-qe-heart'); heartB.type='button'; heartB.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg><span>Joy</span>'; heartB.setAttribute('aria-pressed',heart?'true':'false'); heartB.onclick=function(){ heart=!heart; heartB.setAttribute('aria-pressed',heart?'true':'false'); }; nrow.appendChild(heartB); }
-      var open2=null, compG=null;
+      var open2=null;
       if(isSk){
-        open2=el('div','v2-qe-grp'); open2.appendChild(el('div','v2-qe-lab','Are you open to the following?'));
-        var oc=el('div','v2-qe-lv');
-        var bS=el('button','v2-qe-chip','Let someone job shadow me'); bS.type='button'; bS.setAttribute('aria-pressed',shadow?'true':'false'); bS.onclick=function(){ shadow=!shadow; bS.setAttribute('aria-pressed',shadow?'true':'false'); };
-        var bI=el('button','v2-qe-chip','Offering an internship'); bI.type='button'; bI.setAttribute('aria-pressed',intern?'true':'false'); bI.onclick=function(){ intern=!intern; bI.setAttribute('aria-pressed',intern?'true':'false'); refresh(); };
-        oc.appendChild(bS); oc.appendChild(bI); open2.appendChild(oc);
-        compG=el('div','v2-qe-grp'); compG.appendChild(el('div','v2-qe-lab','How will the internship be compensated?'));
-        compG.appendChild(chipRow(['Paid','Unpaid','Stipend'],false,function(x){ return comp===x; },function(x){ comp=comp===x?'':x; },function(){}));
-        open2.appendChild(compG); f.appendChild(open2);
+        open2=el('div','v2-qe-grp'); open2.appendChild(el('div','v2-qe-lab',"I'm open to offering:"));
+        var SUBS=[{k:'Guidance',list:['Advice','Mentoring'],pay:{}},{k:'Learning alongside me',list:['Job shadow','Internship'],pay:{Internship:['Paid','Unpaid','Stipend']}},{k:'Work with me',list:['Project','Job'],pay:{Project:['Paid','Unpaid'],Job:['Paid','Unpaid']}}];
+        var tg=function(x){ O[x]=!O[x]; };
+        var gs=[];
+        open2.appendChild(chipRow(SUBS.map(function(z){ return z.k; }),true,function(x){ return !!O[x]; },tg,function(){ refreshO(); }));
+        SUBS.forEach(function(z){ var g=el('div','v2-qe-grp'); g.appendChild(chipRow(z.list,true,function(x){ return !!O[x]; },tg,function(){ refreshO(); })); var ps=[];
+          Object.keys(z.pay).forEach(function(n){ var pg=el('div','v2-qe-grp'); pg.appendChild(el('div','v2-qe-lab','How will the '+n.toLowerCase()+' be compensated?')); pg.appendChild(chipRow(z.pay[n],false,function(x){ return C[n]===x; },function(x){ C[n]=C[n]===x?'':x; },function(){})); g.appendChild(pg); ps.push([n,pg]); });
+          open2.appendChild(g); gs.push([z,g,ps]); });
+        refreshO=function(){ gs.forEach(function(r){ r[1].hidden=!O[r[0].k]; r[2].forEach(function(q){ q[1].hidden=!O[q[0]]; }); }); };
+        refreshO(); f.appendChild(open2);
       }
       f.appendChild(msg);
       var acts=el('div','v2-qe-acts'), left=el('div','v2-qe-l');
@@ -3503,7 +3505,7 @@
       function nPick(){ return L.list.filter(function(x){ return pick[x]; }).length; }
       function levelsShown(){ return !isEn||mode==='Solo'||mode==='With others'||(!mode&&nPick()>0); }
       function valid(){ return isEn&&mode==='Fan'?true:(levelsShown()&&nPick()>0); }
-      function refresh(){ lvlWrap.hidden=!levelsShown(); lvl.hidden=false; var ok=valid(); save.hidden=!ok; if(del) del.hidden=!ok; if(open2) open2.hidden=!(pick.Guide); if(compG) compG.hidden=!intern; }
+      function refresh(){ lvlWrap.hidden=!levelsShown(); lvl.hidden=false; var ok=valid(); save.hidden=!ok; if(del) del.hidden=!ok; if(open2) open2.hidden=!(pick.Guide); }
       refresh();
       function busy(on){ [save,cancel,del].forEach(function(b){ if(b) b.disabled=on; }); inp.disabled=on; }
       cancel.onclick=function(){ close(t); if(isAdd){ t.parentNode&&t.parentNode.removeChild(t); } };
@@ -3526,7 +3528,8 @@
         close(t); var tile=t;
         if(isAdd){ tile=newTile(nw,lv); t.parentNode.replaceChild(tile,t); bind(sec,key,tile); } else { setTile(t,nw,lv); }
         if(!isAdd) delete PEND[key+'|'+old.toLowerCase()];
-        PEND[key+'|'+nw.toLowerCase()]={mode:mode,shadow:shadow,intern:intern,comp:intern?comp:''};
+        if(isSk){ SUBS0.forEach(function(z){ if(!O[z.k]){ z.list.forEach(function(n){ delete O[n]; delete C[n]; }); } else { z.list.forEach(function(n){ if(!O[n]) delete C[n]; }); } }); }
+        PEND[key+'|'+nw.toLowerCase()]={mode:mode,off:O,comp:C};
         if(isSk){ setHeart(tile,heart); }
         sync(key,isAdd?null:old,nw,lv,isSk?heart:undefined); recount(sec);
         if(isSk){ if(heart&&!hOld){ sync('introEnjoy',null,nw,[]); } else if(!heart&&hOld){ sync('introEnjoy',isAdd?nw:old,null,null); } else if(heart&&hOld&&!isAdd&&nw!==old){ sync('introEnjoy',old,nw,null); } }
@@ -3537,7 +3540,7 @@
           var undoJ=function(){ if(!isSk) return; if(heart&&!hOld){ sync('introEnjoy',nw,null,null); } else if(!heart&&hOld){ sync('introEnjoy',null,isAdd?nw:old,[]); } else if(heart&&hOld&&!isAdd&&nw!==old){ sync('introEnjoy',nw,old,null); } };
           if(r==='notes'){ note.className='v2-qe-note v2-qe-bad'; note.textContent='Could not save just now. Try again.'; return; }
           if(isAdd){ var at=tile.parentNode, nx=tile.nextSibling; sync(key,nw,null,null); undoJ(); delete PEND[key+'|'+nw.toLowerCase()]; if(tile.parentNode) tile.parentNode.removeChild(tile); if(at){ var bad=el('div','v2-qe-note v2-qe-bad',r==='dup'?'That is already on your profile.':'Could not add '+nw+' just now. Try again.'); at.insertBefore(bad,nx&&nx.parentNode===at?nx:null); setTimeout(function(){ bad.parentNode&&bad.parentNode.removeChild(bad); },8000); } }
-          else { setTile(tile,old,oldLv); sync(key,nw,old,oldLv,isSk?hOld:undefined); undoJ(); delete PEND[key+'|'+nw.toLowerCase()]; if(P0&&(P0.mode||P0.shadow||P0.intern)) PEND[key+'|'+old.toLowerCase()]=P0; if(isSk) setHeart(tile,hOld); note.className='v2-qe-note v2-qe-bad'; note.textContent=r==='dup'?'That is already on your profile.':'Could not save just now. Try again.'; }
+          else { setTile(tile,old,oldLv); sync(key,nw,old,oldLv,isSk?hOld:undefined); undoJ(); delete PEND[key+'|'+nw.toLowerCase()]; if(P0&&(P0.mode||P0.off)) PEND[key+'|'+old.toLowerCase()]=P0; if(isSk) setHeart(tile,hOld); note.className='v2-qe-note v2-qe-bad'; note.textContent=r==='dup'?'That is already on your profile.':'Could not save just now. Try again.'; }
           recount(sec);
         });
       };
