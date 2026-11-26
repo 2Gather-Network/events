@@ -3415,12 +3415,13 @@
     function take(){ var f=pre; pre=null; if(f&&Date.now()-f.at<=20000) return f; drop(f); return mk(); }
     function detWait(w){ return new Promise(function(res){ var t0=Date.now(); try{ if(Object.keys(w._gpDet||{}).length) w.gpDetailSend(true); }catch(e){ res(); return; }
       (function poll(){ var left=0; try{ left=Object.keys(w._gpDet||{}).length; }catch(e){} if((!w._gpDetBusy&&!left)||Date.now()-t0>30000){ res(); return; } try{ if(left&&!w._gpDetBusy) w.gpDetailSend(true); }catch(e){} setTimeout(poll,400); })(); }); }
+    function off(w){ try{ w.clearTimeout(w._gpTouchT); w.clearTimeout(w._gpAutoT); w.clearTimeout(w._gpDetT); }catch(e){} try{ w._gpLoaded=false; w._gpDet={}; }catch(e){} try{ w.gpPendDone(); }catch(e){} }
     function once(fn){
       var f=take();
       return f.p.then(function(w){
-        var ok=fn(w); if(ok===false){ return 'dup'; }
+        var ok=fn(w); if(ok===false){ off(w); return 'dup'; }
         try{ w.clearTimeout(w._gpTouchT); }catch(e){}
-        return Promise.resolve(w.cwIkFlush()).then(function(r){ if(!r){ try{ w.gpPendDone(); }catch(e){} return 'fail'; } return detWait(w).then(function(){ return 'ok'; }); },function(){ try{ w.gpPendDone(); }catch(e){} return 'fail'; });
+        return Promise.resolve(w.cwIkFlush()).then(function(r){ if(!r){ off(w); return 'fail'; } return detWait(w).then(function(){ return 'ok'; }); },function(){ off(w); return 'fail'; });
       },function(){ return 'fail'; }).then(function(r){ drop(f); return r; },function(){ drop(f); return 'fail'; });
     }
     function run(fn){ var r=chain.then(function(){ return once(fn); }); chain=r.catch(function(){}); return r; }
