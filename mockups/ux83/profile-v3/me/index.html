@@ -180,7 +180,7 @@
   .v2card .v2-chips .v2-chip-ic{margin-right:6px;font-size:14px;font-style:normal;}
   .v2card .v2-caretext{margin:18px 0 0;font-size:13.5px;color:#1A2E42;}
   .v2card .v2-caretext b{font-weight:700;}
-  .v2card .v2-morelink{text-transform:none;letter-spacing:0;font-size:13.5px;font-weight:600;}
+  .v2card .v2-morelink{text-transform:none;letter-spacing:0;font-size:13.5px;font-weight:700;}
   .v2card .pv-sk-ph{display:none !important;}
   .v2card .pv-sk-foot{display:flex !important;justify-content:flex-end;align-items:center;gap:12px;}
   .v2card .v2-who .pv-face{width:144px;height:144px;border-radius:20px;border:3px solid #fff;box-shadow:0 0 0 1.5px #DDE6EF;background:var(--panel);flex-shrink:0;font-size:36px;}
@@ -3483,18 +3483,32 @@
       var lvlWrap=el('div','v2-qe-grp'); lvlWrap.appendChild(lvl); f.appendChild(lvlWrap);
       var heartB=null;
       if(isSk){ heartB=el('button','v2-qe-chip v2-qe-heart'); heartB.type='button'; heartB.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg><span>Joy</span>'; heartB.setAttribute('aria-pressed',heart?'true':'false'); heartB.onclick=function(){ heart=!heart; heartB.setAttribute('aria-pressed',heart?'true':'false'); }; nrow.appendChild(heartB); }
-      var open2=null;
+      var open2=null, ROOT=null, prune=null;
       if(isSk){
-        open2=el('div','v2-qe-grp'); open2.appendChild(el('div','v2-qe-lab',"I'm open to others:"));
-        var SUBS=[{k:'Enjoying with me',list:['Practice together','Perform together','Accountability buddy','Recreation buddy'],pay:{}},{k:'Learning with me',list:['Advice','Mentoring','Coaching','Tutoring','Feedback','Apprenticeship','Job shadow','Internship'],pay:{Internship:['Paid','Unpaid','Stipend']}},{k:'Work with me',list:['Project','Job','Team up'],pay:{Project:['Paid','Unpaid'],Job:['Paid','Unpaid']},deep:{'Team up':['Volunteering','Collaborating','Partnering','Cofounding','Board seat','Speaking','Fundraising']}}];
-        var tg=function(x){ O[x]=!O[x]; };
-        var gs=[];
-        open2.appendChild(chipRow(SUBS.map(function(z){ return z.k; }),true,function(x){ return !!O[x]; },tg,function(){ refreshO(); }));
-        SUBS.forEach(function(z){ var g=el('div','v2-qe-grp v2-qe-sub'); g.appendChild(chipRow(z.list,true,function(x){ return !!O[x]; },tg,function(){ refreshO(); })); var ps=[];
-          Object.keys(z.pay).forEach(function(n){ var pg=el('div','v2-qe-grp v2-qe-sub'); pg.appendChild(el('div','v2-qe-lab','Select anything that applies to this '+n.toLowerCase()+':')); pg.appendChild(chipRow(z.pay[n],true,function(x){ return !!(C[n]&&C[n][x]); },function(x){ if(!C[n]) C[n]={}; C[n][x]=!C[n][x]; },function(){})); g.appendChild(pg); ps.push([n,pg]); });
-          Object.keys(z.deep||{}).forEach(function(n){ var dg=el('div','v2-qe-grp v2-qe-sub'); dg.appendChild(chipRow(z.deep[n],true,function(x){ return !!O[x]; },tg,function(){ refreshO(); })); g.appendChild(dg); ps.push([n,dg]); });
-          open2.appendChild(g); gs.push([z,g,ps]); });
-        refreshO=function(){ gs.forEach(function(r){ r[1].hidden=!O[r[0].k]; r[2].forEach(function(q){ q[1].hidden=!O[q[0]]; }); }); };
+        var N=function(k,sets){ return {k:k,sets:sets}; };
+        var ST=function(label,opts){ return {label:label,opts:opts}; };
+        ROOT=N('',[ST("I'm open to others:",[
+          N('Enjoying with me',[ST(null,['Practice together','Perform together','Accountability buddy','Recreation buddy'])]),
+          N('Learning with me',[ST(null,['Advice','Mentoring','Coaching','Tutoring','Feedback','Apprenticeship','Job shadow',N('Internship',[ST('Select anything that applies to this internship:',['Paid','Unpaid','Stipend'])])])]),
+          N('Working with me',[ST("I'm open to",[
+            N('Projects',[ST('Paid:',['Building','Speaking','Fundraising','Other']),ST('Unpaid:',['Volunteering','Building','Board seat','Speaking','Other']),ST('Time:',['One-time','Part-time','Full-time']),ST('How you work:',['Solo work','Collaborative work','Both'])]),
+            N('Jobs',[ST('Type:',['Full-time employment','Part-time employment','Temp work']),ST('Location:',['Onsite full-time','Hybrid','Remote full-time']),ST('Pay:',['Paid work','Unpaid work','Both']),ST('How you work:',['Freelance/gig work','Subcontractor work','Through my own entity','Other'])]),
+            N('Teaming up',[ST(null,['Building','Partnering','Cofounding'])])])])])]);
+        var regs=[];
+        var nm=function(o){ return typeof o==='string'?o:o.k; };
+        var build=function(node,path,indent){
+          var g=el('div','v2-qe-grp'+(indent?' v2-qe-sub':'')); var kids=[];
+          node.sets.forEach(function(st){
+            if(st.label) g.appendChild(el('div','v2-qe-lab',st.label));
+            g.appendChild(chipRow(st.opts.map(nm),true,function(x){ return !!O[path+'>'+x]; },function(x){ O[path+'>'+x]=!O[path+'>'+x]; },function(){ refreshO(); }));
+            st.opts.forEach(function(o){ if(typeof o!=='string') kids.push(o); });
+          });
+          kids.forEach(function(o){ var key=path+'>'+o.k, c=build(o,key,true); g.appendChild(c); regs.push([key,c]); });
+          return g;
+        };
+        prune=function(node,path,on){ node.sets.forEach(function(st){ st.opts.forEach(function(o){ var key=path+'>'+nm(o); if(!on) delete O[key]; if(typeof o!=='string') prune(o,key,on&&!!O[key]); }); }); };
+        open2=build(ROOT,'',false);
+        refreshO=function(){ regs.forEach(function(r){ r[1].hidden=!O[r[0]]; }); };
         refreshO(); f.appendChild(open2);
       }
       f.appendChild(msg);
@@ -3529,7 +3543,7 @@
         close(t); var tile=t;
         if(isAdd){ tile=newTile(nw,lv); t.parentNode.replaceChild(tile,t); bind(sec,key,tile); } else { setTile(t,nw,lv); }
         if(!isAdd) delete PEND[key+'|'+old.toLowerCase()];
-        if(isSk){ SUBS.forEach(function(z){ if(!O[z.k]){ z.list.forEach(function(n){ delete O[n]; delete C[n]; }); } else { z.list.forEach(function(n){ if(!O[n]) delete C[n]; }); } Object.keys(z.deep||{}).forEach(function(n){ if(!O[z.k]||!O[n]){ z.deep[n].forEach(function(m){ delete O[m]; }); } }); }); }
+        if(isSk&&prune){ prune(ROOT,'',true); }
         PEND[key+'|'+nw.toLowerCase()]={mode:mode,off:O,comp:C};
         if(isSk){ setHeart(tile,heart); }
         sync(key,isAdd?null:old,nw,lv,isSk?heart:undefined); recount(sec);
@@ -3672,7 +3686,7 @@
     card.appendChild(frag); card.classList.add('v2card');
     try{ var wg2=card.querySelector('.v2-g2[data-wp="a"]'); var csec=wg2&&[].slice.call(wg2.querySelectorAll('.pv-section')).filter(function(x){ var l=x.querySelector('.pv-section-label'); return l&&/^What I can do$/.test(String(l.textContent||'').trim()); })[0]; if(csec){ var hdr=csec.querySelector('.pv-section-header'); var seenW={}, listW=[], EMW=/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu; var isFocusW=false; var addW=function(t){ var b0=t.querySelector('.pv-t b, .pv-sk-cl'); var nm=String(b0?b0.textContent:'').replace(EMW,'').trim().toLowerCase(); if(!nm||seenW[nm]) return; seenW[nm]=1; var cw=t.cloneNode(true); if(isFocusW) cw.classList.add('pv-focus-tag'); listW.push(cw); }; isFocusW=true; csec.querySelectorAll('.pv-focus .pv-tag').forEach(addW); isFocusW=false; csec.querySelectorAll('.pv-skills .pv-tag.pv-lv-guide').forEach(addW); csec.querySelectorAll('.pv-skills .pv-tag.pv-lv-exp').forEach(addW); csec.querySelectorAll('.pv-skills .pv-tag').forEach(addW); csec.querySelectorAll('.pv-sk-chip').forEach(addW); [].slice.call(csec.children).forEach(function(k){ if(k!==hdr&&!k.classList.contains('pv-legend')) csec.removeChild(k); }); var allW=el('div','pv-tags pv-skills v2-allskills'); listW.forEach(function(x){ allW.appendChild(x); }); csec.appendChild(allW);
       var careSrc=[].slice.call(card.querySelectorAll('.v2-g2[data-wp="c"] .pv-section')).filter(function(x){ var l=x.querySelector('.pv-section-label'); return l&&/^What I care about$/.test(String(l.textContent||'').trim()); })[0];
-      if(careSrc&&!csec.querySelector('.v2-mycares')){ var ctags=[].slice.call(careSrc.querySelectorAll('.pv-tags .pv-tag')); if(ctags.length){ var names=ctags.slice(0,3).map(function(t){ var b=t.querySelector('.pv-t b'); return String(b?b.textContent:'').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu,'').trim(); }).filter(Boolean); var cline=el('p','v2-caretext v2-mycares'); cline.appendChild(el('b','','My cares: ')); cline.appendChild(document.createTextNode(names.join(', '))); if(ctags.length>3){ cline.appendChild(document.createTextNode(' ')); var cmb=el('button','v2-carelink v2-morelink','more'); cmb.type='button'; cmb.onclick=function(){ var pb=document.querySelector('.v2card .v2-pill[data-w="c"]'); if(pb) pb.click(); setTimeout(function(){ var tg=[].slice.call(document.querySelectorAll('.v2card .v2-g2[data-wp="c"] .pv-section')).filter(function(x){ var l=x.querySelector('.pv-section-label'); return l&&/^What I care about$/.test(String(l.textContent||'').trim()); })[0]; if(tg){ try{ tg.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ tg.scrollIntoView(); } } },80); }; cline.appendChild(cmb); } csec.appendChild(cline); } }
+      if(careSrc&&!csec.querySelector('.v2-mycares')){ var ctags=[].slice.call(careSrc.querySelectorAll('.pv-tags .pv-tag')); if(ctags.length){ var names=ctags.slice(0,3).map(function(t){ var b=t.querySelector('.pv-t b'); return String(b?b.textContent:'').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu,'').trim(); }).filter(Boolean); var cline=el('p','v2-caretext v2-mycares'); cline.appendChild(el('b','','My cares: ')); cline.appendChild(document.createTextNode(names.join(', '))); if(ctags.length>3){ cline.appendChild(document.createTextNode(', ')); var cmb=el('button','v2-carelink v2-morelink','more'); cmb.type='button'; cmb.onclick=function(){ var pb=document.querySelector('.v2card .v2-pill[data-w="c"]'); if(pb) pb.click(); setTimeout(function(){ var tg=[].slice.call(document.querySelectorAll('.v2card .v2-g2[data-wp="c"] .pv-section')).filter(function(x){ var l=x.querySelector('.pv-section-label'); return l&&/^What I care about$/.test(String(l.textContent||'').trim()); })[0]; if(tg){ try{ tg.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ tg.scrollIntoView(); } } },80); }; cline.appendChild(cmb); } csec.appendChild(cline); } }
     } }catch(e){}
     try{ card.querySelectorAll('.v2-box .pv-section').forEach(function(sec){ var lb=sec.querySelector('.pv-section-label'); if(!lb) return; var title=String(lb.textContent||'').trim(); if(title==="What I'm offering"||title==='My skills'||title==='Appreciation') return; var tags=[].slice.call(sec.querySelectorAll('.pv-tags .pv-tag, .pv-tags .pv-sk-chip')).filter(function(t){ return !t.closest('.v2-threecares'); }); if(!tags.length) return; var hd=sec.querySelector('.pv-section-header')||lb.parentNode; var old=hd.querySelector('.pv-countlink, .pv-count'); var unit='items'; if(old){ var mm=String(old.textContent||'').trim().match(/^\d+\s+(.+)$/); if(mm) unit=mm[1]; } if(title==='Open to opportunities') unit='opportunities'; if(title==='What I can do') unit='skills'; if(title==='My cares') unit='cares'; if(title==='Focused sectors') unit='sectors'; if(title==='What people can count on from me') unit='values'; var n=tags.length; if(title==='What I can do'){ var msb=document.querySelector('.v2card .v2-offer2 .v2-countbtn'); if(msb) msb.textContent=n+(n===1?' skill':' skills'); } var cnt; if(n>6){ tags.slice(6).forEach(function(t){ t.hidden=true; t.setAttribute('data-v2more','1'); }); cnt=el('button','v2-countbtn',n+' '+unit); cnt.type='button'; cnt.setAttribute('aria-expanded','false'); cnt.onclick=function(){ var open=cnt.getAttribute('aria-expanded')!=='true'; sec.querySelectorAll('[data-v2more]').forEach(function(t){ t.hidden=!open; }); cnt.setAttribute('aria-expanded',open?'true':'false'); cnt.textContent=open?'Show fewer':n+' '+unit; }; } else if(title==='What I can do'){ cnt=el('a','v2-countbtn',n+' '+unit); cnt.href='/ikigai/skills'; cnt.target='_blank'; cnt.rel='noopener noreferrer'; cnt.title='See all your skills, in a new tab'; } else { cnt=el('span','v2-countplain',n+' '+unit); } if(old&&old.parentNode){ old.parentNode.replaceChild(cnt,old); } else { var pen=hd.querySelector('.v2-secpen'); hd.insertBefore(cnt,pen||null); } cnt.style.marginLeft='auto'; }); }catch(e){}
     try{ var withLv={}, EM=/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu; card.querySelectorAll('.pv-skills .pv-tag .pv-t b').forEach(function(b){ withLv[String(b.textContent||'').replace(EM,'').trim().toLowerCase()]=1; }); card.querySelectorAll('.pv-sk-chip').forEach(function(ch){ var n=ch.querySelector('.pv-sk-cl'); var t=String(n?n.textContent:'').replace(EM,'').trim().toLowerCase(); if(t&&!withLv[t]&&ch.parentNode&&ch.parentNode.getAttribute('data-mode')==='skills') ch.classList.add('v2-nolevel'); }); }catch(e){}
