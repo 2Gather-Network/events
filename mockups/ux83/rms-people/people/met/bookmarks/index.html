@@ -915,7 +915,43 @@
     var cc = o.cc || null, code = String(o.code || '');
     var sy = cc || { name: o.name || '', person: code, photo: o.photo || '', groupIds: [], tag: '', sourceKind: 'bookmark' };
     var prof = o.prof || ('/hi/?v=' + encodeURIComponent(code));
-    var box2 = null;
+    var box2 = null, invBox = null;
+    var invFirst = String(o.name || (cc && cc.name) || '').trim().split(/\s+/)[0] || '';
+    var openInvite = function (kind) {
+      if (!invBox) { invBox = document.createElement('div'); invBox.className = 'rnote'; row.appendChild(invBox); }
+      invBox.innerHTML = ''; invBox.hidden = false;
+      var hd = document.createElement('div'); hd.className = 'line'; var hb = document.createElement('b');
+      hb.textContent = 'Invite ' + (invFirst || 'them') + (kind === 'event' ? ' to an event' : ' to a group'); hd.appendChild(hb); invBox.appendChild(hd);
+      var lst = document.createElement('div'); lst.className = 'pm'; lst.style.width = '100%'; lst.style.marginTop = '8px'; invBox.appendChild(lst);
+      var wait = document.createElement('div'); wait.className = 'line'; wait.textContent = 'Looking\u2026'; lst.appendChild(wait);
+      var nr = document.createElement('div'); nr.className = 'actions-row';
+      var cx = document.createElement('button'); cx.type = 'button'; cx.className = 'btn ghost'; cx.textContent = 'Close'; cx.onclick = function () { invBox.hidden = true; };
+      nr.appendChild(cx); invBox.appendChild(nr);
+      var mail = !code && cc ? introEmail(cc) : '';
+      send('invitePicks57b', code ? { toCode: code } : {}).then(function (d) {
+        lst.innerHTML = '';
+        var picks = (d && d.status === 'ok' && Array.isArray(kind === 'event' ? d.events : d.groups)) ? (kind === 'event' ? d.events : d.groups) : [];
+        if (!picks.length) { var no = document.createElement('div'); no.className = 'line'; no.textContent = kind === 'event' ? 'You have no upcoming events to invite them to.' : 'You have no groups to invite them to.'; lst.appendChild(no); return; }
+        picks.forEach(function (p) {
+          var b = menuItem(kind === 'event' ? 'cal' : 'fire', String(p.name || ''), '');
+          if (kind === 'event' && p.date) { var dt = longDate(p.date); if (dt) { b.appendChild(document.createTextNode(' \u00b7 ' + dt)); } }
+          var st = document.createElement('span'); st.style.marginLeft = 'auto'; b.appendChild(st);
+          b.onclick = function () {
+            if (b.disabled) { return; }
+            b.disabled = true; st.textContent = 'Sending\u2026';
+            var call = code
+              ? (kind === 'event' ? send('inviteToEvent57b', { toCode: code, eventId: p.id }) : send('inviteToGroup', { toCode: code, groupId: p.id, invitedById: ME }))
+              : (kind === 'event' ? send('sendEventInvite', { eventId: p.id, hostAppearId: ME, toEmail: mail, toName: invFirst }) : send('sendGroupInvite', { groupId: p.id, hostAppearId: ME, toEmail: mail, toName: invFirst }));
+            call.then(function (r) {
+              var ok = r && r.status === 'ok' && r.sent !== false;
+              st.textContent = ok ? 'Invited' : 'Not sent';
+              if (!ok) { b.disabled = false; }
+            }).catch(function () { st.textContent = 'Not sent'; b.disabled = false; });
+          };
+          lst.appendChild(b);
+        });
+      }).catch(function () { lst.innerHTML = ''; var er = document.createElement('div'); er.className = 'line'; er.textContent = 'That did not load. Try again.'; lst.appendChild(er); });
+    };
     if (code) { pm.appendChild(menuItem('msg', 'Send message', o.msgHref || ('/messages/?to=' + encodeURIComponent('c:' + code)))); }
     if (cc) {
       var nt = noteItem(); pm.appendChild(nt);
@@ -935,12 +971,16 @@
     if (code) {
       pm.appendChild(menuItem('user', 'See profile', prof));
       if (!bmViewing()) {
-        var iev = menuItem('cal', 'Invite to event', ''); iev.onclick = function () { close(); }; pm.appendChild(iev);
-        var igr = menuItem('fire', 'Invite to group', ''); igr.onclick = function () { close(); }; pm.appendChild(igr);
+        var iev = menuItem('cal', 'Invite to event', ''); iev.onclick = function () { close(); openInvite('event'); }; pm.appendChild(iev);
+        var igr = menuItem('fire', 'Invite to group', ''); igr.onclick = function () { close(); openInvite('group'); }; pm.appendChild(igr);
         var acn = menuItem('circles', 'Invite to connect', ''); acn.onclick = function () { close(); }; pm.appendChild(acn);
       }
       if (INTRO_ON && !bmViewing() && ALL.some(function (x) { return x.person && String(x.person) === code; })) { var mi = menuItem('share', 'Make an intro', ''); mi.onclick = function () { close(); openIntro(sy); }; pm.appendChild(mi); }
       if (APPR_ON) { pm.appendChild(menuItem('plant', 'Show appreciation', prof + '#appreciation')); }
+    }
+    if (!code && !bmViewing() && cc && introEmail(cc)) {
+      var iev2 = menuItem('cal', 'Invite to event', ''); iev2.onclick = function () { close(); openInvite('event'); }; pm.appendChild(iev2);
+      var igr2 = menuItem('fire', 'Invite to group', ''); igr2.onclick = function () { close(); openInvite('group'); }; pm.appendChild(igr2);
     }
     if (!code && INTRO_ON && !bmViewing() && cc && introEmail(cc)) { var mo = menuItem('share', 'Make an intro', ''); mo.onclick = function () { close(); openIntro(sy); }; pm.appendChild(mo); }
     if (code && o.bm && !bmViewing()) {
