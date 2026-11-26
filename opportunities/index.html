@@ -135,7 +135,7 @@ h1.t{color:#fff;font-size:28px;font-weight:800;margin:0 0 4px}
   }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   var DOT = { need: '#D2822F', seek: '#7B6BD6', common: '#4F9F7A' };
-  var S = { screen: 'list', dir: 'All', myOnly: false, open: {}, fs: { place: [], cat: [], kind: [], ex: [], time: [] }, list: null, err: '', post: null, step: 0, asking: false, ans: { dir: 'Offering it', kind: 'A project', ex: 'Volunteer', needs: '', who: 'Anyone', stay: 'Show my name to people who know me' }, busy: false, note: '' };
+  var S = { screen: 'list', dir: 'All', myOnly: false, open: {}, fs: { place: [], cat: [], kind: [], ex: [], time: [] }, list: null, err: '', post: null, step: 0, asking: false, ans: { dir: 'Offering it', kind: 'A project', ex: 'Volunteer', needs: '', who: 'Anyone', stay: 'Show my name to people who know me' }, busy: false, note: '', mine: null, group: new URLSearchParams(location.search).get('group') || '', gposts: null, mp: null, resp: null, qs: null, confirmDel: false };
   var FILT = [{ k: 'place', l: 'Location' }, { k: 'cat', l: 'Category' }, { k: 'kind', l: 'Kind', o: ['Project', 'Job', 'Available place', 'Experience'] }, { k: 'ex', l: 'Way of exchange', o: ['Paid', 'Hourly', 'On call', 'Salary', 'Volunteer', 'Trade', 'Time bank', 'Gift'] }, { k: 'time', l: 'Time' }];
   var STEPS = [
     { q: 'Are you offering this or looking for it?', help: 'It can go either way.', key: 'dir', opts: ['Offering it', 'Looking for it'] },
@@ -197,8 +197,10 @@ h1.t{color:#fff;font-size:28px;font-weight:800;margin:0 0 4px}
     if (p.both) {
       h += '<div class="cw-status info" style="margin-top:14px"><b>You found each other</b><br>You both care about this. Your names and ways to reach each other are open to the two of you only.</div><div class="row">' + (p.helloUrl ? '<a class="cw-btn solid sm" href="' + esc(p.helloUrl) + '">Say hello</a>' : '') + (p.bookUrl ? '<a class="cw-btn ghost sm" href="' + esc(p.bookUrl) + '">Book a time</a>' : '') + '</div>';
     } else if (p.interested) {
-      h += '<div class="cw-status info" style="margin-top:14px">Sent. If they\'re interested in you too, you\'ll both hear at the same time.</div>';
-    } else if (!p.isMine) {
+      h += '<div class="cw-status info" style="margin-top:14px">Sent. If they\'re interested in you too, you\'ll both hear at the same time.</div><div class="row"><a class="cw-btn ghost sm" data-act="withdraw">Withdraw my interest</a></div>';
+    } else if (p.isMine) {
+      h += '<div class="row"><a class="cw-btn solid sm" data-act="openmine" data-id="' + esc(p.postId) + '">See who is interested</a></div>';
+    } else {
       h += '<div class="row"><a class="cw-btn solid sm" data-act="interest">I\'m interested</a><a class="cw-btn ghost sm" data-act="ask">Ask a question</a></div>';
       if (S.asking) h += '<div class="cw-fbox" style="margin-top:14px"><p class="cw-fq">Your question</p><p class="cw-fhelp">Your name is not shared.</p><div class="cw-search" style="max-width:none;border-radius:14px"><input id="qtext" maxlength="500" placeholder="Type your question"></div><div class="row"><a class="cw-btn solid sm" data-act="sendq">Send</a><a data-act="ask" style="color:#1F699E;font:700 14px \'Nunito Sans\',sans-serif;padding:12px 8px;cursor:pointer">Cancel</a></div></div>';
     }
@@ -219,11 +221,65 @@ h1.t{color:#fff;font-size:28px;font-weight:800;margin:0 0 4px}
     if (S.note) h += '<div class="cw-status info" style="margin-top:14px">' + esc(S.note) + '</div>';
     return h + '<div class="cw-foot" style="margin-top:44px"><a class="cw-btn ghost form" data-act="back">Back</a><a class="cw-btn solid form" data-act="next">' + (s === 6 ? 'Publish and match' : 'Continue') + '</a></div></div>';
   }
+  function mineList() {
+    var h = crumb('', 'My opportunities') + '<div class="cw-card"><h2 style="margin:0 0 4px;font-size:22px;font-weight:800">My opportunities</h2><p class="cw-fhelp">Only you see who has answered, and only as a count until you both say yes.</p>';
+    if (S.mine === null) return h + (S.err ? '<div class="cw-status info">' + esc(S.err) + '</div>' : '<span class="cw-savestat">Loading information...</span>') + '</div>';
+    if (!S.mine.length) return h + '<p class="cw-pq">You have not shared an opportunity yet</p><a class="cw-btn solid sm" data-act="share">Share an opportunity</a></div>';
+    S.mine.forEach(function (p) {
+      h += '<div class="person" data-act="openmine" data-id="' + esc(p.postId) + '" style="cursor:pointer;grid-template-columns:1fr"><div><div class="tag"><span class="cw-chip">' + esc(p.dir) + '</span><span class="cw-chip">' + esc(p.kind) + '</span><span class="cw-chip">' + esc(p.ex) + '</span>' + (p.inGroup ? '<span class="cw-chip">In a group</span>' : '') + '</div><h3>' + esc(p.title) + '</h3><p class="cw-savestat" style="margin:4px 0 0">' + p.responses + (p.responses === 1 ? ' person is' : ' people are') + ' interested. ' + p.questions + (p.questions === 1 ? ' question.' : ' questions.') + '</p></div></div>';
+    });
+    return h + '</div>';
+  }
+  function manage() {
+    var p = S.mp;
+    var h = crumb('My opportunities', p ? p.title : 'Opportunity') + '<div class="cw-card">';
+    if (!p) return h + '<span class="cw-savestat">Loading information...</span></div><div style="margin-top:16px"><a class="backb" data-act="mine">Back</a></div>';
+    h += '<div class="top"><span class="cw-chip">' + esc(p.dir) + '</span><span class="cw-chip">' + esc(p.kind) + '</span><span class="cw-chip">' + esc(p.ex) + '</span></div><h1 style="font-size:24px;margin:8px 0 14px">' + esc(p.title) + '</h1>';
+    h += '<p class="cw-pq" style="font-size:18px">People who are interested</p><p class="cw-fhelp">You see the category and city only. Names and photos open to the two of you when you both say yes.</p>';
+    if (S.resp === null) h += '<span class="cw-savestat">Loading information...</span>';
+    else if (!S.resp.length) h += '<p class="cw-statement">No one has answered yet. You will get an email when someone is.</p>';
+    else S.resp.forEach(function (r) {
+      h += '<div class="cw-fbox" style="margin:0 0 10px"><div class="tag">' + (r.categories || []).map(function (c) { return '<span class="cw-chip">' + esc(c) + '</span>'; }).join('') + (r.place ? '<span class="cw-chip">' + esc(r.place) + '</span>' : '') + '</div>';
+      if (r.both) h += '<div class="cw-status info">You both said yes.</div>';
+      else h += '<div class="row" style="margin-top:8px"><a class="cw-btn solid sm" data-act="answer" data-id="' + esc(r.responseId) + '" data-v="TRUE">Yes, connect us</a><a class="cw-btn ghost sm" data-act="answer" data-id="' + esc(r.responseId) + '" data-v="FALSE">Not now</a></div>';
+      h += '</div>';
+    });
+    h += '<p class="cw-pq" style="font-size:18px;margin-top:22px">Questions</p><p class="cw-fhelp">Questions come without a name.</p>';
+    if (S.qs === null) h += '<span class="cw-savestat">Loading information...</span>';
+    else if (!S.qs.length) h += '<p class="cw-statement">No questions.</p>';
+    else S.qs.forEach(function (q) { h += '<div class="cw-fbox" style="margin:0 0 10px"><p style="margin:0 0 8px">' + esc(q.text) + '</p><a class="cw-btn ghost sm" data-act="report" data-id="' + esc(q.questionId) + '">Report</a></div>'; });
+    if (S.note) h += '<div class="cw-status info" style="margin-top:14px">' + esc(S.note) + '</div>';
+    h += '<div class="row" style="margin-top:26px">' + (S.confirmDel ? '<span class="cw-savestat" style="align-self:center">This removes the post, every answer and every question.</span><a class="cw-btn solid sm" data-act="del">Yes, take it down</a><a class="cw-btn ghost sm" data-act="delno">Keep it</a>' : '<a class="cw-btn ghost sm" data-act="delask">Take this opportunity down</a>') + '</div></div>';
+    return h + '<div style="margin-top:16px"><a class="backb" data-act="mine">Back</a></div>';
+  }
+  function groupList() {
+    var h = crumb('', 'In your group') + '<div class="cw-card"><h2 style="margin:0 0 4px;font-size:22px;font-weight:800">Opportunities in your group</h2><p class="cw-fhelp">Only people in this group see these.</p>';
+    if (S.gposts === null) return h + (S.err ? '<div class="cw-status info">' + esc(S.err) + '</div>' : '<span class="cw-savestat">Loading information...</span>') + '</div>';
+    if (!S.gposts.length) h += '<p class="cw-pq">Nothing shared in this group yet</p>';
+    S.gposts.forEach(function (p) {
+      var r = (p.reasons || [])[0];
+      h += '<div class="person" data-act="openpost" data-id="' + esc(p.postId) + '" style="cursor:pointer;grid-template-columns:1fr"><div>' + (p.poster ? '<h3 style="margin:0 0 4px">' + esc(p.poster.name) + '</h3>' : '') + '<div class="tag"><span class="cw-chip">' + esc(p.dir) + '</span><span class="cw-chip">' + esc(p.kind) + '</span><span class="cw-chip">' + esc(p.ex) + '</span></div><h3>' + esc(p.title) + '</h3>' + (r ? '<ul><li style="--c:' + (DOT[r.type] || '#C9D3DE') + '">' + esc(r.text) + '</li></ul>' : '') + (p.poster || p.isMine ? '' : '<p class="cw-savestat" style="margin:6px 0 0">Name and photo show when you both say yes.</p>') + '</div></div>';
+    });
+    return h + '<div class="row"><a class="cw-btn solid sm" data-act="share">Share an opportunity</a></div></div>';
+  }
+  function loadMine() {
+    S.mine = null; S.err = ''; draw();
+    ask('getMyOpportunities', {}).then(function (j) { if (!j || !j.ok) S.err = 'We could not load your opportunities. Please try again later.'; else S.mine = j.posts || []; draw(); }).catch(function () { S.err = 'We could not load your opportunities. Please try again later.'; draw(); });
+  }
+  function loadGroup() {
+    S.gposts = null; S.err = ''; draw();
+    ask('getGroupOpportunities', { groupId: S.group }).then(function (j) { if (!j || !j.ok) S.err = 'This group list is not available.'; else S.gposts = j.posts || []; draw(); }).catch(function () { S.err = 'This group list is not available.'; draw(); });
+  }
+  function openMine(id) {
+    S.screen = 'manage'; S.mp = (S.mine || []).filter(function (x) { return x.postId === id; })[0] || S.post || null; S.resp = null; S.qs = null; S.note = ''; S.confirmDel = false; draw(); window.scrollTo(0, 0);
+    ask('getOpportunityResponses', { postId: id }).then(function (j) { S.resp = j && j.ok ? j.responses : []; draw(); }).catch(function () { S.resp = []; draw(); });
+    ask('getOpportunityQuestions', { postId: id }).then(function (j) { S.qs = j && j.ok ? j.questions : []; draw(); }).catch(function () { S.qs = []; draw(); });
+  }
   function draw() {
     var st = document.getElementById('stage');
     if (!ME) { st.innerHTML = signedOut(); return; }
-    var top = '<div class="cw-tabs"><button type="button" data-act="list" class="' + (S.screen === 'list' ? 'on' : '') + '">Opportunities</button><button type="button" data-act="share" class="' + (S.screen === 'share' ? 'on' : '') + '">Share an opportunity</button></div>';
-    st.innerHTML = top + ({ list: list, post: post, share: share })[S.screen]();
+    var top = '<div class="cw-tabs"><button type="button" data-act="list" class="' + (S.screen === 'list' ? 'on' : '') + '">Opportunities</button><button type="button" data-act="mine" class="' + (S.screen === 'mine' || S.screen === 'manage' ? 'on' : '') + '">My opportunities</button><button type="button" data-act="share" class="' + (S.screen === 'share' ? 'on' : '') + '">Share an opportunity</button></div>';
+    st.innerHTML = top + ({ list: list, post: post, share: share, mine: mineList, manage: manage, group: groupList })[S.screen]();
   }
   function load() {
     S.list = null; S.err = ''; draw();
@@ -242,6 +298,14 @@ h1.t{color:#fff;font-size:28px;font-weight:800;margin:0 0 4px}
     var a = t.getAttribute('data-act'), k = t.getAttribute('data-k'), v = t.getAttribute('data-v');
     if (a === 'list') { S.screen = 'list'; S.note = ''; if (S.list === null) load(); }
     else if (a === 'share') { S.screen = 'share'; S.step = 0; S.note = ''; }
+    else if (a === 'mine') { S.screen = 'mine'; S.note = ''; loadMine(); return; }
+    else if (a === 'openmine') { if (S.mine === null) { S.mine = []; } openMine(t.getAttribute('data-id')); return; }
+    else if (a === 'answer') { S.busy = true; send('answerOpportunityResponse', { responseId: t.getAttribute('data-id'), yes: v }).then(function (j) { S.busy = false; if (j && j.ok) { if (S.mp) openMine(S.mp.postId); } else { S.note = 'That did not save. Please try again.'; draw(); } }).catch(function () { S.busy = false; S.note = 'That did not save. Please try again.'; draw(); }); return; }
+    else if (a === 'report') { S.busy = true; send('reportOpportunityQuestion', { questionId: t.getAttribute('data-id') }).then(function (j) { S.busy = false; if (j && j.ok) { S.qs = (S.qs || []).filter(function (x) { return x.questionId !== t.getAttribute('data-id'); }); S.note = 'Reported. It is hidden now.'; } else S.note = 'That did not send. Please try again.'; draw(); }).catch(function () { S.busy = false; S.note = 'That did not send. Please try again.'; draw(); }); return; }
+    else if (a === 'delask') S.confirmDel = true;
+    else if (a === 'delno') S.confirmDel = false;
+    else if (a === 'del') { S.busy = true; send('deleteOpportunity', { postId: S.mp.postId }).then(function (j) { S.busy = false; if (j && j.ok) { S.screen = 'mine'; S.confirmDel = false; S.list = null; loadMine(); } else { S.note = 'That did not work. Please try again.'; draw(); } }).catch(function () { S.busy = false; S.note = 'That did not work. Please try again.'; draw(); }); return; }
+    else if (a === 'withdraw') { S.busy = true; send('withdrawInterest', { postId: S.post.postId }).then(function (j) { S.busy = false; if (j && j.ok) { S.post.interested = false; S.post.both = false; S.note = 'Your interest is withdrawn.'; } else S.note = 'That did not work. Please try again.'; draw(); }).catch(function () { S.busy = false; S.note = 'That did not work. Please try again.'; draw(); }); return; }
     else if (a === 'cap') S.dir = v;
     else if (a === 'myonly') S.myOnly = !S.myOnly;
     else if (a === 'fo') S.open[k] = !S.open[k];
@@ -257,12 +321,13 @@ h1.t{color:#fff;font-size:28px;font-weight:800;margin:0 0 4px}
       if (a === 'back') { if (S.step === 0) S.screen = 'list'; else S.step--; }
       else if (S.step === 3 && !S.ans.needs.trim()) { S.note = 'Tell us what it needs.'; }
       else if (S.step < 6) { S.step++; S.note = ''; }
-      else { S.busy = true; send('saveOpportunity', { dir: S.ans.dir, kind: S.ans.kind, ex: S.ans.ex, needs: S.ans.needs, who: S.ans.who, stayAnonymous: S.ans.stay.indexOf('anonymous') > -1 ? 'TRUE' : 'FALSE' }).then(function (j) { S.busy = false; if (j && j.ok) { S.step = 7; S.list = null; S.note = ''; } else S.note = 'That did not save. Please try again.'; draw(); }).catch(function () { S.busy = false; S.note = 'That did not save. Please try again.'; draw(); }); return; }
+      else { S.busy = true; send('saveOpportunity', { dir: S.ans.dir, kind: S.ans.kind, ex: S.ans.ex, needs: S.ans.needs, who: S.ans.who, stayAnonymous: S.ans.stay.indexOf('anonymous') > -1 ? 'TRUE' : 'FALSE', groupId: S.group }).then(function (j) { S.busy = false; if (j && j.ok) { S.step = 7; S.list = null; S.note = ''; } else S.note = 'That did not save. Please try again.'; draw(); }).catch(function () { S.busy = false; S.note = 'That did not save. Please try again.'; draw(); }); return; }
     }
     draw();
   });
-  draw();
-  if (ME) load();
+  if (ME && S.group) { S.screen = 'group'; draw(); loadGroup(); }
+  else if (ME && new URLSearchParams(location.search).get('mine')) { S.screen = 'mine'; draw(); loadMine(); load(); }
+  else { draw(); if (ME) load(); }
 })();
 </script>
 </body>
