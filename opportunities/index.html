@@ -135,7 +135,7 @@ h1.t{color:#fff;font-size:28px;font-weight:800;margin:0 0 4px}
   }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   var DOT = { need: '#D2822F', seek: '#7B6BD6', common: '#4F9F7A' };
-  var S = { screen: 'list', dir: 'All', myOnly: false, open: {}, fs: { place: [], cat: [], kind: [], ex: [], time: [] }, list: null, err: '', post: null, step: 0, asking: false, ans: { dir: 'Offering it', kind: 'A project', ex: 'Volunteer', needs: '', who: 'Anyone', stay: 'Show my name to people who know me' }, busy: false, note: '', mine: null, group: new URLSearchParams(location.search).get('group') || '', gposts: null, mp: null, resp: null, qs: null, confirmDel: false };
+  var S = { screen: 'list', dir: 'All', myOnly: false, open: {}, fs: { place: [], cat: [], kind: [], ex: [], time: [] }, list: null, err: '', post: null, step: 0, asking: false, ans: { dir: 'Offering it', kind: 'A project', ex: 'Volunteer', needs: '', who: 'Anyone', stay: 'Show my name to people who know me' }, busy: false, note: '', mine: null, mailOff: false, group: new URLSearchParams(location.search).get('group') || '', gposts: null, mp: null, resp: null, qs: null, confirmDel: false };
   var FILT = [{ k: 'place', l: 'Location' }, { k: 'cat', l: 'Category' }, { k: 'kind', l: 'Kind', o: ['Project', 'Job', 'Available place', 'Experience'] }, { k: 'ex', l: 'Way of exchange', o: ['Paid', 'Hourly', 'On call', 'Salary', 'Volunteer', 'Trade', 'Time bank', 'Gift'] }, { k: 'time', l: 'Time' }];
   var STEPS = [
     { q: 'Are you offering this or looking for it?', help: 'It can go either way.', key: 'dir', opts: ['Offering it', 'Looking for it'] },
@@ -222,7 +222,7 @@ h1.t{color:#fff;font-size:28px;font-weight:800;margin:0 0 4px}
     return h + '<div class="cw-foot" style="margin-top:44px"><a class="cw-btn ghost form" data-act="back">Back</a><a class="cw-btn solid form" data-act="next">' + (s === 6 ? 'Publish and match' : 'Continue') + '</a></div></div>';
   }
   function mineList() {
-    var h = crumb('', 'My opportunities') + '<div class="cw-card"><h2 style="margin:0 0 4px;font-size:22px;font-weight:800">My opportunities</h2><p class="cw-fhelp">Only you see who has answered, and only as a count until you both say yes.</p>';
+    var h = crumb('', 'My opportunities') + '<div class="cw-card"><h2 style="margin:0 0 4px;font-size:22px;font-weight:800">My opportunities</h2><p class="cw-fhelp">Only you see who has answered, and only as a count until you both say yes.</p><div class="sw"><span class="tg' + (S.mailOff ? '' : ' on') + '" role="switch" aria-checked="' + (S.mailOff ? 'false' : 'true') + '" tabindex="0" data-act="mail"></span><span>Email me when someone is interested in my opportunity</span></div>';
     if (S.mine === null) return h + (S.err ? '<div class="cw-status info">' + esc(S.err) + '</div>' : '<span class="cw-savestat">Loading information...</span>') + '</div>';
     if (!S.mine.length) return h + '<p class="cw-pq">You have not shared an opportunity yet</p><a class="cw-btn solid sm" data-act="share">Share an opportunity</a></div>';
     S.mine.forEach(function (p) {
@@ -264,7 +264,7 @@ h1.t{color:#fff;font-size:28px;font-weight:800;margin:0 0 4px}
   }
   function loadMine() {
     S.mine = null; S.err = ''; draw();
-    ask('getMyOpportunities', {}).then(function (j) { if (!j || !j.ok) S.err = 'We could not load your opportunities. Please try again later.'; else S.mine = j.posts || []; draw(); }).catch(function () { S.err = 'We could not load your opportunities. Please try again later.'; draw(); });
+    ask('getMyOpportunities', {}).then(function (j) { if (!j || !j.ok) S.err = 'We could not load your opportunities. Please try again later.'; else { S.mine = j.posts || []; S.mailOff = !!j.mailOff; } draw(); }).catch(function () { S.err = 'We could not load your opportunities. Please try again later.'; draw(); });
   }
   function loadGroup() {
     S.gposts = null; S.err = ''; draw();
@@ -299,6 +299,7 @@ h1.t{color:#fff;font-size:28px;font-weight:800;margin:0 0 4px}
     if (a === 'list') { S.screen = 'list'; S.note = ''; if (S.list === null) load(); }
     else if (a === 'share') { S.screen = 'share'; S.step = 0; S.note = ''; }
     else if (a === 'mine') { S.screen = 'mine'; S.note = ''; loadMine(); return; }
+    else if (a === 'mail') { var want = !S.mailOff; S.busy = true; send('setOpportunityMail', { off: want ? '1' : '0' }).then(function (j) { S.busy = false; if (j && j.ok) S.mailOff = want; else S.note = 'That did not save. Please try again.'; draw(); }).catch(function () { S.busy = false; S.note = 'That did not save. Please try again.'; draw(); }); return; }
     else if (a === 'openmine') { if (S.mine === null) { S.mine = []; } openMine(t.getAttribute('data-id')); return; }
     else if (a === 'answer') { S.busy = true; send('answerOpportunityResponse', { responseId: t.getAttribute('data-id'), yes: v }).then(function (j) { S.busy = false; if (j && j.ok) { if (S.mp) openMine(S.mp.postId); } else { S.note = 'That did not save. Please try again.'; draw(); } }).catch(function () { S.busy = false; S.note = 'That did not save. Please try again.'; draw(); }); return; }
     else if (a === 'report') { S.busy = true; send('reportOpportunityQuestion', { questionId: t.getAttribute('data-id') }).then(function (j) { S.busy = false; if (j && j.ok) { S.qs = (S.qs || []).filter(function (x) { return x.questionId !== t.getAttribute('data-id'); }); S.note = 'Reported. It is hidden now.'; } else S.note = 'That did not send. Please try again.'; draw(); }).catch(function () { S.busy = false; S.note = 'That did not send. Please try again.'; draw(); }); return; }
