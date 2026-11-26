@@ -3413,20 +3413,27 @@
     function drop(f){ if(f&&f.fr&&f.fr.parentNode) f.fr.parentNode.removeChild(f.fr); }
     function frame(){ if(pre&&Date.now()-pre.at>20000){ drop(pre); pre=null; } if(!pre){ pre=mk(); var mine=pre; setTimeout(function(){ if(pre===mine){ drop(pre); pre=null; } },25000); } }
     function take(){ var f=pre; pre=null; if(f&&Date.now()-f.at<=20000) return f; drop(f); return mk(); }
-    function detWait(w){ return new Promise(function(res){ var t0=Date.now(); try{ if(Object.keys(w._gpDet||{}).length) w.gpDetailSend(true); }catch(e){ res(); return; }
-      (function poll(){ var left=0; try{ left=Object.keys(w._gpDet||{}).length; }catch(e){} if((!w._gpDetBusy&&!left)||Date.now()-t0>30000){ res(); return; } try{ if(left&&!w._gpDetBusy) w.gpDetailSend(true); }catch(e){} setTimeout(poll,400); })(); }); }
+    function detWait(w){ return new Promise(function(res){ var t0=Date.now(); try{ if(Object.keys(w._gpDet||{}).length) w.gpDetailSend(true); }catch(e){ res(false); return; }
+      (function poll(){ var left=0; try{ left=Object.keys(w._gpDet||{}).length; }catch(e){ res(false); return; } if(!w._gpDetBusy&&!left){ res(true); return; } if(Date.now()-t0>30000){ res(false); return; } try{ if(left&&!w._gpDetBusy) w.gpDetailSend(true); }catch(e){} setTimeout(poll,400); })(); }); }
     function off(w){ try{ w.clearTimeout(w._gpTouchT); w.clearTimeout(w._gpAutoT); w.clearTimeout(w._gpDetT); }catch(e){} try{ w._gpLoaded=false; w._gpDet={}; }catch(e){} try{ w.gpPendDone(); }catch(e){} }
+    var NOTES=[];
+    function noteMove(from,to){ if(to&&String(to).toLowerCase()===String(from).toLowerCase()) return null; var e={from:from,to:to||null}; NOTES=NOTES.filter(function(x){ return !(x.from.toLowerCase()===e.from.toLowerCase()&&String(x.to||'').toLowerCase()===String(e.to||'').toLowerCase()); }); NOTES.push(e); return e; }
+    function notesApply(w){ NOTES.forEach(function(e){ var en=detOf(w,e.from); if(en&&e.to) w.gpDetailQueue(e.to,en); if(!inAny(w,e.from)) w.gpDetailQueue(e.from,null); }); }
     function once(fn){
-      var f=take();
+      var f=take(), mine=[];
+      var unNote=function(){ NOTES=NOTES.filter(function(x){ return mine.indexOf(x)<0; }); };
       return f.p.then(function(w){
-        var ok=fn(w); if(ok===false){ off(w); return 'dup'; }
-        try{ w.clearTimeout(w._gpTouchT); }catch(e){}
-        return Promise.resolve(w.cwIkFlush()).then(function(r){ if(!r){ off(w); return 'fail'; } return detWait(w).then(function(){ return 'ok'; }); },function(){ off(w); return 'fail'; });
+        var ok, fl;
+        try{ ok=fn(w,function(from,to){ var e=noteMove(from,to); if(e) mine.push(e); }); }catch(e){ off(w); unNote(); return 'fail'; }
+        if(ok===false){ off(w); unNote(); return 'dup'; }
+        try{ notesApply(w); }catch(e){ off(w); unNote(); return 'fail'; }
+        try{ w.clearTimeout(w._gpTouchT); fl=w.cwIkFlush(); }catch(e){ off(w); unNote(); return 'fail'; }
+        return Promise.resolve(fl).then(function(r){ if(!r){ off(w); unNote(); return 'fail'; } return detWait(w).then(function(clean){ if(!clean){ off(w); return 'notes'; } NOTES=[]; return 'ok'; }); },function(){ off(w); unNote(); return 'fail'; });
       },function(){ return 'fail'; }).then(function(r){ drop(f); return r; },function(){ drop(f); return 'fail'; });
     }
     function run(fn){ var r=chain.then(function(){ return once(fn); }); chain=r.catch(function(){}); return r; }
     var KEYS=['introEnjoy','introSkills','introValues','introNeed'];
-    function elsewhere(w,key,word){ var lw=String(word).toLowerCase(); return KEYS.some(function(k){ if(k===key) return false; try{ return w.gpPickedWords(k).some(function(x){ return x.split(':')[0].trim().toLowerCase()===lw; }); }catch(e){ return false; } }); }
+    function inAny(w,word){ var lw=String(word).toLowerCase(); return KEYS.some(function(k){ try{ return w.gpPickedWords(k).some(function(x){ return x.split(':')[0].trim().toLowerCase()===lw; }); }catch(e){ return false; } }); }
     function detOf(w,word){ var k=String(word).toLowerCase(); try{ if(w._gpDet&&w._gpDet[k]!==undefined) return w._gpDet[k]; var t=w._gpDetSent&&w._gpDetSent[k]; return t?JSON.parse(t):null; }catch(e){ return null; } }
     function roles(w,key,word,lv){ try{ var r=(w.gpRolesOf(key,word)||[]).concat(w.gpPracticeOf(key,word)||[]); if(r.length) w.gpSplitRoles(key,word,lv,r); }catch(e){} }
     function ta(w,key){ return w.document.getElementById('gp-intro-'+key); }
@@ -3467,19 +3474,20 @@
         var nw=String(inp.value||'').replace(/[:|,+~]/g,' ').replace(/\s+/g,' ').trim(); var lv=L.list.filter(function(x){ return pick[x]; });
         if(!nw){ say('Add a name.'); inp.focus(); return; }
         if(!lv.length){ say('Pick a level.'); return; }
-        var job=function(w){ var tx=ta(w,key); if(!tx) return false;
+        var job=function(w,nm){ var tx=ta(w,key); if(!tx) return false;
           if(isAdd){ if(has(w,key,nw)) return false; w.gpAddWord(key,nw,'',tx); }
-          else if(nw!==old){ if(nw.toLowerCase()!==old.toLowerCase()&&has(w,key,nw)) return false; var raw=String(w.gpOrigFor(key,old)), i=raw.indexOf(':'), rest=i>-1?raw.slice(i):''; var dt=nw.toLowerCase()!==old.toLowerCase()?detOf(w,old):null; var keepOld=elsewhere(w,key,old); w.gpDropWord(key,old,tx); w.gpAddWord(key,nw,'',tx); if(dt){ w.gpDetailQueue(nw,dt); if(!keepOld) w.gpDetailQueue(old,null); } if(rest){ if(!w._gpOrig[key]) w._gpOrig[key]={}; w._gpOrig[key][nw.toLowerCase()]=nw+rest; try{ w._gpOrigEdited[key+'|'+nw.toLowerCase()]=nw+rest; }catch(e){} } }
+          else if(nw!==old){ if(nw.toLowerCase()!==old.toLowerCase()&&has(w,key,nw)) return false; var raw=String(w.gpOrigFor(key,old)), i=raw.indexOf(':'), rest=i>-1?raw.slice(i):''; w.gpDropWord(key,old,tx); w.gpAddWord(key,nw,'',tx); nm(old,nw); if(rest){ if(!w._gpOrig[key]) w._gpOrig[key]={}; w._gpOrig[key][nw.toLowerCase()]=nw+rest; try{ w._gpOrigEdited[key+'|'+nw.toLowerCase()]=nw+rest; }catch(e){} } }
           w.gpSetLevel(key,nw,lv); roles(w,key,nw,lv); return true; };
         if(!isAdd&&tilesOf(sec).some(function(o){ return o!==t&&wordOf(o).toLowerCase()===nw.toLowerCase(); })){ say('That is already on your profile.'); return; }
         if(isAdd&&tilesOf(sec).some(function(o){ return wordOf(o).toLowerCase()===nw.toLowerCase(); })){ say('That is already on your profile.'); return; }
         close(t); var tile=t;
         if(isAdd){ tile=newTile(nw,lv); t.parentNode.replaceChild(tile,t); bind(sec,key,tile); } else { setTile(t,nw,lv); }
         sync(key,isAdd?null:old,nw,lv); recount(sec);
-        var note=el('div','v2-qe-note','Saving…'); tile.classList.add('v2-qe-busy'); tile.appendChild(note);
+        tile.querySelectorAll('.v2-qe-note').forEach(function(x){ x.parentNode.removeChild(x); }); var note=el('div','v2-qe-note','Saving…'); tile.classList.add('v2-qe-busy'); tile.appendChild(note);
         run(job).then(function(r){
           tile.classList.remove('v2-qe-busy');
-          if(r==='ok'){ note.parentNode&&note.parentNode.removeChild(note); return; }
+          if(r==='ok'||(r==='notes'&&isAdd)){ note.parentNode&&note.parentNode.removeChild(note); return; }
+          if(r==='notes'){ note.className='v2-qe-note v2-qe-bad'; note.textContent='Could not save just now. Try again.'; return; }
           if(isAdd){ var at=tile.parentNode, nx=tile.nextSibling; sync(key,nw,null,null); if(tile.parentNode) tile.parentNode.removeChild(tile); if(at){ var bad=el('div','v2-qe-note v2-qe-bad',r==='dup'?'That is already on your profile.':'Could not add '+nw+' just now. Try again.'); at.insertBefore(bad,nx&&nx.parentNode===at?nx:null); setTimeout(function(){ bad.parentNode&&bad.parentNode.removeChild(bad); },8000); } }
           else { setTile(tile,old,oldLv); sync(key,nw,old,oldLv); note.className='v2-qe-note v2-qe-bad'; note.textContent=r==='dup'?'That is already on your profile.':'Could not save just now. Try again.'; }
           recount(sec);
@@ -3493,7 +3501,7 @@
         a2.appendChild(yes); a2.appendChild(no); c.appendChild(q); c.appendChild(cs); c.appendChild(a2); t.appendChild(c);
         no.onclick=function(){ c.parentNode.removeChild(c); f.style.display=''; };
         yes.onclick=function(){ yes.disabled=no.disabled=true; cs.textContent='Deleting…';
-          run(function(w){ var tx=ta(w,key); if(!tx) return false; w.gpDropWord(key,old,tx); if(!elsewhere(w,key,old)) w.gpDetailQueue(old,null); return true; })
+          run(function(w,nm){ var tx=ta(w,key); if(!tx) return false; if(has(w,key,old)) w.gpDropWord(key,old,tx); nm(old,null); return true; })
           .then(function(r){ if(r!=='ok'){ yes.disabled=no.disabled=false; cs.textContent='Could not delete just now. Try again.'; return; } c.parentNode.removeChild(c); sync(key,old,null,null); t.parentNode&&t.parentNode.removeChild(t); recount(sec); });
         };
         no.focus();
