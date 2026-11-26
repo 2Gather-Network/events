@@ -1,4 +1,5 @@
-<style>html,body{background:#1F699E;}</style>
+<style>html,body{background:#1F699E;}.v2-inedit{margin-top:10px;}.v2-inedit-fr{display:block;width:100%;border:0;height:520px;background:transparent;}.v2-inedit-acts{display:flex;justify-content:flex-end;margin-top:10px;}.cw-btn{background:#fff;color:#1F699E;border:0;padding:10px 18px;border-radius:24px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;}.cw-btn.solid{background:#1F699E;color:#fff;}.cw-btn:disabled{opacity:.6;cursor:default;}
+</style>
 <script>try{var S='cw-signed-out-2026-09-20';if(localStorage.getItem(S)!=='1'){localStorage.setItem(S,'1');['cw-id','appear-id','cw-token','cw-super','cw-view-as','cw-view-as-name','cw-first','cw-photo','cw-photo-for','cw-photo-at','cw-lastEmail'].forEach(function(k){localStorage.removeItem(k)})}}catch(e){}</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -3397,6 +3398,20 @@
       S.items=more?S.items.concat(d.items||[]):(d.items||[]); S.more=!!d.more; if(S.own){ S.mailOff=!!d.mailOff; } S.loaded=true; S.failed=false; paint();
     }).catch(function(){ S.failed=true; S.loaded=true; paint(); });
   }
+    window.cwInEdit=function(sec,slug,title){
+    if(!sec||sec.querySelector('.v2-inedit')) return;
+    var keep=sec.querySelector('.pv-section-header')||(sec.querySelector('.pv-section-label')||{}).parentNode;
+    [].slice.call(sec.children).forEach(function(c){ if(c!==keep&&!c.hidden){ c.hidden=true; c.setAttribute('data-v2inl','1'); } });
+    var box=document.createElement('div'); box.className='v2-inedit';
+    var fr=document.createElement('iframe'); fr.className='v2-inedit-fr'; fr.title='Edit '+title; fr.src='/ikigai/'+slug+'?embed=1';
+    var acts=document.createElement('div'); acts.className='v2-inedit-acts';
+    var done=document.createElement('button'); done.type='button'; done.className='cw-btn solid v2-inedit-done'; done.textContent='Done';
+    acts.appendChild(done); box.appendChild(fr); box.appendChild(acts); sec.appendChild(box);
+    var onMsg=function(e){ if(e.origin!==location.origin||e.source!==fr.contentWindow||!e.data||e.data.cwIk!=='h') return; var h=Number(e.data.h)||0; fr.style.height=Math.max(160,Math.min(8000,h))+'px'; };
+    window.addEventListener('message',onMsg);
+    done.onclick=function(){ done.disabled=true; var w=null; try{ w=fr.contentWindow; }catch(e){} var p=(w&&typeof w.cwIkFlush==='function')?w.cwIkFlush():Promise.resolve(true); Promise.resolve(p).then(function(ok){ if(!ok){ done.disabled=false; return; } try{ sessionStorage.setItem('cw-pv-back',JSON.stringify({s:title,at:Date.now()})); }catch(e){} location.reload(); },function(){ done.disabled=false; }); };
+    try{ sec.scrollIntoView({block:'start',behavior:'smooth'}); }catch(e){}
+  };
   window.cwApprDraw=function(o){
     o=o||{}; var h=host(); if(!h) return;
     if(o.viewingAs){ h.innerHTML=''; return; }
@@ -3537,6 +3552,9 @@
         var ch=card.querySelector('.v2-chips'); if(ch&&ch.children.length){ var cw=document.createElement('div'); cw.className='v2-chips-row'; ch.parentNode.insertBefore(cw,ch); cw.appendChild(ch); var ib=document.createElement('button'); ib.type='button'; ib.className='v2-info'; ib.setAttribute('aria-label','How working styles work'); ib.setAttribute('aria-expanded','false'); ib.innerHTML='<span aria-hidden="true">i</span>'; cw.appendChild(ib); cw.appendChild(pen('/ikigai/skills#methods','Edit what comes most naturally to you, in a new tab')); var note=document.createElement('p'); note.className='v2-info-note'; note.hidden=true; note.textContent='What comes most naturally to me: the ways I like to help, rather than what I know.'; cw.parentNode.insertBefore(note,cw.nextSibling); ib.onclick=function(){ var o=note.hidden; note.hidden=!o; ib.setAttribute('aria-expanded',o?'true':'false'); }; }
         var SECSLUG={"What I'm seeking":'needs','What I enjoy':'joys','What I care about':'cares','What I can do':'skills',"What I'm offering":'offers','My skills':'skills','Open to opportunities':'work'};
         card.querySelectorAll('.pv-section').forEach(function(sec){ var lb=sec.querySelector('.pv-section-label'); if(!lb) return; var sl=SECSLUG[String(lb.textContent||'').trim()]; if(!sl||sec.querySelector('.v2-pen')) return; var hd=sec.querySelector('.pv-section-header')||lb.parentNode; var a=pen('/ikigai/'+sl,'Edit '+String(lb.textContent||'').trim()+', in a new tab'); a.classList.add('v2-secpen'); hd.appendChild(a); });
+        var INL={joys:1};
+        card.querySelectorAll('.v2-secpen').forEach(function(a){ var m=String(a.getAttribute('href')||'').match(/^\/ikigai\/([a-z]+)$/); if(!m||!INL[m[1]]) return; var sec=a.closest('.pv-section'); var lb=sec&&sec.querySelector('.pv-section-label'); var tl=String(lb?lb.textContent:'').trim(); a.removeAttribute('target'); a.setAttribute('aria-label','Edit '+tl); a.title='Edit '+tl; a.onclick=function(e){ e.preventDefault(); window.cwInEdit(sec,m[1],tl); }; });
+        try{ var bk=JSON.parse(sessionStorage.getItem('cw-pv-back')||'null'); if(bk&&bk.s&&Date.now()-Number(bk.at||0)<60000){ var tsec=[].slice.call(card.querySelectorAll('.pv-section')).filter(function(x){ var l=x.querySelector('.pv-section-label'); return l&&String(l.textContent||'').trim()===bk.s; })[0]; if(tsec){ sessionStorage.removeItem('cw-pv-back'); var gp=tsec.closest('[data-wp]'); var pl=gp&&card.querySelector('.v2-pill[data-w="'+gp.getAttribute('data-wp')+'"]'); if(pl&&!pl.classList.contains('on')) pl.click(); setTimeout(function(){ try{ tsec.scrollIntoView({block:'start'}); }catch(e){} },120); } } }catch(e){}
         card.querySelectorAll('.pv-section').forEach(function(sec){ var lb=sec.querySelector('.pv-section-label'); if(!lb||!/^What I can do$/.test(String(lb.textContent||'').trim())) return; var hd=sec.querySelector('.pv-section-header'); var pencil=hd&&hd.querySelector('.v2-secpen'); sec.querySelectorAll('.pv-countlink,.pv-count').forEach(function(x){ x.parentNode&&x.parentNode.removeChild(x); }); var ib=sec.querySelector('.pv-i'); if(ib&&hd){ if(ib.parentNode&&ib.parentNode.classList.contains('pv-cwrap')){ var w=ib.parentNode; w.parentNode.removeChild(w); } hd.insertBefore(ib,pencil||null); ib.style.marginLeft='auto'; if(pencil){ pencil.style.marginLeft='8px'; } } });
         var ep=card.querySelector('#pv-edit-profile'); var raEl=ep&&ep.parentNode; if(ep&&ep.parentNode){ ep.parentNode.removeChild(ep); }
         if(raEl&&!card.querySelector('.v2-addwrap')){
