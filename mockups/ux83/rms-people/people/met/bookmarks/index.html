@@ -952,6 +952,28 @@
         });
       }).catch(function () { lst.innerHTML = ''; var er = document.createElement('div'); er.className = 'line'; er.textContent = 'That did not load. Try again.'; lst.appendChild(er); });
     };
+    var openConnect = function () {
+      if (!invBox) { invBox = document.createElement('div'); invBox.className = 'rnote'; row.appendChild(invBox); }
+      invBox.innerHTML = ''; invBox.hidden = false;
+      var hd = document.createElement('div'); hd.className = 'line'; var hb = document.createElement('b'); hb.textContent = 'Ask ' + (invFirst || 'them') + ' to connect'; hd.appendChild(hb); invBox.appendChild(hd);
+      var ld = document.createElement('div'); ld.className = 'line'; ld.textContent = 'If you both say yes:'; invBox.appendChild(ld);
+      var ul = document.createElement('ul'); ul.style.margin = '4px 0 8px'; ul.style.paddingLeft = '20px';
+      ['You can both be seen by each other.', "You both appear in each other's connections, dashboard and opportunities.", 'You both get an email.'].forEach(function (t) { var li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
+      invBox.appendChild(ul);
+      var nt2 = document.createElement('div'); nt2.className = 'line'; nt2.textContent = 'Nothing happens until ' + (invFirst || 'they') + ' says yes.'; invBox.appendChild(nt2);
+      var nr = document.createElement('div'); nr.className = 'actions-row';
+      var go = document.createElement('button'); go.type = 'button'; go.className = 'btn'; go.textContent = 'Send request';
+      var cx = document.createElement('button'); cx.type = 'button'; cx.className = 'btn ghost'; cx.textContent = 'Cancel'; cx.onclick = function () { invBox.hidden = true; };
+      var out = document.createElement('span'); out.className = 'note'; out.style.margin = '0';
+      go.onclick = function () {
+        go.disabled = true; out.textContent = 'Sending\u2026';
+        send('askConnect57b', { toCode: code }).then(function (r) {
+          var ok = r && r.status === 'ok' && r.sent === true;
+          out.textContent = ok ? 'Sent' : 'Not sent'; if (!ok) { go.disabled = false; } else { go.hidden = true; cx.textContent = 'Close'; }
+        }).catch(function () { out.textContent = 'Not sent'; go.disabled = false; });
+      };
+      nr.appendChild(go); nr.appendChild(cx); nr.appendChild(out); invBox.appendChild(nr);
+    };
     if (code) { pm.appendChild(menuItem('msg', 'Send message', o.msgHref || ('/messages/?to=' + encodeURIComponent('c:' + code)))); }
     if (cc) {
       var nt = noteItem(); pm.appendChild(nt);
@@ -973,7 +995,7 @@
       if (!bmViewing()) {
         var iev = menuItem('cal', 'Invite to event', ''); iev.onclick = function () { close(); openInvite('event'); }; pm.appendChild(iev);
         var igr = menuItem('fire', 'Invite to group', ''); igr.onclick = function () { close(); openInvite('group'); }; pm.appendChild(igr);
-        var acn = menuItem('circles', 'Invite to connect', ''); acn.onclick = function () { close(); }; pm.appendChild(acn);
+        if (!CONNECTED[code]) { var acn = menuItem('circles', 'Invite to connect', ''); acn.onclick = function () { close(); openConnect(); }; pm.appendChild(acn); }
       }
       if (INTRO_ON && !bmViewing() && ALL.some(function (x) { return x.person && String(x.person) === code; })) { var mi = menuItem('share', 'Make an intro', ''); mi.onclick = function () { close(); openIntro(sy); }; pm.appendChild(mi); }
       if (APPR_ON) { pm.appendChild(menuItem('plant', 'Show appreciation', prof + '#appreciation')); }
@@ -1947,6 +1969,20 @@
     lines.forEach(function (t) { if (!t) { return; } var l = document.createElement('div'); l.className = 'line'; l.textContent = t; who.appendChild(l); });
     row.appendChild(av); row.appendChild(who); return row;
   }
+  function connectMailBox() {
+    if (!/[?&]mail=connect(&|$)/.test(location.search) || $('cm-box') || bmViewing()) { return; }
+    var seg = $('ctabs'); if (!seg) { setTimeout(connectMailBox, 400); return; }
+    var bx = document.createElement('div'); bx.id = 'cm-box'; bx.className = 'bmsw'; bx.style.cssText = 'justify-content:space-between;background:#F7F9FC;border-radius:12px;padding:11px 14px;margin:0 0 8px;font-size:15px;display:flex;align-items:center;gap:12px';
+    var lb = document.createElement('span'); lb.id = 'cm-lbl'; lb.textContent = 'Email me when someone asks to connect, and when we connect';
+    var sw = document.createElement('button'); sw.type = 'button'; sw.className = 'sw'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-labelledby', 'cm-lbl'); sw.setAttribute('aria-checked', 'true'); sw.disabled = true;
+    bx.appendChild(lb); bx.appendChild(sw); seg.parentNode.insertBefore(bx, seg);
+    send('getConnectMail57b', {}).then(function (d) { if (d && d.status === 'ok') { sw.setAttribute('aria-checked', d.mailOff ? 'false' : 'true'); sw.disabled = false; } });
+    sw.onclick = function () {
+      var on = sw.getAttribute('aria-checked') !== 'true'; sw.disabled = true;
+      send('setConnectMail57b', { off: on ? '0' : '1' }).then(function (d) { if (d && d.status === 'ok') { sw.setAttribute('aria-checked', d.mailOff ? 'false' : 'true'); } sw.disabled = false; }).catch(function () { sw.disabled = false; });
+    };
+  }
+  setTimeout(connectMailBox, 0);
   function buildTabs() {
     var body = $('body'), cp = document.createElement('div'); cp.setAttribute('data-cp', 'contacts');
     while (body.firstChild) { cp.appendChild(body.firstChild); }
