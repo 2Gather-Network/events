@@ -1983,6 +1983,43 @@
     };
   }
   setTimeout(connectMailBox, 0);
+  var FP_BOX = 'If you both say yes, you see each other’s names and you both appear in each other’s Contacted tab. If you say not now, they are never told.';
+  function fpLines(box, lines) { (lines || []).forEach(function (t) { if (!t) { return; } var l = document.createElement('div'); l.className = 'line'; l.textContent = String(t); box.appendChild(l); }); }
+  function drawFp() {
+    var cpi = $('cp-invited'); if (!cpi) { return; }
+    var box = $('fp-list'); if (!box) { box = document.createElement('div'); box.id = 'fp-list'; var rq = $('cp-requests'); cpi.insertBefore(box, rq ? rq.nextSibling : cpi.firstChild); }
+    box.innerHTML = '';
+    if (bmViewing()) { return; }
+    (TABS.fpAsked || []).forEach(function (a) {
+      var row = personRow('Someone on 2Appear reached out', [], ''); row.className = 'row ct fp';
+      row.querySelector('.av').textContent = '?';
+      var who = row.querySelector('.who'); fpLines(who, a.reasons);
+      var bx = document.createElement('div'); bx.className = 'notice'; bx.style.margin = '10px 0 0'; var bs = document.createElement('span'); bs.textContent = FP_BOX; bx.appendChild(bs); who.appendChild(bx);
+      var acts = document.createElement('div'); acts.className = 'actions-row'; acts.style.marginTop = '10px';
+      var yes = document.createElement('button'); yes.type = 'button'; yes.className = 'btn'; yes.textContent = 'Yes, let’s meet';
+      var no = document.createElement('button'); no.type = 'button'; no.className = 'btn ghost'; no.textContent = 'Not now';
+      var out = document.createElement('div'); out.className = 'line'; out.hidden = true;
+      yes.onclick = function () { yes.disabled = no.disabled = true; send('fpYes57b', { card: a.card }).then(function (d) { if (d && d.matched) { location.reload(); return; } acts.hidden = true; out.hidden = false; out.textContent = 'This has ended.'; }).catch(function () { yes.disabled = no.disabled = false; }); };
+      no.onclick = function () { yes.disabled = no.disabled = true; send('fpNotNow57b', { card: a.card }).then(function () { row.remove(); TABS.fpAsked = (TABS.fpAsked || []).filter(function (x) { return x !== a; }); }).catch(function () { yes.disabled = no.disabled = false; }); };
+      acts.appendChild(yes); acts.appendChild(no); who.appendChild(acts); who.appendChild(out);
+      box.appendChild(row);
+    });
+    (TABS.fpMatched || []).forEach(function (m) {
+      var name = String(m.name || '').trim() || 'Someone';
+      var row = personRow(name, [m.side === 'to' ? 'Reached out to you' : 'You reached out'].concat(m.reasons || []), ''); row.className = 'row ct fp';
+      var ph = String(m.photo || '').trim();
+      if (/^https:\/\//i.test(ph)) { var av = row.querySelector('.av'); av.textContent = ''; var im = document.createElement('img'); im.alt = ''; im.src = ph; im.onerror = function () { av.textContent = initials(name); }; av.appendChild(im); }
+      var acts = document.createElement('div'); acts.className = 'actions-row'; acts.style.marginTop = '10px';
+      var msg = document.createElement('a'); msg.className = 'btn'; msg.textContent = 'Send message'; msg.href = '/messages/?to=' + encodeURIComponent('c:' + m.person);
+      var vp = document.createElement('a'); vp.className = 'btn ghost'; vp.textContent = 'View profile'; vp.href = 'https://2gather.network/hi/?v=' + encodeURIComponent(String(m.person));
+      acts.appendChild(msg); acts.appendChild(vp); row.querySelector('.who').appendChild(acts);
+      box.appendChild(row);
+    });
+    var n = (TABS.fpAsked || []).length + (TABS.fpMatched || []).length;
+    if (n && $('tn-invited')) { $('tn-invited').textContent = (parseInt($('tn-invited').textContent, 10) || 0) + n; }
+  }
+  var _dt1 = drawTabs;
+  drawTabs = function () { _dt1(); try { drawFp(); } catch (e) {} };
   function buildTabs() {
     var body = $('body'), cp = document.createElement('div'); cp.setAttribute('data-cp', 'contacts');
     while (body.firstChild) { cp.appendChild(body.firstChild); }
@@ -2045,7 +2082,7 @@
     bookmarks: ['Open somebody\u2019s profile and press Bookmark, and they will show up here.', 'Find people', 'https://2appear.network/network/'],
     contacts: ['When you join an event with matching turned on, your contacts appear here.', 'Find an event', 'https://2appear.network/events/'],
     requests: ['When someone asks to connect with you, their request appears here.', 'Find people', 'https://2appear.network/network/'],
-    connected: ['When you and someone both agree to connect, they appear here.', 'Find people', 'https://2appear.network/network/'],
+    connected: ['When you and someone both agree to connect, they appear here.', 'Find people', '/mockups/ux83/rms-people/people/matches/'],
     invited: ['When you invite someone to a group or an event, they appear here until they join.', [['Invite someone to your group', 'https://2appear.network/mygroups/'], ['Invite someone to your event', 'https://2appear.network/myevents/'], ['Socialize an event', 'https://2appear.network/events/']]],
     events: ['When you bring an event over to 2Appear, the people you met there appear here.', 'Find an event', 'https://2appear.network/events/']
   };
@@ -2515,6 +2552,6 @@
 </script>
 
 <script src="/nav/waiting-words.js?v=16"></script>
-<script src="/nav/topbar.js?v=7.14" defer></script>
+<script src="/nav/topbar.js?v=7.15" defer></script>
 </body>
 </html>
