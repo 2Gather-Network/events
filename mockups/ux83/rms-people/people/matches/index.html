@@ -47,6 +47,16 @@
   .none{font-size:14.5px;color:var(--soft);margin:6px 0;}
   #wait{color:#fff;font-size:15px;}
   [hidden]{display:none !important;}
+  .notice .fm-cap{flex:0 0 auto;min-width:0;}
+  #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
+  .cw-card{background:#fff;border-radius:14px;padding:22px 24px;border:1px solid var(--line);display:flex;flex-direction:column;gap:6px;}
+  .cw-avatar{width:44px;height:44px;border-radius:50%;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;overflow:hidden;margin-bottom:4px;}
+  .cw-avatar img{width:100%;height:100%;object-fit:cover;}
+  .cw-avatar.blank{background:#DDE4EE;}
+  .cw-card .name{font-size:15px;font-weight:700;color:var(--ink);overflow-wrap:anywhere;}
+  .cw-card .line{font-size:14px;color:var(--muted);line-height:1.45;overflow-wrap:anywhere;}
+  .cw-card .actions-row{margin-top:auto;padding-top:8px;}
+  #cards .wide{grid-column:1 / -1;}
 </style>
 <script src="/nav/identity.js?v=75"></script>
 </head>
@@ -57,12 +67,7 @@
   <div id="pane" hidden>
     <h2>My matches</h2>
     <div id="findme" hidden></div>
-    <h3>People you know</h3>
-    <p class="sub">From your profile answers</p>
-    <div id="known"></div>
-    <h3 id="anon-h">People you don&#8217;t know yet</h3>
-    <p class="sub" id="anon-sub">Their names stay hidden until you both say yes.</p>
-    <div id="anon"></div>
+    <div id="cards"></div>
   </div>
 </div>
 <script>
@@ -91,59 +96,52 @@
     box.hidden = false;
     var n = el('div', 'notice'), sp = el('span');
     sp.appendChild(el('span', 'q', 'Let people find me'));
-    sp.appendChild(document.createTextNode('Your matches are visible, yet you both stay anonymous until you both say yes to saying hi.'));
+    sp.appendChild(document.createTextNode('Your matches are visible with people you don\u2019t know. You both stay anonymous until you both say yes to saying hi.'));
     n.appendChild(sp); n.appendChild(CWFindMe.capsule(ME, d.findMe === 'on', function () { load(); }));
     box.appendChild(n);
   }
 
-  function drawKnown(d) {
-    var box = $('known'); box.innerHTML = '';
+  function card(name, photo, blank) {
+    var c = el('div', 'cw-card'), av = el('span', 'cw-avatar' + (blank ? ' blank' : ''), blank ? '' : initials(name));
+    var ph = String(photo || '').trim();
+    if (!blank && /^https:\/\//i.test(ph)) { av.textContent = ''; var im = el('img'); im.alt = ''; im.src = ph; im.onerror = function () { av.textContent = initials(name); }; av.appendChild(im); }
+    c.appendChild(av); c.appendChild(el('div', 'name', name));
+    return c;
+  }
+  function drawCards(d) {
+    var box = $('cards'); box.innerHTML = '';
     if (d.needTopics) {
-      var t = notice('Add a topic first so we can find your matches.');
+      var t = notice('Add a topic first so we can find your matches.'); t.className += ' wide';
       var a = el('a', 'btn', 'Add a topic'); a.href = 'https://2appear.network/dashboard/'; t.appendChild(a); box.appendChild(t);
-      return;
     }
-    if (!(d.known || []).length) { box.appendChild(el('p', 'none', 'No matches yet among people you met.')); return; }
-    d.known.forEach(function (k) {
+    (d.known || []).forEach(function (k) {
       var name = String(k.name || '').trim() || 'Someone';
-      var row = el('div', 'row'), av = el('span', 'av', initials(name)), who = el('div', 'who');
-      var ph = String(k.photo || '').trim();
-      if (/^https:\/\//i.test(ph)) { av.textContent = ''; var im = el('img'); im.alt = ''; im.src = ph; im.onerror = function () { av.textContent = initials(name); }; av.appendChild(im); }
-      who.appendChild(el('div', 'name', name)); lines(who, k.reasons);
+      var c = card(name, k.photo, false); lines(c, k.reasons);
       var acts = el('div', 'actions-row'), b = el('button', 'btn', 'Ask to connect'); b.type = 'button';
       var st = el('div', 'state'); st.hidden = true;
       b.onclick = function () { b.disabled = true; send('askConnect57b', { toCode: k.person }).then(function (r) { acts.hidden = true; st.hidden = false; st.textContent = r && r.sent ? 'Sent' : 'Not sent'; }).catch(function () { b.disabled = false; }); };
-      acts.appendChild(b); who.appendChild(acts); who.appendChild(st);
-      row.appendChild(av); row.appendChild(who); box.appendChild(row);
+      acts.appendChild(b); c.appendChild(acts); c.appendChild(st);
+      box.appendChild(c);
     });
-  }
-
-  function drawAnon(d) {
-    var box = $('anon'); box.innerHTML = '';
-    var anonOn = d.findMe === 'on';
-    $('anon-h').hidden = $('anon-sub').hidden = !anonOn;
-    if (!anonOn) { return; }
-    var cards = d.anon || [];
-    if (!cards.length && !d.dayFull) { box.appendChild(el('p', 'none', 'No one yet. More people tomorrow.')); return; }
+    if (d.findMe !== 'on') { return; }
     var boxShown = false;
-    cards.forEach(function (c) {
-      var row = el('div', 'row'), av = el('span', 'av', '?'), who = el('div', 'who');
-      who.appendChild(el('div', 'name', 'Someone on 2Appear'));
-      if (c.city) { who.appendChild(el('div', 'city', c.city)); }
-      lines(who, c.reasons);
+    (d.anon || []).forEach(function (x) {
+      var c = card('Someone on 2Appear', '', true);
+      if (x.city) { c.appendChild(el('div', 'city', x.city)); }
+      lines(c, x.reasons);
       var st = el('div', 'state', 'Waiting'), acts = el('div', 'actions-row');
-      if (c.state === 'waiting') { who.appendChild(st); }
+      if (x.state === 'waiting') { c.appendChild(st); }
       else {
-        if (!boxShown) { var bx = notice(FP_BOX); bx.style.margin = '10px 0 0'; who.appendChild(bx); boxShown = true; }
+        if (!boxShown) { var bx = notice(FP_BOX); bx.style.margin = '6px 0 0'; c.appendChild(bx); boxShown = true; }
         var r = el('button', 'btn', 'Reach out'), n = el('button', 'btn ghost', 'Not now'); r.type = n.type = 'button';
         st.hidden = true;
-        r.onclick = function () { r.disabled = n.disabled = true; send('reachOut57b', { card: c.card }).then(function (x) { if (x && x.state === 'waiting') { acts.hidden = true; st.hidden = false; } else { r.disabled = n.disabled = false; } }).catch(function () { r.disabled = n.disabled = false; }); };
-        n.onclick = function () { r.disabled = n.disabled = true; send('fpNotNow57b', { card: c.card }).then(function () { row.remove(); }).catch(function () { r.disabled = n.disabled = false; }); };
-        acts.appendChild(r); acts.appendChild(n); who.appendChild(acts); who.appendChild(st);
+        r.onclick = function () { r.disabled = n.disabled = true; send('reachOut57b', { card: x.card }).then(function (y) { if (y && y.state === 'waiting') { acts.hidden = true; st.hidden = false; } else { r.disabled = n.disabled = false; } }).catch(function () { r.disabled = n.disabled = false; }); };
+        n.onclick = function () { r.disabled = n.disabled = true; send('fpNotNow57b', { card: x.card }).then(function () { c.remove(); }).catch(function () { r.disabled = n.disabled = false; }); };
+        acts.appendChild(r); acts.appendChild(n); c.appendChild(acts); c.appendChild(st);
       }
-      row.appendChild(av); row.appendChild(who); box.appendChild(row);
+      box.appendChild(c);
     });
-    if (d.dayFull) { box.appendChild(notice('That’s everyone for today. More people tomorrow.')); }
+    if (d.dayFull) { var f = notice('That\u2019s everyone for today. More people tomorrow.'); f.className += ' wide'; box.appendChild(f); }
   }
 
   var TRIES = 0;
@@ -155,12 +153,12 @@
     var code = ''; try { code = String(new URLSearchParams(location.search).get('c') || '').trim(); } catch (e) {}
     send('myMatches57b', { code: code }).then(function (d) {
       if (!d || d.status !== 'ok') { $('wait').textContent = 'That did not load. Try again in a moment.'; return; }
-      shown(); drawFindMe(d); drawKnown(d); drawAnon(d);
+      shown(); drawFindMe(d); drawCards(d);
     }).catch(function () { $('wait').textContent = 'That did not load. Check your connection and try again.'; });
   }
   load();
 </script>
-<script src="/nav/find-me-notice.js?v=1"></script>
+<script src="/nav/find-me-notice.js?v=2"></script>
 <script src="/nav/waiting-words.js?v=16"></script>
 <script src="/nav/topbar.js?v=7.15" defer></script>
 </body>

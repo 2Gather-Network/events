@@ -21,7 +21,7 @@
       + '#fm-notice .fm-t{flex:1;min-width:220px;font-size:14.5px;line-height:1.5;}'
       + '#fm-notice .fm-h{font-weight:800;font-size:15px;margin:0 0 2px;}'
       + '#fm-notice p{margin:0 0 4px;}'
-      + '.fm-cap{display:inline-flex;border:1.5px solid #1F699E;border-radius:24px;overflow:hidden;background:#fff;flex-shrink:0;}'
+      + '.fm-cap{display:inline-flex;flex:0 0 auto;min-width:0;width:auto;border:1.5px solid #1F699E;border-radius:24px;overflow:hidden;background:#fff;}'
       + '.fm-cap button{font:700 13px \'Nunito Sans\',sans-serif;padding:8.5px 16px;border-radius:24px;border:0;background:#fff;color:#1F699E;cursor:pointer;}'
       + '.fm-cap button[aria-pressed="true"],.fm-cap button[aria-pressed="true"]:hover,.fm-cap button[aria-pressed="true"]:focus{background:#1F699E;color:#fff;}'
       + '.fm-cap button[aria-pressed="false"]:hover{background:#EEF2F7;}'
