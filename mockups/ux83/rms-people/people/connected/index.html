@@ -230,6 +230,7 @@
   .rmenu{flex-basis:100%;display:flex;justify-content:flex-end;}
   .pm{background:#fff;border:1.5px solid #DDE4EE;border-radius:14px;padding:6px;width:240px;max-width:100%;}
   .pmn{font-size:13px;font-weight:700;color:var(--soft);padding:6px 12px 4px;}
+  @media(min-width:768px){.rmenu > .pm{width:480px;columns:2;column-gap:4px;}.rmenu > .pm .pmn{column-span:all;}.rmenu > .pm .pmi{break-inside:avoid;}}
   .pmi{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;font-size:14px;font-weight:600;color:var(--ink);text-decoration:none;}
   .pmi:hover,.pmi:focus-visible{background:#EEF2F7;outline:none;}
   .pmi svg{width:18px;height:18px;flex:none;color:#1F699E;}
@@ -1003,8 +1004,8 @@
       ncancel.onclick = function () { box2.hidden = true; };
       nsave.onclick = function () { saveNoteInline(cc, ta.value, nsave, nmsg); };
     }
-    var sc = menuItem('card', 'See contact', ''); sc.onclick = function () { close(); openView(sy); }; pm.appendChild(sc);
-    var ec = menuItem('pen', 'Edit contact', ''); ec.onclick = function () { close(); openForm(sy); }; pm.appendChild(ec);
+    var sc = menuItem('card', 'See contact info', ''); sc.onclick = function () { close(); openView(sy); }; pm.appendChild(sc);
+    var ec = menuItem('pen', 'Edit contact info', ''); ec.onclick = function () { close(); openForm(sy); }; pm.appendChild(ec);
     if (code) {
       pm.appendChild(menuItem('user', 'See profile', prof));
       if (!bmViewing()) {
@@ -1013,7 +1014,7 @@
         if (!CONNECTED[code]) { var acn = menuItem('circles', 'Invite to connect', ''); acn.onclick = function () { close(); openConnect(); }; pm.appendChild(acn); }
       }
       if (INTRO_ON && !bmViewing() && ALL.some(function (x) { return x.person && String(x.person) === code; })) { var mi = menuItem('share', 'Make an intro', ''); mi.onclick = function () { close(); openIntro(sy); }; pm.appendChild(mi); }
-      if (APPR_ON) { pm.appendChild(menuItem('plant', 'Show appreciation', APPR_URL + '?c=' + encodeURIComponent(code))); }
+      if (APPR_ON) { pm.appendChild(menuItem('plant', 'Show appreciation', personAddr(code, 'appreciate'))); }
     }
     if (!code && !bmViewing() && cc && introEmail(cc)) {
       var iev2 = menuItem('cal', 'Invite to event', ''); iev2.onclick = function () { close(); openInvite('event'); }; pm.appendChild(iev2);
@@ -1032,6 +1033,7 @@
       };
       var wh = o.who || row.querySelector('.who'); if (wh) { wh.appendChild(rmOut); }
     }
+    if (code && !MENUS[code]) { MENUS[code] = { pm: pm, menu: menu, dots: dots, row: row }; }
     return { box2: box2 };
   }
   function addMenuToRow(row, name, code, cc, photo) {
@@ -1648,7 +1650,7 @@
     var link = function (txt, fn) { var a = document.createElement('a'); a.className = 'crumb-link'; a.textContent = txt; a.setAttribute('role', 'link'); a.tabIndex = 0; a.href = '#'; a.onclick = function (ev) { ev.preventDefault(); fn(); }; el.appendChild(a); };
     var sep = function () { el.appendChild(document.createTextNode(' / ')); };
     var now = function (txt) { var n = document.createElement('span'); n.className = 'now'; n.textContent = txt; el.appendChild(n); };
-    link('My contacts', function () { VIEWING = null; onlyPanel(''); }); sep();
+    link('My people', function () { VIEWING = null; onlyPanel(''); }); sep();
     if (id === 'cview') { now(nm); return; }
     if (id === 'introveil') { link(nm, function () { openView(c); }); sep(); now('Make an introduction'); return; }
     link(nm, function () { openView(c); }); sep(); now('Edit');
@@ -1676,7 +1678,7 @@
       [['Send message', '/messages/?to=' + encodeURIComponent('c:' + c.person), '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"/>'],
        ['See profile', prof, '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>'],
        ['Make an intro', prof + '#intro', '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>'],
-       ['Show appreciation', APPR_URL + '?c=' + encodeURIComponent(c.person), '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>']].filter(function (a) { return (a[0] === 'Make an intro' ? INTRO_ON && !bmViewing() : (a[0] === 'Show appreciation' ? APPR_ON : true)); }).forEach(function (a) {
+       ['Show appreciation', personAddr(c.person, 'appreciate'), '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>']].filter(function (a) { return (a[0] === 'Make an intro' ? INTRO_ON && !bmViewing() : (a[0] === 'Show appreciation' ? APPR_ON : true)); }).forEach(function (a) {
         var b = el('a', 'btn ghost'); b.href = a[1]; b.innerHTML = cvIcon(a[2]); b.appendChild(document.createTextNode(a[0])); if (a[0] === 'Make an intro') { b.href = '#'; b.onclick = function (ev) { ev.preventDefault(); openIntro(c); }; } acts.appendChild(b);
       });
       box.appendChild(acts);
@@ -1707,6 +1709,20 @@
     var aw = c.addedAt ? added(c.addedAt) : '';
     if (aw) { var ad = el('div', 'cv-sec'); ad.appendChild(el('div', 'cv-added', 'Added ' + (c.name || 'them') + ' on ' + aw)); box.appendChild(ad); }
     onlyPanel('cview');
+  }
+  function personAddr(code, act) { return String(location.pathname).replace(/\/people\/.*$/, '') + '/people/' + encodeURIComponent(String(code || '').toLowerCase()) + '/' + act; }
+  var MENUS = {};
+  var ACT_LABEL = { note: 'Add a note', view: 'See contact info', edit: 'Edit contact info', introduce: 'Make an intro', 'invite/event': 'Invite to event', 'invite/group': 'Invite to group', 'invite/connect': 'Invite to connect' };
+  function actFromLink() {
+    var m = String(location.pathname).match(/\/people\/([0-9a-z]{6})\/(note|view|edit|introduce|invite(?:\/(?:event|group|connect))?)\/?$/i);
+    if (!m) { return; }
+    var code = m[1].toLowerCase(), act = m[2].toLowerCase(), o = MENUS[code];
+    if (!o) { say('That person is not in your contacts yet.'); return; }
+    try { o.row.scrollIntoView({ block: 'center' }); } catch (e) {}
+    if (o.menu.hidden) { o.dots.click(); }
+    if (act === 'invite') { return; }
+    var want = ACT_LABEL[act], hit = Array.prototype.filter.call(o.pm.querySelectorAll('.pmi'), function (x) { return x.textContent.trim() === want; })[0];
+    if (hit) { hit.click(); } else { say('That is not available for this person.'); }
   }
   function introFromLink() {
     var q = new URLSearchParams(location.search), w = String(q.get('intro') || '').replace(/^c:/i, '').trim();
@@ -1978,7 +1994,7 @@
   var TAB_NAMES = [['contacts', 'People I met'], ['invited', 'Contacted'], ['connected', 'Connected']];
   var TAB_PATH = { contacts: 'met', invited: 'contacted', connected: 'connected' };
   function tabFromPath() { var m = String(location.pathname).match(/\/people\/(met|contacted|connected)(\/bookmarks)?\/?$/); var k = m ? m[1] : 'met'; return k === 'contacted' ? 'invited' : (k === 'connected' ? 'connected' : 'contacts'); }
-  function tabHref(k) { return String(location.pathname).replace(/\/people\/(met|contacted|connected)(\/bookmarks)?\/?$/, '') + '/people/' + (TAB_PATH[k] || 'met') + '/' + (k === 'contacts' && BMSHOW ? 'bookmarks/' : ''); }
+  function tabHref(k) { return String(location.pathname).replace(/\/people\/.*$/, '') + '/people/' + (TAB_PATH[k] || 'met') + '/' + (k === 'contacts' && BMSHOW ? 'bookmarks/' : ''); }
   var BMSHOW = /\/people\/met\/bookmarks\/?$/.test(String(location.pathname));
   var _dt0 = drawTabs;
   drawTabs = function () { _dt0(); try { $('tn-invited').textContent = (TABS.requests.length + TABS.invited.length) || ''; $('tn-connected').textContent = TABS.connected.length || ''; $('in-tools').hidden = !(TABS.requests.length + TABS.invited.length); if ($('co-empty')) { $('co-empty').hidden = !!TABS.connected.length; } } catch (e) {} };
@@ -2571,7 +2587,7 @@
       $('tools').hidden = !ALL.length;
       draw();
       loadMessaged().then(function () { $('tools').hidden = !ALL.length; draw(); });
-      introFromLink();
+      introFromLink(); actFromLink();
       if (!BM_EARLY) { loadBookmarks(); }
     }).catch(function () { $('pane').classList.remove('stale'); $('ct-refresh').hidden = true; say('Your contacts did not load. Reload the page and it will try again.'); });
   })();
