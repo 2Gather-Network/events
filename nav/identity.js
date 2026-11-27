@@ -481,6 +481,12 @@
     if (nav.webdriver || /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|slack|discord|telegram|lighthouse|headless/i.test(String(nav.userAgent || ''))) { return; }
     if (w.document && w.document.visibilityState === 'prerender') { return; }
     var here = String(w.location.pathname || '/');
+    ls(function () {
+      var ne = w.performance.getEntriesByType('navigation')[0], rh = '';
+      try { rh = new URL(w.document.referrer || 'about:blank').hostname; } catch (e) {}
+      var rc = ne ? (ne.redirectCount || 0) : 0;
+      if (rc > 0 || (rh && rh !== w.location.hostname && rh !== 'about:blank' && rh !== '')) { jumpLog('arrived after ' + rc + ' redirect(s), from ' + (rh || 'no referrer')); }
+    });
     var onSignIn = /^\/(signin|signup)(\/|$)/.test(here);
     if (!onSignIn && /^\/(carry|signout|signin-google)(\/|$)/.test(here)) { return; }
     if (signedOutView() || viewingAs()) { jumpLog('stopped: viewing as someone'); return; }
