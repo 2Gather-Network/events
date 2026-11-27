@@ -3,7 +3,11 @@
   var ICON = {
     msg: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
-    plant: '<path d="M12 21v-9"/><path d="M12 12c0-4 3-6 7-6 0 4-3 6-7 6z"/><path d="M12 16c0-3-2-5-6-5 0 3 2 5 6 5z"/>'
+    plant: '<path d="M12 21v-9"/><path d="M12 12c0-4 3-6 7-6 0 4-3 6-7 6z"/><path d="M12 16c0-3-2-5-6-5 0 3 2 5 6 5z"/>',
+    cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/>',
+    fire: '<path d="M4 21l16-4"/><path d="M20 21l-16-4"/><path d="M12 15a4 4 0 0 0 4-4c0-3-2-3-2-8c-4 2-6 5-6 8a4 4 0 0 0 4 4z"/>',
+    circles: '<circle cx="8.5" cy="12" r="6"/><circle cx="15.5" cy="12" r="6"/>',
+    share: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/>'
   };
   var CSS = '.cwpm{position:absolute;z-index:9999;background:#fff;border:1.5px solid #DDE4EE;border-radius:14px;padding:6px;width:240px;max-width:calc(100vw - 32px);box-sizing:border-box;font-family:\'Nunito Sans\',\'DM Sans\',system-ui,sans-serif;text-align:left}'
     + '.cwpm[hidden]{display:none}'
@@ -11,7 +15,8 @@
     + '.cwpm-i{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;box-sizing:border-box;border-radius:10px;font-size:14px;font-weight:600;color:#1A2E42;text-decoration:none;line-height:1.3}'
     + '.cwpm-i:hover,.cwpm-i:focus-visible{background:#EEF1F5;outline:none}'
     + '.cwpm-i svg{width:18px;height:18px;flex:none;color:#1F699E}'
-    + 'button.cwpm-i{width:100%;text-align:left;background:transparent;border:0;font-family:inherit;cursor:pointer}';
+    + 'button.cwpm-i{width:100%;text-align:left;background:transparent;border:0;font-family:inherit;cursor:pointer}'
+    + '@media(min-width:768px){.cwpm.two{width:480px;columns:2;column-gap:4px}.cwpm.two .cwpm-n{column-span:all}.cwpm.two .cwpm-i{break-inside:avoid}}';
   var box = null, anchorEl = null, thankFn = null, thankOk = null;
   function viewing(){ try { var m = window.CW && CW.me && CW.me(); if (m && m.viewing) return true; if (window.CW && CW.viewingAs && CW.viewingAs()) return true; } catch (e) {} return false; }
   function ensure(){
@@ -49,7 +54,16 @@
     var v = viewing();
     if (code && !v) b.appendChild(item('msg', 'Send message', '/messages/?to=' + encodeURIComponent('c:' + code)));
     if (prof) b.appendChild(item('user', 'See profile', prof));
+    var act = function (x) { return 'https://2appear.network/people/' + code + '/' + x; };
+    if (code && !v) {
+      b.appendChild(item('cal', 'Invite to event', act('invite/event')));
+      b.appendChild(item('fire', 'Invite to group', act('invite/group')));
+      b.appendChild(item('circles', 'Invite to connect', act('invite/connect')));
+      b.appendChild(item('share', 'Make an intro', act('introduce')));
+    }
     if (code && !v && thankFn && (!thankOk || thankOk(code))) b.appendChild(item('plant', 'Send appreciation', '', function(){ thankFn(code, String(o.name || '')); }));
+    else if (code && !v) b.appendChild(item('plant', 'Show appreciation', act('appreciate')));
+    b.classList.toggle('two', b.children.length > 6);
     if (b.children.length < 2) { if (prof) { window.location.href = prof; } return; }
     anchorEl = el; try { el.setAttribute('aria-expanded', 'true'); } catch (e) {}
     b.hidden = false; place(el);
