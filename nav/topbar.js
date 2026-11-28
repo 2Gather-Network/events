@@ -1363,7 +1363,28 @@
     var wTop = d.createElement('div');
     wTop.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:640px;margin-bottom:8px;';
     head.style.marginBottom = '0';
-    wTop.appendChild(head); wTop.appendChild(cancelBtn(panel));
+    var allBtn = d.createElement('button');
+    allBtn.type = 'button'; allBtn.textContent = 'Approve all'; allBtn.hidden = true;
+    allBtn.style.cssText = 'font:inherit;font-weight:800;padding:8px 16px;border-radius:20px;cursor:pointer;border:0;background:#1A2E42;color:#fff;';
+    var allArmed = false, allBusy = false, allTimer = 0;
+    allBtn.onclick = function () {
+      if (allBusy) { return; }
+      if (!allArmed) {
+        allArmed = true; allBtn.textContent = 'Approve all ' + left + '? Press again';
+        allTimer = w.setTimeout(function () { allArmed = false; allBtn.textContent = 'Approve all'; }, 5000);
+        return;
+      }
+      w.clearTimeout(allTimer); allBusy = true; allBtn.disabled = true; allBtn.textContent = 'Approving…';
+      var rows = [].slice.call(list.children).filter(function (x) { return typeof x._keep === 'function'; });
+      (function next(i) {
+        if (i >= rows.length) { allBusy = false; allArmed = false; allBtn.disabled = false; allBtn.textContent = 'Approve all'; allBtn.hidden = !left; return; }
+        rows[i]._keep().then(function (okd) {
+          if (!okd) { allBusy = false; allArmed = false; allBtn.disabled = false; allBtn.textContent = 'Approve all'; return; }
+          next(i + 1);
+        });
+      })(0);
+    };
+    wTop.appendChild(head); wTop.appendChild(allBtn); wTop.appendChild(cancelBtn(panel));
     panel.appendChild(wTop); panel.appendChild(list);
     d.body.appendChild(panel);
     var auth = '&appearId=' + encodeURIComponent(realMeId)
@@ -1435,15 +1456,16 @@
       msg.style.cssText = 'font-size:13px;color:#8A6220;';
       function decide(dec) {
         ok.disabled = no.disabled = true; msg.textContent = 'Saving…';
-        fetch(GS + '?action=reviewWord' + auth + '&ref=' + encodeURIComponent(it.ref) + '&decision=' + dec + (dec === 'keep' && kindId ? '&kindOf=' + encodeURIComponent(kindId) : '') + '&t=' + Date.now())
+        return fetch(GS + '?action=reviewWord' + auth + '&ref=' + encodeURIComponent(it.ref) + '&decision=' + dec + (dec === 'keep' && kindId ? '&kindOf=' + encodeURIComponent(kindId) : '') + '&t=' + Date.now())
           .then(function (r) { return r.json(); })
           .then(function (r) {
-            if (r && r.status === 'ok') { row.remove(); left--; count(); wordsSet(left); return; }
-            ok.disabled = no.disabled = false; msg.textContent = (r && r.message) || 'Could not save. Try again.';
+            if (r && r.status === 'ok') { row.remove(); left--; count(); wordsSet(left); return true; }
+            ok.disabled = no.disabled = false; msg.textContent = (r && r.message) || 'Could not save. Try again.'; return false;
           })
-          .catch(function () { ok.disabled = no.disabled = false; msg.textContent = 'Could not reach the server. Try again.'; });
+          .catch(function () { ok.disabled = no.disabled = false; msg.textContent = 'Could not reach the server. Try again.'; return false; });
       }
       ok.onclick = function () { decide('keep'); };
+      row._keep = function () { return decide('keep'); };
       no.onclick = function () { decide('remove'); };
       btns.appendChild(ok); btns.appendChild(no); btns.appendChild(msg);
       row.appendChild(t); row.appendChild(m); if (kindBox) { row.appendChild(kindBox); } row.appendChild(btns);
@@ -1455,6 +1477,7 @@
         if (!r || r.status !== 'ok' || !Array.isArray(r.items)) { say((r && r.message) || 'The list did not come back. Try again.'); return; }
         left = r.items.length; stampAt = Date.now(); count(); wordsSet(left);
         r.items.forEach(function (it) { list.appendChild(line(it)); });
+        allBtn.hidden = !left;
       })
       .catch(function () { say('Could not reach the server. Try again.'); });
   }
