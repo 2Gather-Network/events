@@ -80,7 +80,7 @@
   var KIND = String(q.get('k') || 'seeking') === 'offering' ? 'offering' : 'seeking';
   var DIR = KIND === 'offering' ? 'offer' : 'seek';
   var WORD = KIND === 'offering' ? 'Offering' : 'Seeking';
-  function addr(k) { return location.pathname + '?p=' + encodeURIComponent(CODE) + '&k=' + k; }
+  function addr(k) { return location.pathname + (SLUG && CODE.length > 1 && q.get('n') ? '?n=' + encodeURIComponent(SLUG) : '?p=' + encodeURIComponent(CODE)) + '&k=' + k; }
 
   function empty() { $('wait').hidden = true; $('pane').hidden = false; $('title').textContent = 'Nothing here yet.'; $('body').hidden = true; $('tabs').hidden = true; $('crumb').innerHTML = ''; }
 
@@ -125,11 +125,17 @@
   }
 
   var TRIES = 0;
+  var SLUG = String(q.get('n') || '').trim().toLowerCase();
   function load() {
+    if (!CODE && /^[a-z0-9-]{2,60}$/.test(SLUG)) {
+      fetch(GS + '?action=vanity&slug=' + encodeURIComponent(SLUG) + '&t=' + Date.now(), { cache: 'no-store', referrerPolicy: 'no-referrer' }).then(function (r) { return r.json(); })
+        .then(function (v) { CODE = v && v.found && /^[a-z0-9]{4,12}$/.test(String(v.code || '')) ? String(v.code).toLowerCase() : '-'; load(); }).catch(function () { CODE = '-'; load(); });
+      return;
+    }
     if (!/^[a-z0-9]{4,12}$/.test(CODE)) { empty(); return; }
     if (!meId() && TRIES < 30) { TRIES++; setTimeout(load, 300); return; }
     var none = { status: 'ok', own: false, posts: [] };
-    var pp = send('publicProfile', { p: CODE }).then(function (d) { return d && d.found ? d.data : null; }).catch(function () { return null; });
+    var pp = fetch(GS + '?action=publicProfile&p=' + encodeURIComponent(CODE) + '&t=' + Date.now(), { cache: 'no-store', referrerPolicy: 'no-referrer' }).then(function (r) { return r.json(); }).then(function (d) { return d && d.found ? d.data : null; }).catch(function () { return null; });
     var po = meId() ? send('aoPersonPosts', { p: CODE, dir: DIR }).then(function (d) { return d && d.status === 'ok' ? d : none; }).catch(function () { return none; }) : Promise.resolve(none);
     Promise.all([pp, po]).then(function (r) { $('addroot').hidden = true; $('body').hidden = false; draw(r[0], r[1]); });
   }
