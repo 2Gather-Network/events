@@ -136,7 +136,7 @@
     var m = el('div', 'font-size:14px;line-height:1.55;color:#1A2E42;background:#F7FBFF;border:1px solid #C9DFF3;border-radius:10px;padding:10px 12px;',
       'Your info helps AI suggest resources, opportunities, people, and events that fit you - such as locally or abroad. You choose, card by card, what is shown and what is used, and you can change it any time.');
     var a = el('a', 'display:inline-block;margin-top:8px;font-size:13.5px;font-weight:700;color:#fff;background:#1F699E;border-radius:20px;padding:7px 16px;text-decoration:none;', 'Info used for matching');
-    a.href = 'https://2gather.network/ikigai/?matching=1';
+    a.href = (window.cwProfileHome?window.cwProfileHome('https://2gather.network/ikigai/?matching=1'):'https://2gather.network/ikigai/?matching=1');
     m.appendChild(document.createElement('br'));
     m.appendChild(a);
     box.appendChild(m);

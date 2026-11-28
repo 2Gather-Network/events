@@ -125,7 +125,7 @@
       var GROUPS = [
         ['ACCOUNT', [
           { key: 'account',     label: 'My account' },
-          { key: 'myprofile',   label: 'My profile', url: _onBal ? '/ikigai/?step=joys' : 'https://2gather.network/ikigai/' },
+          { key: 'myprofile',   label: 'My profile', url: (window.cwProfileHome?window.cwProfileHome(_onBal ? '/ikigai/?step=joys' : 'https://2gather.network/ikigai/'):_onBal ? '/ikigai/?step=joys' : 'https://2gather.network/ikigai/') },
           { key: 'permissions', label: 'Global permissions' }
         ]]
       ];
@@ -181,7 +181,7 @@
 
     var list = document.createElement('div'); list.className = 'cw-prail-list';
     var items = [
-      { key: 'profile', label: 'My profile', url: _onBal ? '/ikigai/?step=joys' : 'https://2gather.network/me/' },
+      { key: 'profile', label: 'My profile', url: (window.cwProfileHome?window.cwProfileHome(_onBal ? '/ikigai/?step=joys' : 'https://2gather.network/me/'):_onBal ? '/ikigai/?step=joys' : 'https://2gather.network/me/') },
       { key: 'permissions', label: 'My permissions', url: 'https://2appear.network/account/#permissions', superOnly: true },
       { key: 'account', label: 'My account', url: _onBal ? '/account/' : 'https://2gather.network/account/' },
       { key: 'support', label: 'Support', url: (_onBal ? '/support?re=' : 'https://2gather.network/support?re=') + encodeURIComponent(location.pathname) },

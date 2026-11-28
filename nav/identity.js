@@ -471,6 +471,19 @@
       });
   }
 
+  var PROFILE_HOME_ON = false;
+  w.cwProfileHome = function (old) {
+    return ls(function () {
+      if (!(PROFILE_HOME_ON || w.localStorage.getItem('cw-profile-home-test') === '1')) { return old; }
+      var base = /(^|\.)2appear\.network$/i.test(w.location.hostname || '') ? '' : 'https://2gather.network';
+      var mine = normalise(w.localStorage.getItem('cw-id') || w.localStorage.getItem('appear-id') || '');
+      var v = w.localStorage.getItem('cw-vanity') || '', f = normalise(w.localStorage.getItem('cw-vanity-for') || '');
+      if (w.CW && w.CW.realMe && w.CW.me && normalise(w.CW.realMe().id) !== normalise(w.CW.me().id)) { return base + '/me/?mine=1'; }
+      if (v && f && f === mine) { return base + '/hi/' + encodeURIComponent(v); }
+      return base + '/me/?mine=1';
+    }, old);
+  };
+
   (function jumpOrRemember() {
     var SERVICE = 'https://cw-carry.jessieupp.workers.dev';
     var WAIT_MS = 30 * 60 * 1000, PENDING_MS = 9 * 60 * 1000, RETRY_MS = 10 * 60 * 1000;
