@@ -345,6 +345,8 @@
   @keyframes bm-breathe{0%,100%{opacity:1}50%{opacity:.62}}
   .circles{display:inline-block;width:22px;height:15px;margin-right:6px;vertical-align:-2px;}
   .circles svg{width:100%;height:100%;fill:none;stroke:#1F699E;stroke-width:2;}
+  .howedit{color:#1F699E;font-weight:700;text-decoration:none;cursor:pointer;}
+  .howedit:hover{text-decoration:underline;}
   .grpic{display:inline-block;width:17px;height:17px;margin-right:6px;vertical-align:-3px;}
   .grpic svg{width:100%;height:100%;fill:none;stroke:#1F699E;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
   .bubble{width:40px;height:40px;border-radius:50%;border:1.5px solid #1F699E;background:#fff;display:inline-flex;align-items:center;justify-content:center;flex:none;}
@@ -765,16 +767,27 @@
       }
       var how = howLine(c);
       if (how) { var hl = document.createElement('div'); hl.className = 'line'; hl.textContent = how; who.appendChild(hl); }
+      else if (!c.archived) { var hw = document.createElement('a'); hw.href = '#'; hw.className = 'howedit'; hw.textContent = 'Edit to share how we met'; hw.onclick = function (ev) { ev.preventDefault(); ev.stopPropagation(); openForm(c); }; var hwl = document.createElement('div'); hwl.className = 'line'; hwl.appendChild(hw); who.appendChild(hwl); }
       var gn = []; (c.person ? (c.groupIds || []) : []).forEach(function (gid) { var g = GROUPS.filter(function (x) { return x.groupId === gid; })[0]; if (g && g.name && gn.indexOf(g.name) < 0) { gn.push(g.name); } });
       var cints = (c.person && Array.isArray(c.interests)) ? c.interests : [];
-      if (gn.length || cints.length) {
+      if (gn.length) {
         var gl = document.createElement('div'); gl.className = 'line';
         var ci = document.createElement('span'); ci.className = 'grpic';
         ci.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21l16-4"/><path d="M20 21l-16-4"/><path d="M12 15a4 4 0 0 0 4-4c0-3-2-3-2-8c-4 2-6 5-6 8a4 4 0 0 0 4 4z"/></svg>';
         gl.appendChild(ci);
-        var gb = document.createElement('b'); gb.textContent = bmCommon({ groups: gn, interests: cints }) + ':'; gl.appendChild(gb);
-        gl.appendChild(document.createTextNode(' ' + gn.concat(cints).join(' / ')));
+        var gb = document.createElement('b'); gb.textContent = gn.length + (gn.length === 1 ? ' group' : ' groups') + ' in common:'; gl.appendChild(gb);
+        gl.appendChild(document.createTextNode(' ' + gn.join(' / ')));
         who.appendChild(gl);
+      }
+      if (cints.length) {
+        var il2 = document.createElement('div'); il2.className = 'line';
+        var ib2 = document.createElement('b'); ib2.textContent = cints.length + (cints.length === 1 ? ' interest' : ' interests') + ' in common:'; il2.appendChild(ib2);
+        cints.forEach(function (raw, i) {
+          var parts = String(raw).split(':'), nm = String(parts[0] || '').trim(), cat = String(parts[1] || '').trim();
+          il2.appendChild(document.createTextNode((i ? ' / ' : ' ') + nm));
+          if (cat) { var ie = document.createElement('span'); ie.className = 'cat-ic'; ie.setAttribute('data-cat', cat); ie.title = cat; ie.setAttribute('aria-label', cat); il2.appendChild(ie); }
+        });
+        who.appendChild(il2); catIcons();
       }
       var nt0 = String(c.notes || '').replace(/\s+/g, ' ').trim();
       if (nt0) { var nl0 = document.createElement('div'); nl0.className = 'line'; nl0.textContent = 'Note: ' + (nt0.length > 200 ? nt0.slice(0, 200) + '\u2026' : nt0); who.appendChild(nl0); }
@@ -2480,6 +2493,13 @@
     if (!isNaN(d.getTime())) { var mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; when = d.getDate() + ' ' + mo[d.getMonth()] + ' ' + d.getFullYear(); }
     if (!where && !when) { return ''; }
     return 'Bookmarked' + (where ? ' ' + where : '') + (when ? ' on ' + when : '');
+  }
+  var CAT_EMOJI = null;
+  function catIcons() {
+    var fill = function () { Array.prototype.forEach.call(document.querySelectorAll('.cat-ic[data-cat]'), function (x) { var e = CAT_EMOJI[String(x.getAttribute('data-cat')).toLowerCase()]; x.textContent = e ? ' ' + e : ''; }); };
+    if (CAT_EMOJI) { fill(); return; }
+    CAT_EMOJI = {};
+    fetch(GS_URL + '?action=getReferenceData', { referrerPolicy: 'no-referrer' }).then(function (r) { return r.json(); }).then(function (d) { (d.topicCategories || []).forEach(function (c) { if (c && c.label && c.emoji) { CAT_EMOJI[String(c.label).toLowerCase()] = String(c.emoji); } }); fill(); }).catch(function () {});
   }
   function bmCommon(p) {
     var g = ((p && p.groups) || []).length, i = ((p && p.interests) || []).length, parts = [];
