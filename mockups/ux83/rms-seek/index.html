@@ -77,11 +77,12 @@
   function initials(n) { var p = String(n || '').trim().split(/\s+/).filter(String); return ((p[0] || '?').charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : '')).toUpperCase(); }
 
   var q = new URLSearchParams(location.search);
+  var PM = String(location.pathname).match(/\/hi\/([a-z0-9-]{2,60})\/(seeking|offering)\/?$/i);
   var CODE = String(q.get('p') || '').trim().toLowerCase();
-  var KIND = String(q.get('k') || 'seeking') === 'offering' ? 'offering' : 'seeking';
+  var KIND = (PM ? PM[2].toLowerCase() : String(q.get('k') || 'seeking')) === 'offering' ? 'offering' : 'seeking';
   var DIR = KIND === 'offering' ? 'offer' : 'seek';
   var WORD = KIND === 'offering' ? 'Offering' : 'Seeking';
-  function addr(k) { return location.pathname + (SLUG && CODE.length > 1 && q.get('n') ? '?n=' + encodeURIComponent(SLUG) : '?p=' + encodeURIComponent(CODE)) + '&k=' + k; }
+  function addr(k) { if (PM) { return String(location.pathname).replace(/\/(seeking|offering)\/?$/i, '/' + k); } return location.pathname + (SLUG && CODE.length > 1 && q.get('n') ? '?n=' + encodeURIComponent(SLUG) : '?p=' + encodeURIComponent(CODE)) + '&k=' + k; }
 
   function empty() { $('wait').hidden = true; $('pane').hidden = false; $('title').textContent = 'Nothing here yet.'; $('body').hidden = true; $('tabs').hidden = true; $('crumb').innerHTML = ''; }
 
@@ -126,11 +127,11 @@
   }
 
   var TRIES = 0;
-  var SLUG = String(q.get('n') || '').trim().toLowerCase();
+  var SLUG = PM ? PM[1].toLowerCase() : String(q.get('n') || '').trim().toLowerCase();
   function load() {
     if (!CODE && /^[a-z0-9-]{2,60}$/.test(SLUG)) {
       fetch(GS + '?action=vanity&slug=' + encodeURIComponent(SLUG) + '&t=' + Date.now(), { cache: 'no-store', referrerPolicy: 'no-referrer' }).then(function (r) { return r.json(); })
-        .then(function (v) { CODE = v && v.found && /^[a-z0-9]{4,12}$/.test(String(v.code || '')) ? String(v.code).toLowerCase() : '-'; load(); }).catch(function () { CODE = '-'; load(); });
+        .then(function (v) { CODE = v && v.found && /^[a-z0-9]{4,12}$/.test(String(v.code || '')) ? String(v.code).toLowerCase() : (/^[a-z0-9]{6}$/.test(SLUG) ? SLUG : '-'); load(); }).catch(function () { CODE = /^[a-z0-9]{6}$/.test(SLUG) ? SLUG : '-'; load(); });
       return;
     }
     if (!/^[a-z0-9]{4,12}$/.test(CODE)) { empty(); return; }
