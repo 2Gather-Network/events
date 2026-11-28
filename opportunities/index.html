@@ -253,7 +253,9 @@ label.cw-lp{display:inline-flex;align-items:center;gap:8px;box-sizing:border-box
   function loadCats() { if (S.cats) return; S.cats = []; fetch(GS_URL + '?action=getCategories', { cache: 'no-store', referrerPolicy: 'no-referrer' }).then(function (r) { return r.json(); }).then(function (j) { S.cats = (j && j.categories) || []; if (!S.ans.cat && S.cats.length) S.ans.cat = S.cats[0].label; draw(); }).catch(function () {}); }
   function niceTitle(t) { return String(t || '').replace(/^(I'm (?:offering|seeking)) (?:a thing|a skill or service|a place|an experience|a job|a project): /i, '$1: ').replace(/(?:, | - )to (?=[a-z])/, ' to '); }
   function shortTitle(t) { var x = niceTitle(t).replace(/^I'm (?:offering|seeking): /i, ''); x = x.split(/ to (?=[a-z])| because |, |\.$/)[0].replace(/\.$/, '').trim(); return x ? x.charAt(0).toUpperCase() + x.slice(1) : 'Opportunity'; }
-  function crumb(mid, now) { return '<div class="cw-breadcrumb"><a href="https://2appear.network/dashboard/">Dashboard</a> / ' + (mid || now !== 'Opportunities' ? '<a href="/opportunities/">Opportunities</a> / ' : '') + (mid ? esc(mid) + ' / ' : '') + '<span class="now">' + esc(now) + '</span></div>'; }
+  function fromDash() { try { return /\/dashboard\//.test(document.referrer) || sessionStorage.getItem('ao-from-dash') === '1'; } catch (e) { return false; } }
+  try { if (/\/dashboard\//.test(document.referrer) || new URLSearchParams(location.search).get('from') === 'dashboard') sessionStorage.setItem('ao-from-dash', '1'); } catch (e) {}
+  function crumb(mid, now) { return '<div class="cw-breadcrumb">' + (fromDash() ? '<a href="https://2appear.network/dashboard/">Dashboard</a> / ' : '') + (mid || now !== 'Opportunities' ? '<a href="/opportunities/">Opportunities</a> / ' : '') + (mid ? esc(mid) + ' / ' : '') + '<span class="now">' + esc(now) + '</span></div>'; }
   var IC = {
     need: '<path d="M4 12v8h16v-8"/><path d="M12 3v11"/><path d="M8 10l4 4 4-4"/>',
     offer: '<path d="M4 15v4h16v-4"/><path d="M12 15V4"/><path d="M8 8l4-4 4 4"/>',
@@ -402,7 +404,7 @@ label.cw-lp{display:inline-flex;align-items:center;gap:8px;box-sizing:border-box
       var nm = named ? String(p.poster.name || '').trim() || 'Someone' : 'Someone on 2Appear';
       var where = named && p.poster.group ? 'In ' + p.poster.group + ' with you' : named && p.poster.event ? 'At ' + p.poster.event + ' with you' : '';
       var p6 = sort6(prs.map(function (r) { return r.text; }));
-      rows.push({ cats: p6.cats, hay: (nm + ' ' + (p.title || '') + ' ' + prs.map(function (r) { return r.word; }).join(' ')).toLowerCase(), html: '<div class="mp-row">' + photo(nm, named ? p.poster.photo : '', !named) + '<div class="mp-body"><div class="mp-name">' + esc(nm) + '</div>' + (where ? '<div class="mp-where">' + esc(where) + '</div>' : '') + '<div class="mp-where">' + esc(niceTitle(p.title)) + '</div>' + (p.place ? '<div class="mp-where">' + esc(p.place) + '</div>' : '') + p6.html + '</div><div class="mp-actions"><a class="mp-btn primary" data-act="openpost" data-id="' + esc(p.postId) + '">Open</a></div></div>' });
+      rows.push({ cats: p6.cats, hay: (nm + ' ' + (p.title || '') + ' ' + prs.map(function (r) { return r.word; }).join(' ')).toLowerCase(), html: '<div class="mp-row">' + photo(nm, named ? p.poster.photo : '', !named) + '<div class="mp-body"><div class="mp-name">' + esc(nm) + (named && p.poster.staff ? '<span title="Shown to you as support" aria-label="Shown to you as support" style="font-size:12px;margin-left:4px">\u2B50</span>' : '') + '</div>' + (where ? '<div class="mp-where">' + esc(where) + '</div>' : '') + '<div class="mp-where">' + esc(niceTitle(p.title)) + '</div>' + (p.place ? '<div class="mp-where">' + esc(p.place) + '</div>' : '') + p6.html + '</div><div class="mp-actions"><a class="mp-btn primary" data-act="openpost" data-id="' + esc(p.postId) + '">Open</a></div></div>' });
     });
     var total = rows.length, list = rows.filter(function (r) { return (!q || r.hay.indexOf(q) > -1) && (!S.statOf || (r.cats && r.cats[S.statOf])); });
     if (!total) return out + (d.needTopics ? '' : '<p class="cw-statement">No matches yet.</p>');
@@ -428,7 +430,7 @@ label.cw-lp{display:inline-flex;align-items:center;gap:8px;box-sizing:border-box
   function post() {
     var p = S.post;
     if (!p) return crumb('', S.postTitle || 'Opportunity') + '<div class="cw-card">' + (S.note ? '<div class="cw-status info">' + esc(S.note) + '</div>' : '<span class="cw-savestat">Loading information...</span>') + '</div>' + back();
-    var h = crumb('', shortTitle(p.title)) + '<div class="cw-card"><h1 style="font-size:24px;margin:8px 0 2px">' + esc(shortTitle(p.title)) + '</h1>' + (p.place || p.poster ? '<p class="cw-savestat" style="margin:0 0 14px">' + (p.poster ? 'Shared by ' + esc(p.poster.name) + (p.poster.known ? ', someone you know. ' : (p.poster.group ? ', in ' + esc(p.poster.group) + ' with you. ' : ', at ' + esc(p.poster.event) + ' with you. ')) : '') + esc(p.place || '') + '</p>' : '');
+    var h = crumb('', shortTitle(p.title)) + '<div class="cw-card"><h1 style="font-size:24px;margin:8px 0 2px">' + esc(shortTitle(p.title)) + '</h1>' + (p.place || p.poster ? '<p class="cw-savestat" style="margin:0 0 14px">' + (p.poster ? 'Shared by ' + esc(p.poster.name) + (p.poster.staff ? '<span title="Shown to you as support" aria-label="Shown to you as support" style="font-size:12px;margin-left:4px">\u2B50</span>' + '. ' : p.poster.known ? ', someone you know. ' : (p.poster.group ? ', in ' + esc(p.poster.group) + ' with you. ' : '. ')) : '') + esc(p.place || '') + '</p>' : '');
     var mt = (p.reasons || []).map(function (r) {
       var w = String(r.word || ''), t = r.type;
       if (t === 'need') return p.dir === 'Offered' ? 'You\u2019re seeking ' + w + '. They\u2019re offering it.' : 'They\u2019re seeking ' + w + '. You\u2019re offering it.';
@@ -493,13 +495,13 @@ label.cw-lp{display:inline-flex;align-items:center;gap:8px;box-sizing:border-box
     if (!S.gposts.length) h += '<p class="cw-pq">Nothing shared in this group yet</p>';
     S.gposts.forEach(function (p) {
       var r = (p.reasons || [])[0];
-      h += '<div class="person" data-act="openpost" data-id="' + esc(p.postId) + '" style="cursor:pointer;grid-template-columns:1fr"><div>' + (p.poster ? '<h3 style="margin:0 0 4px">' + esc(p.poster.name) + '</h3>' : '') + '<div class="tag"><span class="cw-chip">' + esc(p.dir) + '</span><span class="cw-chip">' + esc(p.kind) + '</span><span class="cw-chip">' + esc(p.ex) + '</span></div><h3>' + esc(niceTitle(p.title)) + '</h3>' + (r ? '<ul><li style="--c:' + (DOT[r.type] || '#C9D3DE') + '">' + esc(r.text) + '</li></ul>' : '') + (p.poster || p.isMine ? '' : '<p class="cw-savestat" style="margin:6px 0 0">Name and photo show when you both say yes.</p>') + '</div></div>';
+      h += '<div class="person" data-act="openpost" data-id="' + esc(p.postId) + '" style="cursor:pointer;grid-template-columns:1fr"><div>' + (p.poster ? '<h3 style="margin:0 0 4px">' + esc(p.poster.name) + (p.poster.staff ? '<span title="Shown to you as support" aria-label="Shown to you as support" style="font-size:12px;margin-left:4px">\u2B50</span>' : '') + '</h3>' : '') + '<div class="tag"><span class="cw-chip">' + esc(p.dir) + '</span><span class="cw-chip">' + esc(p.kind) + '</span><span class="cw-chip">' + esc(p.ex) + '</span></div><h3>' + esc(niceTitle(p.title)) + '</h3>' + (r ? '<ul><li style="--c:' + (DOT[r.type] || '#C9D3DE') + '">' + esc(r.text) + '</li></ul>' : '') + (p.poster || p.isMine ? '' : '<p class="cw-savestat" style="margin:6px 0 0">Name and photo show when you both say yes.</p>') + '</div></div>';
     });
     return h + '<div class="row"><a class="cw-btn solid sm" data-act="share">Share an opportunity</a></div></div>';
   }
   function personView() {
     var P = S.person || {}, seek = P.dir === 'seek', own = !!(P.data && P.data.own), word = seek ? 'seeking' : 'offering';
-    var head = own ? 'What I\u2019m ' + word : (P.data && P.data.name ? esc(P.data.name) + ' is ' + word : (seek ? 'Seeking' : 'Offering'));
+    var head = own ? 'What I\u2019m ' + word : (P.data && P.data.name ? esc(P.data.name) + (P.data.staff ? '<span title="Shown to you as support" aria-label="Shown to you as support" style="font-size:12px;margin-left:4px">\u2B50</span>' : '') + ' is ' + word : (seek ? 'Seeking' : 'Offering'));
     var h = crumb('', own ? 'My ' + word : (seek ? 'Seeking' : 'Offering')) + '<div class="cw-card"><h2 style="margin:0 0 12px;font-size:22px;font-weight:800">' + head + '</h2>';
     if (!P.data) return h + '<span class="cw-savestat">Loading information...</span></div>';
     var list = P.data.posts || [];
@@ -508,7 +510,7 @@ label.cw-lp{display:inline-flex;align-items:center;gap:8px;box-sizing:border-box
       var tag = x.state === 'draft' ? 'Not published' : x.state === 'private' ? 'Hidden from others' : x.state === 'closed' ? 'Closed' : '';
       h += '<div class="person" style="grid-template-columns:1fr"><div><div class="tag">' + (x.kind ? '<span class="cw-chip">' + esc(x.kind) + '</span>' : '') + (x.category ? '<span class="cw-chip">' + esc(x.category) + '</span>' : '') + (tag ? '<span class="cw-chip">' + tag + '</span>' : '') + '</div><h3>' + esc(niceTitle(x.title)) + '</h3>' + (x.line ? '<p class="cw-savestat" style="margin:4px 0 0">' + esc(x.line) + '</p>' : '') + '</div></div>';
     });
-    if (own) h += '<div class="row"><a class="cw-btn solid sm" data-act="addme" data-v="' + (seek ? 'Seeking it' : 'Offering it') + '">Add new</a><a class="cw-btn ghost sm" data-act="mine">Edit</a><a class="cw-btn ghost sm" data-act="copylink">' + (S.copied ? 'Link copied' : 'Copy link to share') + '</a></div>';
+    if (own) h += '<div class="row"><a class="cw-btn solid sm" data-act="addme" data-v="' + (seek ? 'Seeking it' : 'Offering it') + '">Add new</a>' + (list.length ? '<a class="cw-btn ghost sm" data-act="mine">Edit</a><a class="cw-btn ghost sm" data-act="copylink">' + (S.copied ? 'Link copied' : 'Copy link to share') + '</a>' : '') + '</div>';
     return h + '</div>' + back();
   }
   function openPerson(code, dir) {
