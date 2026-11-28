@@ -340,5 +340,6 @@
       screen: function () { return P.screen; }
     };
   }
-  window.CWAdd = { start: start };
+  function fromHash(h) { var m = String(h == null ? location.hash : h).match(/^#(offer|seek)$/); return m ? { dir: m[1] } : null; }
+  window.CWAdd = { start: start, fromHash: fromHash };
 })();
