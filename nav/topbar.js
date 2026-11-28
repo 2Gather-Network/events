@@ -532,11 +532,14 @@
         mine += anchor('My profile', myProfileUrl(), 'cwtb-item');
         mine += anchor('My groups',   carryLink('https://2appear.network/mygroups/'), 'cwtb-item');
         mine += anchor('My network',  carryLink('https://2appear.network/network/contacts/'),  'cwtb-item');
+        mine += anchor('My opportunities', carryLink('https://2appear.network/opportunities/'), 'cwtb-item');
         mine += anchor('My events',   '/myevents/', 'cwtb-item');
-        mine += anchor('Calendar',    '/events/', 'cwtb-item');
-        mine += anchor('Account',     '/account/', 'cwtb-item');
-        mine += anchor('Support',     '/support/', 'cwtb-item');
-        mine += superLine(); mine += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
+        var more = anchor('Calendar',    '/events/', 'cwtb-item');
+        more += anchor('Account',     '/account/', 'cwtb-item');
+        more += anchor('Support',     '/support/', 'cwtb-item');
+        more += superLine(); more += '<a role="link" tabindex="0" class="cwtb-item" data-signout="1">Sign out</a>';
+        mine += '<a role="button" tabindex="0" class="cwtb-item" data-sub="more" aria-expanded="false" aria-label="More">\u22EF</a>' +
+                '<div class="cwtb-sub" data-subof="more" hidden>' + more + '</div>';
         return mine;
       }
       if ((window.location.hostname || '').toLowerCase().indexOf('2gather.network') > -1) {
