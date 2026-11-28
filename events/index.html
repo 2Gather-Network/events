@@ -3361,12 +3361,14 @@ function locPick(level, value) {
     el.value = value; onWhereCountry();
   } else if (level === "state") {
     el.value = value; onWhereState();
+    try { localStorage.removeItem("db-state-cleared"); } catch (e) {}
   } else {
     el.value = value; onWhereCounty();
   }
   _locRecalc();
 }
 function locClear(level) {
+  if (level === "state" || level === "country") { try { localStorage.setItem("db-state-cleared", "1"); } catch (e) {} }
   var set = function (id, v) { var e = document.getElementById(id); if (e) { e.value = v; } };
   if (level === "county") { set("where-county", ""); }
   else if (level === "state") { set("where-state", ""); set("where-county", ""); }
@@ -7685,6 +7687,31 @@ try {
     }
   }
 } catch(e){}
+(function () {
+  var tries = 0;
+  function ask() {
+    try {
+      if (localStorage.getItem("db-state-cleared") === "1") return;
+      if (String(localStorage.getItem(LOC_STATE_KEY) || "").trim() || _stateCookieGet()) return;
+      var me = (typeof getRealMemberId === "function" && getRealMemberId()) || "";
+      if (!me && tries++ < 10) { setTimeout(ask, 500); return; }
+      if (!me || isViewingSomeoneElse()) return;
+      var t = localStorage.getItem("cw-token") || "";
+      if (!t) return;
+      fetch(GS_URL + "?action=getMyHomeState&appearId=" + encodeURIComponent(me) + "&meToken=" + encodeURIComponent(t))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var st = (d && d.status === "ok") ? String(d.state || "") : "";
+          if (!st || US_STATES.indexOf(st) < 0) return;
+          if (isViewingSomeoneElse() || String(localStorage.getItem(LOC_STATE_KEY) || "").trim() || localStorage.getItem("db-state-cleared") === "1") return;
+          locPick("country", "United States");
+          locPick("state", st);
+        })
+        .catch(function () {});
+    } catch (e) {}
+  }
+  ask();
+})();
 function _cwIsMeRow(a) {
   var n = function (v) { return String(v || "").split(".").join("").toLowerCase(); };
   var id = n(a && a.appearId); if (!id) return false;
